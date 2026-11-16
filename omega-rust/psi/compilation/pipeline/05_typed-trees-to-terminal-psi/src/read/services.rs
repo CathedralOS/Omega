@@ -72,7 +72,7 @@ pub(super) fn invocations(
     typed: &TypedTrees,
     context: MachineId,
     authored: &[AuthoredInvocation],
-    parameters: &[typed_trees::signature::StateParameter],
+    parameters: arena::RootRows<'_, typed_trees::signature::StateParameter>,
 ) -> Checked<Vec<Invocation>> {
     let mut targets = Vec::new();
     for invocation in authored {
@@ -90,7 +90,8 @@ pub(super) fn invocations(
                         "invocation permission names an erased formal",
                     ));
                 }
-                let runtime = parameters[..source]
+                let runtime = parameters
+                    .slice(0..source)
                     .iter()
                     .filter(|formal| formal.relevance == language_core::BindingRelevance::Relevant)
                     .count();
@@ -230,7 +231,7 @@ impl Program<'_> {
                     .machine_states
                     .span(machine.states)
                     .ok_or_else(|| unavailable(id, "named callable has a stale state span"))?;
-                let [state] = states else {
+                let Some([state]) = states.as_array() else {
                     return Err(unavailable(
                         id,
                         "named callable needs one exact entry state",
@@ -800,7 +801,8 @@ fn collect_statement<'a>(statement: &'a Statement, calls: &mut Vec<Use<'a>>) {
         Statement::Bind { value, .. }
         | Statement::Evaluate {
             expression: value, ..
-        } => collect_expression(value, calls),
+        }
+        | Statement::Decompose { subject: value } => collect_expression(value, calls),
         Statement::Store {
             destination, value, ..
         } => {
@@ -859,7 +861,7 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut Vec<Use<'a>>) 
             });
         }
         E::Field { base, .. }
-        | E::ArrayView { base, .. }
+        | E::CollectionView { base, .. }
         | E::CollectionMeasure { base, .. }
         | E::Establish { operand: base, .. }
         | E::Payload { base, .. }
@@ -1228,7 +1230,7 @@ impl<'t> Program<'t> {
         &mut self,
         caller: MachineId,
         rows: &[typed_trees::signature::AuthoredInvocation],
-        parameters: &[typed_trees::signature::StateParameter],
+        parameters: arena::RootRows<'_, typed_trees::signature::StateParameter>,
         bodyless: bool,
     ) -> Checked<crate::Ceiling> {
         use typed_trees::signature::AuthoredInvocationTarget as Named;

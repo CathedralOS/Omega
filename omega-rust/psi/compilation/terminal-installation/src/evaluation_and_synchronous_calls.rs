@@ -600,7 +600,6 @@ pub(crate) mod compiler_evaluation {
                     assembly_target_requirement: terminal_psi::RegisterTargetApplicability::Any,
                     id: MachineId::new(id).unwrap(),
                     attachment: None,
-                    nominal_cleanup_subject: None,
                     ranked_scc: None,
                     structural_places: Vec::new(),
                     call_formations: Vec::new(),
@@ -1608,9 +1607,7 @@ pub(crate) mod synchronous_calls {
     use std::collections::{BTreeMap, BTreeSet};
 
     use semantic_vocabulary::{BoundaryMachineId, MachineId};
-    use terminal_psi::{
-        OperationKind, TargetMachineCallable, TerminalAffineCleanupAction, TerminalModule,
-    };
+    use terminal_psi::{OperationKind, TargetMachineCallable, TerminalModule};
 
     pub struct SynchronousCallClosure<'module> {
         pub machines: Vec<&'module terminal_psi::TerminalMachine>,
@@ -1939,14 +1936,6 @@ pub(crate) mod synchronous_calls {
                         .map(|call| TargetMachineCallable::Boundary(call.boundary)),
                 );
                 for block in &body.blocks {
-                    for (_, actions) in block.terminator.cleanup_rosters() {
-                        for action in actions {
-                            if let TerminalAffineCleanupAction::InvokeNominal(cleanup) = action {
-                                pending
-                                    .push(TargetMachineCallable::Machine(cleanup.cleanup_machine));
-                            }
-                        }
-                    }
                     for operation in &block.operations {
                         if matches!(operation.kind, OperationKind::CallMachine { .. }) {
                             // Resolve code values from the original entries, so

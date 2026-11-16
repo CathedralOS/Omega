@@ -160,7 +160,7 @@ mod placement {
             Some(&application.calling_owner_application),
             None,
         )?;
-        if inbound.dispatch_only_parameter_count != 0 {
+        if inbound.dispatch_only_formal.is_some() {
             return Err("callback inbound entry cannot omit dispatch-only formals".into());
         }
         Ok((boundary, inbound))

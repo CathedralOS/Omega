@@ -1513,13 +1513,13 @@ pub mod product_operand {
         machine_symbol: SymbolHandle,
         pub name: &'program str,
         pub attached_data_symbol: SymbolHandle,
-        pub type_parameters: &'program [crate::data::TypeParameter],
+        pub type_parameters: arena::RootRows<'program, crate::data::TypeParameter>,
         pub entry: Option<ProductEntrySignature<'program>>,
     }
 
     #[derive(Clone, Copy)]
     pub struct ProductEntrySignature<'program> {
-        pub parameters: &'program [crate::signature::StateParameter],
+        pub parameters: arena::RootRows<'program, crate::signature::StateParameter>,
         pub return_type: crate::types::TypeReferenceHandle,
     }
 
@@ -1538,7 +1538,7 @@ pub mod product_operand {
             let entry_contracts = program
                 .machine_states(machine)
                 .first()
-                .map_or(&[][..], |entry| program.state_contracts(entry));
+                .map_or_else(Default::default, |entry| program.state_contracts(entry));
             if program
                 .machine_states(machine)
                 .first()

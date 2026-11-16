@@ -20,14 +20,13 @@ use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ClosedIntegerType, ClosedScalarType, EdgeId, IntegerValue,
     MachineId, ObligationId, OperationId, PlaceId, StructuralTypeId, ValueId,
 };
-use target_operations::TerminalPsiProvenance;
+use target_vocabulary::TerminalPsiProvenance;
 use terminal_psi::CrashRouteBucket;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LegalizedScalarFunction {
     pub machine: MachineId,
     pub attachment: Option<StructuralTypeId>,
-    pub nominal_cleanup_subject: Option<StructuralTypeId>, // Exact owner-designated cleanup subject, independent of attachment or call sites.
     pub provenance: TerminalPsiProvenance,
     pub call_plan: CallPlan,
     pub parameters: Vec<LegalizedScalarParameter>,
@@ -58,6 +57,65 @@ impl LegalizedScalarFunction {
 
     pub fn instructions(&self) -> impl Iterator<Item = &LegalizedScalarInstruction> + '_ {
         self.blocks.iter().flat_map(|block| &block.instructions)
+    }
+
+    /// Every closed scalar type the function states: its parameters, block
+    /// arrivals, case payloads, instruction results, the operand types its
+    /// instructions carry, and its returned values. Preparation closed each
+    /// one against the accepted module; a validator walks them to check that
+    /// they still belong to it.
+    pub fn visit_closed_types(&self, mut visit: impl FnMut(ClosedScalarType)) {
+        self.parameters
+            .iter()
+            .for_each(|parameter| visit(parameter.scalar_type));
+        for block in &self.blocks {
+            block
+                .parameters
+                .iter()
+                .for_each(|parameter| visit(parameter.scalar_type));
+            for instruction in &block.instructions {
+                if let Some(result) = &instruction.result {
+                    visit(result.scalar_type);
+                }
+                match &instruction.kind {
+                    LegalizedScalarInstructionKind::AtomicAccess { scalar_type, .. }
+                    | LegalizedScalarInstructionKind::IntegerWiden {
+                        source_type: scalar_type,
+                        ..
+                    }
+                    | LegalizedScalarInstructionKind::IntegerExactCast {
+                        source_type: scalar_type,
+                        ..
+                    } => visit(ClosedScalarType::Integer(*scalar_type)),
+                    LegalizedScalarInstructionKind::ScalarRepresentationView {
+                        source_type,
+                        ..
+                    } => visit(*source_type),
+                    LegalizedScalarInstructionKind::Compare {
+                        operand_type,
+                        right_operand_type,
+                        ..
+                    } => {
+                        visit(*operand_type);
+                        visit(*right_operand_type);
+                    }
+                    _ => {}
+                }
+            }
+            match &block.terminator {
+                LegalizedScalarTerminator::Return(returned)
+                | LegalizedScalarTerminator::ReturnCleanup { returned, .. } => {
+                    if let LegalizedScalarReturnValue::Value { scalar_type, .. } = returned.value {
+                        visit(scalar_type);
+                    }
+                }
+                LegalizedScalarTerminator::StructuralCase { cases, .. } => cases
+                    .iter()
+                    .flat_map(|case| &case.payloads)
+                    .for_each(|payload| visit(payload.parameter.scalar_type)),
+                _ => {}
+            }
+        }
     }
 
     pub fn block_parameters(&self) -> impl Iterator<Item = &LegalizedValueDefinition> + '_ {
@@ -288,6 +346,7 @@ impl LegalizedScalarInstruction {
             | LegalizedScalarInstructionKind::SelectMachine { .. }
             | LegalizedScalarInstructionKind::EstablishStructuralArray { .. }
             | LegalizedScalarInstructionKind::Constant(_)
+            | LegalizedScalarInstructionKind::DecomposeStructuralValue { .. }
             | LegalizedScalarInstructionKind::EstablishTrivialAffineLocal { .. }
             | LegalizedScalarInstructionKind::EstablishZeroedStructural { .. }
             | LegalizedScalarInstructionKind::EstablishStructuralLocal { .. }
@@ -524,7 +583,7 @@ pub enum LegalizedScalarInstructionKind {
     },
     AccessorScalarAccess {
         boundary: semantic_vocabulary::BoundaryMachineId,
-        realization: target_operations::AccessorScalarAccessRealization,
+        realization: target_vocabulary::AccessorScalarAccessRealization,
         location: terminal_psi::StructuralArgument,
         indices: Vec<LegalizedRuntimeIndexOperand>,
         operand: Option<ValueId>,
@@ -567,7 +626,7 @@ pub enum LegalizedScalarInstructionKind {
     },
     NearestIeeeFloatArithmetic {
         boundary: semantic_vocabulary::BoundaryMachineId,
-        realization: target_operations::NearestIeeeFloatArithmeticRealization,
+        realization: target_vocabulary::NearestIeeeFloatArithmeticRealization,
         arguments: Vec<ValueId>,
     },
     EstablishByteSequenceConcatenation {
@@ -695,7 +754,7 @@ pub enum LegalizedScalarInstructionKind {
         tag_byte_offset: u32,
         indices: Vec<LegalizedRuntimeIndexOperand>,
         /// Pointer words the target membership row already recorded.
-        pointer_slots: Vec<target_operations::TargetCasePointerSlot>,
+        pointer_slots: Vec<target_vocabulary::TargetCasePointerSlot>,
     },
     StructuralLeafCopy {
         result: terminal_psi::StructuralOperationResult,
@@ -713,6 +772,10 @@ pub enum LegalizedScalarInstructionKind {
         byte_offset: u32,
         shape: calling_conventions::ValueShape,
         indices: Vec<LegalizedRuntimeIndexOperand>, // Resolved operands for `RuntimeIndex` segments in path order.
+    },
+    /// A checked custody partition; selection emits no machine instruction.
+    DecomposeStructuralValue {
+        subject: terminal_psi::StructuralArgument,
     },
     EstablishTrivialAffineLocal {
         place: terminal_psi::StructuralPlaceDeclaration,
@@ -733,6 +796,9 @@ pub enum LegalizedScalarInstructionKind {
     },
     HostedWriteByteI32 {
         boundary: semantic_vocabulary::BoundaryMachineId,
+        /// Who performs the write: the admitted provider or the compiler's
+        /// built-in host byte output. Emission publishes it with the settlement.
+        execution: target_vocabulary::BoundaryExecutionBinding,
         source: ValueId,
     },
     StructuralScalarFieldStore {
@@ -993,11 +1059,11 @@ impl LegalizedScalarInstructionKind {
             Self::Call(call) => call.structural_result.as_ref(),
             Self::AtomicAccess { outcome, .. } => outcome.as_ref().map(|(result, _)| result),
             Self::NormalizedForeignCall(call) => match &call.result {
-                target_operations::TargetBoundaryResult::Structural(home) => {
+                target_vocabulary::TargetBoundaryResult::Structural(home) => {
                     home.operation_result().map(|(_, result)| result)
                 }
-                target_operations::TargetBoundaryResult::Unit
-                | target_operations::TargetBoundaryResult::Scalar(_) => None,
+                target_vocabulary::TargetBoundaryResult::Unit
+                | target_vocabulary::TargetBoundaryResult::Scalar(_) => None,
             },
             Self::ReleaseActivationClaim { .. }
             | Self::InstallStaticInterrupt { .. }
@@ -1029,6 +1095,7 @@ impl LegalizedScalarInstructionKind {
             | Self::StructuralByteSequenceFieldByteStore { .. }
             | Self::StructuralCaseMembership { .. }
             | Self::StoreStructuralField { .. }
+            | Self::DecomposeStructuralValue { .. }
             | Self::EstablishTrivialAffineLocal { .. }
             | Self::WriteOnlyPrimitiveStore { .. }
             | Self::HostedWriteByteI32 { .. }
@@ -1134,8 +1201,8 @@ mod structural_result_tests {
         let mut call = LegalizedScalarCall {
             descriptor_origins: Vec::new(),
             access_bindings: Vec::new(),
-            source: target_operations::NativeCallOrigin::Authored,
-            target: target_operations::NativeCallTarget::Machine(MachineId::new(1).unwrap()),
+            source: target_vocabulary::NativeCallOrigin::Authored,
+            target: target_vocabulary::NativeCallTarget::Machine(MachineId::new(1).unwrap()),
             call_plan: evaluate_call_plan(
                 CallingPolicy::Aapcs64,
                 &CallSignature {
@@ -1210,7 +1277,7 @@ impl LegalizedRuntimeIndexOperand {
     /// Compares the selector's semantic identity, geometry and proof key across
     /// the target handoff. The target operand's ABI location is checked by its
     /// own source-correspondence rules, not by this semantic comparison.
-    pub fn matches_target(&self, target: &target_operations::TargetStructuralRuntimeIndex) -> bool {
+    pub fn matches_target(&self, target: &target_vocabulary::TargetStructuralRuntimeIndex) -> bool {
         self.operand.value == target.operand.source_value()
             && self.operand.scalar_type == target.operand.scalar_type()
             && self.stride == target.stride
@@ -1232,7 +1299,7 @@ pub struct LegalizedScalarSuccessor {
     pub bindings: Vec<ValueBinding>,
     pub structural_bindings: Vec<LegalizedStructuralBinding>,
     pub work: Vec<WorkSettlement>,
-    pub cleanup_calls: Vec<(target_operations::CallSiteOwner, LegalizedScalarCall)>, // Ordinary calls owned by this edge, executed before successor binding.
+    pub cleanup_calls: Vec<(target_vocabulary::CallSiteOwner, LegalizedScalarCall)>, // Ordinary calls owned by this edge, executed before successor binding.
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1273,7 +1340,7 @@ impl LegalizedStructuralCaseSource {
 }
 
 /// Pointer word carried forward from the target operation that projected it.
-pub type LegalizedCasePointerSlot = target_operations::TargetCasePointerSlot;
+pub type LegalizedCasePointerSlot = target_vocabulary::TargetCasePointerSlot;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LegalizedScalarTerminator {
@@ -1297,8 +1364,8 @@ pub enum LegalizedScalarTerminator {
         psi_edge: EdgeId,
         boundary: BoundaryMachineId,
         kind: semantic_vocabulary::ExternalCompletionKind,
-        arguments: Vec<target_operations::TargetUnitScalarCallArgument>,
-        binding: target_operations::ExternalCompletionBinding,
+        arguments: Vec<target_vocabulary::TargetUnitScalarCallArgument>,
+        binding: target_vocabulary::ExternalCompletionBinding,
         structural_arguments: Vec<terminal_psi::StructuralArgument>,
         requirement_obligations: Vec<ObligationId>,
         frontier_lower_bound: Vec<semantic_vocabulary::ClaimId>,
@@ -1329,7 +1396,7 @@ pub enum LegalizedScalarTerminator {
         /// not `layout.shape.byte_size` when the sum is a field of a larger
         /// pointed-to record. Selection borrows the chase and reads the size
         /// only for that borrowed dispatch.
-        pointer_slots: Vec<target_operations::TargetCasePointerSlot>,
+        pointer_slots: Vec<target_vocabulary::TargetCasePointerSlot>,
         region_byte_size: u32,
         cases: Vec<super::LegalizedStructuralCaseSuccessor>,
         effect: EffectLink,
@@ -1338,7 +1405,7 @@ pub enum LegalizedScalarTerminator {
     Return(LegalizedScalarReturn),
     ReturnCleanup {
         returned: LegalizedScalarReturn,
-        calls: Vec<(target_operations::CallSiteOwner, LegalizedScalarCall)>,
+        calls: Vec<(target_vocabulary::CallSiteOwner, LegalizedScalarCall)>,
     },
     Jump {
         successor: LegalizedScalarSuccessor,
@@ -1358,7 +1425,7 @@ impl LegalizedScalarTerminator {
     pub fn checked_completion_call(&self) -> Option<LegalizedScalarCall> {
         let Self::ExternalCompletion {
             binding:
-                target_operations::ExternalCompletionBinding::Checked {
+                target_vocabulary::ExternalCompletionBinding::Checked {
                     callee,
                     origin,
                     call_plan,
@@ -1374,7 +1441,7 @@ impl LegalizedScalarTerminator {
             descriptor_origins: Vec::new(),
             access_bindings: Vec::new(),
             source: origin.clone(),
-            target: target_operations::NativeCallTarget::Machine(*callee),
+            target: target_vocabulary::NativeCallTarget::Machine(*callee),
             call_plan: call_plan.clone(),
             arguments: arguments
                 .iter()
@@ -1393,7 +1460,7 @@ impl LegalizedScalarTerminator {
 
     pub fn cleanup_calls(
         &self,
-    ) -> impl Iterator<Item = &(target_operations::CallSiteOwner, LegalizedScalarCall)> {
+    ) -> impl Iterator<Item = &(target_vocabulary::CallSiteOwner, LegalizedScalarCall)> {
         let (direct, alternative, cases) = match self {
             Self::ReturnCleanup { calls, .. } => (calls.as_slice(), &[][..], &[][..]),
             Self::Jump { successor, .. } => (successor.cleanup_calls.as_slice(), &[][..], &[][..]),
@@ -1469,14 +1536,14 @@ impl LegalizedScalarTerminator {
     }
 }
 
-pub use target_operations::TargetDescriptorOrigin as LegalizedDescriptorOrigin;
+pub use target_vocabulary::TargetDescriptorOrigin as LegalizedDescriptorOrigin;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LegalizedScalarCall {
     pub descriptor_origins: Vec<LegalizedDescriptorOrigin>, // Conservative backing union for returned descriptors.
-    pub access_bindings: Vec<target_operations::TargetAccessCallBinding>,
+    pub access_bindings: Vec<target_vocabulary::TargetAccessCallBinding>,
     pub source: crate::NativeCallOrigin,
-    pub target: target_operations::NativeCallTarget,
+    pub target: target_vocabulary::NativeCallTarget,
     pub call_plan: CallPlan,
     pub arguments: Vec<LegalizedScalarArgument>,
     pub result_placement: Option<ValuePlacement>,
@@ -1494,7 +1561,7 @@ pub enum LegalizedScalarArgument {
     },
     Structural {
         semantic: terminal_psi::StructuralArgument,
-        target: target_operations::TargetStructuralArgument,
+        target: target_vocabulary::TargetStructuralArgument,
         indices: Vec<LegalizedRuntimeIndexOperand>, // One joined row per `RuntimeIndex` segment in `semantic.path`, in path order.
     },
 }
@@ -1517,14 +1584,14 @@ impl LegalizedScalarArgument {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LegalizedNormalizedForeignCall {
     pub boundary: BoundaryMachineId,
-    pub provider_execution: target_operations::ExternalExecutionBinding,
-    pub binding: target_operations::NormalizedForeignCallBinding,
-    pub scalar_arguments: Vec<target_operations::NormalizedForeignScalarArgument>,
-    pub structural_arguments: Vec<target_operations::NormalizedForeignStructuralArgument>,
+    pub provider_execution: target_vocabulary::ExternalExecutionBinding,
+    pub binding: target_vocabulary::NormalizedForeignCallBinding,
+    pub scalar_arguments: Vec<target_vocabulary::NormalizedForeignScalarArgument>,
+    pub structural_arguments: Vec<target_vocabulary::NormalizedForeignStructuralArgument>,
     pub structural_indices: Vec<Vec<LegalizedRuntimeIndexOperand>>, // Exact bound operands, in structural argument order and then path order.
-    pub result: target_operations::TargetBoundaryResult,
-    pub callbacks: Vec<target_operations::TargetNativeCallbackArgument>,
-    pub descriptor_input: Option<target_operations::DescriptorInputGuard>, // Target producer's count guard for a descriptor-reading import.
+    pub result: target_vocabulary::TargetBoundaryResult,
+    pub callbacks: Vec<target_vocabulary::TargetNativeCallbackArgument>,
+    pub descriptor_input: Option<target_vocabulary::DescriptorInputGuard>, // Target producer's count guard for a descriptor-reading import.
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

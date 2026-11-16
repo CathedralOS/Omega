@@ -482,11 +482,11 @@ use semantic_vocabulary::{
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::TerminalMachine;
 use terminal_psi::{
-    BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt, EntryClaim, NominalAffineCleanup,
-    StructuralAccess, StructuralAffineDiscard, StructuralArgument, StructuralMultiplicity,
-    StructuralOperationResult, StructuralParameterDeclaration, StructuralPathSegment,
-    StructuralResultClaimBinding, StructuralTypeDeclaration, StructuralTypeShape,
-    TerminalAffineCleanupAction, find_structural_case,
+    BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt, EntryClaim, StructuralAccess,
+    StructuralAffineDiscard, StructuralArgument, StructuralMultiplicity, StructuralOperationResult,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralResultClaimBinding,
+    StructuralTypeDeclaration, StructuralTypeShape, TerminalAffineCleanupAction,
+    find_structural_case,
 };
 
 pub(crate) fn bind_result_claim(
@@ -635,7 +635,6 @@ pub(crate) fn commit_cleanup_action(
         StructuralRuntimePlace,
         crate::boundary::structural_inputs::case_membership::StructuralCaseContents,
     >,
-    machines: &crate::embedding::program::ProgramDeclarations<'_, TerminalMachine>,
     current_machine: &TerminalMachine,
     structural_values: &mut RuntimeRows<PlaceId, TerminalStructuralValue>,
     linear_homes: &mut RuntimeRows<PlaceId, TerminalStructuralValue>,
@@ -656,8 +655,13 @@ pub(crate) fn commit_cleanup_action(
         Option<crate::storage::reference::ReferenceReferent>,
     )>,
     action: &TerminalAffineCleanupAction,
-) -> Result<Option<(NominalAffineCleanup, TerminalStructuralValue)>, TerminalInterpretError> {
+) -> Result<(), TerminalInterpretError> {
     match action {
+        TerminalAffineCleanupAction::InvokeOwned(_) => {
+            return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                "owned cleanup requires its ordinary call transaction",
+            ));
+        }
         TerminalAffineCleanupAction::DiscardRoot(place) => {
             if place_is_claimed(live_claims, *place) {
                 return Err(TerminalInterpretError::AffineFrontierMismatch);
@@ -714,237 +718,6 @@ pub(crate) fn commit_cleanup_action(
                 *place,
             )?;
         }
-        TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
-            validate_nominal_cleanup_action(
-                structural_types,
-                structural_cases,
-                machines,
-                structural_values,
-                frontier,
-                live_claims,
-                cleanup,
-            )?;
-            let root = crate::engine::custody::verified_structural_place(
-                structural_values,
-                cleanup.place,
-            )?;
-            let value = project_structural_value(structural_types, root, &cleanup.path)?;
-            if has_live_loan(reference_referents.as_map(), &value) {
-                return Err(TerminalInterpretError::NominalCleanupHasLiveLoans {
-                    cleanup: cleanup.clone(),
-                    backing_identity: value.opaque_identity,
-                    backing_path: value.path.clone(),
-                    loan_carriers: reference_referents
-                        .iter()
-                        .filter(|(_, referent)| {
-                            referent.view.opaque_identity == value.opaque_identity
-                                && terminal_semantics::structural_paths_may_overlap(
-                                    &referent.view.path,
-                                    &value.path,
-                                )
-                        })
-                        .map(|(carrier, _)| (carrier.opaque_identity, carrier.path.clone()))
-                        .collect(),
-                    loan_carrier_homes: structural_values
-                        .iter()
-                        .filter(|(_, home)| {
-                            reference_referents.iter().any(|(carrier, referent)| {
-                                carrier.opaque_identity == home.opaque_identity
-                                    && carrier.path.starts_with(&home.path)
-                                    && referent.view.opaque_identity == value.opaque_identity
-                                    && terminal_semantics::structural_paths_may_overlap(
-                                        &referent.view.path,
-                                        &value.path,
-                                    )
-                            })
-                        })
-                        .map(|(place, home)| (*place, home.clone()))
-                        .collect(),
-                });
-            }
-            begin_nominal_cleanup(
-                structural_types,
-                structural_values,
-                structural_cases,
-                frontier,
-                live_claims,
-                cleanup,
-            )?;
-            return Ok(Some((cleanup.clone(), value)));
-        }
-    }
-    Ok(None)
-}
-
-pub(crate) fn begin_nominal_cleanup(
-    structural_types: &crate::embedding::program::ProgramDeclarations<
-        '_,
-        StructuralTypeDeclaration,
-    >,
-    values: &RuntimeRows<PlaceId, TerminalStructuralValue>,
-    structural_cases: &BTreeMap<
-        StructuralRuntimePlace,
-        crate::boundary::structural_inputs::case_membership::StructuralCaseContents,
-    >,
-    frontier: &mut BTreeSet<StructuralAffineDiscard>,
-    claims: &mut BTreeMap<ClaimId, LiveClaim>,
-    cleanup: &NominalAffineCleanup,
-) -> Result<(), TerminalInterpretError> {
-    let retains_descendants = cleanup.retains_descendants;
-    if cleanup.consumed_claims.is_empty() && !retains_descendants {
-        consume_affine_projection(
-            structural_types,
-            values,
-            structural_cases,
-            frontier,
-            &StructuralArgument {
-                place: cleanup.place,
-                path: cleanup.path.clone(),
-                access: StructuralAccess::Owned,
-            },
-        )?;
-        frontier.insert(StructuralAffineDiscard {
-            place: cleanup.place,
-            path: cleanup.path.clone(),
-            structural_type: cleanup.structural_type,
-        });
-    }
-    for claim in &cleanup.consumed_claims {
-        claims.remove(claim);
-    }
-    if retains_descendants && !cleanup.consumed_claims.is_empty() {
-        if !frontier.insert(StructuralAffineDiscard {
-            place: cleanup.place,
-            path: cleanup.path.clone(),
-            structural_type: cleanup.structural_type,
-        }) {
-            return Err(TerminalInterpretError::AffineFrontierMismatch);
-        }
-        exclude_linear_regions(
-            structural_types,
-            frontier,
-            claims
-                .values()
-                .filter(|claim| {
-                    claim.place == Some(cleanup.place) && claim.path.starts_with(&cleanup.path)
-                })
-                .map(|claim| (cleanup.place, claim.path.as_slice())),
-            &|current| {
-                crate::boundary::structural_inputs::case_membership::stored_case_at_projection(
-                    structural_types,
-                    values.get(&current.place)?,
-                    structural_cases,
-                    &current.path,
-                )
-            },
-        )?;
-    }
-    Ok(())
-}
-
-pub(crate) fn validate_nominal_cleanup_action(
-    structural_types: &crate::embedding::program::ProgramDeclarations<
-        '_,
-        StructuralTypeDeclaration,
-    >,
-    structural_cases: &BTreeMap<
-        StructuralRuntimePlace,
-        crate::boundary::structural_inputs::case_membership::StructuralCaseContents,
-    >,
-    machines: &crate::embedding::program::ProgramDeclarations<'_, TerminalMachine>,
-    values: &RuntimeRows<PlaceId, TerminalStructuralValue>,
-    frontier: &BTreeSet<StructuralAffineDiscard>,
-    claims: &BTreeMap<ClaimId, LiveClaim>,
-    cleanup: &NominalAffineCleanup,
-) -> Result<(), TerminalInterpretError> {
-    let invalid = || TerminalInterpretError::AffineFrontierMismatch;
-    let root = values.get(&cleanup.place).ok_or_else(invalid)?;
-    let value = project_structural_value(structural_types, root, &cleanup.path)?;
-    terminal_semantics::nominal_cleanup::target(
-        structural_types.values(),
-        machines.values(),
-        cleanup,
-    )
-    .map_err(|_| invalid())?;
-    let retains_descendants = cleanup.retains_descendants;
-    let source_claims = claims
-        .iter()
-        .filter(|(identity, claim)| {
-            claim.place == Some(cleanup.place)
-                && if retains_descendants {
-                    cleanup.consumed_claims.contains(identity)
-                } else {
-                    terminal_semantics::structural_paths_may_overlap(&claim.path, &cleanup.path)
-                }
-        })
-        .collect::<Vec<_>>();
-    if value.structural_type != cleanup.structural_type
-        || cleanup.consumed_claims
-            != source_claims
-                .iter()
-                .map(|(identity, _)| **identity)
-                .collect::<Vec<_>>()
-        || source_claims.iter().any(|(_, claim)| {
-            !claim.path.starts_with(&cleanup.path)
-                || claim.multiplicity != Some(StructuralMultiplicity::Linear)
-        })
-    {
-        return Err(invalid());
-    }
-    if !retains_descendants {
-        if source_claims.is_empty() {
-            let mut remaining = frontier.clone();
-            consume_affine_projection(
-                structural_types,
-                values,
-                structural_cases,
-                &mut remaining,
-                &StructuralArgument {
-                    place: cleanup.place,
-                    path: cleanup.path.clone(),
-                    access: StructuralAccess::Owned,
-                },
-            )
-            .map_err(|_| invalid())?;
-        } else if frontier.iter().any(|entry| {
-            entry.place == cleanup.place
-                && terminal_semantics::structural_paths_may_overlap(&entry.path, &cleanup.path)
-        }) {
-            return Err(invalid());
-        }
-    }
-    Ok(())
-}
-
-pub(crate) fn complete_nominal_cleanup(
-    values: &mut RuntimeRows<PlaceId, TerminalStructuralValue>,
-    scalar_arrays: &mut impl crate::storage::scalar_array::PackedHomeRetirement,
-    frontier: &mut BTreeSet<StructuralAffineDiscard>,
-    claims: &BTreeMap<ClaimId, LiveClaim>,
-    cleanup: &NominalAffineCleanup,
-) -> Result<(), TerminalInterpretError> {
-    if cleanup.retains_descendants {
-        return Ok(());
-    }
-    if if cleanup.consumed_claims.is_empty() {
-        !frontier.remove(&StructuralAffineDiscard {
-            place: cleanup.place,
-            path: cleanup.path.clone(),
-            structural_type: cleanup.structural_type,
-        })
-    } else {
-        frontier.iter().any(|entry| {
-            entry.place == cleanup.place
-                && terminal_semantics::structural_paths_may_overlap(&entry.path, &cleanup.path)
-        }) || cleanup
-            .consumed_claims
-            .iter()
-            .any(|claim| claims.contains_key(claim))
-    } {
-        return Err(TerminalInterpretError::AffineFrontierMismatch);
-    }
-    if cleanup.path.is_empty() {
-        retire_cleanup_home(values, scalar_arrays, frontier, claims, cleanup.place)?;
     }
     Ok(())
 }
@@ -1732,6 +1505,69 @@ pub(crate) fn consume_affine_projection(
     )? {
         return Err(TerminalInterpretError::AffineFrontierMismatch);
     }
+    Ok(())
+}
+
+/// Decomposition changes custody, never the allocation or its payload bytes.
+/// Only the exact whole wrapper entry can be partitioned; after this event
+/// each structural component is consumed by the ordinary projection machinery.
+pub(crate) fn decompose_affine_subject(
+    types: &crate::embedding::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
+    values: &RuntimeRows<PlaceId, TerminalStructuralValue>,
+    references: &BTreeMap<StructuralRuntimePlace, crate::storage::reference::ReferenceReferent>,
+    frontier: &mut BTreeSet<StructuralAffineDiscard>,
+    claims: &BTreeMap<ClaimId, LiveClaim>,
+    subject: &StructuralArgument,
+    structural_type: StructuralTypeId,
+) -> Result<(), TerminalInterpretError> {
+    let invalid = || TerminalInterpretError::AffineFrontierMismatch;
+    let root = verified_structural_place(values, subject.place)?;
+    let selected = project_structural_value(types, root, &subject.path)?;
+    if subject.access != StructuralAccess::Owned
+        || selected.structural_type != structural_type
+        || has_live_loan(references, &selected)
+        || claims.values().any(|claim| {
+            claim.place == Some(subject.place)
+                && terminal_semantics::structural_paths_may_overlap(&claim.path, &subject.path)
+        })
+    {
+        return Err(invalid());
+    }
+    let wrapper = StructuralAffineDiscard {
+        place: subject.place,
+        path: subject.path.clone(),
+        structural_type,
+    };
+    if !frontier.contains(&wrapper) {
+        return Err(invalid());
+    }
+    let declaration = types.declaration(&structural_type)?;
+    let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
+        return Err(malformed());
+    };
+    let mut components = Vec::new();
+    for field in fields {
+        if field.relevance.is_erased() {
+            return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                "erased component decomposition needs its retained custody",
+            ));
+        }
+        if let Some(structural_type) = cleanup_field_type(types, field)? {
+            let mut path = subject.path.clone();
+            path.push(StructuralPathSegment::Field(field.identity));
+            let component = StructuralAffineDiscard {
+                place: subject.place,
+                path,
+                structural_type,
+            };
+            if frontier.contains(&component) {
+                return Err(invalid());
+            }
+            components.push(component);
+        }
+    }
+    frontier.remove(&wrapper);
+    frontier.extend(components);
     Ok(())
 }
 
@@ -2589,6 +2425,116 @@ pub(crate) mod tests {
         }
     }
 
+    #[test]
+    fn decomposition_partitions_custody_without_moving_its_home() {
+        use terminal_psi::{
+            BindingRelevance, StructuralAffineDiscard, StructuralFieldDeclaration,
+            StructuralFieldType, StructuralRecordStorage, StructuralTypeDeclaration,
+            StructuralTypeShape,
+        };
+        let declaration = |id, shape| StructuralTypeDeclaration {
+            requires: Vec::new(),
+            quotient_carrier: None,
+            id: structural_type(id),
+            identity: terminal_psi::TerminalIdentityIndex(u32::try_from(id).unwrap()),
+            declaration_identity: terminal_psi::TerminalIdentityIndex(u32::try_from(id).unwrap()),
+            owns_linear_claim: false,
+            copyable: false,
+            no_code_affine_cleanup: true,
+            descriptor_cleanup: false,
+            nominal_cleanup: None,
+            scalar_restriction: None,
+            shape,
+        };
+        let declarations = [
+            declaration(
+                1,
+                StructuralTypeShape::Record {
+                    storage: StructuralRecordStorage::Packed,
+                    fields: vec![StructuralFieldDeclaration {
+                        inline_carrier: None,
+                        storage: None,
+                        id: semantic_vocabulary::StructuralFieldId::new(1).unwrap(),
+                        identity: terminal_psi::TerminalIdentityIndex(1),
+                        declaration_identity: terminal_psi::TerminalIdentityIndex(1),
+                        relevance: BindingRelevance::Relevant,
+                        field_type: StructuralFieldType::Structural(structural_type(2)),
+                    }],
+                },
+            ),
+            declaration(2, StructuralTypeShape::Opaque),
+        ];
+        let types = crate::embedding::program::ProgramDeclarations::new(&declarations);
+        let home = value(77, 1, Vec::new());
+        let values = RuntimeRows::from_rows(None, [(place(1), home.clone())]).unwrap();
+        let subject = StructuralArgument {
+            place: place(1),
+            path: Vec::new(),
+            access: StructuralAccess::Owned,
+        };
+        let wrapper = StructuralAffineDiscard {
+            place: place(1),
+            path: Vec::new(),
+            structural_type: structural_type(1),
+        };
+        let mut frontier = std::collections::BTreeSet::from([wrapper.clone()]);
+        // Independent claims must remain settled by an explicit correspondence.
+        assert!(
+            super::decompose_affine_subject(
+                &types,
+                &values,
+                &BTreeMap::new(),
+                &mut frontier,
+                &BTreeMap::from([(claim(1), linear(1, Vec::new()))]),
+                &subject,
+                structural_type(1)
+            )
+            .is_err()
+        );
+        assert_eq!(frontier, std::collections::BTreeSet::from([wrapper]));
+        super::decompose_affine_subject(
+            &types,
+            &values,
+            &BTreeMap::new(),
+            &mut frontier,
+            &BTreeMap::new(),
+            &subject,
+            structural_type(1),
+        )
+        .unwrap();
+        assert_eq!(values.get(&place(1)), Some(&home));
+        assert_eq!(
+            frontier,
+            std::collections::BTreeSet::from([StructuralAffineDiscard {
+                place: place(1),
+                path: vec![field("left")],
+                structural_type: structural_type(2),
+            }])
+        );
+        assert!(
+            super::decompose_affine_subject(
+                &types,
+                &values,
+                &BTreeMap::new(),
+                &mut frontier,
+                &BTreeMap::new(),
+                &subject,
+                structural_type(1)
+            )
+            .is_err()
+        );
+        assert!(
+            super::consume_affine_projection(
+                &types,
+                &values,
+                &BTreeMap::new(),
+                &mut frontier,
+                &subject
+            )
+            .is_err()
+        );
+    }
+
     fn pair_transfer(
         caller_claims: &BTreeMap<ClaimId, LiveClaim>,
     ) -> Result<(BTreeMap<ClaimId, LiveClaim>, BTreeMap<ClaimId, LiveClaim>), TerminalInterpretError>
@@ -2725,6 +2671,7 @@ pub(crate) mod tests {
                 copyable: true,
                 no_code_affine_cleanup: true,
                 descriptor_cleanup: false,
+                nominal_cleanup: None,
                 shape: root_shape,
                 scalar_restriction: None,
             },
@@ -2738,6 +2685,7 @@ pub(crate) mod tests {
                 copyable: true,
                 no_code_affine_cleanup: true,
                 descriptor_cleanup: false,
+                nominal_cleanup: None,
                 shape: terminal_psi::StructuralTypeShape::PrimitiveScalar(
                     semantic_vocabulary::ScalarType::Boolean,
                 ),

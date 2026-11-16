@@ -196,6 +196,8 @@ pub(crate) mod rematerialization {
     }
 }
 pub(crate) mod retained {
+    use std::sync::Arc;
+
     use super::{AllocationAdmissionError, AllocationOutput, ProjectAllocation};
     use crate::FixedViewCopyPolicy;
     use crate::{
@@ -205,9 +207,9 @@ pub(crate) mod retained {
         StagedOptimizedRegisterHomesAfterSelectedLowering,
     };
 
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct RetainedAllocation {
-        current: super::current::CurrentAllocation,
+        current: Arc<super::current::CurrentAllocation>,
     }
 
     impl RetainedAllocation {
@@ -229,9 +231,17 @@ pub(crate) mod retained {
         ) -> Result<Self, AllocationAdmissionError> {
             validate_recovery_selection(current, runtime_spill_prefix_selection)?;
             Ok(Self {
-                current: super::current::CurrentAllocation::capture(current)
-                    .map_err(AllocationAdmissionError::MachineEffects)?,
+                current: Arc::new(
+                    super::current::CurrentAllocation::capture(current)
+                        .map_err(AllocationAdmissionError::MachineEffects)?,
+                ),
             })
+        }
+    }
+
+    impl register_homes::AllocatedProgramSource for RetainedAllocation {
+        fn allocation_facts(&self) -> register_homes::AllocatedProgramFacts<'_> {
+            self.facts()
         }
     }
 

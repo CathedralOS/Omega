@@ -6,15 +6,16 @@
 
 use super::*;
 
-const UNSUPPORTED_NARROWING: &str =
-    "expression cast whose exact carrier conversion is not supported";
+const ADDRESS_CAST: &str = "expression cast to or from an address";
 
-/// Each helper narrows a float with an `as` cast, which the reader refuses.
-/// The entry calls all three so the grouped reader encounters every body.
+/// Each helper casts an integer to `addr`, which the reader refuses:
+/// counts_and_addresses.md, "neither arbitrary value-to-address conversions
+/// nor the inverse ... follow". The entry calls all three so the grouped
+/// reader encounters every body.
 const THREE_HELPERS: &str = r#"
-machine first() -> u32 { let value: f64 = 1.5; let narrowed: f32 = value as f32; 1 }
-machine second() -> u32 { let value: f64 = 2.5; let narrowed: f32 = value as f32; 2 }
-machine third() -> u32 { let value: f64 = 3.5; let narrowed: f32 = value as f32; 3 }
+machine first() -> u32 { let value: u64 = 1; let address: addr = value as addr; 1 }
+machine second() -> u32 { let value: u64 = 2; let address: addr = value as addr; 2 }
+machine third() -> u32 { let value: u64 = 3; let address: addr = value as addr; 3 }
 machine entry() -> u32 {
     let a: u32 = first();
     let b: u32 = second();
@@ -64,7 +65,7 @@ fn every_refused_body_is_its_own_verdict() {
     assert_eq!(refused.len(), 3, "{refused:#?}");
     for (detail, helper) in refused.iter().zip(["first", "second", "third"]) {
         assert!(
-            detail.contains(UNSUPPORTED_NARROWING)
+            detail.contains(ADDRESS_CAST)
                 && detail.ends_with(&format!("while reading the body of `{helper}`")),
             "{detail}"
         );
@@ -80,10 +81,10 @@ fn going_on_after_a_refusal_reports_what_each_machine_meets_alone() {
     assert_eq!(together.len(), 3, "{together:#?}");
     for (number, expected) in together.iter().enumerate() {
         let mut alone = THREE_HELPERS.to_owned();
-        for (index, value) in ["1.5", "2.5", "3.5"].into_iter().enumerate() {
+        for (index, value) in ["1", "2", "3"].into_iter().enumerate() {
             if index != number {
                 alone = alone.replace(
-                    &format!("let value: f64 = {value}; let narrowed: f32 = value as f32; "),
+                    &format!("let value: u64 = {value}; let address: addr = value as addr; "),
                     "",
                 );
             }
@@ -151,7 +152,7 @@ fn a_direct_reading_still_refuses_at_the_first() {
     )
     .unwrap_err();
     assert!(
-        refused.detail.contains(UNSUPPORTED_NARROWING)
+        refused.detail.contains(ADDRESS_CAST)
             && refused
                 .detail
                 .ends_with("while reading the body of `first`"),

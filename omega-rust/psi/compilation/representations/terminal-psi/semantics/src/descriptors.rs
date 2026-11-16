@@ -717,6 +717,22 @@ pub mod descriptor_lifetimes {
     }
 
     impl DescriptorFlowStep {
+        pub fn transport_authority(
+            &self,
+            before: &BTreeSet<DescriptorLocation>,
+            may: bool,
+        ) -> BTreeSet<DescriptorLocation> {
+            transport_authority(
+                before,
+                &self.definitions,
+                self.authority_derivations
+                    .iter()
+                    .map(|(source, destination)| (source, destination)),
+                false,
+                may,
+            )
+        }
+
         pub fn observed_inputs(&self) -> impl Iterator<Item = &DescriptorLocation> {
             self.inputs.iter().filter_map(|(input, _)| input.as_ref())
         }
@@ -754,6 +770,15 @@ pub mod descriptor_lifetimes {
         /// remain a separate roster, so swaps capture every old value before
         /// any source or destination is retired.
         pub definitions: Vec<DescriptorLocation>,
+        /// Present for a genuine Terminal successor, absent on an internal
+        /// operation sequence edge. Cleanup calls select this exact edge.
+        pub edge: Option<semantic_vocabulary::EdgeId>,
+        /// Prepared ordinary call effects, in this edge's exact action order.
+        /// Their inputs are observed at the genuine source terminator cut.
+        pub effects: Vec<(
+            crate::descriptor_results::DescriptorInvocationOwner,
+            DescriptorFlowStep,
+        )>,
         pub target: DescriptorPosition,
         pub parameters: Vec<DescriptorLocation>,
         pub bindings: Vec<DescriptorFlowBinding>,
@@ -803,16 +828,50 @@ pub mod descriptor_lifetimes {
                 .filter_map(DescriptorFlowBinding::locations)
         }
 
-        fn forward_authority(&self, source: &DescriptorLocation) -> Vec<DescriptorLocation> {
-            let mut result = Vec::new();
-            if !self
-                .parameters
-                .iter()
-                .chain(&self.definitions)
-                .any(|parameter| parameter.contains(source))
-            {
-                result.push(source.clone());
+        fn forward_effects(
+            &self,
+            source: &DescriptorLocation,
+            authority: bool,
+        ) -> Vec<DescriptorLocation> {
+            let mut names = vec![source.clone()];
+            for (_, effect) in &self.effects {
+                let derivations = if authority {
+                    &effect.authority_derivations
+                } else {
+                    &effect.derivations
+                };
+                names = names
+                    .into_iter()
+                    .flat_map(|name| {
+                        let retained = (!effect
+                            .definitions
+                            .iter()
+                            .any(|definition| definition.contains(&name)))
+                        .then(|| name.clone());
+                        retained.into_iter().chain(
+                            derivations
+                                .iter()
+                                .filter_map(move |(from, to)| name.transported(from, to)),
+                        )
+                    })
+                    .collect();
+                names.sort();
+                names.dedup();
             }
+            names
+                .into_iter()
+                .filter(|name| {
+                    !self
+                        .parameters
+                        .iter()
+                        .chain(&self.definitions)
+                        .any(|definition| definition.contains(name))
+                })
+                .collect()
+        }
+
+        fn forward_authority(&self, source: &DescriptorLocation) -> Vec<DescriptorLocation> {
+            let mut result = self.forward_effects(source, true);
             result.extend(
                 self.authority_derivations()
                     .filter_map(|(actual, parameter)| source.transported(actual, parameter)),
@@ -822,15 +881,7 @@ pub mod descriptor_lifetimes {
         }
 
         pub fn forward(&self, source: &DescriptorLocation) -> Vec<DescriptorLocation> {
-            let mut result = Vec::new();
-            if !self
-                .parameters
-                .iter()
-                .chain(&self.definitions)
-                .any(|parameter| parameter.contains(source))
-            {
-                result.push(source.clone());
-            }
+            let mut result = self.forward_effects(source, false);
             result.extend(
                 self.derivations()
                     .filter_map(|(actual, parameter)| source.transported(actual, parameter)),
@@ -1179,7 +1230,31 @@ pub mod descriptor_lifetimes {
                                 .chain(&edge.definitions)
                                 .cloned()
                                 .collect::<Vec<_>>();
-                            let mut transported = if invalidate_containers {
+                            let mut effected = after.clone();
+                            for (_, effect) in &edge.effects {
+                                let derivations = if invalidate_containers {
+                                    &effect.derivations
+                                } else {
+                                    &effect.authority_derivations
+                                };
+                                effected = transport_authority(
+                                    &effected,
+                                    &effect.definitions,
+                                    derivations
+                                        .iter()
+                                        .map(|(source, destination)| (source, destination)),
+                                    invalidate_containers,
+                                    may,
+                                );
+                            }
+                            let mut transported = transport_authority(
+                                &effected,
+                                &definitions,
+                                std::iter::empty(),
+                                invalidate_containers,
+                                may,
+                            );
+                            let captured = if invalidate_containers {
                                 transport_authority(
                                     &after,
                                     &definitions,
@@ -1196,6 +1271,11 @@ pub mod descriptor_lifetimes {
                                     may,
                                 )
                             };
+                            transported.extend(captured.into_iter().filter(|name| {
+                                edge.bindings
+                                    .iter()
+                                    .any(|binding| binding.parameter.contains(name))
+                            }));
                             if !invalidate_containers {
                                 for name in &after {
                                     transported.extend(edge.borrowed_authority(name));
@@ -1291,11 +1371,51 @@ pub mod descriptor_lifetimes {
 
         fn edge(target: u32) -> DescriptorFlowEdge {
             DescriptorFlowEdge {
+                edge: None,
+                effects: Vec::new(),
                 definitions: Vec::new(),
                 target: position(target),
                 parameters: Vec::new(),
                 bindings: Vec::new(),
             }
+        }
+
+        #[test]
+        fn cleanup_effects_compose_in_order_while_edge_bindings_capture_before_cleanup() {
+            let mut selected = edge(1);
+            selected.edge = Some(semantic_vocabulary::EdgeId::new(1).unwrap());
+            selected.definitions = vec![root(1), root(2)];
+            selected.parameters = vec![root(4)];
+            selected.bindings.push(
+                DescriptorFlowBinding::new(
+                    DescriptorFlowSource::Location(root(2)),
+                    root(4),
+                    terminal_psi::StructuralAccess::Owned,
+                    terminal_psi::StructuralAccess::Owned,
+                )
+                .unwrap(),
+            );
+            for (ordinal, source, destination) in [(0, 1, 2), (2, 2, 3)] {
+                selected.effects.push((
+                    terminal_psi::InvocationOwner::Cleanup {
+                        edge: selected.edge.unwrap(),
+                        action_ordinal: ordinal,
+                    },
+                    DescriptorFlowStep {
+                        definitions: vec![root(destination)],
+                        derivations: vec![(root(source), root(destination))],
+                        authority_derivations: vec![(root(source), root(destination))],
+                        inputs: vec![(Some(root(source)), None)],
+                        ..Default::default()
+                    },
+                ));
+            }
+            assert_eq!(selected.forward(&root(1)), [root(3)]);
+            assert_eq!(selected.forward_authority(&root(1)), [root(3)]);
+            assert_eq!(selected.forward(&root(2)), [root(4)]);
+            assert_eq!(selected.forward_authority(&root(2)), [root(4)]);
+            selected.effects.reverse();
+            assert!(selected.forward(&root(1)).is_empty());
         }
 
         #[test]
@@ -2775,21 +2895,26 @@ pub mod descriptor_results {
                             position: machine.entry,
                         });
                     }
-                    calls.extend(machine.calls.iter().filter_map(|(&position, call)| {
+                    calls.extend(machine.known_invocations().filter_map(|(&position, call)| {
                         call.stored_effects_callee()
-                            .map(|callee| (machine.id, position, callee))
+                            .map(|callee| (machine.id, position, call.owner, callee))
                     }));
                 }
                 loop {
                     let mut additions = Vec::new();
-                    for &(machine, position, callee) in &calls {
+                    for &(machine, position, owner, callee) in &calls {
                         let Some(requirements) = pending.get(&callee) else {
                             continue;
                         };
                         let failure = || DescriptorCompatibilityFailure { machine, position };
                         for requirement in requirements {
                             let demand = self
-                                .substitute_call_storage(machine, position, &requirement.demand)
+                                .substitute_call_storage_at(
+                                    machine,
+                                    position,
+                                    owner,
+                                    &requirement.demand,
+                                )
                                 .ok_or_else(failure)?;
                             let DescriptorCallOrigin::Argument { source, projection } = &demand
                             else {
@@ -2807,9 +2932,10 @@ pub mod descriptor_results {
                                 projection: projection.clone(),
                             };
                             let origins = self
-                                .substitute_stored_effect_source(
+                                .substitute_stored_effect_source_at(
                                     machine,
                                     position,
+                                    owner,
                                     &requirement.loan,
                                 )
                                 .filter(|origins| !origins.is_empty())
@@ -6889,6 +7015,8 @@ pub mod descriptor_results {
                     successors: targets
                         .iter()
                         .map(|target| DescriptorFlowEdge {
+                            edge: None,
+                            effects: Vec::new(),
                             definitions: Vec::new(),
                             target: position(*target),
                             parameters: Vec::new(),
@@ -7069,6 +7197,7 @@ pub mod descriptor_results {
                         no_code_affine_cleanup: true,
                         copyable: false,
                         descriptor_cleanup: true,
+                        nominal_cleanup: None,
                         shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
                         scalar_restriction: None,
                     }];
@@ -8087,6 +8216,7 @@ pub mod descriptor_results {
                     no_code_affine_cleanup: true,
                     copyable: false,
                     descriptor_cleanup: true,
+                    nominal_cleanup: None,
                     shape,
                     scalar_restriction: None,
                 };
@@ -8188,6 +8318,7 @@ pub mod descriptor_results {
                     no_code_affine_cleanup: true,
                     copyable: false,
                     descriptor_cleanup: true,
+                    nominal_cleanup: None,
                     shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
                     scalar_restriction: None,
                 }];
@@ -8539,6 +8670,8 @@ pub mod descriptor_results {
                     successors: targets
                         .iter()
                         .map(|target| DescriptorFlowEdge {
+                            edge: None,
+                            effects: Vec::new(),
                             definitions: Vec::new(),
                             target: position(*target),
                             parameters: Vec::new(),
@@ -8624,6 +8757,8 @@ pub mod descriptor_results {
                 let after = (before.0, 1);
                 let mut operation = step(&[]);
                 operation.successors.push(DescriptorFlowEdge {
+                    edge: None,
+                    effects: Vec::new(),
                     definitions: Vec::new(),
                     target: after,
                     parameters: Vec::new(),
@@ -9539,6 +9674,7 @@ pub mod descriptor_results {
                     no_code_affine_cleanup: true,
                     copyable: false,
                     descriptor_cleanup: true,
+                    nominal_cleanup: None,
                     shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
                         IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
                     )),
@@ -9673,6 +9809,8 @@ pub mod descriptor_results {
                     successors: target
                         .into_iter()
                         .map(|target| DescriptorFlowEdge {
+                            edge: None,
+                            effects: Vec::new(),
                             definitions: Vec::new(),
                             target,
                             parameters: Vec::new(),
@@ -10041,6 +10179,8 @@ pub mod descriptor_results {
                     .unwrap()
                     .successors
                     .push(DescriptorFlowEdge {
+                        edge: None,
+                        effects: Vec::new(),
                         definitions: Vec::new(),
                         target: position(5),
                         parameters: Vec::new(),
@@ -10062,6 +10202,8 @@ pub mod descriptor_results {
                                 successors: targets
                                     .iter()
                                     .map(|target| DescriptorFlowEdge {
+                                        edge: None,
+                                        effects: Vec::new(),
                                         definitions: Vec::new(),
                                         target: position(*target),
                                         parameters: Vec::new(),
@@ -10701,7 +10843,9 @@ pub mod descriptor_results {
         mod tests {
             use super::*;
             use crate::descriptor_results::{
-                DescriptorCallOrigin, DescriptorPayloadTarget, terminal_borrowed_storage_graph,
+                DescriptorCallOrigin, DescriptorInvocation, DescriptorInvocationOwner,
+                DescriptorInvocationTarget, DescriptorPayloadTarget,
+                terminal_borrowed_storage_graph,
             };
             use crate::descriptors::descriptor_lifetimes::DescriptorPathSegment;
             use crate::descriptors::descriptor_lifetimes::{
@@ -10725,7 +10869,6 @@ pub mod descriptor_results {
                     assembly_target_requirement: terminal_psi::RegisterTargetApplicability::Any,
                     id: MachineId::new(id).unwrap(),
                     attachment: None,
-                    nominal_cleanup_subject: None,
                     ranked_scc: None,
                     structural_places: Vec::new(),
                     call_formations: Vec::new(),
@@ -10773,6 +10916,7 @@ pub mod descriptor_results {
                     no_code_affine_cleanup: true,
                     copyable: true,
                     descriptor_cleanup: true,
+                    nominal_cleanup: None,
                     shape,
                     scalar_restriction: None,
                 };
@@ -10909,6 +11053,7 @@ pub mod descriptor_results {
                     no_code_affine_cleanup: true,
                     copyable,
                     descriptor_cleanup: true,
+                    nominal_cleanup: None,
                     shape,
                     scalar_restriction: None,
                 };
@@ -12414,6 +12559,165 @@ pub mod descriptor_results {
                 );
             }
 
+            #[test]
+            fn cleanup_calls_keep_exact_edges_action_order_and_unique_owners() {
+                let body = machine(1);
+                let mut module = TerminalModule::declarations();
+                module.machines.push(body);
+                let mut graphs = terminal_borrowed_storage_graph(&module);
+                let graph = &mut graphs[0];
+                let position = (module.machines[0].entry, 0);
+                for (edge, action_ordinal) in [(1, 0), (1, 2), (2, 0), (2, 2)] {
+                    let owner = DescriptorInvocationOwner::Cleanup {
+                        edge: EdgeId::new(edge).unwrap(),
+                        action_ordinal,
+                    };
+                    let call = || DescriptorInvocation {
+                        scalar_arguments: Vec::new(),
+                        owner,
+                        target: DescriptorInvocationTarget::Machine(MachineId::new(2).unwrap()),
+                        arguments: Vec::new(),
+                        argument_contents: Vec::new(),
+                        result: None,
+                    };
+                    assert!(graph.insert_call(position, call()).is_some());
+                    assert!(graph.insert_call(position, call()).is_none());
+                    assert_eq!(graph.invocation(position, owner).unwrap().owner, owner);
+                }
+                let owners: Vec<_> = graph
+                    .calls_at(position)
+                    .iter()
+                    .map(|call| call.owner)
+                    .collect();
+                assert_eq!(owners.len(), 4);
+                assert!(owners.windows(2).all(|rows| rows[0] < rows[1]));
+                assert!(graph.operation_call(position).is_none());
+                assert!(
+                    graph
+                        .invocation(
+                            position,
+                            DescriptorInvocationOwner::Cleanup {
+                                edge: EdgeId::new(1).unwrap(),
+                                action_ordinal: 1,
+                            }
+                        )
+                        .is_none()
+                );
+                // One normal exit cannot secretly select two cleanup edges.
+                assert!(graph.validate_invocation_owners().is_none());
+                graph.calls.get_mut(&position).unwrap().as_mut().unwrap().retain(|call| {
+                    matches!(call.owner, DescriptorInvocationOwner::Cleanup { edge, .. } if edge == EdgeId::new(1).unwrap())
+                });
+                assert!(graph.validate_invocation_owners().is_some());
+                let second = graph.calls_at(position)[1].owner;
+                let calls = graph.calls.get_mut(&position).unwrap().as_mut().unwrap();
+                calls[1].owner = calls[0].owner;
+                let duplicate = calls[0].owner;
+                assert!(graph.invocation(position, duplicate).is_none());
+                assert!(graph.validate_invocation_owners().is_none());
+                let calls = graph.calls.get_mut(&position).unwrap().as_mut().unwrap();
+                calls[1].owner = second;
+                calls.swap(0, 1);
+                assert!(
+                    graph.validate_invocation_owners().is_none(),
+                    "an unsorted raw roster cannot enter prepared replay"
+                );
+            }
+
+            #[test]
+            fn decomposition_observes_contained_descriptors_without_consuming_them() {
+                let view = StructuralTypeId::new(1).unwrap();
+                let carrier = StructuralTypeId::new(2).unwrap();
+                let source = PlaceId::new(1).unwrap();
+                let field = semantic_vocabulary::StructuralFieldId::new(1).unwrap();
+                let mut body = machine(1);
+                body.parameter_order = vec![terminal_psi::BoundaryParameterKind::Structural];
+                body.structural_parameters
+                    .push(StructuralParameterDeclaration {
+                        place: source,
+                        position: 0,
+                        structural_type: carrier,
+                        multiplicity: StructuralMultiplicity::Affine,
+                        access: StructuralAccess::Owned,
+                        qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
+                        additional_input_qualifications: Vec::new(),
+                    });
+                body.structural_places
+                    .push(terminal_psi::StructuralPlaceDeclaration {
+                        id: source,
+                        kind: StructuralPlaceKind::Parameter { position: 0 },
+                    });
+                body.blocks[0].operations.push(Operation::unsuspended(
+                    OperationId::new(1).unwrap(),
+                    OperationResult::Unit,
+                    OperationKind::DecomposeStructuralValue {
+                        subject: terminal_psi::StructuralArgument::whole(
+                            source,
+                            StructuralAccess::Owned,
+                        ),
+                    },
+                ));
+                let declaration = |id, shape| StructuralTypeDeclaration {
+                    requires: Vec::new(),
+                    quotient_carrier: None,
+                    id,
+                    identity: TerminalIdentityIndex(1),
+                    declaration_identity: TerminalIdentityIndex(1),
+                    owns_linear_claim: false,
+                    no_code_affine_cleanup: false,
+                    copyable: false,
+                    descriptor_cleanup: false,
+                    nominal_cleanup: None,
+                    shape,
+                    scalar_restriction: None,
+                };
+                let mut nominal = declaration(
+                    carrier,
+                    StructuralTypeShape::Record {
+                        fields: vec![terminal_psi::StructuralFieldDeclaration {
+                            id: field,
+                            identity: TerminalIdentityIndex(2),
+                            declaration_identity: TerminalIdentityIndex(2),
+                            relevance: terminal_psi::BindingRelevance::Relevant,
+                            storage: None,
+                            field_type: terminal_psi::StructuralFieldType::Structural(view),
+                            inline_carrier: None,
+                        }],
+                        storage: terminal_psi::StructuralRecordStorage::Packed,
+                    },
+                );
+                nominal.nominal_cleanup = Some(terminal_psi::NominalCleanupSelection {
+                    declaration: terminal_psi::NominalDeclarationIdentity::new(nominal.identity),
+                    cleanup_machine: body.id,
+                });
+                let mut module = TerminalModule::declarations();
+                module.structural_types = vec![
+                    declaration(
+                        view,
+                        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                            access: Some(StructuralAccess::MutableBorrow),
+                        }),
+                    ),
+                    nominal,
+                ];
+                module.machines = vec![body.clone()];
+                let graphs = terminal_borrowed_storage_graph(&module);
+                assert_eq!(graphs.len(), 1);
+                let position = (body.entry, 0);
+                let step = &graphs[0].flow[&position];
+                assert_eq!(
+                    step.observed_inputs().cloned().collect::<Vec<_>>(),
+                    [DescriptorLocation::whole(source)]
+                );
+                assert!(step.definitions.is_empty());
+                assert!(step.derivations.is_empty());
+                assert!(!step.may_escape);
+                assert!(!graphs[0].payload_invalidations.contains_key(&position));
+                let next = &graphs[0].flow[&(body.entry, 1)];
+                assert!(next.definitions.is_empty());
+            }
+
             // Moving a borrowed sequence value retires its descriptor, not
             // its elements. A real element write still needs a known backing
             // and cannot publish an empty or descriptor-only write frame.
@@ -12434,6 +12738,7 @@ pub mod descriptor_results {
                     no_code_affine_cleanup: true,
                     copyable: true,
                     descriptor_cleanup: false,
+                    nominal_cleanup: None,
                     shape,
                     scalar_restriction: None,
                 };
@@ -12829,6 +13134,7 @@ pub mod descriptor_results {
                     no_code_affine_cleanup: true,
                     copyable: true,
                     descriptor_cleanup: true,
+                    nominal_cleanup: None,
                     shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
                     scalar_restriction: None,
                 });
@@ -13312,6 +13618,7 @@ pub mod descriptor_results {
                     InvocationSite::ExternalCompletion(_) | InvocationSite::InvokeNoNormal(_) => {
                         self.terminal_positions.get(&site).copied()
                     }
+                    InvocationSite::Cleanup { .. } => None,
                 }
             }
 
@@ -13321,6 +13628,12 @@ pub mod descriptor_results {
                 invocation: InvocationSite,
                 actual: &StructuralArgument,
             ) -> QueryResult<()> {
+                // Several cleanup actions share one terminator coordinate.
+                // This identity walk has no action-prefix state, so the
+                // pre-terminator value cannot prove an unchanged-value claim.
+                if matches!(invocation, InvocationSite::Cleanup { .. }) {
+                    return Err("unchanged-value proof at an ordered cleanup action is not served");
+                }
                 let observation = self
                     .observation_position(invocation)
                     .ok_or("value identity observation is absent")?;
@@ -13930,6 +14243,100 @@ pub mod descriptor_results {
         use terminal_psi::BoundaryMachineResult;
         use terminal_psi::TerminalDynamicReferenceOrigin;
 
+        pub struct DescriptorMachineSignature<'a> {
+            pub machine: MachineId,
+            pub structural_parameters: &'a [terminal_psi::StructuralParameterDeclaration],
+            pub result: Option<&'a terminal_psi::StructuralResultDeclaration>,
+        }
+
+        pub fn machine_invocation(
+            owner: DescriptorInvocationOwner,
+            types: &[StructuralTypeDeclaration],
+            slot_kind: DescriptorSlotKind,
+            callee: &TerminalMachine,
+            actuals: &[StructuralArgument],
+            result: Option<&terminal_psi::StructuralOperationResult>,
+            actual_root_types: impl IntoIterator<Item = Option<StructuralTypeId>>,
+        ) -> Option<DescriptorInvocation> {
+            machine_invocation_for_signature(
+                owner,
+                types,
+                slot_kind,
+                DescriptorMachineSignature {
+                    machine: callee.id,
+                    structural_parameters: &callee.structural_parameters,
+                    result: callee.result.structural(),
+                },
+                actuals,
+                result,
+                actual_root_types,
+            )
+        }
+
+        pub fn machine_invocation_for_signature(
+            owner: DescriptorInvocationOwner,
+            types: &[StructuralTypeDeclaration],
+            slot_kind: DescriptorSlotKind,
+            callee: DescriptorMachineSignature<'_>,
+            actuals: &[StructuralArgument],
+            result: Option<&terminal_psi::StructuralOperationResult>,
+            actual_root_types: impl IntoIterator<Item = Option<StructuralTypeId>>,
+        ) -> Option<DescriptorInvocation> {
+            if callee.structural_parameters.len() != actuals.len() {
+                return None;
+            }
+            let mut arguments = Vec::with_capacity(actuals.len());
+            let mut argument_contents = Vec::with_capacity(actuals.len());
+            let mut actual_root_types = actual_root_types.into_iter();
+            for (actual, formal) in actuals.iter().zip(callee.structural_parameters) {
+                if actual.access != formal.access {
+                    return None;
+                }
+                let root = actual_root_types.next()??;
+                arguments.push(descriptor_location(
+                    types,
+                    actual.place,
+                    root,
+                    &actual.path,
+                    None,
+                ));
+                argument_contents.push(descriptor_contents_query(
+                    types,
+                    actual.place,
+                    root,
+                    &actual.path,
+                    None,
+                ));
+            }
+            if actual_root_types.next().is_some() {
+                return None;
+            }
+            let result = result.filter(|result| {
+                slot_kind.tracks_returned_value(types, result.place, result.structural_type)
+            });
+            if let Some(result) = result {
+                let expected = callee.result?;
+                if result.structural_type != expected.structural_type
+                    || result.multiplicity != expected.multiplicity
+                    || result.qualifications != expected.qualifications
+                    || !expected
+                        .projected_qualifications
+                        .iter()
+                        .all(|row| result.projected_qualifications.contains(row))
+                {
+                    return None;
+                }
+            }
+            Some(DescriptorInvocation {
+                scalar_arguments: Vec::new(),
+                owner,
+                target: DescriptorInvocationTarget::Machine(callee.machine),
+                arguments,
+                argument_contents,
+                result: result.map(|result| DescriptorLocation::whole(result.place)),
+            })
+        }
+
         pub fn public_invocation(
             operation: semantic_vocabulary::OperationId,
             types: &[StructuralTypeDeclaration],
@@ -13987,7 +14394,7 @@ pub mod descriptor_results {
             }
             Some(DescriptorInvocation {
                 scalar_arguments: Vec::new(),
-                operation,
+                owner: DescriptorInvocationOwner::Operation(operation),
                 target: DescriptorInvocationTarget::Public {
                     effects_machine: None,
                     realizations,
@@ -14357,7 +14764,7 @@ pub mod descriptor_results {
             });
             Some(DescriptorInvocation {
                 scalar_arguments: Vec::new(),
-                operation,
+                owner: DescriptorInvocationOwner::Operation(operation),
                 target: DescriptorInvocationTarget::Provider {
                     results,
                     effects,
@@ -14453,6 +14860,10 @@ pub mod descriptor_results {
                 }
             };
             match &operation.kind {
+                OperationKind::DecomposeStructuralValue { .. } => {
+                    // Only the nominal disposition ends. Its contained
+                    // descriptors keep their same storage and derivations.
+                }
                 OperationKind::MoveStructuralValue { source }
                 | OperationKind::TransformContent { source, .. } => {
                     if source.access == StructuralAccess::Owned {
@@ -14768,6 +15179,10 @@ pub mod descriptor_results {
                             .push((location, ScalarTerm::value(result.id, result.scalar_type)));
                     }
                     let mut step = DescriptorFlowStep::default();
+                    let is_invocation = matches!(
+                        &operation.kind,
+                        terminal_psi::call_structural_argument_variants!(_arguments)
+                    ) || matches!(&operation.kind, OperationKind::Call { .. });
                     // A scalar sibling does not observe the reference leaves
                     // beside it. Retain the representation's projected uses;
                     // reducing them to roots spuriously extends those loans.
@@ -14955,6 +15370,15 @@ pub mod descriptor_results {
                     };
                     let mut payload_writes = Vec::new();
                     match &operation.kind {
+                        OperationKind::DecomposeStructuralValue { subject } => {
+                            if operation.result != terminal_psi::OperationResult::Unit {
+                                return None;
+                            }
+                            crate::nominal_cleanup::decomposition(module, machine.id, subject)
+                                .ok()?;
+                            // Partitioning ownership does not write the value
+                            // or any backing reached through its descriptors.
+                        }
                         OperationKind::ActivateTaskRegister { gdt, scratch, .. }
                         | OperationKind::ReloadSegmentDescriptors { gdt, scratch, .. } => {
                             for source in [gdt, scratch] {
@@ -15136,6 +15560,15 @@ pub mod descriptor_results {
                         _ => None,
                     };
                     match &operation.kind {
+                        OperationKind::DecomposeStructuralValue { subject } => {
+                            // Observe every contained descriptor through the
+                            // event; no value is consumed or newly derived.
+                            step.replace_value_inputs([location(
+                                subject.place,
+                                &subject.path,
+                                None,
+                            )?]);
+                        }
                         OperationKind::ReleaseReference { source, path } => {
                             let source = location(*source, path, None)?;
                             step.replace_value_inputs([source.clone()]);
@@ -15787,7 +16220,7 @@ pub mod descriptor_results {
                                 graph.unresolved_contents_writes.insert(position);
                                 step.may_escape = true;
                             }
-                            graph.calls.insert(position, call);
+                            insert_invocation(&mut graph.calls, position, call)?;
                         }
                         OperationKind::CallDynamic {
                             selector,
@@ -15856,7 +16289,7 @@ pub mod descriptor_results {
                                 graph.unresolved_contents_writes.insert(position);
                                 step.may_escape = true;
                             }
-                            graph.calls.insert(position, call);
+                            insert_invocation(&mut graph.calls, position, call)?;
                         }
                         _ if direct_call.is_some() => {
                             let (callee, structural_arguments) = direct_call?;
@@ -15880,7 +16313,9 @@ pub mod descriptor_results {
                                 .inspect_err(|detail| *failure_detail = Some(*detail))
                                 .ok()?
                             } else {
-                                None
+                                crate::requirement_reference_result(module, callee)
+                                    .inspect_err(|detail| *failure_detail = Some(*detail))
+                                    .ok()?
                             };
                             let implemented = operation.required_contract.is_some();
                             let public_call = match &public {
@@ -15933,7 +16368,7 @@ pub mod descriptor_results {
                                 {
                                     *effects_machine = (complete && implemented).then_some(callee);
                                 }
-                                graph.calls.insert(position, call);
+                                insert_invocation(&mut graph.calls, position, call)?;
                             } else {
                                 let mut matching = module
                                     .machines
@@ -15946,53 +16381,18 @@ pub mod descriptor_results {
                                 {
                                     return None;
                                 }
-                                let mut arguments = Vec::new();
-                                let mut argument_contents = Vec::new();
-                                let mut exact_arguments = true;
-                                for (actual, formal) in structural_arguments
-                                    .iter()
-                                    .zip(&callee.structural_parameters)
-                                {
-                                    if actual.access != formal.access {
-                                        return None;
-                                    }
-                                    let argument = location(actual.place, &actual.path, None);
-                                    argument_contents.push(
-                                        graph.place_types.get(&actual.place).and_then(
-                                            |root_type| {
-                                                descriptor_contents_query(
-                                                    &module.structural_types,
-                                                    actual.place,
-                                                    *root_type,
-                                                    &actual.path,
-                                                    None,
-                                                )
-                                            },
-                                        ),
-                                    );
-                                    exact_arguments &= argument.is_some();
-                                    arguments.push(argument);
-                                }
-                                let descriptor_result = result.filter(|result| {
-                                    slot_kind.tracks_returned_value(
-                                        &module.structural_types,
-                                        result.place,
-                                        result.structural_type,
-                                    )
-                                });
-                                if let Some(result) = descriptor_result {
-                                    let expected = callee.result.structural()?;
-                                    if result.structural_type != expected.structural_type
-                                        || result.multiplicity != expected.multiplicity
-                                        || result.qualifications != expected.qualifications
-                                        || !expected.projected_qualifications.iter().all(|row| {
-                                            result.projected_qualifications.contains(row)
-                                        })
-                                    {
-                                        return None;
-                                    }
-                                }
-                                if !exact_arguments {
+                                let call = machine_invocation(
+                                    DescriptorInvocationOwner::Operation(operation.id),
+                                    &module.structural_types,
+                                    slot_kind,
+                                    callee,
+                                    structural_arguments,
+                                    result,
+                                    structural_arguments.iter().map(|actual| {
+                                        graph.place_types.get(&actual.place).copied()
+                                    }),
+                                )?;
+                                if call.arguments.iter().any(Option::is_none) {
                                     mark_opaque_call_occupancy(
                                         &graph.place_types,
                                         &mut graph.unresolved_contents_writes,
@@ -16003,25 +16403,16 @@ pub mod descriptor_results {
                                         structural_arguments,
                                     )?;
                                 }
-                                graph.calls.insert(
-                                    position,
-                                    DescriptorInvocation {
-                                        scalar_arguments: super::descriptor_scalar_arguments(
-                                            callee
-                                                .parameters
-                                                .iter()
-                                                .map(|formal| (formal.id, formal.scalar_type)),
-                                            operation.module_invocation()?.arguments,
-                                            selector,
-                                        ),
-                                        operation: operation.id,
-                                        target: DescriptorInvocationTarget::Machine(callee.id),
-                                        arguments,
-                                        argument_contents,
-                                        result: descriptor_result
-                                            .map(|result| DescriptorLocation::whole(result.place)),
-                                    },
+                                let mut call = call;
+                                call.scalar_arguments = super::descriptor_scalar_arguments(
+                                    callee
+                                        .parameters
+                                        .iter()
+                                        .map(|formal| (formal.id, formal.scalar_type)),
+                                    operation.module_invocation()?.arguments,
+                                    selector,
                                 );
+                                insert_invocation(&mut graph.calls, position, call)?;
                             }
                         }
                         OperationKind::BoundaryCall {
@@ -16110,7 +16501,8 @@ pub mod descriptor_results {
                                 (declarations.next(), declarations.next())
                                 && slot_kind != DescriptorSlotKind::AccessOrigins
                             {
-                                graph.calls.insert(
+                                insert_invocation(
+                                    &mut graph.calls,
                                     position,
                                     provider_invocation(
                                         operation.id,
@@ -16121,10 +16513,15 @@ pub mod descriptor_results {
                                         result,
                                         &graph.place_types,
                                     )?,
-                                );
+                                )?;
                             }
                         }
                         _ => {}
+                    }
+                    // Record unresolved invocations only after attempting exact
+                    // construction; a later cohort cannot overwrite unknown effects.
+                    if is_invocation && !graph.calls.contains_key(&position) {
+                        graph.calls.insert(position, None);
                     }
                     record_owned_consumption(module, machine, operation, &mut step)?;
                     // Borrowing a carrier slot makes a child resource, not
@@ -16140,6 +16537,8 @@ pub mod descriptor_results {
                         step.authority_derivations = step.derivations.clone();
                     }
                     step.successors.push(DescriptorFlowEdge {
+                        edge: None,
+                        effects: Vec::new(),
                         definitions: Vec::new(),
                         target: (block.id, position.1 + 1),
                         parameters: Vec::new(),
@@ -16257,6 +16656,8 @@ pub mod descriptor_results {
                         bindings.push(binding);
                     }
                     step.successors.push(DescriptorFlowEdge {
+                        edge: None,
+                        effects: Vec::new(),
                         definitions,
                         target: (target, 0),
                         parameters,
@@ -16329,6 +16730,7 @@ pub mod descriptor_results {
                         structural_arguments,
                         ..
                     } => {
+                        graph.calls.insert(position, None);
                         // These invocations can write before terminating.
                         // Their absent normal result is not an empty frame;
                         // no selected terminal-call frame is represented here.
@@ -16347,6 +16749,58 @@ pub mod descriptor_results {
                         graph.normal_exits.push(position);
                     }
                 }
+                for (edge, actions) in block.terminator.cleanup_rosters() {
+                    for (action_ordinal, action) in actions.iter().enumerate() {
+                        if let terminal_psi::TerminalAffineCleanupAction::InvokeOwned(cleanup) =
+                            action
+                        {
+                            let callee = crate::nominal_cleanup::owned_target(
+                                module.structural_types.iter(),
+                                module.machines.iter(),
+                                cleanup,
+                            )
+                            .ok()?;
+                            let root = *graph.place_types.get(&cleanup.subject.place)?;
+                            if crate::runtime_structural_path_tip(
+                                module.structural_types.iter(),
+                                root,
+                                &cleanup.subject.path,
+                            )?
+                            .id != cleanup.structural_type
+                            {
+                                return None;
+                            }
+                            let call = machine_invocation(
+                                DescriptorInvocationOwner::Cleanup {
+                                    edge,
+                                    action_ordinal: u32::try_from(action_ordinal).ok()?,
+                                },
+                                &module.structural_types,
+                                slot_kind,
+                                callee,
+                                std::slice::from_ref(&cleanup.subject),
+                                None,
+                                std::iter::once(Some(root)),
+                            )?;
+                            // A known cleanup requires the same exact actual
+                            // correspondence as a source call. An opaque frame
+                            // cannot replace its retained executable effects.
+                            if call.arguments.iter().any(Option::is_none)
+                                || call.argument_contents.iter().any(Option::is_none)
+                            {
+                                return None;
+                            }
+                            step.inputs.extend(
+                                call.arguments
+                                    .iter()
+                                    .flatten()
+                                    .cloned()
+                                    .map(|input| (Some(input), None)),
+                            );
+                            insert_invocation(&mut graph.calls, position, call)?;
+                        }
+                    }
+                }
                 // Selected-edge disposal is a real carrier disposition.
                 // Keep its definitions apart from the destination roster:
                 // every binding reads the old frontier before both are killed.
@@ -16358,6 +16812,7 @@ pub mod descriptor_results {
                     if edge.target != (target, 0) {
                         return None;
                     }
+                    edge.edge = Some(identity);
                     let (_, cleanup) = block
                         .terminator
                         .cleanup_rosters()
@@ -16659,6 +17114,7 @@ pub mod descriptor_results {
         }
     }
     pub use invocation::{
+        DescriptorMachineSignature, machine_invocation, machine_invocation_for_signature,
         public_invocation, public_realizations, public_result_slots, writable_descriptor_slots,
     };
     pub use replay::{
@@ -16798,8 +17254,10 @@ pub mod descriptor_results {
     #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
     pub struct DescriptorInvocationSite {
         pub machine: MachineId,
-        pub operation: semantic_vocabulary::OperationId,
+        pub owner: DescriptorInvocationOwner,
     }
+
+    pub use terminal_psi::InvocationOwner as DescriptorInvocationOwner;
 
     pub fn is_descriptor<'a>(
         types: impl IntoIterator<Item = &'a StructuralTypeDeclaration>,
@@ -17045,11 +17503,137 @@ pub mod descriptor_results {
         pub unresolved_contents_writes: BTreeSet<DescriptorPosition>,
         pub storage_derivations:
             BTreeSet<(DescriptorPosition, DescriptorLocation, DescriptorLocation)>,
-        pub calls: BTreeMap<DescriptorPosition, DescriptorInvocation>,
+        /// Missing is not a call; None is a real invocation whose effects
+        /// cannot be represented. Known rows retain their exact ordered owners.
+        pub calls: BTreeMap<DescriptorPosition, Option<Vec<DescriptorInvocation>>>,
         pub normal_exits: Vec<DescriptorPosition>,
     }
 
+    pub fn insert_invocation(
+        calls: &mut BTreeMap<DescriptorPosition, Option<Vec<DescriptorInvocation>>>,
+        position: DescriptorPosition,
+        call: DescriptorInvocation,
+    ) -> Option<()> {
+        let calls = calls
+            .entry(position)
+            .or_insert_with(|| Some(Vec::new()))
+            .as_mut()?;
+        if !calls.is_empty()
+            && (matches!(call.owner, DescriptorInvocationOwner::Operation(_))
+                || matches!(calls[0].owner, DescriptorInvocationOwner::Operation(_)))
+        {
+            return None;
+        }
+        let insertion = calls
+            .binary_search_by_key(&call.owner, |existing| existing.owner)
+            .err()?;
+        calls.insert(insertion, call);
+        Some(())
+    }
+
     impl DescriptorMachine {
+        pub fn calls_at(&self, position: DescriptorPosition) -> &[DescriptorInvocation] {
+            self.calls
+                .get(&position)
+                .and_then(Option::as_ref)
+                .map_or(&[], Vec::as_slice)
+        }
+
+        pub fn operation_call(
+            &self,
+            position: DescriptorPosition,
+        ) -> Option<&DescriptorInvocation> {
+            let [call] = self.calls_at(position) else {
+                return None;
+            };
+            matches!(call.owner, DescriptorInvocationOwner::Operation(_)).then_some(call)
+        }
+
+        pub fn invocation(
+            &self,
+            position: DescriptorPosition,
+            owner: DescriptorInvocationOwner,
+        ) -> Option<&DescriptorInvocation> {
+            // Prepared replay validates the entire owner roster once before
+            // publishing any state. Query its sorted rows without rewalking
+            // every action, and retain local duplicate refusal for raw users.
+            let calls = self.calls_at(position);
+            let index = calls.binary_search_by_key(&owner, |call| call.owner).ok()?;
+            if index
+                .checked_sub(1)
+                .and_then(|previous| calls.get(previous))
+                .is_some_and(|call| call.owner == owner)
+                || calls.get(index + 1).is_some_and(|call| call.owner == owner)
+            {
+                return None;
+            }
+            Some(&calls[index])
+        }
+
+        pub fn insert_call(
+            &mut self,
+            position: DescriptorPosition,
+            call: DescriptorInvocation,
+        ) -> Option<()> {
+            insert_invocation(&mut self.calls, position, call)
+        }
+
+        pub(crate) fn validate_invocation_owners(&self) -> Option<()> {
+            for (&position, calls) in &self.calls {
+                let step = self.flow.get(&position)?;
+                let Some(calls) = calls else {
+                    continue;
+                };
+                if calls.is_empty() || !calls.windows(2).all(|rows| rows[0].owner < rows[1].owner) {
+                    return None;
+                }
+                if matches!(calls[0].owner, DescriptorInvocationOwner::Operation(_)) {
+                    if calls.len() != 1 {
+                        return None;
+                    }
+                    continue;
+                }
+                let mut exit_edge = None;
+                let mut successor_edges = BTreeSet::new();
+                for edge in &step.successors {
+                    if let Some(edge) = edge.edge
+                        && !successor_edges.insert(edge)
+                    {
+                        return None;
+                    }
+                }
+                for call in calls {
+                    let DescriptorInvocationOwner::Cleanup { edge, .. } = call.owner else {
+                        return None;
+                    };
+                    if self.normal_exits.contains(&position) && step.successors.is_empty() {
+                        if exit_edge.is_some_and(|selected| selected != edge) {
+                            return None;
+                        }
+                        exit_edge = Some(edge);
+                    } else if !successor_edges.contains(&edge) {
+                        return None;
+                    }
+                }
+            }
+            Some(())
+        }
+
+        pub fn known_invocation(
+            &self,
+            position: &DescriptorPosition,
+        ) -> Option<&DescriptorInvocation> {
+            self.operation_call(*position)
+        }
+
+        pub fn known_invocations(
+            &self,
+        ) -> impl Iterator<Item = (&DescriptorPosition, &DescriptorInvocation)> {
+            self.calls.iter().flat_map(|(position, calls)| {
+                calls.iter().flatten().map(move |call| (position, call))
+            })
+        }
+
         pub(crate) fn producer(&self, root: PlaceId) -> Option<DescriptorPosition> {
             let index = self
                 .places
@@ -17249,7 +17833,7 @@ pub mod descriptor_results {
 
     pub struct DescriptorInvocation {
         pub scalar_arguments: Vec<(ValueId, semantic_vocabulary::ScalarTerm)>,
-        pub operation: semantic_vocabulary::OperationId,
+        pub owner: DescriptorInvocationOwner,
         pub target: DescriptorInvocationTarget,
         pub arguments: Vec<Option<DescriptorLocation>>,
         pub argument_contents: Vec<Option<DescriptorContentsQuery>>,
@@ -17767,7 +18351,7 @@ pub mod descriptor_results {
                     continue;
                 }
             };
-            for call in graph.calls.values() {
+            for (_, call) in graph.known_invocations() {
                 match &call.target {
                     DescriptorInvocationTarget::Machine(callee) => pending.push(*callee),
                     DescriptorInvocationTarget::Public {

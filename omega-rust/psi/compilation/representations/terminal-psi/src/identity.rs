@@ -527,9 +527,8 @@ pub(crate) mod vocabulary {
         }
 
         pub const fn get(self) -> u16 {
-            // Complete callable/source/installation identities and scalar predicate
-            // definitions include integer-result conversion and exactness graphs.
-            141
+            // Combined callable/source identities, typed conversions and owned cleanup.
+            142
         }
     }
 }

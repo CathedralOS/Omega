@@ -230,15 +230,11 @@ impl FunctionFragmentReplayInputs {
         self.realization.allocation()
     }
 
-    pub fn machine(
-        &self,
-    ) -> &register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan {
+    pub fn machine(&self) -> &crate::AllocatedMachinePlan {
         self.realization.machine()
     }
 
-    pub(crate) fn layout_optimization(
-        &self,
-    ) -> &resolved_layout_to_resolved_layout::ResolvedLayoutOptimization {
+    pub(crate) fn layout_optimization(&self) -> &crate::OptimizedFunctionLayout {
         self.realization.layout_optimization()
     }
 
@@ -277,16 +273,7 @@ impl FunctionFragmentReplayInputs {
             .shared_selected_plan()
     }
 
-    pub fn target_input_owner(
-        &self,
-    ) -> &Arc<abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations> {
-        self.realization.target_input()
-    }
-
-    pub fn encoding(
-        &self,
-    ) -> &post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding
-    {
+    pub fn encoding(&self) -> &crate::EncodedFunction {
         self.realization.encoding()
     }
 }
@@ -294,7 +281,7 @@ impl FunctionFragmentReplayInputs {
 #[derive(Debug, Clone)]
 struct CurrentFunctionFragmentInput {
     program: ResolvedMachineProgram,
-    machine: register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan,
+    machine: crate::AllocatedMachinePlan,
     homes: selected_instructions_to_register_homes::AssignedRegisterHomes,
     environment: register_environment::ValidatedTargetRegisterEnvironment,
     exit: StagedWholeFunctionExitContract,
@@ -305,7 +292,12 @@ struct CurrentFunctionFragmentInput {
 }
 
 impl CurrentFunctionFragmentInput {
-    fn retain(replay: &FunctionFragmentReplayInputs) -> Self {
+    fn retain(
+        replay: &FunctionFragmentReplayInputs,
+        target_input: Arc<
+            abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations,
+        >,
+    ) -> Self {
         let machine = replay.machine().clone();
         let homes = replay.register_homes().clone();
         Self {
@@ -325,7 +317,7 @@ impl CurrentFunctionFragmentInput {
             exit: replay.exit_contract().clone(),
             manifest: replay.function_relative_manifest().clone(),
             post_allocation_manifest: replay.post_allocation_manifest().clone(),
-            target_input: Arc::clone(replay.target_input_owner()),
+            target_input,
         }
     }
 
@@ -351,13 +343,15 @@ impl CurrentFunctionFragmentInput {
             || !matches_shared_plan(layout, replay.layout_optimization().layout())
             || !matches_shared_plan(frame, replay.fixed_frame().frame().plan())
             || !matches_shared_plan(protocol, replay.fixed_frame().protocol().plan())
-            || &self.machine != replay.machine()
+            || self.machine.effects() != replay.machine().effects()
+            || self.machine.machine() != replay.machine().machine()
+            || self.machine.optimization() != replay.machine().optimization()
+            || self.machine.custody() != replay.machine().custody()
             || &self.homes != replay.register_homes()
             || &self.environment != replay.register_environment()
             || &self.exit != replay.exit_contract()
             || &self.manifest != replay.function_relative_manifest()
             || &self.post_allocation_manifest != replay.post_allocation_manifest()
-            || !Arc::ptr_eq(&self.target_input, replay.target_input_owner())
         {
             return Err(FunctionFragmentEmissionError::RootMismatch);
         }
@@ -375,23 +369,12 @@ pub struct StagedOptimizedFunctionFragmentEmissionSource {
     replay: FunctionFragmentReplayInputs, // Retained producer-stage objects for independent replay.
 }
 
-impl From<FunctionFragmentReplayInputs> for StagedOptimizedFunctionFragmentEmissionSource {
-    fn from(replay: FunctionFragmentReplayInputs) -> Self {
-        Self {
-            current: CurrentFunctionFragmentInput::retain(&replay),
-            replay,
-        }
-    }
-}
-
 impl StagedOptimizedFunctionFragmentEmissionSource {
     pub fn program(&self) -> &ResolvedMachineProgram {
         &self.current.program
     }
 
-    pub fn machine(
-        &self,
-    ) -> &register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan {
+    pub fn machine(&self) -> &crate::AllocatedMachinePlan {
         &self.current.machine
     }
 
@@ -472,11 +455,33 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
     }
 }
 
-impl From<StagedFixedFrameFunctionRelativeRealization>
-    for StagedOptimizedFunctionFragmentEmissionSource
-{
-    fn from(realization: StagedFixedFrameFunctionRelativeRealization) -> Self {
-        FunctionFragmentReplayInputs::from(realization).into()
+impl StagedOptimizedFunctionFragmentEmissionSource {
+    /// Join the function-relative realization with stage 02's output, which
+    /// object emission reads for lowering facts and installations. The
+    /// realization was built for the pre-physical manifest stage 02 published,
+    /// or the two are refused here.
+    pub fn new(
+        realization: StagedFixedFrameFunctionRelativeRealization,
+        target_input: Arc<
+            abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations,
+        >,
+    ) -> Result<Self, FunctionFragmentEmissionError> {
+        let replay = FunctionFragmentReplayInputs::from(realization);
+        let source = Self {
+            current: CurrentFunctionFragmentInput::retain(&replay, target_input),
+            replay,
+        };
+        source.validate_target_input()?;
+        Ok(source)
+    }
+
+    fn validate_target_input(&self) -> Result<(), FunctionFragmentEmissionError> {
+        if self.post_allocation_manifest().record().pre_physical
+            != self.pre_physical_manifest().identity
+        {
+            return Err(FunctionFragmentEmissionError::RootMismatch);
+        }
+        Ok(())
     }
 }
 
@@ -486,6 +491,7 @@ fn validate_source(
     validate_fixed_frame_function_relative_realization(source.replay().fixed_frame())
         .map_err(FunctionFragmentEmissionError::Source)?;
     source.validate_current()?;
+    source.validate_target_input()?;
     let expected_allocation_recovery = source
         .optimized_target()
         .optimized()
@@ -769,7 +775,6 @@ fn emit_ordinary_function(
     Ok(FunctionFragment {
         machine: selected.machine,
         attachment: selected.attachment,
-        nominal_cleanup_subject: selected.nominal_cleanup_subject,
         provenance: selected.provenance.clone(),
         byte_count,
         bytes,
@@ -1256,8 +1261,7 @@ fn check_ordinary_fragments(
         )?;
         require(
             claimed.machine == source.machine
-                && (claimed.attachment == source.attachment
-                    && claimed.nominal_cleanup_subject == source.nominal_cleanup_subject)
+                && claimed.attachment == source.attachment
                 && claimed.provenance == source.provenance
                 && claimed.byte_count == resolved.byte_count
                 && u64::try_from(claimed.bytes.len()).ok() == Some(claimed.byte_count)
@@ -1857,19 +1861,20 @@ mod tests {
         let byte_count = u64::from(instruction_count + 1) * 4;
         (
             SelectedFunction {
-                machine,
-                attachment: None,
-                nominal_cleanup_subject: None,
-                provenance: Default::default(),
-                structural: None,
-                local_storage_slots: Vec::new(),
-                outgoing_arguments: Vec::new(),
-                calls: Vec::new(),
-                normalized_foreign_calls: Vec::new(),
-                memory_accesses: Vec::new(),
-                boundary_settlements: Vec::new(),
+                contracts: std::sync::Arc::new(selected_instructions::SelectedFunctionContracts {
+                    machine,
+                    attachment: None,
+                    provenance: Default::default(),
+                    structural: None,
+                    local_storage_slots: Vec::new(),
+                    outgoing_arguments: Vec::new(),
+                    calls: Vec::new(),
+                    normalized_foreign_calls: Vec::new(),
+                    memory_accesses: Vec::new(),
+                    boundary_settlements: Vec::new(),
+                    virtual_registers: Vec::new(),
+                }),
                 entry_block: block,
-                virtual_registers: Vec::new(),
                 blocks: (vec![SelectedBlock {
                     id: block,
                     origin: SelectedBlockOrigin::Source(BlockId::new(1).unwrap()),

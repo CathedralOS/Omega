@@ -13,7 +13,9 @@
 
 use std::collections::VecDeque;
 
-use proof_admission::{ProofNode, ProofRule, check_value_equality_denotation};
+use proof_admission::{
+    ProofNode, ProofRule, check_value_equality_denotation, check_value_equality_substitution,
+};
 use semantic_vocabulary::{
     IdTable, IntegerCarrier, IntegerMathTerm, Proposition, PropositionContext, ScalarTerm,
     ScalarType, ValueId,
@@ -475,6 +477,40 @@ impl Known {
         *defined.get_mut(id)? = Some(self.equations.len());
         self.equations.push(fact);
         Some(id)
+    }
+
+    /// Use the proof kernel's expansion budget for a shared computation
+    /// graph. If it cannot be expanded, keep the original checked value.
+    pub(crate) fn expand_value(
+        &self,
+        context: &PropositionContext,
+        value: ValueId,
+        scalar_type: ScalarType,
+        transport: &mut TransportInputs,
+    ) -> ScalarTerm {
+        let actual = ScalarTerm::value(value, scalar_type);
+        if self.definitions.get(value).is_none_or(Option::is_none) {
+            return actual;
+        }
+        let identity = Proposition::Equal(actual.clone(), actual.clone());
+        Self::transport_inputs(
+            &self.facts,
+            &self.equations,
+            &identity,
+            &self.definitions,
+            transport,
+        );
+        match check_value_equality_substitution(
+            context,
+            &identity,
+            transport
+                .selected
+                .iter()
+                .map(|&index| &self.facts[self.equations[index]].proposition),
+        ) {
+            Ok(Proposition::Equal(definition, _)) => definition,
+            _ => actual,
+        }
     }
 
     /// Compare a read and the contents it denotes at this program point.

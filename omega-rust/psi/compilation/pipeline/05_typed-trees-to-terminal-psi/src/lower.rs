@@ -773,7 +773,7 @@ struct Lowering<'a> {
     roots: IdTable<PlaceId, (StructuralPlaceKind, StructuralTypeId)>,
     /// Scalar leaves requested by operations and clauses, indexed by exact
     /// place. Final lowering allocates their entry and returned snapshots.
-    demanded_contents: Vec<Option<places::ContentDemand>>,
+    demanded_contents: Vec<Option<ScalarType>>,
     /// The branch decisions on the path to the open block, in program order:
     /// each the branch value equal to the Boolean its edge took. Every arm
     /// completes the machine, and a short-circuit or `match` rejoins its
@@ -1021,6 +1021,7 @@ impl<'a> Lowering<'a> {
             let first = statements.find_map(|statement| match statement {
                 Statement::Witness { .. } => None,
                 Statement::Bind { value, .. }
+                | Statement::Decompose { subject: value }
                 | Statement::Evaluate {
                     expression: value, ..
                 } => Some(value.source),
@@ -1139,6 +1140,14 @@ impl<'a> Lowering<'a> {
             });
         }
         self.slots = entered_bindings;
+        // The invocation forwards these values into its first head without
+        // a source-level read. Name their scalar leaves just as an ordinary
+        // call capture does, so inferred head requirements can observe the
+        // exact invocation input. These names supply no predicates.
+        for formal in &formals.records {
+            let actual = self.exact_root(formal.place)?;
+            self.name_contents(actual, ValueType::record(formal.structural_type))?;
+        }
         let entered: Vec<ValueId> = formals.scalars.iter().map(|formal| formal.id).collect();
         let structural = formals
             .records
@@ -1411,7 +1420,6 @@ impl<'a> Lowering<'a> {
             assembly_target_requirement: RegisterTargetApplicability::Any,
             id: self.id,
             attachment: None,
-            nominal_cleanup_subject: None,
             ranked_scc: None,
             structural_places,
             call_formations: std::mem::take(&mut self.call_formations),

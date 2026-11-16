@@ -484,6 +484,30 @@ impl Program<'_> {
             (left, right)
         };
         *operands = [left_type, right_type].map(|operand| self.operator_operand_reference(operand));
+        // Core policy comparisons have the same exact declared signatures
+        // as executable comparisons. Plain cross-carrier comparisons keep
+        // their separately specified mathematical-value relation below.
+        let policy_qualified = |value_type| {
+            matches!(value_type,
+            ValueType::Scalar(_, qualification) if qualification.policy.is_some())
+        };
+        if policy_qualified(left_type) || policy_qualified(right_type) {
+            super::expressions::binary_selection(
+                id,
+                comparison,
+                Some(left_type),
+                Some(right_type),
+                (
+                    self.wholly_anonymous(binary.left),
+                    self.wholly_anonymous(binary.right),
+                ),
+                None,
+                (
+                    SourceOrigin::of(typed.expression_table.source_span(binary.left)),
+                    SourceOrigin::of(typed.expression_table.source_span(binary.right)),
+                ),
+            )?;
+        }
         let left_type = self.clause_operand_type(id, left_type)?;
         let right_type = self.clause_operand_type(id, right_type)?;
         // Integers of different types compare by their exact values ("The
@@ -1842,29 +1866,30 @@ impl Program<'_> {
 }
 
 impl Program<'_> {
-    /// The alternatives of a finite type family, each as the type its one
-    /// type parameter is fixed to: the machine `symbol` has exactly one type
-    /// parameter and one `requires` clause that is a disjunction of type
-    /// equations between that parameter and a closed scalar or record type, `requires
-    /// T == u32 || T == u64`. generics.md, "Static type equality": "Checking
+    /// Complete alternatives for one type binder. A finite family names
+    /// them in a requirement such as `requires T == u32 || T == u64`.
+    /// generics.md, "Static type equality": "Checking
     /// the body once per listed alternative, each with `T` fixed to that
     /// type, satisfies this rule for a finite family; the list is closed".
-    /// Refused for anything else, an open `T` included: that is the opaque
-    /// check form's.
+    /// Other binders remain opaque under their own bounds. An open binder
+    /// instead checks every closed type named by its static guards and one
+    /// opaque remainder that excludes those types; this remains a linear
+    /// partition rather than a Cartesian product of independent families.
     pub fn family_alternatives(
         &self,
         id: MachineId,
         symbol: SymbolHandle,
-    ) -> Checked<Vec<Vec<TypeReferenceHandle>>> {
+    ) -> Checked<Vec<super::TypeAlternative>> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Machine(what)));
         let (machine, _) = self.declaration(id, symbol)?;
-        let [parameter] = self.typed.machine_type_parameters(machine) else {
-            return unserved("finite family over other than one type parameter");
-        };
-        if parameter.kind != typed_trees::data::TypeParameterKind::Type
-            || !parameter.symbol.is_valid()
+        let parameters = self.typed.machine_type_parameters(machine);
+        if parameters.is_empty()
+            || parameters.iter().any(|parameter| {
+                parameter.kind != typed_trees::data::TypeParameterKind::Type
+                    || !parameter.symbol.is_valid()
+            })
         {
-            return unserved("finite family over other than a type parameter");
+            return unserved("finite family needs an exact type-parameter roster");
         }
         let table = &self.typed.expression_table;
         let types = &self.typed.type_reference_table;
@@ -1880,7 +1905,9 @@ impl Program<'_> {
         // One alternative per disjunct `T == X`, either way round, with `X`
         // a closed scalar or record type. Keep its source reference here;
         // a record identity belongs to the reader that materializes it.
-        let alternative = |disjunct: ExpressionHandle| -> Option<TypeReferenceHandle> {
+        let alternative = |parameter: &typed_trees::data::TypeParameter,
+                           disjunct: ExpressionHandle|
+         -> Option<TypeReferenceHandle> {
             let ExpressionNode::Binary(binary) = table.expression(disjunct) else {
                 return None;
             };
@@ -1901,9 +1928,9 @@ impl Program<'_> {
             super::source_records::source_application(self.typed, data, other, id).ok()?;
             Some(other)
         };
-        let mut found: Option<Vec<Vec<TypeReferenceHandle>>> = None;
+        let mut found: Option<Vec<Vec<Option<TypeReferenceHandle>>>> = None;
         let contracts = super::span(
-            &self.typed.signature_contracts,
+            |span| self.typed.signature_contracts.span(span),
             machine.contracts,
             id,
             "contract span",
@@ -1912,36 +1939,148 @@ impl Program<'_> {
             if contract.kind != typed_trees::signature::SignatureContractKind::Requires {
                 continue;
             }
-            for fact in super::span(&self.typed.proof_facts, contract.facts, id, "fact span")? {
+            for fact in super::span(
+                |span| self.typed.proof_facts.span(span),
+                contract.facts,
+                id,
+                "fact span",
+            )? {
                 let expression = self.fact(id, fact)?;
                 let mut disjuncts = Vec::new();
                 self.disjuncts(expression, &mut disjuncts);
-                let listed: Option<Vec<TypeReferenceHandle>> = disjuncts
+                let listed = parameters
                     .iter()
-                    .map(|disjunct| disjunct.is_valid().then(|| alternative(*disjunct))?)
-                    .collect();
-                let Some(listed) = listed else {
+                    .enumerate()
+                    .find_map(|(position, parameter)| {
+                        disjuncts
+                            .iter()
+                            .map(|disjunct| {
+                                disjunct
+                                    .is_valid()
+                                    .then(|| alternative(parameter, *disjunct))?
+                            })
+                            .collect::<Option<Vec<_>>>()
+                            .map(|listed| (position, listed))
+                    });
+                let Some((position, listed)) = listed else {
                     continue;
                 };
                 if found.is_some() {
                     return unserved("finite family listed by two clauses");
                 }
-                let mut alternatives: Vec<Vec<TypeReferenceHandle>> = Vec::new();
+                let mut alternatives: Vec<Vec<Option<TypeReferenceHandle>>> = Vec::new();
                 for reference in listed {
                     let identity = self.typed.normalized_type_identity(reference);
-                    if !alternatives
-                        .iter()
-                        .any(|known| self.typed.normalized_type_identity(known[0]) == identity)
-                    {
-                        alternatives.push(vec![reference]);
+                    if !alternatives.iter().any(|known| {
+                        known[position].is_some_and(|reference| {
+                            self.typed.normalized_type_identity(reference) == identity
+                        })
+                    }) {
+                        let mut arguments = vec![None; parameters.len()];
+                        arguments[position] = Some(reference);
+                        alternatives.push(arguments);
                     }
                 }
                 found = Some(alternatives);
             }
         }
         match found {
-            Some(alternatives) => Ok(alternatives),
-            None => unserved("type parameter that is not a finite family"),
+            Some(alternatives) => Ok(alternatives
+                .into_iter()
+                .map(|arguments| super::TypeAlternative {
+                    arguments,
+                    remainder: None,
+                })
+                .collect()),
+            None => {
+                // Static guards partition one open binder into their closed
+                // cases and an opaque remainder. All cases are checked, even
+                // when no current consumer selects one of them.
+                let (_, state) = self.declaration(id, symbol)?;
+                let statements = self.typed.statement_table.statements(state.statement_nodes);
+                let mut pending = statements
+                    .iter()
+                    .filter_map(|statement| {
+                        let typed_trees::statement::StatementNode::Transition(transition) =
+                            statement
+                        else {
+                            return None;
+                        };
+                        match transition.guard {
+                            typed_trees::statement::TransitionGuardNode::When(guard) => Some(guard),
+                            _ => None,
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                let mut selected = None;
+                let mut listed = Vec::new();
+                while let Some(expression) = pending.pop() {
+                    match table.expression(expression) {
+                        ExpressionNode::Unary(unary)
+                            if unary.operator == UnaryOperator::LogicalNot =>
+                        {
+                            pending.push(unary.operand)
+                        }
+                        ExpressionNode::Binary(binary)
+                            if matches!(
+                                binary.operator,
+                                BinaryOperator::And | BinaryOperator::Or
+                            ) =>
+                        {
+                            pending.push(binary.left);
+                            pending.push(binary.right);
+                        }
+                        ExpressionNode::Binary(binary)
+                            if binary.operator == BinaryOperator::Equal
+                                && operand(binary.left).is_some()
+                                && operand(binary.right).is_some() =>
+                        {
+                            let Some((position, reference)) = parameters
+                                .iter()
+                                .enumerate()
+                                .find_map(|(position, parameter)| {
+                                    alternative(parameter, expression)
+                                        .map(|reference| (position, reference))
+                                })
+                            else {
+                                return unserved(
+                                    "static partition needs a binder and a closed type",
+                                );
+                            };
+                            if selected.is_some_and(|selected| selected != position) {
+                                return unserved("static partition over independent type binders");
+                            }
+                            selected = Some(position);
+                            let identity = self.typed.normalized_type_identity(reference);
+                            if !listed.iter().any(|known| {
+                                self.typed.normalized_type_identity(*known) == identity
+                            }) {
+                                listed.push(reference);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                let Some(position) = selected else {
+                    return unserved("type parameter that has no complete static partition");
+                };
+                let mut alternatives = listed
+                    .iter()
+                    .map(|reference| {
+                        let mut arguments = vec![None; parameters.len()];
+                        arguments[position] = Some(*reference);
+                        super::TypeAlternative {
+                            arguments,
+                            remainder: None,
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                alternatives.push(super::TypeAlternative {
+                    arguments: vec![None; parameters.len()],
+                    remainder: Some((position, listed)),
+                });
+                Ok(alternatives)
+            }
         }
     }
 }

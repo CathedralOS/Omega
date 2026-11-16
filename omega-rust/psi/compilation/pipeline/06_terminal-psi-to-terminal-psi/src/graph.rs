@@ -5,7 +5,7 @@ operation positions for ordering within a block. Extra table edges participate
 even when no terminator owns them: they conservatively remove availability.
 */
 
-use semantic_vocabulary::{BlockId, EdgeId, MachineId};
+use semantic_vocabulary::{BlockId, MachineId};
 use terminal_check_tables::edges::Destination;
 use terminal_check_tables::{
     Checked, Construct, MachineTables, ProgramPoint, Refusal, RefusalReason,
@@ -29,6 +29,8 @@ pub(crate) struct Graph {
     ordered: Vec<BlockId>,
     entry: BlockId,
     tables_edges: Vec<(BlockId, Destination)>,
+    cleanup_counts: Vec<usize>,
+    block_ends: Vec<usize>,
 }
 
 fn index(raw: u64) -> usize {
@@ -85,6 +87,26 @@ impl Graph {
             }
             tables_edges.push((edge.source, edge.destination));
         }
+        let mut cleanup_counts = vec![0; tables_edges.len()];
+        for block in &lowered.blocks {
+            for (edge, actions) in block.terminator.cleanup_rosters() {
+                if actions.is_empty() {
+                    continue;
+                }
+                let count = cleanup_counts
+                    .get_mut(index(edge.get()))
+                    .ok_or_else(|| refuse("cleanup edge is outside the graph"))?;
+                if tables_edges[index(edge.get())].0 != block.id {
+                    return Err(refuse("cleanup edge belongs to another block"));
+                }
+                *count = actions.len();
+            }
+        }
+        let block_ends = lowered
+            .blocks
+            .iter()
+            .map(|block| block.operations.len())
+            .collect();
         let ordered = ordered_blocks(
             std::iter::once(lowered.entry).chain(
                 (1..=count).map(|raw| BlockId::new(raw as u64).expect("dense block identity")),
@@ -124,6 +146,8 @@ impl Graph {
             ordered,
             entry: lowered.entry,
             tables_edges,
+            cleanup_counts,
+            block_ends,
         })
     }
 
@@ -154,13 +178,6 @@ impl Graph {
             .map(Vec::as_slice)
             .ok_or_else(|| self.refuse(Construct::Block(block)))
     }
-    pub(crate) fn edge_destination(&self, edge: EdgeId) -> Checked<Destination> {
-        self.tables_edges
-            .get(index(edge.get()))
-            .map(|(_, destination)| *destination)
-            .ok_or_else(|| self.refuse(Construct::Edge(edge)))
-    }
-
     /// Preserve the entry-first DFS forest's reverse finish order. Consumers
     /// borrow the prepared order instead of reconstructing table-edge topology.
     pub(crate) fn reverse_postorder(&self) -> Checked<&[BlockId]> {
@@ -189,6 +206,28 @@ impl Graph {
                 .flatten()
                 .map(|(block, position)| (block, position + 1))
                 .ok_or_else(|| self.refuse(Construct::Operation(operation)))?,
+            ProgramPoint::BeforeCleanup {
+                edge,
+                action_ordinal,
+            }
+            | ProgramPoint::AfterCleanup {
+                edge,
+                action_ordinal,
+            } => {
+                if usize::try_from(action_ordinal).ok().is_none_or(|ordinal| {
+                    self.cleanup_counts
+                        .get(index(edge.get()))
+                        .is_none_or(|count| ordinal >= *count)
+                }) {
+                    return Err(self.refuse(Construct::Edge(edge)));
+                }
+                let source = self
+                    .tables_edges
+                    .get(index(edge.get()))
+                    .ok_or_else(|| self.refuse(Construct::Edge(edge)))?
+                    .0;
+                (source, self.block_ends[index(source.get())])
+            }
             ProgramPoint::Edge(edge) => self
                 .tables_edges
                 .get(index(edge.get()))
@@ -208,6 +247,44 @@ impl Graph {
         let (block, position, dominance) = self.locate_with_dominance(available)?;
         if available == used {
             return Ok(true);
+        }
+        let cleanup = |point| match point {
+            ProgramPoint::BeforeCleanup {
+                edge,
+                action_ordinal,
+            } => Some((edge, action_ordinal, false)),
+            ProgramPoint::AfterCleanup {
+                edge,
+                action_ordinal,
+            } => Some((edge, action_ordinal, true)),
+            _ => None,
+        };
+        if let Some((edge, ordinal, after)) = cleanup(available) {
+            if let Some((used_edge, used_ordinal, used_after)) = cleanup(used)
+                && edge == used_edge
+            {
+                return Ok((ordinal, after) <= (used_ordinal, used_after));
+            }
+            if let ProgramPoint::Edge(used_edge) = used
+                && edge == used_edge
+            {
+                return Ok(true);
+            }
+            if block == used_block {
+                return Ok(false);
+            }
+            let (_, destination) = self.tables_edges[index(edge.get())];
+            let Destination::Block(target) = destination else {
+                return Ok(false);
+            };
+            return Ok(self.predecessors[index(target.get())].len() == 1
+                && self.dominance[index(target.get())].depth() != 1
+                && self.dominance[index(target.get())].dominates(used_dominance));
+        }
+        if let (ProgramPoint::Edge(edge), Some((used_edge, _, _))) = (available, cleanup(used))
+            && (edge == used_edge || block == used_block)
+        {
+            return Ok(false);
         }
         if let ProgramPoint::Edge(edge) = available {
             let (_, destination) = self

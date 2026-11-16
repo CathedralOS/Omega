@@ -531,6 +531,7 @@ pub(crate) fn premise(
         Justification::BranchCondition { .. } => String::from("an earlier branch condition"),
         Justification::DispatchBinding { .. } => String::from("the case a dispatch selected"),
         Justification::BlockInvariant { .. } => String::from("a block invariant"),
+        Justification::FormalType => String::from("the declared type of a formal"),
         Justification::Derived { .. } | Justification::OperationSemantics(_) => {
             String::from("a derived fact")
         }

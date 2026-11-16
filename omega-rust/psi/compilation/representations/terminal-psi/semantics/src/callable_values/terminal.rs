@@ -135,10 +135,6 @@ pub fn terminal_callable_values(
             .find(|row| row.id == machine.id)
             .ok_or("callable provenance machine lost its current Terminal storage flow")?;
         let mut body = CallableValueBody {
-            attachment: machine.attachment,
-            nominal_cleanup_subject: machine.nominal_cleanup_subject,
-            unit_result: matches!(machine.result, terminal_psi::TerminalMachineResult::Unit),
-            structural_formals: machine.structural_parameters.clone(),
             scalar_result: machine.result.scalar().map(|result| result.scalar_type),
             structural_result: machine
                 .result
@@ -282,8 +278,7 @@ pub fn terminal_callable_values(
                     .iter()
                     .position(|(id, _)| *id == edge);
                 for (ordinal, action) in actions.iter().enumerate() {
-                    if let terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup) =
-                        action
+                    if let terminal_psi::TerminalAffineCleanupAction::InvokeOwned(cleanup) = action
                     {
                         cleanups.push((
                             machine.id,
@@ -315,16 +310,11 @@ pub fn terminal_callable_values(
             .iter()
             .find(|row| row.id == caller)
             .ok_or("callable cleanup lost its current Terminal storage flow")?;
-        let callee = bodies
-            .binary_search_by_key(&cleanup.cleanup_machine, |(id, _)| *id)
-            .ok()
-            .map(|position| &bodies[position].1)
-            .ok_or("callable cleanup has no exact selected body")?;
         let site = CallableInvocationSite::CleanupAction {
             edge,
             action_ordinal: ordinal,
         };
-        let call = project_nominal_cleanup_invocation(
+        let call = project_owned_cleanup_invocation(
             &module.structural_types,
             flow,
             position,
@@ -332,7 +322,6 @@ pub fn terminal_callable_values(
             successor,
             ordinal,
             &cleanup,
-            callee,
         );
         let body_position = bodies
             .binary_search_by_key(&caller, |(id, _)| *id)
@@ -478,37 +467,29 @@ pub fn project_callable_invocation(
     })
 }
 
+/// Project the exact ordinary owned call already retained by the descriptor
+/// graph. Its producer validates carrier selection, formal ownership and the
+/// source actual; this query does not manufacture a special cleanup signature.
 #[allow(clippy::too_many_arguments)]
-pub fn project_nominal_cleanup_invocation(
+pub fn project_owned_cleanup_invocation(
     types: &[StructuralTypeDeclaration],
     flow: &DescriptorMachine,
     position: DescriptorPosition,
     edge: EdgeId,
     successor: Option<usize>,
     action_ordinal: u32,
-    cleanup: &terminal_psi::NominalAffineCleanup,
-    callee: &CallableValueBody,
+    cleanup: &terminal_psi::OwnedCleanupInvocation,
 ) -> CallableValueResult<CallableInvocation> {
-    if callee.attachment != Some(cleanup.structural_type)
-        || callee.nominal_cleanup_subject != Some(cleanup.structural_type)
-        || !callee.unit_result
-        || !callee.scalar_parameters.is_empty()
-        || callee.structural_formals.len() > 1
-        || (callee.structural_formals.is_empty() && cleanup.cleanup_receiver.is_some())
-    {
-        return Err("callable cleanup does not match its exact nominal body signature");
-    }
-    let mut arguments = Vec::new();
-    for formal in &callee.structural_formals {
-        if !formal.is_cleanup_receiver(cleanup) {
-            return Err("callable cleanup lost its exact receiver formal");
-        }
-        arguments.push(terminal_psi::StructuralArgument {
-            place: cleanup.place,
-            path: cleanup.path.clone(),
-            access: formal.access,
-        });
-    }
+    let retained = flow
+        .invocation(
+            position,
+            crate::descriptor_results::DescriptorInvocationOwner::Cleanup {
+                edge,
+                action_ordinal,
+            },
+        )
+        .ok_or("callable cleanup lost its exact retained owned call")?;
+    let actuals = cleanup.module_invocation();
     let mut invocation = project_callable_invocation(
         types,
         flow,
@@ -518,10 +499,26 @@ pub fn project_nominal_cleanup_invocation(
         },
         None,
         position,
-        CallableInvocationTarget::Machine(cleanup.cleanup_machine),
-        &[],
-        &arguments,
+        CallableInvocationTarget::Machine(actuals.callee),
+        actuals.arguments,
+        actuals.structural_arguments,
     )?;
+    if retained.callee() != Some(actuals.callee)
+        || !retained.scalar_arguments.is_empty()
+        || retained.arguments.len() != invocation.structural_arguments.len()
+        || !retained
+            .arguments
+            .iter()
+            .zip(&invocation.structural_arguments)
+            .all(|(retained, actual)| retained.as_ref() == Some(actual))
+        || invocation.structural_actual_types
+            != [(
+                cleanup.structural_type,
+                terminal_psi::StructuralAccess::Owned,
+            )]
+    {
+        return Err("callable cleanup differs from its retained owned actual call");
+    }
     invocation.successor = successor;
     Ok(invocation)
 }

@@ -362,7 +362,6 @@ fn machine(id: MachineId, identity: terminal_psi::TerminalIdentityIndex) -> Term
         assembly_target_requirement: terminal_psi::RegisterTargetApplicability::Any,
         id,
         attachment: None,
-        nominal_cleanup_subject: None,
         ranked_scc: None,
         structural_places: Vec::new(),
         block_entry_claims: Vec::new(),

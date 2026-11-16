@@ -1723,6 +1723,10 @@ mod propositions {
                     source: source.clone(),
                     target: *target,
                 },
+                IntegerIeeeFloatExact { source, target } => IntegerIeeeFloatExact {
+                    source: source.clone(),
+                    target: *target,
+                },
                 Conjunction(_) | Disjunction(_) | Implication { .. } => {
                     unreachable!("the logical clone continuation owns these children")
                 }
@@ -1877,6 +1881,12 @@ mod propositions {
                         } => {
                             matches!(right, IeeeFloatIntegerExact { source: b, target: bt } if a == b && at == bt)
                         }
+                        IntegerIeeeFloatExact {
+                            source: a,
+                            target: at,
+                        } => {
+                            matches!(right, IntegerIeeeFloatExact { source: b, target: bt } if a == b && at == bt)
+                        }
                     };
                     if !equal {
                         return false;
@@ -1904,6 +1914,10 @@ mod propositions {
                         FloatMeaningEqual(clause) => clause.hash(state),
                         FloatIntegerConversion(clause) => clause.hash(state),
                         IeeeFloatIntegerExact { source, target } => {
+                            source.hash(state);
+                            target.hash(state);
+                        }
+                        IntegerIeeeFloatExact { source, target } => {
                             source.hash(state);
                             target.hash(state);
                         }
@@ -2030,6 +2044,12 @@ mod propositions {
             source: ScalarTerm,
             target: IntegerType,
         },
+        /// The exact integer value is representable in the permanent format.
+        /// It names only the live source, never the conversion's future result.
+        IntegerIeeeFloatExact {
+            source: ScalarTerm,
+            target: crate::IeeeFloatFormat,
+        },
     }
 
     impl Proposition {
@@ -2085,6 +2105,21 @@ mod propositions {
                             )));
                         }
                         crate::fixed_integer_type(*target).map_err(|detail| {
+                            PropositionError::InvalidFloatIntegerConversion(Box::new(
+                                crate::FloatIntegerConversionError::Signature(detail),
+                            ))
+                        })?;
+                    }
+                    Self::IntegerIeeeFloatExact { source, .. } => {
+                        source.validate()?;
+                        let Some(carrier) = source.scalar_type().as_integer() else {
+                            return Err(PropositionError::InvalidFloatIntegerConversion(Box::new(
+                                crate::FloatIntegerConversionError::Signature(
+                                    "exact float cast source is not an integer",
+                                ),
+                            )));
+                        };
+                        crate::fixed_integer_type(carrier).map_err(|detail| {
                             PropositionError::InvalidFloatIntegerConversion(Box::new(
                                 crate::FloatIntegerConversionError::Signature(detail),
                             ))
@@ -2242,7 +2277,8 @@ mod propositions {
                         self.validate_term(&clause.source)?;
                         self.validate_term(&clause.result)?;
                     }
-                    Proposition::IeeeFloatIntegerExact { source, .. } => {
+                    Proposition::IeeeFloatIntegerExact { source, .. }
+                    | Proposition::IntegerIeeeFloatExact { source, .. } => {
                         self.validate_term(source)?
                     }
                     crate::ordered_comparison_operands!(left, right) => {
@@ -2662,7 +2698,8 @@ mod value_ids {
                                 pending.push(Pending::Scalar(&mut clause.result));
                                 pending.push(Pending::Scalar(&mut clause.source));
                             }
-                            Self::IeeeFloatIntegerExact { source, .. } => {
+                            Self::IeeeFloatIntegerExact { source, .. }
+                            | Proposition::IntegerIeeeFloatExact { source, .. } => {
                                 pending.push(Pending::Scalar(source))
                             }
                             Self::Equal(left, right)
@@ -2825,7 +2862,8 @@ mod value_ids {
                         pending.push(Pending::Scalar(&clause.result));
                         pending.push(Pending::Scalar(&clause.source));
                     }
-                    Proposition::IeeeFloatIntegerExact { source, .. } => {
+                    Proposition::IeeeFloatIntegerExact { source, .. }
+                    | Proposition::IntegerIeeeFloatExact { source, .. } => {
                         pending.push(Pending::Scalar(source))
                     }
                     crate::scalar_comparison_operands!(left, right) => {

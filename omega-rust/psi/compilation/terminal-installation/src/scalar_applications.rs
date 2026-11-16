@@ -1724,6 +1724,7 @@ pub(crate) mod abi_storage_tests {
                         copyable: true,
                         no_code_affine_cleanup: true,
                         descriptor_cleanup: true,
+                        nominal_cleanup: None,
                         scalar_restriction: None,
                         shape,
                     });
@@ -1901,7 +1902,6 @@ pub(crate) mod abi_storage_tests {
         module.machines.push(terminal_psi::TerminalMachine {
             id: machine,
             attachment: None,
-            nominal_cleanup_subject: None,
             ranked_scc: None,
             assembly_target_requirement: terminal_psi::RegisterTargetApplicability::Any,
             structural_places: Vec::new(),

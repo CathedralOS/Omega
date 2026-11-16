@@ -37,7 +37,6 @@ fn machine(id: u64) -> TerminalMachine {
         assembly_target_requirement: RegisterTargetApplicability::Any,
         id: machine_id(id),
         attachment: None,
-        nominal_cleanup_subject: None,
         ranked_scc: None,
         structural_places: Vec::new(),
         block_entry_claims: Vec::new(),
@@ -426,6 +425,7 @@ fn saved_callee_uses_its_read_cut_after_an_overlapping_write() {
         no_code_affine_cleanup: true,
         copyable: true,
         descriptor_cleanup: true,
+        nominal_cleanup: None,
         shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Callable(contract_id())),
         scalar_restriction: None,
     });

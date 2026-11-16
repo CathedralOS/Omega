@@ -798,7 +798,6 @@ mod native {
             TerminalMachine {
                 id: machine_id(identity),
                 attachment: None,
-                nominal_cleanup_subject: None,
                 structural_places: Vec::new(),
                 call_formations: Vec::new(),
                 block_entry_claims: Vec::new(),

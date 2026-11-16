@@ -57,7 +57,9 @@ This skill lists **only** the steps. The shared rules, including the
    A claim lasts two hours from when it was taken or last renewed. Run
    `cargo xtask claims renew` from the worktree after each push (it renews
    every claim that worktree took; `claims note` also renews). A lapsed claim
-   cannot be renewed: claim again. Release it when the work lands.
+   cannot be renewed: claim again. Keep ownership through checkpoint merges;
+   release the claim when the original acceptance lands, or record an unfinished
+   handoff under the law of completion when the session must stop.
 
 ## Step 2: Reproduce & Trace Before Editing (the Worker's Job in a Swarm)
 
@@ -111,7 +113,8 @@ Never make a kept test program pass by changing its fact, bound or operation
      `TASKS.md` item names with `omega run --both`.
    - If that is fine, land.
    - If it is not, investigate that failure: run the same test at the base
-     commit to learn whether your change caused it. Never widen the run.
+     commit to learn whether your change caused it. A pre-existing failure in
+     the original program still belongs to this assignment. Never widen the run.
    - There is no test corpus or results ledger to run. Do not build one.
    - Put the result in the PR body: `Proof: <tests on the change and the area
      around it> | <clean, or what failed and what it turned out to be>`.
@@ -137,7 +140,11 @@ Never make a kept test program pass by changing its fact, bound or operation
    ([coordinator-review](../coordinator-review/SKILL.md)), then squash-merge it
    when `admission` passes. You already have permission; waiting for it only
    slows the project down.
-3. **Start the next requirement in the same worktree:** Once merged, take the
-   parent capability's next requirement there, keeping its build cache. Check
+3. **Return to the original program in the same worktree:** After each merge,
+   run it on the landed source against its original expected result. If it
+   fails, follow that failure through the next repair without releasing outcome
+   ownership. Choose another requirement only after that acceptance is complete
+   or an unfinished handoff is recorded under the law of completion. Keep its
+   build cache. Check
    `git status --short` and keep unfinished or untracked work before you fetch
    `main` and check out the new base. Do not clean the worktree blindly.

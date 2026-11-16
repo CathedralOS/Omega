@@ -591,9 +591,8 @@ pub(crate) mod atomic_access {
         let logical = types
             .closed_scalar(scalar_type)
             .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
-        let integer =
-            target_operations::operations::atomic_storage_integer_type_closed(access, logical)
-                .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
+        let integer = target_operations::atomic_storage_integer_type_closed(access, logical)
+            .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
         let regions = reference_projection_regions(root, &location.path, types)
             .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
         if !regions.readable

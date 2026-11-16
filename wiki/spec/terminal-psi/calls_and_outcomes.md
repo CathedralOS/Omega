@@ -76,6 +76,12 @@ changes the original source retroactively. Every
 incoming edge is checked independently. A result annotation, ordinary constant,
 load or arithmetic operation cannot establish membership by itself.
 
+Core arithmetic-policy operator implementations use the same qualification-change
+edges to establish their declared results. Their integer primitives produce
+bare values, including a composed saturating shift; a policy label on a
+primitive result cannot replace the implementation's establishment edge.
+The caller's operand types remain unchanged.
+
 Predicate and routed scalar domains retain their declared theory in the same
 catalog. Establishment additionally names a checked completion under the
 [retained origin rules](encoding.md): a predicate is the exact

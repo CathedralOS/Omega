@@ -67,6 +67,7 @@ mod machine_batch;
 mod machine_inputs;
 mod minted;
 mod operational;
+mod owned_cleanup;
 mod places;
 mod prove;
 mod rankings;
@@ -446,6 +447,21 @@ fn discharge_inner(
     let elaboration = scope.source();
     minted::width_questions_are_minted(elaboration)?;
     operational::judge(elaboration)?;
+    terminal_semantics::nominal_cleanup::validate_normal_returns(&elaboration.module).map_err(
+        |detail| {
+            refusal(
+                RefusalReason::Unsupported,
+                elaboration
+                    .module
+                    .machines
+                    .first()
+                    .map(|machine| machine.id)
+                    .unwrap_or_else(|| MachineId::new(1).expect("one is nonzero")),
+                Construct::Machine,
+                detail,
+            )
+        },
+    )?;
     // A caller may retain old contents only outside the callee's actual
     // writes. Check every published frame before summaries or knowledge can
     // use it. Low-level proof reconstruction still states a conditional
@@ -1064,6 +1080,7 @@ fn fill_knowledge<'a>(
         &mut terminal_semantics::descriptor_results::DescriptorAnalysis<'a>,
     ),
 ) -> Checked<()> {
+    let edge_entries = owned_cleanup::edge_entry_points(lowered, tables)?;
     for (clause, proposition) in lowered.contract.requires.iter().enumerate() {
         // A clause over a field of a record formal is about what that field
         // held at entry, which is a value when some operation names the
@@ -1080,6 +1097,17 @@ fn fill_knowledge<'a>(
             Justification::EntryRequirement {
                 clause: position(clause, id)?,
             },
+        );
+    }
+    // Each readable record formal of the machine or of a loop head arrived
+    // as a member of its type's domain, so the clauses of that type hold of
+    // its entry contents, including a clause that relates several fields.
+    for (block, premise) in storage.entry_type_premises(references, tables)? {
+        push_knowledge(
+            tables,
+            premise,
+            ProgramPoint::BlockEntry(block),
+            Justification::FormalType,
         );
     }
     for block in &lowered.blocks {
@@ -1102,12 +1130,13 @@ fn fill_knowledge<'a>(
                     Justification::OperationSemantics(operation.id),
                 );
             }
-            // A read or a returning call establishes the applicable type
-            // constraints on its exact observed storage versions.
+            // Storage operations establish constraints on the specific
+            // versions they observe or produce.
             for premise in storage
                 .read_premises(references, tables, operation)?
                 .into_iter()
                 .chain(storage.returned_type_premises(references, tables, operation)?)
+                .chain(storage.subslice_predicate_premises(operation)?)
             {
                 push_knowledge(
                     tables,
@@ -1132,7 +1161,14 @@ fn fill_knowledge<'a>(
                         ScalarTerm::value(*condition, ScalarType::Boolean),
                         ScalarTerm::Boolean(holds),
                     ),
-                    ProgramPoint::Edge(edge),
+                    edge_entries.get(edge).copied().ok_or_else(|| {
+                        refusal(
+                            RefusalReason::ForeignIdentity,
+                            id,
+                            Construct::Edge(edge),
+                            "branch has no exact source edge point",
+                        )
+                    })?,
                     Justification::BranchCondition { edge, holds },
                 );
             }
@@ -1165,6 +1201,47 @@ fn fill_knowledge<'a>(
             id,
             Construct::Invocation(invocation),
         )?;
+        if let InvocationSite::Cleanup {
+            edge,
+            action_ordinal,
+        } = row.site
+        {
+            let call = call_contracts::invocation(module, lowered, tables, invocation, row)?;
+            let formals = call.contract.structural_parameters;
+            let ensures = call.contract.ensures.iter();
+            let mut inputs = storage.at_cleanup_call(
+                references,
+                tables,
+                &row.actuals,
+                formals,
+                edge,
+                action_ordinal,
+                Construct::Invocation(invocation),
+            )?;
+            // Cleanup is Unit and its actual is Owned. As for an ordinary
+            // owned input, guarantees denote the captured invocation inputs.
+            let propositions = ensures
+                .map(|clause| {
+                    substitute(clause, &mut inputs)
+                        .map_err(|unbound| unbound.refusal(id, Construct::Invocation(invocation)))
+                })
+                .collect::<Checked<Vec<_>>>()?;
+            for (clause, proposition) in propositions.into_iter().enumerate() {
+                push_knowledge(
+                    tables,
+                    proposition,
+                    ProgramPoint::AfterCleanup {
+                        edge,
+                        action_ordinal,
+                    },
+                    Justification::CalleeGuarantee {
+                        invocation,
+                        clause: position(clause, id)?,
+                    },
+                );
+            }
+            continue;
+        }
         // A call with no normal completion is a terminator. Its callee's
         // guarantees "apply only on normal return; external exit neither
         // establishes them nor necessarily violates them"
@@ -1172,7 +1249,9 @@ fn fill_knowledge<'a>(
         // knowledge.
         let operation = match row.site {
             InvocationSite::Operation(operation) => operation,
-            InvocationSite::InvokeNoNormal(_) | InvocationSite::ExternalCompletion(_) => continue,
+            InvocationSite::InvokeNoNormal(_)
+            | InvocationSite::ExternalCompletion(_)
+            | InvocationSite::Cleanup { .. } => continue,
         };
         let call = call_contracts::invocation(module, lowered, tables, invocation, row)?;
         let contract = &call.contract;
@@ -1849,14 +1928,29 @@ fn stated_goal<'a>(
                     },
                 )
             };
-            over_actuals(&mut storage.at_call(
-                references,
-                tables,
-                &row.actuals,
-                call.contract.structural_parameters,
-                row.site,
-                concerns,
-            )?)
+            let formals = call.contract.structural_parameters;
+            match row.site {
+                InvocationSite::Cleanup {
+                    edge,
+                    action_ordinal,
+                } => over_actuals(&mut storage.at_cleanup_call(
+                    references,
+                    tables,
+                    &row.actuals,
+                    formals,
+                    edge,
+                    action_ordinal,
+                    concerns,
+                )?),
+                site => over_actuals(&mut storage.at_call(
+                    references,
+                    tables,
+                    &row.actuals,
+                    formals,
+                    site,
+                    concerns,
+                )?),
+            }
             .map_err(|unbound| unbound.refusal(id, concerns))
         }
         ObligationKind::DataDomain { operation, clause } => {
@@ -2161,6 +2255,7 @@ pub(crate) fn hypotheses(
                 axioms.push(proposition.clone());
             }
             Justification::EntryRequirement { .. }
+            | Justification::FormalType
             | Justification::CalleeGuarantee { .. }
             | Justification::BranchCondition { .. }
             | Justification::DispatchBinding { .. }

@@ -127,7 +127,7 @@ pub mod boundary_completions {
     /// independent judgments.
     fn exact_process_exit_signature(
         program: &TypedTrees,
-        parameters: &[crate::signature::StateParameter],
+        parameters: arena::RootRows<'_, crate::signature::StateParameter>,
         return_type: crate::types::TypeReferenceHandle,
     ) -> bool {
         exact_process_exit_inputs(program, parameters)
@@ -148,9 +148,9 @@ pub mod boundary_completions {
 
     fn exact_process_exit_inputs(
         program: &TypedTrees,
-        parameters: &[crate::signature::StateParameter],
+        parameters: arena::RootRows<'_, crate::signature::StateParameter>,
     ) -> bool {
-        let [parameter] = parameters else {
+        let Some([parameter]) = parameters.as_array() else {
             return false;
         };
         !parameter.relevance.is_erased()
@@ -247,7 +247,7 @@ pub mod boundary_completions {
             let (mut typed, parameter, never) = fixture(SourceOrigin::Toolchain, NEVER_SOURCE);
             assert!(exact_process_exit_signature(
                 &typed,
-                std::slice::from_ref(&parameter),
+                std::slice::from_ref(&parameter).into(),
                 never
             ));
             let reference = typed
@@ -273,13 +273,17 @@ pub mod boundary_completions {
             ] {
                 assert!(!exact_process_exit_signature(
                     &typed,
-                    std::slice::from_ref(&parameter),
+                    std::slice::from_ref(&parameter).into(),
                     wrong
                 ));
             }
             let mut wrong_input = parameter;
             wrong_input.is_mutable = true;
-            assert!(!exact_process_exit_signature(&typed, &[wrong_input], never));
+            assert!(!exact_process_exit_signature(
+                &typed,
+                (&[wrong_input]).into(),
+                never
+            ));
         }
 
         #[test]
@@ -289,7 +293,11 @@ pub mod boundary_completions {
                 (SourceOrigin::Toolchain, "public data Never {}"),
             ] {
                 let (typed, parameter, result) = fixture(origin, text);
-                assert!(!exact_process_exit_signature(&typed, &[parameter], result));
+                assert!(!exact_process_exit_signature(
+                    &typed,
+                    (&[parameter]).into(),
+                    result
+                ));
             }
         }
     }
@@ -343,7 +351,7 @@ pub mod calling_vocabulary {
         calling: &TraitDefinition,
         policy: &TraitDefinition,
     ) -> bool {
-        let [parameter] = program.trait_type_parameters(calling) else {
+        let Some([parameter]) = program.trait_type_parameters(calling).as_array() else {
             return false;
         };
         let [bound] = calling.conformance_bounds.as_slice() else {
@@ -369,7 +377,7 @@ pub mod calling_vocabulary {
         if plans.next().is_some() {
             return false;
         }
-        let [signature] = program.state_signature_parameters(plan) else {
+        let Some([signature]) = program.state_signature_parameters(plan).as_array() else {
             return false;
         };
         program.state_signature_type_parameters(plan).is_empty()
@@ -509,7 +517,9 @@ pub mod data {
     }
 
     impl DataDefinition {
-        pub fn shape_kind_from_members(members: &[DataMember]) -> DataShapeKind {
+        pub fn shape_kind_from_members<'a>(
+            members: impl IntoIterator<Item = &'a DataMember>,
+        ) -> DataShapeKind {
             let mut has_fields = false;
             let mut has_variants = false;
 
@@ -987,7 +997,7 @@ pub mod domain {
     pub fn indexed_domain_instance_name(
         program: &TypedTrees,
         domain: &DomainDefinition,
-        parameters: &[crate::data::TypeParameter],
+        parameters: arena::RootRows<'_, crate::data::TypeParameter>,
         arguments: &[TypeReferenceHandle],
     ) -> Result<String, Diagnostic> {
         indexed_domain_instance_name_with_substitutions(program, domain, parameters, arguments, &[])
@@ -996,7 +1006,7 @@ pub mod domain {
     pub fn indexed_domain_instance_name_with_substitutions(
         program: &TypedTrees,
         domain: &DomainDefinition,
-        parameters: &[crate::data::TypeParameter],
+        parameters: arena::RootRows<'_, crate::data::TypeParameter>,
         arguments: &[TypeReferenceHandle],
         substitutions: &[(SymbolHandle, IndexIdentityArgument<'_>)],
     ) -> Result<String, Diagnostic> {
@@ -1074,10 +1084,10 @@ pub mod domain {
     pub fn index_parameters<'program>(
         program: &'program TypedTrees,
         domain: &DomainDefinition,
-    ) -> &'program [crate::data::TypeParameter] {
+    ) -> arena::RootRows<'program, crate::data::TypeParameter> {
         let parameters = program.domain_type_parameters(domain);
         if has_generic_carrier(program, domain) {
-            &parameters[1..]
+            parameters.slice(1..parameters.len())
         } else {
             parameters
         }
@@ -1656,7 +1666,7 @@ pub mod intrinsic_requirements {
         pub call_target: symbols::SymbolHandle,
         pub namespace: String,
         pub name: String,
-        pub parameters: &'typed [StateParameter],
+        pub parameters: arena::RootRows<'typed, StateParameter>,
         pub return_type: TypeReferenceHandle,
         pub package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
         pub requirement_identity: String,
@@ -1706,9 +1716,7 @@ pub mod intrinsic_requirements {
             {
                 return None;
             }
-            let [entry] = typed.machine_states(requirement) else {
-                return None;
-            };
+            let [entry] = typed.machine_states(requirement).as_array()?;
             let parameters = typed.state_parameters(entry);
             let (namespace, name) = requirement.name.as_str().rsplit_once("::")?;
             if namespace.is_empty() || name.is_empty() || namespace.contains("::") {
@@ -1755,7 +1763,7 @@ pub mod intrinsic_requirements {
         pub fn contracts(
             &self,
             typed: &'typed TypedTrees,
-        ) -> Option<&'typed [crate::signature::SignatureContract]> {
+        ) -> Option<arena::RootRows<'typed, crate::signature::SignatureContract>> {
             match self.kind {
                 IntrinsicRequirementKind::Operator => self
                     .operator
@@ -2016,9 +2024,7 @@ pub mod layout_storage {
                 return None;
             }
             let constructor = self.data_definition_by_symbol(*base_symbol)?;
-            let [semantic, policy] = self.data_type_parameters(constructor) else {
-                return None;
-            };
+            let [semantic, policy] = self.data_type_parameters(constructor).as_array()?;
             if semantic.kind != crate::data::TypeParameterKind::Type
                 || policy.kind != crate::data::TypeParameterKind::Implementation
             {
@@ -2205,9 +2211,7 @@ pub mod numeric_intrinsics {
                 {
                     return None;
                 }
-                let [entry] = self.machine_states(machine) else {
-                    return None;
-                };
+                let [entry] = self.machine_states(machine).as_array()?;
                 let (namespace, name) = machine.name.as_str().rsplit_once("::")?;
                 if namespace.is_empty() || name.is_empty() || namespace.contains("::") {
                     return None;
@@ -2237,7 +2241,7 @@ pub mod numeric_intrinsics {
             &self,
             namespace: &str,
             name: &str,
-            parameters: &[StateParameter],
+            parameters: arena::RootRows<'_, StateParameter>,
             return_type: TypeReferenceHandle,
             operator: Option<&OperatorDefinition>,
         ) -> Option<NumericIntrinsic> {
@@ -2302,9 +2306,7 @@ pub mod numeric_intrinsics {
                 Some(OperatorSpelling::GreaterEqual) => Comparison::GreaterOrEqual,
                 _ => return None,
             };
-            let [left, right] = self.operator_parameters(operator) else {
-                return None;
-            };
+            let [left, right] = self.operator_parameters(operator).as_array()?;
             let primitive = self.primitive_type_reference(left.type_reference)?;
             if self.primitive_type_reference(right.type_reference) != Some(primitive)
                 || self.primitive_type_reference(operator.return_type) != Some(PrimitiveType::Bool)

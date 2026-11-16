@@ -1,5 +1,5 @@
-//! Declaration ABI metadata belongs to the exact boundaries already read and
-//! any additional nominated declarations. It adds no calls or executable roots.
+//! Read declaration ABIs and their selected policy bodies with the product.
+//! Targets evaluate those checked bodies later with their own ABI geometry.
 
 use std::sync::Arc;
 
@@ -9,8 +9,8 @@ use symbols::SymbolHandle;
 use terminal_check_tables::{Checked, Construct, Refusal, RefusalReason};
 use terminal_psi::calling_policies::*;
 use terminal_psi::{StructuralAccess, TerminalIdentityTableBuilder, TerminalModule};
+use typed_trees::service_declarations::ProviderSchemaDeclaration;
 use typed_trees::service_declarations::provider_declarations::ProviderPlanningContext;
-use typed_trees::service_declarations::{PreparedServiceCatalog, ProviderSchemaDeclaration};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 use super::Program;
@@ -47,6 +47,89 @@ fn unavailable(entry: MachineId, detail: impl Into<String>) -> Refusal {
 }
 
 impl Program<'_> {
+    /// A calling policy is checked with the product's other executable roots.
+    /// Target evaluation later supplies ABI geometry to this same retained body.
+    pub(crate) fn prepare_calling_policy_roots(&mut self, entry: MachineId) -> Checked<()> {
+        if self.declaration_metadata.is_empty() && self.boundaries.rows.is_empty() {
+            return Ok(());
+        }
+        let typed = self.typed;
+        let catalog = self
+            .shared
+            .calling_catalog(typed, self.purpose)
+            .as_ref()
+            .map(Arc::clone)
+            .map_err(|reason| unavailable(entry, reason.clone()))?;
+        let services = catalog
+            .bind(ProviderPlanningContext::new(typed, self.purpose))
+            .map_err(|error| unavailable(entry, format!("calling policy catalog: {error:?}")))?;
+        let signatures = services.signatures();
+        for request in signatures.calling().requests() {
+            if self.calling_policy_boundaries.contains(&request.boundary) {
+                continue;
+            }
+            let wanted = self.declaration_metadata.contains(&request.boundary)
+                || self.boundaries.rows.iter().any(|(_, boundary)| {
+                    typed
+                        .trait_machine_signature(boundary.source)
+                        .is_some_and(|(owner, _)| owner.symbol == request.boundary)
+                });
+            if !wanted {
+                continue;
+            }
+            for instance in signatures.calling().instances(request).map_err(|errors| {
+                unavailable(entry, format!("calling policy selection: {errors:?}"))
+            })? {
+                let supply = *instance
+                    .policy
+                    .as_ref()
+                    .map_err(|reason| unavailable(entry, reason.clone()))?;
+                let realization = supply
+                    .realization(typed, supply.slot)
+                    .map_err(|reason| unavailable(entry, reason))?;
+                let boundary = typed
+                    .trait_definition_by_symbol(request.boundary)
+                    .ok_or_else(|| unavailable(entry, "calling policy lost its exact boundary"))?;
+                let scope = typed_trees::trait_definition::AppliedTraitScope::new(
+                    typed,
+                    boundary,
+                    typed_trees::trait_definition::TraitApplicationArguments {
+                        lexical_owner: instance.argument_owner,
+                        enclosing_data_applications: &[],
+                        arguments: signatures.calling().arguments(instance),
+                        lifetimes: &[],
+                    },
+                )
+                .ok_or_else(|| {
+                    unavailable(entry, "calling policy lost its complete owner application")
+                })?;
+                // The retained scope joins the one canonical policy/schema
+                // owner before publication. It grants no calling authority here.
+                self.require_boundary_parent_contract(entry, &scope)?;
+                let mut applications = Vec::new();
+                for applied in signatures.calling().signatures(instance) {
+                    if let Some(reason) = &applied.abi_refusal {
+                        return Err(unavailable(entry, reason.clone()));
+                    }
+                    for id in &applied.abi_signatures {
+                        if !applications.contains(id) {
+                            applications.push(*id);
+                        }
+                    }
+                }
+                if applications.is_empty() {
+                    return Err(unavailable(
+                        entry,
+                        "calling policy has no declared ABI application",
+                    ));
+                }
+                self.subject_machine(realization.symbol)?;
+            }
+            self.calling_policy_boundaries.push(request.boundary);
+        }
+        Ok(())
+    }
+
     /// Read the ABI applications of this module's boundaries and exact nominations.
     /// Storage is registered before lowering freezes the structural namespace.
     /// An unsupported storage shape remains an explicit per-declaration refusal;
@@ -71,13 +154,13 @@ impl Program<'_> {
         }
         let typed = self.typed;
         let context = ProviderPlanningContext::new(typed, self.purpose);
-        // This catalog supplies source signatures, not selection authority.
-        // The coordinator authenticates the nominated handles against its
-        // admitted source registry before constructing this compilation.
-        let sources =
-            source::source_identity::toolchain_source_identities(typed.symbols.source_files())
-                .map_err(|reason| unavailable(entry, reason))?;
-        let catalog = Arc::new(PreparedServiceCatalog::prepare(context, &sources));
+        // Every reading of this typed program and purpose shares one catalog.
+        let catalog = self
+            .shared
+            .calling_catalog(typed, self.purpose)
+            .as_ref()
+            .map(Arc::clone)
+            .map_err(|reason| unavailable(entry, reason.clone()))?;
         let services = catalog
             .bind(context)
             .map_err(|error| unavailable(entry, format!("calling metadata catalog: {error:?}")))?;
@@ -271,7 +354,7 @@ impl Program<'_> {
                     if let Some((_, signature)) = typed.trait_machine_signature(original.source) {
                         !signature.return_type.is_valid()
                     } else if let Some(machine) = typed.machine_by_symbol(original.source) {
-                        matches!(typed.machine_states(machine), [state] if !state.return_type.is_valid())
+                        matches!(typed.machine_states(machine).as_array(), Some([state]) if !state.return_type.is_valid())
                     } else {
                         false
                     }
@@ -1068,6 +1151,48 @@ mod tests {
                 .err()
                 .unwrap(),
             "calling ABI source copies disagree on declared result storage in the selected checked context"
+        );
+    }
+
+    #[test]
+    fn readings_of_one_program_share_one_calling_catalog_per_purpose() {
+        // Conformance witnesses each read the same typed program. The second
+        // reading that asks for boundary metadata must borrow the catalog the
+        // first prepared instead of building another one.
+        let (typed, row, _) = fixture();
+        let shared = crate::shared_reading(&typed);
+        let entry = MachineId::new(1).unwrap();
+        let boundary = [row.projections[0].source];
+        let mut refusals = Vec::new();
+        for purpose in [
+            DependencyScope::Product,
+            DependencyScope::Product,
+            DependencyScope::Build,
+        ] {
+            let mut program = Program::with_captures(&typed, false, purpose, shared.clone());
+            program.begin_declaration_storage(entry, 0).unwrap();
+            let refused = match program.prepare_calling_abis(entry, &boundary) {
+                Ok(_) => panic!("the fixture boundary has no exact schema"),
+                Err(refusal) => refusal.detail,
+            };
+            refusals.push(refused);
+            let expected = match purpose {
+                DependencyScope::Product => 1,
+                DependencyScope::Build => 2,
+            };
+            assert_eq!(shared.prepared_calling_catalogs(), expected);
+        }
+        let product = shared.calling_catalog(&typed, DependencyScope::Product);
+        let again = shared.calling_catalog(&typed, DependencyScope::Product);
+        assert!(Arc::ptr_eq(
+            product.as_ref().unwrap(),
+            again.as_ref().unwrap()
+        ));
+        // Sharing the catalog leaves each reading's verdict as it was.
+        assert_eq!(refusals[0], refusals[1]);
+        assert_eq!(
+            refusals[0],
+            "metadata declaration has no exact boundary schema"
         );
     }
 }

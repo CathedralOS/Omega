@@ -295,7 +295,8 @@ pub(crate) mod callable_identity {
             // it does not describe the result's reference or lifetime. Keep
             // the declaration's complete types here before that distinction
             // is erased, so a receiver can check the derived loan groups.
-            let types = self.requirement_definition_types(owner, requirement);
+            let scope = crate::trait_definition::AppliedTraitScope::abstract_scope(owner);
+            let types = self.requirement_definition_types(&scope, requirement);
             bytes.push(u8::from(types.is_some()));
             if let Some((parameters, result, elided)) = types {
                 length(&mut bytes, owner.lifetime_parameters.len())?;
@@ -311,32 +312,47 @@ pub(crate) mod callable_identity {
             Ok((bytes, kinds))
         }
 
-        fn requirement_definition_types(
+        /// Normalize a requirement's parameter and result types in one
+        /// signature so every occurrence keeps its declared lifetime. The
+        /// retained scope supplies the exact type and lifetime application.
+        pub fn requirement_definition_types(
             &self,
-            owner: &TraitDefinition,
+            scope: &crate::trait_definition::AppliedTraitScope<'_>,
             requirement: &StateSignature,
         ) -> Option<(Vec<String>, String, usize)> {
+            let owner = scope.declaration;
             let mut type_parameters = self.trait_type_parameters(owner).to_vec();
-            type_parameters.extend_from_slice(self.state_signature_type_parameters(requirement));
-            self.signature_definition_types(
-                super::callable_type_binders(owner.symbol, &type_parameters),
-                (requirement.symbol, requirement.symbol),
-                &[
-                    (owner.symbol, owner.lifetime_parameters.len()),
-                    (requirement.symbol, requirement.lifetime_parameters.len()),
-                ],
-                self.state_signature_parameters(requirement),
-                requirement.return_type,
-            )
+            type_parameters.extend(
+                self.state_signature_type_parameters(requirement)
+                    .iter()
+                    .cloned(),
+            );
+            scope.with_identity_scopes(self, |application_scopes| {
+                self.signature_definition_types(
+                    super::callable_type_binders(owner.symbol, (&type_parameters).into()),
+                    (requirement.symbol, requirement.symbol),
+                    &[
+                        (owner.symbol, owner.lifetime_parameters.len()),
+                        (requirement.symbol, requirement.lifetime_parameters.len()),
+                    ],
+                    self.state_signature_parameters(requirement),
+                    requirement.return_type,
+                    &super::identity_context::TypeIdentityContext {
+                        substitutions: &scope.substitutions,
+                        substitution_scope_starts: &scope.substitution_scope_starts,
+                        application_scopes,
+                        application_argument_owner: scope.argument_owner,
+                        ..Default::default()
+                    },
+                )
+            })
         }
 
         /// Keep a machine's declared lifetime relation in its published type
         /// identities. Overload identity deliberately omits this information;
         /// a checked declaration must retain the stronger source promise.
         pub fn machine_definition_types(&self, machine: &Machine) -> Option<(Vec<String>, String)> {
-            let [entry] = self.machine_states(machine) else {
-                return None;
-            };
+            let [entry] = self.machine_states(machine).as_array()?;
             // Captured lifetimes keep their portable declaration owner. Only
             // this callable's own binders receive schema ordinals; otherwise
             // a captured region absent from the inputs could look universal.
@@ -348,6 +364,10 @@ pub(crate) mod callable_identity {
                 &[(lifetime_owner, declared)],
                 self.state_parameters(entry),
                 entry.return_type,
+                &super::identity_context::TypeIdentityContext {
+                    application_argument_owner: machine.symbol,
+                    ..Default::default()
+                },
             )?;
             Some((parameters, result))
         }
@@ -357,8 +377,9 @@ pub(crate) mod callable_identity {
             mut binders: Vec<(symbols::SymbolHandle, String)>,
             signature: (symbols::SymbolHandle, symbols::SymbolHandle),
             lifetime_owners: &[(symbols::SymbolHandle, usize)],
-            parameters: &[crate::signature::StateParameter],
+            parameters: arena::RootRows<'_, crate::signature::StateParameter>,
             result: crate::types::TypeReferenceHandle,
+            application: &super::identity_context::TypeIdentityContext<'_>,
         ) -> Option<(Vec<String>, String, usize)> {
             use super::LifetimeParameterIdentity;
             use super::identity_context::{
@@ -394,13 +415,13 @@ pub(crate) mod callable_identity {
                 lifetime_binders: &lifetimes,
                 signature_elision: Some(&elision),
                 application_owner: signature.0,
-                application_argument_owner: signature.0,
+                application_argument_owner: application.application_argument_owner,
                 signature_owners: Some(signature),
                 qualification: TypeIdentityQualification::PackageQualified,
                 invalid_application: Some(&invalid),
                 invalid_index_argument: Some(&invalid),
                 encountered_elided_regions: Some(&invalid),
-                ..Default::default()
+                ..*application
             };
             let declared_type = |reference| {
                 self.contains_type_reference(reference)
@@ -8918,7 +8939,11 @@ impl TypedTrees {
         requirement: &crate::signature::StateSignature,
     ) -> callable_identity::CallableIdentityParts {
         let mut type_parameters = self.trait_type_parameters(trait_definition).to_vec();
-        type_parameters.extend_from_slice(self.state_signature_type_parameters(requirement));
+        type_parameters.extend(
+            self.state_signature_type_parameters(requirement)
+                .iter()
+                .cloned(),
+        );
         let mut identity = self.named_callable_identity_parts(
             &format!(
                 "{}::{}",
@@ -8926,7 +8951,7 @@ impl TypedTrees {
                 requirement.name
             ),
             trait_definition.symbol,
-            &type_parameters,
+            (&type_parameters).into(),
             self.state_signature_parameters(requirement),
             requirement.return_type,
         );
@@ -8993,8 +9018,8 @@ impl TypedTrees {
         &self,
         path: &str,
         owner_symbol: SymbolHandle,
-        type_parameters: &[data::TypeParameter],
-        parameters: &[crate::signature::StateParameter],
+        type_parameters: arena::RootRows<'_, data::TypeParameter>,
+        parameters: arena::RootRows<'_, crate::signature::StateParameter>,
         return_type: TypeReferenceHandle,
     ) -> callable_identity::CallableIdentityParts {
         let binders = callable_type_binders(owner_symbol, type_parameters);
@@ -9035,7 +9060,7 @@ impl TypedTrees {
 
 fn callable_type_binders(
     owner: SymbolHandle,
-    parameters: &[data::TypeParameter],
+    parameters: arena::RootRows<'_, data::TypeParameter>,
 ) -> Vec<(SymbolHandle, String)> {
     let mut binders = Vec::with_capacity(parameters.len() + 1);
     if owner.is_valid() {

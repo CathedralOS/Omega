@@ -230,7 +230,6 @@ pub fn reconstruct_psi_optimization_function_seed(
     Ok(PsiOptimizationFunction {
         machine: function.machine,
         attachment: function.attachment,
-        nominal_cleanup_subject: function.nominal_cleanup_subject,
         entry: function.entry,
         parameters,
         structural_parameters: function.structural_parameters.clone(),
@@ -604,6 +603,7 @@ pub fn operation_definition(operation: &AbstractOperation) -> Option<(ValueId, S
         | O::StructuralScalarFieldStore { .. }
         | O::MoveStructuralField { .. }
         | O::MoveStructuralValue { .. }
+        | O::DecomposeStructuralValue { .. }
         | O::TransformContent { .. }
         | O::StructuralLeafCopy { .. }
         | O::StoreStructuralField { .. }
@@ -788,6 +788,7 @@ fn direct_uses(operation: &AbstractOperation) -> Vec<ValueId> {
         | O::ElementViewLength { .. }
         | O::MoveStructuralField { .. }
         | O::MoveStructuralValue { .. }
+        | O::DecomposeStructuralValue { .. }
         | O::TransformContent { .. }
         | O::StructuralLeafCopy { .. }
         | O::StoreStructuralField { .. }
@@ -935,7 +936,11 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
         O::ElementViewLength { source, .. } | O::ByteSequenceLength { source, .. } => {
             places.insert(source.place);
         }
-        O::ReleaseActivationClaim { source, .. } | O::ElementViewRead { source, .. } => {
+        O::DecomposeStructuralValue {
+            subject: source, ..
+        }
+        | O::ReleaseActivationClaim { source, .. }
+        | O::ElementViewRead { source, .. } => {
             places.insert(source.place);
         }
         O::ReleaseReference { source, .. } => {
@@ -1159,6 +1164,7 @@ pub fn operation_ownership(operation: &AbstractOperation) -> Vec<OwnershipEvent>
         | O::StructuralScalarFieldStore { .. }
         | O::MoveStructuralField { .. }
         | O::MoveStructuralValue { .. }
+        | O::DecomposeStructuralValue { .. }
         | O::TransformContent { .. }
         | O::StructuralLeafCopy { .. }
         | O::StoreStructuralField { .. }

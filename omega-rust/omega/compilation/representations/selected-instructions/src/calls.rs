@@ -22,7 +22,7 @@ pub mod constraints {
         RegisterConstraintFamily, RegisterInstructionConstraint, RegisterOperandAccess,
         RegisterOperandConstraint, RegisterView, RegisterViewId, ValidatedPhysicalRegisterModel,
     };
-    use target_operations::NormalizedForeignCallMechanism;
+    use target_vocabulary::NormalizedForeignCallMechanism;
 
     use crate::{
         SelectedFunction, SelectedInstruction, SelectedInstructionKind,
@@ -297,14 +297,15 @@ pub mod normalized_foreign {
 
     pub mod return_transport {
         use crate::FrameStorageSlotId::Local;
+        #[cfg(test)]
+        use crate::SelectedFunction;
         use crate::{
-            LocalStorageSlotId, SelectedBlock, SelectedFunction, SelectedInstruction,
-            SelectedInstructionKind, SelectedNormalizedForeignCall, VirtualRegisterId,
-            VirtualRegisterOrigin,
+            LocalStorageSlotId, SelectedBlock, SelectedInstruction, SelectedInstructionKind,
+            SelectedNormalizedForeignCall, VirtualRegisterId, VirtualRegisterOrigin,
         };
         use calling_conventions::ValueLocation::Indirect;
         use register_model::RegisterOperandAccess;
-        use target_operations::TargetBoundaryResult::Unit;
+        use target_vocabulary::TargetBoundaryResult::Unit;
 
         pub struct ReturnTransport {
             pub call_position: usize,
@@ -314,7 +315,7 @@ pub mod normalized_foreign {
         }
 
         pub fn resolve(
-            function: &SelectedFunction,
+            function: &crate::SelectedFunctionContracts,
             block: &SelectedBlock,
             record: &SelectedNormalizedForeignCall,
         ) -> Option<ReturnTransport> {
@@ -378,7 +379,7 @@ pub mod normalized_foreign {
                     return None;
                 }
                 vec![output.virtual_register]
-            } else if let target_operations::TargetBoundaryResult::Structural(home) =
+            } else if let target_vocabulary::TargetBoundaryResult::Structural(home) =
                 &record.call.result
             {
                 use calling_conventions::ValueLocation;
@@ -500,7 +501,7 @@ pub mod normalized_foreign {
         }
 
         fn validate_indirect_destination(
-            function: &SelectedFunction,
+            function: &crate::SelectedFunctionContracts,
             block: &SelectedBlock,
             record: &SelectedNormalizedForeignCall,
             call_position: usize,
@@ -562,7 +563,7 @@ pub mod normalized_foreign {
         }
 
         fn result_buffer_address(
-            function: &SelectedFunction,
+            function: &crate::SelectedFunctionContracts,
             instruction: &SelectedInstruction,
             operation: semantic_vocabulary::OperationId,
             source_value: semantic_vocabulary::ValueId,
@@ -590,7 +591,7 @@ pub mod normalized_foreign {
         }
 
         fn follow_copies(
-            function: &SelectedFunction,
+            function: &crate::SelectedFunctionContracts,
             instructions: &[SelectedInstruction],
             cursor: &mut usize,
             result_registers: &mut [VirtualRegisterId],
@@ -619,7 +620,7 @@ pub mod normalized_foreign {
         }
 
         fn copy_result(
-            function: &SelectedFunction,
+            function: &crate::SelectedFunctionContracts,
             instruction: &SelectedInstruction,
             source: VirtualRegisterId,
         ) -> Option<VirtualRegisterId> {
@@ -686,7 +687,7 @@ pub mod normalized_foreign {
         }
 
         pub fn save_position(
-            function: &SelectedFunction,
+            function: &crate::SelectedFunctionContracts,
             block: &SelectedBlock,
             record: &SelectedNormalizedForeignCall,
             call_position: usize,
@@ -725,7 +726,7 @@ pub mod normalized_foreign {
         }
 
         fn private_transport(
-            function: &SelectedFunction,
+            function: &crate::SelectedFunctionContracts,
             block: &SelectedBlock,
             position: usize,
             instruction: &SelectedInstruction,
@@ -852,7 +853,7 @@ pub mod normalized_foreign {
                 SelectedNormalizedForeignCall,
             ) {
                 use semantic_vocabulary::{BlockId, BoundaryMachineId, EdgeId};
-                use target_operations::{
+                use target_vocabulary::{
                     NativeBindingExecution, NormalizedForeignCallBinding,
                     NormalizedForeignCallMechanism, TargetBoundaryResult,
                 };
@@ -885,7 +886,7 @@ pub mod normalized_foreign {
                     call: legalized_operations::LegalizedNormalizedForeignCall {
                         boundary,
                         provider_execution:
-                            target_operations::ExternalExecutionBinding::NativeBinding(
+                            target_vocabulary::ExternalExecutionBinding::NativeBinding(
                                 NativeBindingExecution::from_commitments([1; 32], [2; 32], [3; 32])
                                     .unwrap(),
                             ),
@@ -944,24 +945,25 @@ pub mod normalized_foreign {
                     },
                 };
                 let function = SelectedFunction {
-                    machine: MachineId::new(1).unwrap(),
-                    attachment: None,
-                    nominal_cleanup_subject: None,
-                    provenance: Default::default(),
-                    structural: None,
-                    local_storage_slots: vec![crate::SelectedLocalStorageSlot {
-                        id: slot,
-                        byte_size: 8,
-                        alignment: 8,
-                    }],
-                    outgoing_arguments: Vec::new(),
-                    calls: Vec::new(),
-                    normalized_foreign_calls: vec![record.clone()],
-                    memory_accesses: Vec::new(),
-                    boundary_settlements: Vec::new(),
+                    contracts: std::sync::Arc::new(crate::SelectedFunctionContracts {
+                        machine: MachineId::new(1).unwrap(),
+                        attachment: None,
+                        provenance: Default::default(),
+                        structural: None,
+                        local_storage_slots: vec![crate::SelectedLocalStorageSlot {
+                            id: slot,
+                            byte_size: 8,
+                            alignment: 8,
+                        }],
+                        outgoing_arguments: Vec::new(),
+                        calls: Vec::new(),
+                        normalized_foreign_calls: vec![record.clone()],
+                        memory_accesses: Vec::new(),
+                        boundary_settlements: Vec::new(),
+                        virtual_registers: Vec::new(),
+                    }),
                     entry_block: block.id,
                     blocks: vec![block.clone()].into(),
-                    virtual_registers: Vec::new(),
                 };
                 (function, block, record)
             }
@@ -1010,12 +1012,12 @@ pub mod normalized_foreign {
             fn syscall_return_needs_no_user_space_control_envelope() {
                 let (function, mut block, mut record) = hosted_return();
                 record.call.binding.mechanism =
-                    target_operations::NormalizedForeignCallMechanism::SystemCall(
-                        target_operations::NormalizedSystemCallBinding {
+                    target_vocabulary::NormalizedForeignCallMechanism::SystemCall(
+                        target_vocabulary::NormalizedSystemCallBinding {
                             target: target::TargetProfile::LinuxX64,
                             number: 39,
                             requirement_identity: "Foreign::leaf".to_owned(),
-                            execution: target_operations::NormalizedForeignExecution::NativeBinding(
+                            execution: target_vocabulary::NormalizedForeignExecution::NativeBinding(
                                 [1; 32],
                             ),
                         },
@@ -1073,32 +1075,33 @@ pub mod normalized_foreign {
                 let source_value = ValueId::new(19).unwrap();
                 let register = VirtualRegisterId(0);
                 let mut function = SelectedFunction {
-                    machine: MachineId::new(1).unwrap(),
-                    attachment: None,
-                    nominal_cleanup_subject: None,
-                    provenance: Default::default(),
-                    structural: None,
-                    local_storage_slots: Vec::new(),
-                    outgoing_arguments: Vec::new(),
-                    calls: Vec::new(),
-                    normalized_foreign_calls: Vec::new(),
-                    memory_accesses: Vec::new(),
-                    boundary_settlements: Vec::new(),
+                    contracts: std::sync::Arc::new(crate::SelectedFunctionContracts {
+                        machine: MachineId::new(1).unwrap(),
+                        attachment: None,
+                        provenance: Default::default(),
+                        structural: None,
+                        local_storage_slots: Vec::new(),
+                        outgoing_arguments: Vec::new(),
+                        calls: Vec::new(),
+                        normalized_foreign_calls: Vec::new(),
+                        memory_accesses: Vec::new(),
+                        boundary_settlements: Vec::new(),
+                        virtual_registers: vec![VirtualRegister {
+                            id: register,
+                            scalar_type: ScalarType::Integer(
+                                IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                            ),
+                            class: RegisterClassId(0),
+                            origin: VirtualRegisterOrigin::ScalarAbiAddress {
+                                instruction: SelectedInstructionId(3),
+                                source_value,
+                            },
+                            definition_site: None,
+                            entry_fixed_view: None,
+                        }],
+                    }),
                     entry_block: SelectedBlockId(0),
                     blocks: (Vec::new()).into(),
-                    virtual_registers: vec![VirtualRegister {
-                        id: register,
-                        scalar_type: ScalarType::Integer(
-                            IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
-                        ),
-                        class: RegisterClassId(0),
-                        origin: VirtualRegisterOrigin::ScalarAbiAddress {
-                            instruction: SelectedInstructionId(3),
-                            source_value,
-                        },
-                        definition_site: None,
-                        entry_fixed_view: None,
-                    }],
                 };
                 let address = SelectedInstruction {
                     id: SelectedInstructionId(3),
@@ -1390,7 +1393,7 @@ pub mod ordinary {
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct SelectedCallContract {
         pub instruction: SelectedInstructionId,
-        pub owner: target_operations::CallSiteOwner,
+        pub owner: target_vocabulary::CallSiteOwner,
         pub call: legalized_operations::LegalizedScalarCall,
         pub effect: EffectLink,
         pub ownership: Vec<OwnershipEvent>,
@@ -1530,7 +1533,7 @@ pub mod ordinary {
         },
         HostedExitProcessI32 {
             edge: semantic_vocabulary::EdgeId,
-            execution: target_operations::BoundaryExecutionBinding,
+            execution: target_vocabulary::BoundaryExecutionBinding,
             boundary: semantic_vocabulary::BoundaryMachineId,
             source: semantic_vocabulary::ValueId,
         },

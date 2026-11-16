@@ -807,7 +807,9 @@ machine fill(store: &mut Store) {
             panic!("actual authored constructor")
         };
         assert_eq!(literal.application_type, required);
-        let [typed_trees::data::DataMember::Field(field)] = typed.data_members(application) else {
+        let Some([typed_trees::data::DataMember::Field(field)]) =
+            typed.data_members(application).as_array()
+        else {
             panic!("the exact applied field roster")
         };
         assert_eq!(
@@ -921,11 +923,10 @@ fn an_activated_program_may_keep_a_constant_it_never_reads() {
 }
 
 #[test]
-fn an_owned_selected_program_is_narrowed_without_copying_its_typed_storage() {
-    // A selected-source continuation owns its typed program once its bodies
-    // are typed. Narrowing that program to the selected file reuses its
-    // storage; narrowing a base another retained source still shares copies
-    // it once and leaves the shared base whole. Both give the same program.
+fn selected_program_narrowing_shares_unchanged_data_children() {
+    // Both shared and uniquely owned continuations retain the same data
+    // children when projection narrows the declarations to one source file.
+    // The predecessor keeps its full declaration roster.
     let (sources, identities, base, _) = typed_base(&[
         (
             "program/main.omg",
@@ -938,7 +939,8 @@ fn an_owned_selected_program_is_narrowed_without_copying_its_typed_storage() {
     let selected = std::sync::Arc::new(selected);
     let members = &base.typed().tables.data_members;
     assert!(!members.is_empty(), "the data type stores its fields");
-    let storage = members.storage_slice().as_ptr();
+    let (member, record) = members.iter().next().expect("the data type has a field");
+    let storage = std::ptr::from_ref(record);
 
     let retained = base.clone();
     let copied = retained
@@ -949,8 +951,8 @@ fn an_owned_selected_program_is_narrowed_without_copying_its_typed_storage() {
             Vec::new(),
         )
         .expect("a shared base is narrowed from its copy");
-    assert_ne!(
-        copied.typed().tables.data_members.storage_slice().as_ptr(),
+    assert_eq!(
+        std::ptr::from_ref(copied.typed().tables.data_members.get(member)),
         storage
     );
     assert_eq!(machine_names(retained.typed()), ["entry", "unreached"]);
@@ -960,12 +962,7 @@ fn an_owned_selected_program_is_narrowed_without_copying_its_typed_storage() {
         .activate_sources(selected, sources, Vec::new())
         .expect("an owned base is narrowed in place");
     assert_eq!(
-        narrowed
-            .typed()
-            .tables
-            .data_members
-            .storage_slice()
-            .as_ptr(),
+        std::ptr::from_ref(narrowed.typed().tables.data_members.get(member)),
         storage,
         "the owned program keeps its typed storage"
     );
@@ -2111,7 +2108,7 @@ fn a_const_argument_written_as_a_call_becomes_the_literal_of_its_value() {
         let view = program
             .closed_data_definition(application)
             .expect("a closed application");
-        let [DataMember::Field(slots)] = program.data_members(view) else {
+        let Some([DataMember::Field(slots)]) = program.data_members(view).as_array() else {
             panic!("the one field")
         };
         assert!(matches!(
@@ -2151,7 +2148,7 @@ fn a_closed_array_extent_uses_its_checked_value_when_demanded() {
         assert_eq!(accounting.receipts().len(), expected_calls);
         accounting.validate_charges().unwrap();
         let packet = program.data_definition_by_name_str("Packet").unwrap();
-        let [DataMember::Field(bytes)] = program.data_members(packet) else {
+        let Some([DataMember::Field(bytes)]) = program.data_members(packet).as_array() else {
             panic!("the original array field");
         };
         let node = program
@@ -2331,7 +2328,7 @@ fn equal_const_indices_keep_the_same_record_type_through_build_invocation() {
             }
 
             let storage = program.data_definition_by_name_str("Storage").unwrap();
-            let [DataMember::Field(buffer)] = program.data_members(storage) else {
+            let Some([DataMember::Field(buffer)]) = program.data_members(storage).as_array() else {
                 panic!("Storage retains its single Buffer field");
             };
             let TypeReferenceNode::Generic { arguments, .. } = program
@@ -2372,7 +2369,7 @@ fn equal_const_indices_keep_the_same_record_type_through_build_invocation() {
             let view = program
                 .closed_data_definition(buffer.type_reference)
                 .expect("the record argument has an exact closed application");
-            let [DataMember::Field(slots)] = program.data_members(view) else {
+            let Some([DataMember::Field(slots)]) = program.data_members(view).as_array() else {
                 panic!("Buffer retains its single array field");
             };
             assert!(matches!(

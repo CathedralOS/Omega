@@ -94,7 +94,7 @@ impl Program<'_> {
         let owner = self.symbols.get(machine).copied().unwrap_or_default();
         match &value.kind {
             ExpressionKind::CollectionSubslice { base, .. }
-            | ExpressionKind::ArrayView { base, .. }
+            | ExpressionKind::CollectionView { base, .. }
                 if matches!(
                     self.typed.expression_table.expression(expression),
                     ExpressionNode::Indexed(_)

@@ -393,6 +393,28 @@ impl Program<'_> {
         left: TypeReferenceHandle,
         right: TypeReferenceHandle,
     ) -> Option<bool> {
+        if let Some((position, excluded)) = self
+            .alternative
+            .as_ref()
+            .and_then(|world| world.remainder.as_ref())
+        {
+            let rigid = |reference| {
+                matches!(self.resolve_written(scope, Written::Reference(reference)),
+                Bound::Value(ValueType::Rigid(parameter)) if parameter.0 as usize == *position)
+            };
+            let other = match (rigid(left), rigid(right)) {
+                (true, false) => Some(right),
+                (false, true) => Some(left),
+                _ => None,
+            };
+            if let Some(other) = other
+                && excluded
+                    .iter()
+                    .any(|known| self.closed_type_equation(scope, other, *known) == Some(true))
+            {
+                return Some(false);
+            }
+        }
         enum Closed {
             Atom(BuiltinTypeAtom),
             Scalar(ScalarType),
@@ -868,7 +890,8 @@ impl Program<'_> {
         let qualification = self.type_qualification(id, carrier, constraints)?;
         for domain in qualification.domains.members() {
             if !carrier.qualification().domains.contains(domain) {
-                self.declared_domain(id, domain, carrier, base_type)?;
+                let at = self.written_domain(constraints, domain);
+                self.declared_domain(id, domain, carrier, base_type, at)?;
             }
         }
         carrier.qualified(qualification).ok_or_else(|| {
@@ -1045,6 +1068,7 @@ impl Program<'_> {
         domain: crate::body::DomainInstance,
         carrier: ValueType,
         carrier_type: TypeReferenceHandle,
+        at: crate::SourceOrigin,
     ) -> Checked<()> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Type(what)));
         let typed = self.typed;
@@ -1057,13 +1081,7 @@ impl Program<'_> {
                 Unserved::Type("domain application lost its declaring family"),
             )
         })?;
-        if typed
-            .domain_type_parameters(declaration)
-            .iter()
-            .any(|parameter| parameter.bounds != typed_trees::data::DataProperties::default())
-        {
-            return unserved("domain application needs its declared type bounds");
-        }
+        self.domain_type_bounds(id, declaration, carrier, at)?;
         if definition.alias.is_some() {
             return unserved("constrained by a domain alias");
         }
@@ -1119,6 +1137,88 @@ impl Program<'_> {
                 carrier: plain,
                 predicate: None,
             });
+        }
+        Ok(())
+    }
+
+    /// Where `T in D` wrote the domain `domain`: the constraint typing
+    /// selected for it, or no position when typing kept none.
+    fn written_domain(
+        &self,
+        constraints: arena::HandleSpan<typed_trees::types::TypeConstraintNode>,
+        domain: crate::body::DomainInstance,
+    ) -> crate::SourceOrigin {
+        self.typed
+            .type_reference_table
+            .constraints(constraints)
+            .iter()
+            .find_map(|constraint| match constraint {
+                typed_trees::types::TypeConstraintNode::Domain(written)
+                    if written.symbol == domain.declaration
+                        && written.semantic_id == domain.identity =>
+                {
+                    written.source_selection
+                }
+                _ => None,
+            })
+            .map_or(
+                crate::SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent),
+                |written| crate::SourceOrigin::of(written.source_span),
+            )
+    }
+
+    /// Whether `carrier` meets the type bounds the domain family
+    /// `declaration` puts on its carrier parameter (ownership.md, "type
+    /// properties": `domain<T [copy]> T::Plain` admits only a `copy` `T`).
+    ///
+    /// The carrier is judged by the record the reader built from its exact
+    /// declaration, so another package's `data` with the same name never
+    /// answers for it. A carrier that is not `copy` breaks the rule and is
+    /// rejected where the type names the domain. Only `[copy]` on the
+    /// carrier parameter itself is read: a `[linear]` or `carry(...)` bound,
+    /// or a bound on another parameter, is refused by name until the reader
+    /// judges it.
+    fn domain_type_bounds(
+        &self,
+        id: MachineId,
+        declaration: &typed_trees::domain::DomainDefinition,
+        carrier: ValueType,
+        at: crate::SourceOrigin,
+    ) -> Checked<()> {
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Type(what)));
+        let typed = self.typed;
+        for parameter in typed.domain_type_parameters(declaration) {
+            if parameter.bounds == typed_trees::data::DataProperties::default() {
+                continue;
+            }
+            let names_carrier = parameter.kind == typed_trees::data::TypeParameterKind::Type
+                && matches!(
+                    typed.type_reference_table.type_reference(declaration.target_type),
+                    TypeReferenceNode::Named { symbol, .. } if *symbol == parameter.symbol
+                );
+            let copy_bound = typed_trees::data::DataProperties {
+                carry: None,
+                multiplicity: language_semantics::Multiplicity::Unrestricted,
+            };
+            if !names_carrier || parameter.bounds != copy_bound {
+                return unserved("domain application needs its declared type bounds");
+            }
+            let copies = match carrier {
+                ValueType::Scalar(..) => true,
+                ValueType::Record(record, _, _) => self.data_type(id, record)?.copyable,
+                ValueType::Rigid(_) => return unserved("domain on a type parameter"),
+            };
+            if !copies {
+                return Err(crate::reject(
+                    id,
+                    at,
+                    format!(
+                        "the domain `{}` admits only a `copy` carrier, and this carrier is not \
+                         `copy`: a type argument must meet the bounds of the parameter it fills",
+                        declaration.name.as_str(),
+                    ),
+                ));
+            }
         }
         Ok(())
     }

@@ -1,8 +1,10 @@
 //! Answers prepared once from an admitted installed-interrupt cohort.
 //!
-//! Preparation (stage 02) checks the target program against these answers and
-//! instruction selection (stage 03) reads them while emitting helper calls, so
-//! they live with the authority they are derived from.
+//! Preparation (stage 02) checks the target program against these answers.
+//! Instruction selection (stage 03) cannot depend on admission, so
+//! `bind_installations` projects the same answers, with the scopes, entries,
+//! installed entry and handler stacks selection reads, into the plain
+//! `bound_installations::BoundInstallations` record the driver hands it.
 
 use crate::{
     AdmittedInstalledInterruptCohort, AdmittedInstalledInterruptEntry,
@@ -55,14 +57,14 @@ impl<T> Associations<T> {
     }
 }
 
-pub struct PreparedHelperCohort<'a> {
+pub(crate) struct PreparedHelperCohort<'a> {
     helpers: Rows<&'a AdmittedInstalledInterruptHelper>,
     scopes: Rows<&'a AdmittedInstalledInterruptScope>,
     entries: Associations<&'a AdmittedInstalledInterruptEntry>,
     requirements: Vec<(OperationId, HelperAnswer)>,
 }
 impl<'a> PreparedHelperCohort<'a> {
-    pub fn new(cohort: &'a AdmittedInstalledInterruptCohort) -> Self {
+    pub(crate) fn new(cohort: &'a AdmittedInstalledInterruptCohort) -> Self {
         let mut result = Self {
             helpers: Rows::new(cohort.helpers().iter().map(|row| (row.operation(), row))),
             scopes: Rows::new(cohort.scopes().iter().map(|row| (row.operation(), row))),
@@ -88,29 +90,6 @@ impl<'a> PreparedHelperCohort<'a> {
             .collect();
         result
     }
-    pub fn installation_scope(
-        &self,
-        operation: OperationId,
-    ) -> Result<&'a AdmittedInstalledInterruptScope, &'static str> {
-        let [scope] = self.scopes.get(operation) else {
-            return Err("installation does not have exactly one admitted scope");
-        };
-        Ok(scope)
-    }
-    pub fn installation_entries(
-        &self,
-        operation: OperationId,
-    ) -> impl Iterator<Item = &'a AdmittedInstalledInterruptEntry> + '_ {
-        let first = self
-            .entries
-            .0
-            .partition_point(|((owner, _), _)| *owner < operation);
-        let last = self
-            .entries
-            .0
-            .partition_point(|((owner, _), _)| *owner <= operation);
-        self.entries.0[first..last].iter().map(|(_, entry)| *entry)
-    }
     fn scope(
         &self,
         helper: &AdmittedInstalledInterruptHelper,
@@ -132,7 +111,7 @@ impl<'a> PreparedHelperCohort<'a> {
             .copied()
             .ok_or("interrupt helper does not have exactly one admitted native entry")
     }
-    pub fn require(
+    pub(crate) fn require(
         &self,
         operation: OperationId,
         kind: StaticInterruptOperation,
@@ -300,5 +279,94 @@ impl PreparedInstalledInterruptHelpers {
             return Err("interrupt helper cohort belongs to another Terminal program");
         }
         require_answer(&self.answers, operation, kind)
+    }
+}
+
+/// Project admitted installation authority into the plain record instruction
+/// selection reads. The driver calls this after it has resolved the installed
+/// entry and measured each handler's stack; selection then checks that the
+/// record names the plan's program, target and entry.
+pub fn bind_installations(
+    cohort: &AdmittedInstalledInterruptCohort,
+    entry_execution: Option<&crate::AdmittedInstalledEntryExecution>,
+    stack_requirements: &[installation_evidence::InstalledInterruptStackRequirement],
+) -> bound_installations::BoundInstallations {
+    use bound_installations as bound;
+    let prepared = PreparedHelperCohort::new(cohort);
+    let installations = cohort
+        .scopes()
+        .iter()
+        .map(|scope| bound::BoundInterruptInstallation {
+            operation: scope.operation(),
+            arguments: scope.arguments().clone(),
+            table_type: scope.table_type(),
+            acknowledgement_application: scope.acknowledgement_application(),
+            fatal_entries: scope
+                .fatal_entries()
+                .iter()
+                .map(|fatal| bound::BoundFatalInterruptEntry {
+                    application: fatal.application(),
+                    gate_byte_offset: fatal.gate_byte_offset(),
+                    machine: fatal.machine(),
+                })
+                .collect(),
+            context_anchor: scope.context_anchor().map(|anchor| {
+                bound::BoundInterruptContextAnchor {
+                    application: anchor.application(),
+                    function: anchor.function(),
+                    gate_byte_offset: anchor.gate_byte_offset(),
+                    table_bytes: anchor.table_bytes(),
+                }
+            }),
+            completion: scope.completion(),
+        })
+        .collect();
+    let entries = cohort
+        .entries()
+        .iter()
+        .map(|entry| bound::BoundInterruptEntry {
+            operation: entry.operation,
+            placement_index: entry.placement_index,
+            application: entry.placement.application_index,
+            callback_function: entry.callback_function,
+            table_placements: entry.placement.private_materialization.as_ref().and_then(
+                |materialization| {
+                    materialization
+                        .destination_application
+                        .placements()
+                        .cloned()
+                },
+            ),
+            callback: bound::BoundCallbackEntry {
+                psi: entry.entry().psi(),
+                target: entry.entry().target(),
+                machine: entry.entry().machine(),
+                inbound: entry.entry().inbound().clone(),
+            },
+        })
+        .collect();
+    let helpers = prepared
+        .requirements
+        .iter()
+        .map(|(operation, (kind, answer))| bound::BoundInterruptHelper {
+            operation: *operation,
+            kind: *kind,
+            refusal: answer.err(),
+        })
+        .collect();
+    bound::BoundInstallations {
+        psi: cohort.psi(),
+        installations,
+        entries,
+        helpers,
+        installed_entry: entry_execution.map(|execution| {
+            let callback = execution.entry().entry();
+            bound::BoundInstalledEntry {
+                psi: callback.psi(),
+                target: callback.target(),
+                machine: callback.machine(),
+            }
+        }),
+        stack_requirements: stack_requirements.to_vec(),
     }
 }

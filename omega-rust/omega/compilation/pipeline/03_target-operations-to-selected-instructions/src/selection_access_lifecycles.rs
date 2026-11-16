@@ -2554,7 +2554,7 @@ pub(crate) mod resource_profile {
                                         additional_input_qualifications: Vec::new(),
                                     };
                                     LegalizedCallUnitParameter {
-                                        target: target_operations::TargetStructuralParameter {
+                                        target: target_vocabulary::TargetStructuralParameter {
                                             place,
                                             structural_type,
                                             multiplicity: semantic.multiplicity,
@@ -2573,8 +2573,7 @@ pub(crate) mod resource_profile {
                             let source = legalized_operations::LegalizedScalarFunction {
                                 machine: MachineId::new(1).unwrap(),
                                 attachment: None,
-                                nominal_cleanup_subject: None,
-                                provenance: target_operations::TerminalPsiProvenance {
+                                provenance: target_vocabulary::TerminalPsiProvenance {
                                     operations: vec![row.operation],
                                     edges: vec![],
                                 },
@@ -3003,6 +3002,7 @@ pub(crate) mod resource_profile {
                     no_code_affine_cleanup: false,
                     copyable: false,
                     descriptor_cleanup: false,
+                    nominal_cleanup: None,
                     scalar_restriction: None,
                     shape,
                 });
@@ -4632,6 +4632,7 @@ pub(crate) mod tests {
         let materialize =
             crate::selection::constraints::row(catalog, constraints.keys.materialize_i64).unwrap();
         let program = LegalizedOperationPlan {
+            borrowed_storage_layouts: Default::default(),
             psi: TerminalPsiIdentity {
                 vocabulary_marker: VocabularyMarker::CURRENT,
                 program_fingerprint: SemanticFingerprint::from_bytes([0; 32]),
@@ -4644,8 +4645,8 @@ pub(crate) mod tests {
             profile: None,
             entry: MachineId::new(1).unwrap(),
             scalar_functions: vec![],
-            retained_integers: legalized_operations::RetainedIntegerTypes::Unsealed,
             installation_operations: Vec::new(),
+            function_abis: Vec::new(),
         };
         // This single-instruction fixture has no functions or call occurrences.
         assert!(program.scalar_functions.is_empty());
@@ -4660,21 +4661,12 @@ pub(crate) mod tests {
         let backings = crate::selection::foreign_scalar_backings::ForeignScalarBackings::new(
             &program,
             &geometries,
-            crate::native_geometry::UNSEALED,
             &callable_invocations,
         )
         .expect("the instruction fixture has no foreign scalar call backings");
-        let installed_interrupts =
-            provider_admission::AdmittedInstalledInterruptCohort::empty(program.psi);
-        let interrupt_helpers =
-            crate::installed_interrupts::PreparedHelperCohort::new(&installed_interrupts);
+        let installations = bound_installations::BoundInstallations::empty(program.psi);
         let mut builder = Builder {
-            // This standalone emitter fixture has no published source owner.
-            closed_types: crate::native_geometry::UNSEALED,
-            installed_interrupts: &installed_interrupts,
-            installed_stack_requirements: &[],
-            installed_entry_execution: None,
-            interrupt_helpers: &interrupt_helpers,
+            installations: &installations,
             backings: &backings,
             environment: &environment,
             pending_provenance: SelectedInstructionProvenance::default(),
@@ -4718,6 +4710,7 @@ pub(crate) mod tests {
             no_code_affine_cleanup: false,
             copyable: false,
             descriptor_cleanup: false,
+            nominal_cleanup: None,
             scalar_restriction: None,
             shape,
         }

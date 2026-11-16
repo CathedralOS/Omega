@@ -87,9 +87,9 @@ pub fn callable_binders(
 /// Project with the complete binder list supplied by the enclosing operation.
 pub fn declared_callable_with<Cause, Error, Type, Fact, Symbol, CauseProjection>(
     program: &TypedTrees,
-    parameters: &[StateParameter],
+    parameters: arena::RootRows<'_, StateParameter>,
     result: TypeReferenceHandle,
-    contracts: &[SignatureContract],
+    contracts: arena::RootRows<'_, SignatureContract>,
     binders: &[(SymbolHandle, String)],
     include_crashes: bool,
     projection: &mut ContractIdentityContext<Type, Fact, Symbol, CauseProjection>,
@@ -127,7 +127,7 @@ where
 
 pub fn declared_contracts_with<Cause, Error, Type, Fact, Symbol, CauseProjection>(
     program: &TypedTrees,
-    contracts: &[SignatureContract],
+    contracts: arena::RootRows<'_, SignatureContract>,
     binders: &[(SymbolHandle, String)],
     include_crashes: bool,
     projection: &mut ContractIdentityContext<Type, Fact, Symbol, CauseProjection>,

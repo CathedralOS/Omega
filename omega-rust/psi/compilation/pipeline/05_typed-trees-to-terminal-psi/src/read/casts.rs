@@ -8,12 +8,15 @@ or borrowed restoration obligations.
 Carrier casts start with an unqualified operand and perform an exact scalar
 conversion before adding a policy. Float widening uses the authenticated Core
 conversion whose entire input format is exactly representable in its result.
-Storage recasts and unserved anonymous operands refuse here.
+Collection recasts retain their written reference type and use collection-view
+formation. Other storage recasts require an explicit reference formation.
 */
 
+use language_core::ReferenceAccess;
 use semantic_vocabulary::{MachineId, ScalarType};
 use terminal_check_tables::{Checked, Construct};
-use typed_trees::expression::TableCastExpression;
+use typed_trees::expression::{ExpressionHandle, TableCastExpression};
+use typed_trees::types::TypeReferenceNode;
 
 use super::{Program, Slot};
 use crate::body::{Expression, ExpressionKind, Policy, Qualification, ValueType};
@@ -24,6 +27,7 @@ impl Program<'_> {
         &mut self,
         id: MachineId,
         slots: &[Slot],
+        handle: ExpressionHandle,
         cast: &TableCastExpression,
         source: SourceOrigin,
     ) -> Checked<Expression> {
@@ -31,8 +35,37 @@ impl Program<'_> {
         if let Some(entry) = cast.form.entry() {
             return self.domain_entry(id, slots, cast, entry, source);
         }
-        if cast.form.is_recast() {
-            return unserved("storage view outside reference formation");
+        if let Some(access) = cast.form.recast_access() {
+            if access != ReferenceAccess::Shared {
+                return unserved(
+                    "exclusive storage view without establishment and handback evidence",
+                );
+            }
+            let reference = self
+                .typed
+                .expression_table
+                .constructed_value_type_reference(handle);
+            if !self
+                .typed
+                .type_reference_table
+                .contains_type_reference(reference)
+            {
+                return unserved("storage view outside reference formation");
+            }
+            if !matches!(
+                self.typed.type_reference_table.type_reference(reference),
+                TypeReferenceNode::Reference {
+                    referee,
+                    access: retained,
+                    ..
+                } if *referee == cast.target_type && *retained == access
+            ) {
+                return unserved("storage view differs from its retained reference type");
+            }
+            let Some(view) = self.view_type(id, reference)? else {
+                return unserved("storage view outside reference formation");
+            };
+            return self.collection_recast(id, slots, cast, reference, view, source);
         }
         if cast.semantic_domain_symbol.is_valid() || !cast.semantic_domain.is_empty() {
             return unserved("cast naming a domain");
@@ -199,6 +232,50 @@ impl Program<'_> {
                         semantic_vocabulary::IeeeFloatFormat::Binary64 => NumericType::F64,
                     },
                     target: NumericType::Integer(carrier),
+                    domain: ArithmeticDomain::Exact,
+                },
+                operand,
+                source,
+            )?
+        } else if let (Some(ScalarType::Integer(from)), Some(ScalarType::IeeeFloat(to))) =
+            (source_type.scalar(), target.scalar())
+        {
+            use language_semantics::numeric_intrinsics::{NumericIntrinsic, NumericType};
+            let carrier = semantic_vocabulary::fixed_integer_type(from)
+                .map_err(|detail| refuse(id, Construct::Machine, Unserved::Expression(detail)))?;
+            let source_term = semantic_vocabulary::ScalarTerm::value(
+                semantic_vocabulary::ValueId::new(1).expect("fixed predicate formal"),
+                ScalarType::Integer(from),
+            );
+            let operand = Expression {
+                result: operand.result,
+                kind: ExpressionKind::Establish {
+                    operand: Box::new(operand),
+                    clauses: vec![semantic_vocabulary::Proposition::IntegerIeeeFloatExact {
+                        source: source_term,
+                        target: to,
+                    }],
+                    stated: terminal_check_tables::program::CastCondition::ExactRepresentation(
+                        format!(
+                            "the integer value is exactly representable in {}",
+                            match to {
+                                semantic_vocabulary::IeeeFloatFormat::Binary32 => "f32",
+                                semantic_vocabulary::IeeeFloatFormat::Binary64 => "f64",
+                            }
+                        ),
+                    ),
+                },
+                call_context: None,
+                source,
+            };
+            self.exact_numeric_conversion(
+                id,
+                NumericIntrinsic::Conversion {
+                    source: NumericType::Integer(carrier),
+                    target: match to {
+                        semantic_vocabulary::IeeeFloatFormat::Binary32 => NumericType::F32,
+                        semantic_vocabulary::IeeeFloatFormat::Binary64 => NumericType::F64,
+                    },
                     domain: ArithmeticDomain::Exact,
                 },
                 operand,
@@ -418,18 +495,14 @@ impl Program<'_> {
                         // descriptor and the receiver checks the actual
                         // literal bytes; no scalar proof substitutes for it.
                         (ValueType::Record(row, _, _), Some(_))
-                            if self.is_view(id, row)?
+                            if matches!(operand.kind, ExpressionKind::ByteLiteral(_))
+                                && self.is_view(id, row)?
                                 && typed_trees::byte_predicates::domain_byte_predicate(
                                     self.typed,
                                     domain.declaration,
                                 )
                                 .is_some() =>
                         {
-                            if !matches!(operand.kind, ExpressionKind::ByteLiteral(_)) {
-                                return unserved(
-                                    "cast that adds a byte predicate to other than a quoted literal",
-                                );
-                            }
                             (Vec::new(), String::new())
                         }
                         // An array or record, or a reference displaying a

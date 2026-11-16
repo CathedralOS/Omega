@@ -39,7 +39,7 @@ pub(crate) fn exact_declared_field(
 pub(crate) fn call_target_parameters(
     program: &TypedTrees,
     target: SymbolHandle,
-) -> Result<Option<&[StateParameter]>, Diagnostic> {
+) -> Result<Option<arena::RootRows<'_, StateParameter>>, Diagnostic> {
     if !program.symbols.symbols().nodes().is_valid(target) {
         return Ok(None);
     }
@@ -578,14 +578,14 @@ enum CallReceiver {
 /// projects declarations and applied data views; it supplies no call verdict.
 pub(crate) fn scoped_expression_type_reference(
     program: &TypedTrees,
-    parameters: &[StateParameter],
+    parameters: arena::RootRows<'_, StateParameter>,
     result: TypeReferenceHandle,
     expression: ExpressionHandle,
     state_scope: Option<&typed_trees::state::State>,
 ) -> Result<Option<TypeReferenceHandle>, Diagnostic> {
     fn visit(
         program: &TypedTrees,
-        parameters: &[StateParameter],
+        parameters: arena::RootRows<'_, StateParameter>,
         result: TypeReferenceHandle,
         expression: ExpressionHandle,
         state_scope: Option<&typed_trees::state::State>,
@@ -933,8 +933,8 @@ pub(crate) fn defer_unbound_calls(
                     program,
                     domain.symbol,
                 )?;
-                match program.proof_facts.span_or_empty(domain.facts) {
-                    [typed_trees::domain::ProofFact::Expression(expression)] => {
+                match program.proof_facts.span_or_empty(domain.facts).as_array() {
+                    Some([typed_trees::domain::ProofFact::Expression(expression)]) => {
                         Some((*expression, predicate))
                     }
                     _ => None,
@@ -1994,7 +1994,10 @@ mod tests {
         duplicates.push(duplicates[0].clone());
         let parameters = program.state_parameters.insert_many(duplicates);
         let machine = program.machines()[0].clone();
-        program.machine_states_mut(&machine)[0].parameters = parameters;
+        program
+            .machine_states
+            .get_mut(machine.states.handle_at(0))
+            .parameters = parameters;
         assert!(
             declared_place_type(
                 &program,
@@ -2086,7 +2089,8 @@ mod tests {
         let domain = &program.domain_definitions()[0];
         let symbol = domain.symbol;
         let target_type = domain.target_type;
-        let [ProofFact::Expression(expression)] = program.proof_facts.span_or_empty(domain.facts)
+        let Some([ProofFact::Expression(expression)]) =
+            program.proof_facts.span_or_empty(domain.facts).as_array()
         else {
             panic!("the domain retains one authored clause")
         };
@@ -2137,8 +2141,10 @@ mod tests {
         );
 
         let other_domain = &program.domain_definitions()[1];
-        let [ProofFact::Expression(other_expression)] =
-            program.proof_facts.span_or_empty(other_domain.facts)
+        let Some([ProofFact::Expression(other_expression)]) = program
+            .proof_facts
+            .span_or_empty(other_domain.facts)
+            .as_array()
         else {
             panic!("the sibling domain retains its own authored clause")
         };

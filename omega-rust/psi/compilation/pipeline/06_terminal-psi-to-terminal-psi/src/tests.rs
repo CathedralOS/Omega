@@ -60,6 +60,7 @@ mod machine_lifetimes;
 mod mathematical_clauses;
 mod mutable_formals;
 mod operational_effects;
+mod owned_cleanup;
 mod owned_dispatch;
 mod owned_match_results;
 mod owned_records;
@@ -72,6 +73,7 @@ mod ranges;
 pub(crate) mod rankings;
 mod reach;
 mod references;
+mod representation_views;
 mod result_fields;
 mod result_summaries;
 mod returned_views;
@@ -1387,6 +1389,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
         authored_layout: false,
         owns_linear_claim: false,
         copyable: true,
+        cleanup: None,
         identity: String::from("Point"),
         shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![
             field(1, "x", ValueType::plain(u32_type())),
@@ -1398,6 +1401,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
         authored_layout: false,
         owns_linear_claim: false,
         copyable: true,
+        cleanup: None,
         identity: String::from("Line"),
         shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![
             field(3, "from", point()),
@@ -1651,6 +1655,7 @@ fn an_affine_empty_case_cannot_be_moved_twice() {
         authored_layout: false,
         owns_linear_claim: false,
         copyable: false,
+        cleanup: None,
         identity: "EmptyCase".into(),
         shape: typed_trees_to_terminal_psi::StorageShape::Sum(vec![
             typed_trees_to_terminal_psi::CaseType {
@@ -3167,6 +3172,7 @@ fn every_use_of_storage_has_exactly_one_verdict() {
         authored_layout: false,
         owns_linear_claim: false,
         copyable: true,
+        cleanup: None,
         identity: String::from("Gated"),
         shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![RecordField {
             id: id(5),
@@ -3324,6 +3330,7 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
         authored_layout: false,
         owns_linear_claim: false,
         copyable: true,
+        cleanup: None,
         identity: String::from("Point"),
         shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![
             field(1, "x", scalar),
@@ -3335,6 +3342,7 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
         authored_layout: false,
         owns_linear_claim: false,
         copyable: true,
+        cleanup: None,
         identity: String::from("Shape"),
         shape: typed_trees_to_terminal_psi::StorageShape::Sum(vec![
             case(1, "Dot", vec![field(3, "at", scalar)]),
@@ -3352,6 +3360,7 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
         authored_layout: false,
         owns_linear_claim: false,
         copyable: true,
+        cleanup: None,
         identity: String::from("Holder"),
         shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![field(7, "shape", shape())]),
         requires: Vec::new(),
@@ -3986,6 +3995,7 @@ fn constrained() -> IdTable<StructuralTypeId, RecordType> {
         authored_layout: false,
         owns_linear_claim: false,
         copyable: true,
+        cleanup: None,
         identity: spelled.to_owned(),
         shape: typed_trees_to_terminal_psi::StorageShape::Record(fields),
         requires,
@@ -4016,6 +4026,7 @@ fn constrained() -> IdTable<StructuralTypeId, RecordType> {
         authored_layout: false,
         owns_linear_claim: false,
         copyable: true,
+        cleanup: None,
         identity: String::from("ByteRead"),
         shape: typed_trees_to_terminal_psi::StorageShape::Sum(vec![
             CaseType {
@@ -5549,6 +5560,7 @@ fn windowed() -> IdTable<StructuralTypeId, RecordType> {
         authored_layout: false,
         owns_linear_claim: false,
         copyable: true,
+        cleanup: None,
         identity: String::from("Both"),
         shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![
             field(10, "a"),
@@ -5560,6 +5572,7 @@ fn windowed() -> IdTable<StructuralTypeId, RecordType> {
         authored_layout: false,
         owns_linear_claim: false,
         copyable: true,
+        cleanup: None,
         identity: String::from("Half"),
         shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![
             field(12, "a"),
@@ -5571,6 +5584,7 @@ fn windowed() -> IdTable<StructuralTypeId, RecordType> {
         authored_layout: false,
         owns_linear_claim: false,
         copyable: true,
+        cleanup: None,
         identity: String::from("Limits"),
         shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![
             field(14, "a"),

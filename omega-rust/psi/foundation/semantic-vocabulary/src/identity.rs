@@ -26,14 +26,26 @@ pub enum InvocationSite {
     Operation(OperationId),
     ExternalCompletion(EdgeId),
     InvokeNoNormal(EdgeId),
+    Cleanup { edge: EdgeId, action_ordinal: u32 },
 }
 
 impl InvocationSite {
     pub fn encode_identity(self, bytes: &mut Vec<u8>) {
+        if let Self::Cleanup {
+            edge,
+            action_ordinal,
+        } = self
+        {
+            bytes.push(3);
+            crate::codec_bytes::push_encoded(bytes, edge.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, action_ordinal.to_le_bytes());
+            return;
+        }
         let (tag, identity) = match self {
             Self::Operation(operation) => (0, operation.get()),
             Self::ExternalCompletion(edge) => (1, edge.get()),
             Self::InvokeNoNormal(edge) => (2, edge.get()),
+            Self::Cleanup { .. } => unreachable!("cleanup uses its edge and action ordinal"),
         };
         bytes.push(tag);
         crate::codec_bytes::push_encoded(bytes, identity.to_le_bytes());
@@ -51,7 +63,7 @@ impl InvocationSite {
     pub const fn operation(self) -> Option<OperationId> {
         match self {
             Self::Operation(operation) => Some(operation),
-            Self::ExternalCompletion(_) | Self::InvokeNoNormal(_) => None,
+            Self::ExternalCompletion(_) | Self::InvokeNoNormal(_) | Self::Cleanup { .. } => None,
         }
     }
 }
@@ -83,6 +95,12 @@ impl fmt::Display for InvocationSite {
             Self::Operation(operation) => write!(formatter, "operation {operation}"),
             Self::ExternalCompletion(edge) => write!(formatter, "completion edge {edge}"),
             Self::InvokeNoNormal(edge) => write!(formatter, "no-normal invocation edge {edge}"),
+            Self::Cleanup {
+                edge,
+                action_ordinal,
+            } => {
+                write!(formatter, "cleanup action {action_ordinal} on edge {edge}")
+            }
         }
     }
 }

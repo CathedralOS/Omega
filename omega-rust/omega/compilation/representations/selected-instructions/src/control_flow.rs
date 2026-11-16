@@ -17,13 +17,21 @@ use super::{SelectedBlockId, SelectedInstruction, VirtualRegister, VirtualRegist
 use native_vocabulary::provenance::WorkSettlement;
 use native_vocabulary::values::ValueBinding;
 use semantic_vocabulary::{BlockId, EdgeId, MachineId, OperationId};
-use target_operations::TerminalPsiProvenance;
+use target_vocabulary::TerminalPsiProvenance;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedFunction {
+    pub contracts: std::sync::Arc<SelectedFunctionContracts>,
+    pub entry_block: SelectedBlockId,
+    pub blocks: super::SelectedBlocks,
+}
+
+/// Cloned selected functions share these facts while their control graphs change.
+/// Contract edits detach the chunk, so one function cannot change another's facts.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SelectedFunctionContracts {
     pub machine: MachineId,
     pub attachment: Option<semantic_vocabulary::StructuralTypeId>,
-    pub nominal_cleanup_subject: Option<semantic_vocabulary::StructuralTypeId>, // Exact owner-designated cleanup subject, independent of attachment or call sites.
     pub provenance: TerminalPsiProvenance,
     pub structural: Option<legalized_operations::LegalizedStructuralContract>,
     pub local_storage_slots: Vec<super::SelectedLocalStorageSlot>,
@@ -32,9 +40,21 @@ pub struct SelectedFunction {
     pub normalized_foreign_calls: Vec<super::SelectedNormalizedForeignCall>,
     pub memory_accesses: Vec<super::SelectedMemoryAccess>,
     pub boundary_settlements: Vec<super::SelectedBoundarySettlement>,
-    pub entry_block: SelectedBlockId,
     pub virtual_registers: Vec<VirtualRegister>,
-    pub blocks: super::SelectedBlocks,
+}
+
+impl std::ops::Deref for SelectedFunction {
+    type Target = SelectedFunctionContracts;
+
+    fn deref(&self) -> &Self::Target {
+        &self.contracts
+    }
+}
+
+impl std::ops::DerefMut for SelectedFunction {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        std::sync::Arc::make_mut(&mut self.contracts)
+    }
 }
 
 impl SelectedFunction {
@@ -50,12 +70,6 @@ impl SelectedFunction {
             .then_some(index)
     }
 
-    pub fn virtual_register(&self, register: VirtualRegisterId) -> Option<&VirtualRegister> {
-        self.virtual_registers
-            .get(register.0 as usize)
-            .filter(|row| row.id == register)
-    }
-
     pub fn ids_are_positions(&self) -> bool {
         self.blocks
             .iter()
@@ -66,21 +80,6 @@ impl SelectedFunction {
                 .iter()
                 .enumerate()
                 .all(|(index, register)| register.id.0 as usize == index)
-    }
-
-    pub fn call(&self, instruction: SelectedInstructionId) -> Option<&super::SelectedCallContract> {
-        self.calls
-            .iter()
-            .find(|call| call.instruction == instruction)
-    }
-
-    pub fn memory_access(
-        &self,
-        instruction: SelectedInstructionId,
-    ) -> Option<&super::SelectedMemoryAccess> {
-        self.memory_accesses
-            .iter()
-            .find(|access| access.instruction == instruction)
     }
 
     pub fn instructions(&self) -> impl Iterator<Item = &super::SelectedInstruction> + '_ {
@@ -112,6 +111,29 @@ impl SelectedFunction {
             }
             _ => false,
         }
+    }
+}
+
+impl SelectedFunctionContracts {
+    pub fn virtual_register(&self, register: VirtualRegisterId) -> Option<&VirtualRegister> {
+        self.virtual_registers
+            .get(register.0 as usize)
+            .filter(|row| row.id == register)
+    }
+
+    pub fn call(&self, instruction: SelectedInstructionId) -> Option<&super::SelectedCallContract> {
+        self.calls
+            .iter()
+            .find(|call| call.instruction == instruction)
+    }
+
+    pub fn memory_access(
+        &self,
+        instruction: SelectedInstructionId,
+    ) -> Option<&super::SelectedMemoryAccess> {
+        self.memory_accesses
+            .iter()
+            .find(|access| access.instruction == instruction)
     }
 }
 

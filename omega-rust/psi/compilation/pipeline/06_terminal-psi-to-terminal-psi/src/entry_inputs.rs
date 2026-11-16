@@ -17,8 +17,8 @@ within its body.
 */
 
 use semantic_vocabulary::{
-    CanonicalStructuralPathSegment, IdTable, InvocationSite, MachineId, PlaceId, Proposition,
-    ScalarTerm, ScalarType, StructuralCaseId, ValueId,
+    BlockId, CanonicalStructuralPathSegment, EdgeId, IdTable, InvocationSite, MachineId, PlaceId,
+    Proposition, PropositionContext, ScalarTerm, ScalarType, StructuralCaseId, ValueId,
 };
 use std::collections::VecDeque;
 use terminal_check_tables::edges::Callee;
@@ -29,15 +29,16 @@ use terminal_check_tables::{
     Checked, Construct, InvocationId, MachineTables, ProgramPoint, RefusalReason,
 };
 use terminal_psi::{OperationKind, TerminalMachine, Terminator};
+use terminal_semantics::substitution::clauses::substitute_clause_with_computation_names;
 
 use crate::{
     Bindings, Unbound, graph::Graph, joins, prepare_with_inhabitation, refusal, scalar_actuals,
-    substitute, terminal_machine,
+    terminal_machine,
 };
 
-/// Callers precede helpers. The lowering of terminal call components already
-/// turns their internal calls into block arrivals; an unresolved dependency
-/// here supplies no inferred condition and still faces ordinary discharge.
+/// Ordinary callers precede helpers. A recursive component's internal calls
+/// are block arrivals: discover their conditions without an inductive
+/// assumption, then check every internal and external arrival normally.
 pub(crate) fn infer(
     scope: &mut crate::ReplayScope<'_>,
     unreached: &mut crate::Unreached,
@@ -49,6 +50,32 @@ pub(crate) fn infer(
         return Ok(());
     }
     let sites = CallSites::new(elaboration)?;
+    // Internal tail calls are block arrivals after frame reuse. Discover their
+    // conditions without a recursive hypothesis, then publish them as ordinary
+    // entry requirements and head predicates. Every real arrival must prove
+    // them, including the entry transfer of each separately callable member.
+    let mut loop_inputs = elaboration.tables.machines.map(|_, _| Vec::new());
+    for caller in elaboration.tables.machines.keys() {
+        describe_calls(
+            scope,
+            caller,
+            &sites,
+            true,
+            &mut loop_inputs,
+            unreached,
+            inhabitation,
+            activity,
+        )?;
+    }
+    for (callee, arrivals) in loop_inputs.iter() {
+        if !arrivals.is_empty() {
+            let predicate = canonical(joins::connective(arrivals.clone(), false), callee)?;
+            if predicate != Proposition::Truth {
+                scope.require(callee, predicate, &sites, activity)?;
+            }
+        }
+    }
+    let elaboration = scope.source();
     let mut waiting = sites.incoming.map(|_, callers| callers.len());
     let mut bodies = elaboration.tables.machines.map(|_, _| true);
     for requirement in &elaboration.requirements {
@@ -61,8 +88,10 @@ pub(crate) fn infer(
                 .then_some(id)
         })
         .collect();
-    let mut incoming: IdTable<MachineId, Vec<Proposition>> =
-        elaboration.tables.machines.map(|_, _| Vec::new());
+    // Keep the internal arrivals when later acyclic caller inference adds
+    // facts. An ordinary caller alone cannot narrow a recursive helper past
+    // the inputs its other incoming edges admit.
+    let mut incoming = loop_inputs;
     while let Some(id) = ready.pop_front() {
         if sites.private.get(id) == Some(&true) {
             let arrivals =
@@ -78,6 +107,7 @@ pub(crate) fn infer(
             scope,
             id,
             &sites,
+            false,
             &mut incoming,
             unreached,
             inhabitation,
@@ -99,6 +129,7 @@ fn describe_calls(
     scope: &crate::ReplayScope<'_>,
     id: MachineId,
     sites: &CallSites,
+    transfers: bool,
     incoming: &mut IdTable<MachineId, Vec<Proposition>>,
     unreached: &mut crate::Unreached,
     inhabitation: &terminal_semantics::inhabitation::Inhabitation,
@@ -108,7 +139,19 @@ fn describe_calls(
     let original =
         terminal_check_tables::row(&elaboration.tables.machines, id, id, Construct::Machine)?;
     let outgoing = terminal_check_tables::row(&sites.outgoing, id, id, Construct::Machine)?;
-    if outgoing.is_empty() {
+    let edges = if transfers {
+        terminal_check_tables::row(&sites.transfers, id, id, Construct::Machine)?.as_slice()
+    } else {
+        &[][..]
+    };
+    let includes_call = |index: usize| {
+        !transfers
+            || sites
+                .heads
+                .get(sites.arrivals[index].callee)
+                .is_some_and(|heads| !heads.is_empty())
+    };
+    if !outgoing.iter().any(|&index| includes_call(index)) && edges.is_empty() {
         return Ok(());
     }
     // One caller's construction scratch; the final evidence tables remain
@@ -167,7 +210,48 @@ fn describe_calls(
         activity,
         &mut references,
     )?;
+    for &(edge, callee) in edges {
+        let (_, actuals, structural) = storage.arrival(edge, Construct::Edge(edge))?;
+        let target = terminal_machine(&elaboration.module.machines, callee, id)?;
+        let point = ProgramPoint::Edge(edge);
+        let known = known_at(&tables, &prepared.graph, &prepared.context, id, point)?;
+        let mut fields = storage.at_join(
+            &mut references,
+            &tables,
+            &target.structural_parameters,
+            structural,
+            &[],
+            point,
+            Construct::Edge(edge),
+        )?;
+        let crossing = target
+            .parameters
+            .iter()
+            .zip(actuals)
+            .map(|(formal, actual)| (ScalarTerm::value(formal.id, formal.scalar_type), *actual))
+            .collect::<Vec<_>>();
+        let predicate = describe(
+            &known,
+            &prepared.context,
+            &crossing,
+            &mut InputBindings {
+                actuals,
+                target,
+                denotation: crate::known::TransportInputs::new(known.equations.len()),
+                known: &known,
+                context: &prepared.context,
+                fields: fields.observations(),
+            },
+        );
+        incoming
+            .get_mut(callee)
+            .expect("callee was indexed")
+            .push(predicate);
+    }
     for &index in outgoing {
+        if !includes_call(index) {
+            continue;
+        }
         let site = &sites.arrivals[index];
         let callee = site.callee;
         let call = terminal_check_tables::row(
@@ -195,6 +279,7 @@ fn describe_calls(
         )?;
         let predicate = describe(
             &known,
+            &prepared.context,
             &crossing,
             &mut InputBindings {
                 actuals: &actuals,
@@ -257,6 +342,12 @@ struct Arrival {
     position: CallPosition,
 }
 
+struct LoopHead {
+    caller: MachineId,
+    block: BlockId,
+    arrivals: Vec<terminal_psi::ScalarBlockInvariantArrival>,
+}
+
 /// Resolve the call graph and physical call positions once. Updating an
 /// inferred contract follows its own arrivals, not every machine again.
 /// Inference appends clauses and obligations; it never moves a block, an
@@ -266,6 +357,8 @@ pub(crate) struct CallSites {
     arrivals: Vec<Arrival>,
     incoming: IdTable<MachineId, Vec<usize>>,
     outgoing: IdTable<MachineId, Vec<usize>>,
+    transfers: IdTable<MachineId, Vec<(EdgeId, MachineId)>>,
+    heads: IdTable<MachineId, Vec<LoopHead>>,
 }
 
 impl CallSites {
@@ -274,12 +367,139 @@ impl CallSites {
         for id in &elaboration.private_inputs {
             *machine_row_mut(&mut private, *id, *id)? = true;
         }
+        // A selected cleanup contract must stand on its declared inputs.
+        // Generated disposal sites never infer a new demand on their caller.
+        for machine in &elaboration.module.machines {
+            for (_, actions) in machine
+                .blocks
+                .iter()
+                .flat_map(|block| block.terminator.cleanup_rosters())
+            {
+                for action in actions {
+                    if let terminal_psi::TerminalAffineCleanupAction::InvokeOwned(cleanup) = action
+                    {
+                        *machine_row_mut(&mut private, cleanup.cleanup_machine, machine.id)? =
+                            false;
+                    }
+                }
+            }
+        }
         let mut result = Self {
             private,
             arrivals: Vec::new(),
             incoming: elaboration.tables.machines.map(|_, _| Vec::new()),
             outgoing: elaboration.tables.machines.map(|_, _| Vec::new()),
+            transfers: elaboration.tables.machines.map(|_, _| Vec::new()),
+            heads: elaboration.tables.machines.map(|_, _| Vec::new()),
         };
+        // Correspondence chooses candidates, never proof premises. Whatever
+        // condition it suggests is checked on all ordinary calls and all
+        // physical arrivals before any body can use it.
+        for (id, sources) in elaboration.sources.iter() {
+            if sources.heads.is_empty() {
+                continue;
+            }
+            let machine = terminal_machine(&elaboration.module.machines, id, id)?;
+            let tables = terminal_check_tables::row(
+                &elaboration.tables.machines,
+                id,
+                id,
+                Construct::Machine,
+            )?;
+            let mut arrivals = vec![Vec::new(); machine.blocks.len()];
+            for (obligation, row) in tables.obligations.iter() {
+                let ObligationKind::ArrivalInvariant { edge } = row.kind else {
+                    continue;
+                };
+                let edge_row =
+                    terminal_check_tables::row(&tables.edges, edge, id, Construct::Edge(edge))?;
+                if let terminal_check_tables::edges::Destination::Block(target) =
+                    edge_row.destination
+                {
+                    let index = usize::try_from(target.get() - 1).map_err(|_| {
+                        refusal(
+                            RefusalReason::ForeignIdentity,
+                            id,
+                            Construct::Block(target),
+                            "block position exceeds usize",
+                        )
+                    })?;
+                    arrivals
+                        .get_mut(index)
+                        .ok_or_else(|| {
+                            refusal(
+                                RefusalReason::ForeignIdentity,
+                                id,
+                                Construct::Block(target),
+                                "arrival names no block",
+                            )
+                        })?
+                        .push(terminal_psi::ScalarBlockInvariantArrival { edge, obligation });
+                }
+            }
+            let mut members = vec![None; machine.blocks.len()];
+            for &(head, callee) in &sources.heads {
+                if result.private.get(callee) != Some(&true) {
+                    continue;
+                }
+                let slot = usize::try_from(head.get() - 1)
+                    .ok()
+                    .and_then(|index| members.get_mut(index))
+                    .ok_or_else(|| {
+                        refusal(
+                            RefusalReason::ForeignIdentity,
+                            id,
+                            Construct::Block(head),
+                            "a loop head is outside its machine",
+                        )
+                    })?;
+                if slot.replace(callee).is_some() {
+                    return Err(refusal(
+                        RefusalReason::ForeignIdentity,
+                        id,
+                        Construct::Block(head),
+                        "a loop head has two member correspondences",
+                    ));
+                }
+                result
+                    .heads
+                    .get_mut(callee)
+                    .expect("private callee was indexed")
+                    .push(LoopHead {
+                        caller: id,
+                        block: head,
+                        arrivals: std::mem::take(&mut arrivals[(head.get() - 1) as usize]),
+                    });
+            }
+            for (edge, row) in tables.edges.iter() {
+                let terminal_check_tables::edges::Destination::Block(target) = row.destination
+                else {
+                    continue;
+                };
+                let Some(callee) = usize::try_from(target.get() - 1)
+                    .ok()
+                    .and_then(|index| members.get(index))
+                    .copied()
+                    .flatten()
+                else {
+                    continue;
+                };
+                // The synthetic root-to-head edge is checked against the
+                // inferred entry contract; it is not an authored caller.
+                if sources.edges.get(edge)
+                    == Some(&SourceOrigin::Unpositioned(
+                        terminal_check_tables::program::Unpositioned::MachineEntry,
+                    ))
+                {
+                    continue;
+                }
+                result
+                    .transfers
+                    .get_mut(id)
+                    .expect("caller was indexed")
+                    .push((edge, callee));
+            }
+        }
         for (id, tables) in elaboration.tables.machines.iter() {
             if !tables.invocations.values().any(|call| {
                 matches!(call.callee, Callee::Declared(semantic_vocabulary::TargetMachineCallable::Machine(callee)) if result.private.get(callee) == Some(&true))
@@ -513,52 +733,37 @@ pub(crate) fn known_at(
 /// boundary. A fact over a value without a name there can only be forgotten.
 pub(crate) fn describe(
     known: &crate::known::Known,
+    context: &PropositionContext,
     crossing: &[(ScalarTerm, ValueId)],
     bindings: &mut dyn Bindings<Error = Unbound>,
 ) -> Proposition {
-    let definitions: Vec<_> = known
-        .definitions
-        .values()
-        .flatten()
-        .filter_map(
-            |&index| match &known.facts[known.equations[index]].proposition {
-                Proposition::Equal(ScalarTerm::Value { id, .. }, definition) => {
-                    Some((*id, definition))
-                }
-                _ => None,
-            },
-        )
-        .collect();
     let mut parts = Vec::new();
+    let mut computation_names = Vec::new();
+    let mut transport = crate::known::TransportInputs::new(known.equations.len());
     for (name, here) in crossing {
         // Callable identity and selection have no mathematical equality.
         // Its declared type crosses independently of inferred predicates.
         if matches!(name.scalar_type(), ScalarType::Callable(_)) {
             continue;
         }
-        let definition = joins::unfold(
-            &ScalarTerm::value(*here, name.scalar_type()),
-            &definitions,
-            0,
-        );
-        let equality = Proposition::Equal(
-            name.clone(),
-            match crate::bound(&definition, &mut *bindings) {
-                Ok(term) => term,
-                Err(_) => continue,
-            },
-        );
-        if !matches!(&equality, Proposition::Equal(left, right) if left == right) {
-            parts.push(equality);
+        let definition = known.expand_value(context, *here, name.scalar_type(), &mut transport);
+        if let Ok(term) = crate::bound(&definition, &mut *bindings)
+            && *name != term
+        {
+            parts.push(Proposition::Equal(name.clone(), term));
+        }
+        if definition.scalar_type() == name.scalar_type() && !definition.operands().is_empty() {
+            computation_names.push((definition, name.clone()));
         }
     }
+    computation_names.sort_unstable();
+    computation_names.dedup_by(|right, left| right.0 == left.0);
     for fact in known.facts.iter().filter(|fact| fact.axiom.is_none()) {
-        let proposition = &fact.proposition;
-        // The shared closure retains both the original and normalized facts.
-        // Projection can weaken the former; the latter still carries every
-        // relation established before crossing the input boundary.
-        parts.push(joins::project(proposition, &mut |atom| {
-            substitute(atom, &mut *bindings).ok()
+        // A normalized fact may already name the exact computation passed
+        // across the boundary. Give that computation its receiving name
+        // before resolving operands the receiver cannot see.
+        parts.push(joins::project(&fact.proposition, &mut |atom| {
+            substitute_clause_with_computation_names(atom, &mut *bindings, &computation_names).ok()
         }));
     }
     joins::connective(parts, true)
@@ -718,6 +923,56 @@ fn canonical_parts(
     keyed.sort_by(|left, right| left.0.cmp(&right.0));
     keyed.dedup_by(|left, right| left.0 == right.0);
     let mut parts: Vec<_> = keyed.into_iter().map(|(_, part)| part).collect();
+    // Projecting a guard can leave both possible values of a Boolean in a
+    // connective. Settle that pair before passing the clause to proof search.
+    let mut boolean_values: Vec<_> = parts
+        .iter()
+        .filter_map(|part| match part {
+            Proposition::Equal(ScalarTerm::Boolean(value), term)
+            | Proposition::Equal(term, ScalarTerm::Boolean(value))
+                if term.scalar_type() == ScalarType::Boolean =>
+            {
+                Some((term, *value))
+            }
+            _ => None,
+        })
+        .collect();
+    boolean_values.sort_unstable();
+    if boolean_values
+        .windows(2)
+        .any(|pair| pair[0].0 == pair[1].0 && pair[0].1 != pair[1].1)
+    {
+        return Ok(zero);
+    }
+    if !conjunction && parts.len() > 1 {
+        // A caller's entry condition can reach the same helper by several
+        // paths. State their common facts once so checking any arrival need
+        // only distinguish what changed between those paths.
+        let mut common: std::collections::BTreeSet<_> = conjuncts(&parts[0]).iter().collect();
+        for part in &parts[1..] {
+            if common.is_empty() {
+                break;
+            }
+            let here: std::collections::BTreeSet<_> = conjuncts(part).iter().collect();
+            common.retain(|fact| here.contains(fact));
+        }
+        if !common.is_empty() {
+            let distinct = parts
+                .iter()
+                .map(|part| {
+                    let conditions = conjuncts(part)
+                        .iter()
+                        .filter(|fact| !common.contains(fact))
+                        .cloned()
+                        .collect();
+                    canonical_parts(conditions, true, id)
+                })
+                .collect::<Checked<Vec<_>>>()?;
+            let mut required: Vec<_> = common.into_iter().cloned().collect();
+            required.push(canonical_parts(distinct, false, id)?);
+            return canonical_parts(required, true, id);
+        }
+    }
     Ok(match parts.len() {
         0 if conjunction => Proposition::Truth,
         0 => Proposition::Falsehood,
@@ -725,6 +980,13 @@ fn canonical_parts(
         _ if conjunction => Proposition::Conjunction(parts),
         _ => Proposition::Disjunction(parts),
     })
+}
+
+fn conjuncts(proposition: &Proposition) -> &[Proposition] {
+    match proposition {
+        Proposition::Conjunction(parts) => parts,
+        other => std::slice::from_ref(other),
+    }
 }
 
 /// Add the inferred predicate to the contract and mint its obligation at
@@ -764,6 +1026,8 @@ pub(super) fn require(
                 "callee is past the module",
             )
         })?;
+    let parameters = target.parameters.clone();
+    let structural_parameters = target.structural_parameters.clone();
     let previous = target.contract.requires.clone();
     let mut clauses = previous.clone();
     clauses.push(predicate);
@@ -1032,5 +1296,80 @@ pub(super) fn require(
             }
         }
     }
+    // Frame reuse changes a call into an edge, not its entry requirement.
+    // Each copied head receives the same condition over its own formals,
+    // and the existing arrival judgment checks every edge before using it.
+    let heads = terminal_check_tables::row(&sites.heads, callee, callee, Construct::Machine)?;
+    if heads.is_empty() {
+        return Ok(());
+    }
+    let invariants = &mut elaboration.module.scalar_block_invariants;
+    invariants.sort_by_key(|row| (row.machine, row.header));
+    let mut added = Vec::new();
+    for head in heads {
+        let caller = terminal_machine(&elaboration.module.machines, head.caller, callee)?;
+        let block = caller
+            .blocks
+            .get((head.block.get() - 1) as usize)
+            .filter(|block| block.id == head.block)
+            .ok_or_else(|| {
+                refusal(
+                    RefusalReason::ForeignIdentity,
+                    head.caller,
+                    Construct::Block(head.block),
+                    "an inferred input names no loop head",
+                )
+            })?;
+        if parameters.len() != block.parameters.len()
+            || structural_parameters.len() != block.structural_parameters.len()
+        {
+            return Err(refusal(
+                RefusalReason::ForeignIdentity,
+                head.caller,
+                Construct::Block(head.block),
+                "a loop head does not match its member's input lanes",
+            ));
+        }
+        let values = parameters
+            .iter()
+            .zip(&block.parameters)
+            .map(|(formal, actual)| (formal.id, ScalarTerm::value(actual.id, actual.scalar_type)))
+            .collect();
+        let places = structural_parameters
+            .iter()
+            .zip(&block.structural_parameters)
+            .map(|(formal, actual)| (formal.place, (actual.place, Vec::new())))
+            .collect();
+        let predicate = joins::connective(
+            clauses
+                .iter()
+                .map(|clause| {
+                    let clause = terminal_semantics::substitution::substitute_proposition_values(
+                        clause, &values,
+                    );
+                    terminal_semantics::substitution::substitute_proposition_structural_places(
+                        &clause, &places,
+                    )
+                })
+                .collect(),
+            true,
+        );
+        if let Ok(index) = invariants
+            .binary_search_by_key(&(head.caller, head.block), |row| (row.machine, row.header))
+        {
+            let invariant = &mut invariants[index];
+            invariant.predicate =
+                joins::connective(vec![invariant.predicate.clone(), predicate], true);
+        } else {
+            added.push(terminal_psi::ScalarBlockInvariant {
+                machine: head.caller,
+                header: head.block,
+                predicate,
+                arrivals: head.arrivals.clone(),
+            });
+        }
+    }
+    invariants.extend(added);
+    invariants.sort_by_key(|row| (row.machine, row.header));
     Ok(())
 }

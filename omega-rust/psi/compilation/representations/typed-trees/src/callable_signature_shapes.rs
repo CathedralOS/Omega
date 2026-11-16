@@ -12,8 +12,8 @@ use symbols::{RetainedDeclaration, SymbolHandle};
 pub(crate) fn realizes_signature(
     program: &crate::TypedTrees,
     machine: &crate::machine::Machine,
-    required_statics: &[crate::data::TypeParameter],
-    required_parameters: &[StateParameter],
+    required_statics: arena::RootRows<'_, crate::data::TypeParameter>,
+    required_parameters: arena::RootRows<'_, StateParameter>,
     result: TypeReferenceHandle,
 ) -> bool {
     let Some(state) = program.machine_states(machine).first() else {
@@ -55,7 +55,7 @@ pub(crate) fn realizes_signature(
 fn realization_static_binders(
     program: &crate::TypedTrees,
     machine: &crate::machine::Machine,
-    required_parameters: &[crate::data::TypeParameter],
+    required_parameters: arena::RootRows<'_, crate::data::TypeParameter>,
 ) -> Option<(Vec<(SymbolHandle, String)>, Vec<(SymbolHandle, String)>)> {
     let machine_parameters = program.machine_type_parameters(machine);
     if machine_parameters.len() != required_parameters.len() {
@@ -158,7 +158,7 @@ impl<'source> CallableDeclaration<'source> {
                 let machine = program
                     .machine_by_symbol(symbol)
                     .ok_or("callable declaration lost its exact machine")?;
-                let [state] = program.machine_states(machine) else {
+                let Some([state]) = program.machine_states(machine).as_array() else {
                     return Err("callable declaration has no unique entry state");
                 };
                 (
@@ -178,7 +178,7 @@ impl<'source> CallableDeclaration<'source> {
     pub fn static_parameters(
         self,
         program: &'source crate::TypedTrees,
-    ) -> Result<&'source [crate::data::TypeParameter], &'static str> {
+    ) -> Result<arena::RootRows<'source, crate::data::TypeParameter>, &'static str> {
         match self {
             Self::Signature(signature) => Ok(program.state_signature_type_parameters(signature)),
             Self::Machine(symbol) => program
@@ -500,7 +500,7 @@ impl crate::TypedTrees {
             .machine_by_symbol(target)
             .or_else(|| self.machine_holding_state(target))
             .ok_or("source call has no retained callable declaration")?;
-        let [state] = self.machine_states(machine) else {
+        let Some([state]) = self.machine_states(machine).as_array() else {
             return Err("source call has no unique declared entry state".into());
         };
         if target != machine.symbol && target != state.symbol {
@@ -513,7 +513,7 @@ impl crate::TypedTrees {
 #[derive(Clone, Copy)]
 pub struct CallableSignatureShape<'a> {
     pub generic_arity: usize,
-    pub parameters: &'a [StateParameter],
+    pub parameters: arena::RootRows<'a, StateParameter>,
     pub return_type: TypeReferenceHandle,
 }
 

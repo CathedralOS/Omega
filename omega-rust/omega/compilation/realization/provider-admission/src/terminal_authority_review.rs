@@ -229,6 +229,7 @@ pub(super) fn physical_authority_use(operation: &AbstractOperation) -> PhysicalA
         | abstract_operations::move_or_store_structural_field_pattern!()
         | AbstractOperation::StructuralLeafCopy { .. }
         | AbstractOperation::MoveStructuralValue { .. }
+        | AbstractOperation::DecomposeStructuralValue { .. }
         | AbstractOperation::TransformContent { .. }
         | AbstractOperation::IntegerConstant { .. }
         | AbstractOperation::IeeeFloatConstant { .. }

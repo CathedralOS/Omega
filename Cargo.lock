@@ -10,7 +10,6 @@ dependencies = [
  "native-vocabulary",
  "optimization-core",
  "semantic-vocabulary",
- "terminal-codec",
  "terminal-psi",
 ]
 
@@ -143,6 +142,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3078c7629b62d3f0439517fa394996acacc5cbc91c5a20d8c658e77abd503a71"
 dependencies = [
  "generic-array",
+]
+
+[[package]]
+name = "bound-installations"
+version = "0.1.0"
+dependencies = [
+ "calling-conventions",
+ "function-identity",
+ "installation-evidence",
+ "language-core",
+ "semantic-vocabulary",
+ "target",
+ "terminal-psi",
 ]
 
 [[package]]
@@ -1008,10 +1020,10 @@ dependencies = [
  "semantic-vocabulary",
  "sha2",
  "target",
- "target-operations",
- "terminal-codec",
+ "target-vocabulary",
  "terminal-psi",
  "terminal-semantics",
+ "terminal-wire",
 ]
 
 [[package]]
@@ -1050,7 +1062,7 @@ dependencies = [
  "semantic-vocabulary",
  "sha2",
  "target",
- "target-operations",
+ "target-vocabulary",
  "task-plans",
  "terminal-psi",
 ]
@@ -1174,6 +1186,7 @@ dependencies = [
  "abstract-operations-to-target-operations",
  "arena",
  "backend-plan",
+ "bound-installations",
  "boundary-applications",
  "calling-conventions",
  "component-description",
@@ -1214,6 +1227,7 @@ version = "0.1.0"
 dependencies = [
  "abstract-operations",
  "calling-conventions",
+ "installation-evidence",
  "language-core",
  "legalized-operations",
  "optimization-core",
@@ -1227,6 +1241,7 @@ dependencies = [
  "target-operations",
  "target-operations-to-selected-instructions",
  "terminal-codec",
+ "terminal-installation",
  "terminal-psi",
  "terminal-semantics",
 ]
@@ -1253,9 +1268,9 @@ version = "0.1.0"
 dependencies = [
  "optimization-core",
  "semantic-vocabulary",
- "terminal-codec",
  "terminal-psi",
  "terminal-semantics",
+ "terminal-wire",
 ]
 
 [[package]]
@@ -1300,7 +1315,7 @@ dependencies = [
  "selected-instructions",
  "semantic-vocabulary",
  "target",
- "target-operations",
+ "target-vocabulary",
  "task-plans",
  "terminal-psi",
 ]
@@ -1544,6 +1559,7 @@ dependencies = [
  "sha2",
  "target",
  "target-operations",
+ "target-vocabulary",
  "terminal-psi",
 ]
 
@@ -1654,6 +1670,7 @@ version = "0.1.0"
 dependencies = [
  "abstract-operations",
  "backend-plan",
+ "bound-installations",
  "calling-conventions",
  "component-description",
  "diagnostics",
@@ -1791,11 +1808,11 @@ dependencies = [
  "sha2",
  "symbols",
  "target",
- "target-operations",
+ "target-vocabulary",
  "task-plans",
- "terminal-codec",
  "terminal-psi",
  "terminal-semantics",
+ "terminal-wire",
 ]
 
 [[package]]
@@ -1847,6 +1864,7 @@ dependencies = [
 name = "review-evidence"
 version = "0.1.0"
 dependencies = [
+ "arena",
  "backend-plan",
  "build-settings",
  "build-time-evaluation",
@@ -1879,6 +1897,7 @@ version = "0.1.0"
 dependencies = [
  "arena",
  "semantic-vocabulary",
+ "sha2",
  "target",
 ]
 
@@ -1975,7 +1994,7 @@ dependencies = [
  "selected-instructions",
  "semantic-vocabulary",
  "target",
- "target-operations",
+ "target-vocabulary",
  "terminal-psi",
 ]
 
@@ -1990,12 +2009,13 @@ dependencies = [
  "native-vocabulary",
  "optimization-core",
  "register-model",
+ "runtime-abi",
  "semantic-vocabulary",
  "sha2",
  "target",
- "target-operations",
- "terminal-codec",
+ "target-vocabulary",
  "terminal-psi",
+ "terminal-wire",
 ]
 
 [[package]]
@@ -2338,8 +2358,8 @@ dependencies = [
  "runtime-abi",
  "semantic-vocabulary",
  "target",
+ "target-vocabulary",
  "task-plans",
- "terminal-installation",
  "terminal-psi",
  "terminal-semantics",
 ]
@@ -2349,6 +2369,7 @@ name = "target-operations-to-selected-instructions"
 version = "0.1.0"
 dependencies = [
  "access-plans",
+ "bound-installations",
  "calling-conventions",
  "installation-evidence",
  "language-core",
@@ -2356,14 +2377,30 @@ dependencies = [
  "legalized-operations",
  "native-vocabulary",
  "optimization-core",
- "provider-admission",
  "register-environment",
  "register-model",
  "runtime-abi",
  "selected-instructions",
  "semantic-vocabulary",
  "target",
- "target-operations",
+ "target-vocabulary",
+ "terminal-psi",
+ "terminal-semantics",
+]
+
+[[package]]
+name = "target-vocabulary"
+version = "0.1.0"
+dependencies = [
+ "calling-conventions",
+ "function-identity",
+ "installation-evidence",
+ "language-core",
+ "native-vocabulary",
+ "runtime-abi",
+ "semantic-vocabulary",
+ "target",
+ "task-plans",
  "terminal-psi",
  "terminal-semantics",
 ]
@@ -2400,17 +2437,10 @@ dependencies = [
 name = "terminal-codec"
 version = "0.1.0"
 dependencies = [
- "access-plans",
- "arena",
- "language-core",
- "language-semantics",
- "layout-plans",
- "numerics",
  "optimization",
- "proof-admission",
  "semantic-vocabulary",
  "terminal-psi",
- "terminal-semantics",
+ "terminal-wire",
 ]
 
 [[package]]
@@ -2611,6 +2641,23 @@ dependencies = [
  "semantic-vocabulary",
  "source",
  "terminal-psi",
+]
+
+[[package]]
+name = "terminal-wire"
+version = "0.1.0"
+dependencies = [
+ "access-plans",
+ "arena",
+ "language-core",
+ "language-semantics",
+ "layout-plans",
+ "numerics",
+ "optimization",
+ "proof-admission",
+ "semantic-vocabulary",
+ "terminal-psi",
+ "terminal-semantics",
 ]
 
 [[package]]

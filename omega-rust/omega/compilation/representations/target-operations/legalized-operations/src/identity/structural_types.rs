@@ -68,7 +68,7 @@ pub(super) fn encode_structural_parameter(
 
 pub(super) fn encode_target_structural_parameter(
     bytes: &mut Vec<u8>,
-    parameter: &target_operations::TargetStructuralParameter,
+    parameter: &target_vocabulary::TargetStructuralParameter,
 ) {
     crate::codec_bytes::push_encoded(bytes, parameter.place.get().to_le_bytes());
     crate::codec_bytes::push_encoded(bytes, parameter.structural_type.get().to_le_bytes());
@@ -128,7 +128,7 @@ pub(super) fn encode_reference_origin(
 
 pub(super) fn encode_target_structural_argument(
     bytes: &mut Vec<u8>,
-    argument: &target_operations::TargetStructuralArgument,
+    argument: &target_vocabulary::TargetStructuralArgument,
 ) {
     crate::codec_bytes::push_encoded(bytes, argument.place.get().to_le_bytes());
     encode_access(bytes, argument.access);
@@ -149,32 +149,32 @@ pub(super) fn encode_target_structural_argument(
         crate::codec_bytes::push_encoded(bytes, index.obligation.get().to_le_bytes());
     }
     match &argument.source {
-        target_operations::TargetStructuralArgumentSource::StructuralHome { psi_operation } => {
+        target_vocabulary::TargetStructuralArgumentSource::StructuralHome { psi_operation } => {
             bytes.push(5);
             crate::codec_bytes::push_encoded(bytes, psi_operation.get().to_le_bytes());
         }
-        target_operations::TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
+        target_vocabulary::TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
             psi_operation,
         } => {
             bytes.push(4);
             crate::codec_bytes::push_encoded(bytes, psi_operation.get().to_le_bytes());
         }
-        target_operations::TargetStructuralArgumentSource::BlockParameter { block, place } => {
+        target_vocabulary::TargetStructuralArgumentSource::BlockParameter { block, place } => {
             bytes.push(2);
             crate::codec_bytes::push_encoded(bytes, block.get().to_le_bytes());
             crate::codec_bytes::push_encoded(bytes, place.get().to_le_bytes());
         }
-        target_operations::TargetStructuralArgumentSource::Placement(placement) => {
+        target_vocabulary::TargetStructuralArgumentSource::Placement(placement) => {
             bytes.push(0);
             encode_placement(bytes, placement);
         }
-        target_operations::TargetStructuralArgumentSource::EstablishedByteView {
+        target_vocabulary::TargetStructuralArgumentSource::EstablishedByteView {
             psi_operation,
         } => {
             bytes.push(1);
             crate::codec_bytes::push_encoded(bytes, psi_operation.get().to_le_bytes());
         }
-        target_operations::TargetStructuralArgumentSource::EstablishedElementView {
+        target_vocabulary::TargetStructuralArgumentSource::EstablishedElementView {
             psi_operation,
         } => {
             bytes.push(6);
@@ -272,6 +272,11 @@ pub(super) fn encode_structural_type(bytes: &mut Vec<u8>, declaration: &Structur
     bytes.push(u8::from(declaration.no_code_affine_cleanup));
     bytes.push(u8::from(declaration.descriptor_cleanup));
     bytes.push(u8::from(declaration.copyable));
+    bytes.push(u8::from(declaration.nominal_cleanup.is_some()));
+    if let Some(selection) = &declaration.nominal_cleanup {
+        bytes.extend_from_slice(&selection.declaration.identity().0.to_le_bytes());
+        bytes.extend_from_slice(&selection.cleanup_machine.get().to_le_bytes());
+    }
     match &declaration.shape {
         StructuralTypeShape::Opaque => bytes.push(19),
         StructuralTypeShape::Reference { referent, access } => {
@@ -522,7 +527,7 @@ fn encode_scalar_restriction(bytes: &mut Vec<u8>, field_type: &StructuralFieldTy
             // A refinement is its carrier and its predicate, each bound by its
             // canonical encoding.
             super::encode_scalar_type(bytes, refinement.carrier());
-            let predicate = terminal_codec::canonical_proposition_order_key(refinement.predicate())
+            let predicate = terminal_wire::canonical_proposition_order_key(refinement.predicate())
                 .expect("canonical refinement predicate");
             encode_len(bytes, predicate.len());
             bytes.extend_from_slice(&predicate);
@@ -638,6 +643,7 @@ mod tests {
                 no_code_affine_cleanup: false,
                 copyable: false,
                 descriptor_cleanup: true,
+                nominal_cleanup: None,
                 scalar_restriction: None,
                 id: semantic_vocabulary::StructuralTypeId::new(2).unwrap(),
                 identity: terminal_psi::TerminalIdentityIndex(1),
@@ -659,6 +665,7 @@ mod tests {
             no_code_affine_cleanup: false,
             copyable: flag,
             descriptor_cleanup: true,
+            nominal_cleanup: None,
             scalar_restriction: None,
             id: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
             identity: terminal_psi::TerminalIdentityIndex(1),
@@ -679,6 +686,7 @@ mod tests {
             no_code_affine_cleanup: false,
             copyable: false,
             descriptor_cleanup: false,
+            nominal_cleanup: None,
             scalar_restriction: None,
             id: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
             identity: terminal_psi::TerminalIdentityIndex(1),
@@ -738,7 +746,7 @@ mod tests {
             additional_input_qualifications: Vec::new(),
         };
         let shape = ValueShape::integer(8, 8);
-        let target = target_operations::TargetStructuralParameter {
+        let target = target_vocabulary::TargetStructuralParameter {
             place: semantic.place,
             structural_type: semantic.structural_type,
             multiplicity: semantic.multiplicity,
@@ -755,7 +763,7 @@ mod tests {
             encode_structural_parameter(&mut bytes, parameter);
             bytes
         };
-        let encode_target = |parameter: &target_operations::TargetStructuralParameter| {
+        let encode_target = |parameter: &target_vocabulary::TargetStructuralParameter| {
             let mut bytes = Vec::new();
             encode_target_structural_parameter(&mut bytes, parameter);
             bytes
@@ -841,5 +849,41 @@ mod tests {
         for (position, identity) in identities.iter().enumerate() {
             assert!(!identities[..position].contains(identity));
         }
+    }
+}
+
+#[cfg(test)]
+#[test]
+fn nominal_cleanup_selection_changes_structural_type_identity() {
+    let mut encodings = Vec::new();
+    for selection in [None, Some((2, 3)), Some((4, 3)), Some((2, 5))] {
+        let declaration = StructuralTypeDeclaration {
+            requires: Vec::new(),
+            quotient_carrier: None,
+            owns_linear_claim: false,
+            no_code_affine_cleanup: false,
+            descriptor_cleanup: false,
+            nominal_cleanup: selection.map(|(identity, machine)| {
+                terminal_psi::NominalCleanupSelection {
+                    declaration: terminal_psi::NominalDeclarationIdentity::new(
+                        terminal_psi::TerminalIdentityIndex(identity),
+                    ),
+                    cleanup_machine: semantic_vocabulary::MachineId::new(machine).unwrap(),
+                }
+            }),
+            copyable: false,
+            scalar_restriction: None,
+            id: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
+            identity: terminal_psi::TerminalIdentityIndex(1),
+            declaration_identity: terminal_psi::TerminalIdentityIndex(1),
+            shape: StructuralTypeShape::Record {
+                fields: Vec::new(),
+                storage: terminal_psi::StructuralRecordStorage::Packed,
+            },
+        };
+        let mut bytes = Vec::new();
+        encode_structural_type(&mut bytes, &declaration);
+        assert!(!encodings.contains(&bytes));
+        encodings.push(bytes);
     }
 }

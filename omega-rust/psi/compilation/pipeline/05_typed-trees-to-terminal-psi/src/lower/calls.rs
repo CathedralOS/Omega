@@ -845,6 +845,11 @@ impl Lowering<'_> {
                 InvocationSite::InvokeNoNormal(edge) | InvocationSite::ExternalCompletion(edge) => {
                     terminal_psi::CallSite::Edge(edge)
                 }
+                InvocationSite::Cleanup { .. } => {
+                    return Err(self.internal(
+                        "an owned cleanup invocation cannot use an ordinary source-call formation",
+                    ));
+                }
             },
             acknowledgement,
             tail_callee: None,

@@ -230,7 +230,7 @@ pub(crate) mod callable_entry_transport {
                                 "callable CPU footprint lost its selected call contract",
                             ))?;
                             if let Some(callees) =
-                                callable_cpu_targets(source, &callable_invocations, machine, call)?
+                                callable_cpu_targets(source, callable_invocations, machine, call)?
                             {
                                 pending.extend(callees.iter().copied());
                             }
@@ -3217,7 +3217,7 @@ pub(crate) mod hosted_receiver {
         {
             return Err(invalid());
         }
-        let (function, target) = crate::object::function_fragments::replay::entry_source(artifact)?;
+        let (function, abi) = crate::object::function_fragments::replay::entry_source(artifact)?;
         let replay = artifact.fragment_replay.as_ref().ok_or_else(invalid)?;
         let terminal = replay.terminal_module();
         let identity = terminal_codec::terminal_psi_identity(terminal).map_err(|_| invalid())?;
@@ -3243,7 +3243,7 @@ pub(crate) mod hosted_receiver {
             || !function.entry_claims.is_empty()
             || !source.visible_parameters().is_empty()
             || function.attachment.is_some()
-            || target.graph.call_plan.policy
+            || abi.call_plan.policy
                 != if artifact.target.architecture == target::Architecture::Aarch64 {
                     CallingPolicy::Aapcs64
                 } else if artifact.target == target::NativeTarget::windows_x64() {
@@ -3252,9 +3252,9 @@ pub(crate) mod hosted_receiver {
                     CallingPolicy::SystemVAMD64
                 }
             || function.structural_parameters.len() != private_entry_ram.len()
-            || target.graph.parameters.len() != private_entry_ram.len()
-            || target.graph.call_plan.parameters.len() != private_entry_ram.len()
-            || target.graph.call_plan.result.is_some()
+            || abi.structural_parameters.len() != private_entry_ram.len()
+            || abi.call_plan.parameters.len() != private_entry_ram.len()
+            || abi.call_plan.result.is_some()
         {
             return Err(invalid());
         }
@@ -3278,9 +3278,8 @@ pub(crate) mod hosted_receiver {
             let index = recipe_index_for_runtime_position(private_entry_ram, ordinal)
                 .ok_or_else(invalid)?;
             let recipe = private_entry_ram.get(index).ok_or_else(invalid)?;
-            let actual = target
-                .graph
-                .parameters
+            let actual = abi
+                .structural_parameters
                 .iter()
                 .find(|native| native.place == parameter.place)
                 .ok_or_else(invalid)?;
@@ -3322,7 +3321,7 @@ pub(crate) mod hosted_receiver {
                         )
                     },
                 )
-                || target.graph.call_plan.parameters.get(ordinal) != Some(&actual.placement)
+                || abi.call_plan.parameters.get(ordinal) != Some(&actual.placement)
             {
                 return Err(invalid());
             }

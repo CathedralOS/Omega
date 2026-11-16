@@ -491,7 +491,7 @@ impl PureTerminalEvaluationReceipt {
             .source
             .machine_by_symbol(self.caller)
             .ok_or("source invocation lost its caller declaration")?;
-        let [state] = self.source.machine_states(caller) else {
+        let Some([state]) = self.source.machine_states(caller).as_array() else {
             return Err("source invocation lost its unique caller entry".into());
         };
         let Some(typed_trees::statement::StatementNode::Transition(transition)) = self

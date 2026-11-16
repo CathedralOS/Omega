@@ -45,6 +45,12 @@ pub fn substitute_proposition_values_with<'input>(
                 target: *target,
             }
         }
+        Proposition::IntegerIeeeFloatExact { source, target } => {
+            Proposition::IntegerIeeeFloatExact {
+                source: substitute_scalar_term_values_with(source, substitutions),
+                target: *target,
+            }
+        }
         Proposition::Truth => Proposition::Truth,
         Proposition::Falsehood => Proposition::Falsehood,
         Proposition::Atom(atom) => Proposition::Atom(*atom),
@@ -172,6 +178,12 @@ pub fn substitute_proposition_structural_places_with<'input>(
         }
         Proposition::IeeeFloatIntegerExact { source, target } => {
             Proposition::IeeeFloatIntegerExact {
+                source: substitute_scalar_term_places(source, substitutions),
+                target: *target,
+            }
+        }
+        Proposition::IntegerIeeeFloatExact { source, target } => {
+            Proposition::IntegerIeeeFloatExact {
                 source: substitute_scalar_term_places(source, substitutions),
                 target: *target,
             }

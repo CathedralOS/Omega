@@ -410,7 +410,7 @@ impl CallOwner {
                 result,
                 None,
             ),
-            Self::Declaration { .. } => (&[][..], Default::default(), None),
+            Self::Declaration { .. } => (arena::RootRows::default(), Default::default(), None),
         };
         crate::typing_queries::scoped_expression_type_reference(
             program,
@@ -1477,7 +1477,7 @@ machine entry(scale: &Scale) -> u64 {
             assert_eq!(constructed.requirement, row.requirement);
             assert_eq!(constructed.selected.symbol, row.realization_state);
             let machine = program.machine_by_symbol(row.realization_machine).unwrap();
-            let [entry] = program.machine_states(machine) else {
+            let Some([entry]) = program.machine_states(machine).as_array() else {
                 panic!("the selected implementation must retain its exact entry");
             };
             assert_eq!(entry.symbol, constructed.selected.symbol);

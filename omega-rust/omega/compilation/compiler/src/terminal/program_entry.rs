@@ -10,7 +10,7 @@ use source_compiler::{
 
 pub(crate) fn prepare_entry_metadata(
     custody: &mut crate::execution_settlement::SelectedProviderCustody,
-    _inputs: Option<&package_compilation::PackageCompilationInputs>,
+    inputs: Option<&package_compilation::PackageCompilationInputs>,
 ) -> Result<(), Vec<Diagnostic>> {
     let profile = custody.execution.target_profile().ok_or_else(|| {
         vec![Diagnostic::error(
@@ -19,6 +19,21 @@ pub(crate) fn prepare_entry_metadata(
     })?;
     let publication = &custody.terminal_publication;
     let accepted = publication.accepted()?;
+    let declaration = package_compilation::selected_program_entry_boundary(
+        accepted.source(),
+        profile.program_entry_slot(),
+        inputs,
+        custody.sources.exact_toolchain_sources(),
+    )?;
+    if !publication
+        .roster()?
+        .declaration_metadata
+        .contains(&declaration)
+    {
+        return Err(vec![Diagnostic::error(
+            "entry declaration was not prepared in the shared product roster",
+        )]);
+    }
     let module = accepted.module();
     let root = module
         .program_entry_contract(profile.target_name())

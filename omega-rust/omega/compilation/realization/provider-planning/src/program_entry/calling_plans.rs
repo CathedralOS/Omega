@@ -137,9 +137,9 @@ impl SelectedProgramEntryCallingPlans {
         let (physical_signature, physical_plan) =
             program.evaluate(policy, target, physical, providers, requester, authority)?;
         let semantic_calling_application =
-            semantic_signature.native_application_with_owner(&semantic_plan, 0, &owner)?;
+            semantic_signature.native_application_with_owner(&semantic_plan, None, &owner)?;
         let physical_calling_application =
-            physical_signature.native_application_with_owner(&physical_plan, 0, &owner)?;
+            physical_signature.native_application_with_owner(&physical_plan, None, &owner)?;
         for application in [&semantic_calling_application, &physical_calling_application] {
             let requirement = schema
                 .declaration

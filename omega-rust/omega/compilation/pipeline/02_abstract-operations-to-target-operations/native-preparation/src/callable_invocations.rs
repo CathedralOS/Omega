@@ -10,6 +10,10 @@ pub struct PreparedCallableInvocations {
     work_schedule: semantic_vocabulary::WorkScheduleIdentity,
     entry: semantic_vocabulary::MachineId,
     invocations: std::sync::Arc<terminal_semantics::callable_values::ReachableCallableInvocations>,
+    entry_invocations: Vec<(
+        semantic_vocabulary::MachineId,
+        std::sync::Arc<terminal_semantics::callable_values::ReachableCallableInvocations>,
+    )>,
 }
 
 impl PreparedCallableInvocations {
@@ -25,12 +29,30 @@ impl PreparedCallableInvocations {
                 [unit.entry],
                 roots,
             )?;
+        // Each activated callback, interrupt or selected-body root is a real
+        // independent entry. Prepare its own fixed point with the same exact
+        // registrar associations: a whole-program union would widen its inputs,
+        // while dropping root activation would omit nested installations.
+        let mut entry_invocations = Vec::new();
+        for &entry in &invocations.roots {
+            if entry == unit.entry {
+                continue;
+            }
+            let summary =
+                terminal_semantics::callable_values::reachable_callable_invocations_with_roots(
+                    &program,
+                    [entry],
+                    roots,
+                )?;
+            entry_invocations.push((entry, std::sync::Arc::new(summary)));
+        }
         Ok(Self {
             psi: unit.psi,
             optimization_unit: unit.identity,
             work_schedule: unit.work_schedule,
             entry: unit.entry,
             invocations: std::sync::Arc::new(invocations),
+            entry_invocations,
         })
     }
 
@@ -39,7 +61,13 @@ impl PreparedCallableInvocations {
         target: &TargetOperationPlan,
         evidence: crate::PreparationEvidence<'_>,
     ) -> Result<
-        std::sync::Arc<terminal_semantics::callable_values::ReachableCallableInvocations>,
+        (
+            std::sync::Arc<terminal_semantics::callable_values::ReachableCallableInvocations>,
+            Vec<(
+                semantic_vocabulary::MachineId,
+                std::sync::Arc<terminal_semantics::callable_values::ReachableCallableInvocations>,
+            )>,
+        ),
         &'static str,
     > {
         if self.psi != target.psi
@@ -51,6 +79,9 @@ impl PreparedCallableInvocations {
                 "callable invocation facts differ from the actual target unit, schedule or entry",
             );
         }
-        Ok(std::sync::Arc::clone(&self.invocations))
+        Ok((
+            std::sync::Arc::clone(&self.invocations),
+            self.entry_invocations.clone(),
+        ))
     }
 }

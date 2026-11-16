@@ -489,15 +489,26 @@ mod contracts {
                 for argument in arguments {
                     assign_calls!(argument);
                 }
-                let target_symbol = resolve_expression_table_call_target_symbol(
-                    machine,
-                    parameters,
-                    state_symbol,
-                    &call,
-                    expression_table,
-                    child_type_references,
+                // A contract call takes the same static qualification as a
+                // body call, so a fixed `core::` name such as
+                // `core::Identity<T>(left, right)` and a module-qualified
+                // machine select their declarations here too.
+                let target_symbol = super::targets::normalize_expression_module_call(
                     symbols,
-                );
+                    expression_table,
+                    expression,
+                )
+                .unwrap_or_else(|| {
+                    resolve_expression_table_call_target_symbol(
+                        machine,
+                        parameters,
+                        state_symbol,
+                        &call,
+                        expression_table,
+                        child_type_references,
+                        symbols,
+                    )
+                });
                 crate::symbols::expressions::assign_static_arguments_type_symbols(
                     symbols,
                     machine,
@@ -3135,6 +3146,43 @@ mod propositions {
                 panic!("the arm result must construct its case value");
             };
             assert_eq!(value.case_symbol, Some(selector.symbol));
+        }
+
+        // A contract call and a body call read the same qualified name the
+        // same way: `core::Identity<T>(..)` written in an `ensures` selects
+        // the fixed core declaration, as it does in a body.
+        #[test]
+        fn a_contract_call_selects_the_fixed_core_identity_like_a_body_call() {
+            let text = "machine same(value: f64) -> f64\n\
+                ensures core::Identity<f64>(result, value)\n\
+                { transition core::Identity<f64>(value, value) { _ -> (value) } }\n";
+            let mut sources = source::SourceMap::default();
+            let source_id = sources.add("identity.omg".into(), text.into()).source_id;
+            let tokens = Lexer::new(text).tokenize().unwrap();
+            let syntax =
+                tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
+            let program = resolve(ResolutionRequest {
+                syntax,
+                sources: Some(std::sync::Arc::new(sources)),
+                top_level_bindings: Vec::new(),
+                retained_base: None,
+            })
+            .unwrap();
+            let identity = program
+                .symbols
+                .fixed_core_declaration_symbol(symbols::FixedCoreDeclaration::Identity)
+                .expect("the fixed core vocabulary is installed");
+            let calls = program
+                .tables
+                .bodies
+                .expressions
+                .iter_expressions()
+                .filter_map(|(_, node)| match node {
+                    ExpressionNode::Call(call) => Some(call.target_symbol),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(calls, vec![identity, identity]);
         }
     }
 }

@@ -2910,6 +2910,7 @@ pub(crate) mod results {
                             copyable: true,
                             no_code_affine_cleanup: true,
                             descriptor_cleanup: true,
+                            nominal_cleanup: None,
                             shape: StructuralTypeShape::ByteSequence(
                                 ByteSequenceCarrier::BorrowedView { access },
                             ),

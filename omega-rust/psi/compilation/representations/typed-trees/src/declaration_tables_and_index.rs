@@ -1226,7 +1226,7 @@ pub mod declaration_index {
             assert_eq!(original_handle, replacement_handle);
             assert_ne!(program.state_parameters.revision(), replacement.revision());
 
-            program.state_parameters = replacement;
+            program.state_parameters = replacement.into();
             assert_eq!(
                 program.first_named_value_declared_type(symbol, symbol),
                 Some(replacement_type)
@@ -1589,7 +1589,7 @@ pub mod declaration_index {
                     .map(|(machine_position, _)| *machine_position)
             })?;
             let machine = self.machines().at(machine_position as usize);
-            Some((machine, &self.machine_states(machine)[0]))
+            Some((machine, self.machine_states(machine).at(0)))
         }
 
         pub fn unique_machine_by_entry_state_symbol(
@@ -1606,7 +1606,7 @@ pub mod declaration_index {
                 entries.next().is_none().then_some(first)
             })?;
             let machine = self.machines().at(machine_position as usize);
-            Some((machine, &self.machine_states(machine)[0]))
+            Some((machine, self.machine_states(machine).at(0)))
         }
 
         fn build_state_positions(&self) -> StatePositionIndex {
@@ -2447,10 +2447,13 @@ pub(crate) mod declaration_tables {
             }
             let row = Handle::from_parts(application.arena_index(), application.generation());
             let definition = self.tables.data_definitions.insert(definition);
-            *self.tables.data_application_definitions.get_mut(row) = crate::DataApplicationView {
-                definition,
-                is_closed,
-            };
+            self.tables.data_application_definitions.set(
+                row,
+                crate::DataApplicationView {
+                    definition,
+                    is_closed,
+                },
+            );
         }
 
         /// Drops the view retained for `application`, so the next
@@ -2463,8 +2466,9 @@ pub(crate) mod declaration_tables {
         ) {
             if self.data_application_definition(application).is_some() {
                 let row = Handle::from_parts(application.arena_index(), application.generation());
-                *self.tables.data_application_definitions.get_mut(row) =
-                    crate::DataApplicationView::default();
+                self.tables
+                    .data_application_definitions
+                    .set(row, crate::DataApplicationView::default());
             }
         }
 
@@ -2505,32 +2509,32 @@ pub(crate) mod declaration_tables {
 
         crate::declaration_columns! {
             data_type_parameters(data_definition: data::DataDefinition)
-                -> &[data::TypeParameter] = data_type_parameters.type_parameters;
+                -> rows[data::TypeParameter] = data_type_parameters.type_parameters;
             #[inline]
             data_members(data_definition: data::DataDefinition)
-                -> &[data::DataMember] = data_members.members
+                -> rows[data::DataMember] = data_members.members
                 [push_data_member];
             #[inline]
             data_payload_fields(variant: data::DataVariant)
-                -> &[data::DataField] = data_payload_fields.payload
+                -> rows[data::DataField] = data_payload_fields.payload
                 [push_data_payload_field];
             domain_type_parameters(domain: domain::DomainDefinition)
-                -> &[data::TypeParameter] = data_type_parameters.type_parameters;
+                -> rows[data::TypeParameter] = data_type_parameters.type_parameters;
             proposition_binders(proposition: proposition::PropositionDefinition)
                 -> &[proposition::PropositionBinder] = proposition_binders.binders
                 [push_proposition_binder];
             proposition_parameters(proposition: proposition::PropositionDefinition)
-                -> &[signature::StateParameter] = state_parameters.parameters
+                -> rows[signature::StateParameter] = state_parameters.parameters
                 [push_proposition_parameter];
             proof_facts(domain: domain::DomainDefinition)
-                -> &[domain::ProofFact] = proof_facts.facts;
+                -> rows[domain::ProofFact] = proof_facts.facts;
             operator_type_parameters(operator: crate::operator::OperatorDefinition)
-                -> &[data::TypeParameter] = data_type_parameters.type_parameters;
+                -> rows[data::TypeParameter] = data_type_parameters.type_parameters;
             operator_parameters(operator: crate::operator::OperatorDefinition)
-                -> &[signature::StateParameter] = state_parameters.parameters
+                -> rows[signature::StateParameter] = state_parameters.parameters
                 [push_operator_parameter];
             operator_contracts(operator: crate::operator::OperatorDefinition)
-                -> &[signature::SignatureContract] = signature_contracts.contracts
+                -> rows[signature::SignatureContract] = signature_contracts.contracts
                 [push_operator_contract];
         }
 
@@ -2551,10 +2555,12 @@ pub(crate) mod declaration_tables {
 
         pub fn data_member_fields<'a>(
             &'a self,
-            members: &'a [data::DataMember],
+            members: impl IntoIterator<Item = &'a data::DataMember> + 'a,
         ) -> impl Iterator<Item = &'a data::DataField> + 'a {
-            members.iter().flat_map(|member| match member {
-                data::DataMember::Field(field) => std::slice::from_ref(field),
+            members.into_iter().flat_map(|member| match member {
+                data::DataMember::Field(field) => {
+                    arena::RootRows::from_slice(std::slice::from_ref(field))
+                }
                 data::DataMember::Variant(variant) => self.data_payload_fields(variant),
             })
         }
@@ -3889,18 +3895,18 @@ pub(crate) mod trait_and_machine_tables {
 
         crate::declaration_columns! {
             conformance_type_parameters(conformance: trait_definition::Conformance)
-                -> &[data::TypeParameter] = data_type_parameters.type_parameters;
+                -> rows[data::TypeParameter] = data_type_parameters.type_parameters;
             trait_type_parameters(trait_definition: trait_definition::TraitDefinition)
-                -> &[data::TypeParameter] = data_type_parameters.type_parameters;
+                -> rows[data::TypeParameter] = data_type_parameters.type_parameters;
             trait_requirements(trait_definition: trait_definition::TraitDefinition)
                 -> &[trait_definition::TraitRequirement] = trait_requirements.requires
                 [push_trait_requirement];
             trait_machine_signatures(trait_definition: trait_definition::TraitDefinition)
-                -> &[signature::StateSignature] = trait_machine_signatures.machines
+                -> rows[signature::StateSignature] = trait_machine_signatures.machines
                 [push_trait_machine_signature];
             #[inline]
             machine_type_parameters(machine: machine::Machine)
-                -> &[data::TypeParameter] = data_type_parameters.type_parameters;
+                -> rows[data::TypeParameter] = data_type_parameters.type_parameters;
             machine_owned_data(machine: machine::Machine)
                 -> &[machine::OwnedData] = machine_owned_data.owned_data
                 [push_machine_owned_data];
@@ -3911,30 +3917,30 @@ pub(crate) mod trait_and_machine_tables {
                 -> &[signature::AuthoredInvocation] = signature_invokes.invokes
                 [push_machine_invoke];
             machine_contracts(machine: machine::Machine)
-                -> &[signature::SignatureContract] = signature_contracts.contracts
+                -> rows[signature::SignatureContract] = signature_contracts.contracts
                 [push_machine_contract];
             #[inline]
             machine_states(machine: machine::Machine)
-                -> &[crate::state::State] = machine_states.states
+                -> rows[crate::state::State] = machine_states.states
                 [push_machine_state];
             #[inline]
             state_parameters(state: crate::state::State)
-                -> &[signature::StateParameter] = state_parameters.parameters
+                -> rows[signature::StateParameter] = state_parameters.parameters
                 [push_state_parameter];
             #[inline]
             state_contracts(state: crate::state::State)
-                -> &[signature::SignatureContract] = signature_contracts.contracts
+                -> rows[signature::SignatureContract] = signature_contracts.contracts
                 [push_state_contract];
             state_signature_parameters(signature: signature::StateSignature)
-                -> &[signature::StateParameter] = state_parameters.parameters
+                -> rows[signature::StateParameter] = state_parameters.parameters
                 [push_state_signature_parameter];
             state_signature_type_parameters(signature: signature::StateSignature)
-                -> &[data::TypeParameter] = data_type_parameters.type_parameters;
+                -> rows[data::TypeParameter] = data_type_parameters.type_parameters;
             state_signature_invokes(signature: signature::StateSignature)
                 -> &[signature::AuthoredInvocation] = signature_invokes.invokes
                 [push_state_signature_invoke];
             state_signature_contracts(signature: signature::StateSignature)
-                -> &[signature::SignatureContract] = signature_contracts.contracts
+                -> rows[signature::SignatureContract] = signature_contracts.contracts
                 [push_state_signature_contract];
         }
 
@@ -4003,7 +4009,7 @@ pub(crate) mod trait_and_machine_tables {
                     let machine = self.machines().at(machine_position as usize);
                     (
                         machine,
-                        &self.machine_states(machine)[state_position as usize],
+                        self.machine_states(machine).at(state_position as usize),
                     )
                 },
             )
@@ -4032,8 +4038,9 @@ pub(crate) mod trait_and_machine_tables {
                 self.with_call_target_index(|index| index.trait_signature.get(&symbol).copied())
             {
                 let trait_definition = self.traits().at(trait_index as usize);
-                let signature =
-                    &self.trait_machine_signatures(trait_definition)[signature_index as usize];
+                let signature = self
+                    .trait_machine_signatures(trait_definition)
+                    .at(signature_index as usize);
                 return Some((trait_definition, signature));
             }
             if symbol.is_valid()
@@ -4086,7 +4093,10 @@ pub(crate) mod trait_and_machine_tables {
                 .set(self.roots.machines.handle_at(position as u32), machine);
         }
 
-        pub fn declaration_type_parameters(&self, symbol: SymbolHandle) -> &[data::TypeParameter] {
+        pub fn declaration_type_parameters(
+            &self,
+            symbol: SymbolHandle,
+        ) -> arena::RootRows<'_, data::TypeParameter> {
             use symbols::SymbolKind;
             match self.symbols.get(symbol).kind {
                 SymbolKind::Data => self
@@ -4184,7 +4194,7 @@ pub(crate) mod trait_and_machine_tables {
                         return None;
                     }
                 } else {
-                    parameters = &[];
+                    parameters = Default::default();
                 }
             }
         }
@@ -4235,14 +4245,6 @@ pub(crate) mod trait_and_machine_tables {
             symbol: SymbolHandle,
         ) -> Option<&crate::state::State> {
             state_by_symbol(self.machine_states(machine), symbol)
-        }
-
-        #[inline]
-        pub fn machine_states_mut(
-            &mut self,
-            machine: &machine::Machine,
-        ) -> &mut [crate::state::State] {
-            self.machine_states.span_mut_or_empty(machine.states)
         }
 
         pub fn machine_holding_state(
@@ -4486,7 +4488,10 @@ pub(crate) mod trait_and_machine_tables {
             }
             let snapshot = program.clone();
             let machine = program.machines()[0].clone();
-            program.machine_states_mut(&machine)[1].symbol = replaced;
+            program
+                .machine_states
+                .get_mut(machine.states.handle_at(1))
+                .symbol = replaced;
             assert_state_lookups_match_roster(&program, &symbols);
             assert_state_lookups_match_roster(&snapshot, &symbols);
 
@@ -4608,20 +4613,20 @@ pub(crate) mod trait_and_machine_tables {
 pub(crate) mod type_parameters {
     use crate::data::TypeParameter;
     use crate::declaration_index::SymbolRows;
-    use arena::{Arena, Handle, OwnedIndex};
+    use arena::{Arena, Handle, OwnedIndex, RootedArena};
 
     pub(crate) type TypeParameterIndex = SymbolRows<Handle<TypeParameter>>;
 
     #[derive(Clone, Default, PartialEq, Eq, compiler_storage::Record)]
     pub struct TypeParameterTable {
-        arena: Arena<TypeParameter>,
+        arena: RootedArena<TypeParameter>,
         index: OwnedIndex<TypeParameterIndex, ()>,
     }
 
     impl From<Arena<TypeParameter>> for TypeParameterTable {
         fn from(arena: Arena<TypeParameter>) -> Self {
             Self {
-                arena,
+                arena: arena.into(),
                 index: OwnedIndex::default(),
             }
         }
@@ -4632,7 +4637,7 @@ pub(crate) mod type_parameters {
         }
     }
     impl std::ops::Deref for TypeParameterTable {
-        type Target = Arena<TypeParameter>;
+        type Target = RootedArena<TypeParameter>;
         fn deref(&self) -> &Self::Target {
             &self.arena
         }
@@ -4806,7 +4811,7 @@ pub(crate) mod type_parameters {
                 replacement.revision(),
                 p.tables.data_type_parameters.revision()
             );
-            *p.tables.data_type_parameters = replacement;
+            *p.tables.data_type_parameters = replacement.into();
             assert_queries(&p, &symbols);
             let frozen = FrozenTypedTrees::from(p);
             assert_queries(&frozen, &symbols);

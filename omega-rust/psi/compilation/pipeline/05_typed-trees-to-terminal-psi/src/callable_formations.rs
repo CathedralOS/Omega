@@ -119,12 +119,12 @@ pub fn check_bound_callable_shapes(
         let mismatches = compare_callable_signature_shapes(
             CallableSignatureShape {
                 generic_arity: typed.state_signature_type_parameters(required).len(),
-                parameters: &projected,
+                parameters: (&projected).into(),
                 return_type: required.return_type,
             },
             CallableSignatureShape {
                 generic_arity: declaration.type_parameters.len(),
-                parameters: &visible,
+                parameters: (&visible).into(),
                 return_type: actual.return_type,
             },
             |actual, required| types.matches(actual, required).map_err(defect),

@@ -33,7 +33,7 @@ fn source_receiver(typed: &TypedTrees, machine: &Machine) -> Result<symbols::Sym
         .machine_states(machine)
         .first()
         .ok_or("Build entry has no source entry state")?;
-    let [parameter] = typed.state_parameters(entry) else {
+    let Some([parameter]) = typed.state_parameters(entry).as_array() else {
         return Err("Build activation requires its one original Build parameter".into());
     };
     if parameter.is_const || parameter.relevance.is_erased() {

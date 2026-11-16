@@ -64,7 +64,6 @@ mod traits;
 mod transitions;
 mod types;
 
-use arena::Arena;
 use semantic_vocabulary::{CrashCause, IdTable, MachineId, PackageKeyIdentity, StructuralTypeId};
 use symbols::{SymbolHandle, SymbolKind};
 use terminal_check_tables::{Checked, Construct};
@@ -72,6 +71,15 @@ use typed_trees::TypedTrees;
 
 use crate::body::{RecordType, Signature, ValueType};
 use crate::{Unserved, refuse};
+
+/// One member of a complete static type partition. An opaque remainder
+/// excludes exactly the closed types checked by the other members, so an
+/// open classifier's fallback is checked without inventing runtime RTTI.
+#[derive(Clone)]
+pub(crate) struct TypeAlternative {
+    pub arguments: Vec<Option<typed_trees::types::TypeReferenceHandle>>,
+    pub remainder: Option<(usize, Vec<typed_trees::types::TypeReferenceHandle>)>,
+}
 
 #[derive(Debug, Clone, Copy)]
 struct WidthBinding {
@@ -121,7 +129,8 @@ pub(crate) struct Program<'t> {
     /// One output slot per source mathematical declaration, not per call.
     /// Publication assigns portable identities to the prepared definitions.
     pub predicate_definitions: Vec<Option<PredicateDefinition>>,
-    named_captures: crate::NamedCaptures,
+    shared: crate::SharedReading,
+    calling_policy_boundaries: Vec<SymbolHandle>,
     /// The typed-tree machine of each discovered `MachineId`.
     pub symbols: IdTable<MachineId, SymbolHandle>,
     pub signatures: IdTable<MachineId, Signature>,
@@ -220,10 +229,10 @@ pub(crate) struct Program<'t> {
     pub applications: Vec<MachineId>,
     /// The type arguments each of those was read at.
     applied: Vec<(MachineId, Vec<ValueType>)>,
-    /// The source types a finite alternative fixes the entry's parameters to.
+    /// The source types a static alternative fixes the entry's parameters to.
     /// Materialize them under this reader's numbering before checking its body;
     /// record IDs from the reader that discovered the family cannot cross here.
-    pub alternative: Option<Vec<typed_trees::types::TypeReferenceHandle>>,
+    pub alternative: Option<TypeAlternative>,
     /// The locals of the body being read whose value is decided statically
     /// by closed type equations (`static_truth`), by the local's symbol.
     static_truths: Vec<(SymbolHandle, bool)>,
@@ -246,6 +255,9 @@ pub(crate) struct Program<'t> {
     /// discovery order; a nested record is discovered before its owner.
     pub records: IdTable<StructuralTypeId, RecordType>,
     pub byte_domains: Vec<crate::body::SourceByteDomain>,
+    /// Resolve selected consumers after the current signature is registered;
+    /// a record used by its own cleanup must not allocate that machine twice.
+    pending_cleanup: Vec<(StructuralTypeId, SymbolHandle)>,
     pub(crate) scalar_applications: constant_values::ScalarApplications,
     /// Resolved domain declarations actually used by this verification unit.
     /// Lowering publishes these meanings, not just the carrier of their values.
@@ -340,15 +352,13 @@ fn crash_cause(cause: typed_trees::signature::CrashCause) -> CrashCause {
 
 /// Reads a span of a typed-tree arena, refusing an invalid span instead of
 /// reading it as empty.
-fn span<'a, T: Default>(
-    arena: &'a Arena<T>,
+fn span<T, Rows>(
+    read: impl FnOnce(arena::HandleSpan<T>) -> Option<Rows>,
     span: arena::HandleSpan<T>,
     machine: MachineId,
     what: &'static str,
-) -> Checked<&'a [T]> {
-    arena
-        .span(span)
-        .ok_or_else(|| refuse(machine, Construct::Machine, Unserved::Machine(what)))
+) -> Checked<Rows> {
+    read(span).ok_or_else(|| refuse(machine, Construct::Machine, Unserved::Machine(what)))
 }
 impl<'t> Program<'t> {
     pub(crate) fn begin_declaration_storage(
@@ -375,7 +385,7 @@ impl<'t> Program<'t> {
             typed,
             rigid,
             source::DependencyScope::Product,
-            crate::named_captures(typed),
+            crate::shared_reading(typed),
         )
     }
 
@@ -383,12 +393,13 @@ impl<'t> Program<'t> {
         typed: &'t TypedTrees,
         rigid: bool,
         purpose: source::DependencyScope,
-        captures: crate::NamedCaptures,
+        shared: crate::SharedReading,
     ) -> Self {
         Self {
             publication: terminal_codec::TerminalPublication::Portable,
             purpose,
             declaration_metadata: Vec::new(),
+            calling_policy_boundaries: Vec::new(),
             predicate_definitions: std::iter::repeat_with(|| None)
                 .take(typed.mathematical_definitions().len())
                 .collect(),
@@ -399,7 +410,7 @@ impl<'t> Program<'t> {
             admitted_signature_views: Vec::new(),
             boundary_parent_contracts: Vec::new(),
             completed_operators: crate::selection_questions::CompletedOperators::default(),
-            named_captures: captures,
+            shared,
             symbols: IdTable::default(),
             signatures: IdTable::default(),
             declared_envelope_policies: IdTable::default(),
@@ -441,6 +452,7 @@ impl<'t> Program<'t> {
             value_arguments: IdTable::default(),
             records: IdTable::default(),
             byte_domains: Vec::new(),
+            pending_cleanup: Vec::new(),
             scalar_applications: Default::default(),
             declared_domains: Vec::new(),
             inhabitation: Default::default(),
@@ -712,6 +724,7 @@ mod tests {
         RecordType {
             owns_linear_claim: false,
             copyable: false,
+            cleanup: None,
             identity: String::from("point"),
             shape: crate::StorageShape::Record(Vec::new()),
             requires: Vec::new(),
@@ -728,7 +741,9 @@ mod tests {
         };
         use typed_trees::domain::{DomainDefinition, ProofFact};
 
-        let text = "Never Always Bare";
+        // Each domain's subject is the record `Point`: lowering refuses a
+        // record domain whose subject type has no exact identity.
+        let text = "Never Always Bare Point";
         let mut sources = SourceMap::default();
         let source = sources
             .add_checked_instance(
@@ -743,21 +758,29 @@ mod tests {
             .source_id;
         let mut builder = SymbolTableBuilder::with_sources(Some(std::sync::Arc::new(sources)));
         let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
-        let domains = builder.insert_children(
+        let declarations = builder.insert_children(
             root,
-            [(0, 5), (6, 12), (13, 17)].map(|(start, end)| {
+            [
+                (SymbolKind::Domain, (0, 5)),
+                (SymbolKind::Domain, (6, 12)),
+                (SymbolKind::Domain, (13, 17)),
+                (SymbolKind::Data, (18, 23)),
+            ]
+            .map(|(kind, (start, end))| {
                 (
-                    SymbolKind::Domain,
+                    kind,
                     SymbolNameRef::Source(SourceSpan::new(source, source::Span::new(start, end))),
                 )
             }),
         );
+        let domains = declarations.handles().take(3).collect::<Vec<_>>();
+        let point = declarations.handle_at(3);
         let subjects = domains
-            .handles()
+            .iter()
             .map(|domain| {
                 builder
                     .insert_children(
-                        domain,
+                        *domain,
                         [(SymbolKind::Parameter, SymbolNameRef::Static("value"))],
                     )
                     .handle_at(0)
@@ -767,8 +790,12 @@ mod tests {
             symbols: builder.finish(),
             ..Default::default()
         };
-        for (((symbol, name), predicate), subject_symbol) in domains
-            .handles()
+        let target_type = typed.type_reference_table.insert(TypeReferenceNode::Named {
+            symbol: point,
+            name: "Point".into(),
+        });
+        for (((&symbol, name), predicate), subject_symbol) in domains
+            .iter()
             .zip(["Never", "Always", "Bare"])
             .zip([Some(false), Some(true), None])
             .zip(subjects)
@@ -792,6 +819,7 @@ mod tests {
                 name: name.into(),
                 semantic_id,
                 subject_symbol,
+                target_type,
                 predicate_presence,
                 facts,
                 ..Default::default()
@@ -801,7 +829,7 @@ mod tests {
         let carrier = program.records.push(plain_record());
         program
             .declared_domains
-            .extend(domains.handles().map(|symbol| DeclaredDomain {
+            .extend(domains.iter().map(|&symbol| DeclaredDomain {
                 instance: crate::body::DomainInstance {
                     declaration: symbol,
                     identity: typed.domain_definition(symbol).unwrap().semantic_id,
@@ -2201,6 +2229,11 @@ mod tests {
             |rows: Vec<TableMatchField>| typed.expression_table.insert_match_fields(rows);
         let full = roster(vec![row(b, "b", false), row(a, "a", true)]);
         let partial = roster(vec![row(a, "a", true)]);
+        let duplicate = roster(vec![
+            row(a, "a", true),
+            row(a, "a", false),
+            row(b, "b", false),
+        ]);
         let spelled = roster(vec![
             row(a, "a", true),
             row(SymbolHandle::invalid(), "b", true),
@@ -2241,7 +2274,7 @@ mod tests {
                 },
             )
         };
-        assert_eq!(read(point, full, subject), Ok(()));
+        assert!(matches!(read(point, full, subject), Ok(None)));
         let mut detail = |pattern_subject, pattern_fields, initial_value| {
             read(pattern_subject, pattern_fields, initial_value)
                 .unwrap_err()
@@ -2250,6 +2283,10 @@ mod tests {
         assert_eq!(
             detail(point, partial, subject),
             "statement record pattern that omits a field"
+        );
+        assert_eq!(
+            detail(point, duplicate, subject),
+            "typing record pattern repeats a field"
         );
         assert_eq!(
             detail(point, spelled, subject),

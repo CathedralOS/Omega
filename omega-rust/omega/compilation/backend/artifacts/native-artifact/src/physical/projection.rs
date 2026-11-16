@@ -322,7 +322,6 @@ mod tests {
             functions: vec![AbstractFunction {
                 machine,
                 attachment: None,
-                nominal_cleanup_subject: None,
                 entry: BlockId::new(2).unwrap(),
                 parameters: Vec::new(),
                 structural_parameters: Vec::new(),

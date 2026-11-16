@@ -54,6 +54,7 @@ use super::authority::{Access, Opened};
 use super::contracts::{ClauseScope, DataSubject, MathematicalTerms, ResultTerm};
 use super::{Program, Slot};
 use crate::body::{CaseType, Expression, ExpressionKind, RecordField, RecordType, ValueType};
+use crate::canonical::{self, Repeated};
 use crate::{SourceOrigin, Unserved, refuse};
 
 /// The symbols a data type was resolved from: its declaration, each field
@@ -428,6 +429,7 @@ impl Program<'_> {
         let record: StructuralTypeId = self.records.push(RecordType {
             owns_linear_claim,
             copyable,
+            cleanup: None,
             identity,
             shape: if data.supply_mode == language_semantics::DataSupplyMode::BoundaryOpaque {
                 crate::StorageShape::Opaque
@@ -475,7 +477,7 @@ impl Program<'_> {
             }),
         };
         let facts = super::span(
-            &typed.proof_facts,
+            |span| typed.proof_facts.span(span),
             data.requires_facts,
             id,
             "data requires span",
@@ -497,10 +499,18 @@ impl Program<'_> {
             .iter()
             .map(|field| (field.id, field.value_type))
             .collect();
-        let payloads: Vec<ValueType> = declared
+        let cases: Vec<(StructuralCaseId, Vec<(StructuralFieldId, ValueType)>)> = declared
             .cases()
             .iter()
-            .flat_map(|case| case.fields.iter().map(|field| field.value_type))
+            .map(|case| {
+                (
+                    case.id,
+                    case.fields
+                        .iter()
+                        .map(|field| (field.id, field.value_type))
+                        .collect(),
+                )
+            })
             .collect();
         for (field, value_type) in fields {
             let path = [semantic_vocabulary::CanonicalStructuralPathSegment::Field(
@@ -508,14 +518,48 @@ impl Program<'_> {
             )];
             requires.extend(self.field_predicates(id, &path, value_type)?);
         }
-        // A payload's clause holds only of a value in its case, and no
-        // clause here is conditional on the case yet.
-        for value_type in payloads {
-            for domain in value_type.qualification().domains.members() {
-                if super::authority::has_predicates(self.domain_theory(id, domain)?) {
-                    return Err(unserved("case payload in a domain with predicates"));
-                }
+        // A payload's domain holds only of a value in its case
+        // (data_and_literals.md: "case-dependent projections require
+        // established case knowledge"). It is owed as the clause an author
+        // would write in the declaration's `requires`: the value is in that
+        // case and its payload meets the predicates, or it is in another
+        // case. Construction proves it and a case test assumes it, like any
+        // other data clause.
+        for (position, (case, fields)) in cases.iter().enumerate() {
+            let mut owed = Vec::new();
+            for &(field, value_type) in fields {
+                let path = [
+                    semantic_vocabulary::CanonicalStructuralPathSegment::Case(*case),
+                    semantic_vocabulary::CanonicalStructuralPathSegment::Field(field),
+                ];
+                owed.extend(self.field_predicates(id, &path, value_type)?);
             }
+            if owed.is_empty() {
+                continue;
+            }
+            let in_case = |case| semantic_vocabulary::Proposition::StructuralCaseMembership {
+                subject: semantic_vocabulary::StructuralCaseSubject::new(root, Vec::new()),
+                case,
+            };
+            owed.push(in_case(*case));
+            let mut disjuncts = vec![semantic_vocabulary::Proposition::Conjunction(
+                canonical::clauses(owed, Repeated::Refuse, id)?,
+            )];
+            disjuncts.extend(
+                cases
+                    .iter()
+                    .enumerate()
+                    .filter(|(other, _)| *other != position)
+                    .map(|(_, (other, _))| in_case(*other)),
+            );
+            requires.push(match disjuncts.len() {
+                1 => disjuncts.remove(0),
+                _ => semantic_vocabulary::Proposition::Disjunction(canonical::clauses(
+                    disjuncts,
+                    Repeated::Refuse,
+                    id,
+                )?),
+            });
         }
         self.records
             .get_mut(record)
@@ -527,14 +571,61 @@ impl Program<'_> {
         {
             self.value_records.insert(position, record);
         }
+        if let Some(selection) = data.cleanup_selection {
+            if data.generic_instance.is_some() {
+                return Err(unserved("nominal cleanup on an applied data type"));
+            }
+            let executable = self.ordinary_application_target(id, selection.application)?;
+            self.pending_cleanup.push((record, executable));
+        }
         Ok(ValueType::record(record))
+    }
+
+    /// A selected consumer is an ordinary discovered callee. Drain new types
+    /// once, after signatures have their identities, including types that a
+    /// selected consumer's own signature discovers.
+    pub(crate) fn finish_cleanup_selections(&mut self) -> Checked<()> {
+        while let Some((record, executable)) = self.pending_cleanup.pop() {
+            let diagnostic = self.next_identity()?;
+            let definition = self.typed.machine_by_symbol(executable).ok_or_else(|| {
+                refuse(
+                    diagnostic,
+                    Construct::Machine,
+                    Unserved::Declaration("selected cleanup has no machine body"),
+                )
+            })?;
+            if crate::is_generic_template(self.typed, definition) {
+                return Err(refuse(
+                    diagnostic,
+                    Construct::Machine,
+                    Unserved::Declaration("selected cleanup needs a closed ordinary application"),
+                ));
+            }
+            let machine = self.machine(executable)?;
+            let declaration = self.records.get_mut(record).ok_or_else(|| {
+                refuse(
+                    diagnostic,
+                    Construct::Machine,
+                    Unserved::Type("cleanup carrier identity"),
+                )
+            })?;
+            declaration.cleanup = Some(crate::body::RecordCleanup {
+                declaration_identity: declaration.identity.clone(),
+                machine,
+            });
+        }
+        Ok(())
     }
 
     /// The fields and cases of a data declaration, each with its symbols,
     /// in declaration order. Fields and cases are read first and identities
     /// minted after, so a nested data type resolves, and takes its
     /// identities, before its owner and each type's fields are consecutive.
-    fn declared_members(&mut self, id: MachineId, members: &[DataMember]) -> Checked<Members> {
+    fn declared_members(
+        &mut self,
+        id: MachineId,
+        members: arena::RootRows<'_, DataMember>,
+    ) -> Checked<Members> {
         let typed = self.typed;
         let mut fields = Vec::new();
         let mut field_symbols = Vec::new();
@@ -767,7 +858,7 @@ impl Program<'_> {
         id: MachineId,
         slots: &[Slot],
         local: &typed_trees::statement::TableLocalData,
-    ) -> Checked<()> {
+    ) -> Checked<Option<crate::body::Statement>> {
         let refused = |what| refuse(id, Construct::Machine, what);
         if !local.pattern_subject.is_valid() {
             return Err(refused(Unserved::Spelling(
@@ -807,24 +898,62 @@ impl Program<'_> {
             .typed
             .expression_table
             .match_fields(local.pattern_fields);
-        if roster
-            .iter()
-            .any(|row| !row.field_symbol.is_valid() || !source.fields.contains(&row.field_symbol))
-        {
+        let mut declared = source.fields.clone();
+        declared.sort_unstable_by_key(|field| (field.generation(), field.arena_index()));
+        if declared.windows(2).any(|fields| fields[0] == fields[1]) {
             return Err(refused(Unserved::Spelling(
-                "record pattern field without a symbol",
+                "record pattern over ambiguous field declarations",
             )));
         }
-        if source
-            .fields
-            .iter()
-            .any(|field| !roster.iter().any(|row| row.field_symbol == *field))
-        {
+        let mut used = vec![false; declared.len()];
+        for row in roster {
+            let field = row.field_symbol;
+            let position = field
+                .is_valid()
+                .then(|| {
+                    declared
+                        .binary_search_by_key(
+                            &(field.generation(), field.arena_index()),
+                            |candidate| (candidate.generation(), candidate.arena_index()),
+                        )
+                        .ok()
+                })
+                .flatten()
+                .ok_or_else(|| {
+                    refused(Unserved::Spelling("record pattern field without a symbol"))
+                })?;
+            if std::mem::replace(&mut used[position], true) {
+                return Err(refused(Unserved::Typing("record pattern repeats a field")));
+            }
+        }
+        if used.iter().any(|used| !used) {
             return Err(refused(Unserved::Statement(
                 "record pattern that omits a field",
             )));
         }
-        Ok(())
+        let nominal = self
+            .typed
+            .unique_data_definition_by_symbol(source.declaration)
+            .is_some_and(|definition| definition.cleanup_selection.is_some());
+        let owned = match place.kind {
+            ExpressionKind::Slot(slot) => {
+                slots.get(slot).is_some_and(|slot| slot.borrowed.is_none())
+            }
+            _ => false,
+        };
+        if nominal && owned {
+            if !subject
+                .result
+                .is_some_and(|value| value.qualification().is_none())
+            {
+                return Err(refused(Unserved::Statement(
+                    "nominal decomposition with qualified subject obligations",
+                )));
+            }
+            Ok(Some(crate::body::Statement::Decompose { subject }))
+        } else {
+            Ok(None)
+        }
     }
 
     /// A member the typed trees hold only as a spelling. It is an error
@@ -1329,8 +1458,8 @@ fn record_shape<'m>(
         data,
         application,
         super::storage_metadata::TypePurpose::Value,
-        members,
-        payload,
+        members.into(),
+        |variant| payload(variant).into(),
     )
 }
 
@@ -1339,8 +1468,8 @@ fn record_shape_for<'m>(
     data: &DataDefinition,
     application: Option<&typed_trees::SourceTypeApplication>,
     purpose: super::storage_metadata::TypePurpose,
-    members: &'m [DataMember],
-    payload: impl Fn(&'m typed_trees::data::DataVariant) -> &'m [DataField],
+    members: arena::RootRows<'m, DataMember>,
+    payload: impl Fn(&'m typed_trees::data::DataVariant) -> arena::RootRows<'m, DataField>,
 ) -> Checked<()> {
     let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Type(what)));
     if data.supply_mode == language_semantics::DataSupplyMode::BoundaryOpaque && !members.is_empty()
@@ -1366,12 +1495,10 @@ fn record_shape_for<'m>(
     if data.quotient.is_some() {
         return unserved("quotient data");
     }
-    // Body reading requires supported disposition contracts. Descriptor mode
-    // may retain a real linear claim's geometry but cannot execute cleanup;
-    // selected cleanup and carry still require their own source projections.
+    // Descriptor mode may retain a linear claim's geometry. Executable
+    // linear disposition and carry still need their own checked projections.
     if data.properties.multiplicity == language_semantics::Multiplicity::Linear
         && purpose == super::storage_metadata::TypePurpose::Value
-        || data.cleanup_selection.is_some()
     {
         return unserved("data with custody");
     }
@@ -1646,6 +1773,7 @@ mod tests {
         let owned = records.push(RecordType {
             owns_linear_claim: false,
             copyable: false,
+            cleanup: None,
             identity: "Owned".into(),
             shape: crate::StorageShape::Record(Vec::new()),
             requires: Vec::new(),

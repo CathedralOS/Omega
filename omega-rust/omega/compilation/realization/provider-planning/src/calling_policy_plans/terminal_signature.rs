@@ -37,31 +37,27 @@ impl CanonicalCallingSignature {
     pub fn native_application(
         self,
         validated: &ValidatedBoundaryEntryPlan,
-        dispatch_only_parameter_count: u32,
+        dispatch_only_formal: Option<u32>,
     ) -> Result<BoundaryCallingApplication, String> {
-        self.build_application(validated, dispatch_only_parameter_count, None)
+        self.build_application(validated, dispatch_only_formal, None)
     }
 
     pub fn native_application_with_owner(
         self,
         validated: &ValidatedBoundaryEntryPlan,
-        dispatch_only_parameter_count: u32,
+        dispatch_only_formal: Option<u32>,
         owner: &str,
     ) -> Result<BoundaryCallingApplication, String> {
         if owner.is_empty() {
             return Err("calling application has no exact selecting owner".into());
         }
-        self.build_application(
-            validated,
-            dispatch_only_parameter_count,
-            Some(owner.to_owned()),
-        )
+        self.build_application(validated, dispatch_only_formal, Some(owner.to_owned()))
     }
 
     fn build_application(
         self,
         validated: &ValidatedBoundaryEntryPlan,
-        dispatch_only_parameter_count: u32,
+        dispatch_only_formal: Option<u32>,
         owner: Option<String>,
     ) -> Result<BoundaryCallingApplication, String> {
         let CallingPolicySignature {
@@ -77,7 +73,7 @@ impl CanonicalCallingSignature {
             report_fingerprint: 0,
             commitment: [0; 32],
             plan: validated.clone(),
-            dispatch_only_parameter_count,
+            dispatch_only_formal,
             signature: geometry,
             opaque_applications: self
                 .opaque_uses

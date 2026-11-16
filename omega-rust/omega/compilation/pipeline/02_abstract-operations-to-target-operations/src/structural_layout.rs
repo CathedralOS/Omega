@@ -1277,6 +1277,7 @@ mod placed_geometry_tests {
             no_code_affine_cleanup: true,
             copyable: true,
             descriptor_cleanup: false,
+            nominal_cleanup: None,
             scalar_restriction: None,
         })
         .collect::<Vec<_>>();
@@ -1386,6 +1387,7 @@ mod placed_geometry_tests {
             copyable: true,
             no_code_affine_cleanup: true,
             descriptor_cleanup: false,
+            nominal_cleanup: None,
             quotient_carrier: None,
             scalar_restriction: None,
             shape,
@@ -1433,6 +1435,7 @@ mod placed_geometry_tests {
             no_code_affine_cleanup: false,
             copyable: false,
             descriptor_cleanup: false,
+            nominal_cleanup: None,
             scalar_restriction: None,
             shape: StructuralTypeShape::Record {
                 fields: vec![],
@@ -1452,6 +1455,7 @@ mod placed_geometry_tests {
             no_code_affine_cleanup: false,
             copyable: false,
             descriptor_cleanup: false,
+            nominal_cleanup: None,
             scalar_restriction: None,
             shape: StructuralTypeShape::Record {
                 fields: vec![StructuralFieldDeclaration {

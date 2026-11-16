@@ -59,6 +59,7 @@ pub(crate) mod function_fragments;
 mod image;
 mod object;
 pub(crate) mod object_artifact;
+mod retained_working_program;
 pub use entries::callable_entry_transport::{
     CallableEntryTransport, NativeBodyCpuState, create_callable_entry_transport,
     create_installed_private_function_object, create_private_function_object,

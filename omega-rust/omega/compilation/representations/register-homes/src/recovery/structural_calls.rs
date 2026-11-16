@@ -40,7 +40,7 @@ use semantic_vocabulary::{
 use target::{
     ForeignLocatorCandidate, NormalizedComponentLocator, TargetProfile, normalize_foreign_locator,
 };
-use target_operations::{
+use target_vocabulary::{
     NormalizedForeignCallBinding, TargetAccessCallAssociation, TargetAccessCallBinding,
     TargetNativeCallbackArgument, TargetScalarBlockValue, TargetStructuralArgumentSource,
     TargetStructuralHomeLayout, TargetStructuralHomeOrigin, TargetUnitScalarArgumentSource,
@@ -187,30 +187,30 @@ pub(super) fn decode_argument_source(
 pub(super) fn encode_call(
     bytes: &mut Vec<u8>,
     row: &SelectedCallContract,
-) -> Result<(), terminal_codec::CodecError> {
+) -> Result<(), terminal_wire::CodecError> {
     crate::codec_bytes::push_encoded(bytes, row.instruction.0.to_le_bytes());
     match row.owner {
-        target_operations::CallSiteOwner::Operation(operation) => {
+        target_vocabulary::CallSiteOwner::Operation(operation) => {
             bytes.push(0);
             crate::codec_bytes::push_encoded(bytes, operation.get().to_le_bytes());
         }
-        target_operations::CallSiteOwner::InvokeNoNormal(edge) => {
+        target_vocabulary::CallSiteOwner::InvokeNoNormal(edge) => {
             bytes.push(3);
             crate::codec_bytes::push_encoded(bytes, edge.get().to_le_bytes());
         }
-        target_operations::CallSiteOwner::ExternalCompletion(edge) => {
+        target_vocabulary::CallSiteOwner::ExternalCompletion(edge) => {
             bytes.push(2);
             crate::codec_bytes::push_encoded(bytes, edge.get().to_le_bytes());
         }
-        target_operations::CallSiteOwner::Installation { operation, role } => {
+        target_vocabulary::CallSiteOwner::Installation { operation, role } => {
             bytes.push(4);
             crate::codec_bytes::push_encoded(bytes, operation.get().to_le_bytes());
             bytes.push(match role {
-                target_operations::InstallationCallRole::Validate => 0,
-                target_operations::InstallationCallRole::Work => 1,
+                target_vocabulary::InstallationCallRole::Validate => 0,
+                target_vocabulary::InstallationCallRole::Work => 1,
             });
         }
-        target_operations::CallSiteOwner::CleanupAction {
+        target_vocabulary::CallSiteOwner::CleanupAction {
             edge,
             action_ordinal,
         } => {
@@ -290,7 +290,7 @@ pub(super) fn encode_call(
         bytes,
         call.requirement_obligations.iter().map(|id| id.get()),
     );
-    let crash = terminal_codec::encode_crash_route_buckets(&call.crash_continuations)
+    let crash = terminal_wire::encode_crash_route_buckets(&call.crash_continuations)
         .expect("canonical call crash routes");
     length(bytes, crash.len());
     bytes.extend_from_slice(&crash);
@@ -304,18 +304,18 @@ pub(super) fn decode_call(
 ) -> Result<SelectedCallContract, FixedViewCopyDecodeError> {
     let instruction = SelectedInstructionId(cursor.u32()?);
     let owner = match cursor.byte()? {
-        0 => target_operations::CallSiteOwner::Operation(decode_id(cursor, OperationId::new)?),
-        3 => target_operations::CallSiteOwner::InvokeNoNormal(decode_id(cursor, EdgeId::new)?),
-        2 => target_operations::CallSiteOwner::ExternalCompletion(decode_id(cursor, EdgeId::new)?),
-        4 => target_operations::CallSiteOwner::Installation {
+        0 => target_vocabulary::CallSiteOwner::Operation(decode_id(cursor, OperationId::new)?),
+        3 => target_vocabulary::CallSiteOwner::InvokeNoNormal(decode_id(cursor, EdgeId::new)?),
+        2 => target_vocabulary::CallSiteOwner::ExternalCompletion(decode_id(cursor, EdgeId::new)?),
+        4 => target_vocabulary::CallSiteOwner::Installation {
             operation: decode_id(cursor, OperationId::new)?,
             role: match cursor.byte()? {
-                0 => target_operations::InstallationCallRole::Validate,
-                1 => target_operations::InstallationCallRole::Work,
+                0 => target_vocabulary::InstallationCallRole::Validate,
+                1 => target_vocabulary::InstallationCallRole::Work,
                 tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
             },
         },
-        1 => target_operations::CallSiteOwner::CleanupAction {
+        1 => target_vocabulary::CallSiteOwner::CleanupAction {
             edge: decode_id(cursor, EdgeId::new)?,
             action_ordinal: cursor.u32()?,
         },
@@ -324,8 +324,8 @@ pub(super) fn decode_call(
     let access_bindings = decode_access_bindings(cursor)?;
     let source = decode_call_source(cursor, true)?;
     let target = match cursor.byte()? {
-        0 => target_operations::NativeCallTarget::Machine(decode_id(cursor, MachineId::new)?),
-        1 => target_operations::NativeCallTarget::Dynamic {
+        0 => target_vocabulary::NativeCallTarget::Machine(decode_id(cursor, MachineId::new)?),
+        1 => target_vocabulary::NativeCallTarget::Dynamic {
             selector: decode_id(cursor, ValueId::new)?,
             interface: cursor.u32()?,
             slot: cursor.u32()?,
@@ -406,7 +406,7 @@ pub(super) fn decode_call(
     }
     let requirement_obligations = decode_ids(cursor, ObligationId::new)?;
     let length = cursor.length()?;
-    let crash_continuations = terminal_codec::decode_crash_route_buckets(cursor.take(length)?)
+    let crash_continuations = terminal_wire::decode_crash_route_buckets(cursor.take(length)?)
         .map_err(|_| FixedViewCopyDecodeError::InvalidCrashContinuations)?;
     Ok(SelectedCallContract {
         instruction,
@@ -432,7 +432,7 @@ pub(super) fn decode_call(
 pub(super) fn encode_runtime_indices(
     bytes: &mut Vec<u8>,
     indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
-) -> Result<(), terminal_codec::CodecError> {
+) -> Result<(), terminal_wire::CodecError> {
     length(bytes, indices.len());
     for index in indices {
         crate::codec_bytes::push_encoded(bytes, index.operand.value.get().to_le_bytes());
@@ -664,7 +664,7 @@ fn decode_nominal<T>(
 pub(super) fn encode_normalized_foreign_call(
     bytes: &mut Vec<u8>,
     row: &SelectedNormalizedForeignCall,
-) -> Result<(), terminal_codec::CodecError> {
+) -> Result<(), terminal_wire::CodecError> {
     crate::codec_bytes::push_encoded(bytes, row.instruction.0.to_le_bytes());
     row.invocation_site.encode_identity(bytes);
     let call = &row.call;
@@ -686,12 +686,12 @@ pub(super) fn encode_normalized_foreign_call(
         encode_runtime_indices(bytes, indices)?;
     }
     match &call.result {
-        target_operations::TargetBoundaryResult::Unit => bytes.push(0),
-        target_operations::TargetBoundaryResult::Scalar(home) => {
+        target_vocabulary::TargetBoundaryResult::Unit => bytes.push(0),
+        target_vocabulary::TargetBoundaryResult::Scalar(home) => {
             bytes.push(1);
             encode_scalar_home(bytes, home)?;
         }
-        target_operations::TargetBoundaryResult::Structural(home) => {
+        target_vocabulary::TargetBoundaryResult::Structural(home) => {
             bytes.push(2);
             match &home.origin {
                 TargetStructuralHomeOrigin::OperationResult { operation, result } => {
@@ -760,8 +760,8 @@ pub(super) fn decode_normalized_foreign_call(
     let structural_arguments = decode_list(cursor, decode_target_argument)?;
     let structural_indices = decode_list(cursor, decode_runtime_indices)?;
     let result = match cursor.byte()? {
-        0 => target_operations::TargetBoundaryResult::Unit,
-        1 => target_operations::TargetBoundaryResult::Scalar(decode_scalar_home(cursor)?),
+        0 => target_vocabulary::TargetBoundaryResult::Unit,
+        1 => target_vocabulary::TargetBoundaryResult::Scalar(decode_scalar_home(cursor)?),
         2 => {
             let origin = match cursor.byte()? {
                 0 => TargetStructuralHomeOrigin::OperationResult {
@@ -779,8 +779,8 @@ pub(super) fn decode_normalized_foreign_call(
                 1 => TargetStructuralHomeLayout::Sum(decode_layout(cursor)?),
                 tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
             };
-            target_operations::TargetBoundaryResult::Structural(
-                target_operations::TargetStructuralHomeRequirement { origin, layout },
+            target_vocabulary::TargetBoundaryResult::Structural(
+                target_vocabulary::TargetStructuralHomeRequirement { origin, layout },
             )
         }
         tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
@@ -788,7 +788,7 @@ pub(super) fn decode_normalized_foreign_call(
     let callbacks = decode_list(cursor, decode_native_callback_argument)?;
     let descriptor_input = match cursor.byte()? {
         0 => None,
-        1 => Some(target_operations::DescriptorInputGuard {
+        1 => Some(target_vocabulary::DescriptorInputGuard {
             count_scalar_argument: usize::try_from(cursor.u64()?)
                 .map_err(|_| FixedViewCopyDecodeError::LengthOverflow)?,
             structural_argument: usize::try_from(cursor.u64()?)
@@ -892,12 +892,12 @@ fn decode_call_binding(
             .map_err(|_| FixedViewCopyDecodeError::InvalidForeignTargetProfile)?;
         let number = cursor.i64()?;
         let execution = match cursor.byte()? {
-            0 => target_operations::NormalizedForeignExecution::ProviderPlan {
+            0 => target_vocabulary::NormalizedForeignExecution::ProviderPlan {
                 report: cursor.u64()?,
                 commitment: cursor.array::<32>()?,
             },
             1 => {
-                target_operations::NormalizedForeignExecution::NativeBinding(cursor.array::<32>()?)
+                target_vocabulary::NormalizedForeignExecution::NativeBinding(cursor.array::<32>()?)
             }
             _ => return Err(FixedViewCopyDecodeError::InvalidSystemCallBinding),
         };
@@ -914,8 +914,8 @@ fn decode_call_binding(
         };
         let binding = NormalizedForeignCallBinding {
             boundary_entry_plan: BoundaryEntryPlan { call, state },
-            mechanism: target_operations::NormalizedForeignCallMechanism::SystemCall(
-                target_operations::NormalizedSystemCallBinding {
+            mechanism: target_vocabulary::NormalizedForeignCallMechanism::SystemCall(
+                target_vocabulary::NormalizedSystemCallBinding {
                     target,
                     number,
                     execution,
@@ -968,7 +968,7 @@ fn decode_call_binding(
         let locator = locator.ok_or(FixedViewCopyDecodeError::InvalidForeignTargetProfile)?;
         let binding = NormalizedForeignCallBinding {
             boundary_entry_plan: BoundaryEntryPlan { call, state },
-            mechanism: target_operations::NormalizedForeignCallMechanism::HostedImport {
+            mechanism: target_vocabulary::NormalizedForeignCallMechanism::HostedImport {
                 locator,
                 receipt,
                 requirement_identity,
@@ -1016,7 +1016,7 @@ fn decode_call_binding(
     }
     let mechanism = if let Some((locator, provider, candidate, application_commitment)) = component
     {
-        target_operations::NormalizedForeignCallMechanism::Component {
+        target_vocabulary::NormalizedForeignCallMechanism::Component {
             locator,
             provider,
             candidate,
@@ -1025,12 +1025,12 @@ fn decode_call_binding(
         }
     } else {
         match (locator, table) {
-            (Some(locator), None) => target_operations::NormalizedForeignCallMechanism::Import {
+            (Some(locator), None) => target_vocabulary::NormalizedForeignCallMechanism::Import {
                 locator,
                 same_stack_contribution: contribution,
             },
             (None, Some((target, byte_offset, dispatch_only))) => {
-                target_operations::NormalizedForeignCallMechanism::Table {
+                target_vocabulary::NormalizedForeignCallMechanism::Table {
                     target,
                     byte_offset,
                     dispatch_only,
@@ -1046,7 +1046,7 @@ fn decode_call_binding(
     };
     if matches!(
         binding.mechanism,
-        target_operations::NormalizedForeignCallMechanism::Component { .. }
+        target_vocabulary::NormalizedForeignCallMechanism::Component { .. }
     ) && !binding.has_valid_entry_mechanism()
     {
         return Err(FixedViewCopyDecodeError::InvalidForeignTargetProfile);
@@ -1198,7 +1198,7 @@ fn decode_state_set(cursor: &mut Cursor<'_>) -> Result<MachineStateSet, FixedVie
 fn encode_scalar_home(
     bytes: &mut Vec<u8>,
     home: &TargetUnitScalarHomeRequirement,
-) -> Result<(), terminal_codec::CodecError> {
+) -> Result<(), terminal_wire::CodecError> {
     crate::codec_bytes::push_encoded(bytes, home.defining_operation.get().to_le_bytes());
     crate::codec_bytes::push_encoded(bytes, home.source_value.get().to_le_bytes());
     encode_scalar(bytes, home.scalar_type)?;
@@ -1220,7 +1220,7 @@ fn decode_scalar_home(
 pub(super) fn encode_scalar_source(
     bytes: &mut Vec<u8>,
     source: TargetUnitScalarArgumentSource,
-) -> Result<(), terminal_codec::CodecError> {
+) -> Result<(), terminal_wire::CodecError> {
     match source {
         TargetUnitScalarArgumentSource::IeeeFloatImmediate {
             defining_operation,
@@ -1611,7 +1611,7 @@ mod tests {
     use native_vocabulary::provenance::EffectLink;
     use semantic_vocabulary::{IntegerSign, IntegerType};
     use target::ForeignLocatorCandidate;
-    use target_operations::ProviderPlanReportIdentity;
+    use target_vocabulary::ProviderPlanReportIdentity;
 
     const REQUIREMENT_INDEX: u32 = 1;
 
@@ -1794,7 +1794,7 @@ mod tests {
         .expect("same-stack admission");
         NormalizedForeignCallBinding {
             boundary_entry_plan,
-            mechanism: target_operations::NormalizedForeignCallMechanism::Import {
+            mechanism: target_vocabulary::NormalizedForeignCallMechanism::Import {
                 locator,
                 same_stack_contribution,
             },
@@ -1809,7 +1809,7 @@ mod tests {
             call: LegalizedNormalizedForeignCall {
                 boundary: BoundaryMachineId::new(1).unwrap(),
                 provider_execution:
-                    target_operations::ProviderExecutionBinding::from_execution_record(
+                    target_vocabulary::ProviderExecutionBinding::from_execution_record(
                         ProviderPlanReportIdentity::new(0xA1).unwrap(),
                         0xB1,
                         0xB2,
@@ -1831,13 +1831,13 @@ mod tests {
                 structural_arguments: Vec::new(),
                 structural_indices: Vec::new(),
                 callbacks: Vec::new(),
-                descriptor_input: Some(target_operations::DescriptorInputGuard {
+                descriptor_input: Some(target_vocabulary::DescriptorInputGuard {
                     count_scalar_argument: 1,
                     structural_argument: 0,
                     max_bytes: 12,
                     count_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
                 }),
-                result: target_operations::TargetBoundaryResult::Scalar(
+                result: target_vocabulary::TargetBoundaryResult::Scalar(
                     TargetUnitScalarHomeRequirement {
                         defining_operation: OperationId::new(7).unwrap(),
                         source_value: ValueId::new(8).unwrap(),
@@ -1861,7 +1861,7 @@ mod tests {
 
     #[test]
     fn system_call_binding_roundtrip_retains_custody_without_an_import_claim() {
-        use target_operations::{NormalizedForeignCallMechanism, NormalizedSystemCallBinding};
+        use target_vocabulary::{NormalizedForeignCallMechanism, NormalizedSystemCallBinding};
         for profile in [TargetProfile::LinuxX64, TargetProfile::LinuxArm64] {
             let signature = calling_conventions::CallSignature {
                 parameters: vec![
@@ -1888,7 +1888,7 @@ mod tests {
                         target: profile,
                         number: 211,
                         requirement_identity: "Kernel::invoke".into(),
-                        execution: target_operations::NormalizedForeignExecution::ProviderPlan {
+                        execution: target_vocabulary::NormalizedForeignExecution::ProviderPlan {
                             report: 0xA1,
                             commitment: [0x42; 32],
                         },
@@ -1915,7 +1915,7 @@ mod tests {
                     1 => kernel.target = TargetProfile::MacosArm64,
                     2 => {
                         kernel.execution =
-                            target_operations::NormalizedForeignExecution::ProviderPlan {
+                            target_vocabulary::NormalizedForeignExecution::ProviderPlan {
                                 report: 0,
                                 commitment: [0x42; 32],
                             }
@@ -1945,7 +1945,7 @@ mod tests {
                 if coordinate == 0 {
                     kernel.number += 1;
                 } else {
-                    if let target_operations::NormalizedForeignExecution::ProviderPlan {
+                    if let target_vocabulary::NormalizedForeignExecution::ProviderPlan {
                         commitment,
                         ..
                     } = &mut kernel.execution
@@ -1969,12 +1969,12 @@ mod tests {
         let mut source = row();
         let locator = source.call.binding.import().unwrap().0.clone();
         let execution =
-            target_operations::NativeBindingExecution::from_commitments([1; 32], [2; 32], [3; 32])
+            target_vocabulary::NativeBindingExecution::from_commitments([1; 32], [2; 32], [3; 32])
                 .unwrap();
         source.call.provider_execution =
-            target_operations::ExternalExecutionBinding::NativeBinding(execution);
+            target_vocabulary::ExternalExecutionBinding::NativeBinding(execution);
         source.call.binding.mechanism =
-            target_operations::NormalizedForeignCallMechanism::HostedImport {
+            target_vocabulary::NormalizedForeignCallMechanism::HostedImport {
                 locator,
                 receipt: execution.receipt(),
                 requirement_identity: "Foreign::leaf".into(),
@@ -2001,7 +2001,7 @@ mod tests {
                 Err(FixedViewCopyDecodeError::InvalidProviderExecution)
             );
         }
-        let target_operations::NormalizedForeignCallMechanism::HostedImport { receipt, .. } =
+        let target_vocabulary::NormalizedForeignCallMechanism::HostedImport { receipt, .. } =
             &mut source.call.binding.mechanism
         else {
             unreachable!()
@@ -2048,7 +2048,7 @@ mod tests {
                 }
             })
             .collect::<Vec<_>>();
-        source.call.structural_arguments = vec![target_operations::TargetStructuralArgument {
+        source.call.structural_arguments = vec![target_vocabulary::TargetStructuralArgument {
             place: semantic_vocabulary::PlaceId::new(11).unwrap(),
             access: terminal_psi::StructuralAccess::SharedBorrow,
             path: indices
@@ -2068,7 +2068,7 @@ mod tests {
                 .iter()
                 .enumerate()
                 .map(
-                    |(position, index)| target_operations::TargetStructuralRuntimeIndex {
+                    |(position, index)| target_vocabulary::TargetStructuralRuntimeIndex {
                         operand: TargetUnitScalarArgumentSource::Parameter {
                             parameter_index: u32::try_from(position).unwrap(),
                             source_value: index.operand.value,
@@ -2080,7 +2080,7 @@ mod tests {
                     },
                 )
                 .collect(),
-            source: target_operations::TargetStructuralArgumentSource::StructuralHome {
+            source: target_vocabulary::TargetStructuralArgumentSource::StructuralHome {
                 psi_operation: OperationId::new(20).unwrap(),
             },
             destination: source.call.binding.boundary_entry_plan.call.parameters[1].clone(),
@@ -2129,7 +2129,7 @@ mod tests {
         encode_normalized_foreign_call(&mut changed_bytes, &changed).unwrap();
         assert_ne!(bytes, changed_bytes);
         let mut changed = source.clone();
-        changed.call.result = target_operations::TargetBoundaryResult::Unit;
+        changed.call.result = target_vocabulary::TargetBoundaryResult::Unit;
         let mut changed_bytes = Vec::new();
         encode_normalized_foreign_call(&mut changed_bytes, &changed).unwrap();
         assert_ne!(bytes, changed_bytes);
@@ -2148,16 +2148,16 @@ mod tests {
             qualification_establishments: Vec::new(),
             claims: Vec::new(),
         };
-        source.call.result = target_operations::TargetBoundaryResult::Structural(
-            target_operations::TargetStructuralHomeRequirement {
-                origin: target_operations::TargetStructuralHomeOrigin::OperationResult {
+        source.call.result = target_vocabulary::TargetBoundaryResult::Structural(
+            target_vocabulary::TargetStructuralHomeRequirement {
+                origin: target_vocabulary::TargetStructuralHomeOrigin::OperationResult {
                     operation: source
                         .invocation_site
                         .operation()
                         .expect("returning test call"),
                     result,
                 },
-                layout: target_operations::TargetStructuralHomeLayout::Aggregate(
+                layout: target_vocabulary::TargetStructuralHomeLayout::Aggregate(
                     ValueShape::integer(12, 4),
                 ),
             },
@@ -2171,11 +2171,11 @@ mod tests {
             assert!(decode_normalized_foreign_call(&mut Cursor::new(&bytes[..length])).is_err());
         }
         let mut changed = source.clone();
-        let target_operations::TargetBoundaryResult::Structural(home) = &mut changed.call.result
+        let target_vocabulary::TargetBoundaryResult::Structural(home) = &mut changed.call.result
         else {
             panic!("structural fixture")
         };
-        let target_operations::TargetStructuralHomeOrigin::OperationResult { result, .. } =
+        let target_vocabulary::TargetStructuralHomeOrigin::OperationResult { result, .. } =
             &mut home.origin
         else {
             panic!("operation fixture")

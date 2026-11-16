@@ -464,7 +464,7 @@ impl<'b> Walk<'b> {
         let mut normal = false;
         for statement in statements {
             match statement {
-                Statement::Bind { value, .. } => {
+                Statement::Bind { value, .. } | Statement::Decompose { subject: value } => {
                     if !self.expression(machine, value)? {
                         return Ok(normal);
                     }
@@ -597,7 +597,7 @@ impl<'b> Walk<'b> {
                 }
                 Ok(true)
             }
-            ExpressionKind::ArrayView { base, .. } => self.expression(machine, base),
+            ExpressionKind::CollectionView { base, .. } => self.expression(machine, base),
             ExpressionKind::CollectionSubslice { base, start, end } => {
                 for operand in std::iter::once(base.as_ref())
                     .chain(start.as_deref())

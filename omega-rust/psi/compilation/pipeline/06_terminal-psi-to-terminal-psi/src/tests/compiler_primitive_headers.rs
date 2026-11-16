@@ -62,7 +62,7 @@ fn actual_generic_catalog_source_produces_complete_typed_schemas() {
             .unwrap();
         assert_eq!(program.machine_type_parameters(machine).len(), generics);
         assert_eq!(machine.lifetime_parameters.len(), 1);
-        let [entry] = program.machine_states(machine) else {
+        let Some([entry]) = program.machine_states(machine).as_array() else {
             panic!("one real entry signature")
         };
         assert_eq!(program.state_parameters(entry).len(), parameters);

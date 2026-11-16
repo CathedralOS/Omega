@@ -1,0 +1,23 @@
+[package]
+name = "target-vocabulary"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "target_vocabulary"
+path = "src/lib.rs"
+
+[dependencies]
+native-vocabulary = { path = "../../native-vocabulary" }
+language-core = { path = "../../../../../psi/foundation/language-core" }
+calling-conventions = { path = "../../../backend/calling-conventions" }
+function-identity = { path = "../../../../foundation/function-identity" }
+target = { path = "../../../backend/target" }
+task-plans = { path = "../../../backend/runtime/task-plans" }
+semantic-vocabulary = { path = "../../../../../psi/foundation/semantic-vocabulary" }
+terminal-psi = { path = "../../../../../psi/compilation/representations/terminal-psi" }
+
+installation-evidence = { path = "../../../backend/runtime/installation-evidence" }
+runtime-abi = { path = "../../../backend/runtime/runtime-abi" }
+terminal-semantics = { path = "../../../../../psi/compilation/representations/terminal-psi/semantics" }

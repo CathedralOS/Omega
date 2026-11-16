@@ -1235,22 +1235,23 @@ pub(crate) mod edge_values {
                 work: Vec::new(),
             };
             SelectedFunction {
-                machine: MachineId::new(1).unwrap(),
-                attachment: None,
-                nominal_cleanup_subject: None,
-                provenance: target_operations::TerminalPsiProvenance {
-                    operations: vec![operation],
-                    edges: vec![returned],
-                },
-                structural: None,
-                local_storage_slots: Vec::new(),
-                outgoing_arguments: Vec::new(),
-                calls: Vec::new(),
-                normalized_foreign_calls: Vec::new(),
-                memory_accesses: Vec::new(),
-                boundary_settlements: Vec::new(),
+                contracts: std::sync::Arc::new(selected_instructions::SelectedFunctionContracts {
+                    machine: MachineId::new(1).unwrap(),
+                    attachment: None,
+                    provenance: target_vocabulary::TerminalPsiProvenance {
+                        operations: vec![operation],
+                        edges: vec![returned],
+                    },
+                    structural: None,
+                    local_storage_slots: Vec::new(),
+                    outgoing_arguments: Vec::new(),
+                    calls: Vec::new(),
+                    normalized_foreign_calls: Vec::new(),
+                    memory_accesses: Vec::new(),
+                    boundary_settlements: Vec::new(),
+                    virtual_registers: Vec::new(),
+                }),
                 entry_block: SelectedBlockId(0),
-                virtual_registers: Vec::new(),
                 blocks: vec![
                     SelectedBlock {
                         id: SelectedBlockId(0),
@@ -1691,9 +1692,9 @@ pub(crate) mod edge_values {
                             call.call.target,
                         ))
                     || call.owner
-                        != (target_operations::CallSiteOwner::Installation {
+                        != (target_vocabulary::CallSiteOwner::Installation {
                             operation: *operation,
-                            role: target_operations::InstallationCallRole::Work,
+                            role: target_vocabulary::InstallationCallRole::Work,
                         })
                     || instruction.provenance.operations.as_slice() != [*operation]
                     || !instruction.provenance.edges.is_empty()

@@ -80,6 +80,68 @@ pub enum ObligationEvidence {
     Retained(Vec<terminal_codec::ObligationEvidenceSeal>),
 }
 
+// The authorization belongs to the original module, not to a plan that merely
+// repeats its fingerprint. Preserve every original cleanup requirement and
+// exact subject at the first native boundary, before optimization may prune edges.
+fn validate_cleanup_source(
+    plan: &AbstractOperationPlan,
+    module: &terminal_psi::TerminalModule,
+) -> Result<(), &'static str> {
+    use std::collections::{BTreeMap, BTreeSet};
+    use terminal_psi::TerminalAffineCleanupAction::InvokeOwned;
+    let mut functions = BTreeSet::new();
+    let mut actual = BTreeMap::new();
+    let mut expected = BTreeMap::new();
+    for function in &plan.functions {
+        if !functions.insert(function.machine) {
+            return Err("lowered cleanup custody repeats a machine");
+        }
+        let source = module
+            .machine(function.machine)
+            .ok_or("lowered cleanup custody names an absent source machine")?;
+        for block in &source.blocks {
+            for (edge, actions) in block.terminator.cleanup_rosters() {
+                for (ordinal, action) in actions.iter().enumerate() {
+                    if let InvokeOwned(cleanup) = action {
+                        let ordinal = u32::try_from(ordinal)
+                            .map_err(|_| "source cleanup ordinal exceeds canonical bound")?;
+                        if expected
+                            .insert((function.machine, edge, ordinal), cleanup)
+                            .is_some()
+                        {
+                            return Err("source cleanup custody repeats an action owner");
+                        }
+                    }
+                }
+            }
+        }
+        for block in &function.blocks {
+            for operation in &block.operations {
+                for (edge, actions) in operation.cleanup_rosters() {
+                    for (ordinal, action) in actions.iter().enumerate() {
+                        if let InvokeOwned(cleanup) = action {
+                            let ordinal = u32::try_from(ordinal)
+                                .map_err(|_| "lowered cleanup ordinal exceeds canonical bound")?;
+                            if actual
+                                .insert((function.machine, edge, ordinal), cleanup)
+                                .is_some()
+                            {
+                                return Err("lowered cleanup custody repeats an action owner");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if actual != expected {
+        return Err(
+            "lowered cleanup differs from the authorized source action, subject or requirement evidence",
+        );
+    }
+    Ok(())
+}
+
 impl VerifiedPsiOptimizationInput {
     /// Retains a lowered plan beside the exact host-authorized artifact.
     /// No selections, callbacks, interrupts or optional seals are admitted yet.
@@ -93,6 +155,7 @@ impl VerifiedPsiOptimizationInput {
         if plan.psi != artifact.artifact().view().identity() {
             return Err("lowered plan belongs to another host-authorized artifact");
         }
+        validate_cleanup_source(&plan, artifact.artifact().semantic_module())?;
         Ok(Self {
             native_execution_scope: None,
             selected_provider_closure: None,

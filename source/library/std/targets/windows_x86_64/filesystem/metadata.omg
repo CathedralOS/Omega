@@ -5,11 +5,11 @@
 use omega::language::core::FilesystemMetadataQuery;
 use omega::language::core::FilesystemMetadataMutation;
 use omega::language::core::widen_u32_to_u64;
-use omega::language::core::narrow_u64_to_i64_exact;
 use omega::language::core::narrow_i64_to_u64_exact;
 
 machine windows_filesystem_seconds(ticks: u64) -> i64 {
-    narrow_u64_to_i64_exact(ticks / 10000000) - 11644473600
+    let since_windows_epoch: u64 = ticks / 10000000;
+    (since_windows_epoch as i64) - 11644473600
 }
 
 machine windows_filesystem_kind(attributes: u32, reparse_tag: u32) -> FileKind {

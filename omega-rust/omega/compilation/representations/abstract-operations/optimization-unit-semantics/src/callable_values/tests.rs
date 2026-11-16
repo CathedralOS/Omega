@@ -45,7 +45,6 @@ fn function(
     AbstractFunction {
         machine: machine(id),
         attachment: None,
-        nominal_cleanup_subject: None,
         entry,
         parameters,
         structural_parameters: Vec::new(),

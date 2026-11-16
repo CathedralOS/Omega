@@ -952,9 +952,9 @@ pub(crate) fn judge(
         for (invocation, row) in rows.invocations.iter() {
             let at = match row.site {
                 InvocationSite::Operation(operation) => Construct::Operation(operation),
-                InvocationSite::ExternalCompletion(edge) | InvocationSite::InvokeNoNormal(edge) => {
-                    Construct::Edge(edge)
-                }
+                InvocationSite::ExternalCompletion(edge)
+                | InvocationSite::InvokeNoNormal(edge)
+                | InvocationSite::Cleanup { edge, .. } => Construct::Edge(edge),
             };
             let call = crate::call_contracts::invocation(module, caller, rows, invocation, row)?;
             let envelope = envelope_for(elaboration, caller.id, call.inputs)?;
@@ -1217,6 +1217,8 @@ fn fixed_refinement_reach(
                     .machines
                     .get(id)
                     .ok_or_else(|| fault(from, "refinement lost a machine's checking rows"))?;
+                // Generated owned cleanup uses these same exact invocation rows,
+                // including the selected consumer and its required contract.
                 for (_, call) in rows.invocations.iter() {
                     match call.callee {
                         Callee::Declared(callee) => pending.push((callee, call.required_contract)),
@@ -1235,21 +1237,6 @@ fn fixed_refinement_reach(
                         (formation.site, formation.tail_callee)
                     {
                         pending.push((callee.into(), None));
-                    }
-                }
-                for block in &body.blocks {
-                    for (_, actions) in block.terminator.cleanup_rosters() {
-                        for action in actions {
-                            if let terminal_psi::TerminalAffineCleanupAction::InvokeNominal(
-                                cleanup,
-                            ) = action
-                            {
-                                pending.push((
-                                    TargetMachineCallable::Machine(cleanup.cleanup_machine),
-                                    None,
-                                ));
-                            }
-                        }
                     }
                 }
                 for operation in body.operations() {

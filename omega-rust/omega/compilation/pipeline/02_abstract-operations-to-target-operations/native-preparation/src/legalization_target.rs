@@ -60,7 +60,7 @@ pub(crate) mod byte_view {
                     structural_type,
                 } => {
                     *place == source
-                        && (crate::legalization::scalar_graph_input::literals::declaration_producer(self.optimized, source)
+                        && (self.function_inputs.byte_literal(source)
                             == Some((*psi_operation, *structural_type))
                             || self.established_byte_view(*psi_operation, source, *structural_type))
                 }
@@ -158,7 +158,7 @@ pub(crate) mod byte_view {
                                 && obligation == expected_obligation
                                 && original == expected_source
                                 && crate::legalization::scalar_graph_input::element_views::descriptor_geometry(
-                                    self.optimized,
+                                    self.function_inputs,
                                     original,
                                     self.types,
                                 )
@@ -248,7 +248,6 @@ pub(crate) mod control_flow {
         use crate::LegalizationError;
         use crate::legalization::scalar_graph_input::{self as input, reference_custody};
         use abstract_operations::AbstractOperation;
-        use optimization_unit::PsiOptimizationFunction;
         use semantic_vocabulary::InvocationSite;
         use target_operations::{TargetControlTerminator, TargetOperationPlan};
 
@@ -257,11 +256,12 @@ pub(crate) mod control_flow {
             source: &AbstractOperation,
             available: &crate::legalization_target::control_flow::sources::AvailableSources<'_>,
             custody: &reference_custody::Custody,
-            caller: &PsiOptimizationFunction,
+            function_inputs: &crate::legalization_function_inputs::FunctionInputs<'_>,
             native: &TargetOperationPlan,
             plan: &crate::native_geometry::NativePlan<'_>,
             unit: &crate::native_geometry::NativeUnit<'_>,
         ) -> Result<(), LegalizationError> {
+            let caller = function_inputs.function();
             let TargetControlTerminator::InvokeNoNormal {
                 psi_edge,
                 callee,
@@ -329,7 +329,15 @@ pub(crate) mod control_flow {
                 .enumerate()
             {
                 let expected = input::structural_call::argument_at_invocation(
-                    semantic, position, site, caller, signature, &expected, native, plan, custody,
+                    semantic,
+                    position,
+                    site,
+                    function_inputs,
+                    signature,
+                    &expected,
+                    native,
+                    plan,
+                    custody,
                 )?;
                 if argument != &expected {
                     return Err(LegalizationError::custody());
@@ -1059,7 +1067,7 @@ pub(crate) mod control_flow {
 
         pub(crate) fn matches(
             graph: &TargetControlGraph,
-            optimized: &PsiOptimizationFunction,
+            function_inputs: &crate::legalization_function_inputs::FunctionInputs<'_>,
             plan: &crate::native_geometry::NativePlan<'_>,
             block: BlockId,
             source: &TargetStructuralCaseSource,
@@ -1074,6 +1082,7 @@ pub(crate) mod control_flow {
             indices: &[target_operations::TargetStructuralRuntimeIndex],
             scalar_sources: &sources::AvailableSources<'_>,
         ) -> bool {
+            let optimized = function_inputs.function();
             let available = match source {
                 TargetStructuralCaseSource::Home(home) => {
                     home_available(graph, optimized, plan, block, home, expected_source)
@@ -1119,7 +1128,7 @@ pub(crate) mod control_flow {
                 return false;
             }
             let Ok((selected, expected_offset, _, expected_layout, elements)) = dispatch_projection(
-                optimized,
+                function_inputs,
                 expected_source,
                 path,
                 plan,
@@ -1253,7 +1262,32 @@ pub(crate) mod control_flow {
                 ));
             }
         };
+        // Decomposition has no bytes to witness its subject later. Bind the
+        // retained row here, alongside its ordinary instruction annotations.
+        let decomposition_matches = match (&instruction.kind, &node.operation) {
+            (
+                TargetUnitOperation::DecomposeStructuralValue {
+                    psi_operation,
+                    subject,
+                },
+                AbstractOperation::DecomposeStructuralValue {
+                    psi_operation: expected_operation,
+                    subject: expected_subject,
+                },
+            ) => {
+                psi_operation == expected_operation
+                    && subject == expected_subject
+                    && source.result.is_none()
+            }
+            (TargetUnitOperation::DecomposeStructuralValue { .. }, _)
+            | (_, AbstractOperation::DecomposeStructuralValue { .. }) => false,
+            _ => true,
+        };
         for (matches, reason) in [
+            (
+                decomposition_matches,
+                "decomposition identity or subject differs",
+            ),
             (
                 Some(source.operation) == node.operation.psi_operation(),
                 "instruction operation identity differs",
@@ -1294,10 +1328,12 @@ pub(crate) mod control_flow {
         let unit = descriptor_inputs.unit();
         let optimized = function_inputs.function();
         crate::legalization::scalar_graph_input::validate_structural_contract(
-            function, abstracted, optimized, plan,
+            function,
+            abstracted,
+            function_inputs,
+            plan,
         )?;
-        if (function.attachment != optimized.attachment
-            || function.nominal_cleanup_subject != optimized.nominal_cleanup_subject)
+        if function.attachment != optimized.attachment
             || graph.structural_types != plan.structural_types
             || graph.structural_types != unit.structural_types
             || graph.entry != optimized.entry
@@ -1310,7 +1346,7 @@ pub(crate) mod control_flow {
                 crate::legalization::scalar_graph_input::aggregate_results::header(
                     function,
                     abstracted,
-                    optimized,
+                    function_inputs,
                     native.target,
                     plan,
                 )?;
@@ -1320,7 +1356,7 @@ pub(crate) mod control_flow {
                 let expected = crate::legalization::scalar_graph_input::byte_views::validate(
                     function,
                     abstracted,
-                    optimized,
+                    function_inputs,
                     native.target,
                     plan,
                 )?;
@@ -1340,7 +1376,7 @@ pub(crate) mod control_flow {
                     native.target,
                     function,
                     abstracted,
-                    optimized,
+                    function_inputs,
                 )?;
                 let Some(abi) = &function.scalar_abi else {
                     return Err(LegalizationError::custody());
@@ -1359,7 +1395,7 @@ pub(crate) mod control_flow {
             }
             _ => return Err(LegalizationError::custody()),
         }
-        let block_entries = block_entry_states(optimized, descriptor_inputs)?;
+        let block_entries = block_entry_states(function_inputs, descriptor_inputs)?;
         let source_inputs = sources::SourceInputs::new(graph, optimized);
         for (block, source) in graph.blocks.iter().zip(&optimized.blocks) {
             let terminal = source.nodes.last().ok_or(LegalizationError::custody())?;
@@ -1449,7 +1485,7 @@ pub(crate) mod control_flow {
                 plan,
                 unit,
             )?;
-            apply_terminator(&mut custody, source_terminator, optimized, plan)?;
+            apply_terminator(&mut custody, source_terminator, function_inputs, plan)?;
             let matches = match (&block.terminator, source_terminator) {
                 (
                     TargetControlTerminator::InvokeNoNormal { .. },
@@ -1460,7 +1496,7 @@ pub(crate) mod control_flow {
                         source_terminator,
                         &available,
                         &custody,
-                        optimized,
+                        function_inputs,
                         native,
                         plan,
                         unit,
@@ -1490,7 +1526,7 @@ pub(crate) mod control_flow {
                                 place == expected_source
                                     && optimized.result.structural().is_some_and(|result| plan.geometry().declaration(result.structural_type).is_ok_and(|declaration| calling_conventions::terminal_layout::is_native_view_descriptor(&declaration.shape)))
                                     && crate::legalization::scalar_graph_input::byte_views::descriptor_return(
-                                        optimized, *place, plan.geometry(),
+                                        function_inputs, *place, plan.geometry(),
                                     )
                                     && graph.call_plan.result.as_ref().is_some_and(|result|
                                         result.shape == calling_conventions::ValueShape::integer(16, 8))
@@ -1795,7 +1831,7 @@ pub(crate) mod control_flow {
                     psi_block == expected_block && path == expected_path
                         && structural_cases::matches(
                             graph,
-                            optimized,
+                            function_inputs,
                             plan,
                             block.block,
                             source,
@@ -1825,7 +1861,7 @@ pub(crate) mod control_flow {
                         && psi_edge == expected
                         && cleanup_actions == cleanup
                         && (cleanup.is_empty()
-                            || crate::legalization::scalar_graph_input::read_byte::cleanup(optimized, cleanup)
+                            || crate::legalization::scalar_graph_input::read_byte::cleanup(function_inputs, cleanup)
                             || crate::legalization::scalar_graph_input::aggregate_results::cleanup(
                                 function_inputs,
                                 cleanup,
@@ -2256,7 +2292,7 @@ pub(crate) mod element_view {
                             && obligation == expected_obligation
                             && original == expected_source
                             && crate::legalization::scalar_graph_input::element_views::descriptor_geometry(
-                                self.optimized,
+                                self.function_inputs,
                                 original,
                                 self.types,
                             )
@@ -2648,7 +2684,7 @@ pub(crate) mod expressions {
             use crate::legalization::scalar_graph_input::element_views::read_geometry;
             use crate::structural_inputs::structural_reference_input::element_leaf_projection;
 
-            let Some(geometry) = read_geometry(self.optimized, source, self.types) else {
+            let Some(geometry) = read_geometry(self.function_inputs, source, self.types) else {
                 return false;
             };
             let Some(terminal_psi::StructuralTypeShape::ElementView { element, .. }) =
@@ -2724,7 +2760,7 @@ pub(crate) mod expressions {
                 }
                 Expression::ByteSequenceLength { psi_operation, source_value, source, indices, length_byte_offset } => {
                     *source_value == resolved
-                        && crate::legalization::scalar_graph_input::element_views::byte_length_geometry(self.optimized, source, self.types)
+                        && crate::legalization::scalar_graph_input::element_views::byte_length_geometry(self.function_inputs, source, self.types)
                             .is_some_and(|(geometry, carrier)| {
                                 let expected_offset = match carrier {
                                     terminal_psi::ByteSequenceCarrier::BorrowedView { .. } => 8,
@@ -2750,7 +2786,7 @@ pub(crate) mod expressions {
                 }
                 Expression::ElementViewLength { psi_operation, source_value, source, indices, length_byte_offset } => {
                     *source_value == resolved
-                        && crate::legalization::scalar_graph_input::element_views::length_geometry(self.optimized, source, self.types)
+                        && crate::legalization::scalar_graph_input::element_views::length_geometry(self.function_inputs, source, self.types)
                             .is_some_and(|geometry| self.types.declaration(geometry.selected).ok().and_then(|declaration| calling_conventions::terminal_layout::element_view_length_offset(&declaration.shape)) == Some(*length_byte_offset) && super::unit::runtime_indices_rejoin(
                                 indices, &geometry.elements, self.available.unwrap_or(&crate::legalization_target::control_flow::sources::EMPTY)))
                         && self.optimized.block_nodes().any(|node| matches!(&node.operation,
@@ -2761,9 +2797,9 @@ pub(crate) mod expressions {
                     match &node.operation {
                         AbstractOperation::IntegerConstant {result,value:actual,..} => *result == resolved && actual == literal,
                         AbstractOperation::ByteSequenceLength {result,source,..} => result.value == resolved
-                            && (crate::legalization::scalar_graph_input::element_views::byte_length_geometry(self.optimized, source, self.types)
+                            && (crate::legalization::scalar_graph_input::element_views::byte_length_geometry(self.function_inputs, source, self.types)
                                 .is_some_and(|(_, carrier)| matches!(carrier, terminal_psi::ByteSequenceCarrier::BoundedView { capacity, .. } if *literal == semantic_vocabulary::IntegerValue::Unsigned(u128::from(capacity))))
-                                || crate::legalization::scalar_graph_input::element_views::fixed_byte_length(self.optimized, source, self.types).is_some_and(|length| *literal == semantic_vocabulary::IntegerValue::Unsigned(u128::from(length)))),
+                                || crate::legalization::scalar_graph_input::element_views::fixed_byte_length(self.function_inputs, source, self.types).is_some_and(|length| *literal == semantic_vocabulary::IntegerValue::Unsigned(u128::from(length)))),
                         _ => false,
                     }),
                 Expression::Parameter {source_value,parameter_index,location} => {
@@ -3933,10 +3969,11 @@ pub(crate) mod unit {
             target: &TargetUnitOperation,
             abstracted: &AbstractOperation,
             sources: &crate::legalization_target::control_flow::sources::AvailableSources<'_>,
-            optimized: &PsiOptimizationFunction,
+            function_inputs: &crate::legalization_function_inputs::FunctionInputs<'_>,
             plan: &crate::native_geometry::NativePlan<'_>,
             unit: &crate::native_geometry::NativeUnit<'_>,
         ) -> Result<(), LegalizationError> {
+            let optimized = function_inputs.function();
             match (target, abstracted) {
                 (
                     TargetUnitOperation::EstablishActivationClaim {
@@ -4309,7 +4346,7 @@ pub(crate) mod unit {
                         };
                     let (expected_offset, expected_shape, expected_indices) =
                         scalar_graph_input::structural_case::structural_transport_layout(
-                            optimized,
+                            function_inputs,
                             *expected_operation,
                             *expected_source,
                             expected_path,
@@ -4679,8 +4716,8 @@ pub(crate) mod unit {
     }
     pub(crate) mod direct_calls {
         use super::{
-            AbstractOperation, LegalizationError, PsiOptimizationFunction, Source,
-            TargetOperationPlan, TargetUnitOperation, callee_plan,
+            AbstractOperation, LegalizationError, Source, TargetOperationPlan, TargetUnitOperation,
+            callee_plan,
         };
         use target_operations::{NativeCallOrigin, TargetCallResult};
 
@@ -4936,11 +4973,12 @@ pub(crate) mod unit {
             abstracted: &AbstractOperation,
             sources: &mut crate::legalization_target::control_flow::sources::AvailableSources<'_>,
             custody: &crate::legalization::scalar_graph_input::reference_custody::Custody,
-            optimized: &PsiOptimizationFunction,
+            function_inputs: &crate::legalization_function_inputs::FunctionInputs<'_>,
             native: &TargetOperationPlan,
             plan: &crate::native_geometry::NativePlan<'_>,
             unit: &crate::native_geometry::NativeUnit<'_>,
         ) -> Result<(), LegalizationError> {
+            let optimized = function_inputs.function();
             let TargetUnitOperation::Call {
                 origin: NativeCallOrigin::Authored,
                 psi_operation,
@@ -5079,7 +5117,7 @@ pub(crate) mod unit {
                     semantic,
                     position,
                     *psi_operation,
-                    optimized,
+                    function_inputs,
                     signature,
                     &expected,
                     native,
@@ -5575,7 +5613,13 @@ pub(crate) mod unit {
                 AbstractOperation::BoundaryCall { .. },
             ) => {
                 crate::legalization::scalar_graph_input::interrupt_installation::validate(
-                    target, abstracted, optimized, native, plan, unit, custody,
+                    target,
+                    abstracted,
+                    function_inputs,
+                    native,
+                    plan,
+                    unit,
+                    custody,
                 )?;
                 sources.push((result_home.source_value, Source::Home(*result_home)));
             }
@@ -6205,7 +6249,7 @@ pub(crate) mod unit {
                 && result.scalar_type == ScalarType::Boolean =>
             {
                 let (expected_tag, expected_offset, elements) = membership_layout(
-                    optimized,
+                    function_inputs,
                     *expected_source,
                     expected_path,
                     *expected_case,
@@ -6261,7 +6305,7 @@ pub(crate) mod unit {
                         plan,
                     )? =>
             {
-                validate_reference_indices(indices, source, optimized, unit, sources)?;
+                validate_reference_indices(indices, source, function_inputs, unit, sources)?;
             }
             (
                 TargetUnitOperation::EstablishReference {
@@ -6287,7 +6331,7 @@ pub(crate) mod unit {
                         plan,
                     )? =>
             {
-                validate_reference_indices(indices, source, optimized, unit, sources)?;
+                validate_reference_indices(indices, source, function_inputs, unit, sources)?;
             }
             (
                 TargetUnitOperation::ReleaseReference {
@@ -6307,7 +6351,14 @@ pub(crate) mod unit {
                 TargetUnitOperation::StructuralLeafCopy { .. },
                 AbstractOperation::BoundaryCall { .. },
             ) => {
-                aggregate_results::validate(target, abstracted, sources, optimized, plan, unit)?;
+                aggregate_results::validate(
+                    target,
+                    abstracted,
+                    sources,
+                    function_inputs,
+                    plan,
+                    unit,
+                )?;
             }
             (
                 _,
@@ -6324,7 +6375,14 @@ pub(crate) mod unit {
                 | AbstractOperation::TransformContent { .. }
                 | AbstractOperation::EstablishCase { .. },
             ) => {
-                aggregate_results::validate(target, abstracted, sources, optimized, plan, unit)?;
+                aggregate_results::validate(
+                    target,
+                    abstracted,
+                    sources,
+                    function_inputs,
+                    plan,
+                    unit,
+                )?;
             }
             (
                 TargetUnitOperation::EstablishZeroedStructural {
@@ -6369,6 +6427,16 @@ pub(crate) mod unit {
             (_, abstract_operations::move_or_store_structural_field_pattern!()) => {
                 borrowed_windows::validate(target, abstracted, optimized, sources, plan, custody)?;
             }
+            (
+                TargetUnitOperation::DecomposeStructuralValue {
+                    psi_operation,
+                    subject,
+                },
+                AbstractOperation::DecomposeStructuralValue {
+                    psi_operation: expected_operation,
+                    subject: expected_subject,
+                },
+            ) if psi_operation == expected_operation && subject == expected_subject => {}
             (
                 TargetUnitOperation::EstablishTrivialAffineLocal {
                     psi_operation,
@@ -6421,7 +6489,7 @@ pub(crate) mod unit {
                 && obligation == expected_obligation
                 && Some(destination.clone())
                     == replacement(
-                        optimized,
+                        function_inputs,
                         abstracted,
                         plan.geometry(),
                         &unit.structural_domains,
@@ -6509,7 +6577,7 @@ pub(crate) mod unit {
                 && source == expected_source
                 && obligation == expected_obligation
                 && replacement(
-                    optimized,
+                    function_inputs,
                     abstracted,
                     plan.geometry(),
                     &unit.structural_domains,
@@ -6539,7 +6607,7 @@ pub(crate) mod unit {
                 && source == expected_source
                 && Some(destination.clone())
                     == view_replacement(
-                        optimized,
+                        function_inputs,
                         abstracted,
                         plan.geometry(),
                         &unit.structural_domains,
@@ -6569,7 +6637,7 @@ pub(crate) mod unit {
                 && obligation == expected_obligation
                 && Some(destination.clone())
                     == replacement(
-                        optimized,
+                        function_inputs,
                         abstracted,
                         plan.geometry(),
                         &unit.structural_domains,
@@ -6634,7 +6702,7 @@ pub(crate) mod unit {
                 && length == expected_length
                 && obligation == expected_obligation
                 && crate::legalization::scalar_graph_input::element_views::descriptor_geometry(
-                    optimized,
+                    function_inputs,
                     expected_destination,
                     unit.geometry(),
                 )
@@ -6725,7 +6793,8 @@ pub(crate) mod unit {
             {
                 let root =
                     crate::legalization::scalar_graph_input::primitive_locals::read_root_type(
-                        optimized, *source,
+                        function_inputs,
+                        *source,
                     )
                     .ok_or(LegalizationError::custody())?;
                 let geometry = storage_address_geometry(root, path, unit.geometry())
@@ -6761,7 +6830,7 @@ pub(crate) mod unit {
                 } else {
                     let root_type =
                         crate::legalization::scalar_graph_input::primitive_locals::read_root_type(
-                            optimized,
+                            function_inputs,
                             *expected_source,
                         )
                         .ok_or(LegalizationError::custody())?;
@@ -7116,7 +7185,14 @@ pub(crate) mod unit {
             }
             (TargetUnitOperation::Call { .. }, _) => {
                 direct_calls::validate(
-                    target, abstracted, sources, custody, optimized, native, plan, unit,
+                    target,
+                    abstracted,
+                    sources,
+                    custody,
+                    function_inputs,
+                    native,
+                    plan,
+                    unit,
                 )?;
             }
             (
@@ -7160,7 +7236,8 @@ pub(crate) mod unit {
                 && cleanup_actions == cleanup
                 && (cleanup.is_empty()
                     || crate::legalization::scalar_graph_input::read_byte::cleanup(
-                        optimized, cleanup,
+                        function_inputs,
+                        cleanup,
                     )) => {}
             _ => return Err(LegalizationError::custody()),
         }
@@ -7170,12 +7247,12 @@ pub(crate) mod unit {
     fn validate_reference_indices(
         indices: &[target_operations::TargetStructuralRuntimeIndex],
         source: &terminal_psi::StructuralArgument,
-        optimized: &optimization_unit::PsiOptimizationFunction,
+        function_inputs: &crate::legalization_function_inputs::FunctionInputs<'_>,
         unit: &crate::native_geometry::NativeUnit<'_>,
         sources: &crate::legalization_target::control_flow::sources::AvailableSources<'_>,
     ) -> Result<(), LegalizationError> {
         let root = crate::legalization::scalar_graph_input::primitive_locals::read_root_type(
-            optimized,
+            function_inputs,
             source.place,
         )
         .ok_or(LegalizationError::custody())?;
@@ -7302,4 +7379,114 @@ fn location_matches(location: ScalarParameterLocation, placement: &ValuePlacemen
             && matches!(placement.locations.as_slice(),
                 [ValueLocation::Stack { stack_byte_offset, .. }]
                     if location == ScalarParameterLocation::IncomingStack { byte_offset: *stack_byte_offset }))
+}
+
+#[cfg(test)]
+mod decomposition_tests {
+    use super::control_flow::validate_instruction_metadata;
+    use abstract_operations::AbstractOperation;
+    use optimization_unit::{EffectLink, OptimizationNode};
+    use semantic_vocabulary::{OperationId, PsiSemanticId};
+    use target_operations::{
+        TargetInstruction, TargetInstructionSource, TargetOperationMetadata, TargetUnitOperation,
+    };
+    use terminal_psi::{StructuralAccess, StructuralArgument, StructuralPathSegment};
+
+    fn id<T: PsiSemanticId>(raw: u64) -> T {
+        T::new(raw).unwrap()
+    }
+
+    #[test]
+    fn decomposition_metadata_rejects_changed_subject_identity_and_scalar_result() {
+        let operation = id::<OperationId>(1);
+        let subject = StructuralArgument {
+            place: id(2),
+            path: vec![],
+            access: StructuralAccess::Owned,
+        };
+        let node = OptimizationNode {
+            operation: AbstractOperation::DecomposeStructuralValue {
+                psi_operation: operation,
+                subject: subject.clone(),
+            },
+            provenance: vec![],
+            work: vec![],
+            effect: EffectLink {
+                input: 0,
+                output: 0,
+            },
+            definitions: vec![],
+            uses: vec![],
+            successors: vec![],
+            ownership: vec![],
+        };
+        let instruction = TargetInstruction {
+            source: Some(TargetInstructionSource {
+                operation,
+                result: None,
+                metadata: TargetOperationMetadata {
+                    work: node.work.clone(),
+                    effect: node.effect,
+                    ownership: node.ownership.clone(),
+                },
+            }),
+            kind: TargetUnitOperation::DecomposeStructuralValue {
+                psi_operation: operation,
+                subject,
+            },
+        };
+        assert!(validate_instruction_metadata(&instruction, &node).is_ok());
+        for mutation in 0..7 {
+            let mut changed = instruction.clone();
+            match mutation {
+                0..=3 => {
+                    let TargetUnitOperation::DecomposeStructuralValue {
+                        psi_operation,
+                        subject,
+                    } = &mut changed.kind
+                    else {
+                        panic!("decomposition fixture")
+                    };
+                    match mutation {
+                        0 => *psi_operation = id(9),
+                        1 => subject.place = id(9),
+                        2 => subject.path.push(StructuralPathSegment::Field(
+                            terminal_psi::TerminalIdentityIndex(9),
+                        )),
+                        3 => subject.access = StructuralAccess::SharedBorrow,
+                        _ => unreachable!(),
+                    }
+                }
+                4 => changed.source.as_mut().unwrap().operation = id(9),
+                5 => changed.source = None,
+                6 => {
+                    changed.kind = TargetUnitOperation::BooleanConstant {
+                        psi_operation: operation,
+                        result: id(9),
+                        value: false,
+                    }
+                }
+                _ => unreachable!(),
+            }
+            assert!(
+                validate_instruction_metadata(&changed, &node).is_err(),
+                "mutation {mutation}"
+            );
+        }
+        // Even a matching forged scalar definition cannot turn partitioning
+        // custody into a value-producing instruction.
+        let definition = optimization_unit::ValueDefinition {
+            value: id(9),
+            scalar_type: semantic_vocabulary::ScalarType::Boolean,
+            site: optimization_unit::ValueDefinitionSite::Node {
+                block: id(8),
+                node: 0,
+            },
+        };
+        let mut changed_node = node.clone();
+        changed_node.definitions.push(definition);
+        let mut changed_instruction = instruction.clone();
+        changed_instruction.source.as_mut().unwrap().result = Some(definition);
+        assert!(validate_instruction_metadata(&changed_instruction, &changed_node).is_err());
+    }
 }

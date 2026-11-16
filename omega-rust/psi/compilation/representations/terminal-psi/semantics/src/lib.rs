@@ -328,6 +328,7 @@ pub(crate) mod semantic_rows {
         StructuralCaseMembership => ("schema:operation:structural-case-membership", LeafDenotation, None),
         StructuralLeafCopy => ("schema:operation:structural-leaf-copy", LeafDenotation, None),
         MoveStructuralValue => ("schema:operation:move-structural-value", LeafDenotation, None),
+        DecomposeStructuralValue => ("schema:operation:decompose-structural-value", LeafDenotation, None),
         TransformContent => ("schema:operation:transform-content", LeafDenotation, None),
         StructuralCaseLeafCopy => ("schema:operation:structural-case-leaf-copy", LeafDenotation, None),
         WriteOnlyPrimitiveStore => ("schema:operation:write-only-primitive-store", LeafDenotation, None),
@@ -694,7 +695,7 @@ pub use storage::representation_regions::{
     ElementViewRegionGeometry, RepresentationElementLayout, RepresentationScalarLeaf,
     element_view_region_geometry, element_view_shape_region_geometry, representation_byte_extent,
     representation_element_layout, representation_region_goal, representation_region_length,
-    whole_representation_count_goal,
+    whole_representation_count_goal, whole_representation_region_goal,
 };
 
 pub use storage::element_representation::{

@@ -52,6 +52,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
         authored_layout: false,
         owns_linear_claim: false,
         copyable: true,
+        cleanup: None,
         identity: String::from("Pair"),
         shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![
             field(1, "a"),

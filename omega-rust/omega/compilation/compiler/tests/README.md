@@ -86,8 +86,8 @@ Each target must have one completed application run that enters Omega
 equal the image from compiling that target alone. The host product runs
 natively and from a reloaded Terminal artifact. The shared
 request must also complete source, run Build and produce Terminal Psi once
-each, using one Terminal allocation for both targets. Its `checks=2`
-is the existing request counter, not a Psi stage count. Checking every numbered
+each, using one Terminal allocation for both targets. Its `checks` field reports
+the legacy request counter. It does not count the lowered-form judgments. Checking every numbered
 source and Psi stage count is still open.
 
 The command prints `native_pipeline_evidence` and keeps the canonical

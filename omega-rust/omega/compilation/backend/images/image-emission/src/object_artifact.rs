@@ -20,6 +20,8 @@ mod carriers {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct ObjectArtifact {
+        pub(crate) program_contracts:
+            std::sync::Arc<selected_instructions::SelectedProgramContracts>,
         pub(crate) projected: crate::object::function_fragments::ProjectedObject,
         pub(crate) hosted_receiver: Option<HostedReceiverBinding>,
         pub(crate) physical_entry: Option<crate::PhysicalEntryBinding>,
@@ -137,27 +139,6 @@ mod carriers {
                 .fragment_replay
                 .as_ref()
                 .map(|replay| &replay.0)
-        }
-
-        pub fn observe_invocation_input_sources(
-            &self,
-            caller: MachineId,
-            site: target_operations::CallSiteOwner,
-            callee: MachineId,
-            origin: &terminal_semantics::descriptor_results::DescriptorSourceOrigin,
-        ) -> Result<
-            Vec<terminal_semantics::descriptor_results::DescriptorSourceOrigin>,
-            crate::FunctionFragmentObjectArtifactError,
-        > {
-            let body = self.composition_source.as_deref().unwrap_or(self);
-            let replay = body.fragment_replay.as_ref().ok_or(
-                crate::FunctionFragmentObjectArtifactError::Mismatch(
-                    "invocation input observation requires retained native source",
-                ),
-            )?;
-            crate::object::function_fragments::invocation_input_sources(
-                &replay.0, caller, site, callee, origin,
-            )
         }
 
         pub fn native_instruction_source_rows(&self) -> Option<NativeInstructionSourceRows<'_>> {
@@ -344,19 +325,8 @@ mod carriers {
                 .find(|function| function.machine == machine)
         }
 
-        pub fn borrowed_storage_layouts(
-            &self,
-        ) -> Option<&[runtime_abi::NativeBorrowedStorageLayout]> {
-            self.fragment_replay.as_ref().map(|replay| {
-                replay
-                    .0
-                    .source()
-                    .source()
-                    .source()
-                    .source()
-                    .optimized_target()
-                    .borrowed_storage_layouts()
-            })
+        pub fn borrowed_storage_layouts(&self) -> &runtime_abi::NativeBorrowedStorageLayouts {
+            &self.program_contracts.borrowed_storage_layouts
         }
 
         pub fn private_functions(&self) -> &[ObjectCompilerPrivateFunction] {
@@ -429,7 +399,6 @@ mod carriers {
     pub struct ObjectFunction {
         pub machine: MachineId,
         pub attachment: Option<semantic_vocabulary::StructuralTypeId>,
-        pub nominal_cleanup_subject: Option<semantic_vocabulary::StructuralTypeId>,
         pub scalar_abi: Option<target_operations::ScalarFunctionAbi>,
         pub mixed_structural_scalar_abi:
             Option<target_operations::MixedStructuralScalarFunctionAbi>,
@@ -3591,7 +3560,8 @@ mod normalized_foreign_calls {
         site: semantic_vocabulary::InvocationSite,
     ) -> bool {
         match site {
-            semantic_vocabulary::InvocationSite::InvokeNoNormal(_) => false,
+            semantic_vocabulary::InvocationSite::InvokeNoNormal(_)
+            | semantic_vocabulary::InvocationSite::Cleanup { .. } => false,
             semantic_vocabulary::InvocationSite::Operation(operation) => {
                 provenance.operations.last() == Some(&operation)
                     && provenance.edges.is_empty()
@@ -5780,6 +5750,7 @@ pub(crate) mod test_support {
             no_code_affine_cleanup: false,
             copyable: false,
             descriptor_cleanup: false,
+            nominal_cleanup: None,
             scalar_restriction: None,
             id,
             identity,

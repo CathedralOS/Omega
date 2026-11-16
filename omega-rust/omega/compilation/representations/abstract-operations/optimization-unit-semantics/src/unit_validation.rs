@@ -113,6 +113,9 @@ mod activation_storage {
                 source: source.clone(),
                 claim: *claim,
             },
+            A::DecomposeStructuralValue { subject, .. } => T::DecomposeStructuralValue {
+                subject: subject.clone(),
+            },
             A::MoveStructuralValue { source, .. } => T::MoveStructuralValue {
                 source: source.clone(),
             },
@@ -574,7 +577,7 @@ mod activation_storage {
             .filter(|f| f.block_nodes().any(|n| {
                 may(&n.operation, &machines) || n.operation.cleanup_rosters()
                     .flat_map(|(_, actions)| actions).any(|action| {
-                        matches!(action, terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup)
+                        matches!(action, terminal_psi::TerminalAffineCleanupAction::InvokeOwned(cleanup)
                             if !known.contains(&cleanup.cleanup_machine) || machines.contains(&cleanup.cleanup_machine))
                     })
             }))
@@ -729,7 +732,7 @@ pub(crate) mod affine_authority {
                         partition
                     }
                     _ if matches!(group, [TerminalAffineCleanupAction::DiscardRoot(_)])
-                        || matches!(group, [TerminalAffineCleanupAction::InvokeNominal(cleanup)] if cleanup.path.is_empty()) =>
+                        || matches!(group, [TerminalAffineCleanupAction::InvokeOwned(cleanup)] if cleanup.subject.path.is_empty()) =>
                     {
                         group
                     }
@@ -739,13 +742,10 @@ pub(crate) mod affine_authority {
                     if matches!(action, TerminalAffineCleanupAction::RetireHome(_)) {
                         return None;
                     }
-                    if let TerminalAffineCleanupAction::InvokeNominal(cleanup) = action {
-                        for consumed in &cleanup.consumed_claims {
-                            let position = frontier.claims.iter().position(|claim| {
-                                claim.claim == *consumed && claim.input == Some(place)
-                            })?;
-                            frontier.claims.remove(position);
-                        }
+                    if let TerminalAffineCleanupAction::InvokeOwned(cleanup) = action
+                        && !cleanup.claim_transfers.is_empty()
+                    {
+                        return None;
                     }
                 }
                 if frontier
@@ -1034,6 +1034,7 @@ pub(crate) mod affine_authority {
                         copyable: false,
                         no_code_affine_cleanup: true,
                         descriptor_cleanup: true,
+                        nominal_cleanup: None,
                         scalar_restriction: None,
                         requires: Vec::new(),
                         shape: if raw == 1 {
@@ -1056,7 +1057,6 @@ pub(crate) mod affine_authority {
                 let function = PsiOptimizationFunction {
                     machine: id(1),
                     attachment: None,
-                    nominal_cleanup_subject: None,
                     entry: id(1),
                     parameters: Vec::new(),
                     structural_parameters: vec![StructuralParameterDeclaration {
@@ -1089,6 +1089,7 @@ pub(crate) mod affine_authority {
                 let first = vec![Segment::FixedIndex(0), Segment::FixedIndex(0)];
                 let second = vec![Segment::FixedIndex(0), Segment::FixedIndex(1)];
                 let entry = OwnershipFrontierSnapshot {
+                    nominal_partitions: Vec::new(),
                     claims: Vec::new(),
                     owned_places: vec![OwnershipFrontierOwnedPlace {
                         place: id(1),
@@ -1440,6 +1441,10 @@ mod catalogs {
         unit: &'unit PsiOptimizationUnit,
         cycle_policy: &function_structure::ControlCyclePolicy,
     ) -> Result<UnitIndexes<'unit>, OptimizationUnitValidationError> {
+        // Authenticate carried cleanup requirements before deriving any
+        // ownership frontier or call effect from the current functions.
+        optimization_unit::validate_owned_cleanup_evidence(unit)
+            .map_err(|reason| OptimizationUnitValidationError::InvalidRuntimeEvidence { reason })?;
         if let Some(pair) = unit
             .functions
             .windows(2)
@@ -2880,7 +2885,10 @@ pub(crate) mod derived_metadata {
                 O::PrimitiveLocalStore { destination, .. } => require(*destination, known)?,
                 O::EstablishReference { source, .. }
                 | O::EstablishAccessReference { source, .. } => require(source.place, known)?,
-                O::MoveStructuralValue { source, .. } => require(source.place, known)?,
+                O::DecomposeStructuralValue {
+                    subject: source, ..
+                }
+                | O::MoveStructuralValue { source, .. } => require(source.place, known)?,
                 O::TransformContent {
                     source, parents, ..
                 } => {
@@ -3055,7 +3063,6 @@ pub(crate) mod derived_metadata {
     }
 }
 pub(crate) mod function_structure {
-    use crate::unit_validation::catalog_mismatch;
     use crate::unit_validation::derived_metadata::validate_places_and_claims;
     use crate::unit_validation::operation_contracts::validate_values_and_bindings;
     use crate::unit_validation::services::valid_service_ceiling;
@@ -7056,6 +7063,7 @@ pub(crate) mod function_structure {
 
             pub(crate) fn operation_place_accesses(operation: &O) -> Vec<PlaceId> {
                 match operation {
+                    O::DecomposeStructuralValue { subject, .. } => vec![subject.place],
                     O::ActivateTaskRegister {
                         gdt,
                         task_state,
@@ -9872,17 +9880,6 @@ pub(crate) mod function_structure {
         ownership_frontiers: &mut Vec<optimization_unit::OwnershipFrontierFact>,
         reference_memberships: Option<&mut ReferenceMembershipValidation<'_>>,
     ) -> Result<(), OptimizationUnitValidationError> {
-        if let Some(subject) = function.nominal_cleanup_subject
-            && (function.attachment != Some(subject)
-                || !structural_types.contains_key(&subject)
-                || functions
-                    .values()
-                    .filter(|candidate| candidate.nominal_cleanup_subject == Some(subject))
-                    .count()
-                    != 1)
-        {
-            return Err(catalog_mismatch(function));
-        }
         if !valid_service_ceiling(&function.published_service_ceiling, services) {
             return Err(
                 OptimizationUnitValidationError::InvalidFunctionServiceCeiling(function.machine),
@@ -10686,7 +10683,8 @@ pub(crate) mod operation_contracts {
                         scalar_term_roots(&clause.source, roots);
                         scalar_term_roots(&clause.result, roots);
                     }
-                    Proposition::IeeeFloatIntegerExact { source, .. } => {
+                    Proposition::IeeeFloatIntegerExact { source, .. }
+                    | Proposition::IntegerIeeeFloatExact { source, .. } => {
                         scalar_term_roots(source, roots)
                     }
                     Proposition::FloatMeaningEqual(clause) => {
@@ -12364,6 +12362,7 @@ pub(crate) mod operation_contracts {
                 | O::StructuralByteViewFieldStore { .. }
                 | O::StructuralLeafCopy { .. }
                 | O::MoveStructuralValue { .. }
+                | O::DecomposeStructuralValue { .. }
                 | O::TransformContent { .. }
                 | O::PortWrite { .. }
                 | O::StructuralCase { .. }
@@ -15872,6 +15871,7 @@ mod runtime_evidence {
             .map_err(|reason| OptimizationUnitValidationError::InvalidRuntimeEvidence { reason })
     }
     fn validate_current(unit: &PsiOptimizationUnit) -> Result<(), &'static str> {
+        optimization_unit::validate_owned_cleanup_evidence(unit)?;
         let Some(catalog) = &unit.runtime_evidence else {
             if unit
                 .functions
@@ -16333,7 +16333,7 @@ pub(crate) mod services {
                         .cleanup_rosters()
                         .flat_map(|(_, actions)| actions)
                         .filter_map(|action| match action {
-                            terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
+                            terminal_psi::TerminalAffineCleanupAction::InvokeOwned(cleanup) => {
                                 Some(cleanup.cleanup_machine)
                             }
                             _ => None,

@@ -1,5 +1,5 @@
 /*
-  Compiler-private binary persistence (`OMGNTI33`) for retained native
+  Compiler-private binary persistence (`OMGNTI36`) for retained native
   derivation inputs (`retain_native_derivation_inputs`,
   `recover_native_derivation_inputs`) and installation environment assumptions.
 */
@@ -114,7 +114,7 @@ mod admissions {
                 report_fingerprint,
                 commitment,
                 plan,
-                dispatch_only_parameter_count,
+                dispatch_only_formal,
                 signature,
                 opaque_applications,
                 callback_context,
@@ -127,7 +127,7 @@ mod admissions {
             report_fingerprint.write(output)?;
             commitment.write(output)?;
             plan.plan().write(output)?;
-            dispatch_only_parameter_count.write(output)?;
+            dispatch_only_formal.write(output)?;
             signature.write(output)?;
             opaque_applications.write(output)?;
             callback_context.write(output)?;
@@ -143,7 +143,7 @@ mod admissions {
                     report_fingerprint: RecordValue::read(input)?,
                     commitment: RecordValue::read(input)?,
                     plan: RecordValue::read(input)?,
-                    dispatch_only_parameter_count: RecordValue::read(input)?,
+                    dispatch_only_formal: RecordValue::read(input)?,
                     signature: RecordValue::read(input)?,
                     opaque_applications: RecordValue::read(input)?,
                     callback_context: RecordValue::read(input)?,
@@ -351,7 +351,7 @@ mod admissions {
                     },
                 )
                 .unwrap(),
-                dispatch_only_parameter_count: 0,
+                dispatch_only_formal: None,
                 signature: BoundarySignatureGeometry {
                     shapes: vec![],
                     fields: vec![],
@@ -493,7 +493,7 @@ mod admissions {
                         formal_ordinal: ordinal,
                     },
                 }));
-            application.dispatch_only_parameter_count = 1;
+            application.dispatch_only_formal = Some(0);
             application.plan = calling_conventions::evaluate_ordinary_boundary_entry_plan(
                 CallingPolicy::MicrosoftX64,
                 &CallSignature {
@@ -522,7 +522,7 @@ mod admissions {
             assert_eq!(recovered.plan.plan().call.parameters.len(), 1);
 
             let mut changed = application.clone();
-            changed.dispatch_only_parameter_count = 0;
+            changed.dispatch_only_formal = None;
             changed.plan = calling_conventions::evaluate_ordinary_boundary_entry_plan(
                 CallingPolicy::MicrosoftX64,
                 &CallSignature {
@@ -1486,7 +1486,7 @@ use entry::EntryRecord;
 use std::sync::Arc;
 use value::{RecordError, RecordLimits, RecordReader, RecordValue, RecordWriter, write_values};
 
-const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI33";
+const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI36";
 const RECORD_SCHEMA_FAMILY: &[u8; 6] = b"OMGNTI";
 const SUPERSEDED_RECORD_SCHEMA: &str = "retained native derivation inputs use a superseded record \
     schema; rebuild the component to retain them again";
@@ -1549,6 +1549,9 @@ mod tests {
             b"OMGNTI30",
             b"OMGNTI31",
             b"OMGNTI32",
+            b"OMGNTI33",
+            b"OMGNTI34",
+            b"OMGNTI35",
         ] {
             let mut input =
                 RecordReader::new(bytes, RecordLimits::default()).expect("bounded old schema");
@@ -1572,7 +1575,7 @@ mod tests {
     #[test]
     fn newer_record_schema_is_not_called_superseded() {
         let mut input =
-            RecordReader::new(b"OMGNTI34", RecordLimits::default()).expect("bounded new schema");
+            RecordReader::new(b"OMGNTI37", RecordLimits::default()).expect("bounded new schema");
         let Err(error) = DerivationInputs::read(&mut input) else {
             panic!("newer record schema accepted");
         };

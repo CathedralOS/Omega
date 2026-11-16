@@ -9,6 +9,7 @@ First, we map each function's modified ABI-preserved register units through the 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
+use crate::AllocatedMachinePlan;
 use crate::count_where;
 use crate::digest_encoder::DomainDigestEncoder;
 pub use machine_code::{
@@ -27,7 +28,6 @@ use register_environment::{
     ValidatedTargetRegisterEnvironment, selected_abi_preservation,
     selected_preservation_storage_catalog,
 };
-use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
 use register_model::{
     PhysicalRegisterModelIdentity, PreservationStorageCatalogIdentity, PreservationStorageGroupId,
     RegisterUnitId, TargetRegisterEnvironmentIdentity, ValidatedPreservationStorageCatalog,
@@ -822,7 +822,7 @@ fn seal_storage(
 }
 
 pub(crate) fn stage_target_frame_layout(
-    machine: &StagedOptimizedPostAllocationMachinePlan,
+    machine: &AllocatedMachinePlan,
     requirements: &ValidatedAllocatedCalleeSavedRequirements,
     storage: &ValidatedNonAuthoritativeCalleeSaveStorage,
     environment: &ValidatedTargetRegisterEnvironment,
@@ -833,7 +833,7 @@ pub(crate) fn stage_target_frame_layout(
 }
 
 pub(crate) fn validate_target_frame_layout(
-    machine: &StagedOptimizedPostAllocationMachinePlan,
+    machine: &AllocatedMachinePlan,
     requirements: &ValidatedAllocatedCalleeSavedRequirements,
     storage: &ValidatedNonAuthoritativeCalleeSaveStorage,
     environment: &ValidatedTargetRegisterEnvironment,
@@ -895,7 +895,7 @@ fn seal_frame_layout(plan: &TargetFrameLayoutPlan) -> TargetFrameLayoutReceipt {
 }
 
 fn derive_frame_layout(
-    machine: &StagedOptimizedPostAllocationMachinePlan,
+    machine: &AllocatedMachinePlan,
     requirements: &ValidatedAllocatedCalleeSavedRequirements,
     storage: &ValidatedNonAuthoritativeCalleeSaveStorage,
     environment: &ValidatedTargetRegisterEnvironment,
@@ -1258,7 +1258,7 @@ fn align_to_residue(
 }
 
 fn validate_frame_layout_plan(
-    machine: &StagedOptimizedPostAllocationMachinePlan,
+    machine: &AllocatedMachinePlan,
     requirements: &ValidatedAllocatedCalleeSavedRequirements,
     storage: &ValidatedNonAuthoritativeCalleeSaveStorage,
     environment: &ValidatedTargetRegisterEnvironment,

@@ -262,10 +262,10 @@ fn shared_typed_sequence_arguments_keep_complete_backing_and_refuse_mutable_fabr
     let echo = typed
         .realized_machine_named("echo")
         .expect("actual source echo");
-    let [state] = typed.machine_states(echo) else {
+    let Some([state]) = typed.machine_states(echo).as_array() else {
         panic!("exact entry state")
     };
-    let [formal] = typed.state_parameters(state) else {
+    let Some([formal]) = typed.state_parameters(state).as_array() else {
         panic!("exact shared formal")
     };
     let typed_trees::types::TypeReferenceNode::Reference { referee, .. } = typed

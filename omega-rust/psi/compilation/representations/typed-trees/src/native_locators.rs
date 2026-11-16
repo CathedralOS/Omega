@@ -319,16 +319,18 @@ fn validate_binding_shape(
     widths: [SymbolHandle; 3],
     dll_import: SymbolHandle,
 ) -> Result<(), Vec<Diagnostic>> {
-    let [
-        DataMember::Variant(import_variant),
-        DataMember::Variant(syscall_variant),
-    ] = typed.data_members(definition)
+    let Some(
+        [
+            DataMember::Variant(import_variant),
+            DataMember::Variant(syscall_variant),
+        ],
+    ) = typed.data_members(definition).as_array()
     else {
         return Err(vec![Diagnostic::error(
             "compiler-owned Binding must retain the exact DllImport and Syscall cases",
         )]);
     };
-    let [field] = typed.data_payload_fields(import_variant) else {
+    let Some([field]) = typed.data_payload_fields(import_variant).as_array() else {
         return Err(vec![Diagnostic::error(
             "compiler-owned ForeignBinding::DllImport payload drifted",
         )]);
@@ -374,7 +376,7 @@ fn validate_binding_shape(
             )]);
         }
     }
-    let [number] = typed.data_payload_fields(syscall_variant) else {
+    let Some([number]) = typed.data_payload_fields(syscall_variant).as_array() else {
         return Err(vec![Diagnostic::error(
             "compiler-owned ForeignBinding::Syscall payload drifted",
         )]);

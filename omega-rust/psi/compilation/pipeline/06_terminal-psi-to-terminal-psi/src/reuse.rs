@@ -410,6 +410,12 @@ impl Transport<'_> {
                     target: *target,
                 }
             }
+            Proposition::IntegerIeeeFloatExact { source, target } => {
+                Proposition::IntegerIeeeFloatExact {
+                    source: self.term(source)?,
+                    target: *target,
+                }
+            }
             Proposition::Truth | Proposition::Falsehood => proposition.clone(),
             Proposition::Equal(left, right) => {
                 Proposition::Equal(self.term(left)?, self.term(right)?)
@@ -510,6 +516,7 @@ impl Transport<'_> {
             ProofRule::IeeeFloatOrderChain(parts) => {
                 ProofRule::IeeeFloatOrderChain(children(parts)?)
             }
+            ProofRule::IntegerFloatExact => ProofRule::IntegerFloatExact,
             ProofRule::FloatIntegerConversion { premise, computed } => {
                 ProofRule::FloatIntegerConversion {
                     premise: child(premise)?,
@@ -1192,7 +1199,8 @@ fn leaf_terms<'p>(proposition: &'p Proposition, out: &mut Vec<&'p ScalarTerm>) -
         Proposition::FloatIntegerConversion(clause) => {
             term(&clause.source, out) && term(&clause.result, out)
         }
-        Proposition::IeeeFloatIntegerExact { source, .. } => term(source, out),
+        Proposition::IeeeFloatIntegerExact { source, .. }
+        | Proposition::IntegerIeeeFloatExact { source, .. } => term(source, out),
         Proposition::Equal(left, right)
         | Proposition::LessThan(left, right)
         | Proposition::LessOrEqual(left, right) => term(left, out) && term(right, out),
@@ -2426,5 +2434,49 @@ mod meaning_unification_tests {
             ..transport
         };
         assert!(changed_format.certificate(&proof).is_err());
+    }
+}
+
+#[cfg(test)]
+mod integer_float_reuse_tests {
+    use super::*;
+    #[test]
+    fn integer_float_exact_reuse_keeps_the_actual_source_and_target() {
+        use semantic_vocabulary::{IeeeFloatFormat, IntegerSign, IntegerType};
+        let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
+        let goal = Proposition::IntegerIeeeFloatExact {
+            source: ScalarTerm::value(ValueId::new(1).unwrap(), scalar),
+            target: IeeeFloatFormat::Binary64,
+        };
+        let proof = ProofNode {
+            conclusion: goal,
+            rule: ProofRule::IntegerFloatExact,
+        };
+        let transport = Transport {
+            scalar_type: &Some,
+            value: &|id, _| ValueId::new(id.get() + 10).map(Moved::Value),
+            assumption: &|index, _| Ok(Cited::Index(index)),
+            axiom: &Ok,
+        };
+        let moved = transport.certificate(&proof).unwrap();
+        assert_eq!(
+            moved.conclusion,
+            Proposition::IntegerIeeeFloatExact {
+                source: ScalarTerm::value(ValueId::new(11).unwrap(), scalar),
+                target: IeeeFloatFormat::Binary64,
+            }
+        );
+        let context =
+            PropositionContext::from_value_types([(ValueId::new(11).unwrap(), scalar)]).unwrap();
+        proof_admission::accept_certificate(&context, &moved.conclusion, &[], &[], &moved).unwrap();
+        let mut wrong = moved;
+        let Proposition::IntegerIeeeFloatExact { target, .. } = &mut wrong.conclusion else {
+            unreachable!()
+        };
+        *target = IeeeFloatFormat::Binary32;
+        assert!(
+            proof_admission::accept_certificate(&context, &wrong.conclusion, &[], &[], &wrong)
+                .is_err()
+        );
     }
 }

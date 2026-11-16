@@ -570,7 +570,7 @@ fn source_with_child_telescope(
 
 fn only_state(program: &TypedTrees, machine: SymbolHandle) -> &State {
     let machine = program.machine_by_symbol(machine).expect("a machine");
-    let [state] = program.machine_states(machine) else {
+    let Some([state]) = program.machine_states(machine).as_array() else {
         panic!("one state");
     };
     state
@@ -675,17 +675,18 @@ fn a_closed_type_application_enters_one_generated_machine_per_argument_tuple() {
         let generated = program.machine_by_symbol(machine).expect("generated");
         assert!(program.machine_type_parameters(generated).is_empty());
         let state = only_state(&program, machine);
-        let [item] = program.state_parameters(state) else {
+        let Some([item]) = program.state_parameters(state).as_array() else {
             panic!("one formal");
         };
         assert_ne!(item.symbol, relay.item);
         assert_eq!(named_symbol(&program, item.type_reference), applied);
         assert_eq!(named_symbol(&program, state.return_type), applied);
         // The contract speaks of the generated machine's own formal.
-        let [contract] = program.machine_contracts(generated) else {
+        let Some([contract]) = program.machine_contracts(generated).as_array() else {
             panic!("one clause");
         };
-        let [ProofFact::Expression(promised)] = program.proof_facts.span_or_empty(contract.facts)
+        let Some([ProofFact::Expression(promised)]) =
+            program.proof_facts.span_or_empty(contract.facts).as_array()
         else {
             panic!("one fact");
         };
@@ -702,7 +703,10 @@ fn a_closed_type_application_enters_one_generated_machine_per_argument_tuple() {
     }
 
     // The generic machine is left as written.
-    let [item] = program.state_parameters(only_state(&program, relay.machine)) else {
+    let Some([item]) = program
+        .state_parameters(only_state(&program, relay.machine))
+        .as_array()
+    else {
         panic!("one formal");
     };
     assert_eq!(named_symbol(&program, item.type_reference), relay.parameter);
@@ -991,7 +995,7 @@ fn an_application_inside_a_generated_body_is_served_in_turn() {
         forward.state
     );
     let forwarded = only_state(&program, program.symbols.get(closed.target_symbol).parent);
-    let [item] = program.state_parameters(forwarded) else {
+    let Some([item]) = program.state_parameters(forwarded).as_array() else {
         panic!("one formal");
     };
     assert_eq!(named_symbol(&program, item.type_reference), byte);
@@ -1069,10 +1073,11 @@ fn a_literal_value_application_enters_a_machine_with_the_value_in_place() {
     );
     let promised = |machine: SymbolHandle| {
         let machine = program.machine_by_symbol(machine).expect("a machine");
-        let [contract] = program.machine_contracts(machine) else {
+        let Some([contract]) = program.machine_contracts(machine).as_array() else {
             panic!("one contract");
         };
-        let [ProofFact::Expression(expression)] = program.proof_facts.span_or_empty(contract.facts)
+        let Some([ProofFact::Expression(expression)]) =
+            program.proof_facts.span_or_empty(contract.facts).as_array()
         else {
             panic!("one fact");
         };
@@ -1197,7 +1202,7 @@ fn nested_declarations_keep_each_enclosing_application_and_their_own_call_owner(
             Some(nested.machine)
         );
         let state = only_state(&program, child);
-        let [item] = program.state_parameters(state) else {
+        let Some([item]) = program.state_parameters(state).as_array() else {
             panic!("one formal");
         };
         assert_ne!(item.symbol, nested.item);
@@ -1532,7 +1537,10 @@ fn copied_progress_keeps_its_promise_and_rebinds_private_witnesses() {
         for call in [calls(&program, main)[0], calls(&program, main)[2]] {
             let owner = program.symbols.get(call.target_symbol).parent;
             let machine = program.machine_by_symbol(owner).unwrap();
-            let [formal] = program.state_parameters(only_state(&program, owner)) else {
+            let Some([formal]) = program
+                .state_parameters(only_state(&program, owner))
+                .as_array()
+            else {
                 panic!("one copied formal");
             };
             assert_ne!(formal.symbol, relay.item);

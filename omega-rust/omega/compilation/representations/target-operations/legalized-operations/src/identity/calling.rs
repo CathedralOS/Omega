@@ -22,7 +22,7 @@ use calling_conventions::{
     CallPlan, CallbackMaterialization, CallingPolicy, EntryControl, IndirectPointerLocation,
     NativePlace, SystemVEightbyteClass, ValueClass, ValueLocation, ValuePlacement, ValueShape,
 };
-use target_operations::{
+use target_vocabulary::{
     BoundaryExecutionBinding, BoundaryRealization, BoundarySettlementBinding,
     BoundarySettlementRealization, CompilerBuiltinExecution,
 };
@@ -240,7 +240,7 @@ pub(super) fn encode_call(bytes: &mut Vec<u8>, call: &LegalizedScalarCall) {
         bytes,
         call.requirement_obligations.iter().map(|value| value.get()),
     );
-    let crashes = terminal_codec::encode_crash_route_buckets(&call.crash_continuations)
+    let crashes = terminal_wire::encode_crash_route_buckets(&call.crash_continuations)
         .expect("canonical call crash continuations");
     encode_len(bytes, crashes.len());
     bytes.extend_from_slice(&crashes);
@@ -338,7 +338,7 @@ pub fn encode_boundary_execution_identity(
             bytes.push(11);
             super::structural::encode_external_execution(
                 bytes,
-                target_operations::ExternalExecutionBinding::NativeBinding(native),
+                target_vocabulary::ExternalExecutionBinding::NativeBinding(native),
             );
         }
         BoundaryExecutionBinding::CompilerBuiltin(

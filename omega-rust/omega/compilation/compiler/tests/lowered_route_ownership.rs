@@ -18,6 +18,63 @@ use unbuilt_frontier::{fixture_frontier, repository};
 
 static FIXTURE_COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
+/// A call may read one field while lending a sibling: loans are judged per
+/// field path (AGENTS.md rule 3). The negative twin reads inside the lent
+/// field itself and is refused.
+#[test]
+fn call_arguments_read_fields_beside_a_sibling_loan() {
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    for (directory, refused) in [("pass", false), ("fail", true)] {
+        let fixture = format!("tests/fixtures/{directory}/borrows/sibling_field_call_loans");
+        let frontier = fixture_frontier(&fixture);
+        let verdicts = terminal_psi_to_terminal_psi::judge_compilation(
+            typed_trees_to_terminal_psi::prepare_compilation(
+                &frontier.typed,
+                Compilation {
+                    declaration_metadata: &[],
+                    entries: &frontier.entries,
+                    subjects: &[frontier.subject],
+                    purpose: source::DependencyScope::Product,
+                    selected: &frontier.selected,
+                    calling: frontier
+                        .normalization
+                        .calling
+                        .borrow(&frontier.typed)
+                        .selection(),
+                    providers: frontier.provider_selections(),
+                    bindings: &frontier.bindings,
+                    supplies: &[],
+                },
+                terminal_codec::TerminalPublication::Portable,
+            )
+            .program,
+        );
+        if refused {
+            let expected = std::fs::read_to_string(repository(&format!("{fixture}/expected.txt")))
+                .expect("pinned overlapping-loan refusal");
+            assert!(
+                format!("{verdicts:?}").contains(expected.trim()),
+                "reading inside the lent field must be refused: {verdicts:?}"
+            );
+            assert!(
+                !verdicts
+                    .iter()
+                    .all(|verdict| matches!(verdict, Ok(RouteVerdict::Accepted(_)))),
+                "{verdicts:?}"
+            );
+            continue;
+        }
+        for verdict in &verdicts {
+            assert!(
+                matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+                "sibling-field reads beside a loan must accept: {verdict:?}"
+            );
+        }
+    }
+}
+
 #[test]
 fn explicit_exclusive_formations_keep_their_shared_children_through_publication() {
     let _compilation = FIXTURE_COMPILATIONS
@@ -1041,6 +1098,7 @@ fn whole_owned_transfers_consume_their_homes_once() {
         authored_layout: false,
         owns_linear_claim: false,
         copyable: false,
+        cleanup: None,
         identity: "Owned".into(),
         shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![RecordField {
             id: id(1),
@@ -1235,6 +1293,7 @@ mod transferred_on_one_path {
             authored_layout: false,
             owns_linear_claim: false,
             copyable: false,
+            cleanup: None,
             identity: "Inner".into(),
             shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![field(
                 3,
@@ -1247,6 +1306,7 @@ mod transferred_on_one_path {
             authored_layout: false,
             owns_linear_claim: false,
             copyable: false,
+            cleanup: None,
             identity: "Pair".into(),
             shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![
                 field(1, "a", ValueType::record(id(1))),

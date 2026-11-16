@@ -79,11 +79,68 @@ pub mod selection_questions;
 mod static_contracts;
 mod suspension;
 
-// One compilation's forms read the same frozen owner and its immutable
-// capture index. Sharing this scratch never transfers source or proof authority.
-type NamedCaptures = std::sync::Arc<typed_trees::NamedConformanceCaptureIndex>;
-fn named_captures(typed: &TypedTrees) -> NamedCaptures {
-    std::sync::Arc::new(typed_trees::NamedConformanceCaptureIndex::new(typed))
+/// What every elaboration of one typed program reads in common. A
+/// compilation, or a public entry point, prepares it once and lends it to
+/// the closure, each conformance witness and each generic form it reads, so
+/// none of them derives it again.
+type SharedReading = std::sync::Arc<SharedProgram>;
+fn shared_reading(typed: &TypedTrees) -> SharedReading {
+    std::sync::Arc::new(SharedProgram {
+        captures: typed_trees::NamedConformanceCaptureIndex::new(typed),
+        calling_catalogs: Default::default(),
+    })
+}
+
+pub(crate) struct SharedProgram {
+    pub captures: typed_trees::NamedConformanceCaptureIndex,
+    /// The service catalog that supplies boundary calling ABIs, one slot per
+    /// dependency purpose (`Product`, `Build`). The catalog depends only on
+    /// the typed program and that purpose, so the first reading that asks for
+    /// boundary metadata prepares it and every later reading of the same
+    /// program and purpose borrows the same one.
+    calling_catalogs: [std::sync::OnceLock<CallingCatalog>; 2],
+}
+
+type CallingCatalog =
+    Result<std::sync::Arc<typed_trees::service_declarations::PreparedServiceCatalog>, String>;
+
+impl SharedProgram {
+    pub(crate) fn calling_catalog(
+        &self,
+        typed: &TypedTrees,
+        purpose: source::DependencyScope,
+    ) -> &CallingCatalog {
+        let slot = match purpose {
+            source::DependencyScope::Product => 0,
+            source::DependencyScope::Build => 1,
+        };
+        self.calling_catalogs[slot].get_or_init(|| {
+            let context = typed_trees::service_declarations::provider_declarations::ProviderPlanningContext::new(
+                typed, purpose,
+            );
+            // This catalog supplies source signatures, not selection
+            // authority. The coordinator authenticates the nominated handles
+            // against its admitted source registry before constructing the
+            // compilation.
+            let sources =
+                source::source_identity::toolchain_source_identities(typed.symbols.source_files())?;
+            Ok(std::sync::Arc::new(
+                typed_trees::service_declarations::PreparedServiceCatalog::prepare(
+                    context, &sources,
+                ),
+            ))
+        })
+    }
+
+    /// How many purposes have prepared a calling catalog, for tests that pin
+    /// one preparation per program and purpose.
+    #[cfg(test)]
+    pub(crate) fn prepared_calling_catalogs(&self) -> usize {
+        self.calling_catalogs
+            .iter()
+            .filter(|slot| slot.get().is_some())
+            .count()
+    }
 }
 
 pub use body::{
@@ -302,7 +359,7 @@ pub fn elaborate_for(
 ) -> Checked<Elaboration> {
     // The first refusal read is the one a reading that stops there meets;
     // `prepare_compilation` reports the rest beside it.
-    let mut prepared = elaborate_source_for(typed, compilation, publication, named_captures(typed))
+    let mut prepared = elaborate_source_for(typed, compilation, publication, shared_reading(typed))
         .map_err(|mut refused| refused.swap_remove(0))?;
     publication::finalize_source(
         typed,
@@ -317,7 +374,7 @@ fn elaborate_source_for<'source>(
     typed: &'source TypedTrees,
     compilation: Compilation<'_>,
     publication: terminal_codec::TerminalPublication,
-    captures: NamedCaptures,
+    captures: SharedReading,
 ) -> Result<PreparedProgram<'source>, Vec<Refusal>> {
     let mut program = read::Program::with_captures(typed, false, compilation.purpose, captures);
     program.publication = publication;
@@ -439,7 +496,7 @@ pub fn elaborate_closure(typed: &TypedTrees, entry: SymbolHandle) -> Checked<Ela
         declaration_context(typed, entry),
         entry,
         false,
-        named_captures(typed),
+        shared_reading(typed),
         terminal_codec::TerminalPublication::Portable,
     )
 }
@@ -470,7 +527,7 @@ pub fn elaborate_generic(typed: &TypedTrees, template: SymbolHandle) -> Checked<
         declaration_context(typed, template),
         template,
         true,
-        named_captures(typed),
+        shared_reading(typed),
         terminal_codec::TerminalPublication::Portable,
     )
 }
@@ -494,8 +551,9 @@ pub fn elaborate_alternatives(
         typed,
         declaration_context(typed, template),
         template,
-        named_captures(typed),
+        shared_reading(typed),
         terminal_codec::TerminalPublication::Portable,
+        None,
     )
     .and_then(|forms| {
         forms
@@ -509,12 +567,16 @@ fn prepare_alternatives<'source>(
     typed: &'source TypedTrees,
     purpose: source::DependencyScope,
     template: SymbolHandle,
-    captures: NamedCaptures,
+    captures: SharedReading,
     publication: terminal_codec::TerminalPublication,
+    opaque_refusal: Option<Refusal>,
 ) -> Checked<Vec<PreparedProgram<'source>>> {
     let first = MachineId::new(1).expect("1 is nonzero");
     let alternatives = read::Program::with_captures(typed, false, purpose, captures.clone())
-        .family_alternatives(first, template)?;
+        .family_alternatives(first, template)
+        // Preserve the opaque refusal only when no complete partition exists.
+        // Once its coverage is known, a failing member reports its own cause.
+        .map_err(|refusal| opaque_refusal.unwrap_or(refusal))?;
     alternatives
         .into_iter()
         .map(|arguments| {
@@ -528,15 +590,15 @@ fn prepare_alternatives<'source>(
 }
 
 /// The check forms of the generic machines `templates`, in order: for each,
-/// the machine checked once as written with its parameters rigid
-/// (`elaborate_generic`), or, when it lists a finite type family, once per
-/// alternative (`elaborate_alternatives`). Refused when either form refuses
-/// one of them; a refusal names the template's own form.
+/// the machine checked once with opaque parameters when its bounds suffice,
+/// otherwise once per member of its complete static type partition. An open
+/// classifier includes an opaque remainder beyond its closed cases. Refused
+/// when a required alternative refuses; its diagnostic names that form.
 pub fn elaborate_generic_forms(
     typed: &TypedTrees,
     templates: &[SymbolHandle],
 ) -> Checked<Vec<Elaboration>> {
-    let captures = named_captures(typed);
+    let captures = shared_reading(typed);
     let mut forms = Vec::new();
     for template in templates {
         forms.extend(
@@ -559,7 +621,7 @@ fn prepare_generic_forms<'source>(
     typed: &'source TypedTrees,
     purpose: source::DependencyScope,
     templates: &[SymbolHandle],
-    captures: NamedCaptures,
+    captures: SharedReading,
     publication: terminal_codec::TerminalPublication,
 ) -> Checked<Vec<PreparedProgram<'source>>> {
     let mut forms = Vec::new();
@@ -587,13 +649,14 @@ fn prepare_generic_forms<'source>(
             publication,
         ) {
             Ok(form) => forms.push(form),
-            Err(rigid) => {
-                match prepare_alternatives(typed, purpose, *template, captures.clone(), publication)
-                {
-                    Ok(alternatives) => forms.extend(alternatives),
-                    Err(_) => return Err(rigid),
-                }
-            }
+            Err(rigid) => forms.extend(prepare_alternatives(
+                typed,
+                purpose,
+                *template,
+                captures.clone(),
+                publication,
+                Some(rigid),
+            )?),
         }
     }
     Ok(forms)
@@ -623,7 +686,7 @@ pub fn template_of(typed: &TypedTrees, machine: SymbolHandle) -> Option<SymbolHa
 }
 
 struct WitnessInputs<'scope> {
-    captures: NamedCaptures,
+    captures: SharedReading,
     purpose: source::DependencyScope,
     outcome_subjects: Option<&'scope [Option<PackageKeyIdentity>]>,
 }
@@ -657,7 +720,7 @@ pub fn elaborate_witness(
         implementation,
         None,
         WitnessInputs {
-            captures: named_captures(typed),
+            captures: shared_reading(typed),
             purpose: declaration_context(typed, implementation),
             outcome_subjects: None,
         },
@@ -718,7 +781,7 @@ pub fn elaborate_callable_witness<'a>(
         typed,
         false,
         declaration_context(typed, required.symbol),
-        named_captures(typed),
+        shared_reading(typed),
     );
     let entry = program.witnessed_signature(required, &[], None)?;
     let callee = program.callable_contract(supplied)?;
@@ -908,7 +971,7 @@ fn elaborate_form(
     purpose: source::DependencyScope,
     entry: SymbolHandle,
     rigid: bool,
-    captures: NamedCaptures,
+    captures: SharedReading,
     publication: terminal_codec::TerminalPublication,
 ) -> Checked<Elaboration> {
     prepare_form(typed, purpose, entry, rigid, captures, publication)
@@ -920,7 +983,7 @@ fn prepare_form<'source>(
     purpose: source::DependencyScope,
     entry: SymbolHandle,
     rigid: bool,
-    captures: NamedCaptures,
+    captures: SharedReading,
     publication: terminal_codec::TerminalPublication,
 ) -> Checked<PreparedProgram<'source>> {
     let mut program = read::Program::with_captures(typed, rigid, purpose, captures);
@@ -977,7 +1040,12 @@ fn finish_reading_into<'source>(
         let mut predicates_prepared = false;
         loop {
             program.resolve_scalar_applications(diagnostic)?;
+            program.finish_cleanup_selections()?;
             if binder_reach.len() == program.symbols.len() {
+                program.prepare_calling_policy_roots(diagnostic)?;
+                if binder_reach.len() != program.symbols.len() {
+                    continue;
+                }
                 if predicates_prepared {
                     break;
                 }
@@ -1019,6 +1087,7 @@ fn finish_reading_into<'source>(
         .map(|policies| program.prepare_calling_storage(diagnostic, policies))
         .transpose()?;
     program.prepare_domain_predicates(diagnostic)?;
+    program.finish_cleanup_selections()?;
     let source_selection_questions = capture_source_questions(&mut program, diagnostic)?;
     let PreparedProgram {
         program: mut elaboration,
@@ -1766,11 +1835,8 @@ fn finish_storage(
                 concerns,
                 source_span: None,
                 detail: {
-                    let detail = match (operation, origin) {
-                        (
-                            Some(operation),
-                            Some(terminal_check_tables::program::SourceOrigin::Authored(span)),
-                        ) => format!(
+                    let detail = match (operation, origin.and_then(|origin| origin.span())) {
+                        (Some(operation), Some(span)) => format!(
                             "while checking {operation} at source {} bytes {}..{}: {detail}",
                             span.source_id.0, span.span.start, span.span.end,
                         ),

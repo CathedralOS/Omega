@@ -24,7 +24,7 @@ use native_vocabulary::provenance::{PsiProvenance, WorkSettlement};
 use optimization_core::FunctionFragmentEmissionIdentity;
 use selected_instructions::SelectedInstructionProvenance;
 use semantic_vocabulary::{IntegerCarrier, IntegerSign, ScalarType};
-use target_operations::TerminalPsiProvenance;
+use target_vocabulary::TerminalPsiProvenance;
 
 const FRAGMENT_SCHEMA: &[u8] = b"omega.terminal.function-fragment-emission.v25";
 
@@ -48,13 +48,7 @@ pub(crate) fn function_fragment_emission_identity(
                 hasher.raw(&attachment.get().to_le_bytes());
             }
         }
-        match function.nominal_cleanup_subject {
-            None => hasher.byte(0),
-            Some(attachment) => {
-                hasher.byte(1);
-                hasher.raw(&attachment.get().to_le_bytes());
-            }
-        }
+
         encode_function_provenance(&mut hasher, &function.provenance);
         hasher.raw(&function.byte_count.to_le_bytes());
         hasher.bytes(&function.bytes);

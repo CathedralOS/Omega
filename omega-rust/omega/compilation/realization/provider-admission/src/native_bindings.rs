@@ -449,7 +449,7 @@ fn validate_native_calling(
     let abi = module.calling_abi_identity(row.boundary)?;
     if application.abi != abi
         || application.target != profile.native_target()
-        || application.dispatch_only_parameter_count != 0
+        || application.dispatch_only_formal.is_some()
     {
         return Err("calling application changed its exact ABI, target or dispatch".into());
     }
@@ -513,7 +513,7 @@ fn validate_native_calling_plan(
         report_fingerprint: application.report_fingerprint,
         commitment: application.commitment,
         plan: application.plan.plan().clone(),
-        dispatch_only_parameter_count: application.dispatch_only_parameter_count,
+        dispatch_only_formal: application.dispatch_only_formal,
         signature: application.signature.clone(),
         opaque_applications: application.opaque_applications.clone(),
         callback_context: application.callback_context.clone(),
@@ -789,6 +789,49 @@ mod tests {
     }
 
     #[test]
+    fn native_declared_types_reject_changed_input_lifetime_relations() {
+        let left = "ref-mut(compiler-type(atom(i64)),region(owner(schema),ordinal(0)))";
+        let right = "ref-mut(compiler-type(atom(i64)),region(owner(schema),ordinal(1)))";
+        let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
+        let first = identities.intern(left);
+        let second = identities.intern(right);
+        let unit = identities.intern("unit");
+        let mut surface_types = ProviderIdentityTable::default();
+        let left_surface = surface_types.intern(left);
+        let right_surface = surface_types.intern(right);
+        let method = ServiceMethod {
+            parameter_count: 2,
+            parameter_type_identities: vec![left_surface, right_surface],
+            declared_type_signature: language_semantics::service_surface::declared_type_signature(
+                [left, right].into_iter(),
+                "unit",
+            )
+            .unwrap(),
+            ..Default::default()
+        };
+        let result = terminal_psi::BoundaryMachineResult::Unit;
+        validate_native_declared_types(
+            &method,
+            &[first, second],
+            unit,
+            &result,
+            identities.as_table(),
+        )
+        .unwrap();
+        for changed in [[first, first], [second, first]] {
+            let error = validate_native_declared_types(
+                &method,
+                &changed,
+                unit,
+                &result,
+                identities.as_table(),
+            )
+            .unwrap_err();
+            assert!(error.contains("declared types differ"), "{error}");
+        }
+    }
+
+    #[test]
     fn native_omitted_unit_result_retains_its_declared_type() {
         let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
         let unit = identities.intern("unit");
@@ -867,7 +910,7 @@ mod tests {
             report_fingerprint: 1,
             commitment: [0; 32],
             plan: plan_for(4),
-            dispatch_only_parameter_count: 0,
+            dispatch_only_formal: None,
             signature: BoundarySignatureGeometry {
                 shapes: vec![BoundaryValueShape {
                     class: BoundaryValueClass::Integer,

@@ -256,7 +256,7 @@ pub(crate) mod borrowed_argument {
             && indices.is_empty()
             && matches!(
                 target.source,
-                target_operations::TargetStructuralArgumentSource::BlockParameter { .. }
+                target_vocabulary::TargetStructuralArgumentSource::BlockParameter { .. }
             );
         let shape = if byte_field.is_some() {
             destination_shape
@@ -384,7 +384,7 @@ pub(crate) mod borrowed_argument {
         }
         match &target.source {
             _ if byte_field.is_some() => {}
-            target_operations::TargetStructuralArgumentSource::StructuralHome { psi_operation } => {
+            target_vocabulary::TargetStructuralArgumentSource::StructuralHome { psi_operation } => {
                 let (producer, _) = aggregate_home?;
                 let home_view =
                     local_loan.is_some() && (byte_view.is_some() || element_view.is_some());
@@ -403,7 +403,7 @@ pub(crate) mod borrowed_argument {
                     return None;
                 }
             }
-            target_operations::TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
+            target_vocabulary::TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
                 psi_operation,
             } => {
                 let (producer, _, _, _) = local?;
@@ -413,7 +413,7 @@ pub(crate) mod borrowed_argument {
                     return None;
                 }
             }
-            target_operations::TargetStructuralArgumentSource::Placement(placement) => {
+            target_vocabulary::TargetStructuralArgumentSource::Placement(placement) => {
                 let parameter = signature
                     .parameters
                     .iter()
@@ -424,7 +424,7 @@ pub(crate) mod borrowed_argument {
                     return None;
                 }
             }
-            target_operations::TargetStructuralArgumentSource::BlockParameter { block, place }
+            target_vocabulary::TargetStructuralArgumentSource::BlockParameter { block, place }
                 if address_join.is_some() =>
             {
                 let (owner, joined) = address_join?;
@@ -432,7 +432,7 @@ pub(crate) mod borrowed_argument {
                     return None;
                 }
             }
-            target_operations::TargetStructuralArgumentSource::BlockParameter { block, place }
+            target_vocabulary::TargetStructuralArgumentSource::BlockParameter { block, place }
                 if aggregate_block_home.is_some()
                     && (storage_loan.is_some()
                         || byte_view.is_some()
@@ -443,7 +443,7 @@ pub(crate) mod borrowed_argument {
                     return None;
                 }
             }
-            target_operations::TargetStructuralArgumentSource::EstablishedElementView {
+            target_vocabulary::TargetStructuralArgumentSource::EstablishedElementView {
                 ..
             } if established_view_loan.is_some() => {
                 if semantic.path.is_empty() {
@@ -452,11 +452,11 @@ pub(crate) mod borrowed_argument {
                     accepts_view_loan(source, site, target)?;
                 }
             }
-            target_operations::TargetStructuralArgumentSource::EstablishedByteView { .. }
-            | target_operations::TargetStructuralArgumentSource::EstablishedElementView {
+            target_vocabulary::TargetStructuralArgumentSource::EstablishedByteView { .. }
+            | target_vocabulary::TargetStructuralArgumentSource::EstablishedElementView {
                 ..
             }
-            | target_operations::TargetStructuralArgumentSource::BlockParameter { .. } => {
+            | target_vocabulary::TargetStructuralArgumentSource::BlockParameter { .. } => {
                 accepts_at(source, site, target)?;
             }
         }
@@ -469,10 +469,10 @@ pub(crate) mod borrowed_argument {
         site: semantic_vocabulary::InvocationSite,
         argument_index: usize,
         semantic: &terminal_psi::StructuralArgument,
-        target: &target_operations::TargetStructuralArgument,
+        target: &target_vocabulary::TargetStructuralArgument,
         indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
     ) -> Option<()> {
-        if let target_operations::TargetStructuralArgumentSource::StructuralHome { psi_operation } =
+        if let target_vocabulary::TargetStructuralArgumentSource::StructuralHome { psi_operation } =
             target.source
         {
             super::input_site::producer_before_use(source, psi_operation, site)?;
@@ -486,7 +486,7 @@ pub(crate) mod borrowed_argument {
     fn projected_loan_shape(
         source: &crate::native_geometry::NativeFunction<'_>,
         semantic: &terminal_psi::StructuralArgument,
-        target: &target_operations::TargetStructuralArgument,
+        target: &target_vocabulary::TargetStructuralArgument,
         indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
     ) -> Option<ValueShape> {
         source.structural.as_ref()?;
@@ -544,7 +544,7 @@ pub(crate) mod input_site {
     pub(crate) fn installation_call<'input>(
         source: &'input crate::native_geometry::NativeFunction<'input>,
         operation: OperationId,
-        role: target_operations::InstallationCallRole,
+        role: target_vocabulary::InstallationCallRole,
     ) -> Option<&'input legalized_operations::LegalizedScalarCall> {
         let mut rows = source
             .instructions()
@@ -562,8 +562,8 @@ pub(crate) mod input_site {
         };
         Some(
             &calls[match role {
-                target_operations::InstallationCallRole::Validate => 0,
-                target_operations::InstallationCallRole::Work => 1,
+                target_vocabulary::InstallationCallRole::Validate => 0,
+                target_vocabulary::InstallationCallRole::Work => 1,
             }],
         )
     }
@@ -594,6 +594,27 @@ pub(crate) mod input_site {
                         return None;
                     }
                 }
+                InvocationSite::Cleanup {
+                    edge,
+                    action_ordinal,
+                } => {
+                    // This cut locates static storage and preceding producers;
+                    // it is not a pre-action content or authority snapshot.
+                    // Runtime argument copies execute in exact roster order.
+                    let owner = target_vocabulary::CallSiteOwner::CleanupAction {
+                        edge,
+                        action_ordinal,
+                    };
+                    for (actual, _) in block.terminator.cleanup_calls() {
+                        if *actual == owner
+                            && found
+                                .replace((block.id, block.instructions.len()))
+                                .is_some()
+                        {
+                            return None;
+                        }
+                    }
+                }
                 InvocationSite::ExternalCompletion(edge) => {
                     if matches!(&block.terminator,
                         LegalizedScalarTerminator::ExternalCompletion { psi_edge, .. } if *psi_edge == edge)
@@ -607,6 +628,34 @@ pub(crate) mod input_site {
             }
         }
         found
+    }
+
+    pub(crate) fn cleanup_call<'input>(
+        source: &'input crate::native_geometry::NativeFunction<'input>,
+        site: InvocationSite,
+    ) -> Option<&'input legalized_operations::LegalizedScalarCall> {
+        let InvocationSite::Cleanup {
+            edge,
+            action_ordinal,
+        } = site
+        else {
+            return None;
+        };
+        let (block, position) = use_cut(source, site)?;
+        let block = source.blocks.iter().find(|actual| actual.id == block)?;
+        if position != block.instructions.len() {
+            return None;
+        }
+        let owner = target_vocabulary::CallSiteOwner::CleanupAction {
+            edge,
+            action_ordinal,
+        };
+        let mut calls = block
+            .terminator
+            .cleanup_calls()
+            .filter(|(actual, _)| *actual == owner);
+        let (_, call) = calls.next()?;
+        calls.next().is_none().then_some(call)
     }
 
     pub(crate) fn producer_before_use<'input>(
@@ -656,6 +705,157 @@ pub(crate) mod input_site {
             _ => None,
         }
     }
+    #[cfg(test)]
+    mod cleanup_tests {
+        use super::*;
+        use calling_conventions::{CallSignature, CallingPolicy, evaluate_call_plan};
+        use legalized_operations::{
+            LegalizedScalarBlock, LegalizedScalarCall, LegalizedScalarFunction,
+            LegalizedScalarReturn, LegalizedScalarReturnValue,
+        };
+        use semantic_vocabulary::{EdgeId, MachineId, ObligationId};
+        use target_vocabulary::{CallSiteOwner, NativeCallOrigin, NativeCallTarget};
+
+        #[test]
+        fn cleanup_lookup_keeps_action_requirements_and_rejects_duplicate_owners() {
+            let call_plan = evaluate_call_plan(
+                CallingPolicy::SystemVAMD64,
+                &CallSignature {
+                    parameters: Vec::new(),
+                    result: None,
+                },
+            )
+            .unwrap();
+            let call = |requirement| LegalizedScalarCall {
+                source: NativeCallOrigin::Authored,
+                target: NativeCallTarget::Machine(MachineId::new(2).unwrap()),
+                call_plan: call_plan.clone(),
+                arguments: Vec::new(),
+                result_placement: None,
+                structural_result: None,
+                descriptor_origins: Vec::new(),
+                access_bindings: Vec::new(),
+                claim_transfers: Vec::new(),
+                requirement_obligations: vec![ObligationId::new(requirement).unwrap()],
+                crash_continuations: Vec::new(),
+            };
+            let mut function = LegalizedScalarFunction {
+                machine: MachineId::new(1).unwrap(),
+                attachment: None,
+                provenance: Default::default(),
+                call_plan: call_plan.clone(),
+                parameters: Vec::new(),
+                structural: None,
+                entry_block: BlockId::new(1).unwrap(),
+                blocks: [1, 2]
+                    .map(|index| {
+                        let edge = EdgeId::new(index).unwrap();
+                        LegalizedScalarBlock {
+                            id: BlockId::new(index).unwrap(),
+                            parameters: Vec::new(),
+                            structural_parameters: Vec::new(),
+                            instructions: Vec::new(),
+                            terminator: LegalizedScalarTerminator::ReturnCleanup {
+                                returned: LegalizedScalarReturn {
+                                    edge,
+                                    value: LegalizedScalarReturnValue::Unit,
+                                    work: Vec::new(),
+                                    effect: native_vocabulary::provenance::EffectLink {
+                                        input: 0,
+                                        output: 1,
+                                    },
+                                    ownership: Vec::new(),
+                                },
+                                calls: vec![
+                                    (
+                                        CallSiteOwner::CleanupAction {
+                                            edge,
+                                            action_ordinal: 0,
+                                        },
+                                        call(index * 2),
+                                    ),
+                                    (
+                                        CallSiteOwner::CleanupAction {
+                                            edge,
+                                            action_ordinal: 1,
+                                        },
+                                        call(index * 2 + 1),
+                                    ),
+                                ],
+                            },
+                        }
+                    })
+                    .into_iter()
+                    .collect(),
+                ownership_frontier_facts: Vec::new(),
+            };
+            let geometry = crate::native_geometry::NativeGeometry::new(&[]).unwrap();
+            {
+                let source = crate::native_geometry::NativeInput::new(&function, &geometry);
+                for index in [1, 2] {
+                    for action_ordinal in [0, 1] {
+                        let site = InvocationSite::Cleanup {
+                            edge: EdgeId::new(index).unwrap(),
+                            action_ordinal,
+                        };
+                        let actual = cleanup_call(&source, site).unwrap();
+                        assert_eq!(
+                            actual.requirement_obligations,
+                            [ObligationId::new(index * 2 + u64::from(action_ordinal)).unwrap()]
+                        );
+                        assert_eq!(
+                            use_cut(&source, site),
+                            Some((BlockId::new(index).unwrap(), 0))
+                        );
+                        let mut changed = actual.clone();
+                        changed.requirement_obligations[0] = ObligationId::new(99).unwrap();
+                        assert_ne!(cleanup_call(&source, site), Some(&changed));
+                    }
+                }
+                assert!(
+                    cleanup_call(
+                        &source,
+                        InvocationSite::Cleanup {
+                            edge: EdgeId::new(1).unwrap(),
+                            action_ordinal: 2
+                        }
+                    )
+                    .is_none()
+                );
+                assert!(
+                    use_cut(
+                        &source,
+                        InvocationSite::Operation(OperationId::new(1).unwrap())
+                    )
+                    .is_none()
+                );
+                assert!(
+                    use_cut(
+                        &source,
+                        InvocationSite::InvokeNoNormal(EdgeId::new(1).unwrap())
+                    )
+                    .is_none()
+                );
+            }
+            let LegalizedScalarTerminator::ReturnCleanup { calls, .. } =
+                &mut function.blocks[0].terminator
+            else {
+                unreachable!()
+            };
+            calls.push(calls[0].clone());
+            let source = crate::native_geometry::NativeInput::new(&function, &geometry);
+            assert!(
+                cleanup_call(
+                    &source,
+                    InvocationSite::Cleanup {
+                        edge: EdgeId::new(1).unwrap(),
+                        action_ordinal: 0
+                    }
+                )
+                .is_none()
+            );
+        }
+    }
 }
 pub(crate) mod normalized_foreign {
     use super::{CallSignature, ValueLocation, ValueShape, scalar_shape};
@@ -665,7 +865,7 @@ pub(crate) mod normalized_foreign {
     use register_environment::ValidatedTargetRegisterEnvironment;
     use register_model::{RegisterConstraintKey, RegisterInstructionConstraint};
     use semantic_vocabulary::InvocationSite;
-    use target_operations::{
+    use target_vocabulary::{
         TargetBoundaryResult, TargetStructuralArgumentSource, TargetUnitScalarArgumentSource,
     };
 
@@ -673,13 +873,13 @@ pub(crate) mod normalized_foreign {
         call: &LegalizedNormalizedForeignCall,
     ) -> register_model::RegisterConstraintFamily {
         match call.binding.mechanism {
-            target_operations::NormalizedForeignCallMechanism::Import { .. }
-            | target_operations::NormalizedForeignCallMechanism::HostedImport { .. }
-            | target_operations::NormalizedForeignCallMechanism::Component { .. }
-            | target_operations::NormalizedForeignCallMechanism::Table { .. } => {
+            target_vocabulary::NormalizedForeignCallMechanism::Import { .. }
+            | target_vocabulary::NormalizedForeignCallMechanism::HostedImport { .. }
+            | target_vocabulary::NormalizedForeignCallMechanism::Component { .. }
+            | target_vocabulary::NormalizedForeignCallMechanism::Table { .. } => {
                 register_model::RegisterConstraintFamily::Call
             }
-            target_operations::NormalizedForeignCallMechanism::SystemCall(_) => {
+            target_vocabulary::NormalizedForeignCallMechanism::SystemCall(_) => {
                 register_model::RegisterConstraintFamily::SystemCall
             }
         }
@@ -719,7 +919,7 @@ pub(crate) mod normalized_foreign {
     fn borrowed_block_argument_root<'source>(
         source: &'source crate::native_geometry::NativeFunction<'source>,
         operation: semantic_vocabulary::OperationId,
-        argument: &target_operations::TargetStructuralArgument,
+        argument: &target_vocabulary::TargetStructuralArgument,
     ) -> Option<(
         semantic_vocabulary::BlockId,
         &'source terminal_psi::StructuralParameterDeclaration,
@@ -1173,7 +1373,7 @@ pub(crate) mod normalized_foreign {
                     || crate::selection::aggregate_result_input::home(source, result.place)
                         != Some((producer, result))
                     || home.layout
-                        != target_operations::TargetStructuralHomeLayout::Aggregate(storage)
+                        != target_vocabulary::TargetStructuralHomeLayout::Aggregate(storage)
                     || placement.shape != shape
                 {
                     return Err(invalid!());
@@ -1276,7 +1476,7 @@ pub(crate) mod owned_argument {
                 return None;
             }
             match target.source {
-                target_operations::TargetStructuralArgumentSource::StructuralHome {
+                target_vocabulary::TargetStructuralArgumentSource::StructuralHome {
                     psi_operation,
                 } => {
                     let (_, _, producer) =
@@ -1307,7 +1507,7 @@ pub(crate) mod owned_argument {
                         return None;
                     }
                 }
-                target_operations::TargetStructuralArgumentSource::BlockParameter {
+                target_vocabulary::TargetStructuralArgumentSource::BlockParameter {
                     block,
                     place,
                 } => {
@@ -1330,7 +1530,7 @@ pub(crate) mod owned_argument {
                         return None;
                     }
                 }
-                target_operations::TargetStructuralArgumentSource::Placement(ref placement) => {
+                target_vocabulary::TargetStructuralArgumentSource::Placement(ref placement) => {
                     let parameter = source
                         .structural
                         .as_ref()?
@@ -1461,7 +1661,7 @@ fn placement_register_count(placement: &calling_conventions::ValuePlacement) -> 
 
 fn placement_register(
     placement: &calling_conventions::ValuePlacement,
-) -> Option<target_operations::MachineRegister> {
+) -> Option<target_vocabulary::MachineRegister> {
     match placement.locations.as_slice() {
         [
             ValueLocation::Register {
@@ -1583,13 +1783,13 @@ pub(crate) fn validate(
     function: usize,
     source: &crate::native_geometry::NativeFunction<'_>,
     call: &LegalizedScalarCall,
-    owner: target_operations::CallSiteOwner,
+    owner: target_vocabulary::CallSiteOwner,
     key: RegisterConstraintKey,
     row: &RegisterInstructionConstraint,
     environment: &ValidatedTargetRegisterEnvironment,
 ) -> Result<(), SelectedInstructionError> {
     let invalid = || SelectedInstructionError::unsupported_shape(function);
-    let installation_role = if let target_operations::CallSiteOwner::Installation {
+    let installation_role = if let target_vocabulary::CallSiteOwner::Installation {
         operation,
         role,
     } = owner
@@ -1600,8 +1800,8 @@ pub(crate) fn validate(
             ));
         }
         let result_shape = match role {
-            target_operations::InstallationCallRole::Validate => scalar_shape(ScalarType::Boolean),
-            target_operations::InstallationCallRole::Work => None,
+            target_vocabulary::InstallationCallRole::Validate => scalar_shape(ScalarType::Boolean),
+            target_vocabulary::InstallationCallRole::Work => None,
         };
         if call
             .result_placement
@@ -1619,8 +1819,8 @@ pub(crate) fn validate(
     } else {
         None
     };
-    let no_normal = matches!(owner, target_operations::CallSiteOwner::InvokeNoNormal(_))
-        || installation_role == Some(target_operations::InstallationCallRole::Work);
+    let no_normal = matches!(owner, target_vocabulary::CallSiteOwner::InvokeNoNormal(_))
+        || installation_role == Some(target_vocabulary::InstallationCallRole::Work);
     if no_normal {
         call.validate_no_normal_shape()
     } else {
@@ -1636,17 +1836,29 @@ pub(crate) fn validate(
         .any(|argument| matches!(argument, LegalizedScalarArgument::Structural { .. }))
     {
         let operation = match owner {
-            target_operations::CallSiteOwner::Operation(operation)
-            | target_operations::CallSiteOwner::Installation { operation, .. } => {
+            target_vocabulary::CallSiteOwner::Operation(operation)
+            | target_vocabulary::CallSiteOwner::Installation { operation, .. } => {
                 semantic_vocabulary::InvocationSite::Operation(operation)
             }
-            target_operations::CallSiteOwner::InvokeNoNormal(edge) => {
+            target_vocabulary::CallSiteOwner::InvokeNoNormal(edge) => {
                 semantic_vocabulary::InvocationSite::InvokeNoNormal(edge)
             }
-            target_operations::CallSiteOwner::ExternalCompletion(edge) => {
+            target_vocabulary::CallSiteOwner::ExternalCompletion(edge) => {
                 semantic_vocabulary::InvocationSite::ExternalCompletion(edge)
             }
-            _ => return Err(invalid()),
+            target_vocabulary::CallSiteOwner::CleanupAction {
+                edge,
+                action_ordinal,
+            } => {
+                let site = semantic_vocabulary::InvocationSite::Cleanup {
+                    edge,
+                    action_ordinal,
+                };
+                if input_site::cleanup_call(source, site) != Some(call) {
+                    return Err(invalid());
+                }
+                site
+            }
         };
         if source.call_plan.policy != CallingPolicy::native_for_target(environment.target()) {
             return Err(invalid());
@@ -1668,11 +1880,11 @@ pub(crate) fn validate(
     }
     if no_normal {
         let declared_result = match owner {
-            target_operations::CallSiteOwner::Installation {
-                role: target_operations::InstallationCallRole::Work,
+            target_vocabulary::CallSiteOwner::Installation {
+                role: target_vocabulary::InstallationCallRole::Work,
                 ..
             } => &native_vocabulary::values::AbstractFunctionResult::Unit,
-            target_operations::CallSiteOwner::InvokeNoNormal(edge) => input_site::no_normal_result(
+            target_vocabulary::CallSiteOwner::InvokeNoNormal(edge) => input_site::no_normal_result(
                 source,
                 semantic_vocabulary::InvocationSite::InvokeNoNormal(edge),
                 call,

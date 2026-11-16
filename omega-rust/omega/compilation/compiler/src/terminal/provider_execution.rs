@@ -214,7 +214,7 @@ pub fn prepare_provider_execution_inputs(
                         .evaluate(instance, profile, signature, &[], requester, authority)
                         .map_err(refuse)?;
                     let application = signature
-                        .native_application_with_owner(&plan, 0, owner)
+                        .native_application_with_owner(&plan, None, owner)
                         .map_err(refuse)?;
                     if let Some(previous) = calling_applications.iter().find(
                         |previous: &&calling_conventions::BoundaryCallingApplication| {

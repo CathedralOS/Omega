@@ -5,7 +5,7 @@ A record-typed expression is storage and goes to `places`.
 */
 
 use crate::body::Qualification;
-use semantic_vocabulary::{IntegerSign, ObligationId, OperationId, ScalarType, ValueId};
+use semantic_vocabulary::{ObligationId, OperationId, ScalarType, ValueId};
 use terminal_check_tables::obligations::ObligationKind;
 use terminal_check_tables::values::ValueOrigin;
 use terminal_check_tables::{Checked, Construct, ProgramPoint};
@@ -129,11 +129,33 @@ impl Lowering<'_> {
     }
 
     pub(super) fn expression(&mut self, expression: &Expression) -> Evaluation<Value> {
-        let evaluated = self.expression_inner(expression)?;
+        let mut evaluated = self.expression_inner(expression)?;
         if let Reached::Value(Value::Scalar(value)) = evaluated
-            && let Some(ValueType::Scalar(_, qualification)) = expression.result
+            && let Some(ValueType::Scalar(carrier, qualification)) = expression.result
         {
+            // Core operator implementations compute on stored integer values
+            // and establish their declared result policy through the ordinary
+            // cast mechanism. A primitive operation cannot mint a domain,
+            // whether it is one instruction or a composed saturating shift.
+            let value = if !qualification.is_none()
+                && matches!(
+                    expression.kind,
+                    ExpressionKind::Strict { .. } | ExpressionKind::BitwiseNot(_)
+                ) {
+                self.qualify(value, Qualification::NONE)?;
+                self.establish_predicates(
+                    value,
+                    carrier,
+                    qualification,
+                    &[],
+                    None,
+                    expression.source,
+                )?
+            } else {
+                value
+            };
             self.qualify(value, qualification)?;
+            evaluated = Reached::Value(Value::Scalar(value));
         }
         Ok(evaluated)
     }
@@ -283,7 +305,7 @@ impl Lowering<'_> {
             ExpressionKind::ByteElement { base, index } => {
                 self.read_byte_element(base, index, source)
             }
-            ExpressionKind::CollectionSubslice { .. } | ExpressionKind::ArrayView { .. } => {
+            ExpressionKind::CollectionSubslice { .. } | ExpressionKind::CollectionView { .. } => {
                 Err(self.internal("a byte descriptor is used as a scalar"))
             }
             ExpressionKind::Payload { base, case, field } => {
@@ -441,8 +463,8 @@ impl Lowering<'_> {
     /// Wrapping shift reduces its count and is total. What each one owes is
     /// Terminal semantics' to say (`integer_policy_bridge`); this names the
     /// operation and mints the obligation the operation carries. A
-    /// Saturating right shift shares the Exact count proof and result.
-    /// Saturating left shift additionally needs the clamp operation.
+    /// Saturating shift keeps the Exact count proof while selecting its
+    /// clamped value through the shared primitive computation.
     fn policy_operation(
         &mut self,
         strict: Strict,
@@ -464,6 +486,30 @@ impl Lowering<'_> {
                 self.current.map_or(Construct::Machine, Construct::Block),
                 Unserved::Expression("policy arithmetic at a parameter width"),
             ));
+        }
+        if policy == Policy::Saturating && crate::policy::shifts(strict) {
+            let carrier = result
+                .and_then(|scalar| scalar.as_integer())
+                .ok_or_else(|| self.internal("a saturating shift has no integer result"))?;
+            if strict == Strict::ShiftRight {
+                return self.strict(
+                    strict,
+                    ScalarType::Integer(carrier),
+                    left,
+                    right,
+                    result,
+                    source,
+                );
+            }
+            let closed = carrier
+                .try_into()
+                .map_err(|_| self.internal("a saturating shift has no closed carrier"))?;
+            let mut computation = IntegerOperations {
+                lowering: self,
+                source,
+            };
+            return crate::policy::saturating_shift_left(&mut computation, closed, left, right)
+                .map(Value::Scalar);
         }
         let operation = self.operation_identity(source);
         // The total operations are the ones a clause's term names too.
@@ -492,11 +538,6 @@ impl Lowering<'_> {
             (Strict::Remainder, Policy::Saturating) => OperationKind::SaturatingIntegerRemainder {
                 left,
                 right,
-                obligation: self.safety(operation, source)?,
-            },
-            (Strict::ShiftRight, Policy::Saturating) => OperationKind::ExactIntegerShiftRight {
-                value: left,
-                count: right,
                 obligation: self.safety(operation, source)?,
             },
             // The reader gives no other operation a policy-qualified result,
@@ -589,109 +630,6 @@ impl Lowering<'_> {
         )
     }
 
-    /// Clamp a left shift using the bounds of the original value. Shifting
-    /// the upper bound right proves the count before the wrapping primitive
-    /// computes the low bits. For a signed carrier, its lower bound is the
-    /// complement of the upper bound, and arithmetic right shift preserves
-    /// that relation. This keeps the full count and the original semantic width.
-    fn saturating_shift_left(
-        &mut self,
-        value: ValueId,
-        count: ValueId,
-        result: ValueType,
-        source: SourceOrigin,
-    ) -> Checked<Value> {
-        let Some(carrier @ ScalarType::Integer(integer)) = result.scalar() else {
-            return Err(self.internal("a saturating shift has no integer carrier"));
-        };
-        let maximum = integer.maximum_value().ok_or_else(|| {
-            refuse(
-                self.id,
-                self.current.map_or(Construct::Machine, Construct::Block),
-                Unserved::Expression("policy arithmetic at a parameter width"),
-            )
-        })?;
-        let limit = self.emit_scalar(
-            carrier,
-            OperationKind::IntegerConstant { value: maximum },
-            source,
-        )?;
-        let Value::Scalar(upper) = self.strict(
-            Strict::ShiftRight,
-            carrier,
-            limit,
-            count,
-            Some(carrier),
-            source,
-        )?
-        else {
-            return Err(self.internal("an integer shift produces no value"));
-        };
-        let shifted = self.emit_scalar(
-            carrier,
-            OperationKind::WrappingIntegerShiftLeft { value, count },
-            source,
-        )?;
-        let above = self.emit_scalar(
-            ScalarType::Boolean,
-            OperationKind::IntegerLessThan {
-                left: upper,
-                right: value,
-            },
-            source,
-        )?;
-        let mut clamped = self.choose_scalar(above, limit, shifted, carrier, source)?;
-
-        if integer.sign() == IntegerSign::Signed {
-            let lower = self.emit_scalar(
-                carrier,
-                OperationKind::IntegerBitwiseNot { operand: upper },
-                source,
-            )?;
-            let minimum = integer.minimum_value().expect("closed integer carrier");
-            let minimum = self.emit_scalar(
-                carrier,
-                OperationKind::IntegerConstant { value: minimum },
-                source,
-            )?;
-            let below = self.emit_scalar(
-                ScalarType::Boolean,
-                OperationKind::IntegerLessThan {
-                    left: value,
-                    right: lower,
-                },
-                source,
-            )?;
-            clamped = self.choose_scalar(below, minimum, clamped, carrier, source)?;
-        }
-
-        if !result.qualification().is_none() {
-            self.qualify(clamped, Qualification::NONE)?;
-            clamped = self.establish_predicates(
-                clamped,
-                carrier,
-                result.qualification(),
-                &[],
-                None,
-                source,
-            )?;
-        }
-        Ok(Value::Scalar(clamped))
-    }
-
-    fn emit_scalar(
-        &mut self,
-        carrier: ScalarType,
-        kind: OperationKind,
-        source: SourceOrigin,
-    ) -> Checked<ValueId> {
-        let operation = self.operation_identity(source);
-        match self.emit(operation, Some(carrier), kind)? {
-            Value::Scalar(value) => Ok(value),
-            _ => Err(self.internal("a scalar operation produces no scalar value")),
-        }
-    }
-
     /// Body expressions and ranking observations use the same selected
     /// arithmetic policy. Reconstructing an observation must not turn a
     /// wrapping or saturating operation into exact arithmetic.
@@ -715,16 +653,7 @@ impl Lowering<'_> {
             None => None,
             _ => return Err(self.internal("a strict operation has a non-scalar result")),
         };
-        if (*operation, *policy) == (Strict::ShiftLeft, Some(Policy::Saturating)) {
-            self.saturating_shift_left(
-                left,
-                right,
-                expression
-                    .result
-                    .ok_or_else(|| self.internal("a shift has no result type"))?,
-                expression.source,
-            )
-        } else if let Some(policy) = policy {
+        if let Some(policy) = policy {
             self.policy_operation(*operation, *policy, left, right, result, expression.source)
         } else {
             self.strict(
@@ -829,5 +758,67 @@ impl Lowering<'_> {
             result,
             OperationKind::BooleanNot { operand: equal },
         )
+    }
+}
+
+/// Realize the same primitive computation that defines a saturating shift's
+/// contract term. Each partial node gets the existing safety obligation.
+struct IntegerOperations<'a, 'program> {
+    lowering: &'a mut Lowering<'program>,
+    source: SourceOrigin,
+}
+
+impl crate::policy::IntegerComputation for IntegerOperations<'_, '_> {
+    type Value = ValueId;
+    type Error = terminal_check_tables::Refusal;
+
+    fn constant(
+        &mut self,
+        carrier: semantic_vocabulary::IntegerType,
+        value: semantic_vocabulary::IntegerValue,
+    ) -> Checked<ValueId> {
+        let operation = self.lowering.operation_identity(self.source);
+        let value = self.lowering.emit(
+            operation,
+            Some(ScalarType::Integer(carrier)),
+            OperationKind::IntegerConstant { value },
+        )?;
+        match value {
+            Value::Scalar(value) => Ok(value),
+            _ => Err(self
+                .lowering
+                .internal("an integer constant has no scalar result")),
+        }
+    }
+
+    fn binary(
+        &mut self,
+        operation: Strict,
+        policy: Option<Policy>,
+        carrier: semantic_vocabulary::IntegerType,
+        left: ValueId,
+        right: ValueId,
+    ) -> Checked<ValueId> {
+        let scalar = ScalarType::Integer(carrier);
+        let value = match policy {
+            Some(policy) => self.lowering.policy_operation(
+                operation,
+                policy,
+                left,
+                right,
+                Some(scalar),
+                self.source,
+            )?,
+            None => {
+                self.lowering
+                    .strict(operation, scalar, left, right, Some(scalar), self.source)?
+            }
+        };
+        match value {
+            Value::Scalar(value) => Ok(value),
+            _ => Err(self
+                .lowering
+                .internal("an integer computation has no scalar result")),
+        }
     }
 }

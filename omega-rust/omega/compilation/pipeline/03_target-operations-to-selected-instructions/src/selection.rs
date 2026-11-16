@@ -15,13 +15,14 @@ pub(crate) mod atomic_access {
     };
     use legalized_operations::{LegalizedScalarInstruction, LegalizedScalarInstructionKind};
     use selected_instructions::AtomicForm;
-    use semantic_vocabulary::ScalarType;
+    use semantic_vocabulary::{ClosedScalarType, ScalarType};
     use terminal_psi::StructuralAccess;
 
+    /// The access form, the cell's geometry and its closed logical type.
     pub(crate) fn form(
         source: &crate::native_geometry::NativeFunction<'_>,
         row: &LegalizedScalarInstruction,
-    ) -> Option<(AtomicForm, PrimitiveAccessGeometry, ScalarType)> {
+    ) -> Option<(AtomicForm, PrimitiveAccessGeometry, ClosedScalarType)> {
         let LegalizedScalarInstructionKind::AtomicAccess {
             location,
             scalar_type,
@@ -59,7 +60,7 @@ pub(crate) mod atomic_access {
                         .iter()
                         .find(|row| row.id == result.structural_type)
                         .and_then(|row| {
-                            target_operations::conventional_atomic_once_layout_closed(
+                            target_vocabulary::conventional_atomic_once_layout_closed(
                                 row,
                                 *scalar_type,
                                 custody,
@@ -75,15 +76,20 @@ pub(crate) mod atomic_access {
             &location.path,
         )?;
         let logical_type = cell.scalar_type();
-        if target_operations::operations::atomic_storage_integer_type_closed(
-            *event,
-            source.closed_scalar(logical_type)?,
-        )?
-        .as_checking()
-            != scalar_type.as_checking()
+        // Preparation closed the cell's storage integer. A Boolean cell keeps
+        // its own type; every other atomic cell's logical type is that same
+        // integer, so the declaration must name it.
+        let closed_logical = if logical_type == ScalarType::Boolean {
+            ClosedScalarType::Boolean
+        } else {
+            ClosedScalarType::Integer(*scalar_type)
+        };
+        if closed_logical.as_checking() != logical_type
+            || target_vocabulary::atomic_storage_integer_type_closed(*event, closed_logical)?
+                != *scalar_type
             || row
                 .result
-                .is_some_and(|result| result.scalar_type.as_checking() != logical_type)
+                .is_some_and(|result| result.scalar_type != closed_logical)
         {
             return None;
         }
@@ -91,7 +97,7 @@ pub(crate) mod atomic_access {
         (geometry.byte_offset == *field_byte_offset
             && geometry.byte_size == u32::from(form.width.bytes())
             && geometry.byte_offset % geometry.byte_size == 0)
-            .then_some((form, geometry, logical_type))
+            .then_some((form, geometry, closed_logical))
     }
 }
 pub(crate) mod block_order {
@@ -593,7 +599,7 @@ pub(crate) mod constraints {
         machine: semantic_vocabulary::MachineId,
         source_value: semantic_vocabulary::ValueId,
         parameter_index: usize,
-        register: target_operations::MachineRegister,
+        register: target_vocabulary::MachineRegister,
         inputs: &[SelectedFixedInputConstraint],
     ) -> Option<&SelectedFixedInputConstraint> {
         let mut matches = inputs.iter().filter(|input| {
@@ -674,15 +680,11 @@ pub(crate) mod construction {
         environment: &register_environment::ValidatedTargetRegisterEnvironment,
     ) -> Result<SelectedInstructionPlan, SelectedInstructionError> {
         let target = legalized.plan();
-        let closed_types = &target.retained_integers;
         if target.target != environment.target() {
             return Err(SelectedInstructionError::custody());
         }
         let catalog = environment.constraints();
         require_key_rows(&constraints.keys, catalog)?;
-        let interrupt_helpers = crate::installed_interrupts::PreparedHelperCohort::new(
-            legalized.installed_interrupts(),
-        );
         let native_geometry = crate::native_geometry::NativeGeometries::new(
             target.scalar_functions.iter().map(|source| {
                 source
@@ -700,7 +702,6 @@ pub(crate) mod construction {
         let backings = super::foreign_scalar_backings::ForeignScalarBackings::new(
             target,
             &native_geometry,
-            closed_types,
             legalized.callable_invocations(),
         )?;
         let mut functions = target
@@ -711,7 +712,6 @@ pub(crate) mod construction {
                 scalar_graph::build_with_environment(
                     index,
                     source,
-                    closed_types,
                     native_geometry
                         .get(
                             source
@@ -726,15 +726,15 @@ pub(crate) mod construction {
                     constraints,
                     environment,
                     &backings,
-                    legalized.installed_interrupts(),
-                    legalized.installed_stack_requirements(),
-                    &interrupt_helpers,
-                    legalized.installed_entry_execution(),
+                    legalized.installations(),
                 )
             })
             .collect::<Result<Vec<_>, _>>()?;
         functions.sort_by_key(|function| function.machine);
         Ok(SelectedInstructionPlan {
+            contracts: std::sync::Arc::new(selected_instructions::SelectedProgramContracts {
+                borrowed_storage_layouts: target.borrowed_storage_layouts.clone(),
+            }),
             psi: target.psi,
             work_schedule: target.work_schedule,
             target: target.target,
@@ -946,7 +946,6 @@ pub(crate) mod field_bytes {
                 let function = LegalizedScalarFunction {
                     machine: MachineId::new(1).unwrap(),
                     attachment: None,
-                    nominal_cleanup_subject: None,
                     provenance: Default::default(),
                     call_plan: call_plan.clone(),
                     parameters: Vec::new(),
@@ -964,7 +963,7 @@ pub(crate) mod field_bytes {
                                 projected_qualifications: Vec::new(),
                                 additional_input_qualifications: Vec::new(),
                             },
-                            target: target_operations::TargetStructuralParameter {
+                            target: target_vocabulary::TargetStructuralParameter {
                                 place,
                                 structural_type,
                                 multiplicity: StructuralMultiplicity::Unrestricted,
@@ -1010,7 +1009,6 @@ pub(crate) mod foreign_scalar_backings {
 
     pub(crate) struct ForeignScalarBackings<'program> {
         program: &'program LegalizedOperationPlan,
-        closed_types: &'program legalized_operations::RetainedIntegerTypes,
         geometries: &'program crate::native_geometry::NativeGeometries<'program>,
         incoming: BTreeMap<MachineId, Vec<(usize, &'program LegalizedScalarCall)>>,
         opaque_ingress: BTreeSet<MachineId>,
@@ -1028,12 +1026,10 @@ pub(crate) mod foreign_scalar_backings {
         pub(crate) fn new(
             program: &'program LegalizedOperationPlan,
             geometries: &'program crate::native_geometry::NativeGeometries<'program>,
-            closed_types: &'program legalized_operations::RetainedIntegerTypes,
             callable_invocations: &'program terminal_semantics::callable_values::ReachableCallableInvocations,
         ) -> Result<Self, SelectedInstructionError> {
             let mut context = Self {
                 program,
-                closed_types,
                 geometries,
                 incoming: BTreeMap::new(),
                 opaque_ingress: BTreeSet::from([program.entry]),
@@ -1045,7 +1041,7 @@ pub(crate) mod foreign_scalar_backings {
                     if let I::Call(call) = &instruction.kind {
                         context.retain_call(
                             position,
-                            target_operations::CallSiteOwner::Operation(instruction.operation),
+                            target_vocabulary::CallSiteOwner::Operation(instruction.operation),
                             call,
                         )?;
                     }
@@ -1054,7 +1050,7 @@ pub(crate) mod foreign_scalar_backings {
                     if let T::InvokeNoNormal { psi_edge, call, .. } = &block.terminator {
                         context.retain_call(
                             position,
-                            target_operations::CallSiteOwner::InvokeNoNormal(*psi_edge),
+                            target_vocabulary::CallSiteOwner::InvokeNoNormal(*psi_edge),
                             call,
                         )?;
                     }
@@ -1069,45 +1065,45 @@ pub(crate) mod foreign_scalar_backings {
         fn retain_call(
             &mut self,
             caller: usize,
-            owner: target_operations::CallSiteOwner,
+            owner: target_vocabulary::CallSiteOwner,
             call: &'program LegalizedScalarCall,
         ) -> Result<(), SelectedInstructionError> {
             match call.target {
-                target_operations::NativeCallTarget::Machine(callee) => {
+                target_vocabulary::NativeCallTarget::Machine(callee) => {
                     self.incoming
                         .entry(callee)
                         .or_default()
                         .push((caller, call));
                 }
-                target_operations::NativeCallTarget::Callable { callee, contract } => {
+                target_vocabulary::NativeCallTarget::Callable { callee, contract } => {
                     use terminal_semantics::callable_values::{
                         CallableInvocationSite, CallableInvocationTarget,
                     };
                     let machine = self.program.scalar_functions[caller].machine;
                     let site = match owner {
-                        target_operations::CallSiteOwner::Operation(operation) => {
+                        target_vocabulary::CallSiteOwner::Operation(operation) => {
                             CallableInvocationSite::Invocation(
                                 semantic_vocabulary::InvocationSite::Operation(operation),
                             )
                         }
-                        target_operations::CallSiteOwner::InvokeNoNormal(edge) => {
+                        target_vocabulary::CallSiteOwner::InvokeNoNormal(edge) => {
                             CallableInvocationSite::Invocation(
                                 semantic_vocabulary::InvocationSite::InvokeNoNormal(edge),
                             )
                         }
-                        target_operations::CallSiteOwner::ExternalCompletion(edge) => {
+                        target_vocabulary::CallSiteOwner::ExternalCompletion(edge) => {
                             CallableInvocationSite::Invocation(
                                 semantic_vocabulary::InvocationSite::ExternalCompletion(edge),
                             )
                         }
-                        target_operations::CallSiteOwner::CleanupAction {
+                        target_vocabulary::CallSiteOwner::CleanupAction {
                             edge,
                             action_ordinal,
                         } => CallableInvocationSite::CleanupAction {
                             edge,
                             action_ordinal,
                         },
-                        target_operations::CallSiteOwner::Installation { .. } => {
+                        target_vocabulary::CallSiteOwner::Installation { .. } => {
                             return Err(SelectedInstructionError::custody_because(
                                 "installed operation cannot impersonate a callable source invocation",
                             ));
@@ -1143,7 +1139,7 @@ pub(crate) mod foreign_scalar_backings {
                             .push((caller, call));
                     }
                 }
-                target_operations::NativeCallTarget::Dynamic { .. } => {
+                target_vocabulary::NativeCallTarget::Dynamic { .. } => {
                     self.opaque_ingress.extend(
                         self.program
                             .scalar_functions
@@ -1199,11 +1195,7 @@ pub(crate) mod foreign_scalar_backings {
                             "foreign backing query lost its prepared native geometry",
                         )
                     })?;
-                let function = &crate::native_geometry::NativeInput::with_types(
-                    function,
-                    geometry,
-                    self.closed_types,
-                );
+                let function = &crate::native_geometry::NativeInput::new(function, geometry);
                 let Some(origins) = super::storage_origin_input::scalar_storage_origins(
                     function,
                     &coordinates[cursor].source,

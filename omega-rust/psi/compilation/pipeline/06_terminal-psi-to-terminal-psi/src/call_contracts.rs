@@ -29,7 +29,7 @@ pub(crate) struct Inputs<'a> {
 }
 
 impl<'a> Inputs<'a> {
-    fn declared(
+    pub(crate) fn declared(
         inputs: terminal_psi::ModuleInvocationInputs<
             'a,
             semantic_vocabulary::TargetMachineCallable,
@@ -333,6 +333,30 @@ pub(crate) fn inputs_at(
                     .declared_invocation()
                     .filter(|(candidate, _)| *candidate == site)
                     .map(|(_, inputs)| Inputs::declared(inputs)),
+            )
+            .chain(
+                block
+                    .terminator
+                    .cleanup_rosters()
+                    .filter_map(|(edge, actions)| {
+                        let InvocationSite::Cleanup {
+                            edge: requested,
+                            action_ordinal,
+                        } = site
+                        else {
+                            return None;
+                        };
+                        if edge != requested {
+                            return None;
+                        }
+                        let action = actions.get(usize::try_from(action_ordinal).ok()?)?;
+                        let terminal_psi::TerminalAffineCleanupAction::InvokeOwned(cleanup) =
+                            action
+                        else {
+                            return None;
+                        };
+                        Some(Inputs::declared(crate::owned_cleanup::inputs(cleanup)))
+                    }),
             )
     });
     let first = inputs.next();

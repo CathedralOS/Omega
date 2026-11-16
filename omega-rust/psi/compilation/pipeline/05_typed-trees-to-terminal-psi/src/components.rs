@@ -179,6 +179,7 @@ fn statements<'body>(statements: &'body [Statement], sites: &mut Vec<CallSite<'b
     for statement in statements {
         match statement {
             Statement::Bind { value, .. }
+            | Statement::Decompose { subject: value }
             | Statement::Evaluate {
                 expression: value, ..
             } => expression(value, false, sites),
@@ -277,7 +278,7 @@ fn expression<'body>(value: &'body Expression, terminal: bool, sites: &mut Vec<C
         | ExpressionKind::Referent(operand)
         | ExpressionKind::Establish { operand, .. }
         | ExpressionKind::Field { base: operand, .. }
-        | ExpressionKind::ArrayView { base: operand, .. }
+        | ExpressionKind::CollectionView { base: operand, .. }
         | ExpressionKind::CollectionMeasure { base: operand, .. }
         | ExpressionKind::Payload { base: operand, .. }
         | ExpressionKind::IsCase {

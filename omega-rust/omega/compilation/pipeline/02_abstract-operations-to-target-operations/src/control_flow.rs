@@ -1442,24 +1442,23 @@ mod terminator {
                         &discard.path,
                     )?;
                 }
-                TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
-                    if owned_root_type(live, function, cleanup.place)
-                        .and_then(|root| structural_types.subtree(root, &cleanup.path))
+                TerminalAffineCleanupAction::InvokeOwned(cleanup) => {
+                    if owned_root_type(live, function, cleanup.subject.place)
+                        .and_then(|root| structural_types.subtree(root, &cleanup.subject.path))
                         != Some(cleanup.structural_type)
-                        || !cleanup.requirement_obligations.is_empty()
                     {
                         return Err(LoweringError::InvalidStructuralValueInput {
                             machine: function.machine,
-                            place: cleanup.place,
-                            reason: "nominal cleanup receiver or requirement obligations are not realized",
+                            place: cleanup.subject.place,
+                            reason: "owned cleanup subject differs from the current storage subtree",
                         });
                     }
                     super::references::discard_subtree(
                         function,
                         structural_types,
                         live,
-                        cleanup.place,
-                        &cleanup.path,
+                        cleanup.subject.place,
+                        &cleanup.subject.path,
                     )?;
                 }
             }
@@ -2070,6 +2069,7 @@ mod terminator {
                 copyable: true,
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: false,
+                nominal_cleanup: None,
                 shape: StructuralTypeShape::Record {
                     fields: Vec::new(),
                     storage: terminal_psi::StructuralRecordStorage::Packed,
@@ -2999,7 +2999,7 @@ pub(crate) fn lower(
                         TerminalAffineCleanupAction::DiscardRoot(_)
                             | TerminalAffineCleanupAction::RetireHome(_)
                             | TerminalAffineCleanupAction::DiscardResidual(_)
-                            | TerminalAffineCleanupAction::InvokeNominal(_)
+                            | TerminalAffineCleanupAction::InvokeOwned(_)
                     )
                 }) =>
             {
@@ -3425,7 +3425,6 @@ pub(crate) fn lower(
     Ok(TargetFunction {
         machine: function.machine,
         attachment: function.attachment,
-        nominal_cleanup_subject: function.nominal_cleanup_subject,
         scalar_abi: None,
         mixed_structural_scalar_abi: None,
         structural_contract: None,

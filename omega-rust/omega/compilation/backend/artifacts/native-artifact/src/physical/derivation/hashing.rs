@@ -129,6 +129,14 @@ pub(crate) fn hash_boundary_settlement_record(
             digest.byte(2);
             digest.raw(&edge.get().to_le_bytes());
         }
+        semantic_vocabulary::InvocationSite::Cleanup {
+            edge,
+            action_ordinal,
+        } => {
+            digest.byte(3);
+            digest.raw(&edge.get().to_le_bytes());
+            digest.raw(&action_ordinal.to_le_bytes());
+        }
     }
     digest.raw(&settlement.boundary.get().to_le_bytes());
     match settlement.execution {

@@ -303,23 +303,31 @@ fn a_witness_form_the_route_does_not_rank_is_refused_by_name() {
         )
     };
     let scalars = "remaining: u64, limit: u64";
-    for (measure, detail) in [
-        // A rank range: its lower bound would be the floor.
-        (
-            "remaining -> Nat::Descending in 0..=16",
-            "contract ranking view arguments and bounded ranges",
+    // A rank range: its lower bound would be the floor.
+    assert_eq!(
+        refused(&looping(scalars, "remaining -> Nat::Descending in 0..=16")),
+        "contract ranking view arguments and bounded ranges while reading the body of `spend`",
+    );
+    // A pair is ranked, not refused: termination.md, "Ranking", reads
+    // `(cursor, limit)` as the distance from cursor to limit. Counting
+    // `remaining` down widens that distance, so the comparison at the
+    // recursive call is the one thing left unproved. The distance is a
+    // saturating subtraction, a form the rules do not decide
+    // (`prove::reach::within_rules`), so the verdict is `Incomplete`.
+    let pair = looping(scalars, "(remaining, limit)");
+    match judged(&pair) {
+        RouteVerdict::Incomplete(unproved) => assert!(
+            matches!(
+                unproved.as_slice(),
+                [UnprovedObligation {
+                    kind: ObligationKind::RankComparison { .. },
+                    cause: terminal_check_tables::UnprovedCause::NoRuleForGoalForm,
+                    ..
+                }]
+            ),
+            "{unproved:#?}"
         ),
-        // The selected natural view takes one subject.
-        (
-            "(remaining, limit)",
-            "contract ranking view has no normalized integer relation",
-        ),
-    ] {
-        assert_eq!(
-            refused(&looping(scalars, measure)),
-            format!("{detail} while reading the body of `spend`"),
-            "{measure}"
-        );
+        verdict => panic!("the pair must be ranked and left unproved: {verdict:?}\n{pair}"),
     }
     // A signed subject: `Nat::Descending` is declared for unsigned values.
     assert_eq!(

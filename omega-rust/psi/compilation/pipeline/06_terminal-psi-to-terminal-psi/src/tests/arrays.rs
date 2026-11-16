@@ -11,6 +11,7 @@ fn array_types() -> IdTable<StructuralTypeId, RecordType> {
         authored_layout: false,
         owns_linear_claim: false,
         copyable: true,
+        cleanup: None,
         identity: "u32-storage".into(),
         shape: StorageShape::PrimitiveScalar {
             scalar_type: u32_type(),
@@ -23,6 +24,7 @@ fn array_types() -> IdTable<StructuralTypeId, RecordType> {
             authored_layout: false,
             owns_linear_claim: false,
             copyable: true,
+            cleanup: None,
             identity: identity.into(),
             shape: StorageShape::FixedArray {
                 element: id(element),
@@ -233,6 +235,7 @@ fn an_indexed_match_reuses_its_captured_selector_in_the_arm() {
         authored_layout: false,
         owns_linear_claim: false,
         copyable: true,
+        cleanup: None,
         identity: "Item".into(),
         shape: StorageShape::Sum(vec![
             CaseType {
@@ -257,6 +260,7 @@ fn an_indexed_match_reuses_its_captured_selector_in_the_arm() {
         authored_layout: false,
         owns_linear_claim: false,
         copyable: true,
+        cleanup: None,
         identity: "Items".into(),
         shape: StorageShape::FixedArray {
             element: id(5),
@@ -345,6 +349,7 @@ fn an_array_move_vacates_only_its_exact_element() {
         authored_layout: false,
         owns_linear_claim: false,
         copyable: false,
+        cleanup: None,
         identity: "OwnedElement".into(),
         shape: StorageShape::Record(vec![RecordField {
             id: id(1),
@@ -358,6 +363,7 @@ fn an_array_move_vacates_only_its_exact_element() {
         authored_layout: false,
         owns_linear_claim: false,
         copyable: false,
+        cleanup: None,
         identity: "OwnedElements".into(),
         shape: StorageShape::FixedArray {
             element: id(1),

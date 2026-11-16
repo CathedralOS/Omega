@@ -96,6 +96,7 @@ use crate::{StorageUse, refusal};
 
 mod byte_payloads;
 mod byte_views;
+mod cleanup;
 mod contents;
 mod loans;
 mod log;
@@ -686,6 +687,7 @@ enum Touching<'a> {
 
 /// One operation or terminator that reads storage or names a case payload.
 struct Touch<'a> {
+    cleanup: Option<(EdgeId, u32)>,
     /// The operation, or for a terminator its edge or block.
     at: Construct,
     block: BlockId,
@@ -739,6 +741,7 @@ pub(crate) struct Storage<'a> {
     /// Bound actual operations and structural edge bindings once per machine.
     reaching_budget: usize,
     log: Vec<Logged>,
+    cleanup_writes: Vec<crate::owned_cleanup::Write>,
     observations: Vec<BTreeMap<Lineage, Vec<Observation>>>,
     /// The `requires` clauses of each data type, by its identity
     /// (`Elaboration::domains`).
@@ -786,6 +789,7 @@ impl<'a> Storage<'a> {
             returned_contents: contents.calls,
             reaching_budget,
             log: Vec::new(),
+            cleanup_writes: Vec::new(),
             observations: (0..graph.block_count()).map(|_| BTreeMap::new()).collect(),
             domains,
         };
@@ -793,7 +797,9 @@ impl<'a> Storage<'a> {
         // operation loop appends reads in position order for binary search.
         storage.initial_contents_are_declared(references, tables)?;
         storage.log = storage.stores(references, value_types)?;
+        storage.cleanup_writes = crate::owned_cleanup::writes(module, lowered, references)?;
         storage.log_is_stated(tables)?;
+        storage.cleanup_log_is_stated(tables)?;
         // Compare the authored log first. Then every write uses the same
         // captured backing relation as reads and loan compatibility.
         let relocated = storage
@@ -1269,6 +1275,12 @@ impl<'a> Storage<'a> {
                     .ok_or_else(|| self.foreign(concerns, "a call has no point before it"))?;
                 (block, before)
             }
+            InvocationSite::Cleanup { .. } => {
+                return Err(self.unsupported(
+                    concerns,
+                    "cleanup call requires its exact owner-prestate adapter",
+                ));
+            }
             InvocationSite::InvokeNoNormal(edge) | InvocationSite::ExternalCompletion(edge) => {
                 let (block, _) = self.graph.locate(ProgramPoint::Edge(edge))?;
                 (block, self.block(block)?.operations.len())
@@ -1534,9 +1546,11 @@ impl<'a> Storage<'a> {
         owner: &Owner,
         block: BlockId,
         up_to: usize,
+        point: ProgramPoint,
         concerns: Construct,
     ) -> Checked<Proposition> {
         let mut bindings = Held {
+            point: Some(point),
             storage: self,
             references,
             tables,
@@ -1571,7 +1585,15 @@ impl<'a> Storage<'a> {
     ) -> Checked<Proposition> {
         let owner = self.owner(operation, clause, concerns)?;
         let (block, after) = self.graph.locate(ProgramPoint::AfterOperation(operation))?;
-        self.stated(references, tables, &owner, block, after, concerns)
+        self.stated(
+            references,
+            tables,
+            &owner,
+            block,
+            after,
+            ProgramPoint::AfterOperation(operation),
+            concerns,
+        )
     }
 
     /// Whether a store writes no storage that a clause reads, so that the
@@ -2214,6 +2236,19 @@ impl<'a> Storage<'a> {
                 {
                     return self.collection_index_goal(operation, types);
                 }
+                if let OperationKind::EstablishElementView {
+                    region:
+                        terminal_psi::ElementViewRegion::WholeRepresentation {
+                            obligation: owned, ..
+                        },
+                    ..
+                } = &operation.kind
+                {
+                    if *owned != obligation {
+                        return Err(self.foreign(concerns, "a re-view owns another obligation"));
+                    }
+                    return self.representation_count_goal(operation);
+                }
                 operation.kind.structural_projections()
             }
             ExecutionSite::Block(id) => self.block(id)?.terminator.storage_uses(),
@@ -2817,6 +2852,16 @@ impl<'a> Storage<'a> {
         if let Some(key) = key {
             budget.keys.insert(key, address);
         }
+        // A real cleanup epoch can end this observation before operation
+        // stores do. Feed that result into the same equation graph so shared
+        // copy traces and initialization still use the ordinary solver.
+        if up_to >= self.block(block)?.operations.len()
+            && let Some(point) = budget.used
+            && let Some(changed) = self.cleanup_at_point(asked, block, point)?
+        {
+            budget.add_supply(address, Supply::Direct(changed));
+            return Ok(Supply::transfer(address).within(projection));
+        }
         // The limit still bounds walks whose projected source keeps changing.
         // Alternative arrivals start with the same remaining depth.
         let remaining = budget.remaining;
@@ -3034,6 +3079,10 @@ impl<'a> Storage<'a> {
                         continue;
                     }
                     asked_of.push(*predecessor);
+                    if let Some(changed) = self.cleanup_arrival(asked, *predecessor, block)? {
+                        budget.add_supply(address, Supply::Direct(changed));
+                        continue;
+                    }
                     if let Asked::Case(sum) = asked
                         && let Some(selected) =
                             self.edge_selects(tables, sum, *predecessor, block, concerns)?
@@ -3208,7 +3257,10 @@ impl<'a> Storage<'a> {
     ///   the read equation names that value, so a store that broke the
     ///   clause can never lend it to a later read.
     /// - The clause names that one leaf and no other. A clause that relates
-    ///   it to a sibling cannot be stated on one read's value, and a case
+    ///   it to a sibling cannot be stated on one read's value; it is known
+    ///   instead of the values the record arrived with
+    ///   (`Storage::entry_type_premises`), which the read equation reaches
+    ///   while no store intervenes. A case
     ///   the clause tests must be established at `at` by structure, on the
     ///   place the observation goes through (a copy of what arrived, or
     ///   the place it arrived in): by a construction, a dominating true
@@ -3312,6 +3364,7 @@ impl<'a> Storage<'a> {
             for clause in self.clauses_of(structural_type, concerns)? {
                 let mut bindings = Observed {
                     held: Held {
+                        point: None,
                         storage: self,
                         references,
                         tables,
@@ -3470,7 +3523,8 @@ impl<'a> Storage<'a> {
             OperationKind::StructuralLeafCopy { source, path } => {
                 Ok(vec![self.stored_at(*source, path, concerns)?])
             }
-            OperationKind::EstablishReference { source, .. } => {
+            OperationKind::DecomposeStructuralValue { subject: source }
+            | OperationKind::EstablishReference { source, .. } => {
                 Ok(vec![self.argument(source, concerns)?])
             }
             OperationKind::ReleaseReference { source, path } => {
@@ -3630,6 +3684,9 @@ impl<'a> Storage<'a> {
         {
             changes.push(StorageEffect::Storage(self.argument(argument, concerns)?));
         }
+        if let OperationKind::DecomposeStructuralValue { subject } = &operation.kind {
+            changes.push(StorageEffect::Storage(self.argument(subject, concerns)?));
+        }
         if let OperationKind::StoreStructuralField { value, .. } = &operation.kind
             && value.access == terminal_psi::StructuralAccess::Owned
         {
@@ -3710,6 +3767,7 @@ impl<'a> Storage<'a> {
     /// the same root and prefix at the read's observation epoch."). The
     /// case comes from a dispatch edge, the true edge of a membership test,
     /// or the construction that every reaching write is.
+    #[allow(clippy::too_many_arguments)]
     fn judged(
         &self,
         references: &mut DescriptorAnalysis<'a>,
@@ -3717,11 +3775,13 @@ impl<'a> Storage<'a> {
         used: &[Lineage],
         named: &[Lineage],
         (block, up_to): (BlockId, usize),
+        point: ProgramPoint,
         concerns: Construct,
     ) -> Checked<Checked<()>> {
         for place in used {
             for leaf in self.leaves(place, concerns)? {
                 let mut budget = self.initialization_budget();
+                budget.used = Some(point);
                 if self.reaching(
                     references,
                     tables,
@@ -3750,6 +3810,7 @@ impl<'a> Storage<'a> {
                     segments: place.segments[..length].to_vec(),
                 };
                 let mut budget = self.budget();
+                budget.used = Some(point);
                 if self.reaching(
                     references,
                     tables,
@@ -4182,7 +4243,7 @@ impl<'a> Storage<'a> {
                 }
                 ScalarTerm::byte_sequence_predicate(predicate, place, Vec::new())
             }
-            StructuralPlaceKind::BlockParameter { block, position } => {
+            StructuralPlaceKind::BlockParameter { .. } => {
                 let formal = terminal_semantics::arrival_parameter(self.lowered, place).ok_or(
                     crate::Unbound::Unsupported("a byte arrival has no exact formal"),
                 )?;
@@ -4195,46 +4256,9 @@ impl<'a> Storage<'a> {
                         "a byte arrival is not a shared view",
                     ));
                 }
-                let mut common = None;
-                for predecessor in &self.lowered.blocks {
-                    for ((_, target), arguments) in predecessor
-                        .terminator
-                        .successor_edges()
-                        .into_iter()
-                        .zip(predecessor.terminator.successor_block_arguments())
-                    {
-                        if target != block {
-                            continue;
-                        }
-                        let source =
-                            arguments
-                                .get(position as usize)
-                                .ok_or(crate::Unbound::Unsupported(
-                                    "a byte arrival lost its actual argument",
-                                ))?;
-                        if source.access == StructuralAccess::WriteOnlyBorrow {
-                            return Err(crate::Unbound::Unsupported(
-                                "a byte arrival is write-only",
-                            ));
-                        }
-                        let source = self
-                            .stored_at(source.place, &source.path, concerns)
-                            .map_err(refused)?;
-                        let incoming = self.byte_source_with(predicate, &source, concerns, memo)?;
-                        if common
-                            .as_ref()
-                            .is_some_and(|previous| previous != &incoming)
-                        {
-                            return Err(crate::Unbound::Unsupported(
-                                "byte arrival predicates differ across incoming storage versions",
-                            ));
-                        }
-                        common = Some(incoming);
-                    }
-                }
-                common.ok_or(crate::Unbound::Unsupported(
-                    "a byte arrival has no established source",
-                ))?
+                // This is a goal term, not an established fact. Every incoming
+                // edge proves the exact formal's predicates, including backedges.
+                ScalarTerm::byte_sequence_predicate(predicate, place, Vec::new())
             }
             StructuralPlaceKind::OperationResult { producer, .. } => {
                 let operation = self.operation(producer, concerns).map_err(refused)?;
@@ -4262,22 +4286,30 @@ impl<'a> Storage<'a> {
                     terminal_psi::call_structural_pair_pattern!(..)
                         | OperationKind::ByteSequenceSubslice { .. }
                 ) {
-                    let facts = terminal_semantics::byte_sequence_source_predicates(
+                    let mut required = terminal_psi::ByteSequencePredicateSet::EMPTY;
+                    required.insert(predicate);
+                    if terminal_semantics::byte_sequence_source_predicates(
                         self.module,
                         self.lowered,
                         place,
                     )
-                    .ok_or(crate::Unbound::Unsupported(
-                        "a byte result has no authenticated source predicates",
-                    ))?;
-                    let mut required = terminal_psi::ByteSequencePredicateSet::EMPTY;
-                    required.insert(predicate);
-                    if !facts.implies(required) {
+                    .is_some_and(|facts| facts.implies(required))
+                    {
+                        ScalarTerm::Boolean(true)
+                    } else if matches!(operation.kind, OperationKind::ByteSequenceSubslice { .. })
+                        && self
+                            .module
+                            .structural_type(self.root_type(place, concerns).map_err(refused)?)
+                            .is_some_and(|ty| ty.shape.is_shared_readable_byte_view())
+                    {
+                        // The operation contributes only a conditional premise
+                        // from its exact source; no annotation proves this term.
+                        ScalarTerm::byte_sequence_predicate(predicate, place, Vec::new())
+                    } else {
                         return Err(crate::Unbound::Unsupported(
                             "a byte result does not establish this predicate",
                         ));
                     }
-                    ScalarTerm::Boolean(true)
                 } else {
                     return Err(crate::Unbound::Unsupported(
                         "a byte result has no admitted predicate source",
@@ -4294,6 +4326,61 @@ impl<'a> Storage<'a> {
             "a byte source lost its declared place",
         ))? = BytePredicateState::Resolved(result.clone());
         Ok(result)
+    }
+
+    /// A shared subslice inherits predicates that hold for every window of
+    /// its source. Name the actual producer's result and keep the source
+    /// condition in the proof so each loop arrival must establish it.
+    pub(crate) fn subslice_predicate_premises(
+        &self,
+        operation: &Operation,
+    ) -> Checked<Vec<Proposition>> {
+        use semantic_vocabulary::ByteSequencePredicate;
+
+        let OperationKind::ByteSequenceSubslice { source, .. } = &operation.kind else {
+            return Ok(Vec::new());
+        };
+        let concerns = Construct::Operation(operation.id);
+        let result = operation
+            .result
+            .structural()
+            .ok_or_else(|| self.foreign(concerns, "a byte subslice has no structural result"))?;
+        if !self
+            .declaration(result.structural_type, concerns)?
+            .shape
+            .is_shared_readable_byte_view()
+        {
+            return Ok(Vec::new());
+        }
+        let source = self.argument(source, concerns)?;
+        let mut known = Vec::new();
+        for predicate in ByteSequencePredicate::ALL {
+            if !predicate.is_subslice_preserving() {
+                continue;
+            }
+            let term = match self.byte_source(predicate, &source, concerns) {
+                Ok(term) => term,
+                Err(crate::Unbound::Refused(refusal)) => return Err(refusal),
+                Err(_) => continue,
+            };
+            for inherited in ByteSequencePredicate::ALL {
+                if predicate.implies(inherited) {
+                    let destination =
+                        ScalarTerm::byte_sequence_predicate(inherited, result.place, Vec::new());
+                    known.push(Proposition::Implication {
+                        premise: Box::new(Proposition::Equal(
+                            term.clone(),
+                            ScalarTerm::Boolean(true),
+                        )),
+                        conclusion: Box::new(Proposition::Equal(
+                            destination,
+                            ScalarTerm::Boolean(true),
+                        )),
+                    });
+                }
+            }
+        }
+        Ok(known)
     }
 
     /// The octets of the literal whose home is `place`, when `place` is a
@@ -4373,6 +4460,7 @@ impl<'a> Storage<'a> {
                     Touching::Whole
                 };
                 touches.push(Touch {
+                    cleanup: None,
                     at: Construct::Operation(operation.id),
                     block: block.id,
                     up_to: position,
@@ -4384,11 +4472,32 @@ impl<'a> Storage<'a> {
                     releases,
                 });
             }
+            for (edge, actions) in block.terminator.cleanup_rosters() {
+                for (ordinal, action) in actions.iter().enumerate() {
+                    if let terminal_psi::TerminalAffineCleanupAction::InvokeOwned(cleanup) = action
+                    {
+                        let used = vec![self.argument(&cleanup.subject, Construct::Edge(edge))?];
+                        touches.push(Touch {
+                            cleanup: Some((edge, crate::position(ordinal, self.machine)?)),
+                            at: Construct::Edge(edge),
+                            block: block.id,
+                            up_to: block.operations.len(),
+                            named: used.clone(),
+                            used,
+                            relied: Vec::new(),
+                            how: Touching::Whole,
+                            judged: true,
+                            releases: true,
+                        });
+                    }
+                }
+            }
             let (edge, used) = match &block.terminator {
                 Terminator::EliminateEmpty { edge, source, path } => {
                     let at = Construct::Edge(*edge);
                     let subject = vec![self.stored_at(*source, path, at)?];
                     touches.push(Touch {
+                        cleanup: None,
                         at,
                         block: block.id,
                         up_to: usize::MAX,
@@ -4421,6 +4530,7 @@ impl<'a> Storage<'a> {
                         }
                     }
                     touches.push(Touch {
+                        cleanup: None,
                         at,
                         block: block.id,
                         up_to: usize::MAX,
@@ -4510,6 +4620,7 @@ impl<'a> Storage<'a> {
                 continue;
             }
             touches.push(Touch {
+                cleanup: None,
                 at: Construct::Edge(edge),
                 block: block.id,
                 up_to: usize::MAX,
@@ -4547,6 +4658,7 @@ impl<'a> Storage<'a> {
                     &touch.used,
                     &touch.named,
                     (touch.block, touch.up_to),
+                    self.point(&touch)?,
                     touch.at,
                 )
             };
@@ -4615,6 +4727,7 @@ impl<'a> Storage<'a> {
         touch: &Touch<'_>,
     ) -> Checked<bool> {
         let mut budget = self.budget();
+        budget.used = Some(self.point(touch)?);
         Ok(self.reaching(
             references,
             tables,
@@ -4642,7 +4755,15 @@ impl<'a> Storage<'a> {
         let before = after
             .checked_sub(1)
             .ok_or_else(|| self.foreign(concerns, "an operation has no point before it"))?;
+        let operations = &self.block(block)?.operations;
         let mut budget = self.budget();
+        budget.used = Some(
+            before
+                .checked_sub(1)
+                .map_or(ProgramPoint::BlockEntry(block), |previous| {
+                    ProgramPoint::AfterOperation(operations[previous].id)
+                }),
+        );
         Ok(self.reaching(
             references,
             tables,
@@ -4754,6 +4875,12 @@ impl<'a> Storage<'a> {
     /// terminator that has one, and otherwise just before the operation or
     /// at the end of the block.
     fn point(&self, touch: &Touch<'_>) -> Checked<ProgramPoint> {
+        if let Some((edge, action_ordinal)) = touch.cleanup {
+            return Ok(ProgramPoint::BeforeCleanup {
+                edge,
+                action_ordinal,
+            });
+        }
         if let Construct::Edge(edge) = touch.at {
             return Ok(ProgramPoint::Edge(edge));
         }
@@ -4799,6 +4926,7 @@ impl<'a> Storage<'a> {
                         &window.owner,
                         touch.block,
                         touch.up_to,
+                        self.point(&touch)?,
                         Construct::Obligation(window.obligation),
                     ),
                 });
@@ -4819,6 +4947,7 @@ fn position_of(cases: &[StructuralCaseDeclaration], case: StructuralCaseId) -> u
 /// place `place` of that type holds at one point: each field the one value
 /// the walk finds there, each case test whether the walk finds that case.
 struct Held<'s, 'a> {
+    point: Option<ProgramPoint>,
     storage: &'s Storage<'a>,
     references: &'s mut DescriptorAnalysis<'a>,
     tables: &'s MachineTables,
@@ -4850,6 +4979,7 @@ fn extended(
 impl<'a> Held<'_, 'a> {
     fn at_place<'p>(&'p mut self, place: &'p Lineage) -> Held<'p, 'a> {
         Held {
+            point: self.point,
             storage: self.storage,
             references: self.references,
             tables: self.tables,
@@ -4934,6 +5064,7 @@ impl<'s, 'a, Inputs: InputPlaces<'a>> Returned<'s, 'a, Inputs> {
             .locate(self.point)
             .map_err(crate::Unbound::Refused)?;
         Ok(Held {
+            point: Some(self.point),
             storage: self.storage,
             references: self.inputs.references(),
             tables: self.tables,
@@ -4951,6 +5082,7 @@ impl<'s, 'a, Inputs: InputPlaces<'a>> Returned<'s, 'a, Inputs> {
             .locate(self.point)
             .map_err(crate::Unbound::Refused)?;
         Ok(Held {
+            point: Some(self.point),
             storage: self.storage,
             references: self.inputs.references(),
             tables: self.tables,
@@ -5301,22 +5433,21 @@ impl<'a> AtCall<'_, 'a> {
     }
 
     pub(crate) fn observations(&mut self) -> CallObservations<'_, 'a> {
-        let places = &self.places;
-        let mut readable: Vec<_> = self
-            .callee_formals
-            .iter()
-            .enumerate()
-            .filter_map(|(position, formal)| {
-                if !terminal_psi::structural_access_covers(
-                    formal.access,
-                    terminal_psi::StructuralAccess::SharedBorrow,
-                ) {
-                    return None;
-                }
-                let actual = places.get(usize::try_from(formal.position).ok()?)?;
-                Some((actual, position))
-            })
-            .collect();
+        let mut readable = Vec::new();
+        for (position, formal) in self.callee_formals.iter().enumerate() {
+            let Ok(actual) = self.readable_actual(formal) else {
+                continue;
+            };
+            let mut place = actual.clone();
+            for _ in 0..=self.storage.lowered.structural_places.len() {
+                let source = self.transfer_source(&place);
+                readable.push((place, position));
+                let Some(source) = source else {
+                    break;
+                };
+                place = source;
+            }
+        }
         readable.sort_unstable();
         CallObservations {
             storage: self.storage,
@@ -5327,13 +5458,49 @@ impl<'a> AtCall<'_, 'a> {
             up_to: self.up_to,
             concerns: self.concerns,
             readable,
+            places: &self.places,
+            extents: None,
             projections: None,
             terms: Vec::new(),
         }
     }
 
+    /// Find the source named by the operation that established this actual.
+    /// This only nominates a formal path. Its current contents are still
+    /// checked at the actual, so copies do not carry facts across overwrites.
+    fn transfer_source(&self, place: &Lineage) -> Option<Lineage> {
+        let storage = self.storage;
+        let StructuralPlaceKind::OperationResult { producer, .. } =
+            storage.root_kind(place.root, self.concerns).ok()?
+        else {
+            return None;
+        };
+        let point = storage
+            .graph
+            .locate(ProgramPoint::AfterOperation(producer))
+            .ok()?;
+        let start = storage
+            .log
+            .partition_point(|row| (row.block, row.position) < point);
+        storage.log[start..]
+            .iter()
+            .take_while(|row| (row.block, row.position) == point)
+            .find_map(|row| {
+                if row.lineage.root != place.root || !row.lineage.segments.is_empty() {
+                    return None;
+                }
+                let Stored::Moved(source) = &row.stored else {
+                    return None;
+                };
+                let mut source = source.clone();
+                source.segments.extend_from_slice(&place.segments);
+                (source != *place).then_some(source)
+            })
+    }
+
     fn held_at<'p>(&'p mut self, place: &'p Lineage) -> Held<'p, 'a> {
         Held {
+            point: None,
             storage: self.storage,
             references: self.references,
             tables: self.tables,
@@ -5355,88 +5522,211 @@ pub(crate) struct CallObservations<'s, 'a> {
     block: BlockId,
     up_to: usize,
     concerns: Construct,
-    readable: Vec<(&'s Lineage, usize)>,
-    // Keep unvisited and unbound distinct. Only named fields keep a term.
+    readable: Vec<(Lineage, usize)>,
+    places: &'s [Lineage],
+    extents: Option<Vec<(Lineage, usize, ValueId)>>,
+    // Keep unvisited and unbound distinct. Only named observations keep a term.
     projections: Option<IdTable<ValueId, Option<Option<usize>>>>,
     terms: Vec<ScalarTerm>,
 }
 
-impl CallObservations<'_, '_> {
+impl<'a> CallObservations<'_, 'a> {
+    fn readable_actual(
+        &self,
+        formal: &terminal_psi::StructuralParameterDeclaration,
+    ) -> Result<&Lineage, crate::Unbound> {
+        if !terminal_psi::structural_access_covers(
+            formal.access,
+            terminal_psi::StructuralAccess::SharedBorrow,
+        ) {
+            return Err(crate::Unbound::Unsupported(
+                "a clause reads a write-only input",
+            ));
+        }
+        usize::try_from(formal.position)
+            .ok()
+            .and_then(|position| self.places.get(position))
+            .ok_or(crate::Unbound::Unsupported(
+                "clause names storage that is no record formal of the callee",
+            ))
+    }
+
+    fn observed_place(&mut self, origin: ValueOrigin) -> Option<Lineage> {
+        match origin {
+            ValueOrigin::StorageContent { place, .. } => {
+                lineage(self.storage.machine, &self.tables.places, place).ok()
+            }
+            ValueOrigin::Operation(operation) => {
+                let operation = self.storage.operation(operation, self.concerns).ok()?;
+                let leaf = self.storage.read_leaf(operation).ok()??;
+                let (block, after) = self
+                    .storage
+                    .graph
+                    .locate(ProgramPoint::AfterOperation(operation.id))
+                    .ok()?;
+                self.storage
+                    .backing(
+                        self.references,
+                        &leaf,
+                        block,
+                        after.checked_sub(1)?,
+                        self.concerns,
+                    )
+                    .ok()
+            }
+            _ => None,
+        }
+    }
+
+    fn held_at<'p>(&'p mut self, place: &'p Lineage) -> Held<'p, 'a> {
+        Held {
+            point: None,
+            storage: self.storage,
+            references: self.references,
+            tables: self.tables,
+            place,
+            block: self.block,
+            up_to: self.up_to,
+            concerns: self.concerns,
+        }
+    }
+
     pub(crate) fn formal_observation(
         &mut self,
         value: ValueId,
         scalar_type: ScalarType,
         same: impl FnOnce(ScalarTerm, ScalarTerm) -> bool,
     ) -> Option<ScalarTerm> {
-        if self.readable.is_empty() {
+        if self.readable.is_empty() || matches!(scalar_type, ScalarType::Callable(_)) {
             return None;
         }
         let row = self.tables.values.get(value)?;
-        let ValueOrigin::StorageContent { place, .. } = row.origin else {
-            return None;
-        };
         if row.scalar_type != scalar_type {
             return None;
         }
-        let slot = self
-            .projections
-            .get_or_insert_with(|| self.tables.values.map(|_, _| None))
-            .get_mut(value)?;
-        let projection = *slot.get_or_insert_with(|| {
-            let recorded = lineage(self.storage.machine, &self.tables.places, place).ok()?;
-            let (formal, path) = formal_observation_path(&self.readable, &recorded)?;
-            let root = self.callee_formals[formal].place;
-            let version = semantic_vocabulary::ContentPlaceVersion::Entry;
-            let term = match scalar_type {
-                // Machine values keep callable contracts, but have no
-                // mathematical equality or callable field term to infer.
-                ScalarType::Callable(_) => return None,
-                ScalarType::Boolean => ScalarTerm::BooleanField {
-                    version,
-                    root,
-                    path,
-                },
-                ScalarType::Integer(scalar_type) => ScalarTerm::IntegerField {
-                    version,
-                    root,
-                    path,
-                    scalar_type,
-                },
-                ScalarType::IeeeFloat(format) => ScalarTerm::IeeeFloatField {
-                    version,
-                    root,
-                    path,
-                    format,
-                },
-            };
-            let held = Held {
-                storage: self.storage,
-                references: self.references,
-                tables: self.tables,
-                place: &recorded,
-                block: self.block,
-                up_to: self.up_to,
-                concerns: self.concerns,
-            }
-            .observation(&recorded, scalar_type)
-            .ok()?;
-            if !same(held, ScalarTerm::value(value, scalar_type)) {
-                return None;
-            }
+        if self.projections.is_none() {
+            self.projections = Some(self.tables.values.map(|_, _| None));
+        }
+        if let Some(projection) = *self.projections.as_ref()?.get(value)? {
+            return projection.map(|index| self.terms[index].clone());
+        }
+        let origin = row.origin;
+        let term = self.bind_observation(value, scalar_type, origin, same);
+        let projection = term.as_ref().map(|term| {
             let index = self.terms.len();
-            self.terms.push(term);
-            Some(index)
+            self.terms.push(term.clone());
+            index
         });
-        projection.map(|index| self.terms[index].clone())
+        *self.projections.as_mut()?.get_mut(value)? = Some(projection);
+        term
+    }
+
+    fn bind_observation(
+        &mut self,
+        value: ValueId,
+        scalar_type: ScalarType,
+        origin: ValueOrigin,
+        same: impl FnOnce(ScalarTerm, ScalarTerm) -> bool,
+    ) -> Option<ScalarTerm> {
+        let recorded = self.observed_place(origin)?;
+        let (formal, path, held) =
+            if let Some((formal, path)) = formal_observation_path(&self.readable, &recorded) {
+                let declaration = &self.callee_formals[formal];
+                let mut actual =
+                    extended(self.readable_actual(declaration).ok()?.clone(), &path).ok()?;
+                if matches!(recorded.segments.last(), Some(Segment::Extent)) {
+                    actual.segments.push(Segment::Extent);
+                }
+                let held = self
+                    .held_at(&actual)
+                    .observation(&actual, scalar_type)
+                    .ok()?;
+                (formal, path, held)
+            } else if let (Some(Segment::Extent), ScalarType::Integer(integer)) =
+                (recorded.segments.last(), scalar_type)
+            {
+                // Reborrowed descriptors must carry the reaching extent value.
+                if self.extents.is_none() {
+                    let mut extents = Vec::new();
+                    let formals = self.callee_formals;
+                    for (formal, declaration) in formals.iter().enumerate() {
+                        let Some(actual) = self.readable_actual(declaration).ok().cloned() else {
+                            continue;
+                        };
+                        let Some(ScalarTerm::Value { id, .. }) =
+                            self.held_at(&actual).extent_of(&actual, integer).ok()
+                        else {
+                            continue;
+                        };
+                        let Some(origin) = self.tables.values.get(id).map(|row| row.origin) else {
+                            continue;
+                        };
+                        let Some(source) = self.observed_place(origin) else {
+                            continue;
+                        };
+                        if matches!(source.segments.last(), Some(Segment::Extent)) {
+                            extents.push((source, formal, id));
+                        }
+                    }
+                    extents.sort_unstable();
+                    self.extents = Some(extents);
+                }
+                let extents = self.extents.as_ref()?;
+                let position = extents.partition_point(|(place, _, _)| place < &recorded);
+                let (place, formal, held) = extents.get(position)?;
+                if *place != recorded {
+                    return None;
+                }
+                (*formal, Vec::new(), ScalarTerm::value(*held, scalar_type))
+            } else {
+                return None;
+            };
+        if !same(held, ScalarTerm::value(value, scalar_type)) {
+            return None;
+        }
+        let root = self.callee_formals[formal].place;
+        let version = semantic_vocabulary::ContentPlaceVersion::Entry;
+        Some(match (recorded.segments.last(), scalar_type) {
+            (_, ScalarType::Callable(_)) => return None,
+            (Some(Segment::Extent), ScalarType::Integer(scalar_type)) => ScalarTerm::ViewExtent {
+                root,
+                path,
+                scalar_type,
+            },
+            (Some(Segment::Extent), _) => return None,
+            (_, ScalarType::Boolean) => ScalarTerm::BooleanField {
+                version,
+                root,
+                path,
+            },
+            (_, ScalarType::Integer(scalar_type)) => ScalarTerm::IntegerField {
+                version,
+                root,
+                path,
+                scalar_type,
+            },
+            (_, ScalarType::IeeeFloat(format)) => ScalarTerm::IeeeFloatField {
+                version,
+                root,
+                path,
+                format,
+            },
+        })
     }
 }
 
 /// Only exact prefixes of this observation can name it. If several actuals
 /// match, keep the first formal in declaration order, even across prefixes.
 fn formal_observation_path(
-    readable: &[(&Lineage, usize)],
+    readable: &[(impl std::borrow::Borrow<Lineage>, usize)],
     recorded: &Lineage,
 ) -> Option<(usize, Vec<CanonicalStructuralPathSegment>)> {
+    // A length is observed on the descriptor. Its formal term names that
+    // descriptor, so the final extent marker is not a path projection.
+    let subject = match recorded.segments.split_last() {
+        Some((Segment::Extent, descriptor)) => descriptor,
+        _ => &recorded.segments,
+    };
     let segment = |segment: &Segment| match segment {
         Segment::Field(field) => Some(CanonicalStructuralPathSegment::Field(*field)),
         Segment::Case(case) => Some(CanonicalStructuralPathSegment::Case(*case)),
@@ -5445,21 +5735,23 @@ fn formal_observation_path(
         _ => None,
     };
     // Any segment unavailable in a contract must lie inside the actual.
-    let shortest = recorded
-        .segments
+    let shortest = subject
         .iter()
         .rposition(|step| segment(step).is_none())
         .map_or(0, |position| position + 1);
-    let (formal, prefix) = (shortest..=recorded.segments.len())
+    let (formal, prefix) = (shortest..=subject.len())
         .filter_map(|length| {
-            let prefix = (recorded.root, &recorded.segments[..length]);
-            let first = readable
-                .partition_point(|(actual, _)| (actual.root, actual.segments.as_slice()) < prefix);
+            let prefix = (recorded.root, &subject[..length]);
+            let first = readable.partition_point(|(actual, _)| {
+                let actual = actual.borrow();
+                (actual.root, actual.segments.as_slice()) < prefix
+            });
             let (actual, formal) = readable.get(first)?;
+            let actual = actual.borrow();
             ((actual.root, actual.segments.as_slice()) == prefix).then_some((*formal, length))
         })
         .min()?;
-    let path = recorded.segments[prefix..]
+    let path = subject[prefix..]
         .iter()
         .map(segment)
         .collect::<Option<Vec<_>>>()?;
@@ -5528,6 +5820,12 @@ impl crate::Bindings for AtCall<'_, '_> {
 pub(crate) struct AtJoin<'s, 'a> {
     inputs: AtCall<'s, 'a>,
     renaming: &'s [(ValueId, ValueId)],
+}
+
+impl<'a> AtJoin<'_, 'a> {
+    pub(crate) fn observations(&mut self) -> CallObservations<'_, 'a> {
+        self.inputs.observations()
+    }
 }
 
 impl crate::Bindings for AtJoin<'_, '_> {
@@ -5753,6 +6051,7 @@ impl Held<'_, '_> {
             ));
         }
         let mut budget = storage.budget();
+        budget.used = self.point;
         let reached = storage
             .reaching(
                 self.references,
@@ -5903,6 +6202,7 @@ impl crate::Bindings for Held<'_, '_> {
         let sum = self.beneath(root, path)?;
         let storage = self.storage;
         let mut budget = storage.budget();
+        budget.used = self.point;
         match storage
             .reaching(
                 self.references,
@@ -6339,13 +6639,18 @@ mod observation_tests {
         }
         storage.log[row_index].stored = Stored::Moved(source);
 
-        // Remove the invocation's incoming edge from the equation graph.
+        // Disconnect the invocation's incoming edges from the equation graph.
+        // Keep their identities so each cleanup still names its actual source.
         // The remaining backedges can carry contents but cannot initialize them.
         let mut unseeded = tables.clone();
-        unseeded.edges = IdTable::default();
-        for (_, edge) in tables.edges.iter() {
-            if edge.source != graph.entry() {
-                unseeded.edges.push(edge.clone());
+        for (_, edge) in unseeded.edges.iter_mut() {
+            if edge.source == graph.entry()
+                && matches!(
+                    edge.destination,
+                    terminal_check_tables::edges::Destination::Block(_)
+                )
+            {
+                edge.destination = terminal_check_tables::edges::Destination::Return;
             }
         }
         let cyclic_graph = Graph::new(machine.id, machine, &unseeded).unwrap();

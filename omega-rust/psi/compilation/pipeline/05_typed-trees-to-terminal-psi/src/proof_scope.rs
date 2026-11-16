@@ -261,7 +261,7 @@ pub(crate) fn declare(
             }
             for (_, actions) in block.terminator.cleanup_rosters() {
                 for action in actions {
-                    if let TerminalAffineCleanupAction::InvokeNominal(action) = action {
+                    if let TerminalAffineCleanupAction::InvokeOwned(action) = action {
                         match declaration_for(action.cleanup_machine) {
                             Ok(target) => cleanup.push(target),
                             Err(reason) => unavailable = Some(reason),
@@ -464,6 +464,33 @@ pub(crate) fn declare(
             Construct::Machine,
             Unserved::Declaration("competing proof-scope publication"),
         ));
+    }
+    for request in &mut elaboration.module.calling_policy_requests {
+        if let Ok(instances) = &mut request.instances {
+            for instance in instances {
+                let declaration = instance
+                    .policy
+                    .as_ref()
+                    .map_err(Clone::clone)
+                    .and_then(|policy| {
+                        scope.callable_declaration(*policy).ok_or_else(|| {
+                            "calling policy lost its checked proof declaration".into()
+                        })
+                    })
+                    .map_err(|reason| {
+                        let mut refused = refuse(
+                            MachineId::new(1).expect("1 is nonzero"),
+                            Construct::Machine,
+                            Unserved::Declaration(
+                                "calling policy proof declaration is unavailable",
+                            ),
+                        );
+                        refused.detail = reason;
+                        refused
+                    })?;
+                instance.policy_declaration = Ok(declaration);
+            }
+        }
     }
     elaboration.module.scalar_applications.proof_scope = scope;
     Ok(())

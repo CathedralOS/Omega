@@ -113,7 +113,7 @@ pub(crate) fn project(
     block: &TargetControlBlock,
     parameters: &[terminal_psi::StructuralParameterDeclaration],
     facts: &[AcceptedObligationFact],
-    types: &legalized_operations::RetainedIntegerTypes,
+    types: &crate::native_geometry::ModuleTypes,
 ) -> Result<LegalizedScalarTerminator, LegalizationError> {
     let metadata = &block.terminator_metadata;
     let returned = |edge, value| {
@@ -408,6 +408,7 @@ pub(crate) fn project(
             callee,
             call_plan,
             arguments,
+            requirement_obligations,
         } = &operation.kind
         else {
             return Err(LegalizationError::custody());
@@ -425,7 +426,7 @@ pub(crate) fn project(
                 result_placement: None,
                 structural_result: None,
                 claim_transfers: Vec::new(),
-                requirement_obligations: Vec::new(),
+                requirement_obligations: requirement_obligations.clone(),
                 crash_continuations: Vec::new(),
             },
         ));

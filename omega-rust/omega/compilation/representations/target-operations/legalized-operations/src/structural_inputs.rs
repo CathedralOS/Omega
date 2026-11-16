@@ -2577,7 +2577,7 @@ pub mod structural_unit_input {
     #[derive(Clone, Copy)]
     pub struct Parameter<'a> {
         pub semantic: &'a terminal_psi::StructuralParameterDeclaration,
-        pub target: &'a target_operations::TargetStructuralParameter,
+        pub target: &'a target_vocabulary::TargetStructuralParameter,
     }
 
     pub fn parameter_views(contract: &crate::LegalizedStructuralContract) -> Vec<Parameter<'_>> {

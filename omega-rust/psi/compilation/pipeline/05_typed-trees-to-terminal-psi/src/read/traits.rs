@@ -148,6 +148,8 @@ impl Program<'_> {
         let scope = parameters
             .iter()
             .enumerate()
+            // An implementation binder is its declared record value, not a type.
+            .filter(|(_, parameter)| parameter.kind == typed_trees::data::TypeParameterKind::Type)
             .map(|(ordinal, parameter)| {
                 Ok((
                     parameter.symbol,
@@ -266,6 +268,12 @@ impl Program<'_> {
                 requirements,
             },
         );
+        let parents = AppliedTraitScope::abstract_scope(declaration)
+            .parent_scopes(typed)
+            .map_err(|reason| services::unavailable(context, reason))?;
+        for parent in parents {
+            self.read_trait_schema(context, parent.declaration)?;
+        }
         Ok(true)
     }
 
@@ -420,7 +428,7 @@ impl Program<'_> {
                     ));
                 }
             }
-            let [state] = typed.machine_states(supplied) else {
+            let Some([state]) = typed.machine_states(supplied).as_array() else {
                 return Err(services::unavailable(
                     context,
                     "implementation row has no unique selected entry",
@@ -610,12 +618,6 @@ fn schema_shape(
     context: MachineId,
     schema: &TraitDefinition,
 ) -> Checked<()> {
-    if !schema.requires.is_empty() {
-        return Err(services::unavailable(
-            context,
-            "ordinary trait schema needs its required trait contract projection",
-        ));
-    }
     schema_local_shape(typed, context, schema)
 }
 
@@ -624,9 +626,10 @@ fn schema_local_shape(
     context: MachineId,
     schema: &TraitDefinition,
 ) -> Checked<()> {
+    super::subjects::served_trait_header(typed, schema)
+        .map_err(|reason| services::unavailable(context, reason))?;
     if !typed.symbols.symbols().nodes().is_valid(schema.symbol)
         || !schema.lifetime_parameters.is_empty()
-        || !schema.conformance_bounds.is_empty()
         || schema.refines.is_some()
         || !schema.refinement_clauses.is_empty()
     {
@@ -665,7 +668,11 @@ fn schema_local_shape(
     for parameter in parameters {
         if !typed.symbols.symbols().nodes().is_valid(parameter.symbol)
             || seen.contains(&parameter.symbol)
-            || !matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
+            || !matches!(
+                parameter.kind,
+                typed_trees::data::TypeParameterKind::Type
+                    | typed_trees::data::TypeParameterKind::Implementation
+            )
             || parameter.bounds.carry.is_some()
             || parameter.bounds.multiplicity != language_core::Multiplicity::Affine
             || typed.symbols.get(parameter.symbol).parent != schema.symbol

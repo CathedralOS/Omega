@@ -41,7 +41,7 @@ pub fn prepare_compilation(
             };
         }
     }
-    let captures = crate::named_captures(typed);
+    let captures = crate::shared_reading(typed);
     let arrivals = compilation
         .bindings
         .iter()
@@ -502,7 +502,7 @@ fn prepare_generic_forms(
     typed: &TypedTrees,
     purpose: source::DependencyScope,
     mut templates: Vec<SymbolHandle>,
-    captures: &crate::NamedCaptures,
+    captures: &crate::SharedReading,
     publication: terminal_codec::TerminalPublication,
     source: &mut crate::SourceCorrespondence,
 ) -> Vec<GenericForms> {

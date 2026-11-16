@@ -268,8 +268,9 @@ fn selected_entry_receipt_keeps_the_accepted_artifact_and_rejects_other_owners()
                 .contains("source declaration")
             );
 
-            // Executable metadata is a new, fully judged request over the same
-            // source, not a patch to this already published Check artifact.
+            // Entry metadata belongs to the initial shared source request.
+            // Rejudging that same roster must preserve its accepted artifact;
+            // no target may patch metadata into an existing publication.
             let schema = package_compilation::selected_program_entry_boundary(
                 accepted.source(),
                 signature.target_slot(),
@@ -286,7 +287,7 @@ fn selected_entry_receipt_keeps_the_accepted_artifact_and_rejects_other_owners()
                     .contains("before Terminal publication")
             );
             let mut executable_roster = checked.terminal_publication().roster().unwrap().clone();
-            executable_roster.declaration_metadata.push(schema);
+            assert!(executable_roster.declaration_metadata.contains(&schema));
             let executable = executable_roster
                 .judge(std::sync::Arc::clone(accepted.source()))
                 .expect("all original scope is judged with the requested descriptors");
@@ -298,7 +299,69 @@ fn selected_entry_receipt_keeps_the_accepted_artifact_and_rejects_other_owners()
                 accepted.boundary_requirements_declared().unwrap(),
                 executable.boundary_requirements_declared().unwrap()
             );
-            assert!(module.calling_abi_signatures.is_empty());
+            // The semantic arrival is shared; each of the four bound targets
+            // contributes its own physical arrival before source judgment.
+            assert_eq!(module.calling_abi_signatures.len(), 5);
+            let typed = accepted.source();
+            let catalog = typed.boundary_signatures();
+            let mut expected_abis = [
+                ("ProgramStorageEntry", "source/library/core/extent.omg"),
+                (
+                    "LinuxArm64PhysicalEntry",
+                    "source/library/std/targets/linux_arm64/entry.omg",
+                ),
+                (
+                    "LinuxX86_64PhysicalEntry",
+                    "source/library/std/targets/linux_x86_64/entry.omg",
+                ),
+                (
+                    "MacosArm64PhysicalEntry",
+                    "source/library/std/targets/macos_arm64/entry.omg",
+                ),
+                (
+                    "WindowsProcessEntry",
+                    "source/library/std/targets/windows_x86_64/entry.omg",
+                ),
+            ]
+            .map(|(expected_owner, expected_source)| {
+                let path = repository.join(expected_source);
+                let mut rows = catalog.abi_signatures().iter().filter(|row| {
+                    row.projections_in_context(typed, source::DependencyScope::Product)
+                        .any(|projection| {
+                            typed
+                                .trait_machine_signature(projection.source)
+                                .is_some_and(|(owner, signature)| {
+                                    owner.name.as_str() == expected_owner
+                                        && signature.name.as_str() == "enter"
+                                })
+                                && typed
+                                    .symbols
+                                    .symbol_provenance_source_span(projection.source)
+                                    .and_then(|span| typed.symbols.source_file(span))
+                                    .is_some_and(|source| source.path == path)
+                        })
+                });
+                let row = rows
+                    .next()
+                    .expect("the fixed source owns its exact arrival ABI");
+                assert!(
+                    rows.next().is_none(),
+                    "one Product ABI per fixed source arrival: {expected_owner}"
+                );
+                semantic_vocabulary::CallingAbiIdentity {
+                    requirement_identity: row.requirement_identity.clone(),
+                    declaring_application: row.declaring_application.clone(),
+                    operands: row.operands.clone(),
+                }
+            });
+            expected_abis.sort_by_key(|abi| abi.id());
+            let mut actual_abis = module
+                .calling_abi_signatures
+                .iter()
+                .map(|row| row.identity(&module.identities).unwrap())
+                .collect::<Vec<_>>();
+            actual_abis.sort_by_key(|abi| abi.id());
+            assert_eq!(actual_abis, expected_abis);
             let native_code = executable
                 .produce(
                     Default::default(),
@@ -309,7 +372,10 @@ fn selected_entry_receipt_keeps_the_accepted_artifact_and_rejects_other_owners()
                 .unwrap();
             let native_module = native_code.artifact().semantic_module();
             assert_eq!(native_module, executable.module());
-            assert_eq!(native_module.calling_abi_signatures.len(), 2);
+            assert_eq!(
+                native_module.calling_abi_signatures,
+                module.calling_abi_signatures
+            );
             assert!(
                 native_module
                     .calling_abi_signatures
@@ -326,7 +392,7 @@ fn selected_entry_receipt_keeps_the_accepted_artifact_and_rejects_other_owners()
             assert!(
                 !linear.copyable && !linear.no_code_affine_cleanup && !linear.descriptor_cleanup
             );
-            assert_ne!(
+            assert_eq!(
                 native_code.artifact().manifest().semantic(),
                 program.artifact().manifest().semantic()
             );

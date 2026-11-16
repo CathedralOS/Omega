@@ -1307,6 +1307,14 @@ fn terminal_authority_closure_review_identity(
                         digest.byte(2);
                         digest.raw(&edge.get().to_be_bytes());
                     }
+                    semantic_vocabulary::InvocationSite::Cleanup {
+                        edge,
+                        action_ordinal,
+                    } => {
+                        digest.byte(3);
+                        digest.raw(&edge.get().to_be_bytes());
+                        digest.raw(&action_ordinal.to_be_bytes());
+                    }
                 }
                 digest.raw(&context);
             }

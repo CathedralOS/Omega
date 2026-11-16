@@ -22,7 +22,7 @@ pub use reachable::{
 };
 pub use terminal::{
     CallableBoundaryImplementation, ReachedBoundaryCalls, boundary_call_reach,
-    project_callable_invocation, project_nominal_cleanup_invocation, reached_boundary_calls,
+    project_callable_invocation, project_owned_cleanup_invocation, reached_boundary_calls,
     stored_callable_definition, terminal_callable_values,
     terminal_callable_values_with_boundary_implementations,
 };
@@ -183,10 +183,6 @@ pub struct CallableInvocationRecord {
 
 #[derive(Default)]
 pub struct CallableValueBody {
-    pub attachment: Option<StructuralTypeId>,
-    pub nominal_cleanup_subject: Option<StructuralTypeId>,
-    pub unit_result: bool,
-    pub structural_formals: Vec<terminal_psi::StructuralParameterDeclaration>,
     pub scalar_parameters: Vec<(ValueId, ScalarType)>,
     pub structural_parameters: Vec<(StructuralTypeId, terminal_psi::StructuralAccess)>,
     pub scalar_result: Option<ScalarType>,
@@ -514,7 +510,7 @@ impl CallableValueProgram<'_> {
                 } {
                     if matches!(
                         action,
-                        terminal_psi::TerminalAffineCleanupAction::InvokeNominal(_)
+                        terminal_psi::TerminalAffineCleanupAction::InvokeOwned(_)
                     ) {
                         return Ok(CallableActualValue::Ceiling(input.contract));
                     }

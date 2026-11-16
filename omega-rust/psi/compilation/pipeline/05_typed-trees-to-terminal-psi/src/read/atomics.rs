@@ -67,6 +67,7 @@ impl Program<'_> {
         let id = self.records.push(RecordType {
             owns_linear_claim: false,
             copyable: false,
+            cleanup: None,
             identity,
             shape: StorageShape::AtomicCell(cell),
             requires: Vec::new(),
@@ -226,7 +227,7 @@ impl Program<'_> {
             )
         };
         let (_, entry) = self.declaration(id, target)?;
-        let [parameter] = self.typed.state_parameters(entry) else {
+        let Some([parameter]) = self.typed.state_parameters(entry).as_array() else {
             return Err(reject_ordering());
         };
         let [argument] = arguments else {

@@ -61,6 +61,10 @@ pub fn canonical_ownership_frontier_snapshot(snapshot: &OwnershipFrontierSnapsho
         && strictly_ordered_by(&snapshot.owned_places, |place| place.place)
         && strictly_ordered_by(&snapshot.partial_custody, |partial| partial.place)
         && snapshot
+            .nominal_partitions
+            .windows(2)
+            .all(|pair| pair[0] < pair[1])
+        && snapshot
             .partial_custody
             .iter()
             .all(|partial| partial.moved_paths.windows(2).all(|pair| pair[0] < pair[1]))

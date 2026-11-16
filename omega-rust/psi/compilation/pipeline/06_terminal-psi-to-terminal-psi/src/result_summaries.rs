@@ -398,6 +398,7 @@ fn summarize(
         let parts = about_result(
             entry_inputs::describe(
                 &known,
+                &prepared.context,
                 &[(result.clone(), *value)],
                 &mut Returned {
                     lowered,

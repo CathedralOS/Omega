@@ -835,11 +835,13 @@ pub(crate) mod machine {
                         })
                 })
                 .collect::<Result<Vec<_>, _>>()?;
-            parameters.extend_from_slice(
+            parameters.extend(
                 lowerer
                     .typed_trees
                     .data_type_parameters
-                    .span_or_empty(typed_machine.type_parameters),
+                    .span_or_empty(typed_machine.type_parameters)
+                    .iter()
+                    .cloned(),
             );
             typed_machine.type_parameters = lowerer
                 .typed_trees
@@ -1168,7 +1170,10 @@ pub(crate) mod machine {
             };
             complete_state_body(lowerer, machine.attached_data.as_ref(), source, &mut state)?;
             if ordinal < retained_count {
-                lowerer.typed_trees.machine_states_mut(typed_machine)[ordinal] = state;
+                lowerer
+                    .typed_trees
+                    .machine_states
+                    .set(typed_machine.states.handle_at(ordinal as u32), state);
             } else {
                 lowerer.typed_trees.push_machine_state(typed_machine, state);
             }

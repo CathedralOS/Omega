@@ -787,6 +787,92 @@ mod qualified_cleanup_receiving_tests {
 
     #[test]
     #[ignore = "explicit qualification supplies OMEGA_QUALIFIED_CLEANUP_CANONICAL_ARTIFACT"]
+    fn qualified_cleanup_requirements_keep_original_authorized_action() {
+        let path = std::env::var_os("OMEGA_QUALIFIED_CLEANUP_CANONICAL_ARTIFACT")
+            .expect("supply actual public CLI canonical output");
+        let artifact =
+            CanonicalTerminalArtifact::from_bytes(&std::fs::read(path).unwrap()).unwrap();
+        let authorized = super::authorize_fixture(artifact);
+        let input = terminal_psi_to_abstract_operations::lower_artifact(&authorized, None)
+            .expect("exact cleanup requirements survive native lowering")
+            .into_optimization_artifact()
+            .into_optimization_input();
+        let verified = super::build_verified_psi_optimization_unit(
+            input,
+            terminal_work::WorkSchedule::CURRENT.identity(),
+        )
+        .unwrap();
+        let (input, mut unit) = verified.into_parts();
+        optimization_unit::validate_runtime_evidence_context(
+            &unit,
+            unit.psi,
+            input.context().module(),
+        )
+        .expect("original requirements retain authorized source custody");
+        let mut changed = false;
+        let alter = |actions: &mut [TerminalAffineCleanupAction]| {
+            for action in actions {
+                if let TerminalAffineCleanupAction::InvokeOwned(cleanup) = action
+                    && let Some(first) = cleanup.requirement_obligations.first_mut()
+                {
+                    *first =
+                        semantic_vocabulary::ObligationId::new(first.get().checked_add(1).unwrap())
+                            .unwrap();
+                    return true;
+                }
+            }
+            false
+        };
+        'functions: for function in &mut unit.functions {
+            for block in &mut function.blocks {
+                for node in &mut block.nodes {
+                    for edge in &mut node.successors {
+                        if alter(&mut edge.cleanup_actions) {
+                            changed = true;
+                            break 'functions;
+                        }
+                    }
+                    let actions = match &mut node.operation {
+                        abstract_operations::AbstractOperation::Return {
+                            cleanup_actions, ..
+                        }
+                        | abstract_operations::AbstractOperation::ReturnUnit {
+                            cleanup_actions,
+                            ..
+                        }
+                        | abstract_operations::AbstractOperation::ReturnStructural {
+                            cleanup_actions,
+                            ..
+                        } => Some(cleanup_actions),
+                        _ => None,
+                    };
+                    if actions.is_some_and(|actions| alter(actions)) {
+                        changed = true;
+                        break 'functions;
+                    }
+                }
+            }
+        }
+        assert!(
+            changed,
+            "qualification artifact must carry the actual cleanup requires proof"
+        );
+        unit.identity = optimization_unit::recompute_psi_optimization_unit_identity(&unit);
+        assert_eq!(
+            optimization_unit::validate_runtime_evidence_context(
+                &unit,
+                unit.psi,
+                input.context().module()
+            ),
+            Err(
+                "current cleanup differs from its exact source action, subject or requirement evidence"
+            ),
+        );
+        assert!(optimization_unit_semantics::reconstruct_ownership_frontier_facts_with_admitted_cycle_machines(&unit, &[]).is_err());
+    }
+
+    #[test]
+    #[ignore = "explicit qualification supplies OMEGA_QUALIFIED_CLEANUP_CANONICAL_ARTIFACT"]
     fn qualified_owned_cleanup_replays_transport_and_single_disposal() {
         let path = std::env::var_os("OMEGA_QUALIFIED_CLEANUP_CANONICAL_ARTIFACT")
             .expect("supply actual public CLI canonical output");

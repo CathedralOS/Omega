@@ -24,12 +24,7 @@ impl Program<'_> {
         let Some(machine) = self.typed.machine_by_symbol(symbol) else {
             return Ok(false);
         };
-        if machine.body_is_present
-            || !matches!(
-                machine.supply_mode,
-                MachineSupplyMode::Boundary | MachineSupplyMode::ExternalRealization { .. }
-            )
-        {
+        if !has_native_provider_owner(self.typed, machine) {
             return Ok(false);
         }
         if self.typed.machine_trait_conformances(machine).is_empty() {
@@ -76,12 +71,7 @@ impl Program<'_> {
         };
         for machine in typed.machines() {
             let chosen = contains(&selected, machine.symbol);
-            if machine.body_is_present
-                || !matches!(
-                    machine.supply_mode,
-                    MachineSupplyMode::Boundary | MachineSupplyMode::ExternalRealization { .. }
-                )
-            {
+            if !has_native_provider_owner(typed, machine) {
                 continue;
             }
             for edge in typed.machine_trait_conformances(machine) {
@@ -190,7 +180,7 @@ impl Program<'_> {
                 "native provider needs a complete closed declaration header",
             ));
         }
-        let [state] = typed.machine_states(machine) else {
+        let Some([state]) = typed.machine_states(machine).as_array() else {
             return Err(services::unavailable(
                 context,
                 "native provider has no unique exact entry signature",
@@ -350,12 +340,7 @@ impl Program<'_> {
         let Some(machine) = typed.machine_by_own_or_state_symbol(target) else {
             return Ok(None);
         };
-        if machine.body_is_present
-            || !matches!(
-                machine.supply_mode,
-                MachineSupplyMode::Boundary | MachineSupplyMode::ExternalRealization { .. }
-            )
-        {
+        if !has_native_provider_owner(self.typed, machine) {
             return Ok(None);
         }
         let target = machine.symbol;
@@ -396,6 +381,29 @@ impl Program<'_> {
             self.external_providers.selected.push(target);
         }
         Ok(Some((boundary, signature)))
+    }
+}
+
+/// Nominate only declarations with a native supply owner. A bodyless
+/// `satisfies` header alone supplies neither a binding nor compiler custody.
+/// Compiler primitives use the ordinary sealed-primitive reader; copied user
+/// declarations remain subject to the checked-body supply judgment.
+fn has_native_provider_owner(typed: &typed_trees::TypedTrees, machine: &Machine) -> bool {
+    if machine.body_is_present {
+        return false;
+    }
+    match machine.supply_mode {
+        MachineSupplyMode::ExternalRealization { .. } => true,
+        MachineSupplyMode::Boundary => matches!(
+            typed
+                .symbols
+                .sealed_declaration(machine.symbol, machine.name.as_str()),
+            Some(
+                SealedIntrinsic::HostedRealization { .. }
+                    | SealedIntrinsic::FixedImageRealization(_)
+            )
+        ),
+        _ => false,
     }
 }
 

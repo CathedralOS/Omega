@@ -58,13 +58,13 @@ pub enum SelectedCallTarget {
 }
 
 impl SelectedCallTarget {
-    pub const fn from_native(target: target_operations::NativeCallTarget) -> Self {
+    pub const fn from_native(target: target_vocabulary::NativeCallTarget) -> Self {
         match target {
-            target_operations::NativeCallTarget::Machine(machine) => Self::Machine(machine),
-            target_operations::NativeCallTarget::Dynamic {
+            target_vocabulary::NativeCallTarget::Machine(machine) => Self::Machine(machine),
+            target_vocabulary::NativeCallTarget::Dynamic {
                 interface, slot, ..
             } => Self::Dynamic { interface, slot },
-            target_operations::NativeCallTarget::Callable { contract, .. } => {
+            target_vocabulary::NativeCallTarget::Callable { contract, .. } => {
                 Self::Callable { contract }
             }
         }
@@ -778,7 +778,7 @@ mod ieee_float_arithmetic {
     use crate::MachineAlternativeFamily;
     use crate::SelectedInstructionKind;
     pub use semantic_vocabulary::IeeeFloatFormat;
-    pub use target_operations::{
+    pub use target_vocabulary::{
         IeeeFloatArithmeticOperation, IeeeFloatBinaryOperation, IeeeFloatIntegerCarrier,
         IeeeFloatRoundingDirection, IeeeFloatToIntegerDomain,
     };

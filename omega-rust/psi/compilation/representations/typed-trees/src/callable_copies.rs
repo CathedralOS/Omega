@@ -329,12 +329,8 @@ impl<'target, 'scope> TypeRemap<'target, 'scope> {
     fn signature(&mut self, signature: &mut StateSignature) {
         use crate::data::{MachineParameterContract, TypeParameterKind};
         signature.symbol = remapped(signature.symbol, self.symbols);
-        let mut parameters = self
-            .target
-            .data_type_parameters
-            .span_or_empty(signature.type_parameters)
-            .to_vec();
-        for parameter in &mut parameters {
+        for handle in signature.type_parameters.handles() {
+            let mut parameter = self.target.data_type_parameters.get(handle).clone();
             parameter.symbol = remapped(parameter.symbol, self.symbols);
             match &mut parameter.kind {
                 TypeParameterKind::Const { type_reference }
@@ -364,11 +360,8 @@ impl<'target, 'scope> TypeRemap<'target, 'scope> {
                 TypeParameterKind::Proposition { contract } => self.parameters(contract.parameters),
                 TypeParameterKind::Type | TypeParameterKind::Implementation => {}
             }
+            self.target.data_type_parameters.set(handle, parameter);
         }
-        self.target
-            .data_type_parameters
-            .span_mut_or_empty(signature.type_parameters)
-            .clone_from_slice(&parameters);
         for bound in &mut signature.conformance_bounds {
             bound.binder = remapped(bound.binder, self.symbols);
             bound.trait_symbol = remapped(bound.trait_symbol, self.symbols);
@@ -392,12 +385,8 @@ impl<'target, 'scope> TypeRemap<'target, 'scope> {
                 | crate::signature::AuthoredInvocationTarget::Undeclared => {}
             }
         }
-        let mut contracts = self
-            .target
-            .signature_contracts
-            .span_or_empty(signature.contracts)
-            .to_vec();
-        for contract in &mut contracts {
+        for handle in signature.contracts.handles() {
+            let mut contract = self.target.signature_contracts.get(handle).clone();
             if let SignatureContractKind::EnsuresForResultCase {
                 result_data,
                 result_case,
@@ -409,27 +398,17 @@ impl<'target, 'scope> TypeRemap<'target, 'scope> {
             for fact in contract.facts.handles() {
                 self.fact(fact);
             }
+            self.target.signature_contracts.set(handle, contract);
         }
-        self.target
-            .signature_contracts
-            .span_mut_or_empty(signature.contracts)
-            .clone_from_slice(&contracts);
     }
 
     fn parameters(&mut self, parameters: HandleSpan<crate::signature::StateParameter>) {
-        let mut values = self
-            .target
-            .state_parameters
-            .span_or_empty(parameters)
-            .to_vec();
-        for parameter in &mut values {
+        for handle in parameters.handles() {
+            let mut parameter = self.target.state_parameters.get(handle).clone();
             parameter.symbol = remapped(parameter.symbol, self.symbols);
             self.ty(parameter.type_reference);
+            self.target.state_parameters.set(handle, parameter);
         }
-        self.target
-            .state_parameters
-            .span_mut_or_empty(parameters)
-            .clone_from_slice(&values);
     }
 
     fn fact(&mut self, handle: Handle<ProofFact>) {

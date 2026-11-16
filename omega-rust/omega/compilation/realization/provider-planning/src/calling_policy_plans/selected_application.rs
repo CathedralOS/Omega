@@ -284,7 +284,7 @@ pub fn native_calling_applications(
             std::slice::from_ref(&key),
             profile,
             policy,
-            0,
+            None,
         )
         .map_err(|reason| {
             failure(format!(
@@ -357,7 +357,7 @@ pub fn component_calling_applications(
                         selected.default_abis.as_ref().map_err(|error| vec![error.clone()])?,
                         profile,
                         calling_conventions::CallingPolicy::native_for_target(native_target),
-                        0,
+                        None,
                     )
                     .map_err(|reason| {
                         vec![Diagnostic::error(format!(

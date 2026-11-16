@@ -3,30 +3,22 @@
 use machine_emission::StagedOptimizedFunctionFragmentEmissionSource;
 use terminal_semantics::callable_values::ReachableCallableInvocations;
 
-pub(crate) fn prepare(
-    source: &StagedOptimizedFunctionFragmentEmissionSource,
-) -> Result<ReachableCallableInvocations, String> {
-    prepare_from(source, source.optimized_target().target_operations().entry)
-}
-
+/// Borrow the exact entry summary already bound during native preparation.
+/// Image emission neither revisits optimized code nor rebuilds registrar roots.
 pub(crate) fn prepare_from(
     source: &StagedOptimizedFunctionFragmentEmissionSource,
     entry: semantic_vocabulary::MachineId,
-) -> Result<ReachableCallableInvocations, String> {
-    let target = source.optimized_target();
-    let program = optimization_unit_semantics::callable_values::optimized_callable_values(
-        target.optimized().unit(),
-    )
-    .map_err(str::to_owned)?;
-    let roots = source
-        .lowering_facts()
-        .callable_invocation_roots(target.target_operations())?;
-    terminal_semantics::callable_values::reachable_callable_invocations_with_roots(
-        &program,
-        [entry],
-        &roots,
-    )
-    .map_err(str::to_owned)
+) -> Result<&ReachableCallableInvocations, String> {
+    source
+        .optimized_target()
+        .execution_plan()
+        .callable_invocations_from(entry)
+        .ok_or_else(|| {
+            format!(
+                "entry {} has no exact prepared callable invocation summary",
+                entry.get(),
+            )
+        })
 }
 
 pub(crate) fn call_site(

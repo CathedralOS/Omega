@@ -1107,6 +1107,34 @@ impl TerminalExecution<'_> {
         Ok(OperationFlow::Advance)
     }
 
+    pub(crate) fn execute_decompose_structural_value(
+        &mut self,
+        operation: &terminal_psi::Operation,
+    ) -> Result<OperationFlow, TerminalInterpretError> {
+        let OperationKind::DecomposeStructuralValue { subject } = &operation.kind else {
+            return Err(malformed());
+        };
+        if operation.result != terminal_psi::OperationResult::Unit {
+            return Err(malformed());
+        }
+        let structural_type = terminal_semantics::nominal_cleanup::decomposition(
+            &self.program.catalogs,
+            self.current_machine,
+            subject,
+        )
+        .map_err(|_| malformed())?;
+        crate::engine::custody::decompose_affine_subject(
+            &self.program.structural_types(),
+            &self.structural_values,
+            self.reference_referents.as_map(),
+            &mut self.live_affine_frontier,
+            &self.live_claims,
+            subject,
+            structural_type,
+        )?;
+        Ok(OperationFlow::Advance)
+    }
+
     pub(crate) fn execute_move_structural_field(
         &mut self,
         operation: &terminal_psi::Operation,

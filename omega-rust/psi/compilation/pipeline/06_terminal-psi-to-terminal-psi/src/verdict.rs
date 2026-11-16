@@ -278,7 +278,7 @@ impl AcceptedClosure {
             identity,
         )
         .map_err(|error| PublicationError::Semantic(format!("{error:?}")))?;
-        let seals = terminal_codec::EvidenceSeals::for_closed_module(&module, self.seals.clone());
+        let seals = module.evidence_seals(self.seals.clone());
         let artifact =
             terminal_codec::CanonicalTerminalArtifact::from_closed_parts(module, record, None)
                 .map_err(PublicationError::Artifact)?;
@@ -293,7 +293,7 @@ impl AcceptedClosure {
         self.validate_publication()?;
         let module = terminal_codec::ClosedTerminalModule::new(self.elaboration.module.clone())
             .map_err(PublicationError::Seals)?;
-        let seals = terminal_codec::EvidenceSeals::for_closed_module(&module, self.seals.clone());
+        let seals = module.evidence_seals(self.seals.clone());
         let artifact = terminal_codec::InvocationTerminalCode::from_closed_module(module)
             .map_err(PublicationError::Seals)?;
         Ok(RoutePublication { artifact, seals })
@@ -969,6 +969,7 @@ fn examine(
             "implementation rows without their refinement witnesses",
         ))));
     }
+    crate::owned_cleanup::materialize(&mut elaboration).map_err(fall_back_or_defect)?;
     let mut affine_unestablished = Vec::new();
     // A machine the affine check cannot judge yet is one refusal; the check
     // goes on with the next machine, and the first such refusal becomes the

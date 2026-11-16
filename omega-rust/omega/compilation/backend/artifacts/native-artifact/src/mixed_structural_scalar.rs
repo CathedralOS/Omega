@@ -1,7 +1,7 @@
 /*
 We rejoin mixed structural/scalar function ABIs retained on an `ObjectArtifact`
 to their canonical `TerminalMachine` declarations. We verify that attachment,
-nominal cleanup subject, scalar parameter identifiers and types, scalar result
+scalar parameter identifiers and types, scalar result
 declarations, and structural parameter places, types, multiplicities, access
 modes, and qualifications match one-for-one.
 */
@@ -26,8 +26,7 @@ pub(super) fn validate(
         let [machine] = matching.as_slice() else {
             return Err("mixed structural/scalar object ABI does not rejoin one Terminal machine");
         };
-        if (function.attachment != machine.attachment
-            || function.nominal_cleanup_subject != machine.nominal_cleanup_subject)
+        if function.attachment != machine.attachment
             || !matches_terminal_machine(
                 machine,
                 function
@@ -111,7 +110,6 @@ mod tests {
             assembly_target_requirement: terminal_psi::RegisterTargetApplicability::Any,
             id: MachineId::new(1).expect("machine"),
             attachment: None,
-            nominal_cleanup_subject: None,
             ranked_scc: None,
             structural_places: Vec::new(),
             call_formations: Vec::new(),

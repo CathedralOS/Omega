@@ -12,8 +12,6 @@ use omega::language::core::FilesystemNamespaceMutation;
 // imports; only a target with that complete implementation installs defaults.
 use omega::language::core::widen_u8_to_u64;
 use omega::language::core::narrow_i64_to_i32_wrapping;
-use omega::language::core::narrow_u64_to_i32_exact;
-use omega::language::core::narrow_i32_to_u64_exact;
 use omega::language::core::narrow_i32_to_u64_wrapping;
 use omega::language::core::narrow_i64_to_u8_wrapping;
 use omega::language::core::narrow_i64_to_u64_exact;
@@ -418,7 +416,6 @@ requires open_writable >= 0 && open_writable <= 1,
     rd_nb: u8;
     entry_name: [u8; 256];
 
-    rdn_result: DirEntryResult;
     rda_sub: i32;
     rda_rc: i32;
 
@@ -461,7 +458,11 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
 
     let fd: i32 = PosixFilesystemHost::open_create(path, filesystem.open_flags, 438);
     transition fd >= 0 { true -> ok(fd) _ -> err(filesystem, fd) }
-    machine ok(fd: i32) -> OpenResult { OpenResult::Ok { file: posix_filesystem_file(fd) } }
+    machine ok(fd: i32) -> OpenResult
+    requires fd >= 0
+    {
+        OpenResult::Ok { file: posix_filesystem_file(fd) }
+    }
     machine err(filesystem: &mut PosixFilesystem, fd: i32) -> OpenResult { let kind: ErrorKind = posix_filesystem_last_error_i32(filesystem, fd); OpenResult::Error { kind: kind } }
 }
 
@@ -479,7 +480,11 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
     PosixFilesystemTarget::encode_open_options(filesystem);
     let fd: i32 = PosixFilesystemHost::open_create(path, filesystem.open_flags, 438);
     transition fd >= 0 { true -> ok(filesystem, fd) _ -> err(filesystem, fd) }
-    machine ok(filesystem: &mut PosixFilesystem, fd: i32) -> OpenResult { OpenResult::Ok { file: posix_filesystem_file(fd) } }
+    machine ok(filesystem: &mut PosixFilesystem, fd: i32) -> OpenResult
+    requires fd >= 0
+    {
+        OpenResult::Ok { file: posix_filesystem_file(fd) }
+    }
     machine err(filesystem: &mut PosixFilesystem, fd: i32) -> OpenResult { let kind: ErrorKind = posix_filesystem_last_error_i32(filesystem, fd); OpenResult::Error { kind: kind } }
 }
 
@@ -491,7 +496,11 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
     filesystem.read_flags = filesystem.open_flags;
     let fd: i32 = PosixFilesystemHost::open(path, filesystem.read_flags);
     transition fd >= 0 { true -> ok(fd) _ -> err(filesystem, fd) }
-    machine ok(fd: i32) -> OpenResult { OpenResult::Ok { file: posix_filesystem_file(fd) } }
+    machine ok(fd: i32) -> OpenResult
+    requires fd >= 0
+    {
+        OpenResult::Ok { file: posix_filesystem_file(fd) }
+    }
     machine err(filesystem: &mut PosixFilesystem, fd: i32) -> OpenResult { let kind: ErrorKind = posix_filesystem_last_error_i32(filesystem, fd); OpenResult::Error { kind: kind } }
 }
 
@@ -509,7 +518,11 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
     PosixFilesystemTarget::encode_open_options(filesystem);
     let fd: i32 = PosixFilesystemHost::open(path, filesystem.open_flags);
     transition fd >= 0 { true -> ok(filesystem, fd) _ -> err(filesystem, fd) }
-    machine ok(filesystem: &mut PosixFilesystem, fd: i32) -> OpenResult { OpenResult::Ok { file: posix_filesystem_file(fd) } }
+    machine ok(filesystem: &mut PosixFilesystem, fd: i32) -> OpenResult
+    requires fd >= 0
+    {
+        OpenResult::Ok { file: posix_filesystem_file(fd) }
+    }
     machine err(filesystem: &mut PosixFilesystem, fd: i32) -> OpenResult { let kind: ErrorKind = posix_filesystem_last_error_i32(filesystem, fd); OpenResult::Error { kind: kind } }
 }
 
@@ -519,8 +532,10 @@ reaches FilesystemContentRead
     filesystem.file_fd = posix_filesystem_descriptor(file);
     let n: i64 = PosixFilesystemHost::read(filesystem.file_fd, buffer, count);
     transition n >= 0 { true -> ok(n) _ -> err(filesystem, n) }
-    machine ok(n: i64) -> IoResult {
-        let converted_count: u64 = narrow_i64_to_u64_exact(n);
+    machine ok(n: i64) -> IoResult
+    requires n >= 0
+    {
+        let converted_count: u64 = n as u64;
         IoResult::Ok { count: converted_count }
     }
     machine err(filesystem: &mut PosixFilesystem, n: i64) -> IoResult { let kind: ErrorKind = posix_filesystem_last_error_i64(filesystem, n); IoResult::Error { kind: kind } }
@@ -532,8 +547,10 @@ reaches FilesystemContentWrite
     filesystem.file_fd = posix_filesystem_descriptor(file);
     let n: i64 = PosixFilesystemHost::write(filesystem.file_fd, bytes);
     transition n >= 0 { true -> ok(n) _ -> err(filesystem, n) }
-    machine ok(n: i64) -> IoResult {
-        let converted_count: u64 = narrow_i64_to_u64_exact(n);
+    machine ok(n: i64) -> IoResult
+    requires n >= 0
+    {
+        let converted_count: u64 = n as u64;
         IoResult::Ok { count: converted_count }
     }
     machine err(filesystem: &mut PosixFilesystem, n: i64) -> IoResult { let kind: ErrorKind = posix_filesystem_last_error_i64(filesystem, n); IoResult::Error { kind: kind } }
@@ -666,7 +683,7 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
     let source: i32 = PosixFilesystemHost::open(from, filesystem.open_flags);
     transition source >= 0 { true -> metadata(filesystem, source, to, buffer, cap) false -> failed_open(filesystem, source) }
     machine metadata(filesystem: &mut PosixFilesystem, source: i32, to: &[u8] in Path, buffer: &mut [u8], cap: u64) -> IoResult {
-        let result: i32 = PosixFilesystemHost::read_file_metadata(source, &mut filesystem.stat_buf[..]);
+        let result: i32 = PosixFilesystemHost::read_file_metadata(source, &mut filesystem.stat_buf);
         transition result == 0 { true -> read(filesystem, source, to, buffer, cap) false -> metadata_failed(filesystem, source, result) }
     }
     machine metadata_failed(filesystem: &mut PosixFilesystem, source: i32, result: i32) -> IoResult {
@@ -748,7 +765,7 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
 machine posix_filesystem_exists(filesystem: &mut PosixFilesystem, path: &[u8] in Path) -> bool
 reaches FilesystemMetadataQuery
 {
-    filesystem.stat_rc = PosixFilesystemHost::read_metadata(path, &mut filesystem.stat_buf[..]);
+    filesystem.stat_rc = PosixFilesystemHost::read_metadata(path, &mut filesystem.stat_buf);
     filesystem.stat_rc == 0
 }
 
@@ -756,7 +773,7 @@ machine posix_filesystem_try_exists(filesystem: &mut PosixFilesystem, path: &[u8
 reaches FilesystemMetadataQuery
 {
 
-    filesystem.stat_rc = PosixFilesystemHost::read_metadata(path, &mut filesystem.stat_buf[..]);
+    filesystem.stat_rc = PosixFilesystemHost::read_metadata(path, &mut filesystem.stat_buf);
     let metadata_rc: i32 = filesystem.stat_rc;
     filesystem.stat_errno = posix_filesystem_native_error_code_i32(filesystem, metadata_rc);
     transition filesystem.stat_rc == 0 { true -> present(filesystem) _ -> absent(filesystem) }
@@ -771,7 +788,7 @@ reaches FilesystemMetadataQuery
 machine posix_filesystem_metadata_path(filesystem: &mut PosixFilesystem, path: &[u8] in Path) -> MetadataResult
 reaches FilesystemMetadataQuery
 {
-    let rc: i32 = PosixFilesystemHost::read_metadata(path, &mut filesystem.stat_buf[..]);
+    let rc: i32 = PosixFilesystemHost::read_metadata(path, &mut filesystem.stat_buf);
     transition rc == 0 { true -> decode(filesystem) _ -> err(filesystem, rc) }
     machine decode(filesystem: &mut PosixFilesystem) -> MetadataResult { PosixFilesystemTarget::decode_metadata(filesystem) }
     machine err(filesystem: &mut PosixFilesystem, rc: i32) -> MetadataResult { let kind: ErrorKind = posix_filesystem_last_error_i32(filesystem, rc); MetadataResult::Error { kind: kind } }
@@ -780,7 +797,7 @@ reaches FilesystemMetadataQuery
 machine posix_filesystem_symlink_metadata(filesystem: &mut PosixFilesystem, path: &[u8] in Path) -> MetadataResult
 reaches FilesystemMetadataQuery
 {
-    let rc: i32 = PosixFilesystemHost::read_symlink_metadata(path, &mut filesystem.stat_buf[..]);
+    let rc: i32 = PosixFilesystemHost::read_symlink_metadata(path, &mut filesystem.stat_buf);
     transition rc == 0 { true -> decode(filesystem) _ -> err(filesystem, rc) }
     machine decode(filesystem: &mut PosixFilesystem) -> MetadataResult { PosixFilesystemTarget::decode_metadata(filesystem) }
     machine err(filesystem: &mut PosixFilesystem, rc: i32) -> MetadataResult { let kind: ErrorKind = posix_filesystem_last_error_i32(filesystem, rc); MetadataResult::Error { kind: kind } }
@@ -997,7 +1014,7 @@ reaches FilesystemMetadataQuery + FilesystemMetadataMutation
     // an exact POSIX request needs no preliminary query. The path-based query
     // and update are not atomic against concurrent replacement or mode changes.
     machine inspect(filesystem: &mut PosixFilesystem, path: &[u8] in Path, readonly: bool) -> UnitResult {
-        let result: i32 = PosixFilesystemHost::read_metadata(path, &mut filesystem.stat_buf[..]);
+        let result: i32 = PosixFilesystemHost::read_metadata(path, &mut filesystem.stat_buf);
         transition result == 0 { true -> derive(filesystem, path, readonly) false -> err(filesystem, result) }
     }
     machine derive(filesystem: &mut PosixFilesystem, path: &[u8] in Path, readonly: bool) -> UnitResult {
@@ -1027,8 +1044,10 @@ reaches FilesystemMetadataQuery
 {
     let n: i64 = PosixFilesystemHost::read_link(path, buffer, count);
     transition n >= 0 { true -> ok(filesystem, n) _ -> err(filesystem, n) }
-    machine ok(filesystem: &mut PosixFilesystem, n: i64) -> IoResult {
-        let converted_count: u64 = narrow_i64_to_u64_exact(n);
+    machine ok(filesystem: &mut PosixFilesystem, n: i64) -> IoResult
+    requires n >= 0
+    {
+        let converted_count: u64 = n as u64;
         IoResult::Ok { count: converted_count }
     }
     machine err(filesystem: &mut PosixFilesystem, n: i64) -> IoResult { let kind: ErrorKind = posix_filesystem_last_error_i64(filesystem, n); IoResult::Error { kind: kind } }
@@ -1102,7 +1121,11 @@ machine posix_filesystem_try_clone(filesystem: &mut PosixFilesystem, file: File)
     filesystem.file_fd = posix_filesystem_descriptor(file);
     let fd: i32 = PosixFilesystemHost::duplicate(filesystem.file_fd);
     transition fd >= 0 { true -> ok(filesystem, fd) _ -> err(filesystem, fd) }
-    machine ok(filesystem: &mut PosixFilesystem, fd: i32) -> OpenResult { OpenResult::Ok { file: posix_filesystem_file(fd) } }
+    machine ok(filesystem: &mut PosixFilesystem, fd: i32) -> OpenResult
+    requires fd >= 0
+    {
+        OpenResult::Ok { file: posix_filesystem_file(fd) }
+    }
     machine err(filesystem: &mut PosixFilesystem, fd: i32) -> OpenResult { let kind: ErrorKind = posix_filesystem_last_error_i32(filesystem, fd); OpenResult::Error { kind: kind } }
 }
 
@@ -1147,7 +1170,7 @@ reaches FilesystemMetadataQuery
 machine posix_filesystem_file(descriptor: i32) -> File
 requires descriptor >= 0
 {
-    let widened: u64 = narrow_i32_to_u64_exact(descriptor);
+    let widened: u64 = descriptor as u64;
     File { handle: widened + 1 }
 }
 
@@ -1156,8 +1179,10 @@ machine posix_filesystem_descriptor(file: File) -> i32 {
         true -> present(file)
         false -> absent()
     }
-    machine present(file: File) -> i32 {
-        narrow_u64_to_i32_exact(file.handle - 1)
+    machine present(file: File) -> i32
+    requires file.handle > 0 && file.handle <= 2147483648
+    {
+        (file.handle - 1) as i32
     }
     machine absent() -> i32 { -1 }
 }
@@ -1170,7 +1195,11 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
     PosixFilesystemTarget::encode_open_options(filesystem);
     let fd: i32 = PosixFilesystemHost::open_create(path, filesystem.open_flags, 438);
     transition fd >= 0 { true -> ok(fd) _ -> err(filesystem, fd) }
-    machine ok(fd: i32) -> OpenResult { OpenResult::Ok { file: posix_filesystem_file(fd) } }
+    machine ok(fd: i32) -> OpenResult
+    requires fd >= 0
+    {
+        OpenResult::Ok { file: posix_filesystem_file(fd) }
+    }
     machine err(filesystem: &mut PosixFilesystem, fd: i32) -> OpenResult { let kind: ErrorKind = posix_filesystem_last_error_i32(filesystem, fd); OpenResult::Error { kind: kind } }
 }
 
@@ -1507,8 +1536,8 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
         filesystem.rda_fd = filesystem.rda_stack[filesystem.rda_depth - 1];
 
         let fd: i32 = filesystem.rda_fd;
-        filesystem.rdn_result = posix_filesystem_read_dir_entry_fd(filesystem, fd, 0);
-        transition filesystem.rdn_result {
+        let result: DirEntryResult = posix_filesystem_read_dir_entry_fd(filesystem, fd, 0);
+        transition result {
             DirEntryResult::End -> rds_pop(filesystem)
             DirEntryResult::Ok { entry } -> rds_entry(filesystem, entry)
             DirEntryResult::Error { kind } -> rds_fail(filesystem)
@@ -1551,8 +1580,8 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
         filesystem.rda_fd = filesystem.rda_stack[filesystem.rda_depth - 1];
 
         let fd: i32 = filesystem.rda_fd;
-        filesystem.rdn_result = posix_filesystem_read_dir_entry_fd(filesystem, fd, 0);
-        transition filesystem.rdn_result {
+        let result: DirEntryResult = posix_filesystem_read_dir_entry_fd(filesystem, fd, 0);
+        transition result {
             DirEntryResult::Ok { entry } -> rds_rm_child(filesystem, entry)
             DirEntryResult::End -> rds_continue(filesystem)
             DirEntryResult::Error { kind } -> rds_fail(filesystem)
@@ -1653,8 +1682,10 @@ reaches FilesystemContentRead
     filesystem.file_fd = posix_filesystem_descriptor(file);
     let n: i64 = PosixFilesystemHost::read_at(filesystem.file_fd, buffer, count, offset);
     transition n >= 0 { true -> ok(n) _ -> err(filesystem, n) }
-    machine ok(n: i64) -> IoResult {
-        let converted_count: u64 = narrow_i64_to_u64_exact(n);
+    machine ok(n: i64) -> IoResult
+    requires n >= 0
+    {
+        let converted_count: u64 = n as u64;
         IoResult::Ok { count: converted_count }
     }
     machine err(filesystem: &mut PosixFilesystem, n: i64) -> IoResult { let kind: ErrorKind = posix_filesystem_last_error_i64(filesystem, n); IoResult::Error { kind: kind } }
@@ -1666,8 +1697,10 @@ reaches FilesystemContentWrite
     filesystem.file_fd = posix_filesystem_descriptor(file);
     let n: i64 = PosixFilesystemHost::write_at(filesystem.file_fd, bytes, offset);
     transition n >= 0 { true -> ok(n) _ -> err(filesystem, n) }
-    machine ok(n: i64) -> IoResult {
-        let converted_count: u64 = narrow_i64_to_u64_exact(n);
+    machine ok(n: i64) -> IoResult
+    requires n >= 0
+    {
+        let converted_count: u64 = n as u64;
         IoResult::Ok { count: converted_count }
     }
     machine err(filesystem: &mut PosixFilesystem, n: i64) -> IoResult { let kind: ErrorKind = posix_filesystem_last_error_i64(filesystem, n); IoResult::Error { kind: kind } }
@@ -1702,7 +1735,7 @@ reaches FilesystemMetadataMutation
     filesystem.times_buf[22] = narrow_i64_to_u8_wrapping(modified >> 48);
     filesystem.times_buf[23] = narrow_i64_to_u8_wrapping(modified >> 56);
     filesystem.file_fd = posix_filesystem_descriptor(file);
-    let rc: i32 = PosixFilesystemHost::set_file_times(filesystem.file_fd, &mut filesystem.times_buf[..]);
+    let rc: i32 = PosixFilesystemHost::set_file_times(filesystem.file_fd, &filesystem.times_buf);
     transition rc == 0 { true -> ok() _ -> err(filesystem, rc) }
     machine ok() -> UnitResult { UnitResult::Ok }
     machine err(filesystem: &mut PosixFilesystem, rc: i32) -> UnitResult { let kind: ErrorKind = posix_filesystem_last_error_i32(filesystem, rc); UnitResult::Error { kind: kind } }

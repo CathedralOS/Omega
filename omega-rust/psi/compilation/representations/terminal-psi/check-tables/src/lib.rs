@@ -98,6 +98,11 @@ pub enum ProgramPoint {
     /// destination binds. fact_validity.md: "Each successor applies its own
     /// argument-to-parameter substitution."
     Edge(EdgeId),
+    /// The selected edge has captured successor operands, and all preceding
+    /// cleanup actions have completed. The named action has not run yet.
+    BeforeCleanup { edge: EdgeId, action_ordinal: u32 },
+    /// Normal completion of this exact action, before its successor action.
+    AfterCleanup { edge: EdgeId, action_ordinal: u32 },
 }
 
 /// The lowered construct a refusal concerns.

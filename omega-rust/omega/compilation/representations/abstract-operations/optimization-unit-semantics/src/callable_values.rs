@@ -7,7 +7,7 @@ use optimization_unit::{PsiOptimizationFunction, PsiOptimizationUnit};
 use terminal_semantics::callable_values::{
     CallableDefinition, CallableInvocationSite, CallableInvocationTarget, CallableValueBody,
     CallableValueProgram, CallableValueResult, project_callable_invocation,
-    project_nominal_cleanup_invocation, stored_callable_definition,
+    project_owned_cleanup_invocation, stored_callable_definition,
 };
 
 pub fn optimized_callable_invocations(
@@ -84,13 +84,6 @@ fn project<'a>(
             .find(|row| row.id == function.machine)
             .ok_or("callable provenance function lost its current Abstract storage flow")?;
         let mut body = CallableValueBody {
-            attachment: function.attachment,
-            nominal_cleanup_subject: function.nominal_cleanup_subject,
-            unit_result: matches!(
-                function.result,
-                abstract_operations::AbstractFunctionResult::Unit
-            ),
-            structural_formals: function.structural_parameters.clone(),
             scalar_result: function.result.scalar().map(|result| result.scalar_type),
             structural_result: function
                 .result
@@ -192,7 +185,7 @@ fn project<'a>(
                         .iter()
                         .position(|successor| successor.psi_edge == edge);
                     for (ordinal, action) in actions.iter().enumerate() {
-                        if let terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup) =
+                        if let terminal_psi::TerminalAffineCleanupAction::InvokeOwned(cleanup) =
                             action
                         {
                             cleanups.push((
@@ -226,16 +219,11 @@ fn project<'a>(
             .iter()
             .find(|row| row.id == caller)
             .ok_or("callable cleanup lost its current Abstract storage flow")?;
-        let callee = bodies
-            .binary_search_by_key(&cleanup.cleanup_machine, |(id, _)| *id)
-            .ok()
-            .map(|position| &bodies[position].1)
-            .ok_or("callable cleanup has no exact selected body")?;
         let site = CallableInvocationSite::CleanupAction {
             edge,
             action_ordinal: ordinal,
         };
-        let call = project_nominal_cleanup_invocation(
+        let call = project_owned_cleanup_invocation(
             structural_types,
             flow,
             position,
@@ -243,7 +231,6 @@ fn project<'a>(
             successor,
             ordinal,
             &cleanup,
-            callee,
         );
         let body_position = bodies
             .binary_search_by_key(&caller, |(id, _)| *id)

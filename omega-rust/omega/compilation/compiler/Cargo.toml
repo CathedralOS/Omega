@@ -243,6 +243,12 @@ path = "tests/lowered_route_float_contracts.rs"
 name = "lowered_route_scalar_match"
 path = "tests/lowered_route_scalar_match.rs"
 
+# A store into one field keeps a `requires` clause over several fields when
+# the unwritten fields still hold the values the record arrived with.
+[[test]]
+name = "lowered_route_invariant_windows"
+path = "tests/lowered_route_invariant_windows.rs"
+
 [[test]]
 name = "package_review"
 path = "tests/package_review.rs"

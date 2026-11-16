@@ -1732,6 +1732,7 @@ pub(crate) mod dead_compare {
             function: &mut SelectedFunction,
             map_error: impl Fn(DeadCompareError) -> E,
         ) -> Result<(), E> {
+            let contracts = std::sync::Arc::make_mut(&mut function.contracts);
             let block = function
                 .blocks
                 .get_mut(admitted.block_index)
@@ -1739,7 +1740,7 @@ pub(crate) mod dead_compare {
             if block.id != admitted.block {
                 return Err(map_error(DeadCompareError::SourceMismatch));
             }
-            function.boundary_settlements = super::super::shifted_boundary_settlements(
+            contracts.boundary_settlements = super::super::shifted_boundary_settlements(
                 admitted.function,
                 admitted.block,
                 admitted.compare_index,

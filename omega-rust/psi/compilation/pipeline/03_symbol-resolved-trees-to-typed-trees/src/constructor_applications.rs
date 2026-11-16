@@ -26,6 +26,7 @@ pub(crate) fn prepare(
         infer(program, expression, &mut Vec::new())?;
         let needs_owner = match program.expression_table.expression(expression) {
             ExpressionNode::Borrow(_) | ExpressionNode::Call(_) => true,
+            ExpressionNode::Cast(cast) => cast.form.is_recast(),
             ExpressionNode::Indexed(indexed) => {
                 program.expression_table.range_node(indexed.index).is_some()
             }
@@ -61,6 +62,23 @@ pub(crate) fn prepare(
             }
             first
         };
+        if let ExpressionNode::Cast(cast) = program.expression_table.expression(expression)
+            && let Some(access) = cast.form.recast_access()
+        {
+            // A recast forms its written reference even without a destination.
+            // Keep the occurrence and its lexical lifetime owner just as for
+            // an explicit borrow; lowering must not invent its result type.
+            let referent = cast.target_type;
+            let reference = reference_formation_type(program, referent, access);
+            program
+                .type_reference_table
+                .retain_operand_lifetime_owner(reference, caller)
+                .map_err(Diagnostic::error)?;
+            program
+                .expression_table
+                .set_constructed_value_type_reference(expression, reference);
+            continue;
+        }
         if let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) {
             let collection = indexed.collection;
             // A bare range observes the actual collection's elements,
@@ -1116,6 +1134,46 @@ mod tests {
     use typed_trees::statement::{StatementNode, TransitionTargetNode};
 
     #[test]
+    fn recasts_retain_their_written_reference_type_and_lifetime_owner() {
+        let program = checked(&[(
+            "main.omg",
+            "machine observe(items: &[u32]) { let bytes: &[u8] = items as &[u8]; }",
+        )])
+        .expect("a recast has an exact written destination");
+        let (expression, cast) = program
+            .expression_table
+            .expression_entries()
+            .find_map(|(expression, node)| match node {
+                ExpressionNode::Cast(cast) if cast.form.is_recast() => Some((expression, cast)),
+                _ => None,
+            })
+            .unwrap();
+        let reference = program
+            .expression_table
+            .constructed_value_type_reference(expression);
+        assert!(matches!(
+            program.type_reference_table.type_reference(reference),
+            TypeReferenceNode::Reference {
+                referee,
+                access: language_core::ReferenceAccess::Shared,
+                ..
+            } if *referee == cast.target_type
+        ));
+        let owner = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "observe")
+            .unwrap()
+            .symbol;
+        assert_eq!(
+            program
+                .type_reference_table
+                .operand_lifetime_owner(reference),
+            owner
+        );
+    }
+
+    #[test]
     fn ordinary_call_inference_completes_the_existing_application() {
         let source = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
@@ -1415,7 +1473,7 @@ mod tests {
                 .expect("one selected ordinary public declaration");
             assert!(declaration.is_public);
             let entry = &program.machine_states(declaration)[0];
-            let [parameter] = program.state_parameters(entry) else {
+            let Some([parameter]) = program.state_parameters(entry).as_array() else {
                 panic!("one actual formal")
             };
             let mut reference = parameter.type_reference;
@@ -1495,7 +1553,9 @@ mod tests {
                 .expect("the complete actual selects one declared header");
             assert!(declaration.is_public);
             assert_eq!(declaration.lifetime_parameters.len(), 1);
-            let [parameter] = program.state_parameters(&program.machine_states(declaration)[0])
+            let Some([parameter]) = program
+                .state_parameters(&program.machine_states(declaration)[0])
+                .as_array()
             else {
                 panic!("one retained formal")
             };
