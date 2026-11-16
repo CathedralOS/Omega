@@ -781,16 +781,16 @@ fn an_abstract_termination_promise_checks_call_and_tail_premises() {
         domain Ticket::Ready established by stamp;
         machine stamp(ticket: Ticket) -> Ticket in Ready { ticket as +Ready }
         machine inspect(ticket: &Ticket) -> u32 { ticket.number }
-        machine main(ticket: &Ticket, pending: bool) -> u32 {
+        machine main(ticket: &Ticket, pending: bool, evidence: &Ticket in Ready) -> u32 {
             let answer: u32 = inspect(ticket);
             transition pending {
-                true -> relay(ticket, false)
+                true -> relay(ticket, false, evidence)
                 false -> done()
             }
             machine done() -> u32 { 7 }
         }
-        machine relay(ticket: &Ticket, pending: bool) -> u32 {
-            main(ticket, pending)
+        machine relay(ticket: &Ticket, pending: bool, evidence: &Ticket in Ready) -> u32 {
+            main(ticket, pending, evidence)
         }
     "#,
     )
@@ -832,8 +832,17 @@ fn an_abstract_termination_promise_checks_call_and_tail_premises() {
         },
     });
     assert!(crate::ceilings::judge(&form).unwrap().is_empty());
-    for (callee, caller, tail) in [(inspect, main, false), (main, relay, true)] {
+    for (callee, caller, tail) in [(inspect, main, false), (relay, main, true)] {
         let mut conditional = form.clone();
+        assert!(
+            conditional
+                .module
+                .machine(callee)
+                .unwrap()
+                .structural_parameters[0]
+                .qualifications
+                .is_empty()
+        );
         conditional
             .requirement_ceilings
             .get_mut(callee)
@@ -860,4 +869,103 @@ fn an_abstract_termination_promise_checks_call_and_tail_premises() {
             "{refused:?}"
         );
     }
+}
+
+#[test]
+fn proof_only_template_commitments_bind_guarantees_and_open_bounds() {
+    use terminal_check_tables::compilation::TerminalCompilation;
+    use terminal_check_tables::contracts::Ceiling;
+
+    fn commitment(text: &str, closed_reach: bool) -> [u8; 32] {
+        let typed = boundary_calls::typed(text);
+        let entry = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "main")
+            .unwrap()
+            .symbol;
+        let template = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "relay")
+            .unwrap()
+            .symbol;
+        let frozen: typed_trees::FrozenTypedTrees = typed.into();
+        let prepared = typed_trees_to_terminal_psi::prepare_compilation(
+            &frozen,
+            typed_trees_to_terminal_psi::Compilation {
+                calling: None,
+                providers: None,
+                declaration_metadata: &[],
+                entries: &[entry],
+                subjects: &[],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Invocation,
+        );
+        let TerminalCompilation::Prepared(prepared) = prepared.program else {
+            panic!(
+                "expected prepared template contracts: {:?}",
+                prepared.program
+            );
+        };
+        let forms = prepared
+            .forms
+            .iter()
+            .find(|form| form.template == template)
+            .unwrap();
+        for form in forms.forms.as_ref().unwrap() {
+            let terminal_psi::TargetMachineCallable::Machine(entry) = form.module.entry.unwrap()
+            else {
+                panic!("a template retains its actual machine entry");
+            };
+            assert_eq!(form.machines.get(entry), Some(&template));
+            assert!(form.module.machine(entry).unwrap().declaration.is_none());
+            assert!(!form.requirements.is_empty());
+            assert_eq!(
+                matches!(form.requirement_ceilings.get(entry).unwrap().reaches,
+                Ceiling::Authored(ref row) if row.is_empty()),
+                closed_reach
+            );
+        }
+        let closure = prepared.closure.unwrap();
+        let commitments = closure
+            .names
+            .iter()
+            .filter(|(_, names)| names.machine == "relay")
+            .map(|(machine, _)| {
+                closure
+                    .module
+                    .machine(machine)
+                    .unwrap()
+                    .closed_reach_application
+                    .as_ref()
+                    .unwrap()
+                    .template_base_commitment
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(commitments.len(), 2);
+        assert!(commitments.iter().all(|value| *value == commitments[0]));
+        commitments[0]
+    }
+
+    // Reuse the runnable program's original headers. These comparisons test
+    // commitment formation, not acceptance of a changed effect promise: the
+    // ordinary checker must still judge every prepared form independently.
+    let original = include_str!(
+        "../../../../../../../tests/fixtures/run/generics/type_parameter_contract/main.omg"
+    );
+    let original_commitment = commitment(original, false);
+    let changed_guarantee = original.replace("ensures result <= 11", "ensures result <= 12");
+    assert_ne!(changed_guarantee, original);
+    assert_ne!(original_commitment, commitment(&changed_guarantee, false));
+    let closed_reach = original.replace(
+        "machine relay<T>(item: T, limit: u32) -> u32",
+        "machine relay<T>(item: T, limit: u32) -> u32\nreaches none",
+    );
+    assert_ne!(closed_reach, original);
+    assert_ne!(original_commitment, commitment(&closed_reach, true));
 }
