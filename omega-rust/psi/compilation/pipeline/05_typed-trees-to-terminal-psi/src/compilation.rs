@@ -93,18 +93,19 @@ pub fn prepare_compilation(
     // Every refusal reading met is reported: the first as the closure's
     // verdict, the rest beside it (`PreparedCompilation::further`).
     let mut further = Vec::new();
-    let (mut closure, primary_source, signatures, prepared_applications) =
+    let (mut closure, primary_source, signatures, prepared_applications, pending_publication) =
         match crate::elaborate_source_for(typed, compilation, publication, captures.clone()) {
             Ok(prepared) => (
                 Ok(prepared.program),
                 Some(prepared.source),
                 prepared.selected_calls,
                 prepared.prepared_applications,
+                prepared.pending_publication,
             ),
             Err(mut refused) => {
                 let first = refused.remove(0);
                 further = refused;
-                (Err(first), None, Vec::new(), Vec::new())
+                (Err(first), None, Vec::new(), Vec::new(), None)
             }
         };
     let mut source = crate::SourceCorrespondence {
@@ -217,7 +218,12 @@ pub fn prepare_compilation(
             })?;
         // Proof scope retains the completed callable headers for later
         // admission. Capture commitments are part of those headers.
-        crate::proof_scope::declare(typed, &mut elaboration, &signatures)?;
+        crate::publication::finalize_source(
+            typed,
+            &mut elaboration,
+            &signatures,
+            pending_publication,
+        )?;
         Ok(elaboration)
     });
     let mut witnesses = Vec::new();
@@ -237,6 +243,10 @@ pub fn prepare_compilation(
                 outcome_subjects: Some(compilation.subjects),
             },
         );
+        let prepared = prepared.and_then(|prepared| {
+            prepared.require_check_form()?;
+            Ok(prepared)
+        });
         let mut witness = match prepared {
             Ok(prepared) => {
                 source.forms.push(Some(prepared.source));
@@ -507,14 +517,17 @@ fn prepare_generic_forms(
             captures.clone(),
             publication,
         )
-        .map(|forms| {
-            forms
+        .and_then(|forms| {
+            for prepared in &forms {
+                prepared.require_check_form()?;
+            }
+            Ok(forms
                 .into_iter()
                 .map(|prepared| {
                     source.forms.push(Some(prepared.source));
                     prepared.program
                 })
-                .collect::<Vec<_>>()
+                .collect::<Vec<_>>())
         });
         if elaborated.is_err() {
             source.forms.push(None);

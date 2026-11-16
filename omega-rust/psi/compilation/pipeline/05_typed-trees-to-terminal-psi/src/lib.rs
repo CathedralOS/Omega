@@ -304,7 +304,12 @@ pub fn elaborate_for(
     // `prepare_compilation` reports the rest beside it.
     let mut prepared = elaborate_source_for(typed, compilation, publication, named_captures(typed))
         .map_err(|mut refused| refused.swap_remove(0))?;
-    proof_scope::declare(typed, &mut prepared.program, &prepared.selected_calls)?;
+    publication::finalize_source(
+        typed,
+        &mut prepared.program,
+        &prepared.selected_calls,
+        prepared.pending_publication.take(),
+    )?;
     Ok(prepared.program)
 }
 
@@ -492,7 +497,12 @@ pub fn elaborate_alternatives(
         named_captures(typed),
         terminal_codec::TerminalPublication::Portable,
     )
-    .map(|forms| forms.into_iter().map(|form| form.program).collect())
+    .and_then(|forms| {
+        forms
+            .into_iter()
+            .map(PreparedProgram::into_check_form)
+            .collect()
+    })
 }
 
 fn prepare_alternatives<'source>(
@@ -538,7 +548,8 @@ pub fn elaborate_generic_forms(
                 terminal_codec::TerminalPublication::Portable,
             )?
             .into_iter()
-            .map(|prepared| prepared.program),
+            .map(PreparedProgram::into_check_form)
+            .collect::<Checked<Vec<_>>>()?,
         );
     }
     Ok(forms)
@@ -651,7 +662,7 @@ pub fn elaborate_witness(
             outcome_subjects: None,
         },
     )
-    .map(|prepared| prepared.program)
+    .and_then(PreparedProgram::into_check_form)
 }
 
 fn prepare_witness<'source>(
@@ -712,7 +723,7 @@ pub fn elaborate_callable_witness<'a>(
     let entry = program.witnessed_signature(required, &[], None)?;
     let callee = program.callable_contract(supplied)?;
     let bodies = witness_call(&mut program, entry, callee)?;
-    finish_logical_witness(program, entry, bodies).map(|prepared| prepared.program)
+    finish_logical_witness(program, entry, bodies).and_then(PreparedProgram::into_check_form)
 }
 
 /// Form the same positional call obligation for a body conformance or a
@@ -901,7 +912,7 @@ fn elaborate_form(
     publication: terminal_codec::TerminalPublication,
 ) -> Checked<Elaboration> {
     prepare_form(typed, purpose, entry, rigid, captures, publication)
-        .map(|prepared| prepared.program)
+        .and_then(PreparedProgram::into_check_form)
 }
 
 fn prepare_form<'source>(
@@ -1123,18 +1134,24 @@ fn finish_reading_into<'source>(
     elaboration.value_arguments = program.value_arguments;
     elaboration.generic_templates = program.generic_templates;
     elaboration.conformance_witnesses = program.conformance_witnesses;
-    if let (Some(policies), Some(descriptions)) = (policies.as_ref(), descriptions.as_ref()) {
-        calling_publication::publish(
-            program.typed,
-            diagnostic,
-            policies,
-            descriptions,
-            &mut elaboration,
-        )?;
-    }
-    if let Some(selected) = &selected_providers {
-        provider_selections::publish(diagnostic, selected, &mut elaboration)?;
-    }
+    let calling = match (policies, descriptions) {
+        (Some(policies), Some(descriptions)) => Some((policies, descriptions)),
+        (None, None) => None,
+        _ => {
+            return Err(read::services::unavailable(
+                diagnostic,
+                "prepared calling policy lost its canonical storage descriptions",
+            ));
+        }
+    };
+    let pending_publication = (calling.is_some() || selected_providers.is_some()).then_some(
+        publication::PendingSourcePublication {
+            source: program.typed,
+            context: diagnostic,
+            calling,
+            providers: selected_providers,
+        },
+    );
     elaboration.supplied = program.supplied;
     Ok(PreparedProgram {
         program: elaboration,
@@ -1142,6 +1159,7 @@ fn finish_reading_into<'source>(
         source,
         selected_calls: Vec::new(),
         prepared_applications,
+        pending_publication,
     })
 }
 
@@ -1199,7 +1217,7 @@ pub fn lower_generic(
         terminal_codec::TerminalPublication::Portable,
         None,
     )
-    .map(|prepared| prepared.program)
+    .and_then(PreparedProgram::into_check_form)
 }
 
 fn lower_generic_for<'source>(
@@ -1652,6 +1670,7 @@ fn lower_program<'source>(
         source,
         selected_calls: Vec::new(),
         prepared_applications: Vec::new(),
+        pending_publication: None,
         program: Elaboration {
             installation_bound_refinement: None,
             module,

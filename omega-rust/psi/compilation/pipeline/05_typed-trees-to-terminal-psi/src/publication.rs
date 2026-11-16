@@ -47,6 +47,96 @@ pub(crate) struct PreparedProgram<'source> {
     pub source: SourceFormCorrespondence,
     pub selected_calls: Vec<crate::compilation::SelectedSourceCall<'source>>,
     pub prepared_applications: Vec<(MachineId, crate::declare::PreparedApplication)>,
+    pub pending_publication: Option<PendingSourcePublication<'source>>,
+}
+
+/// Exact reader outputs whose publication depends on the real proof scope.
+/// Provider schemas follow calling schemas, matching their shared source order.
+pub(crate) struct PendingSourcePublication<'source> {
+    pub source: &'source typed_trees::TypedTrees,
+    pub context: MachineId,
+    pub calling: Option<(
+        crate::read::calling::SourceCallingPolicies,
+        crate::read::storage_metadata::PreparedCallingDescriptions,
+    )>,
+    pub providers: Option<crate::provider_selections::SourceProviderSelections<'source>>,
+}
+
+impl PreparedProgram<'_> {
+    /// Check forms have no final source publication entrance. Reject pending
+    /// source obligations rather than silently dropping them with the wrapper.
+    pub(crate) fn require_check_form(&self) -> terminal_check_tables::Checked<()> {
+        if let Some(pending) = &self.pending_publication {
+            let calling = pending
+                .calling
+                .as_ref()
+                .is_some_and(|(policies, descriptions)| {
+                    !policies.requests.is_empty()
+                        || !policies.signatures.is_empty()
+                        || !policies.entries.is_empty()
+                        || !descriptions.signatures.is_empty()
+                        || !descriptions.properties.is_empty()
+                });
+            let providers = pending
+                .providers
+                .as_ref()
+                .is_some_and(|prepared| !prepared.rows.is_empty());
+            if calling || providers {
+                return Err(crate::read::services::unavailable(
+                    pending.context,
+                    format!(
+                        "a check form still owes source publication (calling declarations: {calling}; provider declarations: {providers}); actual proof-scope publication is required"
+                    ),
+                ));
+            }
+        }
+        if let Some(selected) = self.selected_calls.first() {
+            return Err(crate::read::services::unavailable(
+                selected.key.0,
+                "a check form still has exact selected-call publication associations",
+            ));
+        }
+        Ok(())
+    }
+
+    pub(crate) fn into_check_form(self) -> terminal_check_tables::Checked<Elaboration> {
+        self.require_check_form()?;
+        Ok(self.program)
+    }
+}
+
+/// Called once after any specialization headers are closed. This is the only
+/// source-publication dependency order: real proof scope, calling, providers.
+pub(crate) fn finalize_source(
+    typed: &typed_trees::TypedTrees,
+    program: &mut Elaboration,
+    selected_calls: &[crate::compilation::SelectedSourceCall<'_>],
+    pending: Option<PendingSourcePublication<'_>>,
+) -> terminal_check_tables::Checked<()> {
+    if let Some(pending) = &pending
+        && !std::ptr::eq(typed, pending.source)
+    {
+        return Err(crate::read::services::unavailable(
+            pending.context,
+            "pending source publication belongs to another frozen source owner",
+        ));
+    }
+    crate::proof_scope::declare(typed, program, selected_calls)?;
+    if let Some(pending) = pending {
+        if let Some((policies, descriptions)) = pending.calling {
+            crate::calling_publication::publish(
+                typed,
+                pending.context,
+                &policies,
+                &descriptions,
+                program,
+            )?;
+        }
+        if let Some(providers) = pending.providers {
+            crate::provider_selections::publish(pending.context, &providers, program)?;
+        }
+    }
+    Ok(())
 }
 
 /// Reading and lowering retain the exact typed occurrence until its emitted

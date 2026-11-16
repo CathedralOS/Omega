@@ -77,6 +77,135 @@ fn valid_text_is_stored_and_invalid_bytes_are_rejected() {
 }
 
 #[test]
+fn a_case_literal_retains_other_cases_conditional_domains() {
+    use terminal_psi::{OperationKind, OperationResult, StructuralPathSegment};
+
+    let source = r#"
+domain [u8]::Text requires valid_utf8(self);
+data Rejection<'reason> { reason: &'reason [u8] in Text; }
+data Outcome<'reason> {
+    case Accepted(value: &'reason [u8]);
+    case Rejected(reason: Rejection<'reason>);
+}
+machine accept() -> Outcome { Outcome::Accepted { value: "plan" } }
+machine build_entry() { let outcome: Outcome = accept(); }
+"#;
+    let accepted = match judge_build(source) {
+        Ok(RouteVerdict::Accepted(accepted)) => accepted,
+        other => panic!("only the active case supplies storage: {other:?}"),
+    };
+    let module = &accepted.elaboration.module;
+    fn constructor(module: &mut terminal_psi::TerminalModule) -> &mut terminal_psi::Operation {
+        module
+            .machines
+            .iter_mut()
+            .flat_map(|machine| &mut machine.blocks)
+            .flat_map(|block| &mut block.operations)
+            .find(|operation| {
+                matches!(
+                    operation.kind,
+                    OperationKind::EstablishStructuralCase { .. }
+                )
+            })
+            .expect("the source establishes its Accepted case")
+    }
+    let mut retained = module.clone();
+    let operation = constructor(&mut retained);
+    let OperationKind::EstablishStructuralCase { result_case, .. } = &operation.kind else {
+        unreachable!();
+    };
+    let active_case = *result_case;
+    let OperationResult::Structural(result) = &operation.result else {
+        panic!("the constructor produces an Outcome");
+    };
+    let [conditional] = result.projected_qualifications.as_slice() else {
+        panic!("the complete result keeps its rejected reason's Text domain: {result:?}");
+    };
+    let [
+        StructuralPathSegment::Case(inactive_case),
+        StructuralPathSegment::Field(_),
+        StructuralPathSegment::Field(_),
+    ] = conditional.path.as_slice()
+    else {
+        panic!("the qualification names the exact nested rejected reason: {conditional:?}");
+    };
+    assert_ne!(active_case, *inactive_case);
+    let conditional_path = conditional.path.clone();
+    let active_field = module
+        .structural_type(result.structural_type)
+        .unwrap()
+        .shape
+        .cases()
+        .iter()
+        .find(|case| case.id == active_case)
+        .unwrap()
+        .fields[0]
+        .identity;
+    assert_eq!(
+        module.structural_domains[0].byte_predicate,
+        Some(ByteSequencePredicate::ValidUtf8)
+    );
+    accepted.publish_invocation().unwrap();
+
+    let mut active = module.clone();
+    let active_path = vec![
+        StructuralPathSegment::Case(active_case),
+        StructuralPathSegment::Field(active_field),
+    ];
+    // Keep transfers consistent with the forged claim, so the constructor
+    // itself must reject the domain its plain field initializer cannot supply.
+    let redirect = |rows: &mut [terminal_psi::StructuralPathQualification]| {
+        for row in rows {
+            if row.path == conditional_path {
+                row.path.clone_from(&active_path);
+            }
+        }
+    };
+    for machine in &mut active.machines {
+        if let terminal_psi::TerminalMachineResult::Structural(result) = &mut machine.result {
+            redirect(&mut result.projected_qualifications);
+        }
+        for parameter in &mut machine.structural_parameters {
+            redirect(&mut parameter.projected_qualifications);
+        }
+        for block in &mut machine.blocks {
+            for parameter in &mut block.structural_parameters {
+                redirect(&mut parameter.projected_qualifications);
+            }
+            for operation in &mut block.operations {
+                if let OperationResult::Structural(result) = &mut operation.result {
+                    redirect(&mut result.projected_qualifications);
+                }
+            }
+        }
+    }
+    let error = terminal_semantics::structural_qualifications::validate_shape(&active).unwrap_err();
+    assert_eq!(
+        error.detail,
+        "a structural literal's field does not deliver its declared domains"
+    );
+
+    let mut unknown_case = conditional_path.clone();
+    unknown_case[0] =
+        StructuralPathSegment::Case(semantic_vocabulary::StructuralCaseId::new(u64::MAX).unwrap());
+    let mut unknown_field = conditional_path;
+    unknown_field[1] = StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(u32::MAX));
+    for path in [unknown_case, unknown_field] {
+        let mut forged = module.clone();
+        let OperationResult::Structural(result) = &mut constructor(&mut forged).result else {
+            unreachable!();
+        };
+        result.projected_qualifications[0].path = path;
+        let error =
+            terminal_semantics::structural_qualifications::validate_shape(&forged).unwrap_err();
+        assert_eq!(
+            error.detail,
+            "a structural place's domain names an absent path"
+        );
+    }
+}
+
+#[test]
 fn ascii_text_is_stored_and_other_text_is_rejected() {
     assert_eq!(verdict(&rejection("ascii_only", "plain")), "accepted");
     assert_eq!(verdict(&rejection("ascii_only", "café")), NOT_IN_DOMAIN);

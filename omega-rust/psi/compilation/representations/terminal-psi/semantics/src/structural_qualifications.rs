@@ -255,12 +255,20 @@ fn validate_declared(module: &TerminalModule, places: &Declared<'_>) -> Judged<(
                     "a structural place names an absent domain",
                 );
             };
+            // Byte and content judgments check their predicates separately.
+            // Every qualification must still name a valid storage path.
+            let Some(carrier) =
+                crate::qualification_path_carrier(module.structural_types.iter(), root, path)
+            else {
+                return malformed(
+                    places.machine(),
+                    "a structural place's domain names an absent path",
+                );
+            };
             if judged_elsewhere(module, id) {
                 continue;
             }
-            let carrier =
-                crate::qualification_path_carrier(module.structural_types.iter(), root, path);
-            if carrier != Some(declared.carrier) {
+            if carrier != declared.carrier {
                 return malformed(
                     places.machine(),
                     "a structural place's domain has a different carrier",
@@ -799,9 +807,18 @@ fn validate_machine(
                         covered.push(segments);
                     }
                     if produced.projected.iter().any(|row| {
-                        !covered
-                            .iter()
-                            .any(|segments| row.path.starts_with(segments))
+                        // Other cases retain their conditional field domains
+                        // in the result type, but supply no storage in this
+                        // literal. validate_declared checked their full paths.
+                        let inactive_case = matches!(
+                            (case, row.path.first()),
+                            (Some(active), Some(StructuralPathSegment::Case(declared)))
+                                if active != *declared
+                        );
+                        !inactive_case
+                            && !covered
+                                .iter()
+                                .any(|segments| row.path.starts_with(segments))
                     }) {
                         return malformed(
                             id,
