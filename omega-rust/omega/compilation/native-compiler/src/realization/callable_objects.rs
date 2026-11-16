@@ -87,8 +87,13 @@ pub(super) fn prepare_callable_object(
         }
         TargetLoweringError::Target(error) => realization_error("callable target lowering", error),
     })?;
-    let runtime =
-        runtime.with_borrowed_storage_layouts(optimized_target.borrowed_storage_layouts().to_vec());
+    let runtime = runtime.with_borrowed_storage_layouts(
+        optimized_target
+            .execution_plan()
+            .plan()
+            .borrowed_storage_layouts
+            .clone(),
+    );
     Ok(CallableTargetProduct {
         code: artifact.retain_code(),
         coverage: admission

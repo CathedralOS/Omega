@@ -10,7 +10,7 @@ use boundary_applications::{
 };
 use semantic_vocabulary::{
     BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId,
-    ScalarType, ValueId,
+    ScalarType, StructuralTypeId, ValueId,
 };
 use terminal_codec::CanonicalTerminalArtifact;
 use terminal_psi::{
@@ -82,7 +82,7 @@ fn reject_changed_entry_literal(
 ) {
     // Keep the compiled operation and result paired with their optimized
     // source, and change just the value in a copy of the target plan.
-    let mut mismatched = target.target_operations().clone();
+    let mut mismatched = target.working_program_for_validation().clone();
     let function = mismatched
         .functions
         .iter_mut()
@@ -150,7 +150,7 @@ fn check_published_plan(
     let verify = |prepared: &PreparedExecutionPlan| {
         native_preparation::verify_execution_plan(
             prepared,
-            target.target_operations(),
+            target.working_program_for_validation(),
             optimized.plan(),
             optimized.unit(),
             target.boundary_origins(),
@@ -163,13 +163,13 @@ fn check_published_plan(
 
     let environment =
         register_environment::baseline_target_register_environment(target.target()).unwrap();
-    let installations = BoundInstallations {
-        interrupts: target.lowering_facts().installed_interrupts(),
-        entry_execution: target.installed_entry_execution(),
-        stack_requirements: target.installed_stack_requirements(),
-    };
-    let selected = select_instructions_for_plan(published, installations, &environment)
+    let installations = crate::pipeline::bound_installations(target);
+    let selected = select_instructions_for_plan(published, &installations, &environment)
         .expect("selection needs only the plan, its installations and the registers");
+    assert_eq!(
+        selected.plan().contracts.borrowed_storage_layouts,
+        published.plan().borrowed_storage_layouts
+    );
     assert!(
         selected
             .plan()
@@ -180,6 +180,45 @@ fn check_published_plan(
     );
 
     let reseal = |plan| PreparedExecutionPlan::seal(plan, published.receipt().validator());
+    let mut changed_abi = published.plan().clone();
+    changed_abi
+        .function_abis
+        .first_mut()
+        .expect("the prepared program has function ABI rows")
+        .machine = MachineId::new(4096).unwrap();
+    assert!(
+        matches!(
+            verify(&reseal(changed_abi)),
+            Err(PublishedPlanMismatch {
+                machine: None,
+                part: "function ABI rows differ from the target's",
+            })
+        ),
+        "a coherently resealed foreign function ABI is refused by correspondence"
+    );
+    let mut changed_geometry = published.plan().clone();
+    changed_geometry.borrowed_storage_layouts =
+        runtime_abi::NativeBorrowedStorageLayouts::seal(vec![
+            runtime_abi::NativeBorrowedStorageLayout::new(
+                StructuralTypeId::new(4096).unwrap(),
+                8,
+                8,
+                [],
+                [],
+                [],
+            ),
+        ])
+        .unwrap();
+    assert!(
+        matches!(
+            verify(&reseal(changed_geometry)),
+            Err(PublishedPlanMismatch {
+                machine: None,
+                part: "borrowed storage geometry differs from the target's",
+            })
+        ),
+        "a coherently resealed foreign geometry roster is refused"
+    );
     let entry_function = |plan: &mut legalized_operations::LegalizedOperationPlan| {
         plan.scalar_functions
             .iter()
@@ -249,6 +288,7 @@ fn check_published_plan(
                 claims: Vec::new(),
                 owned_places: Vec::new(),
                 partial_custody: Vec::new(),
+                nominal_partitions: Vec::new(),
             },
         ));
     }
@@ -278,19 +318,33 @@ fn check_published_plan(
     // Installations admitted for another program cannot be bound to this plan.
     let mut other_program = published.plan().psi;
     other_program.program_fingerprint = terminal_psi::SemanticFingerprint::from_bytes([9; 32]);
-    let foreign = terminal_psi_to_abstract_operations::provider_admission::AdmittedInstalledInterruptCohort::empty(other_program);
-    let error = select_instructions_for_plan(
-        published,
-        BoundInstallations {
-            interrupts: &foreign,
-            ..installations
-        },
-        &environment,
-    )
-    .expect_err("a foreign interrupt cohort is refused");
+    let foreign_cohort = terminal_psi_to_abstract_operations::provider_admission::AdmittedInstalledInterruptCohort::empty(other_program);
+    let foreign = terminal_psi_to_abstract_operations::provider_admission::bind_installations(
+        &foreign_cohort,
+        None,
+        &[],
+    );
+    let error = select_instructions_for_plan(published, &foreign, &environment)
+        .expect_err("a foreign interrupt cohort is refused");
     assert!(matches!(
         error,
         OptimizedSelectionPipelineError::Binding(InstallationBindingError::InterruptCohortProgram)
+    ));
+
+    // An installed entry admitted for another machine cannot be bound either.
+    let other_entry = BoundInstallations {
+        installed_entry: Some(bound_installations::BoundInstalledEntry {
+            psi: published.plan().psi,
+            target: published.plan().target,
+            machine: MachineId::new(entry.get() + 1).unwrap(),
+        }),
+        ..installations.clone()
+    };
+    let error = select_instructions_for_plan(published, &other_entry, &environment)
+        .expect_err("an installed entry for another machine is refused");
+    assert!(matches!(
+        error,
+        OptimizedSelectionPipelineError::Binding(InstallationBindingError::EntryExecution)
     ));
 }
 
@@ -306,7 +360,6 @@ fn constant_artifact(through_boundary: bool) -> Arc<CanonicalTerminalArtifact> {
     module.machines.push(TerminalMachine {
         id: entry,
         attachment: None,
-        nominal_cleanup_subject: None,
         structural_places: Vec::new(),
         call_formations: Vec::new(),
         block_entry_claims: Vec::new(),

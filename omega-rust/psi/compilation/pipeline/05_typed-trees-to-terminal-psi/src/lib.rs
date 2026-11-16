@@ -514,6 +514,7 @@ pub fn elaborate_alternatives(
         template,
         shared_reading(typed),
         terminal_codec::TerminalPublication::Portable,
+        None,
     )
 }
 
@@ -523,10 +524,14 @@ fn elaborate_alternatives_with_captures(
     template: SymbolHandle,
     captures: SharedReading,
     publication: terminal_codec::TerminalPublication,
+    opaque_refusal: Option<Refusal>,
 ) -> Checked<Vec<Elaboration>> {
     let first = MachineId::new(1).expect("1 is nonzero");
     let alternatives = read::Program::with_captures(typed, false, purpose, captures.clone())
-        .family_alternatives(first, template)?;
+        .family_alternatives(first, template)
+        // Preserve the opaque refusal only when no complete partition exists.
+        // Once its coverage is known, a failing member reports its own cause.
+        .map_err(|refusal| opaque_refusal.unwrap_or(refusal))?;
     alternatives
         .into_iter()
         .map(|arguments| {
@@ -541,10 +546,10 @@ fn elaborate_alternatives_with_captures(
 }
 
 /// The check forms of the generic machines `templates`, in order: for each,
-/// the machine checked once as written with its parameters rigid
-/// (`elaborate_generic`), or, when it lists a finite type family, once per
-/// alternative (`elaborate_alternatives`). Refused when either form refuses
-/// one of them; a refusal names the template's own form.
+/// the machine checked once with opaque parameters when its bounds suffice,
+/// otherwise once per member of its complete static type partition. An open
+/// classifier includes an opaque remainder beyond its closed cases. Refused
+/// when a required alternative refuses; its diagnostic names that form.
 pub fn elaborate_generic_forms(
     typed: &TypedTrees,
     templates: &[SymbolHandle],
@@ -588,18 +593,14 @@ fn elaborate_generic_forms_with_captures(
             publication,
         ) {
             Ok(form) => forms.push(form),
-            Err(rigid) => {
-                match elaborate_alternatives_with_captures(
-                    typed,
-                    purpose,
-                    *template,
-                    captures.clone(),
-                    publication,
-                ) {
-                    Ok(alternatives) => forms.extend(alternatives),
-                    Err(_) => return Err(rigid),
-                }
-            }
+            Err(rigid) => forms.extend(elaborate_alternatives_with_captures(
+                typed,
+                purpose,
+                *template,
+                captures.clone(),
+                publication,
+                Some(rigid),
+            )?),
         }
     }
     Ok(forms)
@@ -862,7 +863,12 @@ fn finish_reading_into<'source>(
     let mut predicates_prepared = false;
     loop {
         program.resolve_scalar_applications(diagnostic)?;
+        program.finish_cleanup_selections()?;
         if binder_reach.len() == program.symbols.len() {
+            program.prepare_calling_policy_roots(diagnostic)?;
+            if binder_reach.len() != program.symbols.len() {
+                continue;
+            }
             if predicates_prepared {
                 break;
             }
@@ -888,6 +894,7 @@ fn finish_reading_into<'source>(
     program.begin_declaration_storage(diagnostic, bodies.len())?;
     let declarations = program.declaration_metadata.clone();
     let calling_abis = program.prepare_calling_abis(diagnostic, &declarations)?;
+    program.finish_cleanup_selections()?;
     let PreparedProgram {
         program: mut elaboration,
         outcomes,

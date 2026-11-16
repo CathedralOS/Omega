@@ -39,7 +39,7 @@ operations are still refused; their event, codec and target representations
 below do not by themselves make the source accepted.
 
 The codec's independent operation verifier
-(`terminal-psi/codec/src/foundation_validation.rs`)
+(`terminal-psi/wire/src/foundation_validation.rs`)
 and the interpreter consume that event. The verifier refuses illegal orderings,
 runtime-chosen locations, bounded writes that lack their checked resident
 obligation, mistyped operands or results, and events on ordinary scalar

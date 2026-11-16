@@ -388,6 +388,7 @@ impl Program<'_> {
         let record: StructuralTypeId = self.records.push(RecordType {
             owns_linear_claim,
             copyable,
+            cleanup: None,
             identity,
             shape: if data.supply_mode == language_semantics::DataSupplyMode::BoundaryOpaque {
                 crate::StorageShape::Opaque
@@ -523,7 +524,50 @@ impl Program<'_> {
             .get_mut(record)
             .ok_or_else(|| unserved("record identity"))?
             .requires = requires;
+        if let Some(selection) = data.cleanup_selection {
+            if data.generic_instance.is_some() {
+                return Err(unserved("nominal cleanup on an applied data type"));
+            }
+            let executable = self.ordinary_application_target(id, selection.application)?;
+            self.pending_cleanup.push((record, executable));
+        }
         Ok(ValueType::record(record))
+    }
+
+    /// A selected consumer is an ordinary discovered callee. Drain new types
+    /// once, after signatures have their identities, including types that a
+    /// selected consumer's own signature discovers.
+    pub(crate) fn finish_cleanup_selections(&mut self) -> Checked<()> {
+        while let Some((record, executable)) = self.pending_cleanup.pop() {
+            let diagnostic = self.next_identity()?;
+            let definition = self.typed.machine_by_symbol(executable).ok_or_else(|| {
+                refuse(
+                    diagnostic,
+                    Construct::Machine,
+                    Unserved::Declaration("selected cleanup has no machine body"),
+                )
+            })?;
+            if crate::is_generic_template(self.typed, definition) {
+                return Err(refuse(
+                    diagnostic,
+                    Construct::Machine,
+                    Unserved::Declaration("selected cleanup needs a closed ordinary application"),
+                ));
+            }
+            let machine = self.machine(executable)?;
+            let declaration = self.records.get_mut(record).ok_or_else(|| {
+                refuse(
+                    diagnostic,
+                    Construct::Machine,
+                    Unserved::Type("cleanup carrier identity"),
+                )
+            })?;
+            declaration.cleanup = Some(crate::body::RecordCleanup {
+                declaration_identity: declaration.identity.clone(),
+                machine,
+            });
+        }
+        Ok(())
     }
 
     /// The fields and cases of a data declaration, each with its symbols,
@@ -767,7 +811,7 @@ impl Program<'_> {
         id: MachineId,
         slots: &[Slot],
         local: &typed_trees::statement::TableLocalData,
-    ) -> Checked<()> {
+    ) -> Checked<Option<crate::body::Statement>> {
         let refused = |what| refuse(id, Construct::Machine, what);
         if !local.pattern_subject.is_valid() {
             return Err(refused(Unserved::Spelling(
@@ -807,24 +851,62 @@ impl Program<'_> {
             .typed
             .expression_table
             .match_fields(local.pattern_fields);
-        if roster
-            .iter()
-            .any(|row| !row.field_symbol.is_valid() || !source.fields.contains(&row.field_symbol))
-        {
+        let mut declared = source.fields.clone();
+        declared.sort_unstable_by_key(|field| (field.generation(), field.arena_index()));
+        if declared.windows(2).any(|fields| fields[0] == fields[1]) {
             return Err(refused(Unserved::Spelling(
-                "record pattern field without a symbol",
+                "record pattern over ambiguous field declarations",
             )));
         }
-        if source
-            .fields
-            .iter()
-            .any(|field| !roster.iter().any(|row| row.field_symbol == *field))
-        {
+        let mut used = vec![false; declared.len()];
+        for row in roster {
+            let field = row.field_symbol;
+            let position = field
+                .is_valid()
+                .then(|| {
+                    declared
+                        .binary_search_by_key(
+                            &(field.generation(), field.arena_index()),
+                            |candidate| (candidate.generation(), candidate.arena_index()),
+                        )
+                        .ok()
+                })
+                .flatten()
+                .ok_or_else(|| {
+                    refused(Unserved::Spelling("record pattern field without a symbol"))
+                })?;
+            if std::mem::replace(&mut used[position], true) {
+                return Err(refused(Unserved::Typing("record pattern repeats a field")));
+            }
+        }
+        if used.iter().any(|used| !used) {
             return Err(refused(Unserved::Statement(
                 "record pattern that omits a field",
             )));
         }
-        Ok(())
+        let nominal = self
+            .typed
+            .unique_data_definition_by_symbol(source.declaration)
+            .is_some_and(|definition| definition.cleanup_selection.is_some());
+        let owned = match place.kind {
+            ExpressionKind::Slot(slot) => {
+                slots.get(slot).is_some_and(|slot| slot.borrowed.is_none())
+            }
+            _ => false,
+        };
+        if nominal && owned {
+            if !subject
+                .result
+                .is_some_and(|value| value.qualification().is_none())
+            {
+                return Err(refused(Unserved::Statement(
+                    "nominal decomposition with qualified subject obligations",
+                )));
+            }
+            Ok(Some(crate::body::Statement::Decompose { subject }))
+        } else {
+            Ok(None)
+        }
     }
 
     /// A member the typed trees hold only as a spelling. It is an error
@@ -1360,12 +1442,10 @@ fn record_shape_for<'m>(
     if data.quotient.is_some() {
         return unserved("quotient data");
     }
-    // Body reading requires supported disposition contracts. Descriptor mode
-    // may retain a real linear claim's geometry but cannot execute cleanup;
-    // selected cleanup and carry still require their own source projections.
+    // Descriptor mode may retain a linear claim's geometry. Executable
+    // linear disposition and carry still need their own checked projections.
     if data.properties.multiplicity == language_semantics::Multiplicity::Linear
         && !descriptor_storage
-        || data.cleanup_selection.is_some()
     {
         return unserved("data with custody");
     }
@@ -1640,6 +1720,7 @@ mod tests {
         let owned = records.push(RecordType {
             owns_linear_claim: false,
             copyable: false,
+            cleanup: None,
             identity: "Owned".into(),
             shape: crate::StorageShape::Record(Vec::new()),
             requires: Vec::new(),

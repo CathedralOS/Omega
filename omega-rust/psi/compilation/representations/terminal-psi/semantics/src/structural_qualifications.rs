@@ -1615,7 +1615,12 @@ mod operation_permissions {
         analysis: DescriptorAnalysis<'a>,
         // Only an index into existing call rows; no actual arguments, queries
         // or transitive call paths are copied into this roster.
-        incoming: Vec<(MachineId, MachineId, DescriptorPosition)>,
+        incoming: Vec<(
+            MachineId,
+            MachineId,
+            DescriptorPosition,
+            terminal_psi::InvocationOwner,
+        )>,
     }
     fn failure(machine: MachineId, detail: &'static str) -> StructuralQualificationError {
         StructuralQualificationError {
@@ -1837,21 +1842,27 @@ mod operation_permissions {
                     .partition_point(|row| row.0 <= subject.machine);
             let mut result = Vec::new();
             for index in range {
-                let (_, caller, position) = self.incoming[index];
+                let (_, caller, position, owner) = self.incoming[index];
                 let body = self.machine(caller)?;
                 let block = body
                     .blocks
                     .iter()
                     .find(|block| block.id == position.0)
                     .ok_or_else(|| failure(caller, "memory access call has no original block"))?;
-                let invocation = match block.operations.get(position.1 as usize) {
-                    Some(operation) => operation.module_invocation(),
-                    None if position.1 as usize == block.operations.len() => {
+                let invocation = match owner {
+                    terminal_psi::InvocationOwner::Operation(id) => block.operations
+                        .get(position.1 as usize)
+                        .filter(|operation| operation.id == id)
+                        .and_then(|operation| operation.module_invocation()),
+                    terminal_psi::InvocationOwner::InvokeNoNormal(edge)
+                        if position.1 as usize == block.operations.len()
+                            && matches!(block.terminator, terminal_psi::Terminator::InvokeNoNormal { edge: actual, .. } if actual == edge) =>
+                    {
                         block.terminator.module_invocation()
                     }
-                    None => None,
+                    _ => None,
                 }
-                .ok_or_else(|| failure(caller, "memory access call has no original invocation"))?;
+                .ok_or_else(|| failure(caller, "memory access call has no supported original invocation"))?;
                 if invocation.required_contract.is_some() {
                     return Err(failure(
                         caller,
@@ -1860,7 +1871,7 @@ mod operation_permissions {
                 }
                 let actuals = self
                     .analysis
-                    .substitute_call_source(caller, position, &subject.source)
+                    .substitute_call_source_at(caller, position, owner, &subject.source)
                     .filter(|actuals| !actuals.is_empty())
                     .ok_or_else(|| {
                         failure(
@@ -2156,7 +2167,7 @@ mod operation_permissions {
         for caller in &graph {
             for (position, call) in caller.known_invocations() {
                 if let Some(callee) = call.callee() {
-                    incoming.push((callee, caller.id, *position));
+                    incoming.push((callee, caller.id, *position, call.owner));
                 }
             }
         }

@@ -27,6 +27,7 @@ terminal-psi = { path = "../../representations/terminal-psi" }
 terminal-semantics = { path = "../../representations/terminal-psi/semantics" }
 
 [dev-dependencies]
+language-semantics = { path = "../../../foundation/language-semantics" }
 mimalloc = { version = "0.1", default-features = false }
 numerics = { path = "../../../foundation/numerics" }
 terminal-work = { path = "../../representations/terminal-psi/work" }

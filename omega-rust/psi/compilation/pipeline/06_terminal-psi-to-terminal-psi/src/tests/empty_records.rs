@@ -20,6 +20,7 @@ fn tokens(copyable: bool) -> IdTable<StructuralTypeId, RecordType> {
         authored_layout: false,
         owns_linear_claim: false,
         copyable,
+        cleanup: None,
         identity: "Token".into(),
         shape: typed_trees_to_terminal_psi::StorageShape::Record(Vec::new()),
         requires: Vec::new(),
@@ -28,6 +29,7 @@ fn tokens(copyable: bool) -> IdTable<StructuralTypeId, RecordType> {
         authored_layout: false,
         owns_linear_claim: false,
         copyable,
+        cleanup: None,
         identity: "Holder".into(),
         shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![RecordField {
             id: id(1),

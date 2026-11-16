@@ -124,6 +124,7 @@ impl Program<'_> {
         let id = self.records.push(RecordType {
             owns_linear_claim: false,
             copyable: access == StructuralAccess::SharedBorrow,
+            cleanup: None,
             identity,
             shape,
             requires: Vec::new(),

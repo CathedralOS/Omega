@@ -1534,7 +1534,7 @@ pub(crate) mod local_storage {
         let slot = crate::selection::construction::scalar_graph::call_arguments::argument_slot(
             row,
             argument_index,
-        );
+        )?;
         if descriptor_byte_size == 16 {
             let count = transport_register(builder, place, 8)?;
             builder.emit_materialize_i64(
@@ -1574,7 +1574,7 @@ pub(crate) mod local_storage {
         let slot = crate::selection::construction::scalar_graph::call_arguments::argument_slot(
             row,
             argument_index,
-        );
+        )?;
         let length = transport_register(builder, place, field_offset)?;
         super::runtime_address::footprint(
             builder,
@@ -2737,6 +2737,7 @@ pub(crate) mod indirect_results {
     }
 
     pub(crate) fn returned(
+        function: usize,
         source: &crate::native_geometry::NativeFunction<'_>,
         block: &legalized_operations::LegalizedScalarBlock,
         returned: &legalized_operations::LegalizedScalarReturn,
@@ -2777,6 +2778,8 @@ pub(crate) mod indirect_results {
         )?;
         for (owner, call) in cleanup_calls {
             crate::selection::construction::scalar_graph::cleanup_call::emit(
+                function,
+                source,
                 *owner,
                 call,
                 returned.effect,
@@ -5565,6 +5568,7 @@ pub(crate) fn operation(
     if matches!(
         row.kind,
         LegalizedScalarInstructionKind::ReleaseReference { .. }
+            | LegalizedScalarInstructionKind::DecomposeStructuralValue { .. }
             | LegalizedScalarInstructionKind::EstablishTrivialAffineLocal { .. }
     ) {
         if row.result.is_some() {

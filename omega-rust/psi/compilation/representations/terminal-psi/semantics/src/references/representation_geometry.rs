@@ -264,6 +264,7 @@ mod tests {
             copyable: true,
             no_code_affine_cleanup: true,
             descriptor_cleanup: false,
+            nominal_cleanup: None,
             scalar_restriction: None,
             requires: Vec::new(),
         }
@@ -285,7 +286,6 @@ mod tests {
             entry: BlockId::new(1).unwrap(),
             assembly_target_requirement: terminal_psi::RegisterTargetApplicability::Any,
             attachment: None,
-            nominal_cleanup_subject: None,
             ranked_scc: None,
             structural_places: vec![terminal_psi::StructuralPlaceDeclaration {
                 id: place,
@@ -344,6 +344,64 @@ mod tests {
             validate_reference_view_source(&module, &machine, place),
             Err("reference view source has no established owned or incoming storage")
         );
+    }
+
+    #[test]
+    fn projected_alignment_does_not_turn_repeated_storage_gaps_into_bytes() {
+        let unsigned =
+            |bits| ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, bits).unwrap());
+        let array = |element, length| StructuralTypeShape::FixedArray {
+            element: ty(element),
+            length: ArrayExtent::Literal(length),
+        };
+        let field = TerminalIdentityIndex(7);
+        for (element_stride, expected) in [(1, true), (2, false)] {
+            let mut module = TerminalModule::declarations();
+            module.structural_types = vec![
+                declaration(1, StructuralTypeShape::PrimitiveScalar(unsigned(8))),
+                declaration(2, array(1, 8)),
+                declaration(
+                    3,
+                    StructuralTypeShape::Record {
+                        fields: vec![StructuralFieldDeclaration {
+                            declaration_identity: Default::default(),
+                            id: StructuralFieldId::new(1).unwrap(),
+                            identity: field,
+                            field_type: StructuralFieldType::Structural(ty(2)),
+                            storage: Some(AuthoredFieldStorage::Repeated {
+                                byte_offset: 0,
+                                element_stride,
+                            }),
+                            inline_carrier: None,
+                            relevance: BindingRelevance::Relevant,
+                        }],
+                        storage: StructuralRecordStorage::Authored(AuthoredRecordStorage {
+                            byte_size: 16,
+                            byte_alignment: 8,
+                        }),
+                    },
+                ),
+                declaration(4, StructuralTypeShape::PrimitiveScalar(unsigned(64))),
+                declaration(5, array(4, 1)),
+                declaration(
+                    6,
+                    StructuralTypeShape::Reference {
+                        referent: ty(5),
+                        access: StructuralAccess::SharedBorrow,
+                    },
+                ),
+            ];
+            assert_eq!(
+                reference_view_compatible(
+                    &module,
+                    ty(3),
+                    &[StructuralPathSegment::Field(field)],
+                    ty(6),
+                    None,
+                ),
+                Ok(expected)
+            );
+        }
     }
 
     #[test]

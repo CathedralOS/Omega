@@ -8,12 +8,15 @@ or borrowed restoration obligations.
 Carrier casts start with an unqualified operand and perform an exact scalar
 conversion before adding a policy. Float widening uses the authenticated Core
 conversion whose entire input format is exactly representable in its result.
-Storage recasts and unserved anonymous operands refuse here.
+Collection recasts retain their written reference type and use collection-view
+formation. Other storage recasts require an explicit reference formation.
 */
 
+use language_core::ReferenceAccess;
 use semantic_vocabulary::{MachineId, ScalarType};
 use terminal_check_tables::{Checked, Construct};
-use typed_trees::expression::TableCastExpression;
+use typed_trees::expression::{ExpressionHandle, TableCastExpression};
+use typed_trees::types::TypeReferenceNode;
 
 use super::{Program, Slot};
 use crate::body::{Expression, ExpressionKind, Policy, Qualification, ValueType};
@@ -24,6 +27,7 @@ impl Program<'_> {
         &mut self,
         id: MachineId,
         slots: &[Slot],
+        handle: ExpressionHandle,
         cast: &TableCastExpression,
         source: SourceOrigin,
     ) -> Checked<Expression> {
@@ -31,8 +35,37 @@ impl Program<'_> {
         if let Some(entry) = cast.form.entry() {
             return self.domain_entry(id, slots, cast, entry, source);
         }
-        if cast.form.is_recast() {
-            return unserved("storage view outside reference formation");
+        if let Some(access) = cast.form.recast_access() {
+            if access != ReferenceAccess::Shared {
+                return unserved(
+                    "exclusive storage view without establishment and handback evidence",
+                );
+            }
+            let reference = self
+                .typed
+                .expression_table
+                .constructed_value_type_reference(handle);
+            if !self
+                .typed
+                .type_reference_table
+                .contains_type_reference(reference)
+            {
+                return unserved("storage view outside reference formation");
+            }
+            if !matches!(
+                self.typed.type_reference_table.type_reference(reference),
+                TypeReferenceNode::Reference {
+                    referee,
+                    access: retained,
+                    ..
+                } if *referee == cast.target_type && *retained == access
+            ) {
+                return unserved("storage view differs from its retained reference type");
+            }
+            let Some(view) = self.view_type(id, reference)? else {
+                return unserved("storage view outside reference formation");
+            };
+            return self.collection_recast(id, slots, cast, reference, view, source);
         }
         if cast.semantic_domain_symbol.is_valid() || !cast.semantic_domain.is_empty() {
             return unserved("cast naming a domain");

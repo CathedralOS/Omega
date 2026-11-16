@@ -456,7 +456,7 @@ pub(super) fn normalize_for_schema(
     let caller = source
         .machine_by_symbol(plan.caller())
         .ok_or("semantic plan lost its actual checked caller")?;
-    let [entry] = source.machine_states(caller) else {
+    let Some([entry]) = source.machine_states(caller).as_array() else {
         return Err("semantic plan lost its unique checked caller entry".into());
     };
     if !source

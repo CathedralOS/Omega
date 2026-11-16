@@ -4095,12 +4095,7 @@ pub(crate) mod reference_input {
             }
         } else {
             match storage {
-                Some(storage)
-                    if matches!(
-                        source.path.last(),
-                        Some(StructuralPathSegment::FixedRange { .. })
-                    ) =>
-                {
+                Some(storage) if storage.stored_scalar.is_none() => {
                     terminal_semantics::reference_storage_region_source_compatible(
                         declarations.iter(),
                         root,
@@ -4385,6 +4380,7 @@ pub(crate) mod reference_input {
                 no_code_affine_cleanup: false,
                 copyable: false,
                 descriptor_cleanup: false,
+                nominal_cleanup: None,
                 scalar_restriction: None,
                 shape,
             }

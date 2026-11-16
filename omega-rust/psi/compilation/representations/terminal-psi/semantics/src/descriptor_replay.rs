@@ -56,12 +56,10 @@ pub(crate) mod analysis {
                 if call.argument_contents.iter().any(Option::is_none) {
                     return Err("descriptor call has an unresolved argument contents coordinate");
                 }
-                let states = self
+                let before = self
                     .replay
-                    .snapshots
-                    .get(&identity)
-                    .and_then(Option::as_ref)
-                    .ok_or("caller descriptor snapshots disappeared")?;
+                    .invocation_state(identity, *position, call.owner)
+                    .ok_or("descriptor call has no reachable pre-call snapshot")?;
                 let summary = self
                     .replay
                     .cached_invocation_summary(call)
@@ -78,14 +76,7 @@ pub(crate) mod analysis {
                     for origin in &slot.origins {
                         origins.extend(
                             self.replay
-                                .substitute_result(
-                                    machine,
-                                    states.get(position).ok_or(
-                                        "descriptor call has no reachable pre-call snapshot",
-                                    )?,
-                                    call,
-                                    origin,
-                                )
+                                .substitute_result(machine, before, call, origin)
                                 .ok_or(
                                     "descriptor result origin could not be substituted at the call",
                                 )?,
@@ -292,7 +283,8 @@ pub(crate) mod analysis {
                 .replay
                 .snapshots
                 .get(&identity)
-                .and_then(Option::as_ref);
+                .and_then(Option::as_ref)
+                .map(|prepared| &prepared.before);
             machine
                 .flow
                 .keys()
@@ -333,6 +325,7 @@ pub(crate) mod analysis {
                 .snapshots
                 .get(&identity)
                 .and_then(Option::as_ref)
+                .map(|prepared| &prepared.before)
                 .and_then(|states| states.get(&position))
             else {
                 return FlowFeasibility::ProvedImpossible;
@@ -368,6 +361,7 @@ pub(crate) mod analysis {
                 .snapshots
                 .get(&identity)
                 .and_then(Option::as_ref)
+                .map(|prepared| &prepared.before)
                 .and_then(|states| states.get(&position))
             else {
                 return FlowFeasibility::Unknown;
@@ -391,6 +385,7 @@ pub(crate) mod analysis {
                 .snapshots
                 .get(&identity)
                 .and_then(Option::as_ref)
+                .map(|prepared| &prepared.before)
                 .and_then(|states| states.get(&position))
             else {
                 return false;
@@ -506,6 +501,25 @@ pub(crate) mod analysis {
             }
         }
 
+        // Actions at one flow position can have different genuine prestates.
+        // Their queries stay outside the position-only storage memo.
+        pub fn location_at(
+            &mut self,
+            identity: MachineId,
+            position: DescriptorPosition,
+            owner: DescriptorInvocationOwner,
+            location: &DescriptorLocation,
+        ) -> Option<DescriptorLocation> {
+            self.replay.prepare_states(identity)?;
+            let machine = self.replay.machine(identity)?;
+            self.replay.canonical_storage(
+                machine,
+                self.replay.invocation_state(identity, position, owner)?,
+                location,
+                None,
+            )
+        }
+
         fn prepared_storage(
             replay: &Replay<'_>,
             queries: &mut StorageQueries,
@@ -515,7 +529,7 @@ pub(crate) mod analysis {
             retain: bool,
         ) -> Option<StorageResolution> {
             let machine = replay.machine(identity)?;
-            let states = replay.snapshots.get(&identity)?.as_ref()?;
+            let states = &replay.snapshots.get(&identity)?.as_ref()?.before;
             let state = states.get(&position)?;
             if let Some(result) = queries.get(identity, position, location) {
                 return result.clone();
@@ -542,7 +556,7 @@ pub(crate) mod analysis {
         ) -> Option<Vec<DescriptorLocation>> {
             self.replay.prepare_states(identity)?;
             let machine = self.replay.machine(identity)?;
-            let states = self.replay.snapshots.get(&identity)?.as_ref()?;
+            let states = &self.replay.snapshots.get(&identity)?.as_ref()?.before;
             self.replay
                 .storage_origins(machine, states.get(&position)?, location)
         }
@@ -567,15 +581,47 @@ pub(crate) mod analysis {
         pub fn write_frame(
             &mut self,
             identity: MachineId,
-        ) -> Result<Option<&[DescriptorLocation]>, &'static str> {
+        ) -> Result<Option<Vec<DescriptorLocation>>, &'static str> {
             self.replay.prepare_write_frame(identity)?;
-            Ok(self
+            let Some(frame) = self
                 .replay
                 .summaries
                 .get(&identity)
                 .and_then(Option::as_ref)
                 .and_then(|summary| summary.storage_frame.writes.as_ref())
-                .and_then(|writes| writes.as_ref().as_deref()))
+                .and_then(|writes| writes.as_ref().as_ref())
+            else {
+                return Ok(None);
+            };
+            // Keep precise crossings in the internal transitive frame. Only
+            // publication widens to the existing field-only contract shape.
+            let mut published = frame
+                .iter()
+                .cloned()
+                .map(|mut write| {
+                    write.path.truncate(
+                        write
+                            .path
+                            .iter()
+                            .take_while(|segment| {
+                                matches!(segment, DescriptorPathSegment::Field(_))
+                            })
+                            .count(),
+                    );
+                    write
+                })
+                .collect::<Vec<_>>();
+            published.sort_unstable();
+            let mut normalized: Vec<DescriptorLocation> = Vec::with_capacity(published.len());
+            for write in published {
+                if normalized
+                    .last()
+                    .is_none_or(|prior| !prior.contains(&write))
+                {
+                    normalized.push(write);
+                }
+            }
+            Ok(Some(normalized))
         }
 
         /// Keep each operation at its original instruction and operand. A
@@ -618,7 +664,7 @@ pub(crate) mod analysis {
         ) -> Option<Vec<DescriptorPayloadTarget>> {
             self.replay.prepare_states(identity)?;
             let machine = self.replay.machine(identity)?;
-            let states = self.replay.snapshots.get(&identity)?.as_ref()?;
+            let states = &self.replay.snapshots.get(&identity)?.as_ref()?.before;
             self.replay
                 .contents_targets(machine, states.get(&position)?, query)
                 .map(|targets| targets.into_iter().collect())
@@ -632,7 +678,7 @@ pub(crate) mod analysis {
         ) -> Option<Vec<DescriptorPayloadTarget>> {
             self.replay.prepare_states(identity)?;
             let machine = self.replay.machine(identity)?;
-            let states = self.replay.arrival_snapshots.get(&identity)?.as_ref()?;
+            let states = &self.replay.snapshots.get(&identity)?.as_ref()?.arrivals;
             self.replay
                 .contents_targets(machine, states.get(&position)?, query)
                 .map(|targets| targets.into_iter().collect())
@@ -659,7 +705,7 @@ pub(crate) mod analysis {
         ) -> Option<Vec<DescriptorSourceOrigin>> {
             self.replay.prepare_states(identity)?;
             let machine = self.replay.machine(identity)?;
-            let states = self.replay.snapshots.get(&identity)?.as_ref()?;
+            let states = &self.replay.snapshots.get(&identity)?.as_ref()?.before;
             self.replay.symbolic(
                 machine,
                 self.replay
@@ -692,6 +738,7 @@ pub(crate) mod analysis {
                 .snapshots
                 .get(&identity)
                 .and_then(Option::as_ref)
+                .map(|prepared| &prepared.before)
                 .ok_or_else(|| format!("{}: descriptor snapshots are absent", context()))?;
             let state = states
                 .get(&position)
@@ -717,7 +764,17 @@ pub(crate) mod analysis {
             position: DescriptorPosition,
             origin: &DescriptorSourceOrigin,
         ) -> Option<Vec<DescriptorSourceOrigin>> {
-            self.substitute_call_source_with_target(identity, position, origin, false)
+            let owner = self.replay.machine(identity)?.direct_call(position)?.owner;
+            self.substitute_call_source_at(identity, position, owner, origin)
+        }
+        pub fn substitute_call_source_at(
+            &mut self,
+            identity: MachineId,
+            position: DescriptorPosition,
+            owner: DescriptorInvocationOwner,
+            origin: &DescriptorSourceOrigin,
+        ) -> Option<Vec<DescriptorSourceOrigin>> {
+            self.substitute_call_source_with_target(identity, position, owner, origin, false)
         }
         pub fn substitute_stored_effect_source(
             &mut self,
@@ -725,30 +782,36 @@ pub(crate) mod analysis {
             position: DescriptorPosition,
             origin: &DescriptorSourceOrigin,
         ) -> Option<Vec<DescriptorSourceOrigin>> {
-            self.substitute_call_source_with_target(identity, position, origin, true)
+            let owner = self.replay.machine(identity)?.direct_call(position)?.owner;
+            self.substitute_stored_effect_source_at(identity, position, owner, origin)
+        }
+        pub fn substitute_stored_effect_source_at(
+            &mut self,
+            identity: MachineId,
+            position: DescriptorPosition,
+            owner: DescriptorInvocationOwner,
+            origin: &DescriptorSourceOrigin,
+        ) -> Option<Vec<DescriptorSourceOrigin>> {
+            self.substitute_call_source_with_target(identity, position, owner, origin, true)
         }
         fn substitute_call_source_with_target(
             &mut self,
             identity: MachineId,
             position: DescriptorPosition,
+            owner: DescriptorInvocationOwner,
             origin: &DescriptorSourceOrigin,
             stored_effects: bool,
         ) -> Option<Vec<DescriptorSourceOrigin>> {
             self.replay.prepare_states(identity)?;
             let machine = self.replay.machine(identity)?;
-            let call = machine.known_invocation(&position)?;
+            let call = machine.invocation(position, owner)?;
             let callee = self.replay.machine(if stored_effects {
                 call.stored_effects_callee()?
             } else {
                 call.callee()?
             })?;
             let exported = self.export_source_origin(callee, origin)?;
-            let state = self
-                .replay
-                .snapshots
-                .get(&identity)?
-                .as_ref()?
-                .get(&position)?;
+            let state = self.replay.invocation_state(identity, position, owner)?;
             self.replay.symbolic(
                 machine,
                 self.replay.substitute(machine, state, call, &exported)?,
@@ -781,6 +844,7 @@ pub(crate) mod analysis {
                 .snapshots
                 .get(&identity)?
                 .as_ref()?
+                .before
                 .get(&position)?;
             self.replay.symbolic(
                 machine,
@@ -871,6 +935,16 @@ pub(crate) mod analysis {
             position: DescriptorPosition,
             origin: &DescriptorCallOrigin,
         ) -> Option<DescriptorCallOrigin> {
+            let owner = self.replay.machine(identity)?.direct_call(position)?.owner;
+            self.substitute_call_storage_at(identity, position, owner, origin)
+        }
+        pub fn substitute_call_storage_at(
+            &mut self,
+            identity: MachineId,
+            position: DescriptorPosition,
+            owner: DescriptorInvocationOwner,
+            origin: &DescriptorCallOrigin,
+        ) -> Option<DescriptorCallOrigin> {
             let DescriptorCallOrigin::Argument { source, projection } = origin else {
                 return None;
             };
@@ -883,18 +957,13 @@ pub(crate) mod analysis {
             }
             self.replay.prepare_states(identity)?;
             let machine = self.replay.machine(identity)?;
-            let call = machine.known_invocation(&position)?;
+            let call = machine.invocation(position, owner)?;
             let callee = self.replay.machine(call.stored_effects_callee()?)?;
             let (parameter, _, ty) = self.replay.parameter(callee, *source)?;
             let relative =
                 descriptor_location(self.replay.types, *source, ty, &projection.path, None)?;
             let actual = self.replay.actual_slot(call, parameter, &relative.path)?;
-            let before = self
-                .replay
-                .snapshots
-                .get(&identity)?
-                .as_ref()?
-                .get(&position)?;
+            let before = self.replay.invocation_state(identity, position, owner)?;
             let storage = before
                 .slots
                 .get(&DescriptorLocation::whole(actual.root))?
@@ -942,7 +1011,7 @@ pub(crate) mod analysis {
                     .replay
                     .machine(caller)
                     .ok_or("descriptor preservation has no caller")?;
-                let Some(call) = machine.known_invocation(&position) else {
+                let Some(call) = machine.direct_call(position) else {
                     return Ok(false);
                 };
                 let Some(callee) = call.stored_effects_callee() else {
@@ -997,6 +1066,7 @@ pub(crate) mod analysis {
                 .snapshots
                 .get(&callee)
                 .and_then(Option::as_ref)
+                .map(|prepared| &prepared.normal_exits)
                 .ok_or("descriptor preservation snapshots disappeared")?;
             // A loop can replace the descriptor before revisiting the entry block.
             // Compare returns with invocation inputs, not the widened loop state.
@@ -1035,7 +1105,16 @@ pub(crate) mod analysis {
             identity: MachineId,
             position: DescriptorPosition,
         ) -> Option<Vec<DescriptorStoredCallEffect>> {
-            let effects = self.symbolic_call_stored_effects(identity, position)?;
+            let owner = self.replay.machine(identity)?.direct_call(position)?.owner;
+            self.call_stored_effects_at(identity, position, owner)
+        }
+        pub fn call_stored_effects_at(
+            &mut self,
+            identity: MachineId,
+            position: DescriptorPosition,
+            owner: DescriptorInvocationOwner,
+        ) -> Option<Vec<DescriptorStoredCallEffect>> {
+            let effects = self.symbolic_call_stored_effects_at(identity, position, owner)?;
             let machine = self.replay.machine(identity)?;
             effects
                 .into_iter()
@@ -1057,11 +1136,19 @@ pub(crate) mod analysis {
             identity: MachineId,
             position: DescriptorPosition,
         ) -> Option<Vec<DescriptorStoredCallEffect<DescriptorSourceOrigin>>> {
+            let owner = self.replay.machine(identity)?.direct_call(position)?.owner;
+            self.symbolic_call_stored_effects_at(identity, position, owner)
+        }
+        pub fn symbolic_call_stored_effects_at(
+            &mut self,
+            identity: MachineId,
+            position: DescriptorPosition,
+            owner: DescriptorInvocationOwner,
+        ) -> Option<Vec<DescriptorStoredCallEffect<DescriptorSourceOrigin>>> {
             self.replay.prepare_states(identity)?;
             let machine = self.replay.machine(identity)?;
-            let states = self.replay.snapshots.get(&identity)?.as_ref()?;
-            let before = states.get(&position)?;
-            let call = machine.known_invocation(&position)?;
+            let before = self.replay.invocation_state(identity, position, owner)?;
+            let call = machine.invocation(position, owner)?;
             if call.argument_contents.iter().any(Option::is_none) {
                 return None;
             }
@@ -1111,6 +1198,42 @@ pub(crate) mod analysis {
                     })
                 })
                 .collect()
+        }
+        pub fn invocation_flow_at(
+            &mut self,
+            identity: MachineId,
+            position: DescriptorPosition,
+            owner: DescriptorInvocationOwner,
+        ) -> Result<DescriptorFlowStep, DescriptorGraphError> {
+            self.replay.prepare_states(identity).ok_or(
+                DescriptorGraphError::IncompleteMachine {
+                    machine: identity,
+                    position: Some(position),
+                    detail: None,
+                },
+            )?;
+            let machine = self
+                .replay
+                .machine(identity)
+                .ok_or(DescriptorGraphError::MissingOrAmbiguousMachine(identity))?;
+            let call = machine.invocation(position, owner).ok_or(
+                DescriptorGraphError::IncompleteMachine {
+                    machine: identity,
+                    position: Some(position),
+                    detail: None,
+                },
+            )?;
+            let before = self
+                .replay
+                .invocation_state(identity, position, owner)
+                .ok_or(DescriptorGraphError::IncompleteMachine {
+                    machine: identity,
+                    position: Some(position),
+                    detail: None,
+                })?;
+            let mut step = DescriptorFlowStep::default();
+            self.append_invocation_flow(machine, position, call, before, &mut step, None)?;
+            Ok(step)
         }
         pub fn flow(
             &mut self,
@@ -1164,8 +1287,14 @@ pub(crate) mod analysis {
                 .snapshots
                 .get(&identity)
                 .and_then(Option::as_ref)
+                .map(|prepared| &prepared.before)
                 .ok_or_else(|| incomplete(None))?;
             let mut flow = machine.flow.clone();
+            let normal_exits = machine
+                .normal_exits
+                .iter()
+                .copied()
+                .collect::<BTreeSet<_>>();
             for (position, step) in &mut flow {
                 let Some(before) = states.get(position) else {
                     continue;
@@ -1266,320 +1395,409 @@ pub(crate) mod analysis {
                         }
                     }
                 }
-                let Some(call) = machine
-                    .known_invocation(position)
+                if let Some(call) = machine
+                    .direct_call(*position)
                     .filter(|call| call.argument_contents.iter().all(Option::is_some))
-                else {
-                    continue;
-                };
-                let summary = self
-                    .replay
-                    .cached_invocation_summary(call)
-                    .ok_or_else(incomplete_step)?;
-                step.may_escape |= summary.invalidates_contents;
-                let mut outputs = Vec::new();
-                for effect in &summary.effects {
-                    // The callee returns with this storage holding what it
-                    // held on entry: nothing was written, so no descriptor
-                    // is defined, copied or handed anywhere here. Reading it
-                    // as a write from unknown contents would keep every loan
-                    // the call uses live to the end of the machine.
-                    if !effect.origins.is_empty()
-                        && effect
-                            .origins
-                            .iter()
-                            .all(|origin| effect.keeps_incoming(origin))
-                    {
+                {
+                    self.append_invocation_flow(
+                        machine,
+                        *position,
+                        call,
+                        before,
+                        step,
+                        residence_rules.as_deref_mut(),
+                    )?;
+                }
+                for edge in &mut step.successors {
+                    edge.effects.clear();
+                }
+                let edge_positions = step
+                    .successors
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(index, edge)| edge.edge.map(|edge| (edge, index)))
+                    .collect::<BTreeMap<_, _>>();
+                for call in machine.calls_at(*position) {
+                    let DescriptorInvocationOwner::Cleanup {
+                        edge: owner_edge, ..
+                    } = call.owner
+                    else {
                         continue;
-                    }
-                    let query = self
+                    };
+                    let Some(before) = self
                         .replay
-                        .actual_contents(machine, call, effect.parameter, &effect.steps)
-                        .ok_or_else(incomplete_step)?;
-                    let targets = self
-                        .replay
-                        .contents_targets(machine, before, &query)
-                        .ok_or_else(incomplete_step)?;
-                    let strong = targets.len() == 1
-                        && matches!(
-                            targets.first(),
-                            Some(DescriptorPayloadTarget::Storage {
-                                completed: None,
-                                ..
-                            })
-                        );
-                    for target in targets {
-                        match target {
-                            DescriptorPayloadTarget::Storage {
-                                location: destination,
-                                completed: None,
-                            } => {
-                                outputs.push((destination, effect.origins.as_slice(), strong));
-                            }
-                            DescriptorPayloadTarget::Storage {
-                                completed: Some(_), ..
-                            } => return Err(incomplete_step()),
-                            DescriptorPayloadTarget::Incoming(query) => {
-                                step.inputs.push((Some(query.observation()), None));
-                                step.may_escape = true;
-                                for origin in &effect.origins {
-                                    match origin {
-                                        DescriptorStoredOrigin::IncomingSlot { position, path } => {
-                                            step.inputs.push((
-                                                Some(
-                                                    self.replay
-                                                        .actual_slot(call, *position, path)
-                                                        .ok_or_else(incomplete_step)?,
-                                                ),
-                                                None,
-                                            ))
-                                        }
-                                        DescriptorStoredOrigin::IncomingContents {
-                                            position,
-                                            steps,
-                                            ..
-                                        } => step.inputs.push((
-                                            Some(
-                                                self.replay
-                                                    .actual_contents(
-                                                        machine, call, *position, steps,
-                                                    )
-                                                    .ok_or_else(incomplete_step)?
-                                                    .observation(),
-                                            ),
-                                            None,
-                                        )),
-                                        DescriptorStoredOrigin::Parameter { position, .. } => {
-                                            step.inputs.push((
-                                                Some(
-                                                    call.arguments
-                                                        .get(*position)
-                                                        .and_then(Option::as_ref)
-                                                        .ok_or_else(incomplete_step)?
-                                                        .clone(),
-                                                ),
-                                                None,
-                                            ))
-                                        }
-                                        _ => {}
-                                    }
-                                }
-                            }
-                        }
+                        .invocation_state(identity, *position, call.owner)
+                    else {
+                        continue;
+                    };
+                    let mut effect = DescriptorFlowStep::default();
+                    self.append_invocation_flow(
+                        machine,
+                        *position,
+                        call,
+                        before,
+                        &mut effect,
+                        residence_rules.as_deref_mut(),
+                    )?;
+                    step.inputs.extend(effect.inputs.iter().cloned());
+                    step.inputs.extend(
+                        effect
+                            .derivations
+                            .iter()
+                            .map(|(source, _)| (Some(source.clone()), None)),
+                    );
+                    step.may_escape |= effect.may_escape;
+                    if let Some(index) = edge_positions.get(&owner_edge) {
+                        step.successors[*index].effects.push((call.owner, effect));
+                    } else if !normal_exits.contains(position) {
+                        return Err(incomplete_step());
                     }
                 }
-                if let Some(result) = &call.result {
-                    let result_type = *machine
-                        .place_types
-                        .get(&result.root)
-                        .ok_or_else(incomplete_step)?;
-                    for slot in summary.result.as_ref().ok_or_else(incomplete_step)? {
-                        slot.visit(result_type, &mut Vec::new(), &mut |path, _, slot| {
-                            let mut destination = result.clone();
-                            destination.path.extend_from_slice(path);
-                            outputs.push((destination, slot.origins.as_slice(), true));
-                            Ok::<(), DescriptorGraphError>(())
-                        })?;
-                    }
-                    // A result slot of unknown origin may be any descriptor
-                    // the call was given, or reach through one: everything
-                    // passed in stays live for as long as that slot is used.
-                    // lifetimes.md, "Carried-loan transport": an unresolved
-                    // selection "conservatively retains all possible sources".
-                    for path in &summary.unknown_results {
-                        let mut destination = result.clone();
-                        destination.path.extend_from_slice(path);
-                        let destination = canonical(&destination)?;
-                        if !step.definitions.contains(&destination) {
-                            step.definitions.push(destination.clone());
+                let mut inputs: Vec<_> = step.observed_inputs().cloned().collect();
+                inputs.sort_unstable();
+                inputs.dedup();
+                step.replace_value_inputs(inputs);
+            }
+            Ok(flow)
+        }
+        #[allow(clippy::too_many_arguments)]
+        fn append_invocation_flow(
+            &self,
+            machine: &DescriptorMachine,
+            position: DescriptorPosition,
+            call: &DescriptorInvocation,
+            before: &super::engine::State,
+            step: &mut DescriptorFlowStep,
+            mut residence_rules: Option<
+                &mut crate::descriptors::descriptor_lifetimes::DescriptorResidenceRules,
+            >,
+        ) -> Result<(), DescriptorGraphError> {
+            let incomplete_step = || DescriptorGraphError::IncompleteMachine {
+                machine: machine.id,
+                position: Some(position),
+                detail: None,
+            };
+            let canonical = |location: &DescriptorLocation| match self
+                .replay
+                .resolve_storage(machine, before, location, None)
+            {
+                Some(StorageResolution::Unique(location)) => Ok(location),
+                Some(StorageResolution::Alternatives) => {
+                    Err(DescriptorGraphError::IncompleteMachine {
+                        machine: machine.id,
+                        position: Some(position),
+                        detail: Some(INEXACT_REFERENCE_BACKING),
+                    })
+                }
+                None => Err(incomplete_step()),
+            };
+            let summary = self
+                .replay
+                .cached_invocation_summary(call)
+                .ok_or_else(incomplete_step)?;
+            step.may_escape |= summary.invalidates_contents;
+            let mut outputs = Vec::new();
+            for effect in &summary.effects {
+                // The callee returns with this storage holding what it
+                // held on entry: nothing was written, so no descriptor
+                // is defined, copied or handed anywhere here. Reading it
+                // as a write from unknown contents would keep every loan
+                // the call uses live to the end of the machine.
+                if !effect.origins.is_empty()
+                    && effect
+                        .origins
+                        .iter()
+                        .all(|origin| effect.keeps_incoming(origin))
+                {
+                    continue;
+                }
+                let query = self
+                    .replay
+                    .actual_contents(machine, call, effect.parameter, &effect.steps)
+                    .ok_or_else(incomplete_step)?;
+                let targets = self
+                    .replay
+                    .contents_targets(machine, before, &query)
+                    .ok_or_else(incomplete_step)?;
+                let strong = targets.len() == 1
+                    && matches!(
+                        targets.first(),
+                        Some(DescriptorPayloadTarget::Storage {
+                            completed: None,
+                            ..
+                        })
+                    );
+                for target in targets {
+                    match target {
+                        DescriptorPayloadTarget::Storage {
+                            location: destination,
+                            completed: None,
+                        } => {
+                            outputs.push((destination, effect.origins.as_slice(), strong));
                         }
-                        for (argument, contents) in
-                            call.arguments.iter().zip(&call.argument_contents)
-                        {
-                            match argument {
-                                Some(source) => step
-                                    .derivations
-                                    .push((canonical(source)?, destination.clone())),
-                                None => {
-                                    step.inputs.push((
+                        DescriptorPayloadTarget::Storage {
+                            completed: Some(_), ..
+                        } => return Err(incomplete_step()),
+                        DescriptorPayloadTarget::Incoming(query) => {
+                            step.inputs.push((Some(query.observation()), None));
+                            step.may_escape = true;
+                            for origin in &effect.origins {
+                                match origin {
+                                    DescriptorStoredOrigin::IncomingSlot { position, path } => {
+                                        step.inputs.push((
+                                            Some(
+                                                self.replay
+                                                    .actual_slot(call, *position, path)
+                                                    .ok_or_else(incomplete_step)?,
+                                            ),
+                                            None,
+                                        ))
+                                    }
+                                    DescriptorStoredOrigin::IncomingContents {
+                                        position,
+                                        steps,
+                                        ..
+                                    } => step.inputs.push((
                                         Some(
-                                            contents
-                                                .as_ref()
+                                            self.replay
+                                                .actual_contents(machine, call, *position, steps)
                                                 .ok_or_else(incomplete_step)?
                                                 .observation(),
                                         ),
                                         None,
-                                    ));
-                                    step.may_escape = true;
+                                    )),
+                                    DescriptorStoredOrigin::Parameter { position, .. } => {
+                                        step.inputs.push((
+                                            Some(
+                                                call.arguments
+                                                    .get(*position)
+                                                    .and_then(Option::as_ref)
+                                                    .ok_or_else(incomplete_step)?
+                                                    .clone(),
+                                            ),
+                                            None,
+                                        ))
+                                    }
+                                    _ => {}
                                 }
                             }
                         }
                     }
                 }
-                for (destination, origins, strong) in outputs {
+            }
+            if let Some(result) = &call.result {
+                let result_type = *machine
+                    .place_types
+                    .get(&result.root)
+                    .ok_or_else(incomplete_step)?;
+                for slot in summary.result.as_ref().ok_or_else(incomplete_step)? {
+                    slot.visit(result_type, &mut Vec::new(), &mut |path, _, slot| {
+                        let mut destination = result.clone();
+                        destination.path.extend_from_slice(path);
+                        outputs.push((destination, slot.origins.as_slice(), true));
+                        Ok::<(), DescriptorGraphError>(())
+                    })?;
+                }
+                // A result slot of unknown origin may be any descriptor
+                // the call was given, or reach through one: everything
+                // passed in stays live for as long as that slot is used.
+                // lifetimes.md, "Carried-loan transport": an unresolved
+                // selection "conservatively retains all possible sources".
+                for path in &summary.unknown_results {
+                    let mut destination = result.clone();
+                    destination.path.extend_from_slice(path);
                     let destination = canonical(&destination)?;
-                    if strong && !step.definitions.contains(&destination) {
+                    if !step.definitions.contains(&destination) {
                         step.definitions.push(destination.clone());
                     }
-                    for location in before.slots.keys() {
-                        if strong
-                            && let Some(canonical) = canonical(location).ok()
-                            && destination.contains(&canonical)
-                            && !step.definitions.contains(location)
-                        {
-                            step.definitions.push(location.clone());
+                    for (argument, contents) in call.arguments.iter().zip(&call.argument_contents) {
+                        match argument {
+                            Some(source) => step
+                                .derivations
+                                .push((canonical(source)?, destination.clone())),
+                            None => {
+                                step.inputs.push((
+                                    Some(
+                                        contents
+                                            .as_ref()
+                                            .ok_or_else(incomplete_step)?
+                                            .observation(),
+                                    ),
+                                    None,
+                                ));
+                                step.may_escape = true;
+                            }
                         }
                     }
-                    // A provider's inputs constrain the result's lifetime,
-                    // not its address. Keep those loans alive without making
-                    // any input the provider view's spatial source.
-                    let mut pending = origins
-                        .iter()
-                        .map(|origin| (origin, true))
-                        .collect::<Vec<_>>();
-                    while let Some((origin, spatial)) = pending.pop() {
-                        if let DescriptorStoredOrigin::Provider(provider) = origin {
-                            pending.extend(
-                                provider
-                                    .lifetime_dependencies
-                                    .iter()
-                                    .map(|dependency| (&dependency.origin, false)),
-                            );
+                }
+            }
+            for (destination, origins, strong) in outputs {
+                let destination = canonical(&destination)?;
+                if strong && !step.definitions.contains(&destination) {
+                    step.definitions.push(destination.clone());
+                }
+                for location in before.slots.keys() {
+                    if strong
+                        && let Some(canonical) = self
+                            .replay
+                            .canonical_storage(machine, before, location, None)
+                        && destination.contains(&canonical)
+                        && !step.definitions.contains(location)
+                    {
+                        step.definitions.push(location.clone());
+                    }
+                }
+                // A provider's inputs constrain the result's lifetime,
+                // not its address. Keep those loans alive without making
+                // any input the provider view's spatial source.
+                let mut pending = origins
+                    .iter()
+                    .map(|origin| (origin, true))
+                    .collect::<Vec<_>>();
+                while let Some((origin, spatial)) = pending.pop() {
+                    if let DescriptorStoredOrigin::Provider(provider) = origin {
+                        pending.extend(
+                            provider
+                                .lifetime_dependencies
+                                .iter()
+                                .map(|dependency| (&dependency.origin, false)),
+                        );
+                        continue;
+                    }
+                    let source = match origin {
+                        DescriptorStoredOrigin::Invocation { .. }
+                        | DescriptorStoredOrigin::Literal { .. }
+                        | DescriptorStoredOrigin::Empty
+                        | DescriptorStoredOrigin::Carried { .. }
+                        | DescriptorStoredOrigin::Provider(_)
+                        | DescriptorStoredOrigin::AccessFormation { .. } => {
                             continue;
                         }
-                        let source = match origin {
-                            DescriptorStoredOrigin::Invocation { .. }
-                            | DescriptorStoredOrigin::Literal { .. }
-                            | DescriptorStoredOrigin::Empty
-                            | DescriptorStoredOrigin::Carried { .. }
-                            | DescriptorStoredOrigin::Provider(_)
-                            | DescriptorStoredOrigin::AccessFormation { .. } => {
-                                continue;
-                            }
-                            DescriptorStoredOrigin::IncomingSlot { position, path } => {
-                                let Some(source) = call
-                                    .arguments
-                                    .get(*position)
-                                    .ok_or_else(incomplete_step)?
-                                    .as_ref()
-                                else {
-                                    let mut query = call
-                                        .argument_contents
-                                        .get(*position)
-                                        .and_then(Option::as_ref)
-                                        .ok_or_else(incomplete_step)?
-                                        .clone();
-                                    query.steps.extend(
-                                        path.iter().cloned().map(DescriptorContentsStep::Address),
-                                    );
-                                    step.inputs.push((Some(query.observation()), None));
-                                    step.may_escape = true;
-                                    continue;
-                                };
-                                let mut source = source.clone();
-                                source.path.extend_from_slice(path);
-                                source
-                            }
-                            DescriptorStoredOrigin::IncomingContents {
-                                position, steps, ..
-                            } => {
+                        DescriptorStoredOrigin::IncomingSlot { position, path } => {
+                            let Some(source) = call
+                                .arguments
+                                .get(*position)
+                                .ok_or_else(incomplete_step)?
+                                .as_ref()
+                            else {
                                 let mut query = call
                                     .argument_contents
                                     .get(*position)
                                     .and_then(Option::as_ref)
                                     .ok_or_else(incomplete_step)?
                                     .clone();
-                                query.steps.extend_from_slice(steps);
+                                query.steps.extend(
+                                    path.iter().cloned().map(DescriptorContentsStep::Address),
+                                );
                                 step.inputs.push((Some(query.observation()), None));
                                 step.may_escape = true;
                                 continue;
-                            }
-                            DescriptorStoredOrigin::Parameter {
-                                position,
-                                projection,
-                            } => {
-                                let Some(source) = call
-                                    .arguments
+                            };
+                            let mut source = source.clone();
+                            source.path.extend_from_slice(path);
+                            source
+                        }
+                        DescriptorStoredOrigin::IncomingContents {
+                            position, steps, ..
+                        } => {
+                            let mut query = call
+                                .argument_contents
+                                .get(*position)
+                                .and_then(Option::as_ref)
+                                .ok_or_else(incomplete_step)?
+                                .clone();
+                            query.steps.extend_from_slice(steps);
+                            step.inputs.push((Some(query.observation()), None));
+                            step.may_escape = true;
+                            continue;
+                        }
+                        DescriptorStoredOrigin::Parameter {
+                            position,
+                            projection,
+                        } => {
+                            let Some(source) = call
+                                .arguments
+                                .get(*position)
+                                .ok_or_else(incomplete_step)?
+                                .as_ref()
+                            else {
+                                let query = call
+                                    .argument_contents
                                     .get(*position)
-                                    .ok_or_else(incomplete_step)?
-                                    .as_ref()
-                                else {
-                                    let query = call
-                                        .argument_contents
-                                        .get(*position)
-                                        .and_then(Option::as_ref)
-                                        .ok_or_else(incomplete_step)?;
-                                    step.inputs.push((Some(query.observation()), None));
-                                    step.may_escape = true;
-                                    continue;
-                                };
-                                let mut source = source.clone();
-                                if !projection.path.is_empty() {
-                                    let root_type = *machine
-                                        .place_types
-                                        .get(&source.root)
-                                        .ok_or_else(incomplete_step)?;
-                                    let mut spelling =
-                                        descriptor_path(self.replay.types, root_type, &source.path)
-                                            .ok_or_else(incomplete_step)?;
-                                    spelling.extend_from_slice(&projection.path);
-                                    source = descriptor_location(
-                                        self.replay.types,
-                                        source.root,
-                                        root_type,
-                                        &spelling,
-                                        None,
-                                    )
+                                    .and_then(Option::as_ref)
                                     .ok_or_else(incomplete_step)?;
-                                }
-                                source
-                            }
-                        };
-                        let pair = (canonical(&source)?, destination.clone());
-                        if spatial
-                            && matches!(origin, DescriptorStoredOrigin::Parameter { .. })
-                            && let Some(rules) = residence_rules.as_deref_mut()
-                        {
-                            let source_type = descriptor_location_type(
-                                self.replay.types,
-                                *machine
+                                step.inputs.push((Some(query.observation()), None));
+                                step.may_escape = true;
+                                continue;
+                            };
+                            let mut source = source.clone();
+                            if !projection.path.is_empty() {
+                                let root_type = *machine
                                     .place_types
-                                    .get(&pair.0.root)
-                                    .ok_or_else(incomplete_step)?,
-                                &pair.0.path,
-                            )
-                            .ok_or_else(incomplete_step)?;
-                            if !DescriptorSlotKind::Views.is_slot(self.replay.types, source_type) {
-                                rules
-                                    .captures
-                                    .insert((*position, pair.0.clone(), pair.1.clone()));
+                                    .get(&source.root)
+                                    .ok_or_else(incomplete_step)?;
+                                let mut spelling =
+                                    descriptor_path(self.replay.types, root_type, &source.path)
+                                        .ok_or_else(incomplete_step)?;
+                                spelling.extend_from_slice(&projection.path);
+                                source = descriptor_location(
+                                    self.replay.types,
+                                    source.root,
+                                    root_type,
+                                    &spelling,
+                                    None,
+                                )
+                                .ok_or_else(incomplete_step)?;
                             }
+                            source
                         }
-                        step.derivations.push(pair.clone());
-                        if spatial
-                            && strong
-                            && match origin {
-                                DescriptorStoredOrigin::Parameter { projection, .. } => {
-                                    // A reference to parameter storage is a
-                                    // newly retained call loan. Existing
-                                    // descriptor custody arrives as an exact
-                                    // IncomingSlot instead of this address.
-                                    self.replay.slot_kind != DescriptorSlotKind::References
-                                        && projection.exact
-                                        && !projection.indirect
-                                        && projection.window.is_none()
-                                        && projection.captured_at.is_none()
-                                }
-                                DescriptorStoredOrigin::IncomingSlot { .. } => true,
-                                _ => false,
+                    };
+                    let pair = (canonical(&source)?, destination.clone());
+                    if spatial
+                        && matches!(origin, DescriptorStoredOrigin::Parameter { .. })
+                        && let Some(rules) = residence_rules.as_deref_mut()
+                    {
+                        let source_type = descriptor_location_type(
+                            self.replay.types,
+                            *machine
+                                .place_types
+                                .get(&pair.0.root)
+                                .ok_or_else(incomplete_step)?,
+                            &pair.0.path,
+                        )
+                        .ok_or_else(incomplete_step)?;
+                        if !DescriptorSlotKind::Views.is_slot(self.replay.types, source_type) {
+                            rules
+                                .captures
+                                .insert((position, pair.0.clone(), pair.1.clone()));
+                        }
+                    }
+                    step.derivations.push(pair.clone());
+                    if spatial
+                        && strong
+                        && match origin {
+                            DescriptorStoredOrigin::Parameter { projection, .. } => {
+                                // Descriptor permission follows its exact
+                                // original input even when a representation
+                                // view forgets element addresses. That does
+                                // not recover geometry or authorize a
+                                // different field. A reference to parameter
+                                // storage still needs its retained call loan.
+                                self.replay.slot_kind != DescriptorSlotKind::References
+                                    && projection.original_descriptor_path().is_some()
+                                    && !projection.indirect
+                                    && projection.window.is_none()
+                                    && projection.captured_at.is_none()
                             }
-                        {
-                            step.authority_derivations.push(pair);
+                            DescriptorStoredOrigin::IncomingSlot { .. } => true,
+                            _ => false,
                         }
+                    {
+                        step.authority_derivations.push(pair);
                     }
                 }
             }
-            Ok(flow)
+            Ok(())
         }
     }
 }
@@ -2037,6 +2255,8 @@ pub(crate) mod case_flow {
                                     successors: targets
                                         .iter()
                                         .map(|target| DescriptorFlowEdge {
+                                            effects: Vec::new(),
+                                            edge: None,
                                             definitions: Vec::new(),
                                             target: position(*target),
                                             parameters: vec![],
@@ -2083,6 +2303,7 @@ pub(crate) mod case_flow {
                     no_code_affine_cleanup: true,
                     copyable: true,
                     descriptor_cleanup: false,
+                    nominal_cleanup: None,
                     scalar_restriction: None,
                     shape: StructuralTypeShape::Sum {
                         cases: (1..=3)
@@ -2102,19 +2323,21 @@ pub(crate) mod case_flow {
                     .unwrap()
                     .definitions
                     .push(place(1));
-                caller.calls.insert(
-                    position(0),
-                    Some(DescriptorInvocation {
-                        scalar_arguments: Vec::new(),
-                        site: semantic_vocabulary::InvocationSite::Operation(
-                            OperationId::new(1).unwrap(),
-                        ),
-                        target: DescriptorInvocationTarget::Machine(MachineId::new(2).unwrap()),
-                        arguments: vec![],
-                        argument_contents: vec![],
-                        result: Some(place(1)),
-                    }),
-                );
+                caller
+                    .insert_call(
+                        position(0),
+                        DescriptorInvocation {
+                            scalar_arguments: Vec::new(),
+                            owner: DescriptorInvocationOwner::Operation(
+                                OperationId::new(1).unwrap(),
+                            ),
+                            target: DescriptorInvocationTarget::Machine(MachineId::new(2).unwrap()),
+                            arguments: vec![],
+                            argument_contents: vec![],
+                            result: Some(place(1)),
+                        },
+                    )
+                    .unwrap();
                 let mut callee = machine(2, 2, &[vec![1, 3], vec![2], vec![], vec![4], vec![]]);
                 callee.returns = Some(vec![(position(2), place(2)), (position(4), place(2))]);
                 callee.normal_exits = vec![position(2), position(4)];
@@ -2168,7 +2391,7 @@ pub(crate) mod case_flow {
                     .get_mut(&position(0))
                     .unwrap()
                     .as_mut()
-                    .unwrap()
+                    .unwrap()[0]
                     .target = DescriptorInvocationTarget::Public {
                     effects_machine: Some(graph[1].id),
                     realizations: vec![],
@@ -2271,6 +2494,7 @@ pub(crate) mod case_flow {
     }
 
     pub(crate) fn validate_graph(replay: &Replay<'_>, machine: &DescriptorMachine) -> Option<()> {
+        machine.validate_invocation_owners()?;
         let mut visited = BTreeSet::new();
         let mut pending = vec![machine.entry];
         while let Some(position) = pending.pop() {
@@ -2493,7 +2717,7 @@ pub(crate) mod case_flow {
     pub(crate) fn transport<'locations>(
         replay: &Replay<'_>,
         machine: &DescriptorMachine,
-        before: &State,
+        states: (&State, &State),
         definitions: &[DescriptorLocation],
         derivations: impl Iterator<
             Item = (
@@ -2504,15 +2728,16 @@ pub(crate) mod case_flow {
         transfer: Transfer<'_>,
         storage: &Storage,
     ) -> Option<Arc<CurrentCases>> {
+        let (before, base) = states;
         let reads = transfer.reads();
         let position = transfer.position();
         let writes = written_locations(replay, machine, before, definitions, position, reads);
         let mut derivations = derivations.peekable();
         if derivations.peek().is_none() && writes.as_ref().is_some_and(Vec::is_empty) {
-            return Some(before.cases.clone());
+            return Some(base.cases.clone());
         }
         let keep = |subject: &DescriptorLocation| survives(storage, writes.as_deref(), subject);
-        let mut cases = (*before.cases).clone();
+        let mut cases = (*base.cases).clone();
         cases.facts.retain(|subject, _| keep(subject));
         cases.copies.retain(keep);
         let derivations = derivations.collect::<Vec<_>>();
@@ -2587,13 +2812,13 @@ pub(crate) mod case_flow {
         for (_, (old_members, receivers)) in captured {
             let members = old_members
                 .into_iter()
-                .filter(|source| keep(source))
+                .filter(|source| Arc::ptr_eq(&before.cases, &base.cases) && keep(source))
                 .chain(receivers)
                 .collect();
             cases.copies.insert_class(members, storage.limit)?;
         }
-        Some(if cases == *before.cases {
-            before.cases.clone()
+        Some(if cases == *base.cases {
+            base.cases.clone()
         } else {
             Arc::new(cases)
         })
@@ -2733,7 +2958,7 @@ pub(crate) mod contents_queries {
                 (machine.producer(location.root) == Some(position)).then_some(position)
             });
             let position = captured.or_else(|| machine.producer(location.root))?;
-            let call = machine.known_invocation(&position)?;
+            let call = machine.direct_call(position)?;
             let result = call.result.as_ref()?;
             let suffix = location.path.strip_prefix(result.path.as_slice())?;
             if result.root != location.root {
@@ -2880,7 +3105,7 @@ pub(crate) mod contents_queries {
             let history = match depth.history {
                 Some((context, history)) if std::ptr::eq(context, machine) => history,
                 Some(_) => return None,
-                None => self.snapshots.get(&owner)?.as_ref()?.as_ref(),
+                None => self.snapshots.get(&owner)?.as_ref()?.before.as_ref(),
             };
             history.get(&position)
         }
@@ -3512,7 +3737,7 @@ pub(crate) mod contents_queries {
                 return None;
             }
             let position = (block, completed.checked_sub(1)?);
-            let call = machine.known_invocation(&position)?;
+            let call = machine.direct_call(position)?;
             let before = self.target_state(machine, state, Some((owner, position)), depth)?;
             let reads =
                 DescriptorReadDepth::at(machine, before, depth.history.map(|(_, states)| states));
@@ -4034,6 +4259,8 @@ pub(crate) mod engine {
         pub(crate) contents_invalidated: bool,
     }
     pub(crate) type States = BTreeMap<DescriptorPosition, State>;
+    pub(crate) type InvocationStates =
+        BTreeMap<(DescriptorPosition, DescriptorInvocationOwner), State>;
 
     #[derive(Clone)]
     pub(crate) enum StorageResolution {
@@ -4107,13 +4334,22 @@ pub(crate) mod engine {
         }
     }
 
+    /// One completed preparation owns every observation of a machine. Keeping
+    /// these views together prevents a before-call history from being mistaken
+    /// for its cleanup-action or normal-exit history.
+    pub(crate) struct PreparedStates {
+        pub(crate) before: Arc<States>,
+        pub(crate) arrivals: States,
+        pub(crate) invocations: InvocationStates,
+        pub(crate) normal_exits: States,
+    }
+
     pub(crate) struct Replay<'a> {
         pub(crate) types: &'a [StructuralTypeDeclaration],
         pub(crate) slot_kind: DescriptorSlotKind,
         pub(crate) machines: &'a [DescriptorMachine],
         pub(crate) summaries: BTreeMap<MachineId, Option<Summary>>,
-        pub(crate) snapshots: BTreeMap<MachineId, Option<Arc<States>>>,
-        pub(crate) arrival_snapshots: BTreeMap<MachineId, Option<States>>,
+        pub(crate) snapshots: BTreeMap<MachineId, Option<PreparedStates>>,
     }
     #[derive(Default)]
     pub(crate) struct DescriptorReadDepth<'state> {
@@ -4207,7 +4443,6 @@ pub(crate) mod engine {
                 machines,
                 summaries: BTreeMap::new(),
                 snapshots: BTreeMap::new(),
-                arrival_snapshots: BTreeMap::new(),
             }
         }
         pub(crate) fn storage_writes(
@@ -4234,54 +4469,35 @@ pub(crate) mod engine {
             if machine.unresolved_contents_writes.contains(&position) {
                 return Ok(None);
             }
-            let prepared_call = if let Some(call) = machine.known_invocation(&position) {
-                // Only the checked target's frame can describe this invocation.
+            if matches!(machine.calls.get(&position), Some(None)) {
+                return Ok(None);
+            }
+            for call in machine.calls_at(position) {
+                if self
+                    .invocation_state(identity, position, call.owner)
+                    .is_none()
+                {
+                    continue;
+                }
                 let DescriptorInvocationTarget::Machine(callee) = &call.target else {
                     return Ok(None);
                 };
                 self.prepare_write_frame(*callee)?;
-                Some((call, *callee))
-            } else {
-                None
-            };
+            }
             let states = self
                 .snapshots
                 .get(&identity)
                 .and_then(Option::as_ref)
+                .map(|prepared| &prepared.before)
                 .ok_or("storage write has no prepared flow")?;
             let Some(before) = states.get(&position) else {
                 return Ok(Some(Vec::new()));
             };
             let mut writes = step.definitions.clone();
-            // Actual callees supply their checked frame at this exact cut.
-            // Keep local definitions as well: they retire moved occurrences
-            // even when no caller-visible backing is changed.
-            let queries = if let Some((call, callee)) = prepared_call {
-                let Some(callee_frame) = self
-                    .summaries
-                    .get(&callee)
-                    .and_then(Option::as_ref)
-                    .and_then(|summary| summary.storage_frame.writes.as_ref())
-                    .and_then(|writes| writes.as_ref().as_ref())
-                else {
-                    return Ok(None);
-                };
-                let callee = self
-                    .machine(callee)
-                    .ok_or("write frame call has no callee")?;
-                for written in callee_frame {
-                    let Some((parameter, _, _)) = self.parameter(callee, written.root) else {
-                        return Err("published write does not name a callee formal");
-                    };
-                    let Some(actual) = self.actual_slot(call, parameter, &written.path) else {
-                        return Ok(None);
-                    };
-                    let Some(actual) = self.canonical_storage(machine, before, &actual, None)
-                    else {
-                        return Ok(None);
-                    };
-                    writes.push(actual);
-                }
+            // A known direct call uses its checked frame instead of the
+            // conservative source-call ceiling. Cleanup remains additional to
+            // the terminator's own writes and uses each action's real prestate.
+            let queries = if machine.direct_call(position).is_some() {
                 Vec::new()
             } else {
                 let Some(queries) = super::case_flow::written_queries(machine, position) else {
@@ -4349,6 +4565,40 @@ pub(crate) mod engine {
                     return Ok(None);
                 };
                 located.push(write);
+            }
+            for call in machine.calls_at(position) {
+                let Some(before) = self.invocation_state(identity, position, call.owner) else {
+                    // An infeasible cleanup action has no executable effects.
+                    continue;
+                };
+                let DescriptorInvocationTarget::Machine(callee) = &call.target else {
+                    return Ok(None);
+                };
+                let Some(frame) = self
+                    .summaries
+                    .get(callee)
+                    .and_then(Option::as_ref)
+                    .and_then(|summary| summary.storage_frame.writes.as_ref())
+                    .and_then(|writes| writes.as_ref().as_ref())
+                else {
+                    return Ok(None);
+                };
+                let callee = self
+                    .machine(*callee)
+                    .ok_or("write frame call has no callee")?;
+                for written in frame {
+                    let Some((parameter, _, _)) = self.parameter(callee, written.root) else {
+                        return Err("published write does not name a callee formal");
+                    };
+                    let Some(actual) = self.actual_slot(call, parameter, &written.path) else {
+                        return Ok(None);
+                    };
+                    let Some(actual) = self.canonical_storage(machine, before, &actual, None)
+                    else {
+                        return Ok(None);
+                    };
+                    located.push(actual);
+                }
             }
             located.sort_unstable();
             located.dedup();
@@ -4433,6 +4683,7 @@ pub(crate) mod engine {
                 .get(&identity)
                 .and_then(Option::as_ref)
                 .ok_or("storage frame has no prepared flow")?
+                .before
                 .keys()
                 .copied()
                 .collect();
@@ -4450,23 +4701,31 @@ pub(crate) mod engine {
                 let Some(invocation) = machine.calls.get(&position) else {
                     continue;
                 };
-                let Some(invocation) = invocation else {
+                let Some(invocations) = invocation else {
                     return Ok(None);
                 };
-                // Public and provider calls need their retained interface
-                // effect owner. A possible private implementation is not it.
-                let Some(callee) = invocation.callee() else {
-                    return Ok(None);
-                };
-                self.prepare_access_frame(callee)?;
-                let complete = self
-                    .summaries
-                    .get(&callee)
-                    .and_then(Option::as_ref)
-                    .and_then(|summary| summary.storage_frame.accesses.as_ref())
-                    .is_some_and(|accesses| accesses.as_ref().is_some());
-                if !complete {
-                    return Ok(None);
+                for invocation in invocations {
+                    if self
+                        .invocation_state(identity, position, invocation.owner)
+                        .is_none()
+                    {
+                        continue;
+                    }
+                    // Public and provider calls need their retained interface
+                    // effect owner. A possible private implementation is not it.
+                    let Some(callee) = invocation.callee() else {
+                        return Ok(None);
+                    };
+                    self.prepare_access_frame(callee)?;
+                    let complete = self
+                        .summaries
+                        .get(&callee)
+                        .and_then(Option::as_ref)
+                        .and_then(|summary| summary.storage_frame.accesses.as_ref())
+                        .is_some_and(|accesses| accesses.as_ref().is_some());
+                    if !complete {
+                        return Ok(None);
+                    }
                 }
             }
             Ok(Some(accesses))
@@ -4486,6 +4745,7 @@ pub(crate) mod engine {
                 .snapshots
                 .get(&identity)
                 .and_then(Option::as_ref)
+                .map(|prepared| &prepared.before)
                 .ok_or("write frame has no prepared storage flow")?
                 .keys()
                 .copied()
@@ -4495,7 +4755,7 @@ pub(crate) mod engine {
                 let Some(writes) = self.storage_writes(identity, position)? else {
                     return Ok(None);
                 };
-                for mut write in writes {
+                for write in writes {
                     let Some(place) =
                         exactly_one(machine.places.iter(), |row| row.place == write.root)
                     else {
@@ -4521,19 +4781,6 @@ pub(crate) mod engine {
                             return Ok(None);
                         }
                     }
-                    // Published paths contain fields only. An indexed or sum
-                    // write covers that collection or sum as a whole. A
-                    // reference origin not yet representable here retains its
-                    // enclosing region instead of inventing a narrower path.
-                    write.path.truncate(
-                        write
-                            .path
-                            .iter()
-                            .take_while(|segment| {
-                                matches!(segment, DescriptorPathSegment::Field(_))
-                            })
-                            .count(),
-                    );
                     frame.push(write);
                 }
             }
@@ -5214,6 +5461,33 @@ pub(crate) mod engine {
             transfer: super::case_flow::Transfer<'_>,
             case_storage: &super::case_flow::Storage,
         ) -> Option<State> {
+            self.transfer_states(
+                machine,
+                (before, before),
+                definitions,
+                consumed,
+                derivations,
+                transfer,
+                case_storage,
+            )
+        }
+        fn transfer_states<'locations>(
+            &self,
+            machine: &DescriptorMachine,
+            states: (&State, &State),
+            definitions: &[DescriptorLocation],
+            consumed: &[DescriptorLocation],
+            derivations: impl Clone
+            + Iterator<
+                Item = (
+                    &'locations DescriptorLocation,
+                    &'locations DescriptorLocation,
+                ),
+            >,
+            transfer: super::case_flow::Transfer<'_>,
+            case_storage: &super::case_flow::Storage,
+        ) -> Option<State> {
+            let (before, base) = states;
             let reads = transfer.reads();
             let position = transfer.position();
             let canonical = |location: &DescriptorLocation| {
@@ -5312,18 +5586,18 @@ pub(crate) mod engine {
                     }
                 }
             }
-            let mut after = before.clone();
+            let mut after = base.clone();
             after.cases = super::case_flow::transport(
                 self,
                 machine,
-                before,
+                (before, base),
                 &definitions,
                 derivations,
                 transfer,
                 case_storage,
             )?;
             if !definitions.is_empty() {
-                for (location, value) in before.slots.iter() {
+                for (location, value) in base.slots.iter() {
                     if value.is_some()
                         && !assigned.contains_key(location)
                         && definitions
@@ -5348,10 +5622,12 @@ pub(crate) mod engine {
             }
             Some(after)
         }
+        #[allow(clippy::too_many_arguments)]
         fn transfer_edge(
             &self,
             machine: &DescriptorMachine,
             before: &State,
+            base: &State,
             edge: &descriptor_lifetimes::DescriptorFlowEdge,
             case_storage: &super::case_flow::Storage,
             reads: &DescriptorReadDepth<'_>,
@@ -5362,9 +5638,9 @@ pub(crate) mod engine {
                 .chain(&edge.definitions)
                 .cloned()
                 .collect::<Vec<_>>();
-            let mut after = self.transfer(
+            let mut after = self.transfer_states(
                 machine,
-                before,
+                (before, base),
                 &definitions,
                 &[],
                 edge.derivations(),
@@ -5451,23 +5727,315 @@ pub(crate) mod engine {
             }
             Some(after)
         }
+        #[allow(clippy::too_many_arguments)]
+        fn apply_invocation(
+            &mut self,
+            machine: &DescriptorMachine,
+            before: &State,
+            after: &mut State,
+            call: &DescriptorInvocation,
+            depth: usize,
+            case_storage: &super::case_flow::Storage,
+            reads: &DescriptorReadDepth<'_>,
+        ) -> Option<()> {
+            let summary = self.invocation_summary(call, depth + 1)?;
+            after.contents_invalidated |= summary.invalidates_contents;
+            if summary.invalidates_contents {
+                after.cases = Arc::default();
+            }
+            let mut replacements = BTreeMap::new();
+            let mut destinations = Vec::new();
+            for effect in &summary.effects {
+                if !effect.origins.is_empty()
+                    && effect
+                        .origins
+                        .iter()
+                        .all(|origin| effect.keeps_incoming_slot(origin))
+                    && effect.origins.iter().any(|origin| {
+                        self.substitute_with_depth(machine, before, call, origin, reads)
+                            .is_none()
+                    })
+                {
+                    continue;
+                }
+                let destination =
+                    self.actual_contents(machine, call, effect.parameter, &effect.steps)?;
+                super::case_flow::retire_query(
+                    self,
+                    machine,
+                    before,
+                    after,
+                    &destination,
+                    case_storage,
+                    reads,
+                );
+                let targets =
+                    self.contents_targets_with_depth(machine, before, &destination, reads)?;
+                if targets.iter().any(|target| {
+                    matches!(
+                        target,
+                        DescriptorPayloadTarget::Storage {
+                            completed: Some(_),
+                            ..
+                        }
+                    )
+                }) {
+                    return None;
+                }
+                let strong = targets.len() == 1
+                    && matches!(
+                        targets.first(),
+                        Some(DescriptorPayloadTarget::Storage {
+                            completed: None,
+                            ..
+                        })
+                    );
+                for target in targets {
+                    if let DescriptorPayloadTarget::Storage {
+                        location,
+                        completed: None,
+                    } = target
+                    {
+                        if destinations.iter().any(
+                            |(previous, definite): &(DescriptorLocation, bool)| {
+                                (strong || *definite)
+                                    && (location.contains(previous) || previous.contains(&location))
+                            },
+                        ) {
+                            return None;
+                        }
+                        destinations.push((location, strong));
+                    }
+                }
+                let mut origins = BTreeSet::new();
+                let mut dropped_retired_incoming = false;
+                for origin in &effect.origins {
+                    match self.substitute_with_depth(machine, before, call, origin, reads) {
+                        Some(substituted) => origins.extend(substituted),
+                        None if effect.keeps_incoming_slot(origin) => {
+                            dropped_retired_incoming = true;
+                        }
+                        None => return None,
+                    }
+                }
+                if origins.is_empty() && dropped_retired_incoming {
+                    continue;
+                }
+                self.contents_replacements_with_depth(
+                    machine,
+                    before,
+                    &destination,
+                    Some(origins),
+                    &mut replacements,
+                    reads,
+                )?;
+            }
+            if let Some(result) = &call.result {
+                let result_type = *machine.place_types.get(&result.root)?;
+                for slot in summary.result.as_ref()? {
+                    slot.visit(
+                        result_type,
+                        &mut Vec::new(),
+                        &mut |path, containing_type, slot| {
+                            let mut destination = result.clone();
+                            destination.path.extend_from_slice(path);
+                            descriptor_path(self.types, containing_type, &slot.path).ok_or(())?;
+                            let mut origins = BTreeSet::new();
+                            let mut known = true;
+                            for origin in &slot.origins {
+                                if matches!(origin, DescriptorStoredOrigin::Carried { .. }) {
+                                    origins.insert(Origin::Storage(destination.clone()));
+                                    continue;
+                                }
+                                match self.substitute_result_with_depth(
+                                    machine, before, call, origin, reads,
+                                ) {
+                                    Some(substituted) => origins.extend(substituted),
+                                    None => {
+                                        known = false;
+                                        break;
+                                    }
+                                }
+                            }
+                            let incoming = known.then_some(origins);
+                            match replacements
+                                .get_mut(&DescriptorPayloadTarget::current(destination.clone()))
+                            {
+                                None => {
+                                    replacements.insert(
+                                        DescriptorPayloadTarget::current(destination),
+                                        incoming,
+                                    );
+                                }
+                                Some(existing) => match (existing.as_mut(), incoming) {
+                                    (Some(existing), Some(incoming)) => existing.extend(incoming),
+                                    _ => *existing = None,
+                                },
+                            }
+                            Ok::<(), ()>(())
+                        },
+                    )
+                    .ok()?;
+                }
+                for path in &summary.unknown_results {
+                    let mut destination = result.clone();
+                    destination.path.extend_from_slice(path);
+                    replacements.insert(DescriptorPayloadTarget::current(destination), None);
+                }
+            }
+            Self::install_contents(after, replacements);
+            if let Some(result) = &call.result {
+                summary.result_cases.install(self, machine, after, result)?;
+            }
+            Some(())
+        }
+
+        #[allow(clippy::too_many_arguments)]
+        fn apply_cleanup_calls(
+            &mut self,
+            machine: &DescriptorMachine,
+            position: DescriptorPosition,
+            edge: Option<semantic_vocabulary::EdgeId>,
+            mut current: State,
+            history: &States,
+            depth: usize,
+            case_storage: &super::case_flow::Storage,
+            snapshots: &mut InvocationStates,
+        ) -> Option<State> {
+            let Some(edge) = edge else {
+                return Some(current);
+            };
+            let calls = machine.calls_at(position);
+            let first = calls.partition_point(|call| {
+                call.owner
+                    < DescriptorInvocationOwner::Cleanup {
+                        edge,
+                        action_ordinal: 0,
+                    }
+            });
+            let mut previous = None;
+            for call in &calls[first..] {
+                let DescriptorInvocationOwner::Cleanup {
+                    edge: owner_edge,
+                    action_ordinal,
+                } = call.owner
+                else {
+                    return None;
+                };
+                if owner_edge != edge {
+                    break;
+                }
+                if previous.is_some_and(|ordinal| ordinal >= action_ordinal)
+                    || call.argument_contents.iter().any(Option::is_none)
+                {
+                    return None;
+                }
+                previous = Some(action_ordinal);
+                snapshots.insert((position, call.owner), current.clone());
+                let reads = DescriptorReadDepth::at(machine, &current, Some(history));
+                let mut after = current.clone();
+                self.apply_invocation(
+                    machine,
+                    &current,
+                    &mut after,
+                    call,
+                    depth,
+                    case_storage,
+                    &reads,
+                )?;
+                current = after;
+            }
+            Some(current)
+        }
+
+        pub(crate) fn invocation_state(
+            &self,
+            machine: MachineId,
+            position: DescriptorPosition,
+            owner: DescriptorInvocationOwner,
+        ) -> Option<&State> {
+            self.machine(machine)?.invocation(position, owner)?;
+            match owner {
+                DescriptorInvocationOwner::Operation(_)
+                | DescriptorInvocationOwner::InvokeNoNormal(_) => self
+                    .snapshots
+                    .get(&machine)?
+                    .as_ref()?
+                    .before
+                    .get(&position),
+                DescriptorInvocationOwner::Cleanup { .. } => self
+                    .snapshots
+                    .get(&machine)?
+                    .as_ref()?
+                    .invocations
+                    .get(&(position, owner)),
+            }
+        }
+
         pub(crate) fn states(&mut self, identity: MachineId, depth: usize) -> Option<Arc<States>> {
             if let Some(cached) = self.snapshots.get(&identity) {
-                return cached.clone();
+                return cached.as_ref().map(|prepared| prepared.before.clone());
             }
             self.snapshots.insert(identity, None);
-            self.arrival_snapshots.insert(identity, None);
             if depth >= 128 {
                 return None;
             }
             let machine = self.machine(identity)?;
             super::case_flow::validate_graph(self, machine)?;
+            let normal_exit_positions = machine
+                .normal_exits
+                .iter()
+                .copied()
+                .collect::<BTreeSet<_>>();
+            for (position, calls) in &machine.calls {
+                let Some(calls) = calls else {
+                    continue;
+                };
+                let step = machine.flow.get(position)?;
+                let normal_exit = normal_exit_positions.contains(position);
+                let edges = step
+                    .successors
+                    .iter()
+                    .filter_map(|edge| edge.edge)
+                    .collect::<BTreeSet<_>>();
+                if calls.windows(2).any(|pair| pair[0].owner >= pair[1].owner) {
+                    return None;
+                }
+                let mut exit_edge = None;
+                let mut operation_seen = false;
+                for call in calls {
+                    if matches!(
+                        call.owner,
+                        DescriptorInvocationOwner::Operation(_)
+                            | DescriptorInvocationOwner::InvokeNoNormal(_)
+                    ) {
+                        if operation_seen {
+                            return None;
+                        }
+                        operation_seen = true;
+                    }
+                    if let DescriptorInvocationOwner::Cleanup { edge, .. } = call.owner {
+                        if normal_exit {
+                            if !step.successors.is_empty()
+                                || exit_edge.is_some_and(|previous| previous != edge)
+                            {
+                                return None;
+                            }
+                            exit_edge = Some(edge);
+                        } else if !edges.contains(&edge) {
+                            return None;
+                        }
+                    }
+                }
+            }
             let case_storage = super::case_flow::Storage::new(self, machine);
             if !machine.flow.contains_key(&machine.entry) {
                 return None;
             }
             let mut states = States::from([(machine.entry, self.initial(machine)?)]);
             let mut arrivals = States::new();
+            let mut invocation_states = InvocationStates::new();
+            let mut normal_exits = States::new();
             let mut pending = vec![machine.entry];
             let mut visits = 0usize;
             while let Some(position) = pending.pop() {
@@ -5498,7 +6066,7 @@ pub(crate) mod engine {
                     if step.may_escape
                         || machine.unresolved_contents_writes.contains(&position)
                         || machine
-                            .known_invocation(&position)
+                            .direct_call(position)
                             .is_some_and(|call| !call.argument_contents.iter().all(Option::is_some))
                     {
                         after.cases = Arc::default();
@@ -5542,181 +6110,18 @@ pub(crate) mod engine {
                                 .insert(location.clone(), Some(BTreeSet::from([origin])));
                         }
                     }
-                    if let Some(call) = machine.known_invocation(&position)
+                    if let Some(call) = machine.direct_call(position)
                         && call.argument_contents.iter().all(Option::is_some)
                     {
-                        let summary = self.invocation_summary(call, depth + 1)?;
-                        after.contents_invalidated |= summary.invalidates_contents;
-                        if summary.invalidates_contents {
-                            after.cases = Arc::default();
-                        }
-                        let mut replacements = BTreeMap::new();
-                        let mut destinations = Vec::new();
-                        for effect in &summary.effects {
-                            if !effect.origins.is_empty()
-                                && effect
-                                    .origins
-                                    .iter()
-                                    .all(|origin| effect.keeps_incoming_slot(origin))
-                                && effect.origins.iter().any(|origin| {
-                                    self.substitute_with_depth(
-                                        machine, &before, call, origin, &reads,
-                                    )
-                                    .is_none()
-                                })
-                            {
-                                continue;
-                            }
-                            let destination = self.actual_contents(
-                                machine,
-                                call,
-                                effect.parameter,
-                                &effect.steps,
-                            )?;
-                            super::case_flow::retire_query(
-                                self,
-                                machine,
-                                &before,
-                                &mut after,
-                                &destination,
-                                &case_storage,
-                                &reads,
-                            );
-                            let targets = self.contents_targets_with_depth(
-                                machine,
-                                &before,
-                                &destination,
-                                &reads,
-                            )?;
-                            if targets.iter().any(|target| {
-                                matches!(
-                                    target,
-                                    DescriptorPayloadTarget::Storage {
-                                        completed: Some(_),
-                                        ..
-                                    }
-                                )
-                            }) {
-                                return None;
-                            }
-                            let strong = targets.len() == 1
-                                && matches!(
-                                    targets.first(),
-                                    Some(DescriptorPayloadTarget::Storage {
-                                        completed: None,
-                                        ..
-                                    })
-                                );
-                            for target in targets {
-                                if let DescriptorPayloadTarget::Storage {
-                                    location,
-                                    completed: None,
-                                } = target
-                                {
-                                    if destinations.iter().any(
-                                        |(previous, definite): &(DescriptorLocation, bool)| {
-                                            (strong || *definite)
-                                                && (location.contains(previous)
-                                                    || previous.contains(&location))
-                                        },
-                                    ) {
-                                        return None;
-                                    }
-                                    destinations.push((location, strong));
-                                }
-                            }
-                            let mut origins = BTreeSet::new();
-                            let mut dropped_retired_incoming = false;
-                            for origin in &effect.origins {
-                                match self
-                                    .substitute_with_depth(machine, &before, call, origin, &reads)
-                                {
-                                    Some(substituted) => origins.extend(substituted),
-                                    None if effect.keeps_incoming_slot(origin) => {
-                                        dropped_retired_incoming = true;
-                                    }
-                                    None => return None,
-                                }
-                            }
-                            if origins.is_empty() && dropped_retired_incoming {
-                                continue;
-                            }
-                            self.contents_replacements_with_depth(
-                                machine,
-                                &before,
-                                &destination,
-                                Some(origins),
-                                &mut replacements,
-                                &reads,
-                            )?;
-                        }
-                        if let Some(result) = &call.result {
-                            let result_type = *machine.place_types.get(&result.root)?;
-                            for slot in summary.result.as_ref()? {
-                                slot.visit(
-                                    result_type,
-                                    &mut Vec::new(),
-                                    &mut |path, containing_type, slot| {
-                                        let mut destination = result.clone();
-                                        destination.path.extend_from_slice(path);
-                                        descriptor_path(self.types, containing_type, &slot.path)
-                                            .ok_or(())?;
-                                        let mut origins = BTreeSet::new();
-                                        let mut known = true;
-                                        for origin in &slot.origins {
-                                            if matches!(
-                                                origin,
-                                                DescriptorStoredOrigin::Carried { .. }
-                                            ) {
-                                                origins
-                                                    .insert(Origin::Storage(destination.clone()));
-                                                continue;
-                                            }
-                                            match self.substitute_result_with_depth(
-                                                machine, &before, call, origin, &reads,
-                                            ) {
-                                                Some(substituted) => origins.extend(substituted),
-                                                None => {
-                                                    known = false;
-                                                    break;
-                                                }
-                                            }
-                                        }
-                                        let incoming = known.then_some(origins);
-                                        match replacements.get_mut(
-                                            &DescriptorPayloadTarget::current(destination.clone()),
-                                        ) {
-                                            None => {
-                                                replacements.insert(
-                                                    DescriptorPayloadTarget::current(destination),
-                                                    incoming,
-                                                );
-                                            }
-                                            Some(existing) => match (existing.as_mut(), incoming) {
-                                                (Some(existing), Some(incoming)) => {
-                                                    existing.extend(incoming)
-                                                }
-                                                _ => *existing = None,
-                                            },
-                                        }
-                                        Ok::<(), ()>(())
-                                    },
-                                )
-                                .ok()?;
-                            }
-                            for path in &summary.unknown_results {
-                                let mut destination = result.clone();
-                                destination.path.extend_from_slice(path);
-                                replacements
-                                    .insert(DescriptorPayloadTarget::current(destination), None);
-                            }
-                        }
-                        Self::install_contents(&mut after, replacements);
-                        if let Some(result) = &call.result {
-                            summary
-                                .result_cases
-                                .install(self, machine, &mut after, result)?;
-                        }
+                        self.apply_invocation(
+                            machine,
+                            &before,
+                            &mut after,
+                            call,
+                            depth,
+                            &case_storage,
+                            &reads,
+                        )?;
                     }
                     after
                 };
@@ -5733,6 +6138,33 @@ pub(crate) mod engine {
                     .is_some_and(|cases| cases.len() != step.successors.len())
                 {
                     return None;
+                }
+                if normal_exit_positions.contains(&position) {
+                    let calls = machine
+                        .calls
+                        .get(&position)
+                        .into_iter()
+                        .flatten()
+                        .flatten()
+                        .filter_map(|call| match call.owner {
+                            DescriptorInvocationOwner::Cleanup { edge, .. } => Some(edge),
+                            _ => None,
+                        })
+                        .collect::<BTreeSet<_>>();
+                    if calls.len() > 1 {
+                        return None;
+                    }
+                    let completed = self.apply_cleanup_calls(
+                        machine,
+                        position,
+                        calls.first().copied(),
+                        after.clone(),
+                        &states,
+                        depth,
+                        &case_storage,
+                        &mut invocation_states,
+                    )?;
+                    normal_exits.insert(position, completed);
                 }
                 for (ordinal, edge) in step.successors.iter().enumerate() {
                     if !machine.flow.contains_key(&edge.target) {
@@ -5753,9 +6185,26 @@ pub(crate) mod engine {
                     {
                         continue;
                     }
+                    let completed = self.apply_cleanup_calls(
+                        machine,
+                        position,
+                        edge.edge,
+                        selected.clone(),
+                        &states,
+                        depth,
+                        &case_storage,
+                        &mut invocation_states,
+                    )?;
                     let carried = {
                         let reads = DescriptorReadDepth::at(machine, &selected, Some(&states));
-                        self.transfer_edge(machine, &selected, edge, &case_storage, &reads)?
+                        self.transfer_edge(
+                            machine,
+                            &selected,
+                            &completed,
+                            edge,
+                            &case_storage,
+                            &reads,
+                        )?
                     };
                     match states.get_mut(&edge.target) {
                         None => {
@@ -5771,8 +6220,15 @@ pub(crate) mod engine {
                 }
             }
             let states = Arc::new(states);
-            self.snapshots.insert(identity, Some(states.clone()));
-            self.arrival_snapshots.insert(identity, Some(arrivals));
+            self.snapshots.insert(
+                identity,
+                Some(PreparedStates {
+                    before: states.clone(),
+                    arrivals,
+                    invocations: invocation_states,
+                    normal_exits,
+                }),
+            );
             Some(states)
         }
         pub(crate) fn prepare_states(&mut self, identity: MachineId) -> Option<()> {
@@ -6101,7 +6557,7 @@ pub(crate) mod engine {
             if let Some((position, origins)) =
                 self.returned_roster_origins(machine, backing, None, None)
             {
-                let call = machine.known_invocation(&position)?;
+                let call = machine.direct_call(position)?;
                 let before = states.get(&position)?;
                 let reads = DescriptorReadDepth::at(machine, before, Some(states));
                 let expected = machine.location_type(self.types, backing, None);
@@ -6330,6 +6786,7 @@ pub(crate) mod engine {
             }
             self.summaries.insert(identity, None);
             let states = self.states(identity, depth)?;
+            let completed = &self.snapshots.get(&identity)?.as_ref()?.normal_exits;
             let mut result_cases: Option<super::case_flow::ResultCases> = None;
             let mut unknown_results: Vec<Vec<DescriptorPathSegment>> = Vec::new();
             let result = if let Some(returns) = &machine.returns {
@@ -6339,7 +6796,7 @@ pub(crate) mod engine {
                     if !location.path.is_empty() {
                         return None;
                     }
-                    let Some(state) = states.get(position) else {
+                    let Some(state) = completed.get(position) else {
                         continue;
                     };
                     let structural_type = *machine.place_types.get(&location.root)?;
@@ -6444,7 +6901,7 @@ pub(crate) mod engine {
                 for slot in slots {
                     let mut origins = BTreeSet::new();
                     for exit in &machine.normal_exits {
-                        if let Some(state) = states.get(exit) {
+                        if let Some(state) = completed.get(exit) {
                             origins.extend(self.read_slot(
                                 machine,
                                 state,
@@ -6473,7 +6930,7 @@ pub(crate) mod engine {
             let contents = machine
                 .normal_exits
                 .iter()
-                .filter_map(|position| states.get(position))
+                .filter_map(|position| completed.get(position))
                 .flat_map(|state| state.contents.keys().cloned())
                 .collect::<BTreeSet<_>>();
             for query in contents {
@@ -6481,7 +6938,7 @@ pub(crate) mod engine {
                 query.validate(self.types, root_type)?;
                 let mut origins = BTreeSet::new();
                 for exit in &machine.normal_exits {
-                    if let Some(state) = states.get(exit) {
+                    if let Some(state) = completed.get(exit) {
                         origins.extend(state.effect_contents(&query)?);
                     }
                 }
@@ -6869,6 +7326,7 @@ pub(crate) mod engine {
                 no_code_affine_cleanup: true,
                 copyable: true,
                 descriptor_cleanup: false,
+                nominal_cleanup: None,
                 shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
                     IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
                 )),
@@ -6918,6 +7376,8 @@ pub(crate) mod engine {
                 let mut step = DescriptorFlowStep::default();
                 if let Some(&target) = positions.get(index + 1) {
                     step.successors.push(DescriptorFlowEdge {
+                        effects: Vec::new(),
+                        edge: None,
                         definitions: Vec::new(),
                         target,
                         parameters: Vec::new(),
@@ -7000,7 +7460,7 @@ pub(crate) mod engine {
             assert_eq!(completed[&positions[1]].slots.get(&parameter), Some(&None));
             assert!(Arc::ptr_eq(
                 &completed,
-                replay.snapshots[&id].as_ref().unwrap()
+                &replay.snapshots[&id].as_ref().unwrap().before
             ));
             assert!(Arc::ptr_eq(&completed, &replay.states(id, 0).unwrap()));
             assert!(Arc::ptr_eq(&completed, &replay.states(id, 128).unwrap()));
@@ -7366,6 +7826,7 @@ pub(crate) mod engine {
                 no_code_affine_cleanup: true,
                 copyable: true,
                 descriptor_cleanup: false,
+                nominal_cleanup: None,
                 shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
                     IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
                 )),
@@ -7479,18 +7940,16 @@ pub(crate) mod engine {
             ];
             caller.calls.insert(
                 entry,
-                Some(DescriptorInvocation {
+                Some(vec![DescriptorInvocation {
                     scalar_arguments: Vec::new(),
-                    site: semantic_vocabulary::InvocationSite::Operation(
-                        OperationId::new(1).unwrap(),
-                    ),
+                    owner: DescriptorInvocationOwner::Operation(OperationId::new(1).unwrap()),
                     target: DescriptorInvocationTarget::Machine(helper_id),
                     arguments: vec![Some(parameter.clone())],
                     argument_contents: vec![Some(DescriptorContentsQuery::from_location(
                         &parameter,
                     ))],
                     result: None,
-                }),
+                }]),
             );
             let mut graph = vec![caller, helper];
             {
@@ -7543,11 +8002,9 @@ pub(crate) mod engine {
             // accesses as the public requirement's checked effects.
             graph[0].calls.insert(
                 entry,
-                Some(DescriptorInvocation {
+                Some(vec![DescriptorInvocation {
                     scalar_arguments: Vec::new(),
-                    site: semantic_vocabulary::InvocationSite::Operation(
-                        OperationId::new(1).unwrap(),
-                    ),
+                    owner: DescriptorInvocationOwner::Operation(OperationId::new(1).unwrap()),
                     target: DescriptorInvocationTarget::Public {
                         effects_machine: Some(helper_id),
                         realizations: vec![],
@@ -7560,7 +8017,7 @@ pub(crate) mod engine {
                         &parameter,
                     ))],
                     result: None,
-                }),
+                }]),
             );
             assert!(
                 DescriptorAnalysis::with_borrowed_storage_slots(&types, &graph)
@@ -7584,6 +8041,8 @@ pub(crate) mod engine {
             let block = BlockId::new(1).unwrap();
             let point = |index| (block, index);
             let edge = |target| DescriptorFlowEdge {
+                effects: Vec::new(),
+                edge: None,
                 definitions: Vec::new(),
                 target,
                 parameters: Vec::new(),
@@ -7652,19 +8111,19 @@ pub(crate) mod engine {
                 (point(2), DescriptorFlowStep::default()),
             ]);
             caller.normal_exits = vec![point(2)];
-            caller.calls.insert(
-                point(0),
-                Some(DescriptorInvocation {
-                    scalar_arguments: Vec::new(),
-                    site: semantic_vocabulary::InvocationSite::Operation(
-                        OperationId::new(1).unwrap(),
-                    ),
-                    target: DescriptorInvocationTarget::Machine(callee_id),
-                    arguments: vec![None],
-                    argument_contents: vec![None],
-                    result: Some(returned.clone()),
-                }),
-            );
+            caller
+                .insert_call(
+                    point(0),
+                    DescriptorInvocation {
+                        scalar_arguments: Vec::new(),
+                        owner: DescriptorInvocationOwner::Operation(OperationId::new(1).unwrap()),
+                        target: DescriptorInvocationTarget::Machine(callee_id),
+                        arguments: vec![None],
+                        argument_contents: vec![None],
+                        result: Some(returned.clone()),
+                    },
+                )
+                .unwrap();
 
             let empty = location(1);
             let unused_input = location(2);
@@ -7751,6 +8210,304 @@ pub(crate) mod engine {
         }
 
         #[test]
+        fn a_transferred_reference_keeps_its_write_crossing_until_caller_substitution() {
+            use crate::descriptors::descriptor_lifetimes::{
+                DescriptorFlowEdge, DescriptorFlowStep,
+            };
+            use semantic_vocabulary::{BlockId, OperationId};
+            let caller_id = MachineId::new(1).unwrap();
+            let callee_id = MachineId::new(2).unwrap();
+            let scalar = StructuralTypeId::new(1).unwrap();
+            let reference = StructuralTypeId::new(2).unwrap();
+            let types = [
+                scalar_type(1),
+                reference_type(2, scalar, StructuralAccess::MutableBorrow),
+            ];
+            let entry = (BlockId::new(1).unwrap(), 0);
+            let call_at = (entry.0, 1);
+            let parameter = |place, structural_type, access| DescriptorPlace {
+                producer: None,
+                place,
+                definition: DescriptorDefinition::Parameter {
+                    position: 0,
+                    structural_type,
+                    access,
+                },
+            };
+            let mut caller = bare_machine(
+                caller_id,
+                vec![
+                    parameter(location(1).root, scalar, StructuralAccess::MutableBorrow),
+                    DescriptorPlace {
+                        producer: None,
+                        place: location(2).root,
+                        definition: DescriptorDefinition::Local,
+                    },
+                ],
+                BTreeMap::from([(location(1).root, scalar), (location(2).root, reference)]),
+                BTreeSet::from([(entry, location(1), location(2))]),
+            );
+            caller.flow = BTreeMap::from([
+                (
+                    entry,
+                    DescriptorFlowStep {
+                        definitions: vec![location(2)],
+                        successors: vec![DescriptorFlowEdge {
+                            definitions: Vec::new(),
+                            edge: None,
+                            effects: Vec::new(),
+                            target: call_at,
+                            parameters: Vec::new(),
+                            bindings: Vec::new(),
+                        }],
+                        ..Default::default()
+                    },
+                ),
+                (call_at, DescriptorFlowStep::default()),
+            ]);
+            caller.normal_exits = vec![call_at];
+            caller
+                .insert_call(
+                    call_at,
+                    DescriptorInvocation {
+                        scalar_arguments: Vec::new(),
+                        owner: DescriptorInvocationOwner::Operation(OperationId::new(1).unwrap()),
+                        target: DescriptorInvocationTarget::Machine(callee_id),
+                        arguments: vec![Some(location(2))],
+                        argument_contents: vec![Some(DescriptorContentsQuery::from_location(
+                            &location(2),
+                        ))],
+                        result: None,
+                    },
+                )
+                .unwrap();
+            let mut callee = bare_machine(
+                callee_id,
+                vec![parameter(
+                    location(1).root,
+                    reference,
+                    StructuralAccess::Owned,
+                )],
+                BTreeMap::from([(location(1).root, reference)]),
+                BTreeSet::new(),
+            );
+            let mut written = location(1);
+            written.path.push(DescriptorPathSegment::Referent);
+            callee.flow = BTreeMap::from([(
+                entry,
+                DescriptorFlowStep {
+                    definitions: vec![written.clone()],
+                    ..Default::default()
+                },
+            )]);
+            let graph = [caller, callee];
+            let mut analysis = DescriptorAnalysis::with_borrowed_storage_slots(&types, &graph);
+            assert_eq!(
+                analysis.write_frame(caller_id).unwrap(),
+                Some(vec![location(1)])
+            );
+        }
+
+        #[test]
+        fn cleanup_actions_replay_in_order_at_their_real_edge_and_normal_exit() {
+            use crate::descriptors::descriptor_lifetimes::{
+                DescriptorFlowEdge, DescriptorFlowStep,
+            };
+            use semantic_vocabulary::{BlockId, EdgeId};
+            let identity = MachineId::new(1).unwrap();
+            let scalar = StructuralTypeId::new(1).unwrap();
+            let reference = StructuralTypeId::new(2).unwrap();
+            let types = [
+                scalar_type(1),
+                reference_type(2, scalar, StructuralAccess::MutableBorrow),
+            ];
+            let entry = (BlockId::new(1).unwrap(), 0);
+            let left = (BlockId::new(2).unwrap(), 0);
+            let right = (BlockId::new(3).unwrap(), 0);
+            let edge = |raw| EdgeId::new(raw).unwrap();
+            let owner = |raw, action_ordinal| DescriptorInvocationOwner::Cleanup {
+                edge: edge(raw),
+                action_ordinal,
+            };
+            let mut machine = bare_machine(
+                identity,
+                (1..=3)
+                    .enumerate()
+                    .map(|(position, raw)| DescriptorPlace {
+                        producer: None,
+                        place: location(raw).root,
+                        definition: DescriptorDefinition::Parameter {
+                            position,
+                            structural_type: reference,
+                            access: StructuralAccess::MutableBorrow,
+                        },
+                    })
+                    .collect(),
+                (1..=3).map(|raw| (location(raw).root, reference)).collect(),
+                BTreeSet::new(),
+            );
+            machine.flow = BTreeMap::from([
+                (
+                    entry,
+                    DescriptorFlowStep {
+                        successors: [(1, left), (2, right)]
+                            .into_iter()
+                            .map(|(raw, target)| DescriptorFlowEdge {
+                                effects: Vec::new(),
+                                edge: Some(edge(raw)),
+                                target,
+                                definitions: Vec::new(),
+                                parameters: Vec::new(),
+                                bindings: Vec::new(),
+                            })
+                            .collect(),
+                        ..Default::default()
+                    },
+                ),
+                (left, DescriptorFlowStep::default()),
+                (right, DescriptorFlowStep::default()),
+            ]);
+            machine.normal_exits = vec![left, right];
+            let copy = |owner, destination, source| DescriptorInvocation {
+                scalar_arguments: Vec::new(),
+                owner,
+                target: DescriptorInvocationTarget::Provider {
+                    results: Vec::new(),
+                    invalidates_contents: false,
+                    effects: vec![DescriptorStoredEffect {
+                        parameter: 0,
+                        steps: Vec::new(),
+                        origins: vec![DescriptorStoredOrigin::IncomingSlot {
+                            position: 1,
+                            path: Vec::new(),
+                        }],
+                    }],
+                },
+                arguments: vec![Some(location(destination)), Some(location(source))],
+                argument_contents: vec![
+                    Some(DescriptorContentsQuery::from_location(&location(
+                        destination,
+                    ))),
+                    Some(DescriptorContentsQuery::from_location(&location(source))),
+                ],
+                result: None,
+            };
+            machine.insert_call(entry, copy(owner(1, 0), 1, 2)).unwrap();
+            machine.insert_call(entry, copy(owner(1, 2), 3, 1)).unwrap();
+            machine.insert_call(entry, copy(owner(2, 0), 3, 1)).unwrap();
+            machine.insert_call(right, copy(owner(3, 0), 1, 2)).unwrap();
+            let consumer_id = MachineId::new(2).unwrap();
+            let mut consumer = bare_machine(
+                consumer_id,
+                vec![DescriptorPlace {
+                    producer: None,
+                    place: location(1).root,
+                    definition: DescriptorDefinition::Parameter {
+                        position: 0,
+                        structural_type: reference,
+                        access: StructuralAccess::SharedBorrow,
+                    },
+                }],
+                BTreeMap::from([(location(1).root, reference)]),
+                BTreeSet::new(),
+            );
+            consumer.flow.insert(entry, DescriptorFlowStep::default());
+            let observe = |owner| DescriptorInvocation {
+                scalar_arguments: Vec::new(),
+                owner,
+                target: DescriptorInvocationTarget::Machine(consumer_id),
+                arguments: vec![Some(location(1))],
+                argument_contents: vec![Some(DescriptorContentsQuery::from_location(&location(1)))],
+                result: None,
+            };
+            machine.insert_call(entry, observe(owner(1, 3))).unwrap();
+            machine.insert_call(entry, observe(owner(2, 1))).unwrap();
+            let graph = [machine, consumer];
+            let mut replay = Replay::with_slot_kind(&types, &graph, DescriptorSlotKind::References);
+            replay.prepare_states(identity).unwrap();
+            let expected = |raw| Some(BTreeSet::from([Origin::Incoming(location(raw))]));
+            let value = |state: &State, raw| replay.read(&graph[0], state, &location(raw));
+            assert_eq!(
+                value(
+                    replay
+                        .invocation_state(identity, entry, owner(1, 0))
+                        .unwrap(),
+                    1
+                ),
+                expected(1)
+            );
+            assert_eq!(
+                value(
+                    replay
+                        .invocation_state(identity, entry, owner(1, 2))
+                        .unwrap(),
+                    1
+                ),
+                expected(2)
+            );
+            assert_eq!(
+                value(
+                    replay
+                        .invocation_state(identity, entry, owner(2, 0))
+                        .unwrap(),
+                    1
+                ),
+                expected(1)
+            );
+            let entries = &replay
+                .snapshots
+                .get(&identity)
+                .unwrap()
+                .as_ref()
+                .unwrap()
+                .before;
+            assert_eq!(value(entries.get(&left).unwrap(), 3), expected(2));
+            assert_eq!(value(entries.get(&right).unwrap(), 3), expected(1));
+            assert_eq!(value(entries.get(&right).unwrap(), 1), expected(1));
+            let completed = &replay
+                .snapshots
+                .get(&identity)
+                .unwrap()
+                .as_ref()
+                .unwrap()
+                .normal_exits;
+            assert_eq!(value(completed.get(&right).unwrap(), 1), expected(2));
+            let mut analysis = DescriptorAnalysis::with_reference_slots(&types, &graph);
+            let incoming = DescriptorSourceOrigin::IncomingSlot(location(1));
+            assert_eq!(
+                analysis.substitute_call_source_at(identity, entry, owner(1, 3), &incoming),
+                Some(vec![DescriptorSourceOrigin::IncomingSlot(location(2))])
+            );
+            assert_eq!(
+                analysis.substitute_call_source_at(identity, entry, owner(2, 1), &incoming),
+                Some(vec![DescriptorSourceOrigin::IncomingSlot(location(1))])
+            );
+            assert!(
+                analysis
+                    .substitute_call_source(identity, entry, &incoming)
+                    .is_none()
+            );
+            let flow = analysis.flow(identity).unwrap();
+            let edges = &flow.get(&entry).unwrap().successors;
+            assert_eq!(
+                edges[0]
+                    .effects
+                    .iter()
+                    .map(|(owner, _)| *owner)
+                    .collect::<Vec<_>>(),
+                [owner(1, 0), owner(1, 2), owner(1, 3)]
+            );
+            assert_eq!(
+                edges[1]
+                    .effects
+                    .iter()
+                    .map(|(owner, _)| *owner)
+                    .collect::<Vec<_>>(),
+                [owner(2, 0), owner(2, 1)]
+            );
+        }
+
+        #[test]
         fn a_backedge_cannot_make_a_replaced_descriptor_preserve_its_input() {
             use crate::descriptors::descriptor_lifetimes::{
                 DescriptorFlowEdge, DescriptorFlowStep,
@@ -7774,6 +8531,8 @@ pub(crate) mod engine {
             let exit = (BlockId::new(2).unwrap(), 0);
             let replace = (BlockId::new(3).unwrap(), 0);
             let edge = |target| DescriptorFlowEdge {
+                effects: Vec::new(),
+                edge: None,
                 definitions: Vec::new(),
                 target,
                 parameters: vec![],
@@ -7814,22 +8573,22 @@ pub(crate) mod engine {
                 (exit, DescriptorFlowStep::default()),
             ]);
             caller.normal_exits = vec![exit];
-            caller.calls.insert(
-                entry,
-                Some(DescriptorInvocation {
-                    scalar_arguments: Vec::new(),
-                    site: semantic_vocabulary::InvocationSite::Operation(
-                        OperationId::new(1).unwrap(),
-                    ),
-                    target: DescriptorInvocationTarget::Machine(callee_id),
-                    arguments: vec![Some(stored.clone()), Some(replacement.clone())],
-                    argument_contents: vec![
-                        Some(DescriptorContentsQuery::from_location(&stored)),
-                        Some(DescriptorContentsQuery::from_location(&replacement)),
-                    ],
-                    result: None,
-                }),
-            );
+            caller
+                .insert_call(
+                    entry,
+                    DescriptorInvocation {
+                        scalar_arguments: Vec::new(),
+                        owner: DescriptorInvocationOwner::Operation(OperationId::new(1).unwrap()),
+                        target: DescriptorInvocationTarget::Machine(callee_id),
+                        arguments: vec![Some(stored.clone()), Some(replacement.clone())],
+                        argument_contents: vec![
+                            Some(DescriptorContentsQuery::from_location(&stored)),
+                            Some(DescriptorContentsQuery::from_location(&replacement)),
+                        ],
+                        result: None,
+                    },
+                )
+                .unwrap();
             let mut callee = machine(callee_id);
             callee.flow = BTreeMap::from([
                 (
@@ -8145,7 +8904,7 @@ pub(crate) mod provider {
             }
             let mut invocations = vec![DescriptorInvocationSite {
                 machine: machine.id,
-                operation: call.site.operation()?,
+                owner: call.owner,
             }];
             invocations.extend_from_slice(&provider.invocations);
             Some(BTreeSet::from([Origin::Provider(

@@ -1040,6 +1040,7 @@ fn whole_owned_transfers_consume_their_homes_once() {
         authored_layout: false,
         owns_linear_claim: false,
         copyable: false,
+        cleanup: None,
         identity: "Owned".into(),
         shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![RecordField {
             id: id(1),
@@ -1234,6 +1235,7 @@ mod transferred_on_one_path {
             authored_layout: false,
             owns_linear_claim: false,
             copyable: false,
+            cleanup: None,
             identity: "Inner".into(),
             shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![field(
                 3,
@@ -1246,6 +1248,7 @@ mod transferred_on_one_path {
             authored_layout: false,
             owns_linear_claim: false,
             copyable: false,
+            cleanup: None,
             identity: "Pair".into(),
             shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![
                 field(1, "a", ValueType::record(id(1))),

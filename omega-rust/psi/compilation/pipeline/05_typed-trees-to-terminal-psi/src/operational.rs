@@ -45,6 +45,7 @@ pub(crate) fn positions(machine: MachineId, body: &Body) -> Checked<()> {
     for statement in &body.statements {
         match statement {
             Statement::Bind { value, .. }
+            | Statement::Decompose { subject: value }
             | Statement::Evaluate {
                 expression: value, ..
             }
@@ -113,7 +114,7 @@ fn expression(machine: MachineId, value: &Expression) -> Checked<()> {
         | ExpressionKind::Establish { operand, .. }
         | ExpressionKind::Field { base: operand, .. }
         | ExpressionKind::Payload { base: operand, .. }
-        | ExpressionKind::ArrayView { base: operand, .. }
+        | ExpressionKind::CollectionView { base: operand, .. }
         | ExpressionKind::CollectionMeasure { base: operand, .. }
         | ExpressionKind::IsCase {
             subject: operand, ..

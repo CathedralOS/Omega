@@ -1794,21 +1794,33 @@ pub(crate) mod calls {
     ) -> Result<(), LoweringError> {
         for (edge, actions) in terminator.cleanup_rosters() {
             for (ordinal, action) in actions.iter().enumerate() {
-                let terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup) = action
-                else {
+                let terminal_psi::TerminalAffineCleanupAction::InvokeOwned(cleanup) = action else {
                     continue;
                 };
                 let callee = functions
                     .get(&cleanup.cleanup_machine)
                     .copied()
                     .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
-                if callee.machine == function.machine
-                    || callee.attachment != Some(cleanup.structural_type)
-                    || callee.nominal_cleanup_subject != Some(cleanup.structural_type)
+                let declaration = types
+                    .get(cleanup.structural_type)
+                    .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
+                let [parameter] = callee.structural_parameters.as_slice() else {
+                    return Err(LoweringError::unsupported_control_flow(function.machine));
+                };
+                if declaration
+                    .nominal_cleanup
+                    .as_ref()
+                    .is_none_or(|selection| {
+                        selection.cleanup_machine != cleanup.cleanup_machine
+                            || selection.declaration.identity() != declaration.identity
+                    })
+                    || cleanup.subject.access != StructuralAccess::Owned
                     || callee.result != AbstractFunctionResult::Unit
                     || !callee.parameters.is_empty()
-                    || callee.structural_parameters.len() > 1
-                    || !cleanup.requirement_obligations.is_empty()
+                    || parameter.position != 0
+                    || parameter.structural_type != cleanup.structural_type
+                    || parameter.access != StructuralAccess::Owned
+                    || !cleanup.claim_transfers.is_empty()
                 {
                     return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
@@ -1819,15 +1831,8 @@ pub(crate) mod calls {
                     .iter()
                     .zip(&signature.parameters)
                 {
-                    if !parameter.is_cleanup_receiver(cleanup) {
-                        return Err(LoweringError::unsupported_control_flow(function.machine));
-                    }
-                    let argument = StructuralArgument {
-                        place: cleanup.place,
-                        path: cleanup.path.clone(),
-                        access: parameter.access,
-                    };
-                    arguments.push(super::borrowed_calls::argument(
+                    let argument = cleanup.subject.clone();
+                    arguments.push(super::owned_arguments::argument(
                         &argument,
                         parameter,
                         destination,
@@ -1839,8 +1844,6 @@ pub(crate) mod calls {
                 }
                 if !signature.scalar_parameters.is_empty()
                     || signature.parameters.len() != callee.structural_parameters.len()
-                    || (callee.structural_parameters.is_empty()
-                        && cleanup.cleanup_receiver.is_some())
                 {
                     return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
@@ -1854,6 +1857,7 @@ pub(crate) mod calls {
                     callee: cleanup.cleanup_machine,
                     call_plan: signature.call_plan.into_call_plan(),
                     arguments,
+                    requirement_obligations: cleanup.requirement_obligations.clone(),
                 });
             }
         }

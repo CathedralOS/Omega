@@ -44,6 +44,7 @@ pub mod reflection {
                         ReflectionDeclaration::Schema
                             | ReflectionDeclaration::Callable
                             | ReflectionDeclaration::Field
+                            | ReflectionDeclaration::Parameter
                     ))
                 )
             }) {
@@ -101,6 +102,300 @@ pub mod reflection {
                 .source_file(span)
                 .ok_or("a declaration description requires its immutable source revision")?;
             source::source_identity::canonical_source_entry(source)
+        }
+
+        pub fn field_description_identity(
+            typed: &TypedTrees,
+            operand: &crate::expression::StaticMachineArgument,
+            author: SymbolHandle,
+        ) -> Result<semantic_vocabulary::FieldInfoDescription, String> {
+            use crate::expression::StaticMachineArgument;
+            use crate::reflection::SchemaNode;
+            use crate::type_identity::{IndexIdentityArgument, portable_applied_index_identity};
+            let symbols = typed.symbols.symbols().nodes();
+            if !symbols.is_valid(author) {
+                return Err(String::from("a field query lost its lexical owner"));
+            }
+            let mut selected = operand;
+            let mut declaring_type = None;
+            let mut members = Vec::new();
+            while let Some(application) = &selected.application
+                && application.member.is_valid()
+            {
+                if members.contains(&application.member) {
+                    return Err(String::from("a field query has a cyclic member selection"));
+                }
+                members.push(application.member);
+                if !symbols.is_valid(selected.symbol) {
+                    return Err(String::from("a field query lost its supplying declaration"));
+                }
+                match typed.symbols.get(selected.symbol).kind {
+                    SymbolKind::Data | SymbolKind::TypeAlias => {
+                        if declaring_type.is_some() {
+                            return Err(String::from(
+                                "a field query has an unjoined enclosing type application",
+                            ));
+                        }
+                        let mut head = selected.clone();
+                        head.application
+                            .as_mut()
+                            .expect("selected member has an application")
+                            .member = arena::Handle::invalid();
+                        if !typed
+                            .type_reference_table
+                            .contains_type_reference(head.type_reference)
+                            || !typed
+                                .type_reference_table
+                                .operand_lifetime_owner(head.type_reference)
+                                .is_valid()
+                        {
+                            return Err(String::from(
+                                "a field query lost its prepared supplying type and scope",
+                            ));
+                        }
+                        typed.static_operand_region_supplier(&head, author)?;
+                        declaring_type = Some(head.type_reference);
+                    }
+                    SymbolKind::Variant
+                        if application.arguments.is_empty()
+                            && application.lifetime_arguments.is_empty() => {}
+                    _ => return Err(String::from("a field query has a non-type member supplier")),
+                }
+                selected = typed
+                    .expression_table
+                    .static_member(application.member)
+                    .ok_or_else(|| String::from("a field query lost its selected member"))?;
+            }
+            if !symbols.is_valid(selected.symbol) {
+                return Err(String::from("a field query lost its selected declaration"));
+            }
+            if typed.symbols.get(selected.symbol).kind != SymbolKind::Field {
+                return Err(String::from(
+                    "a field query requires its exact resolved field declaration",
+                ));
+            }
+            if selected.const_literal.is_some() || selected.evidence_projection.is_some() {
+                return Err(String::from(
+                    "a field query cannot describe a value or evidence projection",
+                ));
+            }
+            if selected.application.is_some() {
+                return Err(String::from(
+                    "a field query needs its resolved owner application",
+                ));
+            }
+            if selected.type_reference.is_valid() {
+                return Err(String::from(
+                    "a field query has an unjoined supplying type reference",
+                ));
+            }
+            let parent = typed.symbols.get(selected.symbol).parent;
+            if !symbols.is_valid(parent) {
+                return Err(String::from("a field query lost its declaring owner"));
+            }
+            let owner = if typed.symbols.get(parent).kind == SymbolKind::Variant {
+                typed.symbols.get(parent).parent
+            } else {
+                parent
+            };
+            if !symbols.is_valid(owner) || typed.symbols.get(owner).kind != SymbolKind::Data {
+                return Err(String::from("a field query has no data declaration owner"));
+            }
+            let data = match declaring_type {
+                Some(reference) => {
+                    if typed
+                        .closed_data_constructor_field(reference, owner, selected.symbol)
+                        .is_none()
+                    {
+                        return Err(String::from(
+                            "a field query does not belong to its closed owner application",
+                        ));
+                    }
+                    typed.closed_data_definition(reference).ok_or_else(|| {
+                        String::from("a field query lost its closed declaring data")
+                    })?
+                }
+                None => typed
+                    .unique_data_definition_by_symbol(owner)
+                    .ok_or_else(|| String::from("a field query has no unique declaring data"))?,
+            };
+            let mut occurrences = 0;
+            for member in typed.data_members(data) {
+                match member {
+                    crate::data::DataMember::Field(field)
+                        if parent == owner && field.symbol == selected.symbol =>
+                    {
+                        occurrences += 1
+                    }
+                    crate::data::DataMember::Variant(case) if case.symbol == parent => {
+                        occurrences += typed
+                            .data_payload_fields(case)
+                            .iter()
+                            .filter(|field| field.symbol == selected.symbol)
+                            .count();
+                    }
+                    _ => {}
+                }
+            }
+            if occurrences != 1 {
+                return Err(String::from(
+                    "a field query is not its declaring owner's exact field row",
+                ));
+            }
+            if data.generic_instance.is_none()
+                && (!typed.data_type_parameters(data).is_empty()
+                    || !data.lifetime_parameters.is_empty())
+            {
+                return Err(String::from(
+                    "a field query requires its complete owner application",
+                ));
+            }
+            let author_span = typed
+                .symbols
+                .symbol_provenance_source_span(author)
+                .ok_or_else(|| String::from("a field query lost its lexical author"))?;
+            if !typed
+                .symbols
+                .source_reference_may_select_symbol(author_span, selected.symbol)
+            {
+                return Err(String::from(
+                    "a field query is outside its author's declaration scope",
+                ));
+            }
+            let authority = schema_query_authority(typed, author, owner)?;
+            let graph = match declaring_type {
+                Some(reference) => {
+                    construct_semantic_schema_graph_for_type(typed, reference, authority)
+                }
+                None => construct_semantic_schema_graph(typed, owner, authority),
+            }?;
+            let member = exact_symbol_identity(typed, selected.symbol)?.0;
+            let mut described = graph.nodes().iter().filter_map(|node| match node {
+                SchemaNode::Field(field) if field.member_identity == member => Some(field),
+                _ => None,
+            });
+            let field = described
+                .next()
+                .ok_or_else(|| String::from("field query lost its exact schema member"))?;
+            if described.next().is_some() {
+                return Err(String::from(
+                    "field query has ambiguous schema correspondence",
+                ));
+            }
+            let case_identity = if field.owner_case.is_valid() {
+                let SchemaNode::Case(case) = graph.node(field.owner_case) else {
+                    return Err(String::from("field query lost its exact case owner"));
+                };
+                case.member_identity.as_bytes().to_vec()
+            } else {
+                Vec::new()
+            };
+            let owner_application = match &graph.declaration().application_identity {
+                Some(identity) => identity.clone(),
+                None => portable_applied_index_identity(
+                    typed,
+                    IndexIdentityArgument::StaticArgument(&StaticMachineArgument {
+                        symbol: owner,
+                        ..Default::default()
+                    }),
+                    author,
+                    &[],
+                )
+                .and_then(|identity| typed.type_identity_text(identity))
+                .ok_or_else(|| String::from("field query lost its complete owner type identity"))?,
+            };
+            let revision = declaration_source_revision(typed, owner)?;
+            Ok(semantic_vocabulary::FieldInfoDescription {
+                member_identity: field.member_identity.as_bytes().to_vec(),
+                case_identity,
+                owner_identity: graph.declaration().owner_identity.as_bytes().to_vec(),
+                owner_application: owner_application.into_bytes(),
+                name: field.name.as_bytes().to_vec(),
+                qualified_type: field.qualified_type.as_bytes().to_vec(),
+                declaration_position: u64::from(field.declaration_position),
+                has_stable_number: field.stable_number.is_some(),
+                is_erased: field.erased,
+                stable_number: field.stable_number.unwrap_or(0),
+                source_revision: revision,
+            })
+        }
+
+        pub fn parameter_description_identity(
+            typed: &TypedTrees,
+            formal: SymbolHandle,
+            author: SymbolHandle,
+        ) -> Result<semantic_vocabulary::ParameterDescription, String> {
+            let symbols = typed.symbols.symbols().nodes();
+            if !symbols.is_valid(formal) || !symbols.is_valid(author) {
+                return Err("a parameter query lost its exact formal or lexical author".into());
+            }
+            let requirement = typed.symbols.get(formal).parent;
+            let (owner, signature) = typed
+                .trait_machine_signature(requirement)
+                .filter(|(owner, _)| owner.is_boundary)
+                .ok_or("a parameter query selects a boundary requirement's declared formal")?;
+            if typed.closed_requirement_application(requirement).is_none()
+                && (!typed.trait_type_parameters(owner).is_empty()
+                    || !owner.lifetime_parameters.is_empty()
+                    || !typed.state_signature_type_parameters(signature).is_empty())
+            {
+                return Err(
+                    "a parameter query requires its complete requirement application".into(),
+                );
+            }
+            let mut parameters = typed
+                .state_signature_parameters(signature)
+                .iter()
+                .enumerate()
+                .filter(|(_, parameter)| parameter.symbol == formal);
+            let (position, parameter) = parameters
+                .next()
+                .ok_or("a parameter query is not its requirement's exact formal row")?;
+            if parameters.next().is_some() || parameter.relevance.is_erased() {
+                return Err("a parameter query requires one live semantic formal".into());
+            }
+            let author_span = typed
+                .symbols
+                .symbol_provenance_source_span(author)
+                .ok_or("a parameter query lost its retained lexical source")?;
+            if !typed
+                .symbols
+                .source_reference_may_select_symbol(author_span, requirement)
+            {
+                return Err("a parameter query is outside its author's declaration scope".into());
+            }
+            let qualified_type = crate::type_identity::descriptive_type_identity_in_region_scope(
+                typed,
+                crate::type_identity::TypeIdentityRequest::package_qualified(
+                    parameter.type_reference,
+                ),
+                requirement,
+                requirement,
+                &[],
+                &[],
+            )
+            .and_then(|identity| typed.type_identity_text(identity))
+            .ok_or(
+                "a parameter query lost its complete declared type and lifetime relationships",
+            )?;
+            let declaration = typed
+                .closed_requirement_application(requirement)
+                .map_or(requirement, |application| application.template);
+            Ok(semantic_vocabulary::ParameterDescription {
+                requirement_identity: typed
+                    .normalized_hermetic_symbol_identity(declaration)?
+                    .into_bytes(),
+                requirement_application: typed
+                    .trait_requirement_callable_identity_text(owner, signature)
+                    .into_bytes(),
+                parameter_identity: typed
+                    .normalized_hermetic_symbol_identity(formal)?
+                    .into_bytes(),
+                qualified_type: qualified_type.into_bytes(),
+                declaration_position: u64::try_from(position)
+                    .map_err(|_| "a parameter position exceeds its description carrier")?,
+                source_revision: declaration_source_revision(typed, declaration)?,
+            })
         }
 
         /// Descriptions retain the selected declaration and all of its arguments

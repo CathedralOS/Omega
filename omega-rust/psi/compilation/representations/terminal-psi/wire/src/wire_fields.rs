@@ -14,13 +14,20 @@ pub(crate) mod wire {
     use semantic_vocabulary::PsiSemanticId;
 
     pub(crate) fn encode_invocation_site(writer: &mut Writer, site: InvocationSite) {
-        let (tag, identity) = match site {
-            InvocationSite::Operation(operation) => (0, operation.get()),
-            InvocationSite::ExternalCompletion(edge) => (1, edge.get()),
-            InvocationSite::InvokeNoNormal(edge) => (2, edge.get()),
+        let (tag, identity, action_ordinal) = match site {
+            InvocationSite::Operation(operation) => (0, operation.get(), None),
+            InvocationSite::ExternalCompletion(edge) => (1, edge.get(), None),
+            InvocationSite::InvokeNoNormal(edge) => (2, edge.get(), None),
+            InvocationSite::Cleanup {
+                edge,
+                action_ordinal,
+            } => (3, edge.get(), Some(action_ordinal)),
         };
         writer.u8(tag);
         writer.u64(identity);
+        if let Some(action_ordinal) = action_ordinal {
+            writer.u32(action_ordinal);
+        }
     }
 
     pub(crate) fn decode_invocation_site(
@@ -28,6 +35,15 @@ pub(crate) mod wire {
     ) -> Result<InvocationSite, CodecError> {
         let tag = reader.u8()?;
         let identity = reader.u64()?;
+        if tag == 3 {
+            let edge = semantic_vocabulary::EdgeId::new(identity).ok_or(
+                CodecError::MalformedStructuralFoundation("invalid cleanup invocation edge"),
+            )?;
+            return Ok(InvocationSite::Cleanup {
+                edge,
+                action_ordinal: reader.u32()?,
+            });
+        }
         InvocationSite::from_tagged_identity(tag, identity).ok_or(
             CodecError::MalformedStructuralFoundation("invalid invocation identity"),
         )
@@ -1341,5 +1357,50 @@ wire_enum! {
         3 => Stack,
         4 => Fs,
         5 => Gs,
+    }
+}
+
+#[cfg(test)]
+mod invocation_site_tests {
+    use super::wire::{Reader, Writer, decode_invocation_site, encode_invocation_site};
+    use semantic_vocabulary::{EdgeId, InvocationSite, OperationId};
+
+    #[test]
+    fn invocation_identity_retains_cleanup_edge_and_action_ordinal() {
+        let mut encodings = Vec::new();
+        for site in [
+            InvocationSite::Operation(OperationId::new(1).unwrap()),
+            InvocationSite::ExternalCompletion(EdgeId::new(2).unwrap()),
+            InvocationSite::InvokeNoNormal(EdgeId::new(2).unwrap()),
+            InvocationSite::Cleanup {
+                edge: EdgeId::new(2).unwrap(),
+                action_ordinal: 0,
+            },
+            InvocationSite::Cleanup {
+                edge: EdgeId::new(2).unwrap(),
+                action_ordinal: 1,
+            },
+            InvocationSite::Cleanup {
+                edge: EdgeId::new(3).unwrap(),
+                action_ordinal: 0,
+            },
+        ] {
+            let mut writer = Writer::default();
+            encode_invocation_site(&mut writer, site);
+            let bytes = writer.finish();
+            let mut expected = Vec::new();
+            site.encode_identity(&mut expected);
+            assert_eq!(bytes, expected);
+            let mut reader = Reader::new(&bytes);
+            assert_eq!(decode_invocation_site(&mut reader).unwrap(), site);
+            assert_eq!(reader.remaining(), 0);
+            assert!(!encodings.contains(&bytes));
+            encodings.push(bytes);
+        }
+        let cleanup = encodings.last().unwrap();
+        assert_eq!(cleanup.len(), 13);
+        for length in 0..cleanup.len() {
+            assert!(decode_invocation_site(&mut Reader::new(&cleanup[..length])).is_err());
+        }
     }
 }

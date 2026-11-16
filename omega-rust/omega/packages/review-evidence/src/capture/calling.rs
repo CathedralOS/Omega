@@ -23,7 +23,7 @@ pub(super) fn project(
     let signature = &application.signature;
     let result_type = method.calling_result_type();
     if application.target != target.native_target()
-        || application.dispatch_only_parameter_count != 0
+        || application.dispatch_only_formal.is_some()
         || application
             .recomputed_commitment()
             .map_err(|reason| unavailable(&reason))?

@@ -146,7 +146,7 @@ pub mod calls {
         }
 
         pub fn state_parameter_position(
-            parameters: &[StateParameter],
+            parameters: arena::RootRows<'_, StateParameter>,
             symbol: SymbolHandle,
         ) -> Option<usize> {
             parameters
@@ -618,6 +618,14 @@ pub mod control_flow {
         }
 
         impl Machine {
+            /// A qualified header can name a module. Only resolved data
+            /// attachment makes this a data-owned declaration.
+            pub fn has_data_owner(&self) -> bool {
+                self.attached_data_symbol.is_valid()
+                    || self.attached_data_application.is_valid()
+                    || self.generic_data_template.is_valid()
+            }
+
             pub fn has_specialization_parameters(&self) -> bool {
                 !self.type_parameters.is_empty() || !self.conformance_bounds.is_empty()
             }
@@ -879,11 +887,17 @@ pub mod control_flow {
             pub statement_nodes: HandleSpan<StatementNode>,
         }
 
-        pub fn state_by_symbol(states: &[State], symbol: SymbolHandle) -> Option<&State> {
+        pub fn state_by_symbol<'arena>(
+            states: arena::RootRows<'arena, State>,
+            symbol: SymbolHandle,
+        ) -> Option<&'arena State> {
             states.iter().find(|state| state.symbol == symbol)
         }
 
-        pub fn state_position(states: &[State], symbol: SymbolHandle) -> Option<usize> {
+        pub fn state_position(
+            states: arena::RootRows<'_, State>,
+            symbol: SymbolHandle,
+        ) -> Option<usize> {
             states.iter().position(|state| state.symbol == symbol)
         }
 

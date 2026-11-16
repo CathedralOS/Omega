@@ -114,7 +114,8 @@ git merge-base --is-ancestor PUBLISHED_SHA origin/main
 Confirm `MERGED`, the submitted `headRefOid`, and the squash commit on fetched
 main. Keep the source and published IDs with the PR URL. After a squash, the
 local source head need not be an ancestor of main.
-Only then note the result and release the work claim.
+Only then note the result. Release the work claim when the original assignment's
+acceptance is complete; a checkpoint merge keeps outcome ownership.
 
 Watch the `post-merge-check` workflow, which checks main. It batches pending
 pushes, so a run canceled for a newer one measured nothing. Investigate real
@@ -122,7 +123,10 @@ failures and fix regressions in a focused PR. Keep older results tied to
 the source and host that produced them; merging does not make them fresh
 results on main.
 
-Continue the same feature's next requirement on the warm worktree. Keep uncommitted or unsubmitted work, saved producers and evidence;
+Run the original program on the landed source and follow its next failure on
+the warm worktree. A pre-existing failure remains part of that assignment. If
+the session must stop, record an unfinished handoff under the law of completion.
+Keep uncommitted or unsubmitted work, saved producers and evidence;
 never clean another session's files or shared caches.
 
 ## Resuming an older session

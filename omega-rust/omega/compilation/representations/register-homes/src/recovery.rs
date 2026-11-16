@@ -994,10 +994,11 @@ pub struct FixedViewCopyDestination {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FixedViewCopyDecodeError {
+    InvalidBorrowedStorage(runtime_abi::BorrowedStorageEncodingError),
     InvalidQuotientCatalog,
     InvalidAccessLifecycleCatalog {
         catalog: &'static str,
-        cause: terminal_codec::CodecError,
+        cause: terminal_wire::CodecError,
     },
     Truncated,
     WrongMagic,
@@ -1549,6 +1550,7 @@ mod tests {
                 },
             }],
             transformed: SelectedInstructionPlan {
+                contracts: Default::default(),
                 psi: TerminalPsiIdentity {
                     vocabulary_marker: VocabularyMarker::CURRENT,
                     program_fingerprint: SemanticFingerprint::from_bytes([12; 32]),

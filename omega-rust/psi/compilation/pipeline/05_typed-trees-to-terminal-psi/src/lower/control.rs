@@ -331,6 +331,7 @@ impl Lowering<'_> {
                 *self.slot_mut(*slot)? = bound;
                 Ok(Reached::Value(()))
             }
+            Statement::Decompose { subject } => self.decompose(subject),
             Statement::Witness { slot, term } => {
                 let witness = self.witness(term)?;
                 *self.slot_mut(*slot)? = Some(Bound::Erased(witness));
@@ -926,6 +927,15 @@ impl Lowering<'_> {
             },
         );
         self.parameter(established, result, scalar_type)?;
+        let original = self
+            .value_qualifications
+            .get((operand.get() - 1) as usize)
+            .copied()
+            .flatten()
+            .ok_or_else(|| self.internal("cast operand has no declared qualification"))?;
+        let only_removes_qualifications = original != qualification
+            && qualification.domains.is_subset_of(&original.domains)
+            && (qualification.policy.is_none() || qualification.policy == original.policy);
         let mut predicate = Vec::with_capacity(clauses.len());
         for clause in clauses {
             predicate.push(canonical::substitute(
@@ -935,21 +945,19 @@ impl Lowering<'_> {
                 id,
             )?);
         }
-        self.invariants.push(terminal_psi::ScalarBlockInvariant {
-            machine: id,
-            header: established,
-            predicate: canonical::conjunction(predicate, id)?,
-            arrivals: Vec::new(),
-        });
+        // A predicate-free removal passes the same value. Keep it in ordinary
+        // join scope so the dominating operand remains available at the result.
+        if !predicate.is_empty() || !only_removes_qualifications {
+            self.invariants.push(terminal_psi::ScalarBlockInvariant {
+                machine: id,
+                header: established,
+                predicate: canonical::conjunction(predicate, id)?,
+                arrivals: Vec::new(),
+            });
+        }
         let edge = semantic_vocabulary::EdgeId::new(self.tables.edges.len() as u64 + 1)
             .ok_or_else(|| self.internal("qualification edge identity overflow"))?;
         self.jump(established, vec![operand], source)?;
-        let original = self
-            .value_qualifications
-            .get((operand.get() - 1) as usize)
-            .copied()
-            .flatten()
-            .ok_or_else(|| self.internal("cast operand has no declared qualification"))?;
         let before = self.qualifications.scalar(id, scalar_type, original)?;
         let after = self.qualifications.scalar(id, scalar_type, qualification)?;
         // A logical predicate needs an ordinary same-value edge. Publish a

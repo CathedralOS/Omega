@@ -342,7 +342,7 @@ fn source() -> Source {
 
 fn only_state(program: &TypedTrees, machine: SymbolHandle) -> &State {
     let machine = program.machine_by_symbol(machine).expect("a machine");
-    let [state] = program.machine_states(machine) else {
+    let Some([state]) = program.machine_states(machine).as_array() else {
         panic!("one state");
     };
     state

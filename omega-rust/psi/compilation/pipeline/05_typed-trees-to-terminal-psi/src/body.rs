@@ -328,6 +328,7 @@ pub struct RecordType {
     /// Actual source linear custody, including owned nested claims.
     pub owns_linear_claim: bool,
     pub copyable: bool,
+    pub cleanup: Option<RecordCleanup>,
     pub identity: String,
     pub shape: StorageShape,
     /// The clauses of the declaration's `requires`, in authored order: the
@@ -350,6 +351,14 @@ pub struct RecordType {
     /// is left without contents (constants.md: "Semantically unobservable
     /// padding is emitted as zero").
     pub authored_layout: bool,
+}
+
+/// The source declaration's selected ordinary consumer. Discovery closes its
+/// body with the other callees before this record is lowered to Terminal Psi.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RecordCleanup {
+    pub declaration_identity: String,
+    pub machine: MachineId,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -916,6 +925,9 @@ pub enum Statement {
         home: Option<String>,
         source: SourceOrigin,
     },
+    /// End the nominal wrapper at a complete consuming pattern. The following
+    /// field bindings transfer its components under ordinary ownership rules.
+    Decompose { subject: Expression },
     /// Capture the existing destination expression as a place, then evaluate
     /// `value` and store it there. Field and index expressions retain the
     /// same meaning as in a read or loan; no second destination path exists.
@@ -1054,10 +1066,10 @@ pub enum ExpressionKind {
         start: Option<Box<Expression>>,
         end: Option<Box<Expression>>,
     },
-    /// An explicit borrow of a whole closed array, as a byte descriptor or
-    /// a typed element view. The descriptor borrows
-    /// the selected backing; its formation owns a separate loan occurrence.
-    ArrayView {
+    /// A view of the captured collection, preserving its elements or presenting
+    /// their complete representation. Formation borrows that exact backing and
+    /// owns a separate loan occurrence.
+    CollectionView {
         base: Box<Expression>,
         access: language_core::ReferenceAccess,
         element: StructuralTypeId,

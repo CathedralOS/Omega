@@ -685,9 +685,6 @@ pub(crate) mod construction {
         }
         let catalog = environment.constraints();
         require_key_rows(&constraints.keys, catalog)?;
-        let interrupt_helpers = crate::installed_interrupts::PreparedHelperCohort::new(
-            legalized.installed_interrupts(),
-        );
         let native_geometry = crate::native_geometry::NativeGeometries::new(
             target.scalar_functions.iter().map(|source| {
                 source
@@ -726,15 +723,15 @@ pub(crate) mod construction {
                     constraints,
                     environment,
                     &backings,
-                    legalized.installed_interrupts(),
-                    legalized.installed_stack_requirements(),
-                    &interrupt_helpers,
-                    legalized.installed_entry_execution(),
+                    legalized.installations(),
                 )
             })
             .collect::<Result<Vec<_>, _>>()?;
         functions.sort_by_key(|function| function.machine);
         Ok(SelectedInstructionPlan {
+            contracts: std::sync::Arc::new(selected_instructions::SelectedProgramContracts {
+                borrowed_storage_layouts: target.borrowed_storage_layouts.clone(),
+            }),
             psi: target.psi,
             work_schedule: target.work_schedule,
             target: target.target,
@@ -946,7 +943,6 @@ pub(crate) mod field_bytes {
                 let function = LegalizedScalarFunction {
                     machine: MachineId::new(1).unwrap(),
                     attachment: None,
-                    nominal_cleanup_subject: None,
                     provenance: Default::default(),
                     call_plan: call_plan.clone(),
                     parameters: Vec::new(),

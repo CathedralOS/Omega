@@ -389,6 +389,7 @@ fn operation_observations(
         | abstract_operations::move_or_store_structural_field_pattern!()
         | O::StructuralLeafCopy { .. }
         | O::MoveStructuralValue { .. }
+        | O::DecomposeStructuralValue { .. }
         | O::TransformContent { .. }
         | abstract_operations::byte_read_predicate_equal_pattern!(..)
         | O::ByteSequenceSubslice { .. }

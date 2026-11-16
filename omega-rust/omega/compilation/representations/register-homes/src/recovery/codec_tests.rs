@@ -1,7 +1,7 @@
 /*
 Wire envelope, round-trip, rejection precedence, and structural catalog tests for the fixed-view copy recovery codec.
 
-Verifies that `FixedViewCopyPlan` deterministic wire encoding (`OMGFCV\0\0` v104), authentication digests, stale-version rejection precedence, edge transport bindings, call-site owners, local and outgoing storage rosters, returned descriptor origins, and complete placement/lifecycle catalogs survive round-trip encoding and fail closed under tampering or truncation.
+Verifies that `FixedViewCopyPlan` deterministic wire encoding (`OMGFCV\0\0` v106), authentication digests, stale-version rejection precedence, edge transport bindings, call-site owners, local and outgoing storage rosters, returned descriptor origins, and complete placement/lifecycle catalogs survive round-trip encoding and fail closed under tampering or truncation.
 */
 
 use access_plans::{AccessFields, BoundaryReach, validate_placement};
@@ -115,42 +115,43 @@ fn shared_function() -> SelectedFunction {
     let to = RegisterViewId(2);
     let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
     SelectedFunction {
-        machine: MachineId::new(1).unwrap(),
-        attachment: None,
-        nominal_cleanup_subject: None,
-        provenance: Default::default(),
-        structural: None,
-        outgoing_arguments: Vec::new(),
-        local_storage_slots: Vec::new(),
-        calls: Vec::new(),
-        normalized_foreign_calls: Vec::new(),
-        memory_accesses: Vec::new(),
-        boundary_settlements: Vec::new(),
+        contracts: std::sync::Arc::new(selected_instructions::SelectedFunctionContracts {
+            machine: MachineId::new(1).unwrap(),
+            attachment: None,
+            provenance: Default::default(),
+            structural: None,
+            outgoing_arguments: Vec::new(),
+            local_storage_slots: Vec::new(),
+            calls: Vec::new(),
+            normalized_foreign_calls: Vec::new(),
+            memory_accesses: Vec::new(),
+            boundary_settlements: Vec::new(),
+            virtual_registers: vec![
+                VirtualRegister {
+                    id: VirtualRegisterId(0),
+                    scalar_type: scalar,
+                    class,
+                    origin: VirtualRegisterOrigin::EntryParameter {
+                        source_value: ValueId::new(1).unwrap(),
+                        parameter_index: 0,
+                    },
+                    definition_site: Some(ValueDefinitionSite::FunctionParameter(0)),
+                    entry_fixed_view: None,
+                },
+                VirtualRegister {
+                    id: VirtualRegisterId(1),
+                    scalar_type: scalar,
+                    class,
+                    origin: VirtualRegisterOrigin::EntryParameter {
+                        source_value: ValueId::new(2).unwrap(),
+                        parameter_index: 1,
+                    },
+                    definition_site: Some(ValueDefinitionSite::FunctionParameter(1)),
+                    entry_fixed_view: Some(from),
+                },
+            ],
+        }),
         entry_block: SelectedBlockId(0),
-        virtual_registers: vec![
-            VirtualRegister {
-                id: VirtualRegisterId(0),
-                scalar_type: scalar,
-                class,
-                origin: VirtualRegisterOrigin::EntryParameter {
-                    source_value: ValueId::new(1).unwrap(),
-                    parameter_index: 0,
-                },
-                definition_site: Some(ValueDefinitionSite::FunctionParameter(0)),
-                entry_fixed_view: None,
-            },
-            VirtualRegister {
-                id: VirtualRegisterId(1),
-                scalar_type: scalar,
-                class,
-                origin: VirtualRegisterOrigin::EntryParameter {
-                    source_value: ValueId::new(2).unwrap(),
-                    parameter_index: 1,
-                },
-                definition_site: Some(ValueDefinitionSite::FunctionParameter(1)),
-                entry_fixed_view: Some(from),
-            },
-        ],
         blocks: (vec![
             SelectedBlock {
                 id: SelectedBlockId(0),
@@ -328,19 +329,20 @@ pub(super) fn function_with_operand(access: RegisterOperandAccess) -> SelectedFu
         provenance: SelectedInstructionProvenance::default(),
     };
     SelectedFunction {
-        machine: MachineId::new(1).unwrap(),
-        attachment: None,
-        nominal_cleanup_subject: None,
-        provenance: Default::default(),
-        structural: None,
-        outgoing_arguments: Vec::new(),
-        local_storage_slots: Vec::new(),
-        calls: Vec::new(),
-        normalized_foreign_calls: Vec::new(),
-        memory_accesses: Vec::new(),
-        boundary_settlements: Vec::new(),
+        contracts: std::sync::Arc::new(selected_instructions::SelectedFunctionContracts {
+            machine: MachineId::new(1).unwrap(),
+            attachment: None,
+            provenance: Default::default(),
+            structural: None,
+            outgoing_arguments: Vec::new(),
+            local_storage_slots: Vec::new(),
+            calls: Vec::new(),
+            normalized_foreign_calls: Vec::new(),
+            memory_accesses: Vec::new(),
+            boundary_settlements: Vec::new(),
+            virtual_registers: Vec::new(),
+        }),
         entry_block: SelectedBlockId(0),
-        virtual_registers: Vec::new(),
         blocks: (vec![SelectedBlock {
             id: SelectedBlockId(0),
             origin: SelectedBlockOrigin::Source(BlockId::new(1).unwrap()),
@@ -401,6 +403,7 @@ pub(super) fn plan(policy: FixedViewCopyPolicy) -> FixedViewCopyPlan {
         },
         copies: vec![copy],
         transformed: SelectedInstructionPlan {
+            contracts: Default::default(),
             psi: TerminalPsiIdentity {
                 vocabulary_marker: VocabularyMarker::CURRENT,
                 program_fingerprint: SemanticFingerprint::from_bytes([6; 32]),
@@ -424,6 +427,45 @@ pub(super) fn transformed_identity_offset(encoded: &[u8]) -> usize {
     cursor.offset
 }
 
+#[test]
+fn transformed_plan_retains_the_nonempty_borrowed_storage_contract() {
+    let mut original = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
+    let layouts = runtime_abi::NativeBorrowedStorageLayouts::seal(vec![
+        runtime_abi::NativeBorrowedStorageLayout::new(
+            StructuralTypeId::new(1).unwrap(),
+            8,
+            8,
+            [(
+                Vec::new(),
+                Vec::new(),
+                0,
+                ScalarType::Boolean,
+                ScalarType::Boolean,
+            )],
+            [],
+            [],
+        ),
+    ])
+    .unwrap();
+    let baseline_identity =
+        selected_instructions::selected_instruction_plan_identity(&original.transformed);
+    std::sync::Arc::make_mut(&mut original.transformed).contracts =
+        std::sync::Arc::new(selected_instructions::SelectedProgramContracts {
+            borrowed_storage_layouts: layouts.clone(),
+        });
+    assert_ne!(
+        selected_instructions::selected_instruction_plan_identity(&original.transformed),
+        baseline_identity
+    );
+    let encoded = original.encode().unwrap();
+    let received = FixedViewCopyPlan::decode(&encoded).unwrap();
+    assert_eq!(
+        received.transformed.contracts.borrowed_storage_layouts,
+        layouts
+    );
+    assert_eq!(received, original);
+}
+
 pub(super) fn selected_payload_offset(encoded: &[u8]) -> usize {
     let mut cursor = Cursor::new(encoded);
     cursor
@@ -438,7 +480,7 @@ fn current_envelope_has_exact_header_and_deterministic_bytes() {
     let plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     let encoded = plan.encode().unwrap();
     assert_eq!(&encoded[..8], b"OMGFCV\0\0");
-    assert_eq!(&encoded[8..12], &104_u32.to_le_bytes());
+    assert_eq!(&encoded[8..12], &106_u32.to_le_bytes());
     assert_eq!(encoded, plan.encode().unwrap());
     assert_eq!(FixedViewCopyPlan::decode(&encoded).unwrap(), plan);
 }
@@ -703,12 +745,13 @@ fn process_exit_codec_preserves_terminal_nominal_edge_and_source_without_scratch
         panic!("conditional fixture");
     };
     instruction.kind = SelectedInstructionKind::HostedExitProcessI32;
+    let contracts = std::sync::Arc::make_mut(&mut function.contracts);
     let block = &mut function.blocks[0];
     block.terminator = SelectedTerminator::HostedExitProcess {
         instruction,
         completion_edge: semantic_vocabulary::EdgeId::new(311).unwrap(),
     };
-    function
+    contracts
         .boundary_settlements
         .push(selected_instructions::SelectedBoundarySettlement {
             block: block.id,
@@ -1862,30 +1905,30 @@ fn recovery_preserves_complete_placement_catalog_and_its_identity() {
 fn standalone_catalogs_reject_truncation_and_trailing_bytes() {
     let catalog = catalog();
     let lifecycle =
-        terminal_codec::encode_access_lifecycle_catalog(catalog.access_lifecycles()).unwrap();
-    let views = terminal_codec::encode_access_view_catalog(catalog.access_views()).unwrap();
+        terminal_wire::encode_access_lifecycle_catalog(catalog.access_lifecycles()).unwrap();
+    let views = terminal_wire::encode_access_view_catalog(catalog.access_views()).unwrap();
     for end in 0..lifecycle.len() {
         assert!(
-            terminal_codec::decode_access_lifecycle_catalog(&lifecycle[..end]).is_err(),
+            terminal_wire::decode_access_lifecycle_catalog(&lifecycle[..end]).is_err(),
             "truncated lifecycle catalog accepted at {end}"
         );
     }
     for end in 0..views.len() {
         assert!(
-            terminal_codec::decode_access_view_catalog(&views[..end]).is_err(),
+            terminal_wire::decode_access_view_catalog(&views[..end]).is_err(),
             "truncated view catalog accepted at {end}"
         );
     }
     let mut trailing = lifecycle;
     trailing.push(0);
     assert_eq!(
-        terminal_codec::decode_access_lifecycle_catalog(&trailing),
-        Err(terminal_codec::CodecError::TrailingBytes(1))
+        terminal_wire::decode_access_lifecycle_catalog(&trailing),
+        Err(terminal_wire::CodecError::TrailingBytes(1))
     );
     let mut trailing = views;
     trailing.push(0);
     assert_eq!(
-        terminal_codec::decode_access_view_catalog(&trailing),
-        Err(terminal_codec::CodecError::TrailingBytes(1))
+        terminal_wire::decode_access_view_catalog(&trailing),
+        Err(terminal_wire::CodecError::TrailingBytes(1))
     );
 }

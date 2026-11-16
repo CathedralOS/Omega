@@ -89,7 +89,10 @@ fn ranking_defaults_preserve_exact_binders_and_bound_shell_traversal() {
                 lifetime: None,
             });
     }
-    program.state_parameters.span_mut_or_empty(entry.parameters)[0].type_reference = reference;
+    program
+        .state_parameters
+        .get_mut(entry.parameters.handle_at(0))
+        .type_reference = reference;
     let settle = |program: &TypedTrees, machine: &mut typed_trees::machine::Machine| {
         let witness = machine
             .termination_plan
@@ -146,7 +149,10 @@ fn ranking_defaults_preserve_exact_binders_and_bound_shell_traversal() {
             access: language_core::ReferenceAccess::Shared,
             lifetime: None,
         });
-    program.state_parameters.span_mut_or_empty(entry.parameters)[0].type_reference = missing;
+    program
+        .state_parameters
+        .get_mut(entry.parameters.handle_at(0))
+        .type_reference = missing;
     assert_eq!(
         settle(&program, &mut machine),
         RankingViewId::NULL,

@@ -21,9 +21,10 @@ arena = { path = "../../../../psi/foundation/arena" }
 calling-conventions = { path = "../../backend/calling-conventions" }
 optimization-core = { path = "../../../foundation/optimization-core" }
 register-model = { path = "../../backend/register-model" }
+runtime-abi = { path = "../../backend/runtime/runtime-abi" }
 target = { path = "../../backend/target" }
 legalized-operations = { path = "../target-operations/legalized-operations" }
 semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
-terminal-codec = { path = "../../../../psi/compilation/representations/terminal-psi/codec" }
+terminal-wire = { path = "../../../../psi/compilation/representations/terminal-psi/wire" }
 terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }
 sha2 = "0.10.9"

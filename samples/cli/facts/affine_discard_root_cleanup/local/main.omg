@@ -11,11 +11,11 @@ data Resource<'view> dropped by drop_resource {
     value: u64;
 }
 
-machine drop_resource(resource: &mut Resource)
+machine drop_resource(resource: Resource)
 requires resource.valid == 1u64
 {
-    resource.dropped.value = resource.valid;
-    resource.valid = 0u64;
+    let { dropped, valid, value as _ } = move resource;
+    dropped.value = valid;
 }
 
 machine exercise(dropped: &mut Counter) -> u64

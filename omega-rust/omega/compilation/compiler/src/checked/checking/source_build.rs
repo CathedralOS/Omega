@@ -29,9 +29,6 @@ impl SourceBuild {
         compilation: &build_settings::PureBuildCompilation,
     ) -> Result<Self, CompileFailure> {
         child.admit_package_inputs()?;
-        let core_root = package_compilation::source_imports::bundled_core_root()?;
-        let capture = package_compilation::capture_anonymous_compilation_source(&core_root)?;
-        let source = source.with_toolchain_capture(capture)?;
         Ok(Self {
             invocation: Box::new(prepare_build_source_invocation(
                 root,

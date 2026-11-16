@@ -1193,6 +1193,42 @@ pub(crate) mod reference_completion {
         Ok(retained)
     }
 
+    #[cfg(test)]
+    #[test]
+    fn owned_cleanup_disposes_only_the_transferred_descriptor_subtree() {
+        let carrier = PlaceId::new(1).unwrap();
+        let field = StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(1));
+        let actions = [TerminalAffineCleanupAction::InvokeOwned(
+            terminal_psi::OwnedCleanupInvocation {
+                subject: terminal_psi::StructuralArgument {
+                    place: carrier,
+                    path: vec![field.clone()],
+                    access: StructuralAccess::Owned,
+                },
+                structural_type: StructuralTypeId::new(1).unwrap(),
+                cleanup_machine: semantic_vocabulary::MachineId::new(1).unwrap(),
+                claim_transfers: Vec::new(),
+                requirement_obligations: Vec::new(),
+            },
+        )];
+        assert!(cleanup_disposes_reference(
+            &actions,
+            carrier,
+            std::slice::from_ref(&field)
+        ));
+        assert!(!cleanup_disposes_reference(&actions, carrier, &[]));
+        assert!(!cleanup_disposes_reference(
+            &actions,
+            PlaceId::new(2).unwrap(),
+            std::slice::from_ref(&field)
+        ));
+        assert!(!cleanup_disposes_reference(
+            &actions,
+            carrier,
+            &[field, StructuralPathSegment::Referent]
+        ));
+    }
+
     pub fn cleanup_disposes_reference(
         actions: &[TerminalAffineCleanupAction],
         carrier: PlaceId,
@@ -1208,8 +1244,16 @@ pub(crate) mod reference_completion {
                     && path.starts_with(&discard.path)
                     && !discard.path.contains(&StructuralPathSegment::Referent)
             }
-            TerminalAffineCleanupAction::InvokeNominal(_)
-            | TerminalAffineCleanupAction::RetireHome(_) => false,
+            TerminalAffineCleanupAction::InvokeOwned(cleanup) => {
+                cleanup.subject.access == StructuralAccess::Owned
+                    && cleanup.subject.place == carrier
+                    && path.starts_with(&cleanup.subject.path)
+                    && !cleanup
+                        .subject
+                        .path
+                        .contains(&StructuralPathSegment::Referent)
+            }
+            TerminalAffineCleanupAction::RetireHome(_) => false,
         })
     }
 }
@@ -2067,6 +2111,7 @@ pub(crate) mod reference_origins {
                     copyable: false,
                     no_code_affine_cleanup: true,
                     descriptor_cleanup: true,
+                    nominal_cleanup: None,
                     shape,
                     scalar_restriction: None,
                 })
@@ -3926,6 +3971,16 @@ pub(crate) mod reference_storage_geometry {
             reference: StructuralTypeId,
             stored: Option<ScalarType>,
         ) -> bool {
+            self.source_representation_compatible(source, reference, stored, false)
+        }
+
+        fn source_representation_compatible(
+            &mut self,
+            source: StructuralTypeId,
+            reference: StructuralTypeId,
+            stored: Option<ScalarType>,
+            captured_geometry_matches: bool,
+        ) -> bool {
             let Some(StructuralTypeShape::Reference { referent, .. }) =
                 crate::structural_shape(self.types.clone(), reference)
             else {
@@ -3951,29 +4006,39 @@ pub(crate) mod reference_storage_geometry {
                         && crate::reference_storage_view_is_compatible(stored, *logical)
                 }
                 (None, terminal_psi::record_or_fixed_array_shape_pattern!()) => {
-                    crate::references::reference_views::plain_storage(
-                        self.types.clone(),
-                        *referent,
-                        &mut Vec::new(),
-                    ) && (byte_endpoint
-                        || crate::references::reference_views::plain_storage(
-                            self.types.clone(),
-                            source,
-                            &mut Vec::new(),
-                        ) && self.layout(source).ok().is_some_and(|layout| {
-                            let target_layout = self.layout(*referent).ok();
-                            Some(layout) == target_layout
-                                || crate::references::reference_views::storage_scalars_satisfy(
+                    use crate::references::reference_views::{
+                        is_byte_scalar, plain_storage, storage_scalars_satisfy,
+                    };
+
+                    if !plain_storage(self.types.clone(), *referent, &mut Vec::new()) {
+                        return false;
+                    }
+                    if byte_endpoint {
+                        return true;
+                    }
+                    if !plain_storage(self.types.clone(), source, &mut Vec::new()) {
+                        return false;
+                    }
+                    if let (Ok(source_layout), Ok(target_layout)) =
+                        (self.layout(source), self.layout(*referent))
+                        && (source_layout == target_layout
+                            || (source_layout.0 == target_layout.0
+                                && target_layout.1 != 0
+                                && source_layout.1.is_multiple_of(target_layout.1)
+                                && storage_scalars_satisfy(
                                     self.types.clone(),
                                     *referent,
                                     &mut Vec::new(),
-                                    &crate::references::reference_views::is_byte_scalar,
-                                ) && target_layout.is_some_and(|target| {
-                                    layout.0 == target.0
-                                        && target.1 != 0
-                                        && layout.1 % target.1 == 0
-                                })
-                        }))
+                                    &is_byte_scalar,
+                                )))
+                    {
+                        return true;
+                    }
+                    // The captured address may be more aligned than its type.
+                    // Every byte must still belong to the source representation.
+                    captured_geometry_matches
+                        && crate::representation_element_layout(self.types.clone(), source)
+                            .is_some_and(|layout| layout.is_tightly_tiled())
                 }
                 _ => false,
             }
@@ -4030,7 +4095,11 @@ pub(crate) mod reference_storage_geometry {
                 .or_else(|| {
                     crate::primitive_projection_declaration(self.types.clone(), source, path)
                 });
-            tip.is_some_and(|tip| self.source_compatible(tip, reference, stored))
+            // The checked root and byte offset establish this address's
+            // alignment even when the selected field has a lower minimum.
+            tip.is_some_and(|tip| {
+                self.source_representation_compatible(tip, reference, stored, true)
+            })
         }
 
         pub fn region_source_compatible(
@@ -4474,6 +4543,18 @@ pub(crate) mod reference_storage_geometry {
         if projection.fragments.is_some() {
             return None;
         }
+        if let Some(stride) = projection.repeated_stride {
+            let StructuralTypeShape::FixedArray { element, .. } =
+                crate::structural_shape(types.clone(), projection.carrier)?
+            else {
+                return None;
+            };
+            let (size, alignment) =
+                selected_storage_layout(types.clone(), *element, records, carriers, extents)?;
+            if stride != align(size, alignment)? {
+                return None;
+            }
+        }
         let size = match (projection.window, projection.scalar) {
             (Some(window), _) => window.byte_length,
             (None, Some((_, stored))) => scalar_geometry(stored)?.0,
@@ -4546,6 +4627,7 @@ pub(crate) mod reference_storage_geometry {
         carrier: StructuralTypeId,
         scalar: Option<(ScalarType, ScalarType)>,
         fragments: Option<&'recipe semantic_vocabulary::AuthoredBitFragments>,
+        repeated_stride: Option<u64>,
         window: Option<ReferenceArrayWindow>,
     }
 
@@ -4816,6 +4898,7 @@ pub(crate) mod reference_storage_geometry {
             carrier,
             scalar,
             fragments,
+            repeated_stride,
             window,
         })
     }
@@ -4862,6 +4945,7 @@ pub(crate) mod reference_storage_geometry {
                 no_code_affine_cleanup: true,
                 copyable: true,
                 descriptor_cleanup: false,
+                nominal_cleanup: None,
                 scalar_restriction: None,
                 id: identity(value),
                 identity: TerminalIdentityIndex(value as u32),
@@ -5073,6 +5157,7 @@ pub(crate) mod reference_storage_geometry {
                 no_code_affine_cleanup: true,
                 copyable: true,
                 descriptor_cleanup: false,
+                nominal_cleanup: None,
                 scalar_restriction: None,
                 id: identity(value),
                 identity: TerminalIdentityIndex(value as u32),
@@ -5239,6 +5324,7 @@ pub(crate) mod reference_storage_geometry {
                 no_code_affine_cleanup: true,
                 copyable: true,
                 descriptor_cleanup: false,
+                nominal_cleanup: None,
                 scalar_restriction: None,
                 id: identity(value),
                 identity: TerminalIdentityIndex(value as u32),
@@ -5347,6 +5433,7 @@ pub(crate) mod reference_storage_geometry {
                     no_code_affine_cleanup: true,
                     copyable: true,
                     descriptor_cleanup: false,
+                    nominal_cleanup: None,
                     scalar_restriction: None,
                     id: identity(1),
                     identity: TerminalIdentityIndex(1),
@@ -5360,6 +5447,7 @@ pub(crate) mod reference_storage_geometry {
                     no_code_affine_cleanup: true,
                     copyable: true,
                     descriptor_cleanup: false,
+                    nominal_cleanup: None,
                     scalar_restriction: None,
                     id: identity(2),
                     identity: TerminalIdentityIndex(2),
@@ -5410,6 +5498,7 @@ pub(crate) mod reference_storage_geometry {
                     no_code_affine_cleanup: false,
                     copyable: false,
                     descriptor_cleanup: false,
+                    nominal_cleanup: None,
                     scalar_restriction: None,
                     id: identity(1),
                     identity: TerminalIdentityIndex(3),
@@ -5436,6 +5525,7 @@ pub(crate) mod reference_storage_geometry {
                     no_code_affine_cleanup: false,
                     copyable: false,
                     descriptor_cleanup: false,
+                    nominal_cleanup: None,
                     scalar_restriction: None,
                     id: identity(2),
                     identity: TerminalIdentityIndex(2),
@@ -5473,6 +5563,7 @@ pub(crate) mod reference_storage_geometry {
                 no_code_affine_cleanup: false,
                 copyable: false,
                 descriptor_cleanup: false,
+                nominal_cleanup: None,
                 scalar_restriction: None,
                 id: identity(1),
                 identity: TerminalIdentityIndex(1),
@@ -6069,7 +6160,7 @@ pub(crate) mod reference_views {
         crate::ReferenceStorageGeometry::new(types, |application| {
             Err(crate::StorageGeometryError::UnresolvedExtent(application))
         })
-        .region_source_compatible(source, path, reference, stored)
+        .view_source_compatible(source, path, reference, stored)
     }
 
     pub fn reference_storage_source_compatible<'types>(
@@ -6358,6 +6449,7 @@ pub(crate) mod reference_views {
                 copyable: true,
                 no_code_affine_cleanup: true,
                 descriptor_cleanup: true,
+                nominal_cleanup: None,
                 quotient_carrier: None,
                 scalar_restriction: None,
                 shape: StructuralTypeShape::PrimitiveScalar(scalar),

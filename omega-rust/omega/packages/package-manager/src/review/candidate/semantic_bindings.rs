@@ -18,10 +18,11 @@ use crate::declarations::{DependencyPurpose, PackageKey};
 use crate::lock::{PackageCheckedContext, PackageOccurrenceRoster};
 use crate::resolution::graph::ExactTargetPackageSourceClosure;
 use package_compilation::{AcceptedSemanticBinding, AcceptedSemanticBindingRole};
-use provider_admission::{filesystem_host_permission_rows, time_host_permission_rows};
+use provider_admission::provider_admission::{
+    filesystem_host_permission_rows, time_host_permission_rows,
+};
 use review_evidence::SemanticBindingProjectionError;
 use std::collections::{BTreeMap, BTreeSet};
-use terminal_psi_to_abstract_operations::provider_admission;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ConsumerScopedSemanticBindingReviewInput {

@@ -226,7 +226,7 @@ pub(crate) mod ieee_float_arithmetic {
             || !realization.supports_target(target)
             || !realization.signature_matches(&declaration.scalar_parameters, scalar)
             || !declaration.structural_parameters.is_empty()
-            || declaration.result != terminal_psi::BoundaryMachineResult::Scalar(scalar.into())
+            || !matches!(declaration.result, terminal_psi::BoundaryMachineResult::Scalar(declared) if declared.scalar_type == scalar)
             || result.scalar_type != scalar
             || arguments.len() != realization.operation.operand_count()
             || !structural_arguments.is_empty()
@@ -791,6 +791,20 @@ pub(crate) mod operations {
             }
             AbstractOperation::MoveStructuralField { .. } => {
                 super::borrowed_windows::move_field(operation, site, prepared)
+            }
+            AbstractOperation::DecomposeStructuralValue {
+                psi_operation,
+                subject,
+            } => {
+                // Keep one row per source operation so the checked partition,
+                // its exact subject and its annotations survive without bytes.
+                site.operations
+                    .push(TargetUnitOperation::DecomposeStructuralValue {
+                        psi_operation: *psi_operation,
+                        subject: subject.clone(),
+                    });
+                site.provenance.operations.push(*psi_operation);
+                Ok(())
             }
             AbstractOperation::StoreStructuralField { .. } => {
                 super::borrowed_windows::store_field(operation, site, prepared)

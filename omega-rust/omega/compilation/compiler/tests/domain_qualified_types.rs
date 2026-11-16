@@ -89,10 +89,16 @@ const ACCEPTED_PARTS: [&str; 2] = ["accepted", "accepted"];
 /// The verdict of each judged part of `DOMAINS` followed by `machines`,
 /// staged as a standalone `main.omg`: one word, and what a refusal names.
 fn verdicts(name: &str, machines: &str) -> Vec<String> {
+    verdicts_beside(name, machines, &[])
+}
+
+/// `verdicts`, with each `(file, source)` of `beside` staged next to
+/// `main.omg` as its own module of the same package.
+fn verdicts_beside(name: &str, machines: &str, beside: &[(&str, &str)]) -> Vec<String> {
     let _compilation = COMPILATIONS
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let frontier = typed_frontier(name, machines).unwrap_or_else(|diagnostics| {
+    let frontier = typed_frontier(name, machines, beside).unwrap_or_else(|diagnostics| {
         panic!("{name}: Psi 00 through 04 must complete: {diagnostics:?}")
     });
     terminal_psi_to_terminal_psi::judge_compilation(
@@ -152,12 +158,21 @@ fn verdicts(name: &str, machines: &str) -> Vec<String> {
 /// `DOMAINS` followed by `machines`, staged as a standalone `main.omg` and
 /// compiled through typing, or the messages typing refused it with. The
 /// caller holds `COMPILATIONS`.
-fn typed_frontier(name: &str, machines: &str) -> Result<Box<compiler::TypedFrontier>, Vec<String>> {
+/// Psi 00 through 04 over `DOMAINS` followed by `machines` as `main.omg`,
+/// with each `(file, source)` of `beside` staged next to it.
+fn typed_frontier(
+    name: &str,
+    machines: &str,
+    beside: &[(&str, &str)],
+) -> Result<Box<compiler::TypedFrontier>, Vec<String>> {
     let root =
         std::env::temp_dir().join(format!("omega-domain-types-{}-{name}", std::process::id()));
     std::fs::create_dir_all(&root).expect("staging directory");
     let main = root.join("main.omg");
     std::fs::write(&main, format!("{DOMAINS}{machines}")).expect("staged source");
+    for (file, source) in beside {
+        std::fs::write(root.join(file), source).expect("staged module");
+    }
     let frontier = compiler::CompilationSession::default().typed_frontier_without_build(
         compiler::CheckedCompileRequest::new(&main, Some("linux_x86_64")),
         None,
@@ -197,6 +212,43 @@ fn violates(name: &str, machines: &str, expected: &str) {
             && verdicts[0].starts_with("rejected: 0 unestablished; ")
             && verdicts[0].contains(expected),
         "{name}: {verdicts:#?}"
+    );
+}
+
+/// `domain<T [copy]> T::Plain` admits only a `copy` carrier, judged by the
+/// `data` declaration the type names. A same-named `data` in another module
+/// never answers for it, in either direction: the local `copy` `Token` is
+/// accepted beside a module's plain `Token`, and the local plain `Token` is
+/// rejected beside a module's `copy` one.
+const COPY_BOUNDED: &str = "\
+domain<T [copy]> T::Plain;
+machine keep(token: Token in Plain) -> Token in Plain {
+    token
+}
+";
+
+#[test]
+fn a_domain_carrier_bound_reads_the_selected_data_not_a_same_named_one() {
+    let plain = "public data Token { v: u8; }\n";
+    let copy = "public data Token [copy] { v: u8; }\n";
+    assert_eq!(
+        verdicts_beside(
+            "copy_bound_met",
+            &format!("data Token [copy] {{ v: u8; }}\n{COPY_BOUNDED}"),
+            &[("other.omg", plain)],
+        ),
+        ACCEPTED_PARTS
+    );
+    let verdicts = verdicts_beside(
+        "copy_bound_unmet",
+        &format!("data Token {{ v: u8; }}\n{COPY_BOUNDED}"),
+        &[("other.omg", copy)],
+    );
+    assert!(
+        verdicts.len() == 1
+            && verdicts[0].starts_with("rejected: 0 unestablished; ")
+            && verdicts[0].contains("the domain `Plain` admits only a `copy` carrier"),
+        "{verdicts:#?}"
     );
 }
 
@@ -285,6 +337,7 @@ fn a_builtin_comparison_of_qualified_operands_is_not_accepted() {
     let Err(diagnostics) = typed_frontier(
         "qualified_operands",
         "machine wrong(left: i32 in Km, right: i32 in Km) -> bool {\n    left > right\n}\n",
+        &[],
     ) else {
         panic!("qualified_operands: typing accepted a builtin comparison of qualified operands");
     };

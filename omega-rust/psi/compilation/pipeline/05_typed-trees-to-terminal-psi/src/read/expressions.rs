@@ -173,6 +173,53 @@ impl<'t> Program<'t> {
         })
     }
 
+    /// An inferred binding keeps the complete value its initializer supplies.
+    /// Place projections already carry their actual substituted regions; an
+    /// earlier inferred type occurrence is not an annotation in this scope.
+    /// Context-dependent forms still use their inferred carrier, so literals
+    /// land as before and explicit borrows keep their normal formation checks.
+    pub(super) fn inferred_initializer(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        handle: ExpressionHandle,
+        inferred: typed_trees::types::TypeReferenceHandle,
+    ) -> Checked<Expression> {
+        let source = SourceOrigin::of(self.typed.expression_table.source_span(handle));
+        let node = self.node(id, handle)?;
+        if let ExpressionNode::Member(member) = node {
+            return self.member(id, slots, member, source, Access::Read);
+        }
+        let expected = match node {
+            ExpressionNode::Name(path) => {
+                let slot = self.slot_of(id, slots, path)?;
+                if slots[slot].borrowed.is_none() {
+                    return self.expression(id, slots, handle, Some(slots[slot].value_type));
+                }
+                true
+            }
+            ExpressionNode::Integer(_)
+            | ExpressionNode::Float(_)
+            | ExpressionNode::String(_)
+            | ExpressionNode::Borrow(_)
+            | ExpressionNode::ArrayLiteral(_)
+            | ExpressionNode::Unary(_)
+            | ExpressionNode::Binary(_) => true,
+            _ => false,
+        };
+        let expected = if expected
+            && inferred.is_valid()
+            && !matches!(
+                self.typed.type_reference_table.type_reference(inferred),
+                typed_trees::types::TypeReferenceNode::Unit
+            ) {
+            Some(self.local_type(id, inferred)?)
+        } else {
+            None
+        };
+        self.expression(id, slots, handle, expected)
+    }
+
     /// Reads one expression with its complete contextual type. A literal
     /// needs that context for its integer carrier or its array element and
     /// extent; the caller still checks the resulting type exactly.
@@ -539,7 +586,7 @@ impl<'t> Program<'t> {
                 return self.array_literal(id, slots, *elements, array_type, source);
             }
             ExpressionNode::Atomic(atomic) => return self.atomic_load(id, slots, atomic, source),
-            ExpressionNode::Cast(cast) => return self.cast(id, slots, cast, source),
+            ExpressionNode::Cast(cast) => return self.cast(id, slots, handle, cast, source),
             ExpressionNode::Float(literal) => {
                 let value = self.float_literal(id, literal, expected_scalar)?;
                 (
@@ -1465,7 +1512,7 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
             }
             (ExpressionKind::Index { base: a, index: ai }, ExpressionKind::Index { base: b, index: bi }) => both(a, b) && both(ai, bi),
             (ExpressionKind::ByteElement { base: a, index: ai }, ExpressionKind::ByteElement { base: b, index: bi }) => both(a, b) && both(ai, bi),
-            (ExpressionKind::ArrayView { base: a, access: aa, element: ae }, ExpressionKind::ArrayView { base: b, access: ba, element: be }) => aa == ba && ae == be && both(a, b),
+            (ExpressionKind::CollectionView { base: a, access: aa, element: ae }, ExpressionKind::CollectionView { base: b, access: ba, element: be }) => aa == ba && ae == be && both(a, b),
             (ExpressionKind::CollectionSubslice { base: a, start: ast, end: ae }, ExpressionKind::CollectionSubslice { base: b, start: bst, end: be }) => both(a,b) && match (ast,bst) { (Some(a),Some(b)) => both(a,b), (None,None) => true, _ => false } && match (ae,be) { (Some(a),Some(b)) => both(a,b), (None,None) => true, _ => false },
             (ExpressionKind::Record { fields: a }, ExpressionKind::Record { fields: b }) => {
                 a.len() == b.len()
@@ -1564,7 +1611,7 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
             | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::CollectionMeasure { .. }
                 | ExpressionKind::ByteElement { .. }
-            | ExpressionKind::ArrayView { .. }
+            | ExpressionKind::CollectionView { .. }
             | ExpressionKind::CollectionSubslice { .. }
                 | ExpressionKind::Boolean(_)
                 | ExpressionKind::Slot(_)

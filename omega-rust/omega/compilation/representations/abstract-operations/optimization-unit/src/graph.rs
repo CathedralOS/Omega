@@ -135,7 +135,6 @@ impl OptimizationBlock {
 pub struct PsiOptimizationFunction {
     pub machine: MachineId,
     pub attachment: Option<StructuralTypeId>,
-    pub nominal_cleanup_subject: Option<StructuralTypeId>,
     pub entry: BlockId,
     pub parameters: Vec<ValueDefinition>,
     pub structural_parameters: Vec<StructuralParameterDeclaration>,

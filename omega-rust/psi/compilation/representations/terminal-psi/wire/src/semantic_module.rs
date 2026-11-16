@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 282`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 283`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -676,6 +676,16 @@ pub(crate) mod canonical_order {
                 "call acknowledgements by canonical call site",
             )?;
             for block in &machine.blocks {
+                for (_, actions) in block.terminator.cleanup_rosters() {
+                    for action in actions {
+                        if let TerminalAffineCleanupAction::InvokeOwned(cleanup) = action {
+                            require_increasing(
+                                cleanup.claim_transfers.iter(),
+                                "cleanup claim transfers by claim and argument index",
+                            )?;
+                        }
+                    }
+                }
                 if let Some(invocation) = block.terminator.module_invocation() {
                     require_increasing(
                         invocation.claim_transfers.iter(),
@@ -1611,6 +1621,7 @@ pub(crate) mod machine_wire {
                 owns_linear_claim: false,
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: false,
+                nominal_cleanup: None,
                 copyable: true,
                 scalar_restriction: None,
                 id: structural_type,
@@ -1867,7 +1878,6 @@ pub(crate) mod machine_wire {
             id: Id,
             assembly_target_requirement: AssemblyTarget,
             attachment: OptionalId,
-            nominal_cleanup_subject: OptionalId,
             ranked_scc: RankedScc,
             structural_places: List<Place>,
             block_entry_claims: List<Claim>,
@@ -3290,6 +3300,7 @@ mod reference_transport_tests {
             copyable: true,
             no_code_affine_cleanup: false,
             descriptor_cleanup: true,
+            nominal_cleanup: None,
             scalar_restriction: None,
             shape: StructuralTypeShape::Reference {
                 referent: StructuralTypeId::new(1).unwrap(),
@@ -3343,6 +3354,7 @@ mod reference_transport_tests {
                 copyable: false,
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: false,
+                nominal_cleanup: None,
                 scalar_restriction: None,
                 shape: StructuralTypeShape::Record {
                     storage: StructuralRecordStorage::Packed,
@@ -3403,6 +3415,7 @@ mod reference_transport_tests {
             copyable: true,
             no_code_affine_cleanup: true,
             descriptor_cleanup: false,
+            nominal_cleanup: None,
             scalar_restriction: None,
             shape,
         };
@@ -4638,7 +4651,6 @@ pub(crate) mod entry_tests {
             assembly_target_requirement: terminal_psi::RegisterTargetApplicability::Any,
             id: machine,
             attachment: None,
-            nominal_cleanup_subject: None,
             ranked_scc: None,
             structural_places: Vec::new(),
             call_formations: Vec::new(),
@@ -4732,113 +4744,6 @@ pub(crate) use module_foundation_validation::validate_structural_foundation;
 pub(crate) use module_wire::decode_module_body;
 pub(crate) use wire_fields::{CrashRoutes, Field};
 
-#[cfg(test)]
-mod qualified_cleanup_receiving_tests {
-
-    use super::module_wire::encode_raw;
-    use crate::{CanonicalTerminalArtifact, CodecError, decode_module};
-    use terminal_psi::{StructuralAccess, TerminalAffineCleanupAction, Terminator};
-
-    #[test]
-    #[ignore = "explicit qualification supplies OMEGA_QUALIFIED_CLEANUP_CANONICAL_ARTIFACT"]
-    fn qualified_owned_cleanup_rejects_overlapping_whole_discard() {
-        let path = std::env::var_os("OMEGA_QUALIFIED_CLEANUP_CANONICAL_ARTIFACT")
-            .expect("supply actual public CLI canonical output");
-        let bytes = std::fs::read(path).expect("read canonical artifact");
-        let artifact = CanonicalTerminalArtifact::from_bytes(&bytes)
-            .expect("intact qualified cleanup must cross canonical receiving");
-        let mut module = artifact.semantic_module().clone();
-        let mut mutated = false;
-        for machine in &mut module.machines {
-            let qualified_roots = machine
-                .structural_parameters
-                .iter()
-                .chain(
-                    machine
-                        .blocks
-                        .iter()
-                        .flat_map(|block| &block.structural_parameters),
-                )
-                .filter(|parameter| {
-                    parameter.access == StructuralAccess::Owned
-                        && (!parameter.qualifications.is_empty()
-                            || !parameter.projected_qualifications.is_empty())
-                })
-                .map(|parameter| parameter.place)
-                .chain(
-                    machine
-                        .blocks
-                        .iter()
-                        .flat_map(|block| &block.operations)
-                        .filter_map(|operation| {
-                            operation
-                                .result
-                                .as_structural()
-                                .filter(|result| {
-                                    !result.qualifications.is_empty()
-                                        || !result.projected_qualifications.is_empty()
-                                })
-                                .map(|result| result.place)
-                        }),
-                )
-                .collect::<Vec<_>>();
-            for block in &mut machine.blocks {
-                let rosters: Vec<_> = match &mut block.terminator {
-                    Terminator::Jump {
-                        cleanup_actions, ..
-                    } => vec![cleanup_actions],
-                    Terminator::Conditional {
-                        when_true,
-                        when_false,
-                        ..
-                    } => {
-                        vec![
-                            &mut when_true.cleanup_actions,
-                            &mut when_false.cleanup_actions,
-                        ]
-                    }
-                    Terminator::StructuralCase { cases, .. } => cases
-                        .iter_mut()
-                        .map(|case| &mut case.cleanup_actions)
-                        .collect(),
-                    _ => Vec::new(),
-                };
-                for actions in rosters {
-                    let root = actions.iter().find_map(|action| match action {
-                        TerminalAffineCleanupAction::DiscardResidual(discard)
-                            if qualified_roots.contains(&discard.place) =>
-                        {
-                            Some(discard.place)
-                        }
-                        _ => None,
-                    });
-                    if let Some(root) = root {
-                        actions.push(TerminalAffineCleanupAction::DiscardRoot(root));
-                        mutated = true;
-                        break;
-                    }
-                }
-                if mutated {
-                    break;
-                }
-            }
-            if mutated {
-                break;
-            }
-        }
-        assert!(
-            mutated,
-            "fixture must exercise a qualified owned residual root"
-        );
-        let wire = encode_raw(&module).expect("encode intentional malformed wire");
-        assert_eq!(
-            decode_module(&wire).unwrap_err(),
-            CodecError::MalformedStructuralFoundation(
-                "affine region cleanup overlaps a whole-root discard"
-            )
-        );
-    }
-}
 pub(crate) use proposition_wire::{decode_proposition, encode_proposition};
 pub(crate) use scalar_term_wire::{decode_scalar_term, encode_scalar_term};
 pub(crate) use terminal_psi::{SemanticFingerprint, TerminalModule, TerminalPsiIdentity};
@@ -4846,6 +4751,7 @@ pub(crate) use wire::{Reader, Writer, decode_canonical, decode_counted};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
+// Marker 275 changes retained compiler-evaluation invocation refusals.
 // Marker 274 adds authenticated hosted-primitive requirement links to the
 // machine contract layout retained by marker 273. A 273 artifact has no such
 // execution link and cannot be read as this declaration grammar.
@@ -4878,8 +4784,13 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // checks; the prior float and installation data remain part of this format.
 // Marker 280 retains transparent scalar predicate bodies and their own formals.
 // A 279 artifact cannot state declaration-time arithmetic formation for them.
+// Marker 281 adds total integer-result conversion and exact-cast predicates.
 // Marker 282 adds exact integer-to-float predicates.
-pub(crate) const FORMAT_MARKER: u16 = 282;
+// Marker 283 combines those predicates with owned nominal cleanup selections,
+// ordinary owned cleanup actions, and consuming decomposition. Both preceding
+// layouts used 282; neither supplies this combined schema, and borrowed cleanup
+// action tags cannot acquire owned-transfer meaning.
+pub(crate) const FORMAT_MARKER: u16 = 283;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
@@ -4898,7 +4809,7 @@ pub(crate) fn encode_execution_module(module: &TerminalModule) -> Result<Vec<u8>
     encode_closed_execution_module(module).map(|(bytes, _)| bytes)
 }
 
-pub(crate) fn encode_closed_execution_module(
+pub fn encode_closed_execution_module(
     module: &TerminalModule,
 ) -> Result<(Vec<u8>, crate::ClosedTypeCatalog), CodecError> {
     scalar_qualification_wire::validate(&module.scalar_qualifications)?;
@@ -4937,7 +4848,7 @@ pub fn decode_module(bytes: &[u8]) -> Result<TerminalModule, CodecError> {
     decode_closed_parts(bytes).map(|(module, _, _)| module)
 }
 
-pub(crate) fn decode_closed_parts(
+pub fn decode_closed_parts(
     bytes: &[u8],
 ) -> Result<(TerminalModule, Vec<u8>, crate::ClosedTypeCatalog), CodecError> {
     MODULE_DECODES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -5007,7 +4918,7 @@ pub fn semantic_fingerprint(module: &TerminalModule) -> Result<SemanticFingerpri
     ))
 }
 
-pub(crate) fn encoded_fingerprint(module: &TerminalModule, bytes: &[u8]) -> SemanticFingerprint {
+pub fn encoded_fingerprint(module: &TerminalModule, bytes: &[u8]) -> SemanticFingerprint {
     let local = module.identities.invocation_local_entries();
     if local.is_empty() {
         return fingerprint_bytes(bytes);
@@ -5129,6 +5040,7 @@ mod normal_qualification_tests {
                 no_code_affine_cleanup: position != 2,
                 copyable: false,
                 descriptor_cleanup: false,
+                nominal_cleanup: None,
                 scalar_restriction: None,
                 shape,
             });
@@ -5239,6 +5151,7 @@ mod normal_qualification_tests {
             no_code_affine_cleanup: true,
             copyable: true,
             descriptor_cleanup: false,
+            nominal_cleanup: None,
             scalar_restriction: None,
             shape: StructuralTypeShape::ByteSequence(
                 terminal_psi::ByteSequenceCarrier::BorrowedView {
@@ -5480,6 +5393,7 @@ mod global_descriptor_table_tests {
             copyable: false,
             no_code_affine_cleanup: true,
             descriptor_cleanup: true,
+            nominal_cleanup: None,
             scalar_restriction: None,
             shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView {
                 capacity: 10,
@@ -5636,6 +5550,7 @@ mod descriptor_operation_tests {
                 copyable: false,
                 no_code_affine_cleanup: true,
                 descriptor_cleanup: true,
+                nominal_cleanup: None,
                 scalar_restriction: None,
                 shape,
             });
@@ -5899,6 +5814,7 @@ mod opaque_value_tests {
             copyable: false,
             no_code_affine_cleanup: true,
             descriptor_cleanup: false,
+            nominal_cleanup: None,
             scalar_restriction: None,
             shape: StructuralTypeShape::Opaque,
         });
@@ -5958,7 +5874,7 @@ mod format_marker_tests {
         // float conversion ordinal also cannot supply the retained carrier identity.
         for legacy in [
             250u16, 251, 252, 256, 260, 261, 264, 265, 266, 267, 268, 269, 270, 271, 272, 273, 274,
-            275, 276, 277, 278, 279,
+            275, 276, 277, 278, 279, 280, 281, 282,
         ] {
             for payload in [&[][..], &[0xff, 0xff, 0xff][..]] {
                 let mut bytes = MAGIC.to_vec();

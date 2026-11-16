@@ -2525,6 +2525,7 @@ pub(crate) mod scalar_observations {
                 no_code_affine_cleanup: true,
                 copyable: false,
                 descriptor_cleanup: true,
+                nominal_cleanup: None,
                 shape,
                 scalar_restriction: None,
             };

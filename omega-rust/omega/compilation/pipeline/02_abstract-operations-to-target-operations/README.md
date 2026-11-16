@@ -26,6 +26,9 @@ result is a sealed
 | The identity of each accepted proof | The operation, edge or terminator it licenses |
 | Ownership-frontier facts | Each function |
 | Interrupt installations that survived lowering | A plan-level list |
+| Each function's target calling contract (scalar, mixed or parameter ABI) | A plan-level table sorted by machine, `function_abis`, which image emission publishes with the object |
+| Who performs each hosted byte write (provider or built-in) | The `HostedWriteByteI32` instruction |
+| Native geometry of borrowed boundary inputs | A plan-level list, `borrowed_storage_layouts`, which the host bridge reads |
 
 Instruction selection reads a scalar's closed type from the value, parameter
 or operation it types. Where it checks a structural declaration's leaf
@@ -36,8 +39,11 @@ A fact, type or installation the plan needs and cannot find refuses the
 program here, as `LoweringError::Preparation`. Instruction selection then
 needs the plan, the installations the driver binds to it, and the register
 environment; `ValidatedOptimizedTargetOperations::execution_plan` hands the
-plan over. The target operations remain this stage's working form and are
-still read by image emission's evidence checks and by the validator below.
+plan over. The target operations remain this stage's working form. Only
+validators read them, through `working_program_for_validation`: the validator
+below and image emission's replay validators, which check the emitted object
+against what this stage lowered. `mbx xtask check-boundary` refuses any other
+caller outside this stage and tests.
 
 [`verify_execution_plan`](native-preparation/src/legalization.rs) is the
 stage's validator. It derives the plan's functions a second way, from the

@@ -5,6 +5,7 @@
 //! referent-region size that stage 02 records. The expected text is the
 //! selection `origin/main` emitted for that same geometry.
 
+use crate::BoundaryOriginFacts;
 use abstract_operations::{
     AbstractBlock, AbstractFunction, AbstractFunctionResult, AbstractOperation,
     AbstractOperationPlan, AbstractResult, AbstractStructuralCaseSuccessor,
@@ -21,11 +22,11 @@ use semantic_vocabulary::{
 };
 use target::NativeTarget;
 use target_operations::{
-    BoundaryOriginFacts, TargetCasePointerSlot, TargetControlBlock, TargetControlCaseSuccessor,
-    TargetControlGraph, TargetControlTerminator, TargetFunction, TargetOperationPlan,
-    TargetStructuralCaseSource, TargetStructuralHomeLayout, TargetStructuralHomeOrigin,
-    TargetStructuralHomeRequirement, TargetStructuralParameter, TargetUnitOperation,
-    TargetUnitScalarArgumentSource, TerminalPsiProvenance,
+    TargetCasePointerSlot, TargetControlBlock, TargetControlCaseSuccessor, TargetControlGraph,
+    TargetControlTerminator, TargetFunction, TargetOperationPlan, TargetStructuralCaseSource,
+    TargetStructuralHomeLayout, TargetStructuralHomeOrigin, TargetStructuralHomeRequirement,
+    TargetStructuralParameter, TargetUnitOperation, TargetUnitScalarArgumentSource,
+    TerminalPsiProvenance,
 };
 use terminal_psi::{
     BindingRelevance, SemanticFingerprint, StructuralAccess, StructuralCaseDeclaration,
@@ -122,6 +123,130 @@ fn a_literal_edge_can_retire_its_descriptor_home() {
             "{wrong:?}"
         );
     }
+}
+
+#[test]
+fn byte_literal_lookup_refuses_every_producer_the_scan_refused() {
+    use crate::legalization_function_inputs::FunctionInputs;
+    use semantic_vocabulary::StructuralPlaceKind;
+    use terminal_psi::StructuralPlaceDeclaration;
+
+    // One function establishes a single literal view. The indexed lookup must
+    // find its producer, and refuse each mutation that leaves the place
+    // without exactly one matching literal producer.
+    let mut names = TerminalIdentityTableBuilder::default();
+    let mut view = reference_type(1, names.intern("literal bytes"), ty(1));
+    view.shape =
+        StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+            access: None,
+        });
+    let literal = StructuralPlaceDeclaration {
+        id: place(1),
+        kind: StructuralPlaceKind::ByteSequenceLiteral {
+            declaration_ordinal: 0,
+            structural_type: view.id,
+        },
+    };
+    let establish = AbstractOperation::EstablishByteSequenceLiteral {
+        psi_operation: op(1),
+        place: literal,
+        structural_type: view.clone(),
+        bytes: b"dir/file".to_vec(),
+        qualifications: Vec::new(),
+    };
+    let plan = plan(
+        names,
+        vec![view.clone()],
+        function_with_body(
+            Vec::new(),
+            vec![entry(
+                1,
+                vec![
+                    establish,
+                    AbstractOperation::ReturnUnit {
+                        psi_edge: edge(1),
+                        cleanup_actions: Vec::new(),
+                    },
+                ],
+            )],
+        ),
+    );
+    let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
+        .unwrap();
+    let function = &unit.functions[0];
+    assert_eq!(
+        FunctionInputs::new(function).byte_literal(literal.id),
+        Some((op(1), view.id))
+    );
+    assert_eq!(FunctionInputs::new(function).byte_literal(place(9)), None);
+
+    let refused = |mutate: &dyn Fn(&mut optimization_unit::PsiOptimizationFunction)| {
+        let mut changed = function.clone();
+        mutate(&mut changed);
+        FunctionInputs::new(&changed).byte_literal(literal.id)
+    };
+    // No producer remains for the declared literal.
+    assert_eq!(
+        refused(&|f| {
+            f.blocks[0].nodes.remove(0);
+        }),
+        None
+    );
+    // Two producers establish the same place.
+    assert_eq!(
+        refused(&|f| {
+            let duplicate = f.blocks[0].nodes[0].clone();
+            f.blocks[0].nodes.insert(0, duplicate);
+        }),
+        None
+    );
+    // The place is declared twice.
+    assert_eq!(refused(&|f| f.structural_places.push(literal)), None);
+    // The declaration is not a literal home.
+    assert_eq!(
+        refused(&|f| {
+            for declaration in &mut f.structural_places {
+                if declaration.id == literal.id {
+                    declaration.kind = StructuralPlaceKind::Parameter { position: 0 };
+                }
+            }
+        }),
+        None
+    );
+    // The producer names another type or declaration, or a type that is not
+    // a borrowed byte view.
+    let producer =
+        |change: &dyn Fn(&mut StructuralPlaceDeclaration, &mut StructuralTypeDeclaration)| {
+            refused(&|f| {
+                if let AbstractOperation::EstablishByteSequenceLiteral {
+                    place,
+                    structural_type,
+                    ..
+                } = &mut f.blocks[0].nodes[0].operation
+                {
+                    change(place, structural_type);
+                }
+            })
+        };
+    assert_eq!(producer(&|_, declared| declared.id = ty(2)), None);
+    assert_eq!(
+        producer(&|place, _| {
+            place.kind = StructuralPlaceKind::ByteSequenceLiteral {
+                declaration_ordinal: 1,
+                structural_type: view.id,
+            }
+        }),
+        None
+    );
+    assert_eq!(
+        producer(&|_, declared| {
+            declared.shape =
+                StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned {
+                    capacity: 8,
+                })
+        }),
+        None
+    );
 }
 
 #[test]
@@ -250,6 +375,7 @@ fn retained_instruction_metadata_projects_without_a_node_and_rejects_changed_cus
                 callee: machine(),
                 call_plan: target.functions[0].graph.call_plan.clone(),
                 arguments: Vec::new(),
+                requirement_obligations: Vec::new(),
             },
         });
     let failure = crate::legalization_control::project(
@@ -521,11 +647,12 @@ fn function_storage_contract_projects_without_source_and_audits_every_field() {
         .unwrap();
     let geometry = crate::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
     let source = crate::native_geometry::NativeInput::with_types(&plan, &geometry, fixture_types());
+    let inputs = crate::legalization_function_inputs::FunctionInputs::new(&unit.functions[0]);
     let audit = |function: &TargetFunction| {
         crate::legalization_scalar_graph::validate_structural_contract(
             function,
             &plan.functions[0],
-            &unit.functions[0],
+            &inputs,
             &source,
         )
     };
@@ -3162,6 +3289,7 @@ fn sum_inside_record() -> String {
         copyable: true,
         no_code_affine_cleanup: true,
         descriptor_cleanup: false,
+        nominal_cleanup: None,
         shape: StructuralTypeShape::Record {
             storage: StructuralRecordStorage::Packed,
             fields: vec![
@@ -3467,6 +3595,7 @@ fn validate_stored_geometry(
     let geometry = crate::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
     let plan = &crate::native_geometry::NativeInput::with_types(plan, &geometry, fixture_types());
     let function = &unit.functions[0];
+    let inputs = crate::legalization_function_inputs::FunctionInputs::new(function);
     for block in &target.functions[0].graph.blocks {
         if let TargetControlTerminator::StructuralCase {
             source,
@@ -3477,7 +3606,7 @@ fn validate_stored_geometry(
         } = &block.terminator
         {
             dispatch_projection(
-                function,
+                &inputs,
                 source.place(),
                 path,
                 plan,
@@ -3495,7 +3624,7 @@ fn validate_stored_geometry(
             } = operation
             {
                 membership_layout(
-                    function,
+                    &inputs,
                     *source,
                     path,
                     *case,
@@ -3585,11 +3714,11 @@ fn select(name: &str, plan: &AbstractOperationPlan, target: TargetOperationPlan)
     // From here selection sees the prepared plan and nothing behind it.
     let selected = target_operations_to_selected_instructions::select_instructions_for_plan(
         &prepared,
-        target_operations_to_selected_instructions::BoundInstallations {
-            interrupts: &interrupts,
-            entry_execution: None,
-            stack_requirements: &[],
-        },
+        &provider_admission::installed_interrupt_helpers::bind_installations(
+            &interrupts,
+            None,
+            &[],
+        ),
         &environment,
     )
     .unwrap_or_else(|error| panic!("{name}: select {error:?}"));
@@ -3754,7 +3883,6 @@ fn function_with_body(
     AbstractFunction {
         machine: machine(),
         attachment: None,
-        nominal_cleanup_subject: None,
         entry: block_id(1),
         parameters: Vec::new(),
         structural_parameters,
@@ -3868,7 +3996,6 @@ fn target_plan(
         functions: vec![TargetFunction {
             machine: function.machine,
             attachment: None,
-            nominal_cleanup_subject: None,
             scalar_abi: None,
             mixed_structural_scalar_abi: None,
             structural_contract: (!function.structural_parameters.is_empty()
@@ -3894,7 +4021,7 @@ fn target_plan(
             },
         }],
         native_callback_arguments: Vec::new(),
-        borrowed_storage_layouts: Vec::new(),
+        borrowed_storage_layouts: Default::default(),
     }
 }
 
@@ -4032,6 +4159,7 @@ fn sum_type(
         copyable: true,
         no_code_affine_cleanup: true,
         descriptor_cleanup: false,
+        nominal_cleanup: None,
         shape: StructuralTypeShape::Sum {
             cases: vec![
                 StructuralCaseDeclaration {
@@ -4067,6 +4195,7 @@ fn reference_type(
         copyable: true,
         no_code_affine_cleanup: true,
         descriptor_cleanup: false,
+        nominal_cleanup: None,
         shape: StructuralTypeShape::Reference {
             referent,
             access: StructuralAccess::SharedBorrow,
@@ -4214,6 +4343,132 @@ fn ordinary_comparison_metadata_requires_the_module_to_retain_its_operand_type()
     );
 }
 
+#[test]
+fn qualified_numeric_replay_needs_the_module_and_actual_numeric_meaning() {
+    use semantic_vocabulary::{BoundaryMachineId, QualifiedScalarType, ScalarQualificationSetId};
+    use target_operations::{
+        BoundaryExecutionBinding, CompilerBuiltinExecution, IeeeFloatArithmeticOperation,
+        IeeeFloatIntegerCarrier, IeeeFloatToIntegerDomain, NearestIeeeFloatArithmeticRealization,
+        TargetUnitScalarHomeRequirement,
+    };
+    use terminal_psi::{
+        BoundaryDeclarationRole, BoundaryMachineDeclaration, BoundaryMachineResult,
+        NominalDeclarationIdentity,
+    };
+    let mut names = TerminalIdentityTableBuilder::default();
+    let identity = names.intern("untrusted qualified numeric declaration");
+    let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
+    let boundary = BoundaryMachineId::new(1).unwrap();
+    let declaration = BoundaryMachineDeclaration {
+        id: boundary,
+        declaration: None,
+        numeric_intrinsic: None,
+        role: BoundaryDeclarationRole::Callable,
+        kind: semantic_vocabulary::BoundaryRequirementKind::Machine,
+        completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
+        unconditional_termination: true,
+        identity,
+        owner: NominalDeclarationIdentity::new(identity),
+        attachment: None,
+        parameter_order: vec![],
+        scalar_parameters: vec![],
+        crash_routes: vec![],
+        structural_parameters: vec![],
+        result: BoundaryMachineResult::Scalar(QualifiedScalarType {
+            scalar_type: scalar,
+            qualifications: ScalarQualificationSetId::new(1),
+        }),
+        result_reference_regions: vec![],
+        result_lifetimes: Some(vec![]),
+        requires: vec![],
+        normal_qualifications: vec![],
+        scalar_domain_requirements: vec![],
+        scalar_requires: vec![],
+        scalar_ensures: vec![],
+        reference_outputs: vec![],
+        program_local_root_introductions: vec![],
+        content_guarantees: vec![],
+        fixed_service_reach: vec![],
+        service_reach_is_installation_bound: false,
+        owning_service: None,
+        published_service_ceiling: vec![],
+        published_synchronous_entries: vec![],
+    };
+    let plan = plan(
+        names,
+        vec![],
+        function_with_body(
+            vec![],
+            vec![entry(
+                1,
+                vec![AbstractOperation::ReturnUnit {
+                    psi_edge: edge(1),
+                    cleanup_actions: vec![],
+                }],
+            )],
+        ),
+    );
+    let mut target = target_plan(&plan, vec![block(1, vec![], return_unit(1))]);
+    // An unrelated qualified foreign declaration is not a numeric demand.
+    crate::legalization_scalar_graph::call_origin::validate_qualified_numeric_executions(
+        &target,
+        std::slice::from_ref(&declaration),
+        None,
+    )
+    .unwrap();
+    let realization = NearestIeeeFloatArithmeticRealization {
+        operation: IeeeFloatArithmeticOperation::TruncateToInteger {
+            target: IeeeFloatIntegerCarrier::I32,
+            domain: IeeeFloatToIntegerDomain::Saturating,
+        },
+        format: semantic_vocabulary::IeeeFloatFormat::Binary32,
+        x86_scalar_fma: None,
+    };
+    target.functions[0].graph.blocks[0]
+        .operations
+        .push(target_operations::TargetInstruction {
+            source: None,
+            kind: TargetUnitOperation::NearestIeeeFloatArithmetic {
+                psi_operation: op(1),
+                boundary,
+                execution: BoundaryExecutionBinding::CompilerBuiltin(
+                    CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
+                        operation: realization.operation,
+                        format: realization.format,
+                    },
+                ),
+                realization,
+                result_home: TargetUnitScalarHomeRequirement {
+                    defining_operation: op(1),
+                    source_value: ValueId::new(1).unwrap(),
+                    scalar_type: scalar,
+                    shape: crate::legalization::scalar_graph_input::scalar_shape(scalar).unwrap(),
+                },
+                arguments: vec![],
+            },
+        });
+    assert!(
+        crate::legalization_scalar_graph::call_origin::validate_qualified_numeric_executions(
+            &target,
+            std::slice::from_ref(&declaration),
+            None
+        )
+        .is_err()
+    );
+    let module = TerminalModule {
+        boundary_machines: vec![declaration.clone()],
+        ..TerminalModule::declarations()
+    };
+    assert!(
+        crate::legalization_scalar_graph::call_origin::validate_qualified_numeric_executions(
+            &target,
+            std::slice::from_ref(&declaration),
+            Some(&module)
+        )
+        .is_err()
+    );
+}
+
 /// The types the fixtures' module retains: every integer width these
 /// hand-built plans use, closed the way preparation closes an accepted
 /// module's types.
@@ -4258,6 +4513,7 @@ fn module_retaining(scalars: &[ScalarType]) -> terminal_codec::ClosedTerminalMod
             no_code_affine_cleanup: false,
             copyable: true,
             descriptor_cleanup: false,
+            nominal_cleanup: None,
             scalar_restriction: None,
         });
     }

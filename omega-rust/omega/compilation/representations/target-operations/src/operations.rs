@@ -376,6 +376,11 @@ pub enum TargetUnitOperation {
         result: ValueId,
         value: IeeeFloatValue,
     },
+    /// Retain the checked custody partition without moving bytes or defining a value.
+    DecomposeStructuralValue {
+        psi_operation: OperationId,
+        subject: StructuralArgument,
+    },
     EstablishTrivialAffineLocal {
         psi_operation: OperationId,
         place: StructuralPlaceDeclaration,
@@ -418,6 +423,8 @@ pub enum TargetUnitOperation {
         callee: MachineId,
         call_plan: CallPlan,
         arguments: Vec<TargetStructuralArgument>,
+        // Exact source-checked prerequisites authenticated at native receiving.
+        requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
     },
     Call {
         origin: NativeCallOrigin,

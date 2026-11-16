@@ -382,6 +382,16 @@ pub(crate) fn project(
             destination: *destination,
             value: *value,
         },
+        Operation::DecomposeStructuralValue { subject, .. } => {
+            if source.result.is_some() {
+                return Err(Error::instruction_metadata(
+                    "decomposition unexpectedly defines a scalar result",
+                ));
+            }
+            Kind::DecomposeStructuralValue {
+                subject: subject.clone(),
+            }
+        }
         Operation::EstablishTrivialAffineLocal {
             place,
             structural_type,
@@ -489,6 +499,7 @@ pub(crate) fn project(
         }
         Operation::BoundarySettlement {
             boundary,
+            execution,
             result: boundary_result,
             realization,
             runtime_scalar_arguments,
@@ -511,6 +522,7 @@ pub(crate) fn project(
                 };
                 Kind::HostedWriteByteI32 {
                     boundary: *boundary,
+                    execution: *execution,
                     source: argument.source.source_value(),
                 }
             }

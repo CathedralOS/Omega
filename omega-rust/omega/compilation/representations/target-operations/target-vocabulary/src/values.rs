@@ -71,7 +71,10 @@ pub enum TargetReferenceOriginBase {
     Provider {
         boundary: semantic_vocabulary::BoundaryMachineId,
         output: u32,
-        invocations: Vec<(semantic_vocabulary::MachineId, OperationId)>,
+        invocations: Vec<(
+            semantic_vocabulary::MachineId,
+            terminal_psi::InvocationOwner,
+        )>,
         referent: StructuralTypeId,
         access: terminal_psi::StructuralAccess,
     },

@@ -1187,6 +1187,29 @@ mod machine {
                             source: source.clone(),
                         })
                     }
+                    OperationKind::DecomposeStructuralValue { subject } => {
+                        if operation.result != terminal_psi::OperationResult::Unit {
+                            return Err(LoweringError::InvalidOwnedValueTransfer {
+                                machine: machine.id,
+                                operation: operation.id,
+                                reason: "decomposition must have a Unit result",
+                            });
+                        }
+                        terminal_semantics::nominal_cleanup::decomposition(
+                            module, machine.id, subject,
+                        )
+                        .map_err(|reason| {
+                            LoweringError::InvalidOwnedValueTransfer {
+                                machine: machine.id,
+                                operation: operation.id,
+                                reason,
+                            }
+                        })?;
+                        Ok(AbstractOperation::DecomposeStructuralValue {
+                            psi_operation: operation.id,
+                            subject: subject.clone(),
+                        })
+                    }
                     OperationKind::StructuralLeafCopy { source, path } => {
                         structural_leaf_copy::lower(
                             operation,
@@ -1621,31 +1644,12 @@ mod machine {
         }
 
         fn runtime_cleanup_actions(
-            module: &terminal_psi::TerminalModule,
+            _module: &terminal_psi::TerminalModule,
             actions: &[TerminalAffineCleanupAction],
         ) -> Vec<TerminalAffineCleanupAction> {
-            actions
-                .iter()
-                .cloned()
-                .map(|action| match action {
-                    TerminalAffineCleanupAction::InvokeNominal(mut cleanup) => {
-                        cleanup.cleanup_receiver = runtime_cleanup_receiver(module, &cleanup);
-                        cleanup.requirement_obligations.clear();
-                        TerminalAffineCleanupAction::InvokeNominal(cleanup)
-                    }
-                    action => action,
-                })
-                .collect()
-        }
-
-        fn runtime_cleanup_receiver(
-            module: &terminal_psi::TerminalModule,
-            cleanup: &terminal_psi::NominalAffineCleanup,
-        ) -> Option<semantic_vocabulary::PlaceId> {
-            module
-                .machine(cleanup.cleanup_machine)
-                .and_then(|machine| machine.structural_parameters.first())
-                .map(|parameter| parameter.place)
+            // Requirements retain their exact checked source action until
+            // native receiving authenticates them against the authorized module.
+            actions.to_vec()
         }
     }
     use abstract_operations::{
@@ -1752,7 +1756,6 @@ mod machine {
         Ok(AbstractFunction {
             machine: machine.id,
             attachment: machine.attachment,
-            nominal_cleanup_subject: machine.nominal_cleanup_subject,
             entry: machine.entry,
             parameters: machine
                 .parameters

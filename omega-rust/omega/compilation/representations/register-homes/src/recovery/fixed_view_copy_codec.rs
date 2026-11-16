@@ -1,6 +1,6 @@
 /*
 We encode and decode the self-authenticating `FixedViewCopyPlan` artifact
-(`OMGFCV\0\0`, version 104), binding the source selected-instruction, live-range,
+(`OMGFCV\0\0`, version 106), binding the source selected-instruction, live-range,
 and legality roots, the required segment-home evidence, the inserted
 fixed-view copies, and the authenticated transformed `SelectedInstructionPlan`
 payload. Native-binding receipts and hosted imports remain distinct from finite
@@ -38,8 +38,8 @@ use semantic_vocabulary::{
     IntegerValue, MachineId, ObligationId, OperationId, ScalarType, StructuralTypeId, ValueId,
     WorkScheduleIdentity,
 };
-use terminal_codec::CodecError;
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
+use terminal_wire::CodecError;
 
 use crate::codec_bytes::Envelope;
 use crate::digest_encoder::content_identity;
@@ -54,9 +54,9 @@ use super::selected_blocks::{decode_block, encode_block};
 use super::structural_contracts::{decode_contracts, encode_contracts};
 
 const MAGIC: &[u8; 8] = b"OMGFCV\0\0";
-pub(super) const VERSION: u32 = 104;
+pub(super) const VERSION: u32 = 106;
 pub(super) const ENVELOPE: Envelope = Envelope::new(MAGIC, VERSION);
-const ENVELOPE_DOMAIN: &[u8] = b"omega-fixed-view-copy-envelope-v61\0";
+const ENVELOPE_DOMAIN: &[u8] = b"omega-fixed-view-copy-envelope-v62\0";
 
 impl FixedViewCopyPlan {
     pub fn encode(&self) -> Result<Vec<u8>, CodecError> {
@@ -581,6 +581,9 @@ pub(super) fn encode_ordinary_plan(
     crate::codec_bytes::push_encoded(bytes, plan.work_schedule.marker().to_le_bytes());
     encode_target(bytes, plan.target);
     crate::codec_bytes::push_encoded(bytes, plan.entry.get().to_le_bytes());
+    let borrowed_storage = plan.contracts.borrowed_storage_layouts.canonical_bytes();
+    length(bytes, borrowed_storage.len());
+    bytes.extend_from_slice(borrowed_storage);
     length(bytes, plan.functions.len());
     for function in &plan.functions {
         encode_function(bytes, function)?;
@@ -600,8 +603,15 @@ pub(super) fn decode_ordinary_plan(
         .ok_or(FixedViewCopyDecodeError::InvalidWorkSchedule(work_raw))?;
     let target = decode_target(cursor)?;
     let entry = decode_id(cursor, MachineId::new)?;
+    let borrowed_storage_length = cursor.length()?;
+    let borrowed_storage_layouts =
+        runtime_abi::NativeBorrowedStorageLayouts::decode(cursor.take(borrowed_storage_length)?)
+            .map_err(FixedViewCopyDecodeError::InvalidBorrowedStorage)?;
     let functions = decode_list(cursor, decode_function)?;
     Ok(SelectedInstructionPlan {
+        contracts: std::sync::Arc::new(selected_instructions::SelectedProgramContracts {
+            borrowed_storage_layouts,
+        }),
         psi: TerminalPsiIdentity {
             vocabulary_marker: marker,
             program_fingerprint: fingerprint,
@@ -619,10 +629,6 @@ pub(super) fn encode_function(
 ) -> Result<(), CodecError> {
     crate::codec_bytes::push_encoded(bytes, function.machine.get().to_le_bytes());
     encode_option_u64(bytes, function.attachment.map(|value| value.get()));
-    encode_option_u64(
-        bytes,
-        function.nominal_cleanup_subject.map(|value| value.get()),
-    );
     encode_ids(
         bytes,
         function
@@ -657,32 +663,27 @@ pub(super) fn decode_function(
             StructuralTypeId::new(raw).ok_or(FixedViewCopyDecodeError::InvalidSemanticId(raw))?,
         ),
     };
-    let nominal_cleanup_subject = match decode_option_u64(cursor)? {
-        None => None,
-        Some(raw) => Some(
-            StructuralTypeId::new(raw).ok_or(FixedViewCopyDecodeError::InvalidSemanticId(raw))?,
-        ),
-    };
     let operations = decode_ids(cursor, OperationId::new)?;
     let edges = decode_ids(cursor, EdgeId::new)?;
     let entry_block = SelectedBlockId(cursor.u32()?);
     let virtual_registers = decode_list(cursor, decode_register)?;
     let blocks = decode_list(cursor, decode_block)?;
     let mut function = SelectedFunction {
-        machine,
-        attachment,
-        nominal_cleanup_subject,
-        provenance: target_vocabulary::TerminalPsiProvenance { operations, edges },
+        contracts: std::sync::Arc::new(selected_instructions::SelectedFunctionContracts {
+            machine,
+            attachment,
+            provenance: target_vocabulary::TerminalPsiProvenance { operations, edges },
+            virtual_registers,
+            structural: None,
+            outgoing_arguments: Vec::new(),
+            local_storage_slots: Vec::new(),
+            calls: Vec::new(),
+            normalized_foreign_calls: Vec::new(),
+            memory_accesses: Vec::new(),
+            boundary_settlements: Vec::new(),
+        }),
         entry_block,
-        virtual_registers,
         blocks: blocks.into(),
-        structural: None,
-        outgoing_arguments: Vec::new(),
-        local_storage_slots: Vec::new(),
-        calls: Vec::new(),
-        normalized_foreign_calls: Vec::new(),
-        memory_accesses: Vec::new(),
-        boundary_settlements: Vec::new(),
     };
     decode_contracts(cursor, &mut function)?;
     if !function.ids_are_positions() {
@@ -864,7 +865,7 @@ mod tests {
                     &mut bytes,
                     ScalarType::Integer(IntegerType::parameterized(IntegerSign::Unsigned, parameter)),
                 ),
-                Err(terminal_codec::CodecError::IntegerWidthClosure(
+                Err(terminal_wire::CodecError::IntegerWidthClosure(
                     IntegerWidthClosureError::Parameter(actual)
                 )) if actual == parameter
             ));

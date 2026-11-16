@@ -103,7 +103,7 @@ pub(crate) mod artifact_manifest {
         manifest_for_semantic(semantic, optimization, installation_record, debug_maps)
     }
 
-    pub(crate) fn manifest_for_semantic(
+    pub fn manifest_for_semantic(
         semantic: TerminalPsiIdentity,
         optimization: &PsiOptimizationExecutionRecord,
         installation_record: Option<&[u8]>,

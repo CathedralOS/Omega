@@ -1380,7 +1380,7 @@ mod stored_calls {
                     invocations: provider
                         .invocations
                         .iter()
-                        .map(|site| (site.machine, site.operation))
+                        .map(|site| (site.machine, site.owner))
                         .collect(),
                     referent,
                     access,
@@ -1880,7 +1880,13 @@ mod stored_calls {
                                 "provider promise does not cover the destination reference",
                             ));
                         }
-                        invocations.insert(0, (function.machine, operation));
+                        invocations.insert(
+                            0,
+                            (
+                                function.machine,
+                                terminal_psi::InvocationOwner::Operation(operation),
+                            ),
+                        );
                         ReferenceStorage {
                             root: ReferenceRoot::Alternatives(vec![origin]),
                             carrier_type,
@@ -2007,12 +2013,7 @@ pub(crate) fn establish(
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let compatible = match storage {
-        Some(storage)
-            if matches!(
-                source.path.last(),
-                Some(StructuralPathSegment::FixedRange { .. })
-            ) =>
-        {
+        Some(storage) if storage.stored_scalar.is_none() => {
             source_contract(function, live, source.place).is_some_and(|root| {
                 terminal_semantics::reference_storage_region_source_compatible(
                     types.values().copied(),

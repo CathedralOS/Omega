@@ -10,7 +10,7 @@ pub(crate) mod model {
 
     pub(crate) fn legalization_validator_identity() -> OptimizationValidatorIdentity {
         OptimizationValidatorIdentity::from_canonical_bytes(
-            b"omega.terminal-target-legalization-independent-replay.v69",
+            b"omega.terminal-target-legalization-independent-replay.v71",
         )
     }
 
@@ -478,7 +478,7 @@ pub(crate) fn legalize_target_operations(
     target: &TargetOperationPlan,
     _abstract_plan: &AbstractOperationPlan,
     unit: &optimization_unit::PsiOptimizationUnit,
-    origins: target_operations::BoundaryOriginFacts<'_>,
+    origins: crate::BoundaryOriginFacts<'_>,
     installed_interrupts: &provider_admission::AdmittedInstalledInterruptCohort,
     types: &crate::native_geometry::ModuleTypes,
 ) -> Result<legalized_operations::PreparedExecutionPlan, LegalizationError> {
@@ -510,6 +510,33 @@ fn surviving_installations(target: &TargetOperationPlan) -> Vec<semantic_vocabul
     operations
 }
 
+/// Copy each function's target calling contract out of the working program,
+/// sorted by machine. Two functions with one machine refuse the program.
+fn function_abis(
+    target: &TargetOperationPlan,
+) -> Result<Vec<legalized_operations::LegalizedFunctionAbi>, LegalizationError> {
+    let mut abis: Vec<_> = target
+        .functions
+        .iter()
+        .map(|function| legalized_operations::LegalizedFunctionAbi {
+            machine: function.machine,
+            call_plan: function.graph.call_plan.clone(),
+            scalar_parameters: function.graph.scalar_parameters.clone(),
+            structural_parameters: function.graph.parameters.clone(),
+            scalar: function.scalar_abi.clone(),
+            mixed_structural_scalar: function.mixed_structural_scalar_abi.clone(),
+        })
+        .collect();
+    abis.sort_unstable_by_key(|row| row.machine);
+    if abis
+        .windows(2)
+        .any(|pair| pair[0].machine == pair[1].machine)
+    {
+        return Err(LegalizationError::custody());
+    }
+    Ok(abis)
+}
+
 /// Build the execution plan from the target operations stage 02 lowered.
 ///
 /// Every target row keeps the identity and obligations of the operation it
@@ -521,7 +548,7 @@ fn surviving_installations(target: &TargetOperationPlan) -> Vec<semantic_vocabul
 pub fn prepare_execution_plan(
     target: &TargetOperationPlan,
     evidence: PreparationEvidence<'_>,
-    origins: target_operations::BoundaryOriginFacts<'_>,
+    origins: crate::BoundaryOriginFacts<'_>,
     installed_interrupts: &provider_admission::AdmittedInstalledInterruptCohort,
     types: &crate::native_geometry::ModuleTypes,
 ) -> Result<legalized_operations::PreparedExecutionPlan, LegalizationError> {
@@ -537,6 +564,8 @@ pub fn prepare_execution_plan(
         entry: target.entry,
         scalar_functions: rosters.scalar_functions,
         installation_operations: surviving_installations(target),
+        function_abis: function_abis(target)?,
+        borrowed_storage_layouts: target.borrowed_storage_layouts.clone(),
     };
     Ok(legalized_operations::PreparedExecutionPlan::seal(
         plan,
@@ -548,7 +577,7 @@ pub fn verify_target_operation_plan_with_closed_module(
     target: &TargetOperationPlan,
     abstract_plan: &AbstractOperationPlan,
     unit: &optimization_unit::PsiOptimizationUnit,
-    origins: target_operations::BoundaryOriginFacts<'_>,
+    origins: crate::BoundaryOriginFacts<'_>,
     installed_interrupts: &provider_admission::AdmittedInstalledInterruptCohort,
     closed_module: &terminal_codec::ClosedTerminalModule,
 ) -> Result<(), LegalizationError> {
@@ -569,7 +598,7 @@ fn verify_target_operation_plan_input(
     target: &TargetOperationPlan,
     abstract_plan: &AbstractOperationPlan,
     unit: &optimization_unit::PsiOptimizationUnit,
-    origins: target_operations::BoundaryOriginFacts<'_>,
+    origins: crate::BoundaryOriginFacts<'_>,
     installed_interrupts: &provider_admission::AdmittedInstalledInterruptCohort,
     closed_types: &crate::native_geometry::ModuleTypes,
 ) -> Result<(), LegalizationError> {
@@ -580,19 +609,36 @@ fn verify_target_operation_plan_input(
         abstract_plan,
     )?;
     validate_boundary_origins(target, origins)?;
-    audit_target_operation_plan(target, abstract_plan, unit, closed_types)
+    audit_target_operation_plan_with_module(
+        target,
+        abstract_plan,
+        unit,
+        closed_types,
+        Some(origins.module),
+    )
 }
 
 /// Compare the target operations with a plan prepared from them here and
 /// now. Use this where no published plan exists: fixtures, and a retained
 /// private body that was never sealed.
+#[cfg(test)]
 pub(crate) fn audit_target_operation_plan(
     target: &TargetOperationPlan,
     abstract_plan: &AbstractOperationPlan,
     unit: &optimization_unit::PsiOptimizationUnit,
     closed_types: &crate::native_geometry::ModuleTypes,
 ) -> Result<(), LegalizationError> {
-    let expected = derive_expected_functions(target, abstract_plan, unit, closed_types)?;
+    audit_target_operation_plan_with_module(target, abstract_plan, unit, closed_types, None)
+}
+
+fn audit_target_operation_plan_with_module(
+    target: &TargetOperationPlan,
+    abstract_plan: &AbstractOperationPlan,
+    unit: &optimization_unit::PsiOptimizationUnit,
+    closed_types: &crate::native_geometry::ModuleTypes,
+    module: Option<&terminal_psi::TerminalModule>,
+) -> Result<(), LegalizationError> {
+    let expected = derive_expected_functions(target, abstract_plan, unit, closed_types, module)?;
     let retained = source::derive_target_function_rosters(
         target,
         PreparationEvidence {
@@ -625,7 +671,7 @@ pub fn verify_execution_plan(
     target: &TargetOperationPlan,
     abstract_plan: &AbstractOperationPlan,
     unit: &optimization_unit::PsiOptimizationUnit,
-    origins: target_operations::BoundaryOriginFacts<'_>,
+    origins: crate::BoundaryOriginFacts<'_>,
     installed_interrupts: &provider_admission::AdmittedInstalledInterruptCohort,
     closed_module: &terminal_codec::ClosedTerminalModule,
 ) -> Result<(), LegalizationError> {
@@ -665,6 +711,15 @@ pub fn verify_execution_plan(
             ));
         }
     }
+    if plan.borrowed_storage_layouts != target.borrowed_storage_layouts {
+        return Err(mismatch(
+            None,
+            "borrowed storage geometry differs from the target's",
+        ));
+    }
+    if plan.function_abis != function_abis(target)? {
+        return Err(mismatch(None, "function ABI rows differ from the target's"));
+    }
     crate::installed_interrupts::validate_target(
         target,
         origins.module,
@@ -672,7 +727,13 @@ pub fn verify_execution_plan(
         abstract_plan,
     )?;
     validate_boundary_origins(target, origins)?;
-    let expected = derive_expected_functions(target, abstract_plan, unit, &closed_types)?;
+    let expected = derive_expected_functions(
+        target,
+        abstract_plan,
+        unit,
+        &closed_types,
+        Some(origins.module),
+    )?;
     if expected.scalar_functions.len() != plan.scalar_functions.len() {
         return Err(mismatch(None, "the plan has a different set of functions"));
     }
@@ -704,7 +765,13 @@ fn derive_expected_functions(
     abstract_plan: &AbstractOperationPlan,
     unit: &optimization_unit::PsiOptimizationUnit,
     closed_types: &crate::native_geometry::ModuleTypes,
+    module: Option<&terminal_psi::TerminalModule>,
 ) -> Result<source::SourceFunctionRosters, LegalizationError> {
+    scalar_graph_input::call_origin::validate_qualified_numeric_executions(
+        target,
+        &unit.boundary_machines,
+        module,
+    )?;
     let plan_geometry = crate::native_geometry::NativeGeometry::with_owned_sequence_bounds(
         &abstract_plan.structural_types,
         abstract_plan.structural_types.owned_sequence_bounds(),

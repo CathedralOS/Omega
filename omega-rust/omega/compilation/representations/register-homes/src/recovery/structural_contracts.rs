@@ -29,11 +29,11 @@ use semantic_vocabulary::{
 use target_vocabulary::{
     ClaimCompletionOnlyRealization, ProviderExecutionBinding, ProviderPlanReportIdentity,
 };
-use terminal_codec::{encode_access_lifecycle_catalog, encode_access_view_input_catalog};
 use terminal_psi::{
     ClaimContentProjection, CompletionReceipt, ContentEntryClaim, StructuralReferenceOrigin,
     TerminalAffineCleanupAction,
 };
+use terminal_wire::{encode_access_lifecycle_catalog, encode_access_view_input_catalog};
 
 use super::fixed_view_copy_codec::{
     Cursor, decode_accepted_fact, decode_bool, decode_id, decode_ids, decode_list,
@@ -113,8 +113,16 @@ pub(super) fn decode_invocation_site(
 ) -> Result<InvocationSite, FixedViewCopyDecodeError> {
     let tag = cursor.byte()?;
     let identity = cursor.u64()?;
+    if tag == 3 {
+        let edge =
+            EdgeId::new(identity).ok_or(FixedViewCopyDecodeError::InvalidSemanticId(identity))?;
+        return Ok(InvocationSite::Cleanup {
+            edge,
+            action_ordinal: cursor.u32()?,
+        });
+    }
     InvocationSite::from_tagged_identity(tag, identity).ok_or(match tag {
-        0 | 1 => FixedViewCopyDecodeError::InvalidSemanticId(identity),
+        0..=2 => FixedViewCopyDecodeError::InvalidSemanticId(identity),
         _ => FixedViewCopyDecodeError::UnknownOption(tag),
     })
 }
@@ -140,7 +148,7 @@ fn decode_slot(
 pub(super) fn encode_contracts(
     bytes: &mut Vec<u8>,
     function: &SelectedFunction,
-) -> Result<(), terminal_codec::CodecError> {
+) -> Result<(), terminal_wire::CodecError> {
     match &function.structural {
         None => bytes.push(0),
         Some(value) => {
@@ -343,7 +351,7 @@ pub(super) fn decode_contracts(
 pub(super) fn encode_boundary_settlement(
     bytes: &mut Vec<u8>,
     payload: &SelectedBoundarySettlementPayload,
-) -> Result<(), terminal_codec::CodecError> {
+) -> Result<(), terminal_wire::CodecError> {
     let settlement = match payload {
         SelectedBoundarySettlementPayload::HostedReadByte {
             operation,
@@ -374,7 +382,7 @@ pub(super) fn encode_boundary_settlement(
                     target_vocabulary::CompilerBuiltinExecution::HostedExitProcessI32,
                 ) => bytes.push(1),
                 _ => {
-                    return Err(terminal_codec::CodecError::MalformedStructuralFoundation(
+                    return Err(terminal_wire::CodecError::MalformedStructuralFoundation(
                         "process exit settlement has an incompatible execution binding",
                     ));
                 }
@@ -855,30 +863,21 @@ pub(super) fn decode_cleanup(
                 structural_type: decode_id(cursor, StructuralTypeId::new)?,
             },
         )),
-        tag @ (3 | 5) => {
-            let place = decode_id(cursor, PlaceId::new)?;
-            let path = decode_path(cursor)?;
-            let structural_type = decode_id(cursor, StructuralTypeId::new)?;
-            let cleanup_machine = decode_id(cursor, MachineId::new)?;
-            let consumed_claims = decode_ids(cursor, ClaimId::new)?;
-            let cleanup_receiver = optional(
-                cursor,
-                |cursor| decode_id(cursor, PlaceId::new),
-                FixedViewCopyDecodeError::UnknownOption,
-            )?;
-            Ok(TerminalAffineCleanupAction::InvokeNominal(
-                terminal_psi::NominalAffineCleanup {
-                    retains_descendants: tag == 5,
-                    place,
-                    path,
-                    structural_type,
-                    cleanup_machine,
-                    consumed_claims,
-                    cleanup_receiver,
-                    requirement_obligations: decode_ids(cursor, ObligationId::new)?,
-                },
-            ))
-        }
+        6 => Ok(TerminalAffineCleanupAction::InvokeOwned(
+            terminal_psi::OwnedCleanupInvocation {
+                subject: decode_semantic_argument(cursor)?,
+                structural_type: decode_id(cursor, StructuralTypeId::new)?,
+                cleanup_machine: decode_id(cursor, MachineId::new)?,
+                claim_transfers: decode_list(cursor, |cursor| {
+                    Ok::<_, FixedViewCopyDecodeError>(terminal_psi::ClaimTransfer {
+                        claim: decode_id(cursor, ClaimId::new)?,
+                        argument_index: cursor.u32()?,
+                        path: decode_path(cursor)?,
+                    })
+                })?,
+                requirement_obligations: decode_ids(cursor, ObligationId::new)?,
+            },
+        )),
         tag => Err(FixedViewCopyDecodeError::UnknownCleanupAction(tag)),
     }
 }
@@ -886,7 +885,7 @@ pub(super) fn decode_cleanup(
 pub(super) fn encode_signature(
     bytes: &mut Vec<u8>,
     value: &LegalizedStructuralContract,
-) -> Result<(), terminal_codec::CodecError> {
+) -> Result<(), terminal_wire::CodecError> {
     length(bytes, value.structural_types.len());
     for row in &value.structural_types {
         encode_type(bytes, row)?;
@@ -898,11 +897,11 @@ pub(super) fn encode_signature(
         bytes.push(u8::from(referent.foreign_descriptor));
         bytes.push(u8::from(referent.abstract_opaque));
     }
-    let quotients = terminal_codec::encode_quotient_catalog(value.structural_types.quotients())?;
+    let quotients = terminal_wire::encode_quotient_catalog(value.structural_types.quotients())?;
     length(bytes, quotients.len());
     bytes.extend_from_slice(&quotients);
     for catalog in [
-        terminal_codec::encode_access_view_catalog(value.structural_types.access_views())?,
+        terminal_wire::encode_access_view_catalog(value.structural_types.access_views())?,
         encode_access_view_input_catalog(value.structural_types.access_view_inputs())?,
         encode_access_lifecycle_catalog(value.structural_types.access_lifecycles())?,
     ] {
@@ -978,20 +977,20 @@ pub(super) fn decode_signature(
         })
     })?;
     let count = cursor.length()?;
-    let quotients = terminal_codec::decode_quotient_catalog(cursor.take(count)?)
+    let quotients = terminal_wire::decode_quotient_catalog(cursor.take(count)?)
         .map_err(|_| FixedViewCopyDecodeError::InvalidQuotientCatalog)?;
     terminal_semantics::quotients::validate_quotient_representations(&structural_types, &quotients)
         .map_err(|_| FixedViewCopyDecodeError::InvalidQuotientCatalog)?;
     let count = cursor.length()?;
     let access_views =
-        terminal_codec::decode_access_view_catalog(cursor.take(count)?).map_err(|cause| {
+        terminal_wire::decode_access_view_catalog(cursor.take(count)?).map_err(|cause| {
             FixedViewCopyDecodeError::InvalidAccessLifecycleCatalog {
                 catalog: "access views",
                 cause,
             }
         })?;
     let count = cursor.length()?;
-    let access_inputs = terminal_codec::decode_access_view_input_catalog(cursor.take(count)?)
+    let access_inputs = terminal_wire::decode_access_view_input_catalog(cursor.take(count)?)
         .map_err(
             |cause| FixedViewCopyDecodeError::InvalidAccessLifecycleCatalog {
                 catalog: "placed inputs",
@@ -1000,7 +999,7 @@ pub(super) fn decode_signature(
         )?;
     let count = cursor.length()?;
     let lifecycles =
-        terminal_codec::decode_access_lifecycle_catalog(cursor.take(count)?).map_err(|cause| {
+        terminal_wire::decode_access_lifecycle_catalog(cursor.take(count)?).map_err(|cause| {
             FixedViewCopyDecodeError::InvalidAccessLifecycleCatalog {
                 catalog: "access lifecycles",
                 cause,
@@ -1162,19 +1161,20 @@ mod local_slot_tests {
     #[test]
     fn byte_span_contract_roundtrip_retains_length_obligation_and_accepted_fact() {
         let empty = || SelectedFunction {
-            machine: semantic_vocabulary::MachineId::new(1).unwrap(),
-            attachment: None,
-            nominal_cleanup_subject: None,
-            provenance: Default::default(),
-            structural: None,
-            local_storage_slots: Vec::new(),
-            outgoing_arguments: Vec::new(),
-            calls: Vec::new(),
-            normalized_foreign_calls: Vec::new(),
-            memory_accesses: Vec::new(),
-            boundary_settlements: Vec::new(),
+            contracts: std::sync::Arc::new(selected_instructions::SelectedFunctionContracts {
+                machine: semantic_vocabulary::MachineId::new(1).unwrap(),
+                attachment: None,
+                provenance: Default::default(),
+                structural: None,
+                local_storage_slots: Vec::new(),
+                outgoing_arguments: Vec::new(),
+                calls: Vec::new(),
+                normalized_foreign_calls: Vec::new(),
+                memory_accesses: Vec::new(),
+                boundary_settlements: Vec::new(),
+                virtual_registers: Vec::new(),
+            }),
             entry_block: SelectedBlockId(0),
-            virtual_registers: Vec::new(),
             blocks: (Vec::new()).into(),
         };
         let length = semantic_vocabulary::ValueId::new(7).unwrap();
@@ -1349,6 +1349,7 @@ mod signature_tests {
                         no_code_affine_cleanup: false,
                         copyable: false,
                         descriptor_cleanup: false,
+                        nominal_cleanup: None,
                         scalar_restriction: None,
                         id: semantic_vocabulary::StructuralTypeId::new(2).unwrap(),
                         identity: terminal_psi::TerminalIdentityIndex(1),
@@ -1454,5 +1455,32 @@ mod signature_tests {
         changed.clear();
         encode_signature(&mut changed, &reordered).unwrap();
         assert_ne!(bytes, changed);
+    }
+}
+
+#[cfg(test)]
+#[test]
+fn borrowed_cleanup_action_tags_are_retired() {
+    for tag in [3, 5] {
+        assert_eq!(
+            decode_cleanup(&mut Cursor::new(&[tag])),
+            Err(FixedViewCopyDecodeError::UnknownCleanupAction(tag)),
+        );
+    }
+}
+
+#[cfg(test)]
+#[test]
+fn cleanup_invocation_identity_round_trip_retains_edge_and_action() {
+    for (edge, action_ordinal) in [(1, 0), (1, 2), (2, 0)] {
+        let site = InvocationSite::Cleanup {
+            edge: EdgeId::new(edge).unwrap(),
+            action_ordinal,
+        };
+        let mut bytes = Vec::new();
+        site.encode_identity(&mut bytes);
+        let mut cursor = Cursor::new(&bytes);
+        assert_eq!(decode_invocation_site(&mut cursor).unwrap(), site);
+        assert_eq!(cursor.remaining(), 0);
     }
 }

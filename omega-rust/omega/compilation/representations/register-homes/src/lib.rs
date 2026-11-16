@@ -19,7 +19,7 @@ In our representation:
   (`CalleeSavedModificationWitness`) without choosing stack frames or save/restore
   instructions.
 - `recovery` owns pressure-recovery classifications, spill choices, and
-  authenticated `FixedViewCopyPlan` rewrite artifacts (`OMGFCV\0\0` version 102).
+  authenticated `FixedViewCopyPlan` rewrite artifacts (`OMGFCV\0\0` version 105).
 - `post_allocation_manifest` owns the structured report
   (`PostAllocationOptimizationManifest`, `OMGPAO\0\0` version 16) at the first
   independently validated physical-home boundary.
@@ -327,6 +327,11 @@ pub struct AllocatedProgramFacts<'program> {
     pub homes: &'program RegisterHomePlan,          // Register-home plan
     pub homes_identity: RegisterHomeIdentity,       // Register-home plan identity
     pub manifest: &'program PostAllocationOptimizationManifest, // Post-allocation manifest
+}
+
+/// Keeps the allocation available to later forms without copying its plans.
+pub trait AllocatedProgramSource {
+    fn allocation_facts(&self) -> AllocatedProgramFacts<'_>;
 }
 
 identity_newtype! { pub struct RegisterHomeIdentity(pub(crate) [u8; 32]); }

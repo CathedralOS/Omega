@@ -154,6 +154,7 @@ fn scalar_definition(operation: &AbstractOperation) -> Option<(ValueId, ScalarTy
         | O::StructuralScalarFieldStore { .. }
         | O::MoveStructuralField { .. }
         | O::MoveStructuralValue { .. }
+        | O::DecomposeStructuralValue { .. }
         | O::TransformContent { .. }
         | O::StructuralLeafCopy { .. }
         | O::StoreStructuralField { .. }
@@ -356,6 +357,7 @@ fn direct_uses(operation: &AbstractOperation) -> Vec<ValueId> {
         | O::ElementViewLength { .. }
         | O::MoveStructuralField { .. }
         | O::MoveStructuralValue { .. }
+        | O::DecomposeStructuralValue { .. }
         | O::TransformContent { .. }
         | O::StructuralLeafCopy { .. }
         | O::StoreStructuralField { .. }
@@ -476,6 +478,7 @@ pub(crate) fn expected_ownership(operation: &AbstractOperation) -> Vec<Ownership
         | O::StructuralScalarFieldStore { .. }
         | O::MoveStructuralField { .. }
         | O::MoveStructuralValue { .. }
+        | O::DecomposeStructuralValue { .. }
         | O::TransformContent { .. }
         | O::StructuralLeafCopy { .. }
         | O::StoreStructuralField { .. }

@@ -7,6 +7,7 @@ Retained-artifact validation calls `validate_exit_record_for_replayed_layout` af
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
+use crate::AllocatedMachinePlan;
 use crate::function_realization::{EncodedFunction, OptimizedFunctionLayout};
 use isa_aarch64::aarch64_preservation_convention_for_target;
 use isa_x86_64::x86_64_preservation_convention_for_target;
@@ -24,7 +25,6 @@ pub use machine_code::{
     WholeFunctionReturnMechanism, WholeFunctionReturnValueEvidence,
 };
 use post_allocation_machine::{PhysicalOperandFootprint, PostAllocationMachineInstruction};
-use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
 use register_model::{
     PreservationConvention, RegisterOperandAccess, RegisterUnitId, RegisterViewId,
     ValidatedPhysicalRegisterModel,
@@ -131,7 +131,7 @@ struct ValidationContext {
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn stage_whole_function_exit_contract_for_layout<S: ValidatedSelectedAnalysis>(
     selected: &S,
-    machine: &StagedOptimizedPostAllocationMachinePlan,
+    machine: &AllocatedMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
     encoding: &EncodedFunction,
     layout: &OptimizedFunctionLayout,
@@ -158,7 +158,7 @@ pub(crate) fn stage_whole_function_exit_contract_for_layout<S: ValidatedSelected
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn validate_exit_record_for_replayed_layout<S: ValidatedSelectedAnalysis>(
     selected: &S,
-    machine: &StagedOptimizedPostAllocationMachinePlan,
+    machine: &AllocatedMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
     encoding: &EncodedFunction,
     layout: &OptimizedFunctionLayout,
@@ -192,7 +192,7 @@ fn layout_custody(layout: &OptimizedFunctionLayout) -> WholeFunctionExitLayoutCu
 
 fn compute_inner<S: ValidatedSelectedAnalysis>(
     selected: &S,
-    staged_machine: &StagedOptimizedPostAllocationMachinePlan,
+    staged_machine: &AllocatedMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
     encoding: &EncodedFunction,
     layout: &ResolvedMachineLayout,
@@ -656,7 +656,7 @@ fn require_artifact(condition: bool) -> Result<(), WholeFunctionExitContractErro
 #[allow(clippy::too_many_arguments)]
 fn validate_exit_record<S: ValidatedSelectedAnalysis>(
     selected: &S,
-    machine: &StagedOptimizedPostAllocationMachinePlan,
+    machine: &AllocatedMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
     encoding: &EncodedFunction,
     layout: &ResolvedMachineLayout,
@@ -1275,7 +1275,7 @@ fn check_claimed_return(
 }
 
 fn validate_layout_custody(
-    _machine: &StagedOptimizedPostAllocationMachinePlan,
+    _machine: &AllocatedMachinePlan,
     encoding: &EncodedFunction,
     layout: &ResolvedMachineLayout,
     custody: WholeFunctionExitLayoutCustody,
