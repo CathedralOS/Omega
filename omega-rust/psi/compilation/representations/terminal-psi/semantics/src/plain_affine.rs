@@ -5,6 +5,10 @@
 //! definitions remain a separate analysis. The producer uses the resulting
 //! edge schedule; a checker reconstructs it from the same unsealed operations.
 
+#[path = "plain_affine_claims.rs"]
+mod claims;
+pub use claims::{ClaimLocation, ClaimsPlan, publish_contract_claims};
+
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment as Segment, EdgeId, IdSet, OperationId, PlaceId,
     StructuralTypeId,
@@ -87,6 +91,7 @@ pub struct Plan {
     pub stores: Vec<(OperationId, StructuralStoreDisposition)>,
     pub unavailable: Vec<Unavailable>,
     pub reference_ends: Vec<ReferenceEnd>,
+    pub claims: Option<ClaimsPlan>,
 }
 
 #[derive(Debug)]
@@ -331,6 +336,7 @@ struct State {
     // Establishment order of the currently allocated owned homes. Normal-edge
     // disposal walks this frontier, not every root ever produced by the body.
     active: Vec<PlaceId>,
+    claims: claims::ClaimsState,
 }
 
 impl State {
@@ -375,7 +381,11 @@ impl State {
                 "affine homes established in different orders at a reconvergence",
             ));
         }
-        Ok(State { regions, active })
+        Ok(State {
+            regions,
+            active,
+            claims: self.claims.meet(&other.claims)?,
+        })
     }
 }
 
@@ -412,6 +422,7 @@ struct Analysis<'a> {
     position: Option<crate::descriptor_lifetimes::DescriptorPosition>,
     reference_candidates: Option<&'a crate::reference_ends::Candidates>,
     reference_ends: Vec<ReferenceEnd>,
+    claim_flow: Option<claims::Flow>,
 }
 
 /// The inline array whose established contents a retained runtime selector
@@ -684,7 +695,7 @@ fn live_entries(
 /// Selected owned consumers require the module-aware entry point. Conserved
 /// claims and borrowed extraction retain their independent contracts.
 pub fn plan(machine: &TerminalMachine, types: &[StructuralTypeDeclaration]) -> Result<Plan, Error> {
-    analyze(machine, types, false, None, None)
+    analyze(machine, types, false, None, None, None)
 }
 
 /// Resolve destructive reference paths with the same descriptor graph as
@@ -694,7 +705,14 @@ pub fn plan_in(
     identity: semantic_vocabulary::MachineId,
 ) -> Result<Plan, Error> {
     let machine = module_machine(module, identity)?;
-    analyze(machine, &module.structural_types, false, Some(module), None)
+    analyze(
+        machine,
+        &module.structural_types,
+        false,
+        Some(module),
+        None,
+        None,
+    )
 }
 
 /// Resolve dead descriptor candidates against the same exact ownership frontier
@@ -712,6 +730,7 @@ pub fn plan_reference_ends(
         false,
         Some(module),
         Some(candidates),
+        None,
     )
 }
 
@@ -722,7 +741,7 @@ pub fn verify(
     machine: &TerminalMachine,
     types: &[StructuralTypeDeclaration],
 ) -> Result<Plan, Error> {
-    verify_schedule(machine, analyze(machine, types, true, None, None)?)
+    verify_schedule(machine, analyze(machine, types, true, None, None, None)?)
 }
 
 /// The receiving checker reconstructs both the exact backing and its schedule.
@@ -733,8 +752,57 @@ pub fn verify_in(
     let machine = module_machine(module, identity)?;
     verify_schedule(
         machine,
-        analyze(machine, &module.structural_types, true, Some(module), None)?,
+        analyze(
+            machine,
+            &module.structural_types,
+            true,
+            Some(module),
+            None,
+            None,
+        )?,
     )
+}
+
+/// Emit logical claim rows from the same ownership walk that plans storage.
+pub fn plan_claims_in(
+    module: &terminal_psi::TerminalModule,
+    identity: semantic_vocabulary::MachineId,
+) -> Result<ClaimsPlan, Error> {
+    let machine = module_machine(module, identity)?;
+    analyze(
+        machine,
+        &module.structural_types,
+        false,
+        Some(module),
+        None,
+        Some(claims::Mode::Publish),
+    )?
+    .claims
+    .ok_or(Error::malformed("claim producer lost its plan"))
+}
+/// Receiving retains authenticated declaration names and reconstructs every
+/// move/call/return without taking the supplied transfer rows as evidence.
+pub fn verify_claims_in(
+    module: &terminal_psi::TerminalModule,
+    identity: semantic_vocabulary::MachineId,
+) -> Result<ClaimsPlan, Error> {
+    let machine = module_machine(module, identity)?;
+    let plan = analyze(
+        machine,
+        &module.structural_types,
+        true,
+        Some(module),
+        None,
+        Some(claims::Mode::Verify),
+    )?;
+    if let Some(unavailable) = plan.unavailable.first() {
+        return Err(
+            Error::unsupported("claim transport observes unavailable owned storage")
+                .at(unavailable.site),
+        );
+    }
+    plan.claims
+        .ok_or(Error::malformed("claim receiver lost its plan"))
 }
 
 fn module_machine(
@@ -963,6 +1031,7 @@ fn analyze(
     bound_output: bool,
     module: Option<&terminal_psi::TerminalModule>,
     reference_candidates: Option<&crate::reference_ends::Candidates>,
+    claim_mode: Option<claims::Mode>,
 ) -> Result<Plan, Error> {
     use semantic_vocabulary::StructuralPlaceKind;
     use terminal_psi::TerminalMachineResult;
@@ -1343,7 +1412,7 @@ fn analyze(
         }
     }
     // Copy permission does not erase an explicitly destructive window.
-    if roots.iter().all(Option::is_none) && !has_borrowed_windows {
+    if roots.iter().all(Option::is_none) && !has_borrowed_windows && claim_mode.is_none() {
         return Ok(Plan {
             copyable_owned_roots,
             ..Plan::default()
@@ -1376,7 +1445,18 @@ fn analyze(
             PlaceId::new(slot as u64 + 1).ok_or(Error::malformed("place identity overflow"))
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let initial = State { regions, active };
+    let (claim_flow, initial_claims) = match claim_mode {
+        Some(mode) => {
+            let (flow, state) = claims::Flow::new(machine, types, mode)?;
+            (Some(flow), state)
+        }
+        None => (None, claims::ClaimsState::default()),
+    };
+    let initial = State {
+        regions,
+        active,
+        claims: initial_claims,
+    };
     let first = index(machine.entry.get())?;
     if first >= machine.blocks.len() {
         return Err(Error::malformed("entry block is outside the machine"));
@@ -1436,6 +1516,7 @@ fn analyze(
         position: None,
         reference_candidates,
         reference_ends: Vec::new(),
+        claim_flow,
     };
     if needs_backing {
         analysis.prepare_residences(
@@ -1480,6 +1561,9 @@ fn analyze(
     let mut cleanup = Vec::new();
     for block in &machine.blocks {
         let Some(state) = entering[index(block.id.get())?].clone() else {
+            if let Some(flow) = &mut analysis.claim_flow {
+                flow.unreachable_block(block);
+            }
             continue;
         };
         for arrival in analysis.walk(
@@ -1512,6 +1596,10 @@ fn analyze(
         stores: analysis.stores,
         unavailable: analysis.unavailable,
         reference_ends: analysis.reference_ends,
+        claims: analysis
+            .claim_flow
+            .map(|flow| flow.finish(machine, types))
+            .transpose()?,
     })
 }
 
@@ -1910,6 +1998,9 @@ impl Analysis<'_> {
                 .next()
                 .ok_or(Error::malformed("terminator has no edge"))?,
         );
+        if let Some(flow) = &mut self.claim_flow {
+            flow.terminal(&mut state.claims, &block.terminator, entering.is_some())?;
+        }
         match &block.terminator {
             Terminator::StructuralCase { source, path, .. } => {
                 self.argument(
@@ -2012,6 +2103,9 @@ impl Analysis<'_> {
             } else {
                 state.clone()
             };
+            if let Some(flow) = &self.claim_flow {
+                flow.select_case(&mut outgoing.claims, &block.terminator, edge)?;
+            }
             let successor = targets
                 .binary_search_by_key(&edge, |(edge, _, _)| *edge)
                 .ok()
@@ -2219,6 +2313,9 @@ impl Analysis<'_> {
                     }
                 }
             }
+            if let Some(flow) = &mut self.claim_flow {
+                flow.cleanup(&outgoing.claims, edge, supplied, entering.is_some())?;
+            }
             if let Some(target) = target {
                 self.establish_successor(machine, &mut outgoing, target)
                     .map_err(|error| error.at(Site::Edge(edge)))?;
@@ -2244,6 +2341,9 @@ impl Analysis<'_> {
         target: semantic_vocabulary::BlockId,
         arguments: &[StructuralArgument],
     ) -> Result<(), Error> {
+        if let Some(flow) = &mut self.claim_flow {
+            flow.successor(&mut state.claims, machine, target, arguments)?;
+        }
         let target = machine
             .blocks
             .get(index(target.get())?)
@@ -2340,6 +2440,15 @@ impl Analysis<'_> {
     ) -> Result<(), Error> {
         use terminal_psi::OperationKind as Op;
         let site = Site::Operation(operation.id);
+        if let Some(flow) = &mut self.claim_flow {
+            flow.operation(
+                &mut state.claims,
+                operation,
+                self.types,
+                &self.roots,
+                settled,
+            )?;
+        }
         if let Op::DecomposeStructuralValue { subject } = &operation.kind {
             if operation.result != terminal_psi::OperationResult::Unit {
                 return Err(Error::malformed(
@@ -2767,7 +2876,7 @@ impl Analysis<'_> {
                 }
             }
             kind => {
-                for argument in kind.structural_arguments() {
+                for argument in terminal_psi::call_structural_arguments(kind) {
                     self.argument(state, argument, site, true)?;
                 }
             }
@@ -4116,6 +4225,39 @@ mod tests {
     }
 
     #[test]
+    fn a_borrowed_successor_preserves_the_sources_exact_logical_claim() {
+        let types = transfer_only_types(true);
+        let argument = StructuralArgument::whole(id(1), StructuralAccess::Owned);
+        let mut machine = transferring(&[id(3)], &[id(3)], vec![argument.clone()]);
+        machine.blocks[1].structural_parameters[0].access = StructuralAccess::SharedBorrow;
+        machine.blocks[1].structural_parameters[0].multiplicity =
+            terminal_psi::StructuralMultiplicity::Unrestricted;
+        let (mut flow, mut state) =
+            claims::Flow::new(&machine, &types, claims::Mode::Publish).unwrap();
+        let original = state.clone();
+        flow.successor(&mut state, &machine, id(2), std::slice::from_ref(&argument))
+            .unwrap();
+        assert_eq!(
+            state, original,
+            "a loan does not transfer its owner's claim"
+        );
+        assert!(flow.plan.block_entry_claims.is_empty());
+
+        machine.blocks[1].structural_parameters[0].access = StructuralAccess::Owned;
+        let (mut flow, mut state) =
+            claims::Flow::new(&machine, &types, claims::Mode::Publish).unwrap();
+        flow.successor(&mut state, &machine, id(2), &[argument])
+            .unwrap();
+        assert_eq!(state.0.len(), 1);
+        let destination = state.0.values().next().unwrap();
+        assert_eq!(destination.place, id(2));
+        assert_ne!(
+            destination.identity,
+            original.0.values().next().unwrap().identity
+        );
+    }
+
+    #[test]
     fn a_borrowed_successor_keeps_its_owned_backing_until_the_last_use() {
         use terminal_psi::{Operation, OperationKind, OperationResult, StructuralMultiplicity};
         let types = reconvergence_types();
@@ -4493,11 +4635,13 @@ mod tests {
         assert!(
             State {
                 regions: vec![Some(region)],
-                active: active.clone()
+                active: active.clone(),
+                claims: Default::default(),
             }
             .meet(&State {
                 regions: vec![Some(Region::new(true))],
-                active
+                active,
+                claims: Default::default(),
             })
             .is_err()
         );
@@ -4615,6 +4759,7 @@ mod tests {
             position: None,
             reference_candidates: None,
             reference_ends: Vec::new(),
+            claim_flow: None,
         }
     }
 
@@ -4652,6 +4797,7 @@ mod tests {
         let state = State {
             regions: vec![Some(Region::new(true))],
             active: vec![place],
+            claims: Default::default(),
         };
         let result = analysis.walk(&machine, block, state, &[], false, None);
         assert!(matches!(result, Err(Error::Unsupported {
@@ -4676,6 +4822,7 @@ mod tests {
         let mut state = State {
             regions: vec![Some(Region::new(true))],
             active: vec![place],
+            claims: Default::default(),
         };
         let release = Operation::unsuspended(
             OperationId::new(1).unwrap(),
@@ -4714,6 +4861,7 @@ mod tests {
         let mut borrowed_state = State {
             regions: vec![Some(Region::new(true))],
             active: Vec::new(),
+            claims: Default::default(),
         };
         let before = borrowed_state.clone();
         assert!(matches!(
@@ -4765,6 +4913,7 @@ mod tests {
         let mut state = State {
             regions: vec![Some(Region::new(true))],
             active: vec![place],
+            claims: Default::default(),
         };
         let before = state.clone();
         analysis
@@ -4819,6 +4968,7 @@ mod tests {
         let mut state = State {
             regions: vec![Some(Region::new(true))],
             active: vec![place],
+            claims: Default::default(),
         };
         let mut argument = StructuralArgument {
             place,

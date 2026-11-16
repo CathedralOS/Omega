@@ -1454,7 +1454,7 @@ fn record_shape_for<'m>(
     id: MachineId,
     data: &DataDefinition,
     application: Option<&typed_trees::SourceTypeApplication>,
-    purpose: super::storage_metadata::TypePurpose,
+    _purpose: super::storage_metadata::TypePurpose,
     members: arena::RootRows<'m, DataMember>,
     payload: impl Fn(&'m typed_trees::data::DataVariant) -> arena::RootRows<'m, DataField>,
 ) -> Checked<()> {
@@ -1482,13 +1482,8 @@ fn record_shape_for<'m>(
     if data.quotient.is_some() {
         return unserved("quotient data");
     }
-    // Descriptor mode may retain a linear claim's geometry. Executable
-    // linear disposition and carry still need their own checked projections.
-    if data.properties.multiplicity == language_semantics::Multiplicity::Linear
-        && purpose == super::storage_metadata::TypePurpose::Value
-    {
-        return unserved("data with custody");
-    }
+    // Multiplicity describes the carrier. The ordinary ownership walk emits
+    // claim transport; Psi 06 independently reconstructs whether it is valid.
     if data.properties.carry.is_some() {
         return unserved("data with a carry policy");
     }
@@ -1829,10 +1824,7 @@ mod tests {
         assert_eq!(detail(&borrowing, &members), "type generic data");
         // A declaration-level `requires` is no longer refused here: its
         // clauses are read by the clause reader. A case-level one still is.
-        let cases: [(&str, fn(&mut DataDefinition, &mut Vec<DataMember>)); 7] = [
-            ("type data with custody", |data, _| {
-                data.properties.multiplicity = language_semantics::Multiplicity::Linear;
-            }),
+        let cases: [(&str, fn(&mut DataDefinition, &mut Vec<DataMember>)); 6] = [
             ("type generic data", |data, _| {
                 data.type_parameters = HandleSpan::from_parts(Handle::from_parts(1, 1), 1);
             }),

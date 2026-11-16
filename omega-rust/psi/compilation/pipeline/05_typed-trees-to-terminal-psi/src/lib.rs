@@ -51,6 +51,7 @@ mod callable_formations;
 mod callable_headers;
 mod callables;
 mod calling_publication;
+mod claim_publication;
 mod compilation;
 mod publication;
 use publication::PreparedProgram;
@@ -1929,6 +1930,7 @@ fn finish_storage(
         return Err(first);
     }
     lower::publish_write_frames(diagnostic, module, tables)?;
+    claim_publication::publish(diagnostic, module)?;
     // This is the emitted behavior before proving or publication. Keeping its
     // inventory here lets product consumers retain the exact judged module.
     module.unoptimized_behavior = module
