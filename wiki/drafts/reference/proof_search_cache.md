@@ -1,61 +1,36 @@
 # Reusing proof search
 
-Status: exploratory draft, not an accepted design or implementation task.
-[Compiler storage](../../spec/build/compiler_storage.md) rules out persistent
-storage, so any reuse explored here stays in memory within one build
-invocation. No measured proof-search bottleneck, key or granularity is selected. These notes explore retaining derivations
-to avoid repeating search. Replace them with a concrete proposal when a measured
-workload justifies one, or delete them when no longer useful.
+This is a performance hypothesis, not a selected design or implementation claim.
+Reuse is worthwhile only when a measured workload repeats substantial search and
+retaining the derivation costs less than finding it again.
 
-## Motivation and candidate approach
+[Compiler storage](../../spec/build/compiler_storage.md) permits in-memory reuse
+within one build invocation, not a persistent compiler cache. Published artifacts
+have a separate admission contract.
 
-An unchanged obligation may repeat expensive proof search. Retain a successful
-derivation and its complete statement/dependency context, then independently
-check it against the receiving obligation before reuse. A cached success bit,
-producer assertion, or successful test run is not proof evidence. Cache failure
-is a miss or explicit resource refusal, never acceptance of an unchecked claim.
+## Constraints on an experiment
 
-Keys should use normalized semantic identity, including exact selected laws,
-assumptions, substitutions, and relevant schema/checker compatibility. A rename
-should not invalidate a semantically identical obligation, but normalization
-must not erase meaningful distinctions. Dependency changes invalidate affected
-entries. A key computed from the proof term can identify a stored proof, but
-does not alone provide the lookup key for finding it from an obligation.
+Retain the complete proposition, subjects, selected laws, assumptions and
+substitutions with a reusable derivation. A cached success flag or equal display
+string is not evidence. A receiving local obligation needs evidence establishing
+that exact obligation through ordinary proof admission.
 
-Published [Psi claims](../../spec/terminal-psi/product.md#publication-and-separate-consumption)
-retain exact subjects and dependencies. Host-authorized consumers reuse trusted
-producer judgments without rediscovery. This draft explores local search caching
-separately; it does not define an artifact-admission route. Evaluator-result caches retain logical
-usage under the [evaluation contract](../../spec/language/evaluation.md).
+Canonical identity cannot depend on search budget or which laws happen to be
+found. Dependency changes invalidate affected reuse. A key for a proof term can
+identify a stored derivation without answering how to find it from a new goal.
 
-## Alternatives and unresolved choices
+Measure repeated search, retained bytes, lookup and proof-admission cost before
+choosing granularity or storage. Sharing a large proof may reduce allocation
+while its validation remains expensive. No particular container, new artifact
+format or source rewrite follows from this hypothesis.
 
-- Reprove required claims in each build invocation: the ratified default, with
-  potentially repeated search for unchanged obligations across builds.
-- Reuse derivations within one invocation through an in-memory semantic lookup
-  index; choose per-obligation or coarser granularity only after measuring
-  realistic recheck costs.
-- A signed server verdict or cryptographic argument is a different admitted
-  trust basis, not a faster implementation of unconditional local checking.
+[Published judgments](../../spec/terminal-psi/product.md#publication-and-separate-consumption)
+are different: host authorization permits reuse of a trusted producer's exact
+judgment without rediscovery or mandatory certificate replay. A local lookup
+does not grant that authorization. Evaluation reuse separately preserves the
+[logical accounting](../../spec/language/evaluation.md) of the computation.
 
-Large retained derivations can remain sound while exceeding memory or
-checking budgets. Size does not make them attestations, and a finite
-search does not by itself supply a compact proof. Prefer compact checked
-derivations where available without imposing an unproved universal size bound.
-Measure hit rate, invalidation, total checking cost, and memory before selecting
-a reuse scheme. No compiler-authored source rewriting or new lockfile is
-required by this approach.
-
-The measurement prerequisite exists: every `check_proof_plan` run tallies a
-`ProofPlanMeasurements` record — obligation mix by class, discharged/diagnosed
-outcomes, certificate-route verdicts (the hit-rate inputs), emitted
-`ProofNode` tree sizes (storage), whole-run wall-clock microseconds (total
-checking cost), and the kernel's own `MathematicalJudgmentReceipt` figures.
-Setting `OMEGA_PROOF_MEASUREMENTS` prints one `key=value` line per run on
-stderr for any `omega --check` invocation. The invalidation axis is now
-measurable too: the derivation store carries `invalidate` (one named key)
-and `invalidate_where` (every row still naming a changed dependency — the
-dependency-change granularity), and the caller-side `DerivationCacheReport`
-tallies dropped entries under `invalidated`. What remains unmeasurable is a
-workload corpus with repeated obligations to give the hit rate a denominator
-that means anything.
+No current instrumentation, cache implementation or hit rate is asserted here.
+Superseded evaluator and measurement details belong in Git. Delete this note
+when a measured repair establishes a concrete owner, or when the hypothesis is
+no longer useful.
