@@ -1385,11 +1385,12 @@ pub mod types {
             root: StructuralTypeId,
         ) -> bool {
             structural_type_contains_by(
-                lookup,
-                root,
-                |shape| matches!(shape, StructuralTypeShape::Reference { .. }),
+                |id| Ok::<_, std::convert::Infallible>(lookup(id)),
+                [root],
+                |declaration| matches!(declaration.shape, StructuralTypeShape::Reference { .. }),
                 |_| false,
             )
+            .expect("the declaration lookup is infallible")
         }
 
         pub fn structural_type_has_borrowed_storage_by<'types>(
@@ -1397,9 +1398,9 @@ pub mod types {
             root: StructuralTypeId,
         ) -> bool {
             structural_type_contains_by(
-                lookup,
-                root,
-                StructuralTypeShape::is_borrowed_descriptor,
+                |id| Ok::<_, std::convert::Infallible>(lookup(id)),
+                [root],
+                |declaration| declaration.shape.is_borrowed_descriptor(),
                 |field| {
                     matches!(
                         field.byte_sequence_carrier(),
@@ -1410,25 +1411,31 @@ pub mod types {
                     )
                 },
             )
+            .expect("the declaration lookup is infallible")
         }
 
-        fn structural_type_contains_by<'types>(
-            lookup: impl Fn(StructuralTypeId) -> Option<&'types StructuralTypeDeclaration>,
-            root: StructuralTypeId,
-            contains_shape: impl Fn(&StructuralTypeShape) -> bool,
+        /// Query one selected type family without revisiting shared children.
+        /// The lookup owns missing-declaration handling and may refuse while
+        /// ordinary inventory queries retain their optional lookup behavior.
+        pub fn structural_type_contains_by<'types, E>(
+            mut lookup: impl FnMut(
+                StructuralTypeId,
+            ) -> Result<Option<&'types StructuralTypeDeclaration>, E>,
+            roots: impl IntoIterator<Item = StructuralTypeId>,
+            contains_declaration: impl Fn(&StructuralTypeDeclaration) -> bool,
             contains_field: impl Fn(&StructuralFieldType) -> bool,
-        ) -> bool {
-            let mut pending = vec![root];
+        ) -> Result<bool, E> {
+            let mut pending = roots.into_iter().collect::<Vec<_>>();
             let mut visited = std::collections::BTreeSet::new();
             while let Some(current) = pending.pop() {
                 if !visited.insert(current) {
                     continue;
                 }
-                let Some(declaration) = lookup(current) else {
+                let Some(declaration) = lookup(current)? else {
                     continue;
                 };
-                if contains_shape(&declaration.shape) {
-                    return true;
+                if contains_declaration(declaration) {
+                    return Ok(true);
                 }
                 let mut push_fields = |fields: &[StructuralFieldDeclaration]| {
                     pending.extend(structural_children(fields));
@@ -1439,18 +1446,18 @@ pub mod types {
                 match &declaration.shape {
                     StructuralTypeShape::Record { fields, .. } => {
                         if push_fields(fields) {
-                            return true;
+                            return Ok(true);
                         }
                     }
                     StructuralTypeShape::Sum { cases } => {
                         if cases.iter().any(|case| push_fields(&case.fields)) {
-                            return true;
+                            return Ok(true);
                         }
                     }
                     StructuralTypeShape::Mixed { fields, cases } => {
                         if push_fields(fields) || cases.iter().any(|case| push_fields(&case.fields))
                         {
-                            return true;
+                            return Ok(true);
                         }
                     }
                     StructuralTypeShape::FixedArray { element, length } => {
@@ -1466,7 +1473,7 @@ pub mod types {
                     | StructuralTypeShape::ByteSequence(_) => {}
                 }
             }
-            false
+            Ok(false)
         }
 
         pub fn structural_case_by_identity(

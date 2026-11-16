@@ -159,7 +159,7 @@ impl Storage<'_> {
                     })
                 });
         let plain_element = self.domains.get(selected.id).is_some_and(Vec::is_empty)
-            && self.plain_collection_element(element, concerns)?;
+            && self.plain_collection_element(self.declaration(element, concerns)?);
         if !unclaimed || !plain_element {
             return Err(self.unsupported(
                 concerns,
@@ -171,13 +171,11 @@ impl Storage<'_> {
 
     fn plain_collection_element(
         &self,
-        element: semantic_vocabulary::StructuralTypeId,
-        concerns: Construct,
-    ) -> Checked<bool> {
-        let declaration = self.declaration(element, concerns)?;
-        Ok(self.domains.get(element).is_some_and(Vec::is_empty)
+        declaration: &terminal_psi::StructuralTypeDeclaration,
+    ) -> bool {
+        self.domains.get(declaration.id).is_some_and(Vec::is_empty)
             && declaration.requires.is_empty()
-            && declaration.scalar_restriction.is_none())
+            && declaration.scalar_restriction.is_none()
     }
 
     /// Forming a view retains the array's storage and creates a descriptor;
@@ -327,26 +325,16 @@ impl Storage<'_> {
                 // A change of element presentation cannot establish any
                 // source or target inline child's predicates. Ordinary
                 // same-element loans retain their existing contract check.
-                let mut pending = vec![source_element, element];
-                let mut visited = Vec::new();
-                while let Some(element) = pending.pop() {
-                    if visited.contains(&element) {
-                        continue;
-                    }
-                    visited.push(element);
-                    if !self.plain_collection_element(element, concerns)? {
-                        return Err(self.unsupported(
-                            concerns,
-                            "a collection view cannot establish target element predicates",
-                        ));
-                    }
-                    match &self.declaration(element, concerns)?.shape {
-                        StructuralTypeShape::Record { fields, .. } => {
-                            pending.extend(terminal_psi::structural_children(fields))
-                        }
-                        StructuralTypeShape::FixedArray { element, .. } => pending.push(*element),
-                        _ => {}
-                    }
+                if terminal_psi::structural_type_contains_by(
+                    |element| self.declaration(element, concerns).map(Some),
+                    [source_element, element],
+                    |declaration| !self.plain_collection_element(declaration),
+                    |_| false,
+                )? {
+                    return Err(self.unsupported(
+                        concerns,
+                        "a collection view cannot establish target element predicates",
+                    ));
                 }
                 let ElementViewRegion::WholeRepresentation { source_length, .. } = region else {
                     return Err(self.foreign(concerns, "representation view has another region"));
