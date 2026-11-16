@@ -1168,33 +1168,44 @@ machine entry() -> u32 crashes none {
         .unwrap()
         .package_identity
         .unwrap();
-    let compilation = typed_trees_to_terminal_psi::prepare_compilation(
-        &prepared,
-        typed_trees_to_terminal_psi::Compilation {
-            calling: None,
-            providers: None,
-            declaration_metadata: &[probe],
-            entries: &[entry(&prepared)],
-            subjects: &[Some(package)],
-            purpose: source::DependencyScope::Product,
-            selected: &[],
-            bindings: &[],
-            supplies: &[],
-        },
+    for publication in [
         terminal_codec::TerminalPublication::Portable,
-    );
-    let mut verdicts = crate::judge_compilation(compilation.program).into_iter();
-    let Ok(RouteVerdict::Accepted(executable)) = verdicts.next().unwrap() else {
-        panic!("the package's closed caller must be accepted");
-    };
-    for verdict in verdicts {
-        assert!(
-            matches!(verdict, Ok(RouteVerdict::Accepted(_))),
-            "{verdict:?}"
+        terminal_codec::TerminalPublication::Invocation,
+    ] {
+        let compilation = typed_trees_to_terminal_psi::prepare_compilation(
+            &prepared,
+            typed_trees_to_terminal_psi::Compilation {
+                calling: None,
+                providers: None,
+                declaration_metadata: &[probe],
+                entries: &[entry(&prepared)],
+                subjects: &[Some(package)],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            },
+            publication,
         );
+        let mut verdicts = crate::judge_compilation(compilation.program).into_iter();
+        let Ok(RouteVerdict::Accepted(executable)) = verdicts.next().unwrap() else {
+            panic!("the package's closed caller must be accepted");
+        };
+        for verdict in verdicts {
+            assert!(
+                matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+                "{verdict:?}"
+            );
+        }
+        match publication {
+            terminal_codec::TerminalPublication::Portable => {
+                executable.publish().unwrap();
+            }
+            terminal_codec::TerminalPublication::Invocation => {
+                executable.publish_invocation().unwrap();
+            }
+        }
     }
-    executable.publish().unwrap();
-    executable.publish_invocation().unwrap();
     // A standalone generic check still owns an inherited method's binder.
     // This only forms that check input; its declaration-only judgment has an
     // independent diagnostic-context limitation.
