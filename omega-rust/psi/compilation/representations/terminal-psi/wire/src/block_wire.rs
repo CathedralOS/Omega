@@ -1501,7 +1501,7 @@ macro_rules! operation_wire {
             Ok(())
         }
 
-        fn decode_operation_kind($reader: &mut Reader<'_>) -> Result<OperationKind, CodecError> {
+        pub(crate) fn decode_operation_kind($reader: &mut Reader<'_>) -> Result<OperationKind, CodecError> {
             Ok(match $reader.u8()? {
                 $(operation_tags::$tag => OperationKind::$variant {
                     $($field: <wire_fields::$kind as wire_fields::Field<_>>::read($reader)?),*
