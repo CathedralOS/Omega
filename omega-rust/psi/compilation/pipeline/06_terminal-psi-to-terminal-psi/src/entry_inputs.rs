@@ -353,6 +353,23 @@ impl CallSites {
         for id in &elaboration.private_inputs {
             *machine_row_mut(&mut private, *id, *id)? = true;
         }
+        // A selected cleanup contract must stand on its declared inputs.
+        // Generated disposal sites never infer a new demand on their caller.
+        for machine in &elaboration.module.machines {
+            for (_, actions) in machine
+                .blocks
+                .iter()
+                .flat_map(|block| block.terminator.cleanup_rosters())
+            {
+                for action in actions {
+                    if let terminal_psi::TerminalAffineCleanupAction::InvokeOwned(cleanup) = action
+                    {
+                        *machine_row_mut(&mut private, cleanup.cleanup_machine, machine.id)? =
+                            false;
+                    }
+                }
+            }
+        }
         let mut result = Self {
             private,
             arrivals: Vec::new(),

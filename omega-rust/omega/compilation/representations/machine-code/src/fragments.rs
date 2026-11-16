@@ -199,7 +199,6 @@ pub mod functions {
     pub struct FunctionFragment {
         pub machine: MachineId,
         pub attachment: Option<semantic_vocabulary::StructuralTypeId>,
-        pub nominal_cleanup_subject: Option<semantic_vocabulary::StructuralTypeId>,
         pub provenance: TerminalPsiProvenance,
         pub byte_count: u64,
         pub bytes: Vec<u8>,
@@ -303,7 +302,6 @@ mod tests {
             functions: vec![FunctionFragment {
                 machine: MachineId::new(1).unwrap(),
                 attachment: None,
-                nominal_cleanup_subject: None,
                 provenance: TerminalPsiProvenance::default(),
                 byte_count: 0,
                 bytes: Vec::new(),

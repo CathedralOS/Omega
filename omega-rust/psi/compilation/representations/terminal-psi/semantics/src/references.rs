@@ -1193,6 +1193,42 @@ pub(crate) mod reference_completion {
         Ok(retained)
     }
 
+    #[cfg(test)]
+    #[test]
+    fn owned_cleanup_disposes_only_the_transferred_descriptor_subtree() {
+        let carrier = PlaceId::new(1).unwrap();
+        let field = StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(1));
+        let actions = [TerminalAffineCleanupAction::InvokeOwned(
+            terminal_psi::OwnedCleanupInvocation {
+                subject: terminal_psi::StructuralArgument {
+                    place: carrier,
+                    path: vec![field.clone()],
+                    access: StructuralAccess::Owned,
+                },
+                structural_type: StructuralTypeId::new(1).unwrap(),
+                cleanup_machine: semantic_vocabulary::MachineId::new(1).unwrap(),
+                claim_transfers: Vec::new(),
+                requirement_obligations: Vec::new(),
+            },
+        )];
+        assert!(cleanup_disposes_reference(
+            &actions,
+            carrier,
+            std::slice::from_ref(&field)
+        ));
+        assert!(!cleanup_disposes_reference(&actions, carrier, &[]));
+        assert!(!cleanup_disposes_reference(
+            &actions,
+            PlaceId::new(2).unwrap(),
+            std::slice::from_ref(&field)
+        ));
+        assert!(!cleanup_disposes_reference(
+            &actions,
+            carrier,
+            &[field, StructuralPathSegment::Referent]
+        ));
+    }
+
     pub fn cleanup_disposes_reference(
         actions: &[TerminalAffineCleanupAction],
         carrier: PlaceId,
@@ -1208,8 +1244,16 @@ pub(crate) mod reference_completion {
                     && path.starts_with(&discard.path)
                     && !discard.path.contains(&StructuralPathSegment::Referent)
             }
-            TerminalAffineCleanupAction::InvokeNominal(_)
-            | TerminalAffineCleanupAction::RetireHome(_) => false,
+            TerminalAffineCleanupAction::InvokeOwned(cleanup) => {
+                cleanup.subject.access == StructuralAccess::Owned
+                    && cleanup.subject.place == carrier
+                    && path.starts_with(&cleanup.subject.path)
+                    && !cleanup
+                        .subject
+                        .path
+                        .contains(&StructuralPathSegment::Referent)
+            }
+            TerminalAffineCleanupAction::RetireHome(_) => false,
         })
     }
 }
@@ -2067,6 +2111,7 @@ pub(crate) mod reference_origins {
                     copyable: false,
                     no_code_affine_cleanup: true,
                     descriptor_cleanup: true,
+                    nominal_cleanup: None,
                     shape,
                     scalar_restriction: None,
                 })
@@ -4862,6 +4907,7 @@ pub(crate) mod reference_storage_geometry {
                 no_code_affine_cleanup: true,
                 copyable: true,
                 descriptor_cleanup: false,
+                nominal_cleanup: None,
                 scalar_restriction: None,
                 id: identity(value),
                 identity: TerminalIdentityIndex(value as u32),
@@ -5073,6 +5119,7 @@ pub(crate) mod reference_storage_geometry {
                 no_code_affine_cleanup: true,
                 copyable: true,
                 descriptor_cleanup: false,
+                nominal_cleanup: None,
                 scalar_restriction: None,
                 id: identity(value),
                 identity: TerminalIdentityIndex(value as u32),
@@ -5239,6 +5286,7 @@ pub(crate) mod reference_storage_geometry {
                 no_code_affine_cleanup: true,
                 copyable: true,
                 descriptor_cleanup: false,
+                nominal_cleanup: None,
                 scalar_restriction: None,
                 id: identity(value),
                 identity: TerminalIdentityIndex(value as u32),
@@ -5347,6 +5395,7 @@ pub(crate) mod reference_storage_geometry {
                     no_code_affine_cleanup: true,
                     copyable: true,
                     descriptor_cleanup: false,
+                    nominal_cleanup: None,
                     scalar_restriction: None,
                     id: identity(1),
                     identity: TerminalIdentityIndex(1),
@@ -5360,6 +5409,7 @@ pub(crate) mod reference_storage_geometry {
                     no_code_affine_cleanup: true,
                     copyable: true,
                     descriptor_cleanup: false,
+                    nominal_cleanup: None,
                     scalar_restriction: None,
                     id: identity(2),
                     identity: TerminalIdentityIndex(2),
@@ -5410,6 +5460,7 @@ pub(crate) mod reference_storage_geometry {
                     no_code_affine_cleanup: false,
                     copyable: false,
                     descriptor_cleanup: false,
+                    nominal_cleanup: None,
                     scalar_restriction: None,
                     id: identity(1),
                     identity: TerminalIdentityIndex(3),
@@ -5436,6 +5487,7 @@ pub(crate) mod reference_storage_geometry {
                     no_code_affine_cleanup: false,
                     copyable: false,
                     descriptor_cleanup: false,
+                    nominal_cleanup: None,
                     scalar_restriction: None,
                     id: identity(2),
                     identity: TerminalIdentityIndex(2),
@@ -5473,6 +5525,7 @@ pub(crate) mod reference_storage_geometry {
                 no_code_affine_cleanup: false,
                 copyable: false,
                 descriptor_cleanup: false,
+                nominal_cleanup: None,
                 scalar_restriction: None,
                 id: identity(1),
                 identity: TerminalIdentityIndex(1),
@@ -6358,6 +6411,7 @@ pub(crate) mod reference_views {
                 copyable: true,
                 no_code_affine_cleanup: true,
                 descriptor_cleanup: true,
+                nominal_cleanup: None,
                 quotient_carrier: None,
                 scalar_restriction: None,
                 shape: StructuralTypeShape::PrimitiveScalar(scalar),

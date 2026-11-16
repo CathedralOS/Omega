@@ -42,6 +42,7 @@ pub struct OwnershipFrontierSnapshot {
     pub claims: Vec<OwnershipFrontierLiveClaim>,
     pub owned_places: Vec<OwnershipFrontierOwnedPlace>,
     pub partial_custody: Vec<OwnershipFrontierPartialCustody>,
+    pub nominal_partitions: Vec<terminal_psi::StructuralAffineDiscard>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -83,7 +84,7 @@ pub fn ownership_frontier_fact_identity(
     snapshot: &OwnershipFrontierSnapshot,
 ) -> OwnershipFrontierFactIdentity {
     let mut canonical = Vec::new();
-    canonical.extend_from_slice(b"omega.psi-ownership-frontier-fact.v2\0");
+    canonical.extend_from_slice(b"omega.psi-ownership-frontier-fact.v3\0");
     canonical.extend_from_slice(psi.program_fingerprint.as_bytes());
     optimization_core::codec_bytes::push_encoded(
         &mut canonical,
@@ -127,6 +128,15 @@ fn encode_frontier_snapshot_identity(bytes: &mut Vec<u8>, snapshot: &OwnershipFr
         for path in &partial.moved_paths {
             encode_frontier_path(bytes, path);
         }
+    }
+    encode_frontier_len(bytes, snapshot.nominal_partitions.len());
+    for partition in &snapshot.nominal_partitions {
+        optimization_core::codec_bytes::push_encoded(bytes, partition.place.get().to_le_bytes());
+        encode_frontier_path(bytes, &partition.path);
+        optimization_core::codec_bytes::push_encoded(
+            bytes,
+            partition.structural_type.get().to_le_bytes(),
+        );
     }
 }
 

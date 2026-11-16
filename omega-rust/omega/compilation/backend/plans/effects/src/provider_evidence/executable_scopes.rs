@@ -219,6 +219,14 @@ impl ProhibitedSite {
                     semantic_vocabulary::InvocationSite::InvokeNoNormal(edge) => {
                         format!("invocation of boundary `{identity}` (block {block}, edge {edge})")
                     }
+                    semantic_vocabulary::InvocationSite::Cleanup {
+                        edge,
+                        action_ordinal,
+                    } => {
+                        format!(
+                            "cleanup invocation of boundary `{identity}` (block {block}, edge {edge}, action {action_ordinal})"
+                        )
+                    }
                 }
             }
             ProhibitedSite::CheckedInstruction { block, operation } => {

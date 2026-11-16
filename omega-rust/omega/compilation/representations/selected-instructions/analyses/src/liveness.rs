@@ -1238,7 +1238,6 @@ pub(crate) mod edge_values {
                 contracts: std::sync::Arc::new(selected_instructions::SelectedFunctionContracts {
                     machine: MachineId::new(1).unwrap(),
                     attachment: None,
-                    nominal_cleanup_subject: None,
                     provenance: target_vocabulary::TerminalPsiProvenance {
                         operations: vec![operation],
                         edges: vec![returned],

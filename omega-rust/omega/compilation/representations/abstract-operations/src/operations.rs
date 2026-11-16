@@ -344,6 +344,10 @@ pub enum AbstractOperation {
         result: OperationResult,
         source: StructuralArgument,
     },
+    DecomposeStructuralValue {
+        psi_operation: OperationId,
+        subject: StructuralArgument,
+    },
     TransformContent {
         psi_operation: OperationId,
         result: OperationResult,
@@ -1022,7 +1026,10 @@ impl AbstractOperation {
             } => {
                 vec![source.path.as_slice(), path.as_slice()]
             }
-            Self::MoveStructuralValue { source, .. }
+            Self::DecomposeStructuralValue {
+                subject: source, ..
+            }
+            | Self::MoveStructuralValue { source, .. }
             | Self::ReleaseActivationClaim { source, .. }
             | Self::SplitActivationClaim { source, .. } => vec![source.path.as_slice()],
             Self::MergeActivationClaim { lower, upper, .. } => {
@@ -1138,6 +1145,7 @@ impl AbstractOperation {
             | Self::StoreStructuralField { psi_operation, .. }
             | Self::StructuralLeafCopy { psi_operation, .. }
             | Self::MoveStructuralValue { psi_operation, .. }
+            | Self::DecomposeStructuralValue { psi_operation, .. }
             | Self::TransformContent { psi_operation, .. }
             | Self::EstablishScalarArray { psi_operation, .. }
             | Self::EstablishStructuralArray { psi_operation, .. }

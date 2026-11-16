@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 282`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 283`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -676,6 +676,16 @@ pub(crate) mod canonical_order {
                 "call acknowledgements by canonical call site",
             )?;
             for block in &machine.blocks {
+                for (_, actions) in block.terminator.cleanup_rosters() {
+                    for action in actions {
+                        if let TerminalAffineCleanupAction::InvokeOwned(cleanup) = action {
+                            require_increasing(
+                                cleanup.claim_transfers.iter(),
+                                "cleanup claim transfers by claim and argument index",
+                            )?;
+                        }
+                    }
+                }
                 if let Some(invocation) = block.terminator.module_invocation() {
                     require_increasing(
                         invocation.claim_transfers.iter(),
@@ -1611,6 +1621,7 @@ pub(crate) mod machine_wire {
                 owns_linear_claim: false,
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: false,
+                nominal_cleanup: None,
                 copyable: true,
                 scalar_restriction: None,
                 id: structural_type,
@@ -1867,7 +1878,6 @@ pub(crate) mod machine_wire {
             id: Id,
             assembly_target_requirement: AssemblyTarget,
             attachment: OptionalId,
-            nominal_cleanup_subject: OptionalId,
             ranked_scc: RankedScc,
             structural_places: List<Place>,
             block_entry_claims: List<Claim>,
@@ -3290,6 +3300,7 @@ mod reference_transport_tests {
             copyable: true,
             no_code_affine_cleanup: false,
             descriptor_cleanup: true,
+            nominal_cleanup: None,
             scalar_restriction: None,
             shape: StructuralTypeShape::Reference {
                 referent: StructuralTypeId::new(1).unwrap(),
@@ -3343,6 +3354,7 @@ mod reference_transport_tests {
                 copyable: false,
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: false,
+                nominal_cleanup: None,
                 scalar_restriction: None,
                 shape: StructuralTypeShape::Record {
                     storage: StructuralRecordStorage::Packed,
@@ -3403,6 +3415,7 @@ mod reference_transport_tests {
             copyable: true,
             no_code_affine_cleanup: true,
             descriptor_cleanup: false,
+            nominal_cleanup: None,
             scalar_restriction: None,
             shape,
         };
@@ -4638,7 +4651,6 @@ pub(crate) mod entry_tests {
             assembly_target_requirement: terminal_psi::RegisterTargetApplicability::Any,
             id: machine,
             attachment: None,
-            nominal_cleanup_subject: None,
             ranked_scc: None,
             structural_places: Vec::new(),
             call_formations: Vec::new(),
@@ -4739,6 +4751,7 @@ pub(crate) use wire::{Reader, Writer, decode_canonical, decode_counted};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
+// Marker 275 changes retained compiler-evaluation invocation refusals.
 // Marker 274 adds authenticated hosted-primitive requirement links to the
 // machine contract layout retained by marker 273. A 273 artifact has no such
 // execution link and cannot be read as this declaration grammar.
@@ -4771,8 +4784,13 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // checks; the prior float and installation data remain part of this format.
 // Marker 280 retains transparent scalar predicate bodies and their own formals.
 // A 279 artifact cannot state declaration-time arithmetic formation for them.
+// Marker 281 adds total integer-result conversion and exact-cast predicates.
 // Marker 282 adds exact integer-to-float predicates.
-pub(crate) const FORMAT_MARKER: u16 = 282;
+// Marker 283 combines those predicates with owned nominal cleanup selections,
+// ordinary owned cleanup actions, and consuming decomposition. Both preceding
+// layouts used 282; neither supplies this combined schema, and borrowed cleanup
+// action tags cannot acquire owned-transfer meaning.
+pub(crate) const FORMAT_MARKER: u16 = 283;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
@@ -5022,6 +5040,7 @@ mod normal_qualification_tests {
                 no_code_affine_cleanup: position != 2,
                 copyable: false,
                 descriptor_cleanup: false,
+                nominal_cleanup: None,
                 scalar_restriction: None,
                 shape,
             });
@@ -5132,6 +5151,7 @@ mod normal_qualification_tests {
             no_code_affine_cleanup: true,
             copyable: true,
             descriptor_cleanup: false,
+            nominal_cleanup: None,
             scalar_restriction: None,
             shape: StructuralTypeShape::ByteSequence(
                 terminal_psi::ByteSequenceCarrier::BorrowedView {
@@ -5373,6 +5393,7 @@ mod global_descriptor_table_tests {
             copyable: false,
             no_code_affine_cleanup: true,
             descriptor_cleanup: true,
+            nominal_cleanup: None,
             scalar_restriction: None,
             shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView {
                 capacity: 10,
@@ -5529,6 +5550,7 @@ mod descriptor_operation_tests {
                 copyable: false,
                 no_code_affine_cleanup: true,
                 descriptor_cleanup: true,
+                nominal_cleanup: None,
                 scalar_restriction: None,
                 shape,
             });
@@ -5792,6 +5814,7 @@ mod opaque_value_tests {
             copyable: false,
             no_code_affine_cleanup: true,
             descriptor_cleanup: false,
+            nominal_cleanup: None,
             scalar_restriction: None,
             shape: StructuralTypeShape::Opaque,
         });
@@ -5851,7 +5874,7 @@ mod format_marker_tests {
         // float conversion ordinal also cannot supply the retained carrier identity.
         for legacy in [
             250u16, 251, 252, 256, 260, 261, 264, 265, 266, 267, 268, 269, 270, 271, 272, 273, 274,
-            275, 276, 277, 278, 279,
+            275, 276, 277, 278, 279, 280, 281, 282,
         ] {
             for payload in [&[][..], &[0xff, 0xff, 0xff][..]] {
                 let mut bytes = MAGIC.to_vec();

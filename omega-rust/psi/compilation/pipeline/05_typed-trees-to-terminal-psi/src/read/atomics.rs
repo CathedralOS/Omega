@@ -67,6 +67,7 @@ impl Program<'_> {
         let id = self.records.push(RecordType {
             owns_linear_claim: false,
             copyable: false,
+            cleanup: None,
             identity,
             shape: StorageShape::AtomicCell(cell),
             requires: Vec::new(),

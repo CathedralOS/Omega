@@ -210,7 +210,7 @@ pub(crate) fn declare(
             }
             for (_, actions) in block.terminator.cleanup_rosters() {
                 for action in actions {
-                    if let TerminalAffineCleanupAction::InvokeNominal(action) = action {
+                    if let TerminalAffineCleanupAction::InvokeOwned(action) = action {
                         match declaration_for(action.cleanup_machine) {
                             Ok(target) => cleanup.push(target),
                             Err(reason) => unavailable = Some(reason),

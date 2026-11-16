@@ -491,7 +491,7 @@ pub(crate) mod errors {
         ResidentStorage(TerminalEffectRejection),
         AffineFrontierMismatch,
         NominalCleanupHasLiveLoans {
-            cleanup: terminal_psi::NominalAffineCleanup,
+            cleanup: terminal_psi::OwnedCleanupInvocation,
             backing_identity: u64,
             backing_path: Vec<terminal_psi::StructuralPathSegment>,
             loan_carriers: Vec<(u64, Vec<terminal_psi::StructuralPathSegment>)>,
@@ -1832,6 +1832,7 @@ pub(crate) mod values {
                     copyable: true,
                     no_code_affine_cleanup: false,
                     descriptor_cleanup: false,
+                    nominal_cleanup: None,
                     scalar_restriction: None,
                     shape,
                 }
@@ -2322,6 +2323,7 @@ pub(crate) mod values {
                 copyable: true,
                 no_code_affine_cleanup: true,
                 descriptor_cleanup: false,
+                nominal_cleanup: None,
                 shape: StructuralTypeShape::Record {
                     fields: (1..=2)
                         .map(|id| StructuralFieldDeclaration {

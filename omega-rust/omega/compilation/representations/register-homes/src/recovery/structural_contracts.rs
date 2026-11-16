@@ -113,8 +113,16 @@ pub(super) fn decode_invocation_site(
 ) -> Result<InvocationSite, FixedViewCopyDecodeError> {
     let tag = cursor.byte()?;
     let identity = cursor.u64()?;
+    if tag == 3 {
+        let edge =
+            EdgeId::new(identity).ok_or(FixedViewCopyDecodeError::InvalidSemanticId(identity))?;
+        return Ok(InvocationSite::Cleanup {
+            edge,
+            action_ordinal: cursor.u32()?,
+        });
+    }
     InvocationSite::from_tagged_identity(tag, identity).ok_or(match tag {
-        0 | 1 => FixedViewCopyDecodeError::InvalidSemanticId(identity),
+        0..=2 => FixedViewCopyDecodeError::InvalidSemanticId(identity),
         _ => FixedViewCopyDecodeError::UnknownOption(tag),
     })
 }
@@ -855,30 +863,21 @@ pub(super) fn decode_cleanup(
                 structural_type: decode_id(cursor, StructuralTypeId::new)?,
             },
         )),
-        tag @ (3 | 5) => {
-            let place = decode_id(cursor, PlaceId::new)?;
-            let path = decode_path(cursor)?;
-            let structural_type = decode_id(cursor, StructuralTypeId::new)?;
-            let cleanup_machine = decode_id(cursor, MachineId::new)?;
-            let consumed_claims = decode_ids(cursor, ClaimId::new)?;
-            let cleanup_receiver = optional(
-                cursor,
-                |cursor| decode_id(cursor, PlaceId::new),
-                FixedViewCopyDecodeError::UnknownOption,
-            )?;
-            Ok(TerminalAffineCleanupAction::InvokeNominal(
-                terminal_psi::NominalAffineCleanup {
-                    retains_descendants: tag == 5,
-                    place,
-                    path,
-                    structural_type,
-                    cleanup_machine,
-                    consumed_claims,
-                    cleanup_receiver,
-                    requirement_obligations: decode_ids(cursor, ObligationId::new)?,
-                },
-            ))
-        }
+        6 => Ok(TerminalAffineCleanupAction::InvokeOwned(
+            terminal_psi::OwnedCleanupInvocation {
+                subject: decode_semantic_argument(cursor)?,
+                structural_type: decode_id(cursor, StructuralTypeId::new)?,
+                cleanup_machine: decode_id(cursor, MachineId::new)?,
+                claim_transfers: decode_list(cursor, |cursor| {
+                    Ok::<_, FixedViewCopyDecodeError>(terminal_psi::ClaimTransfer {
+                        claim: decode_id(cursor, ClaimId::new)?,
+                        argument_index: cursor.u32()?,
+                        path: decode_path(cursor)?,
+                    })
+                })?,
+                requirement_obligations: decode_ids(cursor, ObligationId::new)?,
+            },
+        )),
         tag => Err(FixedViewCopyDecodeError::UnknownCleanupAction(tag)),
     }
 }
@@ -1165,7 +1164,6 @@ mod local_slot_tests {
             contracts: std::sync::Arc::new(selected_instructions::SelectedFunctionContracts {
                 machine: semantic_vocabulary::MachineId::new(1).unwrap(),
                 attachment: None,
-                nominal_cleanup_subject: None,
                 provenance: Default::default(),
                 structural: None,
                 local_storage_slots: Vec::new(),
@@ -1351,6 +1349,7 @@ mod signature_tests {
                         no_code_affine_cleanup: false,
                         copyable: false,
                         descriptor_cleanup: false,
+                        nominal_cleanup: None,
                         scalar_restriction: None,
                         id: semantic_vocabulary::StructuralTypeId::new(2).unwrap(),
                         identity: terminal_psi::TerminalIdentityIndex(1),
@@ -1456,5 +1455,32 @@ mod signature_tests {
         changed.clear();
         encode_signature(&mut changed, &reordered).unwrap();
         assert_ne!(bytes, changed);
+    }
+}
+
+#[cfg(test)]
+#[test]
+fn borrowed_cleanup_action_tags_are_retired() {
+    for tag in [3, 5] {
+        assert_eq!(
+            decode_cleanup(&mut Cursor::new(&[tag])),
+            Err(FixedViewCopyDecodeError::UnknownCleanupAction(tag)),
+        );
+    }
+}
+
+#[cfg(test)]
+#[test]
+fn cleanup_invocation_identity_round_trip_retains_edge_and_action() {
+    for (edge, action_ordinal) in [(1, 0), (1, 2), (2, 0)] {
+        let site = InvocationSite::Cleanup {
+            edge: EdgeId::new(edge).unwrap(),
+            action_ordinal,
+        };
+        let mut bytes = Vec::new();
+        site.encode_identity(&mut bytes);
+        let mut cursor = Cursor::new(&bytes);
+        assert_eq!(decode_invocation_site(&mut cursor).unwrap(), site);
+        assert_eq!(cursor.remaining(), 0);
     }
 }

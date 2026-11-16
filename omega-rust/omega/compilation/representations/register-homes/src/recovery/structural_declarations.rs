@@ -78,6 +78,11 @@ pub(super) fn encode_type(
     bytes.push(u8::from(declaration.no_code_affine_cleanup));
     bytes.push(u8::from(declaration.descriptor_cleanup));
     bytes.push(u8::from(declaration.copyable));
+    bytes.push(u8::from(declaration.nominal_cleanup.is_some()));
+    if let Some(selection) = &declaration.nominal_cleanup {
+        bytes.extend_from_slice(&selection.declaration.identity().0.to_le_bytes());
+        bytes.extend_from_slice(&selection.cleanup_machine.get().to_le_bytes());
+    }
     match &declaration.shape {
         StructuralTypeShape::Opaque => bytes.push(19),
         StructuralTypeShape::Reference { referent, access } => {
@@ -189,6 +194,16 @@ pub(super) fn decode_type(
     let no_code_affine_cleanup = decode_bool(cursor)?;
     let descriptor_cleanup = decode_bool(cursor)?;
     let copyable = decode_bool(cursor)?;
+    let nominal_cleanup = if decode_bool(cursor)? {
+        Some(terminal_psi::NominalCleanupSelection {
+            declaration: terminal_psi::NominalDeclarationIdentity::new(
+                terminal_psi::TerminalIdentityIndex(cursor.u32()?),
+            ),
+            cleanup_machine: decode_id(cursor, semantic_vocabulary::MachineId::new)?,
+        })
+    } else {
+        None
+    };
     let mut scalar_restriction = None;
     let shape = match cursor.byte()? {
         19 => StructuralTypeShape::Opaque,
@@ -296,6 +311,7 @@ pub(super) fn decode_type(
         no_code_affine_cleanup,
         copyable,
         descriptor_cleanup,
+        nominal_cleanup,
         scalar_restriction,
         id,
         identity,
@@ -1012,6 +1028,44 @@ mod tests {
     use terminal_wire::canonical_proposition_order_key;
 
     #[test]
+    fn nominal_cleanup_selection_round_trip_binds_declaration_and_target() {
+        let mut encodings = Vec::new();
+        for selection in [None, Some((2, 3)), Some((4, 3)), Some((2, 5))] {
+            let declaration = StructuralTypeDeclaration {
+                requires: Vec::new(),
+                quotient_carrier: None,
+                owns_linear_claim: false,
+                no_code_affine_cleanup: false,
+                descriptor_cleanup: false,
+                nominal_cleanup: selection.map(|(identity, machine)| {
+                    terminal_psi::NominalCleanupSelection {
+                        declaration: NominalDeclarationIdentity::new(TerminalIdentityIndex(
+                            identity,
+                        )),
+                        cleanup_machine: MachineId::new(machine).unwrap(),
+                    }
+                }),
+                copyable: false,
+                scalar_restriction: None,
+                id: StructuralTypeId::new(1).unwrap(),
+                identity: TerminalIdentityIndex(1),
+                declaration_identity: TerminalIdentityIndex(1),
+                shape: StructuralTypeShape::Record {
+                    fields: Vec::new(),
+                    storage: terminal_psi::StructuralRecordStorage::Packed,
+                },
+            };
+            let mut bytes = Vec::new();
+            encode_type(&mut bytes, &declaration).unwrap();
+            let mut cursor = Cursor::new(&bytes);
+            assert_eq!(decode_type(&mut cursor).unwrap(), declaration);
+            assert_eq!(cursor.remaining(), 0);
+            assert!(!encodings.contains(&bytes));
+            encodings.push(bytes);
+        }
+    }
+
+    #[test]
     fn logical_copy_permission_changes_encoded_identity() {
         let mut encodings = Vec::new();
         for copyable in [false, true] {
@@ -1022,6 +1076,7 @@ mod tests {
                 owns_linear_claim: false,
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: true,
+                nominal_cleanup: None,
                 copyable,
                 scalar_restriction: None,
                 id: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
@@ -1053,6 +1108,7 @@ mod tests {
                 no_code_affine_cleanup: false,
                 copyable: false,
                 descriptor_cleanup: false,
+                nominal_cleanup: None,
                 scalar_restriction: None,
                 id: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
                 identity: terminal_psi::TerminalIdentityIndex(1),
@@ -1088,6 +1144,7 @@ mod tests {
                 no_code_affine_cleanup: false,
                 copyable: false,
                 descriptor_cleanup: true,
+                nominal_cleanup: None,
                 scalar_restriction: None,
                 id: StructuralTypeId::new(2).unwrap(),
                 identity: terminal_psi::TerminalIdentityIndex(1),
@@ -1122,6 +1179,7 @@ mod tests {
             no_code_affine_cleanup: true,
             copyable: false,
             descriptor_cleanup: false,
+            nominal_cleanup: None,
             scalar_restriction: None,
             id: StructuralTypeId::new(7).unwrap(),
             identity: terminal_psi::TerminalIdentityIndex(1),
@@ -1168,6 +1226,7 @@ mod tests {
             no_code_affine_cleanup: false,
             copyable: false,
             descriptor_cleanup: false,
+            nominal_cleanup: None,
             scalar_restriction: None,
             id: StructuralTypeId::new(7).unwrap(),
             identity: terminal_psi::TerminalIdentityIndex(3),
@@ -1238,6 +1297,7 @@ mod tests {
                 no_code_affine_cleanup: false,
                 copyable: false,
                 descriptor_cleanup,
+                nominal_cleanup: None,
                 scalar_restriction: None,
                 id: StructuralTypeId::new(7).unwrap(),
                 identity: terminal_psi::TerminalIdentityIndex(4),
@@ -1325,6 +1385,7 @@ mod tests {
                 no_code_affine_cleanup: false,
                 copyable: false,
                 descriptor_cleanup: false,
+                nominal_cleanup: None,
                 scalar_restriction: None,
                 id: StructuralTypeId::new(7).unwrap(),
                 identity: terminal_psi::TerminalIdentityIndex(5),

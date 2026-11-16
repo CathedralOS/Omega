@@ -404,7 +404,8 @@ mod attribution {
                 Control::NormalizedForeignCall {
                     invocation_site, ..
                 } => match invocation_site {
-                    semantic_vocabulary::InvocationSite::InvokeNoNormal(_) => {
+                    semantic_vocabulary::InvocationSite::InvokeNoNormal(_)
+                    | semantic_vocabulary::InvocationSite::Cleanup { .. } => {
                         return Err(Error::Mismatch(
                             "foreign invocation names a module invocation edge",
                         ));
@@ -1028,7 +1029,6 @@ mod attribution {
             let source = AbstractFunction {
                 machine: MachineId::new(1).unwrap(),
                 attachment: None,
-                nominal_cleanup_subject: None,
                 entry: BlockId::new(1).unwrap(),
                 parameters: Vec::new(),
                 structural_parameters: Vec::new(),
@@ -1098,7 +1098,6 @@ mod attribution {
             let fragment = FunctionFragment {
                 machine: source.machine,
                 attachment: None,
-                nominal_cleanup_subject: None,
                 provenance: Default::default(),
                 byte_count: 8,
                 bytes: vec![0x90; 8],
@@ -3713,8 +3712,7 @@ mod production {
         let mut semantic_code_attribution = Vec::new();
         let mut requires_graph_storage_replay = false;
         for placed in &text.functions {
-            let (attachment, nominal_cleanup_subject, provenance) =
-                source::fragment_metadata(source, placed.machine)?;
+            let (attachment, provenance) = source::fragment_metadata(source, placed.machine)?;
             let abstracted = source::abstract_function(source, placed.machine)?;
             let abi = source::function_abi(source, placed.machine)?;
             requires_graph_storage_replay |=
@@ -3789,7 +3787,6 @@ mod production {
             functions.push(ObjectFunction {
                 machine: placed.machine,
                 attachment,
-                nominal_cleanup_subject,
                 scalar_abi: abi.scalar.clone(),
                 mixed_structural_scalar_abi: abi.mixed_structural_scalar.clone(),
                 structural_call_scalar_return: None,
@@ -6106,7 +6103,6 @@ mod source {
                         selected_instructions::SelectedFunctionContracts {
                             machine: MachineId::new(1).unwrap(),
                             attachment: None,
-                            nominal_cleanup_subject: None,
                             provenance: Default::default(),
                             structural: None,
                             local_storage_slots: vec![],
@@ -10149,12 +10145,582 @@ mod source {
     use machine_code::{FunctionFragmentEmissionPlan, FunctionTargetFrameLayout};
     use object_file::StagedOptimizedRelocationFreeObjectContainer;
     use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId};
+    // Pair the existing block-owned rosters once. This keeps no-code events and
+    // their annotations exact without searching the whole target graph per use.
+    mod correspondence {
+        use super::Error;
+        use abstract_operations::{AbstractBlock, AbstractFunction, AbstractOperation};
+        use optimization_unit::{OptimizationBlock, PsiOptimizationFunction};
+        use target_operations::{
+            TargetControlBlock, TargetFunction, TargetInstruction, TargetUnitOperation,
+        };
+
+        #[derive(Clone, Copy)]
+        pub(super) struct Operation<'a> {
+            pub(super) block: &'a TargetControlBlock,
+            pub(super) instruction: Option<&'a TargetInstruction>,
+        }
+
+        fn validate_block(
+            source: &AbstractBlock,
+            target: &TargetControlBlock,
+            canonical: &OptimizationBlock,
+        ) -> Result<(), Error> {
+            let invalid =
+                || Error::Mismatch("image instruction rosters differ from canonical source");
+            let (terminal, body) = source.operations.split_last().ok_or_else(invalid)?;
+            let (canonical_terminal, canonical_body) =
+                canonical.nodes.split_last().ok_or_else(invalid)?;
+            let body_len = target
+                .operations
+                .iter()
+                .position(|row| matches!(row.kind, TargetUnitOperation::CleanupCall { .. }))
+                .unwrap_or(target.operations.len());
+            let (ordinary, cleanup) = target.operations.split_at(body_len);
+            if source.block != target.block
+                || source.block != canonical.id
+                || source.structural_parameters != canonical.structural_parameters
+                || source.structural_parameters != target.structural_parameters
+                || source.parameters.len() != canonical.parameters.len()
+                || source.parameters.len() != target.parameters.len()
+                || source
+                    .parameters
+                    .iter()
+                    .zip(&canonical.parameters)
+                    .zip(&target.parameters)
+                    .any(|((source, canonical), target)| {
+                        source.value != canonical.value
+                            || source.scalar_type != canonical.scalar_type
+                            || source.value != target.value
+                            || source.scalar_type != target.scalar_type
+                    })
+                || body.len() != body_len
+                || body.len() != canonical_body.len()
+                || terminal != &canonical_terminal.operation
+                || target.terminator_metadata.work != canonical_terminal.work
+                || target.terminator_metadata.effect != canonical_terminal.effect
+                || target.terminator_metadata.ownership != canonical_terminal.ownership
+                || cleanup.iter().any(|row| {
+                    row.source.is_some()
+                        || !matches!(row.kind, TargetUnitOperation::CleanupCall { .. })
+                })
+            {
+                return Err(invalid());
+            }
+            for ((source, canonical), target) in body.iter().zip(canonical_body).zip(ordinary) {
+                let retained = target.source.as_ref().ok_or_else(invalid)?;
+                let result = match canonical.definitions.as_slice() {
+                    [] => None,
+                    [result] => Some(*result),
+                    _ => return Err(invalid()),
+                };
+                if source != &canonical.operation
+                    || super::aggregate_results::instruction_operation(&target.kind)
+                        .is_some_and(|operation| operation != retained.operation)
+                    || Some(retained.operation) != source.psi_operation()
+                    || retained.result != result
+                    || retained.metadata.work != canonical.work
+                    || retained.metadata.effect != canonical.effect
+                    || retained.metadata.ownership != canonical.ownership
+                {
+                    return Err(invalid());
+                }
+            }
+            Ok(())
+        }
+
+        fn block_operations<'a>(
+            source: &'a AbstractBlock,
+            target: &'a TargetControlBlock,
+        ) -> impl Iterator<Item = (&'a AbstractOperation, Operation<'a>)> {
+            // The constructor checked these exact body bounds and rosters.
+            let body_len = source.operations.len() - 1;
+            source.operations[..body_len]
+                .iter()
+                .zip(&target.operations[..body_len])
+                .map(move |(source, instruction)| {
+                    (
+                        source,
+                        Operation {
+                            block: target,
+                            instruction: Some(instruction),
+                        },
+                    )
+                })
+                .chain(std::iter::once((
+                    &source.operations[body_len],
+                    Operation {
+                        block: target,
+                        instruction: None,
+                    },
+                )))
+        }
+
+        pub(super) struct Function<'a> {
+            source: &'a AbstractFunction,
+            target: &'a TargetFunction,
+        }
+
+        impl<'a> Function<'a> {
+            pub(super) fn new(
+                source: &'a AbstractFunction,
+                target: &'a TargetFunction,
+                canonical: &PsiOptimizationFunction,
+            ) -> Result<Self, Error> {
+                if source.machine != target.machine
+                    || source.machine != canonical.machine
+                    || source.entry != target.graph.entry
+                    || source.entry != canonical.entry
+                    || source.blocks.is_empty()
+                    || source.blocks.len() != canonical.blocks.len()
+                    || source.blocks.len() != target.graph.blocks.len()
+                    || source
+                        .blocks
+                        .windows(2)
+                        .any(|pair| pair[0].block >= pair[1].block)
+                {
+                    return Err(Error::Mismatch("image function block rosters differ"));
+                }
+                for ((source, target), canonical) in source
+                    .blocks
+                    .iter()
+                    .zip(&target.graph.blocks)
+                    .zip(&canonical.blocks)
+                {
+                    validate_block(source, target, canonical)?;
+                }
+                Ok(Self { source, target })
+            }
+
+            pub(super) fn operations(
+                &self,
+            ) -> impl Iterator<Item = (&'a AbstractOperation, Operation<'a>)> + '_ {
+                self.source
+                    .blocks
+                    .iter()
+                    .zip(&self.target.graph.blocks)
+                    .flat_map(|(source, target)| block_operations(source, target))
+            }
+        }
+        #[cfg(test)]
+        mod tests {
+            use super::*;
+            use abstract_operations::AbstractFunctionResult;
+            use calling_conventions::{CallSignature, CallingPolicy, evaluate_call_plan};
+            use optimization_unit::{
+                EffectLink, OptimizationNode, OwnershipEvent, PsiProvenance, WorkSettlement,
+            };
+            use semantic_vocabulary::PsiSemanticId;
+            use target_operations::{
+                TargetControlGraph, TargetControlTerminator, TargetInstructionSource,
+                TargetOperationMetadata,
+            };
+            use terminal_psi::{StructuralAccess, StructuralArgument, StructuralPathSegment};
+
+            fn id<T: PsiSemanticId>(raw: u64) -> T {
+                T::new(raw).unwrap()
+            }
+
+            #[derive(Clone)]
+            struct Fixture {
+                source: AbstractFunction,
+                canonical: PsiOptimizationFunction,
+                target: TargetFunction,
+                selected: selected_instructions::SelectedFunction,
+            }
+
+            impl Fixture {
+                fn new() -> Self {
+                    let block = id(1);
+                    let operations =
+                        [1, 2].map(|raw| AbstractOperation::DecomposeStructuralValue {
+                            psi_operation: id(raw),
+                            subject: StructuralArgument {
+                                place: id(raw + 10),
+                                path: vec![],
+                                access: StructuralAccess::Owned,
+                            },
+                        });
+                    let terminal = AbstractOperation::ReturnUnit {
+                        psi_edge: id(3),
+                        cleanup_actions: vec![],
+                    };
+                    let mut nodes: Vec<_> = operations
+                        .iter()
+                        .map(|operation| OptimizationNode {
+                            operation: operation.clone(),
+                            provenance: vec![],
+                            work: vec![WorkSettlement {
+                                site: PsiProvenance::Operation(operation.psi_operation().unwrap()),
+                                units: 1,
+                            }],
+                            effect: EffectLink {
+                                input: 0,
+                                output: 0,
+                            },
+                            definitions: vec![],
+                            uses: vec![],
+                            successors: vec![],
+                            ownership: vec![],
+                        })
+                        .collect();
+                    nodes.push(OptimizationNode {
+                        operation: terminal.clone(),
+                        provenance: vec![],
+                        work: vec![],
+                        effect: EffectLink {
+                            input: 0,
+                            output: 0,
+                        },
+                        definitions: vec![],
+                        uses: vec![],
+                        successors: vec![],
+                        ownership: vec![],
+                    });
+                    let metadata = |node: &OptimizationNode| TargetOperationMetadata {
+                        work: node.work.clone(),
+                        effect: node.effect,
+                        ownership: node.ownership.clone(),
+                    };
+                    let instructions = nodes[..2]
+                        .iter()
+                        .map(|node| {
+                            let AbstractOperation::DecomposeStructuralValue {
+                                psi_operation,
+                                subject,
+                            } = &node.operation
+                            else {
+                                unreachable!()
+                            };
+                            TargetInstruction {
+                                source: Some(TargetInstructionSource {
+                                    operation: *psi_operation,
+                                    result: None,
+                                    metadata: metadata(node),
+                                }),
+                                kind: TargetUnitOperation::DecomposeStructuralValue {
+                                    psi_operation: *psi_operation,
+                                    subject: subject.clone(),
+                                },
+                            }
+                        })
+                        .collect();
+                    let mut source_operations = operations.to_vec();
+                    source_operations.push(terminal);
+                    let source = AbstractFunction {
+                        machine: id(1),
+                        attachment: None,
+                        entry: block,
+                        parameters: vec![],
+                        structural_parameters: vec![],
+                        result: AbstractFunctionResult::Unit,
+                        entry_claims: vec![],
+                        block_entry_claims: vec![],
+                        published_service_ceiling: vec![],
+                        blocks: vec![AbstractBlock {
+                            block,
+                            structural_parameters: vec![],
+                            parameters: vec![],
+                            operations: source_operations,
+                        }],
+                    };
+                    let target = TargetFunction {
+                        machine: source.machine,
+                        attachment: None,
+                        scalar_abi: None,
+                        mixed_structural_scalar_abi: None,
+                        structural_contract: None,
+                        provenance: Default::default(),
+                        graph: TargetControlGraph {
+                            structural_types: vec![].into(),
+                            call_plan: evaluate_call_plan(
+                                CallingPolicy::native_for_target(target::NativeTarget::linux_x64()),
+                                &CallSignature {
+                                    parameters: vec![],
+                                    result: None,
+                                },
+                            )
+                            .unwrap(),
+                            scalar_parameters: vec![],
+                            parameters: vec![],
+                            entry: block,
+                            blocks: vec![TargetControlBlock {
+                                block,
+                                parameters: vec![],
+                                structural_parameters: vec![],
+                                operations: instructions,
+                                terminator: TargetControlTerminator::Return {
+                                    psi_edge: id(3),
+                                    cleanup_actions: vec![],
+                                },
+                                terminator_metadata: metadata(&nodes[2]),
+                            }],
+                        },
+                    };
+                    let canonical = PsiOptimizationFunction {
+                        machine: source.machine,
+                        attachment: None,
+                        entry: block,
+                        parameters: vec![],
+                        structural_parameters: vec![],
+                        structural_places: vec![],
+                        result: AbstractFunctionResult::Unit,
+                        declared_places: Default::default(),
+                        entry_claim_declarations: vec![],
+                        block_entry_claims: vec![],
+                        content_entry_claims: vec![],
+                        verified_contract: None,
+                        evidence_contract_lanes: vec![],
+                        entry_claims: Default::default(),
+                        published_service_ceiling: vec![],
+                        declared_service_reach: vec![],
+                        facts: vec![],
+                        blocks: vec![OptimizationBlock {
+                            id: block,
+                            structural_parameters: vec![],
+                            parameters: vec![],
+                            nodes,
+                        }],
+                    };
+                    let selected = selected_instructions::SelectedFunction {
+                        contracts: std::sync::Arc::new(
+                            selected_instructions::SelectedFunctionContracts {
+                                machine: source.machine,
+                                attachment: None,
+                                provenance: Default::default(),
+                                structural: None,
+                                local_storage_slots: vec![],
+                                outgoing_arguments: vec![],
+                                calls: vec![],
+                                normalized_foreign_calls: vec![],
+                                memory_accesses: vec![],
+                                boundary_settlements: vec![],
+                                virtual_registers: vec![],
+                            },
+                        ),
+                        entry_block: selected_instructions::SelectedBlockId(0),
+                        blocks: vec![].into(),
+                    };
+                    Self {
+                        source,
+                        canonical,
+                        target,
+                        selected,
+                    }
+                }
+
+                fn aggregate_rows_match(&self) -> bool {
+                    let Ok(correspondence) =
+                        Function::new(&self.source, &self.target, &self.canonical)
+                    else {
+                        return false;
+                    };
+                    let mut addresses = super::super::placed_reference::AddressReplay::new(
+                        &self.target,
+                        &self.selected,
+                    );
+                    correspondence
+                        .operations()
+                        .filter(|(source, _)| source.psi_operation().is_some())
+                        .all(|(source, matched)| {
+                            super::super::aggregate_results::operation(
+                                source,
+                                &self.target,
+                                &self.selected,
+                                matched,
+                                &mut addresses,
+                            )
+                        })
+                }
+            }
+
+            #[test]
+            fn image_correspondence_retains_no_code_rows_and_exact_block_positions() {
+                let fixture = Fixture::new();
+                let correspondence =
+                    Function::new(&fixture.source, &fixture.target, &fixture.canonical).unwrap();
+                let rows: Vec<_> = correspondence.operations().collect();
+                assert_eq!(rows.len(), 3);
+                for (position, (source, target)) in rows[..2].iter().enumerate() {
+                    assert_eq!(source.psi_operation(), Some(id(position as u64 + 1)));
+                    assert_eq!(target.block.block, fixture.source.entry);
+                    assert_eq!(
+                        target.instruction,
+                        Some(&fixture.target.graph.blocks[0].operations[position])
+                    );
+                    assert!(
+                        target
+                            .instruction
+                            .unwrap()
+                            .source
+                            .as_ref()
+                            .unwrap()
+                            .result
+                            .is_none()
+                    );
+                }
+                assert!(rows[2].1.instruction.is_none());
+                assert!(fixture.aggregate_rows_match());
+                assert_eq!(fixture.selected.instructions().count(), 0);
+            }
+
+            #[test]
+            fn image_correspondence_rejects_roster_subject_and_metadata_tampering() {
+                let fixture = Fixture::new();
+                for mutation in 0..21 {
+                    let mut changed = fixture.clone();
+                    let rows = &mut changed.target.graph.blocks[0].operations;
+                    match mutation {
+                        0 => {
+                            rows.remove(0);
+                        }
+                        1 => {
+                            rows.insert(0, rows[0].clone());
+                        }
+                        2 => rows.swap(0, 1),
+                        3..=5 => {
+                            let TargetUnitOperation::DecomposeStructuralValue {
+                                psi_operation,
+                                subject,
+                            } = &mut rows[0].kind
+                            else {
+                                unreachable!()
+                            };
+                            match mutation {
+                                3 => subject.place = id(99),
+                                4 => subject.path.push(StructuralPathSegment::Field(
+                                    terminal_psi::TerminalIdentityIndex(1),
+                                )),
+                                5 => *psi_operation = id(99),
+                                _ => unreachable!(),
+                            }
+                        }
+                        6 => rows[0].source.as_mut().unwrap().operation = id(99),
+                        7 => rows[0].source.as_mut().unwrap().metadata.work[0].units += 1,
+                        8 => rows[0].source.as_mut().unwrap().metadata.effect.output = 1,
+                        9 => rows[0]
+                            .source
+                            .as_mut()
+                            .unwrap()
+                            .metadata
+                            .ownership
+                            .push(OwnershipEvent::ClaimTransfer(vec![id(99)])),
+                        10 => {
+                            rows[0].source.as_mut().unwrap().result =
+                                Some(optimization_unit::ValueDefinition {
+                                    value: id(99),
+                                    scalar_type: semantic_vocabulary::ScalarType::Boolean,
+                                    site: optimization_unit::ValueDefinitionSite::Node {
+                                        block: id(1),
+                                        node: 0,
+                                    },
+                                })
+                        }
+                        11 => changed.canonical.blocks[0].nodes.swap(0, 1),
+                        12 => changed.source.blocks[0].block = id(99),
+                        13 => changed.target.graph.blocks[0].block = id(99),
+                        14 => changed.target.machine = id(99),
+                        15 => rows[0].source = None,
+                        16 => {
+                            changed.target.graph.blocks[0]
+                                .terminator_metadata
+                                .effect
+                                .output = 1
+                        }
+                        17 => changed.source.blocks[0].operations.swap(0, 1),
+                        18 => changed.target.graph.entry = id(99),
+                        19 => {
+                            changed.source.blocks.push(changed.source.blocks[0].clone());
+                            changed
+                                .target
+                                .graph
+                                .blocks
+                                .push(changed.target.graph.blocks[0].clone());
+                            changed
+                                .canonical
+                                .blocks
+                                .push(changed.canonical.blocks[0].clone());
+                        }
+                        20 => rows[1].kind = rows[0].kind.clone(),
+                        _ => unreachable!(),
+                    }
+                    assert!(!changed.aggregate_rows_match(), "mutation {mutation}");
+                }
+            }
+
+            #[test]
+            fn image_correspondence_rejects_ordinary_rows_after_cleanup_suffix() {
+                let fixture = Fixture::new();
+                let cleanup = TargetInstruction {
+                    source: None,
+                    kind: TargetUnitOperation::CleanupCall {
+                        owner: target_operations::CallSiteOwner::CleanupAction {
+                            edge: id(3),
+                            action_ordinal: 0,
+                        },
+                        callee: id(4),
+                        arguments: vec![],
+                        call_plan: fixture.target.graph.call_plan.clone(),
+                        requirement_obligations: vec![],
+                    },
+                };
+                let mut changed = fixture.clone();
+                changed.target.graph.blocks[0]
+                    .operations
+                    .push(cleanup.clone());
+                changed.target.graph.blocks[0]
+                    .operations
+                    .push(fixture.target.graph.blocks[0].operations[0].clone());
+                assert!(!changed.aggregate_rows_match());
+                let mut changed = fixture.clone();
+                let mut annotated_cleanup = cleanup;
+                annotated_cleanup.source =
+                    fixture.target.graph.blocks[0].operations[0].source.clone();
+                changed.target.graph.blocks[0]
+                    .operations
+                    .push(annotated_cleanup);
+                assert!(!changed.aggregate_rows_match());
+            }
+        }
+    }
+
     mod aggregate_results {
         use abstract_operations::{
             AbstractFunction, AbstractOperation, AbstractStructuralCallResult,
         };
         use selected_instructions::{SelectedFunction, SelectedTerminator};
         use target_operations::{TargetControlTerminator, TargetFunction, TargetUnitOperation};
+
+        // Every target row this family queries must bind its own operation ID
+        // to the checked annotation. A duplicate hidden in another source slot
+        // then fails before the per-operation predicates run.
+        pub(super) fn instruction_operation(
+            row: &TargetUnitOperation,
+        ) -> Option<semantic_vocabulary::OperationId> {
+            match row {
+                TargetUnitOperation::DecomposeStructuralValue { psi_operation, .. }
+                | TargetUnitOperation::EstablishActivationClaim { psi_operation, .. }
+                | TargetUnitOperation::EstablishCase { psi_operation, .. }
+                | TargetUnitOperation::EstablishNativeCodeLayout { psi_operation, .. }
+                | TargetUnitOperation::EstablishRecord { psi_operation, .. }
+                | TargetUnitOperation::EstablishReference { psi_operation, .. }
+                | TargetUnitOperation::EstablishScalarArray { psi_operation, .. }
+                | TargetUnitOperation::EstablishStructuralArray { psi_operation, .. }
+                | TargetUnitOperation::EstablishStructuralLocal { psi_operation, .. }
+                | TargetUnitOperation::EstablishTrivialAffineLocal { psi_operation, .. }
+                | TargetUnitOperation::EstablishZeroedStructural { psi_operation, .. }
+                | TargetUnitOperation::MergeActivationClaim { psi_operation, .. }
+                | TargetUnitOperation::ReleaseActivationClaim { psi_operation, .. }
+                | TargetUnitOperation::ReleaseReference { psi_operation, .. }
+                | TargetUnitOperation::SplitActivationClaim { psi_operation, .. }
+                | TargetUnitOperation::StoreStructuralField { psi_operation, .. }
+                | TargetUnitOperation::StructuralCaseMembership { psi_operation, .. }
+                | TargetUnitOperation::StructuralLeafCopy { psi_operation, .. } => {
+                    Some(*psi_operation)
+                }
+                _ => None,
+            }
+        }
 
         pub(super) fn header(
             source: &AbstractFunction,
@@ -10199,12 +10765,15 @@ mod source {
             source: &AbstractOperation,
             target: &TargetFunction,
             selected: &SelectedFunction,
+            matched: super::correspondence::Operation<'_>,
             addresses: &mut super::placed_reference::AddressReplay<'_>,
         ) -> bool {
             let graph = &target.graph;
+            let retained = matched.instruction.map(|row| &row.kind);
+            let block = matched.block;
             match source {
                 AbstractOperation::EstablishActivationClaim { psi_operation, result, bound, committed, backing_type, established_case, rejected_case } => {
-                    graph.operations().filter(|row| matches!(row,
+                    retained.is_some_and(|row| matches!(row,
                         TargetUnitOperation::EstablishActivationClaim {
                             psi_operation: retained, result_home, bound: retained_bound,
                             committed: retained_committed, backing_type: retained_backing,
@@ -10217,18 +10786,18 @@ mod source {
                                     && integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed)
                             && retained_backing == backing_type && retained_established == established_case
                             && retained_rejected == rejected_case
-                    )).count() == 1
+                    ))
                         && selected.instructions().any(|row| row.provenance.operations.contains(psi_operation))
                 }
                 AbstractOperation::ReleaseActivationClaim { psi_operation, source, claim } => {
-                    graph.operations().filter(|row| matches!(row,
+                    retained.is_some_and(|row| matches!(row,
                         TargetUnitOperation::ReleaseActivationClaim { psi_operation: retained, source: retained_source, claim: retained_claim }
                         if retained == psi_operation && retained_source == source && retained_claim == claim
-                    )).count() == 1
+                    ))
                         && selected.instructions().any(|row| row.provenance.operations.contains(psi_operation))
                 }
                 AbstractOperation::SplitActivationClaim { psi_operation, result, source, claim, bound_at, committed_at, covered_case, rejected_case } => {
-                    graph.operations().filter(|row| matches!(row,
+                    retained.is_some_and(|row| matches!(row,
                         TargetUnitOperation::SplitActivationClaim {
                             psi_operation: retained, result_home, source: retained_source, claim: retained_claim,
                             bound_at: retained_bound, committed: retained_committed, covered_case: retained_covered,
@@ -10238,11 +10807,11 @@ mod source {
                             && retained_source == source && retained_claim == claim
                             && retained_bound == bound_at && retained_committed.source_value() == *committed_at
                             && retained_covered == covered_case && retained_rejected == rejected_case
-                    )).count() == 1
+                    ))
                         && selected.instructions().any(|row| row.provenance.operations.contains(psi_operation))
                 }
                 AbstractOperation::MergeActivationClaim { psi_operation, result, lower, upper, lower_claim, upper_claim, covered_case, rejected_case } => {
-                    graph.operations().filter(|row| matches!(row,
+                    retained.is_some_and(|row| matches!(row,
                         TargetUnitOperation::MergeActivationClaim {
                             psi_operation: retained, result_home, lower: retained_lower, upper: retained_upper,
                             lower_claim: retained_lower_claim, upper_claim: retained_upper_claim,
@@ -10252,19 +10821,22 @@ mod source {
                             && retained_lower == lower && retained_upper == upper
                             && retained_lower_claim == lower_claim && retained_upper_claim == upper_claim
                             && retained_covered == covered_case && retained_rejected == rejected_case
-                    )).count() == 1
+                    ))
                         && selected.instructions().any(|row| row.provenance.operations.contains(psi_operation))
                 }
                 AbstractOperation::StructuralCaseMembership { psi_operation, result, source, path, case } => {
-                    let target_rows = addresses.case_operations(*psi_operation);
-                    let mut observations = target_rows.into_iter().filter_map(|row| match row {
-                        TargetUnitOperation::StructuralCaseMembership { psi_operation: retained, result: retained_result, source: retained_source, path: retained_path, case: retained_case, tag_byte_offset, .. }
-                            if retained == psi_operation && retained_result == result && retained_source == source && retained_path == path && retained_case == case => Some(*tag_byte_offset),
-                        _ => None,
-                    });
-                    let Some(tag_byte_offset) = observations.next() else { return false; };
+                    let Some(TargetUnitOperation::StructuralCaseMembership {
+                        psi_operation: retained_operation, result: retained_result,
+                        source: retained_source, path: retained_path, case: retained_case,
+                        tag_byte_offset, ..
+                    }) = retained else { return false; };
+                    if retained_operation != psi_operation || retained_result != result
+                        || retained_source != source || retained_path != path || retained_case != case
+                    {
+                        return false;
+                    }
+                    let tag_byte_offset = *tag_byte_offset;
                     result.scalar_type == semantic_vocabulary::ScalarType::Boolean
-                        && observations.next().is_none()
                         && {
                         let instructions = addresses.operation_instructions(*psi_operation);
                         instructions.into_iter().filter(|row|
@@ -10281,10 +10853,10 @@ mod source {
                         }
                 }
                 AbstractOperation::EstablishNativeCodeLayout { psi_operation, result, machine } => {
-                    graph.operations().filter(|row| matches!(row,
+                    retained.is_some_and(|row| matches!(row,
                         TargetUnitOperation::EstablishNativeCodeLayout { psi_operation: retained, result_home, machine: selected_machine }
                         if retained == psi_operation && result_home.operation_result() == Some((*psi_operation, result))
-                            && selected_machine == machine)).count() == 1
+                            && selected_machine == machine))
                         && selected.instructions().filter(|row| {
                             row.provenance.operations.contains(psi_operation)
                                 && matches!(row.kind, selected_instructions::SelectedInstructionKind::ImageAddress {
@@ -10293,27 +10865,27 @@ mod source {
                         }).count() == 1
                 }
                 AbstractOperation::EstablishRecord { psi_operation, result, fields } => {
-                    graph.operations().filter(|row| matches!(row,
+                    retained.is_some_and(|row| matches!(row,
                         TargetUnitOperation::EstablishRecord { psi_operation: retained, result_home, fields: retained_fields }
-                        if psi_operation == retained && result_home.operation_result() == Some((*psi_operation, result)) && fields == retained_fields)).count() == 1
+                        if psi_operation == retained && result_home.operation_result() == Some((*psi_operation, result)) && fields == retained_fields))
                 }
                 AbstractOperation::MoveStructuralValue { psi_operation, result, source }
                 | AbstractOperation::TransformContent { psi_operation, result, source, .. } => {
-                    graph.operations().filter(|row| matches!(row,
+                    retained.is_some_and(|row| matches!(row,
                         TargetUnitOperation::StructuralLeafCopy { psi_operation: retained, result_home, source: retained_source, path: abstract_operations::StructuralCopyPath::Ordinary(retained_path), .. }
                             if retained == psi_operation && result_home.operation_result() == Some((*psi_operation, result))
                                 && *retained_source == source.place && *retained_path == source.path
-                    )).count() == 1
+                    ))
                 }
                 AbstractOperation::StructuralLeafCopy { psi_operation, result, source, path } => {
-                    graph.operations().filter(|row| matches!(row,
+                    retained.is_some_and(|row| matches!(row,
                         TargetUnitOperation::StructuralLeafCopy { psi_operation: retained, result_home, source: retained_source, path: retained_path, .. }
                             if retained == psi_operation && result_home.operation_result() == Some((*psi_operation, result))
                                 && retained_source == source && retained_path == path
-                    )).count() == 1
+                    ))
                 }
                 AbstractOperation::MoveStructuralField { psi_operation, result, source, path, field } => {
-                    graph.operations().filter(|row| match row {
+                    retained.is_some_and(|row| match row {
                         TargetUnitOperation::StructuralLeafCopy { psi_operation: retained, result_home, source: retained_source, path: abstract_operations::StructuralCopyPath::Ordinary(retained_path), indices, .. }
                             if retained == psi_operation && result_home.operation_result() == Some((*psi_operation, result))
                                 && *retained_source == source.place() => {
@@ -10330,10 +10902,10 @@ mod source {
                             }
                         }
                         _ => false,
-                    }).count() == 1
+                    })
                 }
                 AbstractOperation::StoreStructuralField { psi_operation, destination, path, field, value, .. } => {
-                    graph.operations().filter(|row| match row {
+                    retained.is_some_and(|row| match row {
                         TargetUnitOperation::StoreStructuralField { psi_operation: retained, destination: retained_destination, path: retained_path, field: retained_field, value: retained_value, indices, .. }
                             if retained == psi_operation && retained_destination == destination && retained_path == path
                                 && retained_field == field && *retained_value == value.place => {
@@ -10341,25 +10913,31 @@ mod source {
                                 matches!(segment, terminal_psi::StructuralPathSegment::RuntimeIndex { .. })).count()
                         }
                         _ => false,
-                    }).count() == 1
+                    })
+                }
+                AbstractOperation::DecomposeStructuralValue { psi_operation, subject } => {
+                    retained.is_some_and(|row| matches!(row,
+                        TargetUnitOperation::DecomposeStructuralValue { psi_operation: retained, subject: retained_subject }
+                            if retained == psi_operation && retained_subject == subject
+                    ))
                 }
                 AbstractOperation::EstablishTrivialAffineLocal { psi_operation, place, structural_type } => {
-                    graph.operations().filter(|row| matches!(row,
+                    retained.is_some_and(|row| matches!(row,
                         TargetUnitOperation::EstablishTrivialAffineLocal { psi_operation: retained, place: retained_place, structural_type: retained_type }
                             if retained == psi_operation && retained_place == place && retained_type == structural_type
-                    )).count() == 1
+                    ))
                 }
                 AbstractOperation::EstablishZeroedStructural { psi_operation, result } => {
-                    graph.operations().filter(|row| matches!(row,
+                    retained.is_some_and(|row| matches!(row,
                         TargetUnitOperation::EstablishZeroedStructural { psi_operation: retained, result_home }
                             if retained == psi_operation && result_home.operation_result() == Some((*psi_operation, result))
-                    )).count() == 1
+                    ))
                 }
                 AbstractOperation::EstablishStructuralLocal { psi_operation, result } => {
-                    graph.operations().filter(|row| matches!(row,
+                    retained.is_some_and(|row| matches!(row,
                         TargetUnitOperation::EstablishStructuralLocal { psi_operation: retained, result_home }
                             if retained == psi_operation && result_home.operation_result() == Some((*psi_operation, result))
-                    )).count() == 1
+                    ))
                 }
                 AbstractOperation::EstablishStructuralArray { psi_operation, result, elements } => {
                     graph.structural_types.iter().any(|declaration|
@@ -10369,35 +10947,35 @@ mod source {
                                     if u64::try_from(elements.len()).ok() == Some(length))
                                 || matches!(declaration.shape,
                                     terminal_psi::StructuralTypeShape::ElementView { access: None, .. })))
-                        && graph.operations().filter(|row| matches!(row,
+                        && retained.is_some_and(|row| matches!(row,
                             TargetUnitOperation::EstablishStructuralArray { psi_operation: retained, result_home, elements: retained_elements }
                                 if retained == psi_operation && result_home.operation_result() == Some((*psi_operation, result))
                                     && retained_elements == elements
-                        )).count() == 1
+                        ))
                 }
                 AbstractOperation::EstablishScalarArray { psi_operation, result, elements } => {
-                    graph.operations().filter(|row| matches!(row,
+                    retained.is_some_and(|row| matches!(row,
                         TargetUnitOperation::EstablishScalarArray { psi_operation: retained, result_home, elements: retained_elements }
                             if retained == psi_operation && result_home.operation_result() == Some((*psi_operation, result)) && retained_elements == elements
-                    )).count() == 1
+                    ))
                 }
                 AbstractOperation::EstablishCase { psi_operation, result, result_case, fields } => {
-                    graph.operations().filter(|row| matches!(row,
+                    retained.is_some_and(|row| matches!(row,
                         TargetUnitOperation::EstablishCase { psi_operation: retained, result_home, result_case: retained_case, fields: retained_fields }
                             if retained == psi_operation && result_home.operation_result() == Some((*psi_operation, result)) && retained_case == result_case && retained_fields == fields
-                    )).count() == 1
+                    ))
                 }
                 AbstractOperation::EstablishReference { psi_operation, result, source, storage } => {
-                    graph.operations().filter(|row| matches!(row,
+                    retained.is_some_and(|row| matches!(row,
                         TargetUnitOperation::EstablishReference { psi_operation: retained, result_home, source: retained_source, storage: retained_storage, .. }
                         if retained == psi_operation && result_home.operation_result() == Some((*psi_operation, result)) && retained_source == source && retained_storage == storage
-                    )).count() == 1
+                    ))
                 }
                 AbstractOperation::ReleaseReference { psi_operation, source, path } => {
-                    graph.operations().filter(|row| matches!(row,
+                    retained.is_some_and(|row| matches!(row,
                         TargetUnitOperation::ReleaseReference { psi_operation: retained, source: retained_source, path: retained_path }
                         if retained == psi_operation && retained_source == source && retained_path == path
-                    )).count() == 1
+                    ))
                 }
                 AbstractOperation::CallStructural {
                     psi_operation,
@@ -10413,13 +10991,13 @@ mod source {
                 }
                 AbstractOperation::ReturnStructural { psi_edge, source, trivial_affine_locals, cleanup_actions: expected_cleanup, .. } => {
                     trivial_affine_locals.is_empty()
-                        && graph.blocks.iter().filter(|block| matches!(&block.terminator,
+                        && matches!(&block.terminator,
                             TargetControlTerminator::ReturnStructural { psi_edge: retained, source: home, cleanup_actions }
                                 if retained == psi_edge && match home {
                                     target_operations::TargetStructuralReturnSource::Home(home) => home.place() == *source,
                                     target_operations::TargetStructuralReturnSource::Parameter(parameter) => parameter.place == *source,
                                     target_operations::TargetStructuralReturnSource::SharedDescriptor { place } => *place == *source,
-                                } && cleanup_actions == expected_cleanup && super::control_flow::return_cleanup_calls_match(cleanup_actions, block.operations(), &graph.structural_types, *psi_edge))).count() == 1
+                                } && cleanup_actions == expected_cleanup && super::control_flow::return_cleanup_calls_match(cleanup_actions, block.operations(), &graph.structural_types, *psi_edge))
                         && selected.blocks.iter().filter(|block| matches!(&block.terminator,
                             SelectedTerminator::Return { psi_return_edge, instruction }
                                 if psi_return_edge == psi_edge && (matches!(instruction.kind, selected_instructions::SelectedInstructionKind::ReturnAggregate { .. } | selected_instructions::SelectedInstructionKind::ReturnScalar)
@@ -10731,7 +11309,7 @@ mod source {
                     actions
                         .iter()
                         .filter(|action| {
-                            matches!(action, TerminalAffineCleanupAction::InvokeNominal(_))
+                            matches!(action, TerminalAffineCleanupAction::InvokeOwned(_))
                         })
                         .count()
                 })
@@ -10765,7 +11343,8 @@ mod source {
                     callee,
                     arguments,
                     call_plan,
-                } => Some((owner, callee, arguments, call_plan)),
+                    requirement_obligations,
+                } => Some((owner, callee, arguments, call_plan, requirement_obligations)),
                 _ => None,
             });
             for (ordinal, action) in actions.iter().enumerate() {
@@ -10773,12 +11352,14 @@ mod source {
                     TerminalAffineCleanupAction::DiscardRoot(_)
                     | TerminalAffineCleanupAction::RetireHome(_)
                     | TerminalAffineCleanupAction::DiscardResidual(_) => continue,
-                    TerminalAffineCleanupAction::InvokeNominal(nominal) => nominal,
+                    TerminalAffineCleanupAction::InvokeOwned(nominal) => nominal,
                 };
                 let Ok(action_ordinal) = u32::try_from(ordinal) else {
                     return false;
                 };
-                let Some((owner, callee, arguments, call_plan)) = calls.next() else {
+                let Some((owner, callee, arguments, call_plan, requirement_obligations)) =
+                    calls.next()
+                else {
                     return false;
                 };
                 if *owner
@@ -10787,47 +11368,56 @@ mod source {
                         action_ordinal,
                     })
                     || *callee != nominal.cleanup_machine
-                    || !nominal.requirement_obligations.is_empty()
+                    || *requirement_obligations != nominal.requirement_obligations
+                    || !nominal.claim_transfers.is_empty()
+                    || nominal.subject.access != terminal_psi::StructuralAccess::Owned
                     || call_plan.result.is_some()
-                    || arguments.len() != usize::from(nominal.cleanup_receiver.is_some())
+                    || arguments.len() != 1
                     || arguments.len() != call_plan.parameters.len()
                     || arguments
                         .iter()
                         .zip(&call_plan.parameters)
                         .any(|(argument, placement)| {
                             let projection = if argument.path.is_empty() {
-                                layouts.value_shape(argument.root_structural_type)
-                                    .map(|shape| (argument.root_structural_type, shape, 0, Vec::new()))
+                                layouts
+                                    .value_shape(argument.root_structural_type)
+                                    .map(|shape| {
+                                        (argument.root_structural_type, shape, 0, Vec::new())
+                                    })
                             } else {
                                 layouts.runtime_projection(
                                     argument.root_structural_type,
                                     &argument.path,
                                 )
                             };
-                            argument.place != nominal.place
+                            argument.place != nominal.subject.place
                                 || argument.structural_type != nominal.structural_type
-                                || argument.path != nominal.path
-                                || projection.is_none_or(|(leaf_type, leaf_shape, byte_offset, elements)| {
-                                    let selectors = argument.path.iter().filter_map(|segment| segment.runtime_index().map(|(value, _)| value)).collect::<Vec<_>>();
-                                    leaf_type != nominal.structural_type
-                                        || elements.len() != argument.indices.len()
-                                        || selectors.len() != argument.indices.len()
-                                        || elements.iter().zip(&argument.indices).zip(selectors).any(|(((_, stride), actual), selector)| {
-                                            actual.stride != *stride || actual.operand.source_value() != selector
-                                        })
-                                        || argument.source_byte_offset != byte_offset
-                                        || argument.shape != calling_conventions::ValueShape::borrowed_reference(
-                                            leaf_shape.byte_size,
-                                            leaf_shape.alignment,
-                                        )
-                                })
-                                || !matches!(
-                                    argument.access,
-                                    terminal_psi::StructuralAccess::MutableBorrow
-                                        | terminal_psi::StructuralAccess::WriteOnlyBorrow
+                                || argument.path != nominal.subject.path
+                                || projection.is_none_or(
+                                    |(leaf_type, leaf_shape, byte_offset, elements)| {
+                                        let selectors = argument
+                                            .path
+                                            .iter()
+                                            .filter_map(|segment| {
+                                                segment.runtime_index().map(|(value, _)| value)
+                                            })
+                                            .collect::<Vec<_>>();
+                                        leaf_type != nominal.structural_type
+                                            || elements.len() != argument.indices.len()
+                                            || selectors.len() != argument.indices.len()
+                                            || elements
+                                                .iter()
+                                                .zip(&argument.indices)
+                                                .zip(selectors)
+                                                .any(|(((_, stride), actual), selector)| {
+                                                    actual.stride != *stride
+                                                        || actual.operand.source_value() != selector
+                                                })
+                                            || argument.source_byte_offset != byte_offset
+                                            || argument.shape != leaf_shape
+                                    },
                                 )
-                                || argument.shape.class
-                                    != calling_conventions::ValueClass::BorrowedReference
+                                || argument.access != terminal_psi::StructuralAccess::Owned
                                 || argument.shape != placement.shape
                                 || argument.destination != *placement
                         })
@@ -10842,18 +11432,16 @@ mod source {
         mod cleanup_tests {
             use super::{retained, return_cleanup_calls_match};
             use crate::object::object_artifact::test_support::structural_declaration;
-            use calling_conventions::{
-                CallSignature, CallingPolicy, ValueShape, evaluate_call_plan,
-            };
+            use calling_conventions::{CallSignature, CallingPolicy, evaluate_call_plan};
             use semantic_vocabulary::{
                 BlockId, EdgeId, IeeeFloatFormat, MachineId, OperationId, PlaceId, ScalarType,
                 StructuralFieldId, StructuralTypeId,
             };
             use target_operations::{CallSiteOwner, TargetStructuralArgument, TargetUnitOperation};
             use terminal_psi::{
-                BindingRelevance, NominalAffineCleanup, StructuralAccess, StructuralAffineDiscard,
-                StructuralFieldDeclaration, StructuralFieldType, StructuralPathSegment,
-                StructuralTypeShape, TerminalAffineCleanupAction,
+                BindingRelevance, OwnedCleanupInvocation, StructuralAccess,
+                StructuralAffineDiscard, StructuralFieldDeclaration, StructuralFieldType,
+                StructuralPathSegment, StructuralTypeShape, TerminalAffineCleanupAction,
             };
 
             #[test]
@@ -10882,7 +11470,7 @@ mod source {
                     .into();
 
                 let machine = MachineId::new(9).unwrap();
-                let shape = ValueShape::borrowed_reference(4, 4);
+                let shape = crate::object::object_artifact::replay::structural::condition_layout::StructuralReplay::new(&structural_types).unwrap().value_shape(structural_type).unwrap();
                 let plan = evaluate_call_plan(
                     CallingPolicy::native_for_target(target::NativeTarget::linux_x64()),
                     &CallSignature {
@@ -10896,16 +11484,20 @@ mod source {
                 for (ordinal, place) in
                     [(0, PlaceId::new(1).unwrap()), (3, PlaceId::new(2).unwrap())]
                 {
-                    actions.push(TerminalAffineCleanupAction::InvokeNominal(
-                        NominalAffineCleanup {
-                            retains_descendants: false,
-                            place,
-                            path: Vec::new(),
+                    actions.push(TerminalAffineCleanupAction::InvokeOwned(
+                        OwnedCleanupInvocation {
+                            subject: terminal_psi::StructuralArgument {
+                                place,
+                                path: Vec::new(),
+                                access: terminal_psi::StructuralAccess::Owned,
+                            },
                             structural_type,
                             cleanup_machine: machine,
-                            consumed_claims: Vec::new(),
-                            cleanup_receiver: Some(PlaceId::new(3).unwrap()),
-                            requirement_obligations: Vec::new(),
+                            claim_transfers: Vec::new(),
+                            requirement_obligations: vec![
+                                semantic_vocabulary::ObligationId::new(u64::from(ordinal) + 1)
+                                    .unwrap(),
+                            ],
                         },
                     ));
                     if ordinal == 0 {
@@ -10921,9 +11513,12 @@ mod source {
                         },
                         callee: machine,
                         call_plan: plan.clone(),
+                        requirement_obligations: vec![
+                            semantic_vocabulary::ObligationId::new(u64::from(ordinal) + 1).unwrap(),
+                        ],
                         arguments: vec![TargetStructuralArgument {
                             place,
-                            access: StructuralAccess::MutableBorrow,
+                            access: StructuralAccess::Owned,
                             path: Vec::new(),
                             root_structural_type: structural_type,
                             structural_type,
@@ -10943,7 +11538,7 @@ mod source {
                     &structural_types,
                     edge
                 ));
-                for mutation in 0..7 {
+                for mutation in 0..8 {
                     let mut hostile = calls.clone();
                     match mutation {
                         0 => {
@@ -10954,6 +11549,24 @@ mod source {
                         }
                         2 => {
                             hostile.swap(0, 1);
+                        }
+                        7 => {
+                            let TargetUnitOperation::CleanupCall {
+                                requirement_obligations: first,
+                                ..
+                            } = &hostile[0]
+                            else {
+                                unreachable!()
+                            };
+                            let copied = first.clone();
+                            let TargetUnitOperation::CleanupCall {
+                                requirement_obligations: second,
+                                ..
+                            } = &mut hostile[1]
+                            else {
+                                unreachable!()
+                            };
+                            *second = copied;
                         }
                         _ => {
                             let TargetUnitOperation::CleanupCall {
@@ -11005,7 +11618,6 @@ mod source {
                 target_operations::TargetFunction {
                     machine: MachineId::new(1).unwrap(),
                     attachment: None,
-                    nominal_cleanup_subject: None,
                     scalar_abi: None,
                     mixed_structural_scalar_abi: None,
                     structural_contract: None,
@@ -11245,7 +11857,7 @@ mod source {
                             source.structural_types.as_slice(),
                             &source.dynamic_dispatch,
                         )?;
-                    record_selected_formation_calls(source, targeted, &mut graph);
+                    record_selected_formation_calls(source, targeted, &mut graph)?;
                     Some(graph)
                 }
 
@@ -11595,6 +12207,7 @@ mod source {
                         pub position: Result<DescriptorPosition, &'static str>,
                         pub target: SourceCallTarget,
                         pub arguments: &'a [StructuralArgument],
+                        pub cleanup: Option<&'a terminal_psi::OwnedCleanupInvocation>,
                     }
                     struct Row<'a> {
                         caller: MachineId,
@@ -11610,6 +12223,25 @@ mod source {
                             for body in &source.functions {
                                 for block in &body.blocks {
                                     for (offset, operation) in block.operations.iter().enumerate() {
+                                        for (edge, actions) in operation.cleanup_rosters() {
+                                            for (ordinal, action) in actions.iter().enumerate() {
+                                                let terminal_psi::TerminalAffineCleanupAction::InvokeOwned(cleanup) = action else { continue; };
+                                                let Ok(action_ordinal) = u32::try_from(ordinal)
+                                                else {
+                                                    continue;
+                                                };
+                                                rows.push(Row {
+                                                    caller: body.machine,
+                                                    site: InvocationSite::Cleanup { edge, action_ordinal },
+                                                    source: SourceSite {
+                                                        position: u32::try_from(offset).map(|offset| (block.block, offset)).map_err(|_| "cleanup caller position exceeds descriptor range"),
+                                                        target: SourceCallTarget::Machine(cleanup.cleanup_machine),
+                                                        arguments: std::slice::from_ref(&cleanup.subject),
+                                                        cleanup: Some(cleanup),
+                                                    },
+                                                });
+                                            }
+                                        }
                                         let (site, target, arguments) = match operation {
                                             AbstractOperation::InvokeNoNormal {
                                                 psi_edge,
@@ -11647,6 +12279,7 @@ mod source {
                                                 position,
                                                 target,
                                                 arguments,
+                                                cleanup: None,
                                             },
                                         });
                                     }
@@ -11725,7 +12358,6 @@ mod source {
                                 functions: vec![AbstractFunction {
                                     machine,
                                     attachment: None,
-                                    nominal_cleanup_subject: None,
                                     entry: BlockId::new(10).unwrap(),
                                     parameters: Vec::new(),
                                     structural_parameters: Vec::new(),
@@ -11816,6 +12448,164 @@ mod source {
                         }
 
                         #[test]
+                        fn cleanup_sites_keep_action_subjects_and_requirements() {
+                            use calling_conventions::{ValuePlacement, ValueShape};
+                            use semantic_vocabulary::{ObligationId, StructuralTypeId};
+                            use target_operations::{
+                                TargetStructuralArgument, TargetStructuralArgumentSource,
+                            };
+                            use terminal_psi::{
+                                OwnedCleanupInvocation, TerminalAffineCleanupAction,
+                            };
+                            let mut source = source();
+                            let caller = source.entry;
+                            let cleanup = |place, requirement| OwnedCleanupInvocation {
+                                subject: StructuralArgument {
+                                    place: PlaceId::new(place).unwrap(),
+                                    access: StructuralAccess::Owned,
+                                    path: Vec::new(),
+                                },
+                                structural_type: StructuralTypeId::new(1).unwrap(),
+                                cleanup_machine: MachineId::new(2).unwrap(),
+                                claim_transfers: Vec::new(),
+                                requirement_obligations: vec![
+                                    ObligationId::new(requirement).unwrap(),
+                                ],
+                            };
+                            let first = cleanup(5, 7);
+                            let second = cleanup(6, 8);
+                            for (block, edge, actions) in [
+                                (
+                                    30,
+                                    102,
+                                    vec![
+                                        TerminalAffineCleanupAction::RetireHome(
+                                            first.subject.place,
+                                        ),
+                                        TerminalAffineCleanupAction::InvokeOwned(first.clone()),
+                                        TerminalAffineCleanupAction::InvokeOwned(second.clone()),
+                                    ],
+                                ),
+                                (
+                                    40,
+                                    103,
+                                    vec![TerminalAffineCleanupAction::InvokeOwned(first.clone())],
+                                ),
+                            ] {
+                                source.functions[0].blocks.push(AbstractBlock {
+                                    block: BlockId::new(block).unwrap(),
+                                    parameters: Vec::new(),
+                                    structural_parameters: Vec::new(),
+                                    operations: vec![AbstractOperation::ReturnUnit {
+                                        psi_edge: EdgeId::new(edge).unwrap(),
+                                        cleanup_actions: actions,
+                                    }],
+                                });
+                            }
+                            {
+                                let sites = SourceSites::new(&source);
+                                for (edge, action_ordinal, expected) in
+                                    [(102, 1, &first), (102, 2, &second), (103, 0, &first)]
+                                {
+                                    let site = sites
+                                        .get(
+                                            caller,
+                                            InvocationSite::Cleanup {
+                                                edge: EdgeId::new(edge).unwrap(),
+                                                action_ordinal,
+                                            },
+                                        )
+                                        .unwrap();
+                                    assert_eq!(site.cleanup, Some(expected));
+                                    assert_eq!(
+                                        site.arguments,
+                                        std::slice::from_ref(&expected.subject)
+                                    );
+                                    let placement = ValuePlacement {
+                                        shape: ValueShape::integer(8, 8),
+                                        locations: Vec::new(),
+                                    };
+                                    let target = TargetStructuralArgument {
+                                        place: expected.subject.place,
+                                        access: StructuralAccess::Owned,
+                                        path: Vec::new(),
+                                        root_structural_type: expected.structural_type,
+                                        structural_type: expected.structural_type,
+                                        shape: placement.shape,
+                                        source_byte_offset: 0,
+                                        fixed_array_length: None,
+                                        element_stride: None,
+                                        indices: Vec::new(),
+                                        source: TargetStructuralArgumentSource::Placement(
+                                            placement.clone(),
+                                        ),
+                                        destination: placement,
+                                    };
+                                    assert!(super::super::cleanup_source_matches(
+                                        site,
+                                        expected.cleanup_machine,
+                                        std::slice::from_ref(&target),
+                                        &expected.requirement_obligations
+                                    ));
+                                    assert!(!super::super::cleanup_source_matches(
+                                        site,
+                                        expected.cleanup_machine,
+                                        std::slice::from_ref(&target),
+                                        &[ObligationId::new(99).unwrap()]
+                                    ));
+                                    let mut changed = target.clone();
+                                    changed.place = PlaceId::new(99).unwrap();
+                                    assert!(!super::super::cleanup_source_matches(
+                                        site,
+                                        expected.cleanup_machine,
+                                        &[changed],
+                                        &expected.requirement_obligations
+                                    ));
+                                    assert!(!super::super::cleanup_source_matches(
+                                        site,
+                                        MachineId::new(9).unwrap(),
+                                        &[target],
+                                        &expected.requirement_obligations
+                                    ));
+                                }
+                                assert!(
+                                    sites
+                                        .get(
+                                            caller,
+                                            InvocationSite::Cleanup {
+                                                edge: EdgeId::new(102).unwrap(),
+                                                action_ordinal: 0
+                                            }
+                                        )
+                                        .is_err()
+                                );
+                                assert!(
+                                    sites
+                                        .get(
+                                            caller,
+                                            InvocationSite::InvokeNoNormal(
+                                                EdgeId::new(102).unwrap()
+                                            )
+                                        )
+                                        .is_err()
+                                );
+                            }
+                            let repeated = source.functions[0].blocks[2].operations[0].clone();
+                            source.functions[0].blocks[3].operations.push(repeated);
+                            assert!(
+                                SourceSites::new(&source)
+                                    .get(
+                                        caller,
+                                        InvocationSite::Cleanup {
+                                            edge: EdgeId::new(102).unwrap(),
+                                            action_ordinal: 1
+                                        }
+                                    )
+                                    .is_err()
+                            );
+                        }
+
+                        #[test]
                         fn source_operation_positions_reject_missing_and_duplicate_identities() {
                             let mut source = source();
                             let function = &mut source.functions[0];
@@ -11857,8 +12647,9 @@ mod source {
                     descriptor_location,
                 };
                 use terminal_semantics::descriptor_results::{
-                    DescriptorActualInputs, DescriptorAnalysis, DescriptorMachine,
-                    DescriptorSourceOrigin, descriptor_contents_query, descriptor_machine,
+                    DescriptorActualInputs, DescriptorAnalysis, DescriptorInvocationOwner,
+                    DescriptorMachine, DescriptorSourceOrigin, descriptor_contents_query,
+                    descriptor_machine,
                 };
 
                 pub(super) struct IncomingCalls {
@@ -11871,7 +12662,10 @@ mod source {
                     inputs: Result<Inputs, &'static str>,
                 }
                 enum Inputs {
-                    Normal(DescriptorPosition),
+                    Invocation {
+                        position: DescriptorPosition,
+                        owner: DescriptorInvocationOwner,
+                    },
                     Entry {
                         position: DescriptorPosition,
                         arguments: Vec<Option<DescriptorLocation>>,
@@ -11897,9 +12691,12 @@ mod source {
                                         let Some(callee) = target.machine() else {
                                             continue;
                                         };
-                                        let inputs =
-                                            normal(graph, caller.machine, *psi_operation, callee)
-                                                .map(Inputs::Normal);
+                                        let inputs = invocation(
+                                            graph,
+                                            caller.machine,
+                                            DescriptorInvocationOwner::Operation(*psi_operation),
+                                            callee,
+                                        );
                                         rows.push(IncomingCall {
                                             caller: caller.machine,
                                             callee,
@@ -11907,12 +12704,67 @@ mod source {
                                             inputs,
                                         });
                                     }
-                                    TargetUnitOperation::CleanupCall { owner, callee, .. } => {
+                                    TargetUnitOperation::CleanupCall {
+                                        owner,
+                                        callee,
+                                        arguments,
+                                        requirement_obligations,
+                                        ..
+                                    } => {
+                                        let inputs = (|| {
+                                            let CallSiteOwner::CleanupAction {
+                                                edge,
+                                                action_ordinal,
+                                            } = *owner
+                                            else {
+                                                return Err(
+                                                    "cleanup target has no edge/action owner",
+                                                );
+                                            };
+                                            let site = source_sites.get(
+                                                caller.machine,
+                                                InvocationSite::Cleanup {
+                                                    edge,
+                                                    action_ordinal,
+                                                },
+                                            )?;
+                                            if !cleanup_source_matches(
+                                                site,
+                                                *callee,
+                                                arguments,
+                                                requirement_obligations,
+                                            ) {
+                                                return Err(
+                                                    "cleanup target changes its original subject, callee, type or requirement evidence",
+                                                );
+                                            }
+                                            let inputs = invocation(
+                                                graph,
+                                                caller.machine,
+                                                DescriptorInvocationOwner::Cleanup {
+                                                    edge,
+                                                    action_ordinal,
+                                                },
+                                                *callee,
+                                            )?;
+                                            let Inputs::Invocation { position, .. } = &inputs
+                                            else {
+                                                return Err(
+                                                    "cleanup lost its exact invocation observation",
+                                                );
+                                            };
+                                            if *position != site.position? {
+                                                return Err(
+                                                    "cleanup source and descriptor owner positions disagree",
+                                                );
+                                            }
+                                            Ok(inputs)
+                                        })();
                                         rows.push(IncomingCall {
                                             caller: caller.machine,
                                             callee: *callee,
                                             site: *owner,
-                                            inputs: Err("cleanup arrival has no reconstructed backing observation"),
+                                            inputs,
                                         });
                                     }
                                     TargetUnitOperation::InstallStaticInterrupt {
@@ -12007,9 +12859,8 @@ mod source {
                             .get(index)
                             .ok_or("incoming backing site is absent")?;
                         let result = match row.inputs.as_ref().map_err(|reason| *reason)? {
-                            Inputs::Normal(position) => {
-                                analysis.substitute_call_source(row.caller, *position, origin)
-                            }
+                            Inputs::Invocation { position, owner } => analysis
+                                .substitute_call_source_at(row.caller, *position, *owner, origin),
                             Inputs::Entry {
                                 position,
                                 arguments,
@@ -12033,24 +12884,60 @@ mod source {
                         Ok((row.caller, result))
                     }
                 }
-                fn normal(
+                fn cleanup_source_matches(
+                    site: &SourceSite<'_>,
+                    callee: MachineId,
+                    arguments: &[target_operations::TargetStructuralArgument],
+                    requirements: &[semantic_vocabulary::ObligationId],
+                ) -> bool {
+                    let Some(cleanup) = site.cleanup else {
+                        return false;
+                    };
+                    matches!(site.target, SourceCallTarget::Machine(machine) if machine == callee)
+                        && cleanup.cleanup_machine == callee
+                        && cleanup.subject.access == terminal_psi::StructuralAccess::Owned
+                        && cleanup.claim_transfers.is_empty()
+                        && cleanup.requirement_obligations == requirements
+                        && arguments.len() == 1
+                        && arguments.iter().all(|actual| {
+                            actual.place == cleanup.subject.place
+                                && actual.path == cleanup.subject.path
+                                && actual.access == cleanup.subject.access
+                                && actual.structural_type == cleanup.structural_type
+                        })
+                }
+
+                fn invocation(
                     graph: &[DescriptorMachine],
                     caller: MachineId,
-                    operation: semantic_vocabulary::OperationId,
+                    owner: DescriptorInvocationOwner,
                     callee: MachineId,
-                ) -> Result<DescriptorPosition, &'static str> {
+                ) -> Result<Inputs, &'static str> {
                     let caller = descriptor_machine(graph, caller)
                         .ok_or("selected caller has no reference-origin graph")?;
                     let mut calls = caller
                         .known_invocations()
-                        .filter(|(_, call)| call.operation == operation);
+                        .filter(|(_, call)| call.owner == owner);
                     let (Some((position, call)), None) = (calls.next(), calls.next()) else {
-                        return Err("selected call has no unique reference-origin observation");
+                        return Err(
+                            "selected call has no unique reference-origin owner observation",
+                        );
                     };
                     if call.callee() != Some(callee) {
                         return Err("selected target differs from the reference-origin call");
                     }
-                    Ok(*position)
+                    if matches!(owner, DescriptorInvocationOwner::Cleanup { .. })
+                        && (call.arguments.iter().any(Option::is_none)
+                            || call.argument_contents.iter().any(Option::is_none))
+                    {
+                        return Err(
+                            "selected cleanup has incomplete owned argument or contents correspondence",
+                        );
+                    }
+                    Ok(Inputs::Invocation {
+                        position: *position,
+                        owner,
+                    })
                 }
                 fn selected_origin(
                     origin: &target_operations::NativeCallOrigin,
@@ -12184,118 +13071,119 @@ mod source {
                 abstracted: &AbstractOperationPlan,
                 targeted: &target_operations::TargetOperationPlan,
                 graph: &mut [DescriptorMachine],
-            ) {
+            ) -> Option<()> {
+                use terminal_semantics::descriptor_results::{
+                    DescriptorInvocationOwner, DescriptorMachineSignature, DescriptorSlotKind,
+                    machine_invocation_for_signature,
+                };
                 for function in &targeted.functions {
                     for operation in function.graph.operations() {
                         let target_operations::TargetUnitOperation::Call {
                             psi_operation,
                             target: target_operations::NativeCallTarget::Machine(callee),
+                            scalar_arguments: targeted_scalars,
                             ..
                         } = operation
                         else {
                             continue;
                         };
-                        let Some(caller) = graph.iter_mut().find(|row| row.id == function.machine)
-                        else {
-                            continue;
-                        };
+                        let caller = graph.iter_mut().find(|row| row.id == function.machine)?;
+                        let owner = DescriptorInvocationOwner::Operation(*psi_operation);
                         if caller
                             .known_invocations()
-                            .any(|(_, call)| call.operation == *psi_operation)
+                            .any(|(_, call)| call.owner == owner)
                         {
                             continue;
                         }
-                        let position = caller.originations.iter().find_map(|(position, rows)| {
-                            rows.iter()
-                                .any(|(_, origin)| {
-                                    matches!(
-                                        origin,
-                                        DescriptorCallOrigin::AccessFormation { operation, .. }
-                                            if operation == psi_operation
-                                    )
-                                })
-                                .then_some(*position)
-                        });
-                        let Some(source) = abstracted
+                        let source = abstracted
                             .functions
                             .iter()
-                            .find(|row| row.machine == function.machine)
-                        else {
-                            continue;
-                        };
-                        let position = position
-                            .or_else(|| source_operation_position(source, *psi_operation).ok());
-                        let Some(position) = position else {
-                            continue;
-                        };
-                        let Some(arguments) =
-                            source.operations().find_map(|operation| match operation {
+                            .find(|row| row.machine == function.machine)?;
+                        let position = source_operation_position(source, *psi_operation).ok()?;
+                        let mut originals =
+                            source.operations().filter_map(|operation| match operation {
                                 abstract_operations::AbstractOperation::BoundaryCall {
-                                    psi_operation: operation_id,
+                                    psi_operation: identity,
+                                    arguments,
                                     structural_arguments,
                                     ..
-                                } if operation_id == psi_operation => {
-                                    Some(structural_arguments.as_slice())
+                                } if identity == psi_operation => {
+                                    Some((arguments, structural_arguments))
                                 }
                                 _ => None,
-                            })
-                        else {
+                            });
+                        let Some((scalars, actuals)) = originals.next() else {
                             continue;
                         };
-                        let mut recorded = Vec::with_capacity(arguments.len());
-                        let mut contents = Vec::with_capacity(arguments.len());
-                        let mut complete = true;
-                        for actual in arguments {
-                            let Some(root) = caller.place_types.get(&actual.place).copied() else {
-                                complete = false;
-                                break;
-                            };
-                            let Some(location) =
-                                terminal_semantics::descriptor_lifetimes::descriptor_location(
-                                    abstracted.structural_types.as_slice(),
-                                    actual.place,
-                                    root,
-                                    &actual.path,
-                                    None,
-                                )
-                            else {
-                                complete = false;
-                                break;
-                            };
-                            let Some(query) =
-                                terminal_semantics::descriptor_results::descriptor_contents_query(
-                                    abstracted.structural_types.as_slice(),
-                                    actual.place,
-                                    root,
-                                    &actual.path,
-                                    None,
-                                )
-                            else {
-                                complete = false;
-                                break;
-                            };
-                            recorded.push(Some(location));
-                            contents.push(Some(query));
+                        if originals.next().is_some() {
+                            return None;
                         }
-                        if !complete {
-                            continue;
+                        let mut candidates = abstracted
+                            .functions
+                            .iter()
+                            .filter(|row| row.machine == *callee);
+                        let declaration = candidates.next()?;
+                        if candidates.next().is_some()
+                            || scalars.len() != declaration.parameters.len()
+                            || scalars.len() != targeted_scalars.len()
+                        {
+                            return None;
                         }
-                        caller.calls.insert(
-                            position,
-                            Some(terminal_semantics::descriptor_results::DescriptorInvocation {
-                                scalar_arguments: Vec::new(),
-                                operation: *psi_operation,
-                                target:
-                                    terminal_semantics::descriptor_results::DescriptorInvocationTarget::Machine(
-                                        *callee,
-                                    ),
-                                arguments: recorded,
-                                argument_contents: contents,
-                                result: None,
-                            }),
-                        );
+                        let mut call = machine_invocation_for_signature(
+                            owner,
+                            abstracted.structural_types.as_slice(),
+                            DescriptorSlotKind::References,
+                            DescriptorMachineSignature {
+                                machine: declaration.machine,
+                                structural_parameters: &declaration.structural_parameters,
+                                result: declaration.result.structural(),
+                            },
+                            actuals,
+                            None,
+                            actuals
+                                .iter()
+                                .map(|actual| caller.place_types.get(&actual.place).copied()),
+                        )?;
+                        for ((formal, actual), targeted) in declaration
+                            .parameters
+                            .iter()
+                            .zip(scalars)
+                            .zip(targeted_scalars)
+                        {
+                            if targeted.source_value() != *actual
+                                || targeted.scalar_type() != formal.scalar_type
+                            {
+                                return None;
+                            }
+                            call.scalar_arguments.push((
+                                formal.value,
+                                semantic_vocabulary::ScalarTerm::value(*actual, formal.scalar_type),
+                            ));
+                        }
+                        call.scalar_arguments
+                            .sort_unstable_by_key(|(formal, _)| *formal);
+                        if call
+                            .scalar_arguments
+                            .windows(2)
+                            .any(|rows| rows[0].0 == rows[1].0)
+                            || call.arguments.iter().any(Option::is_none)
+                            || call.argument_contents.iter().any(Option::is_none)
+                        {
+                            return None;
+                        }
+                        if let Some(row) = caller.calls.get_mut(&position) {
+                            if row.is_some() {
+                                return None;
+                            }
+                            // Native selection has resolved this exact boundary invocation
+                            // to the checked machine above; source-only graphs retain None.
+                            *row = Some(vec![call]);
+                        } else {
+                            caller.insert_call(position, call)?;
+                        }
                     }
                 }
+                Some(())
             }
 
             pub(in crate::function_fragments::source) fn graph(
@@ -12314,7 +13202,7 @@ mod source {
                 targeted: &target_operations::TargetOperationPlan,
             ) -> Option<Vec<DescriptorMachine>> {
                 let mut graph = graph(source)?;
-                record_selected_formation_calls(source, targeted, &mut graph);
+                record_selected_formation_calls(source, targeted, &mut graph)?;
                 Some(graph)
             }
 
@@ -13173,31 +14061,14 @@ mod source {
         struct AddressInputs<'a> {
             selected: SelectedAddressInputs<'a>,
             homes: super::structural_homes::HomeInputs<'a>,
-            case_operations: Vec<(OperationId, &'a TargetUnitOperation)>,
             source_values: Option<Vec<(ValueId, semantic_vocabulary::ScalarType)>>,
         }
 
         impl<'a> AddressInputs<'a> {
             fn new(target: &'a TargetFunction, selected: &'a SelectedFunction) -> Self {
-                let mut case_operations: Vec<_> = target
-                    .graph
-                    .operations()
-                    .filter_map(|row| {
-                        if let TargetUnitOperation::StructuralCaseMembership {
-                            psi_operation, ..
-                        } = row
-                        {
-                            Some((*psi_operation, row))
-                        } else {
-                            None
-                        }
-                    })
-                    .collect();
-                case_operations.sort_by_key(|(operation, _)| *operation);
                 Self {
                     selected: SelectedAddressInputs::new(selected),
                     homes: super::structural_homes::HomeInputs::new(target, selected),
-                    case_operations,
                     source_values: None,
                 }
             }
@@ -13272,16 +14143,6 @@ mod source {
                 operation: OperationId,
             ) -> Vec<&'a SelectedInstruction> {
                 operation_rows(&self.inputs().selected.operation_instructions, operation)
-                    .iter()
-                    .map(|(_, row)| *row)
-                    .collect()
-            }
-
-            pub(super) fn case_operations(
-                &mut self,
-                operation: OperationId,
-            ) -> Vec<&'a TargetUnitOperation> {
-                operation_rows(&self.inputs().case_operations, operation)
                     .iter()
                     .map(|(_, row)| *row)
                     .collect()
@@ -14281,7 +15142,6 @@ mod source {
                         selected_instructions::SelectedFunctionContracts {
                             machine: MachineId::new(1).unwrap(),
                             attachment: None,
-                            nominal_cleanup_subject: None,
                             provenance: Default::default(),
                             structural: None,
                             local_storage_slots: vec![],
@@ -15597,6 +16457,7 @@ mod source {
                     no_code_affine_cleanup: false,
                     copyable: false,
                     descriptor_cleanup: false,
+                    nominal_cleanup: None,
                     scalar_restriction: None,
                 }
             }
@@ -15683,7 +16544,6 @@ mod source {
                 let function = AbstractFunction {
                     machine,
                     attachment: None,
-                    nominal_cleanup_subject: None,
                     entry: block,
                     parameters: vec![],
                     structural_parameters: vec![parameter],
@@ -15707,7 +16567,6 @@ mod source {
                 let target = TargetFunction {
                     machine,
                     attachment: None,
-                    nominal_cleanup_subject: None,
                     scalar_abi: None,
                     mixed_structural_scalar_abi: None,
                     structural_contract: None,
@@ -19537,7 +20396,7 @@ mod source {
                 actions.iter().any(|action| {
                     matches!(
                         action,
-                        terminal_psi::TerminalAffineCleanupAction::InvokeNominal(_)
+                        terminal_psi::TerminalAffineCleanupAction::InvokeOwned(_)
                     )
                 })
             }) {
@@ -19600,6 +20459,7 @@ mod source {
                     | AbstractOperation::StructuralCaseMembership { .. }
                     | AbstractOperation::StructuralLeafCopy { .. }
                     | AbstractOperation::MoveStructuralValue { .. }
+                    | AbstractOperation::DecomposeStructuralValue { .. }
                     | AbstractOperation::TransformContent { .. }
                     | abstract_operations::move_or_store_structural_field_pattern!()
             )
@@ -19776,8 +20636,7 @@ mod source {
                 .next()
                 .ok_or(Error::Mismatch("missing canonical function declaration"))?;
             if declarations.next().is_some()
-                || (declaration.attachment != abstracted.attachment
-                    || declaration.nominal_cleanup_subject != abstracted.nominal_cleanup_subject)
+                || declaration.attachment != abstracted.attachment
                 || declaration.entry_claim_declarations != abstracted.entry_claims
                 || declaration.published_service_ceiling != abstracted.published_service_ceiling
             {
@@ -19785,8 +20644,7 @@ mod source {
                     "function declaration metadata differs from canonical source",
                 ));
             }
-            if (abstracted.attachment != fragment.attachment
-                || abstracted.nominal_cleanup_subject != fragment.nominal_cleanup_subject)
+            if abstracted.attachment != fragment.attachment
                 || targeted.provenance != fragment.provenance
                 || (!abstracted.structural_parameters.is_empty() && structural.is_none())
                 || (structural.is_some_and(|contract| !contract.parameters.is_empty())
@@ -19853,7 +20711,9 @@ mod source {
             } else if parameter_abi(targeted).is_some() {
                 return Err(Error::Mismatch("unexpected parameter/result ABI"));
             }
-            for (operation_ordinal, operation) in abstracted.operations().enumerate() {
+            let correspondence = correspondence::Function::new(abstracted, targeted, declaration)?;
+            for (operation_ordinal, (operation, matched)) in correspondence.operations().enumerate()
+            {
                 let admitted = match operation {
                     AbstractOperation::ReadSegmentSelector { .. }
                     | AbstractOperation::ReadTaskRegister { .. }
@@ -19965,6 +20825,7 @@ mod source {
                     | AbstractOperation::StructuralLeafCopy { .. }
                     | AbstractOperation::MoveStructuralValue { .. }
                     | AbstractOperation::TransformContent { .. }
+                    | AbstractOperation::DecomposeStructuralValue { .. }
                     | abstract_operations::move_or_store_structural_field_pattern!()
                     | AbstractOperation::EstablishTrivialAffineLocal { .. }
                     | AbstractOperation::EstablishReference { .. }
@@ -19982,7 +20843,7 @@ mod source {
                         result: AbstractStructuralCallResult::Structural { .. },
                         ..
                     }
-                    | AbstractOperation::ReturnStructural { .. } => aggregate_results::operation(operation, targeted, selected, &mut addresses),
+                    | AbstractOperation::ReturnStructural { .. } => aggregate_results::operation(operation, targeted, selected, matched, &mut addresses),
                     AbstractOperation::EstablishPrimitiveLocal { .. }
                     | AbstractOperation::PrimitiveLocalStore { .. } => {
                         super::structural::primitive_operation_retained(abstracted, selected, operation)
@@ -20568,18 +21429,13 @@ mod source {
     ) -> Result<
         (
             Option<semantic_vocabulary::StructuralTypeId>,
-            Option<semantic_vocabulary::StructuralTypeId>,
             &target_operations::TerminalPsiProvenance,
         ),
         Error,
     > {
         let plan = fragments(source);
         if let Some(function) = plan.function(machine) {
-            return Ok((
-                function.attachment,
-                function.nominal_cleanup_subject,
-                &function.provenance,
-            ));
+            return Ok((function.attachment, &function.provenance));
         }
         Err(Error::Mismatch("missing placed fragment"))
     }
@@ -21265,7 +22121,6 @@ mod source {
                         selected_instructions::SelectedFunctionContracts {
                             machine: MachineId::new(machine).unwrap(),
                             attachment: None,
-                            nominal_cleanup_subject: None,
                             provenance: Default::default(),
                             structural: None,
                             local_storage_slots: Vec::new(),
@@ -21772,7 +22627,6 @@ mod structural {
                 let mut function = AbstractFunction {
                     machine,
                     attachment: None,
-                    nominal_cleanup_subject: None,
                     entry: BlockId::new(1).unwrap(),
                     parameters: vec![],
                     structural_parameters: vec![],
@@ -21792,7 +22646,6 @@ mod structural {
                         selected_instructions::SelectedFunctionContracts {
                             machine,
                             attachment: None,
-                            nominal_cleanup_subject: None,
                             provenance: target_operations::TerminalPsiProvenance {
                                 operations: vec![],
                                 edges: vec![],
@@ -23016,7 +23869,6 @@ mod structural {
                 let function = AbstractFunction {
                     machine: MachineId::new(1).unwrap(),
                     attachment: None,
-                    nominal_cleanup_subject: None,
                     entry: BlockId::new(1).unwrap(),
                     parameters: vec![],
                     structural_parameters: vec![],
@@ -23068,7 +23920,6 @@ mod structural {
                         selected_instructions::SelectedFunctionContracts {
                             machine: function.machine,
                             attachment: None,
-                            nominal_cleanup_subject: None,
                             provenance: Default::default(),
                             structural: Some(legalized_operations::LegalizedStructuralContract {
                                 result: None,
@@ -25866,8 +26717,7 @@ pub(crate) mod validation {
             let fragment = fragments
                 .function(placed.machine)
                 .ok_or(Error::Mismatch("missing current fragment"))?;
-            let (attachment, nominal_cleanup_subject, provenance) =
-                source::fragment_metadata(source, placed.machine)?;
+            let (attachment, provenance) = source::fragment_metadata(source, placed.machine)?;
             let offset = host(placed.section_offset)?;
             let length = host(placed.byte_count)?;
             let entry = placed.machine == text.semantic_entry;
@@ -25886,7 +26736,6 @@ pub(crate) mod validation {
             };
             if function.machine != placed.machine
                 || function.attachment != attachment
-                || function.nominal_cleanup_subject != nominal_cleanup_subject
                 || function.provenance != *provenance
                 || function.scalar_abi != targeted.scalar_abi
                 || function.mixed_structural_scalar_abi != targeted.mixed_structural_scalar_abi

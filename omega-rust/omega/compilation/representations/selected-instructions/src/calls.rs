@@ -948,7 +948,6 @@ pub mod normalized_foreign {
                     contracts: std::sync::Arc::new(crate::SelectedFunctionContracts {
                         machine: MachineId::new(1).unwrap(),
                         attachment: None,
-                        nominal_cleanup_subject: None,
                         provenance: Default::default(),
                         structural: None,
                         local_storage_slots: vec![crate::SelectedLocalStorageSlot {
@@ -1079,7 +1078,6 @@ pub mod normalized_foreign {
                     contracts: std::sync::Arc::new(crate::SelectedFunctionContracts {
                         machine: MachineId::new(1).unwrap(),
                         attachment: None,
-                        nominal_cleanup_subject: None,
                         provenance: Default::default(),
                         structural: None,
                         local_storage_slots: Vec::new(),

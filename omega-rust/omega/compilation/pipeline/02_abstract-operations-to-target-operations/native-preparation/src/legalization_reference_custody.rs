@@ -3181,7 +3181,7 @@ pub(crate) mod stored_calls {
                     invocations: provider
                         .invocations
                         .iter()
-                        .map(|site| (site.machine, site.operation))
+                        .map(|site| (site.machine, site.owner))
                         .collect(),
                     referent,
                     access,
@@ -3382,7 +3382,13 @@ pub(crate) mod stored_calls {
                         {
                             return Err(invalid());
                         }
-                        invocations.insert(0, (function.machine, operation));
+                        invocations.insert(
+                            0,
+                            (
+                                function.machine,
+                                terminal_psi::InvocationOwner::Operation(operation),
+                            ),
+                        );
                         let mut lifetime_debts = Vec::new();
                         for (dependency, required_access) in debts {
                             match dependency {
@@ -7003,9 +7009,9 @@ fn apply_cleanup_actions(
                 discard_residual(function, custody, types, &discard, event)?;
                 continue;
             }
-            TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
-                if source_contract(function, custody, cleanup.place)
-                    .and_then(|root| leaf_type(types, root, &cleanup.path))
+            TerminalAffineCleanupAction::InvokeOwned(cleanup) => {
+                if source_contract(function, custody, cleanup.subject.place)
+                    .and_then(|root| leaf_type(types, root, &cleanup.subject.path))
                     != Some(cleanup.structural_type)
                 {
                     return Err(invalid());
@@ -7014,21 +7020,21 @@ fn apply_cleanup_actions(
                     function,
                     custody,
                     types,
-                    cleanup.place,
-                    &cleanup.path,
+                    cleanup.subject.place,
+                    &cleanup.subject.path,
                     StructuralAccess::Owned,
                 ) {
                     return Err(LegalizationError::ReferenceDisposalConflict {
                         machine: function.machine,
-                        place: cleanup.place,
+                        place: cleanup.subject.place,
                     });
                 }
                 discard_subtree(
                     function,
                     custody,
                     types,
-                    cleanup.place,
-                    &cleanup.path,
+                    cleanup.subject.place,
+                    &cleanup.subject.path,
                     event,
                 )?;
                 continue;

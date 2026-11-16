@@ -173,6 +173,53 @@ impl<'t> Program<'t> {
         })
     }
 
+    /// An inferred binding keeps the complete value its initializer supplies.
+    /// Place projections already carry their actual substituted regions; an
+    /// earlier inferred type occurrence is not an annotation in this scope.
+    /// Context-dependent forms still use their inferred carrier, so literals
+    /// land as before and explicit borrows keep their normal formation checks.
+    pub(super) fn inferred_initializer(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        handle: ExpressionHandle,
+        inferred: typed_trees::types::TypeReferenceHandle,
+    ) -> Checked<Expression> {
+        let source = SourceOrigin::of(self.typed.expression_table.source_span(handle));
+        let node = self.node(id, handle)?;
+        if let ExpressionNode::Member(member) = node {
+            return self.member(id, slots, member, source, Access::Read);
+        }
+        let expected = match node {
+            ExpressionNode::Name(path) => {
+                let slot = self.slot_of(id, slots, path)?;
+                if slots[slot].borrowed.is_none() {
+                    return self.expression(id, slots, handle, Some(slots[slot].value_type));
+                }
+                true
+            }
+            ExpressionNode::Integer(_)
+            | ExpressionNode::Float(_)
+            | ExpressionNode::String(_)
+            | ExpressionNode::Borrow(_)
+            | ExpressionNode::ArrayLiteral(_)
+            | ExpressionNode::Unary(_)
+            | ExpressionNode::Binary(_) => true,
+            _ => false,
+        };
+        let expected = if expected
+            && inferred.is_valid()
+            && !matches!(
+                self.typed.type_reference_table.type_reference(inferred),
+                typed_trees::types::TypeReferenceNode::Unit
+            ) {
+            Some(self.local_type(id, inferred)?)
+        } else {
+            None
+        };
+        self.expression(id, slots, handle, expected)
+    }
+
     /// Reads one expression with its complete contextual type. A literal
     /// needs that context for its integer carrier or its array element and
     /// extent; the caller still checks the resulting type exactly.

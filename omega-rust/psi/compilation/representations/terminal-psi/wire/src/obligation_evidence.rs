@@ -1340,6 +1340,7 @@ mod projection_tests {
             copyable: false,
             no_code_affine_cleanup: false,
             descriptor_cleanup: false,
+            nominal_cleanup: None,
             scalar_restriction: None,
             requires: vec![],
             shape,

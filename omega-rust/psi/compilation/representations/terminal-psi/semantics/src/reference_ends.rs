@@ -113,6 +113,75 @@ pub fn candidates(module: &TerminalModule) -> Result<IdTable<MachineId, Candidat
     Ok(result)
 }
 
+// Liveness uses genuine source cuts. Edge cleanup keeps its own action owner
+// at the terminator cut, so no candidate can be assigned a fabricated source
+// operation or lose the selected edge on which its last observation occurs.
+fn validate_call_owners(
+    module: &TerminalModule,
+    machine: &terminal_psi::TerminalMachine,
+    prepared: &crate::descriptor_results::DescriptorMachine,
+) -> Result<(), String> {
+    use crate::descriptor_results::DescriptorInvocationOwner;
+    for (&(block, ordinal), calls) in &prepared.calls {
+        let body = machine
+            .block(&block)
+            .ok_or("reference call mapping lost its source block")?;
+        let mut owners = BTreeSet::new();
+        for call in calls.iter().flatten() {
+            if !owners.insert(call.owner) {
+                return Err("reference call mapping repeats one executable owner".into());
+            }
+            match call.owner {
+                DescriptorInvocationOwner::Operation(operation) => {
+                    if body.operations.get(ordinal as usize).map(|row| row.id) != Some(operation) {
+                        return Err("reference invocation has a different source operation".into());
+                    }
+                }
+                DescriptorInvocationOwner::Cleanup {
+                    edge,
+                    action_ordinal,
+                } => {
+                    if usize::try_from(ordinal).ok() != Some(body.operations.len()) {
+                        return Err(
+                            "reference cleanup is not mapped to its source terminator".into()
+                        );
+                    }
+                    let actions = body
+                        .terminator
+                        .cleanup_rosters()
+                        .find(|(identity, _)| *identity == edge)
+                        .map(|(_, actions)| actions)
+                        .ok_or("reference cleanup lost its selected source edge")?;
+                    let Some(terminal_psi::TerminalAffineCleanupAction::InvokeOwned(cleanup)) =
+                        actions.get(action_ordinal as usize)
+                    else {
+                        return Err("reference cleanup lost its exact source action".into());
+                    };
+                    if call.callee() != Some(cleanup.cleanup_machine) || call.result.is_some() {
+                        return Err("reference cleanup mapping changes its ordinary target".into());
+                    }
+                    let root = prepared
+                        .place_types
+                        .get(&cleanup.subject.place)
+                        .ok_or("reference cleanup source has no declared type")?;
+                    let expected = crate::descriptor_lifetimes::descriptor_location(
+                        &module.structural_types,
+                        cleanup.subject.place,
+                        *root,
+                        &cleanup.subject.path,
+                        None,
+                    )
+                    .ok_or("reference cleanup source has no exact captured path")?;
+                    if call.arguments.as_slice() != [Some(expected)] {
+                        return Err("reference cleanup mapping changes its exact subject".into());
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 fn indexed_store_contents(
     module: &TerminalModule,
     machine: &terminal_psi::TerminalMachine,
@@ -191,6 +260,8 @@ fn machine_candidates(
     flow: &BTreeMap<DescriptorPosition, crate::descriptor_lifetimes::DescriptorFlowStep>,
     analysis: &mut DescriptorAnalysis<'_>,
 ) -> Result<Candidates, Error> {
+    validate_call_owners(module, machine, prepared)
+        .map_err(|detail| Error::local(machine.id, None, detail))?;
     // An indexed replacement requires an intact array at its own cut.
     // Ending an old descriptor before that cut would make the compiler's
     // own cleanup create a hole. Retaining it there does not read or escape

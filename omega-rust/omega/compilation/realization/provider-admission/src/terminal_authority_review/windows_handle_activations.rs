@@ -226,7 +226,6 @@ pub(super) struct InnerContext {
 
 #[cfg(test)]
 mod tests {
-    use super::super::windows_handle_calls::CallSite;
     use super::super::windows_handle_origins::{OriginEdge, OriginEquation, OriginKind};
     use super::*;
     use semantic_vocabulary::{BlockId, InvocationSite, OperationId, ValueId};
@@ -243,9 +242,7 @@ mod tests {
             machine: MachineId::new(1).unwrap(),
             block: BlockId::new(1).unwrap(),
             operation_index: operation as usize,
-            site: CallSite::Invocation(InvocationSite::Operation(
-                OperationId::new(operation).unwrap(),
-            )),
+            site: InvocationSite::Operation(OperationId::new(operation).unwrap()),
         }
     }
 

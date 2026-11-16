@@ -862,6 +862,7 @@ fn finish_reading_into<'source>(
     let mut predicates_prepared = false;
     loop {
         program.resolve_scalar_applications(diagnostic)?;
+        program.finish_cleanup_selections()?;
         if binder_reach.len() == program.symbols.len() {
             program.prepare_calling_policy_roots(diagnostic)?;
             if binder_reach.len() != program.symbols.len() {
@@ -892,6 +893,7 @@ fn finish_reading_into<'source>(
     program.begin_declaration_storage(diagnostic, bodies.len())?;
     let declarations = program.declaration_metadata.clone();
     let calling_abis = program.prepare_calling_abis(diagnostic, &declarations)?;
+    program.finish_cleanup_selections()?;
     let PreparedProgram {
         program: mut elaboration,
         outcomes,

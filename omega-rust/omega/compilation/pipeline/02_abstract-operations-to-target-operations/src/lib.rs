@@ -537,6 +537,12 @@ pub(crate) mod optimized {
         lowering_facts
             .require_lowering_context(plan, target)
             .map_err(LoweringError::ForeignLoweringFacts)?;
+        optimization_unit::validate_runtime_evidence_context(
+            optimized.unit(),
+            plan.psi,
+            lowering_facts.module(),
+        )
+        .map_err(LoweringError::ForeignLoweringFacts)?;
         if lowering_facts.native_callbacks().psi() != plan.psi {
             return Err(LoweringError::ForeignNativeCallbackCohort);
         }

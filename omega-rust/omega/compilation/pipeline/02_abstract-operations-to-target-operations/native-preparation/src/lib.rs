@@ -154,6 +154,7 @@ pub(crate) mod native_geometry {
                 no_code_affine_cleanup: false,
                 copyable: true,
                 descriptor_cleanup: false,
+                nominal_cleanup: None,
                 scalar_restriction: None,
             });
             let published = terminal_codec::ClosedTerminalModule::new(module).unwrap();

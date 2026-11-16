@@ -2572,9 +2572,9 @@ pub(crate) mod relocation_rewrites {
                 }
                 if let abstract_operations::return_or_return_unit_pattern!(cleanup_actions, ..) =
                     &node.operation
-                    && cleanup_actions.iter().any(|action| {
-                        matches!(action, TerminalAffineCleanupAction::InvokeNominal(_))
-                    })
+                    && cleanup_actions
+                        .iter()
+                        .any(|action| matches!(action, TerminalAffineCleanupAction::InvokeOwned(_)))
                 {
                     return false;
                 }

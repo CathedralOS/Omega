@@ -272,6 +272,11 @@ pub(super) fn encode_structural_type(bytes: &mut Vec<u8>, declaration: &Structur
     bytes.push(u8::from(declaration.no_code_affine_cleanup));
     bytes.push(u8::from(declaration.descriptor_cleanup));
     bytes.push(u8::from(declaration.copyable));
+    bytes.push(u8::from(declaration.nominal_cleanup.is_some()));
+    if let Some(selection) = &declaration.nominal_cleanup {
+        bytes.extend_from_slice(&selection.declaration.identity().0.to_le_bytes());
+        bytes.extend_from_slice(&selection.cleanup_machine.get().to_le_bytes());
+    }
     match &declaration.shape {
         StructuralTypeShape::Opaque => bytes.push(19),
         StructuralTypeShape::Reference { referent, access } => {
@@ -638,6 +643,7 @@ mod tests {
                 no_code_affine_cleanup: false,
                 copyable: false,
                 descriptor_cleanup: true,
+                nominal_cleanup: None,
                 scalar_restriction: None,
                 id: semantic_vocabulary::StructuralTypeId::new(2).unwrap(),
                 identity: terminal_psi::TerminalIdentityIndex(1),
@@ -659,6 +665,7 @@ mod tests {
             no_code_affine_cleanup: false,
             copyable: flag,
             descriptor_cleanup: true,
+            nominal_cleanup: None,
             scalar_restriction: None,
             id: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
             identity: terminal_psi::TerminalIdentityIndex(1),
@@ -679,6 +686,7 @@ mod tests {
             no_code_affine_cleanup: false,
             copyable: false,
             descriptor_cleanup: false,
+            nominal_cleanup: None,
             scalar_restriction: None,
             id: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
             identity: terminal_psi::TerminalIdentityIndex(1),
@@ -841,5 +849,41 @@ mod tests {
         for (position, identity) in identities.iter().enumerate() {
             assert!(!identities[..position].contains(identity));
         }
+    }
+}
+
+#[cfg(test)]
+#[test]
+fn nominal_cleanup_selection_changes_structural_type_identity() {
+    let mut encodings = Vec::new();
+    for selection in [None, Some((2, 3)), Some((4, 3)), Some((2, 5))] {
+        let declaration = StructuralTypeDeclaration {
+            requires: Vec::new(),
+            quotient_carrier: None,
+            owns_linear_claim: false,
+            no_code_affine_cleanup: false,
+            descriptor_cleanup: false,
+            nominal_cleanup: selection.map(|(identity, machine)| {
+                terminal_psi::NominalCleanupSelection {
+                    declaration: terminal_psi::NominalDeclarationIdentity::new(
+                        terminal_psi::TerminalIdentityIndex(identity),
+                    ),
+                    cleanup_machine: semantic_vocabulary::MachineId::new(machine).unwrap(),
+                }
+            }),
+            copyable: false,
+            scalar_restriction: None,
+            id: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
+            identity: terminal_psi::TerminalIdentityIndex(1),
+            declaration_identity: terminal_psi::TerminalIdentityIndex(1),
+            shape: StructuralTypeShape::Record {
+                fields: Vec::new(),
+                storage: terminal_psi::StructuralRecordStorage::Packed,
+            },
+        };
+        let mut bytes = Vec::new();
+        encode_structural_type(&mut bytes, &declaration);
+        assert!(!encodings.contains(&bytes));
+        encodings.push(bytes);
     }
 }

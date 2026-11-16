@@ -45,6 +45,12 @@ pub(super) fn fragment_normalized_foreign_rejoin<'a>(
     structural_arguments: &[terminal_psi::StructuralArgument],
 ) -> Result<FragmentForeignCallRejoin<'a>, &'static str> {
     let invocation_site = occurrence.invocation_site();
+    if matches!(
+        invocation_site,
+        semantic_vocabulary::InvocationSite::Cleanup { .. }
+    ) {
+        return Err("owned module cleanup cannot carry normalized foreign fragment custody");
+    }
     let plan = publication.relocation_free_object();
     let selected = publication.selected_plan();
     let mut functions = selected

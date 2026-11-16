@@ -412,7 +412,6 @@ mod carriers {
     pub struct ObjectFunction {
         pub machine: MachineId,
         pub attachment: Option<semantic_vocabulary::StructuralTypeId>,
-        pub nominal_cleanup_subject: Option<semantic_vocabulary::StructuralTypeId>,
         pub scalar_abi: Option<target_operations::ScalarFunctionAbi>,
         pub mixed_structural_scalar_abi:
             Option<target_operations::MixedStructuralScalarFunctionAbi>,
@@ -3573,7 +3572,8 @@ mod normalized_foreign_calls {
         site: semantic_vocabulary::InvocationSite,
     ) -> bool {
         match site {
-            semantic_vocabulary::InvocationSite::InvokeNoNormal(_) => false,
+            semantic_vocabulary::InvocationSite::InvokeNoNormal(_)
+            | semantic_vocabulary::InvocationSite::Cleanup { .. } => false,
             semantic_vocabulary::InvocationSite::Operation(operation) => {
                 provenance.operations.last() == Some(&operation)
                     && provenance.edges.is_empty()
@@ -5762,6 +5762,7 @@ pub(crate) mod test_support {
             no_code_affine_cleanup: false,
             copyable: false,
             descriptor_cleanup: false,
+            nominal_cleanup: None,
             scalar_restriction: None,
             id,
             identity,

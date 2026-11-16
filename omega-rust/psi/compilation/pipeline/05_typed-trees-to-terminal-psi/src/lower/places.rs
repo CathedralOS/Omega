@@ -144,7 +144,7 @@ pub(crate) fn declare<'a>(
     mut identities: TerminalIdentityTableBuilder,
 ) -> Checked<Declared<'a>> {
     let mut field_identities = IdTable::default();
-    let mut structural_types = Vec::with_capacity(types.len());
+    let mut structural_types: Vec<StructuralTypeDeclaration> = Vec::with_capacity(types.len());
     let mut native_layouts = NativeLayoutCatalog::default();
     let mut payload_identities = IdTable::default();
     for (id, record) in types.iter() {
@@ -327,6 +327,55 @@ pub(crate) fn declare<'a>(
                 }
             }
         };
+        let mut children = shape
+            .direct_fields()
+            .unwrap_or(&[])
+            .iter()
+            .chain(
+                shape
+                    .sum_cases()
+                    .unwrap_or(&[])
+                    .iter()
+                    .flat_map(|case| &case.fields),
+            )
+            .filter_map(|field| match field.field_type {
+                StructuralFieldType::Structural(child) => Some(child),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        if let StructuralTypeShape::FixedArray { element, .. } = &shape {
+            children.push(*element);
+        }
+        let mut no_code = !record.owns_linear_claim && record.cleanup.is_none();
+        let mut descriptor_cleanup = no_code;
+        for child in children {
+            let raw = usize::try_from(child.get() - 1).map_err(|_| {
+                refuse(
+                    entry,
+                    Construct::Machine,
+                    Unserved::Type("cleanup child identity"),
+                )
+            })?;
+            let child = structural_types.get(raw).ok_or_else(|| {
+                refuse(
+                    entry,
+                    Construct::Machine,
+                    Unserved::Type("cleanup child declaration is not established"),
+                )
+            })?;
+            no_code &= child.no_code_affine_cleanup;
+            descriptor_cleanup &= child.descriptor_cleanup;
+        }
+        let nominal_cleanup =
+            record
+                .cleanup
+                .as_ref()
+                .map(|cleanup| terminal_psi::NominalCleanupSelection {
+                    declaration: terminal_psi::NominalDeclarationIdentity::new(
+                        identities.intern(&cleanup.declaration_identity),
+                    ),
+                    cleanup_machine: cleanup.machine,
+                });
         structural_types.push(StructuralTypeDeclaration {
             declaration_identity: Default::default(),
             requires: record.requires.clone(),
@@ -335,8 +384,9 @@ pub(crate) fn declare<'a>(
             identity: identities.intern(&record.identity),
             owns_linear_claim: record.owns_linear_claim,
             copyable: record.copyable,
-            no_code_affine_cleanup: !record.owns_linear_claim,
-            descriptor_cleanup: !record.owns_linear_claim,
+            no_code_affine_cleanup: no_code,
+            descriptor_cleanup,
+            nominal_cleanup,
             shape,
             scalar_restriction: None,
         });
@@ -584,6 +634,7 @@ fn append_scalar_type(
         copyable: true,
         no_code_affine_cleanup: true,
         descriptor_cleanup: true,
+        nominal_cleanup: None,
         shape: StructuralTypeShape::PrimitiveScalar(scalar_type),
         scalar_restriction: None,
     });
@@ -604,6 +655,7 @@ fn statement_homes<'b>(
 ) {
     match statement {
         Statement::Bind { value, .. }
+        | Statement::Decompose { subject: value }
         | Statement::Evaluate {
             expression: value, ..
         } => expression_homes(value, homes),
@@ -1139,6 +1191,27 @@ fn owned_result(
 }
 
 impl<'a> Lowering<'a> {
+    /// A complete pattern ends the wrapper at its captured place. It neither
+    /// acquires another home nor copies or moves any component's contents.
+    pub(super) fn decompose(&mut self, subject: &Expression) -> Evaluation<()> {
+        let (root, steps, _, _) = continuing!(self.capture_place(subject));
+        let operation = self.operation_identity(subject.source);
+        let path =
+            self.storage_path(&steps, ExecutionSite::Operation(operation), subject.source)?;
+        self.emit(
+            operation,
+            None,
+            OperationKind::DecomposeStructuralValue {
+                subject: StructuralArgument {
+                    place: root,
+                    path,
+                    access: StructuralAccess::Owned,
+                },
+            },
+        )?;
+        Ok(Reached::Value(()))
+    }
+
     pub(super) fn record_type(&self, record: StructuralTypeId) -> Checked<&'a RecordType> {
         terminal_check_tables::row(self.records.types, record, self.id, Construct::Machine)
     }
@@ -4182,6 +4255,7 @@ mod tests {
         let wrapping_id = types.push(RecordType {
             owns_linear_claim: false,
             copyable: true,
+            cleanup: None,
             identity: "wrapping-u32".into(),
             shape: StorageShape::PrimitiveScalar {
                 scalar_type: scalar,
@@ -4193,6 +4267,7 @@ mod tests {
         types.push(RecordType {
             owns_linear_claim: false,
             copyable: true,
+            cleanup: None,
             identity: "wrapping-elements".into(),
             shape: StorageShape::FixedArray {
                 element: wrapping_id,

@@ -2567,6 +2567,11 @@ pub(crate) mod scalar_graph {
                         destination: *destination,
                         value: *value,
                     },
+                    AbstractOperation::DecomposeStructuralValue { subject, .. } => {
+                        LegalizedScalarInstructionKind::DecomposeStructuralValue {
+                            subject: subject.clone(),
+                        }
+                    }
                     AbstractOperation::EstablishTrivialAffineLocal {
                         place,
                         structural_type,
@@ -3537,7 +3542,6 @@ pub(crate) mod scalar_graph {
         Ok(LegalizedScalarFunction {
             machine: target.machine,
             attachment: target.attachment,
-            nominal_cleanup_subject: target.nominal_cleanup_subject,
             provenance: target.provenance.clone(),
             call_plan,
             parameters,
@@ -3682,7 +3686,6 @@ pub(crate) fn derive_target_function_rosters(
         scalar_functions.push(legalized_operations::LegalizedScalarFunction {
             machine: function.machine,
             attachment: function.attachment,
-            nominal_cleanup_subject: function.nominal_cleanup_subject,
             provenance: function.provenance.clone(),
             call_plan: function.graph.call_plan.clone(),
             parameters: scalar_graph::parameters(function, types)?,

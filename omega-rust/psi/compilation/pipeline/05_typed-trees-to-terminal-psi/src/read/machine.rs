@@ -287,7 +287,7 @@ impl<'t> Program<'t> {
         Ok(local)
     }
 
-    fn next_identity(&self) -> Checked<MachineId> {
+    pub(super) fn next_identity(&self) -> Checked<MachineId> {
         MachineId::new(self.symbols.len() as u64 + 1).ok_or_else(|| {
             refuse(
                 MachineId::new(1).expect("1 is nonzero"),
@@ -3139,11 +3139,18 @@ impl<'t> Program<'t> {
                 StatementNode::LocalData(local)
                     if local.role == language_core::LocalBindingRole::RecordPattern =>
                 {
-                    // The marker reads nothing and binds nothing, so it
-                    // leaves no statement; only the cursor moves on.
-                    self.record_pattern(id, &slots, local)?;
-                    position += 1;
-                    continue;
+                    // A nominal owned pattern ends its wrapper before the
+                    // following field bindings. Other markers bind nothing.
+                    let decomposition = self.record_pattern(id, &slots, local)?;
+                    if let Some(statement) = decomposition {
+                        // The common tail advances this real event. The next
+                        // statement is the first component binding, not part
+                        // of the marker, and must still enter the slot scope.
+                        statement
+                    } else {
+                        position += 1;
+                        continue;
+                    }
                 }
                 StatementNode::LocalData(local)
                     if local.role == language_core::LocalBindingRole::AtomicObservedResult =>
@@ -3406,6 +3413,7 @@ fn bindings(statement: &Statement, slot_names: &[String], out: &mut Vec<(SourceS
             }
         }
         Statement::CaptureReference { .. }
+        | Statement::Decompose { .. }
         | Statement::Declare { .. }
         | Statement::Witness { .. }
         | Statement::Store { .. }
@@ -3425,6 +3433,7 @@ fn value_exits(statement: &Statement, exits: &mut Vec<(SourceSpan, usize)>) {
             .chain(default.iter().map(|(target, source)| (target, *source)))
             .collect(),
         Statement::CaptureReference { .. }
+        | Statement::Decompose { .. }
         | Statement::Declare { .. }
         | Statement::Witness { .. }
         | Statement::Bind { .. }
@@ -3613,7 +3622,9 @@ fn statement_slot_uses(statement: &Statement, uses: &mut [usize]) {
         }
     };
     match statement {
-        Statement::Bind { value, .. } => expression_slot_uses(value, uses),
+        Statement::Bind { value, .. } | Statement::Decompose { subject: value } => {
+            expression_slot_uses(value, uses)
+        }
         Statement::Store {
             destination, value, ..
         } => {

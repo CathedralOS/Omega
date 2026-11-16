@@ -5465,12 +5465,7 @@ pub(crate) mod structural_storage {
                                 backing.retain_storage(&mut retained);
                             }
                         }
-                        SuspendedCallResult::NominalCleanups {
-                            completed,
-                            continuation,
-                            ..
-                        } => {
-                            retained.value(&completed.1);
+                        SuspendedCallResult::OwnedCleanups { continuation, .. } => {
                             retained.continuation(continuation);
                         }
                         _ => {}
@@ -5912,7 +5907,7 @@ pub(crate) mod structural_storage {
                             .any(|backing| backing.byte_region.is_some())
                         || !frame.byte_sequence_values.is_empty()
                         || !frame.element_view_values.is_empty()
-                        || matches!(frame.result, SuspendedCallResult::NominalCleanups { .. })
+                        || matches!(frame.result, SuspendedCallResult::OwnedCleanups { .. })
                 });
             let defer_scalars = !collect_scalars || self.structural_scalar_fields.len() < 4096;
             if hidden_backings || (defer_scalars && !collect_atoms) {

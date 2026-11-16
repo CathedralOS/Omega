@@ -1,6 +1,6 @@
 /*
 Canonical SHA-256 identity encoding for `FunctionFragmentEmissionPlan`
-(`FunctionFragmentEmissionIdentity`, schema `omega.terminal.function-fragment-emission.v24`).
+(`FunctionFragmentEmissionIdentity`, schema `omega.terminal.function-fragment-emission.v25`).
 
 Every function fragment, block span, instruction span (including zero-byte elided/fused rows),
 branch displacement, internal/foreign/image fixup, and semantic provenance roster is hashed in
@@ -26,7 +26,7 @@ use selected_instructions::SelectedInstructionProvenance;
 use semantic_vocabulary::{IntegerCarrier, IntegerSign, ScalarType};
 use target_vocabulary::TerminalPsiProvenance;
 
-const FRAGMENT_SCHEMA: &[u8] = b"omega.terminal.function-fragment-emission.v24";
+const FRAGMENT_SCHEMA: &[u8] = b"omega.terminal.function-fragment-emission.v25";
 
 pub(crate) fn function_fragment_emission_identity(
     plan: &FunctionFragmentEmissionPlan,
@@ -48,13 +48,7 @@ pub(crate) fn function_fragment_emission_identity(
                 hasher.raw(&attachment.get().to_le_bytes());
             }
         }
-        match function.nominal_cleanup_subject {
-            None => hasher.byte(0),
-            Some(attachment) => {
-                hasher.byte(1);
-                hasher.raw(&attachment.get().to_le_bytes());
-            }
-        }
+
         encode_function_provenance(&mut hasher, &function.provenance);
         hasher.raw(&function.byte_count.to_le_bytes());
         hasher.bytes(&function.bytes);

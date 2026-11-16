@@ -96,6 +96,7 @@ use crate::{StorageUse, refusal};
 
 mod byte_payloads;
 mod byte_views;
+mod cleanup;
 mod contents;
 mod loans;
 mod log;
@@ -680,6 +681,7 @@ enum Touching<'a> {
 
 /// One operation or terminator that reads storage or names a case payload.
 struct Touch<'a> {
+    cleanup: Option<(EdgeId, u32)>,
     /// The operation, or for a terminator its edge or block.
     at: Construct,
     block: BlockId,
@@ -733,6 +735,7 @@ pub(crate) struct Storage<'a> {
     /// Bound actual operations and structural edge bindings once per machine.
     reaching_budget: usize,
     log: Vec<Logged>,
+    cleanup_writes: Vec<crate::owned_cleanup::Write>,
     observations: Vec<BTreeMap<Lineage, Vec<Observation>>>,
     /// Shared descriptor replay owns storage aliasing. This is local checker
     /// scratch over the same canonical machine closure, never source evidence.
@@ -783,6 +786,7 @@ impl<'a> Storage<'a> {
             returned_contents: contents.calls,
             reaching_budget,
             log: Vec::new(),
+            cleanup_writes: Vec::new(),
             observations: (0..graph.block_count()).map(|_| BTreeMap::new()).collect(),
             references,
             domains,
@@ -791,7 +795,10 @@ impl<'a> Storage<'a> {
         // operation loop appends reads in position order for binary search.
         storage.initial_contents_are_declared(tables)?;
         storage.log = storage.stores(value_types)?;
+        storage.cleanup_writes =
+            crate::owned_cleanup::writes(module, lowered, &mut references.borrow_mut())?;
         storage.log_is_stated(tables)?;
+        storage.cleanup_log_is_stated(tables)?;
         // Compare the authored log first. Then every write uses the same
         // captured backing relation as reads and loan compatibility.
         let relocated = storage
@@ -1261,6 +1268,12 @@ impl<'a> Storage<'a> {
                     .ok_or_else(|| self.foreign(concerns, "a call has no point before it"))?;
                 (block, before)
             }
+            InvocationSite::Cleanup { .. } => {
+                return Err(self.unsupported(
+                    concerns,
+                    "cleanup call requires its exact owner-prestate adapter",
+                ));
+            }
             InvocationSite::InvokeNoNormal(edge) | InvocationSite::ExternalCompletion(edge) => {
                 let (block, _) = self.graph.locate(ProgramPoint::Edge(edge))?;
                 (block, self.block(block)?.operations.len())
@@ -1517,9 +1530,11 @@ impl<'a> Storage<'a> {
         owner: &Owner,
         block: BlockId,
         up_to: usize,
+        point: ProgramPoint,
         concerns: Construct,
     ) -> Checked<Proposition> {
         let mut bindings = Held {
+            point: Some(point),
             storage: self,
             tables,
             place: &owner.place,
@@ -1552,7 +1567,14 @@ impl<'a> Storage<'a> {
     ) -> Checked<Proposition> {
         let owner = self.owner(operation, clause, concerns)?;
         let (block, after) = self.graph.locate(ProgramPoint::AfterOperation(operation))?;
-        self.stated(tables, &owner, block, after, concerns)
+        self.stated(
+            tables,
+            &owner,
+            block,
+            after,
+            ProgramPoint::AfterOperation(operation),
+            concerns,
+        )
     }
 
     /// Whether a store writes no storage that a clause reads, so that the
@@ -2787,6 +2809,16 @@ impl<'a> Storage<'a> {
         if let Some(key) = key {
             budget.keys.insert(key, address);
         }
+        // A real cleanup epoch can end this observation before operation
+        // stores do. Feed that result into the same equation graph so shared
+        // copy traces and initialization still use the ordinary solver.
+        if up_to >= self.block(block)?.operations.len()
+            && let Some(point) = budget.used
+            && let Some(changed) = self.cleanup_at_point(asked, block, point)?
+        {
+            budget.add_supply(address, Supply::Direct(changed));
+            return Ok(Supply::transfer(address).within(projection));
+        }
         // The limit still bounds walks whose projected source keeps changing.
         // Alternative arrivals start with the same remaining depth.
         let remaining = budget.remaining;
@@ -3002,6 +3034,10 @@ impl<'a> Storage<'a> {
                         continue;
                     }
                     asked_of.push(*predecessor);
+                    if let Some(changed) = self.cleanup_arrival(asked, *predecessor, block)? {
+                        budget.add_supply(address, Supply::Direct(changed));
+                        continue;
+                    }
                     if let Asked::Case(sum) = asked
                         && let Some(selected) =
                             self.edge_selects(tables, sum, *predecessor, block, concerns)?
@@ -3271,6 +3307,7 @@ impl<'a> Storage<'a> {
             for clause in self.clauses_of(structural_type, concerns)? {
                 let mut bindings = Observed {
                     held: Held {
+                        point: None,
                         storage: self,
                         tables,
                         place: &owner,
@@ -3422,7 +3459,8 @@ impl<'a> Storage<'a> {
             OperationKind::StructuralLeafCopy { source, path } => {
                 Ok(vec![self.stored_at(*source, path, concerns)?])
             }
-            OperationKind::EstablishReference { source, .. } => {
+            OperationKind::DecomposeStructuralValue { subject: source }
+            | OperationKind::EstablishReference { source, .. } => {
                 Ok(vec![self.argument(source, concerns)?])
             }
             OperationKind::ReleaseReference { source, path } => {
@@ -3582,6 +3620,9 @@ impl<'a> Storage<'a> {
         {
             changes.push(StorageEffect::Storage(self.argument(argument, concerns)?));
         }
+        if let OperationKind::DecomposeStructuralValue { subject } = &operation.kind {
+            changes.push(StorageEffect::Storage(self.argument(subject, concerns)?));
+        }
         if let OperationKind::StoreStructuralField { value, .. } = &operation.kind
             && value.access == terminal_psi::StructuralAccess::Owned
         {
@@ -3662,6 +3703,7 @@ impl<'a> Storage<'a> {
     /// the same root and prefix at the read's observation epoch."). The
     /// case comes from a dispatch edge, the true edge of a membership test,
     /// or the construction that every reaching write is.
+    #[allow(clippy::too_many_arguments)]
     fn judged(
         &self,
         tables: &MachineTables,
@@ -3669,11 +3711,13 @@ impl<'a> Storage<'a> {
         named: &[Lineage],
         block: BlockId,
         up_to: usize,
+        point: ProgramPoint,
         concerns: Construct,
     ) -> Checked<Checked<()>> {
         for place in used {
             for leaf in self.leaves(place, concerns)? {
                 let mut budget = self.initialization_budget();
+                budget.used = Some(point);
                 if self.reaching(
                     tables,
                     Asked::Contents(&leaf),
@@ -3702,6 +3746,7 @@ impl<'a> Storage<'a> {
                     segments: place.segments[..length].to_vec(),
                 };
                 let mut budget = self.budget();
+                budget.used = Some(point);
                 if self.reaching(
                     tables,
                     Asked::Case(&sum),
@@ -4212,6 +4257,7 @@ impl<'a> Storage<'a> {
                     Touching::Whole
                 };
                 touches.push(Touch {
+                    cleanup: None,
                     at: Construct::Operation(operation.id),
                     block: block.id,
                     up_to: position,
@@ -4223,11 +4269,32 @@ impl<'a> Storage<'a> {
                     releases,
                 });
             }
+            for (edge, actions) in block.terminator.cleanup_rosters() {
+                for (ordinal, action) in actions.iter().enumerate() {
+                    if let terminal_psi::TerminalAffineCleanupAction::InvokeOwned(cleanup) = action
+                    {
+                        let used = vec![self.argument(&cleanup.subject, Construct::Edge(edge))?];
+                        touches.push(Touch {
+                            cleanup: Some((edge, crate::position(ordinal, self.machine)?)),
+                            at: Construct::Edge(edge),
+                            block: block.id,
+                            up_to: block.operations.len(),
+                            named: used.clone(),
+                            used,
+                            relied: Vec::new(),
+                            how: Touching::Whole,
+                            judged: true,
+                            releases: true,
+                        });
+                    }
+                }
+            }
             let (edge, used) = match &block.terminator {
                 Terminator::EliminateEmpty { edge, source, path } => {
                     let at = Construct::Edge(*edge);
                     let subject = vec![self.stored_at(*source, path, at)?];
                     touches.push(Touch {
+                        cleanup: None,
                         at,
                         block: block.id,
                         up_to: usize::MAX,
@@ -4260,6 +4327,7 @@ impl<'a> Storage<'a> {
                         }
                     }
                     touches.push(Touch {
+                        cleanup: None,
                         at,
                         block: block.id,
                         up_to: usize::MAX,
@@ -4349,6 +4417,7 @@ impl<'a> Storage<'a> {
                 continue;
             }
             touches.push(Touch {
+                cleanup: None,
                 at: Construct::Edge(edge),
                 block: block.id,
                 up_to: usize::MAX,
@@ -4385,6 +4454,7 @@ impl<'a> Storage<'a> {
                     &touch.named,
                     touch.block,
                     touch.up_to,
+                    self.point(&touch)?,
                     touch.at,
                 )
             };
@@ -4452,6 +4522,7 @@ impl<'a> Storage<'a> {
         touch: &Touch<'_>,
     ) -> Checked<bool> {
         let mut budget = self.budget();
+        budget.used = Some(self.point(touch)?);
         Ok(self.reaching(
             tables,
             Asked::Window {
@@ -4478,7 +4549,15 @@ impl<'a> Storage<'a> {
         let before = after
             .checked_sub(1)
             .ok_or_else(|| self.foreign(concerns, "an operation has no point before it"))?;
+        let operations = &self.block(block)?.operations;
         let mut budget = self.budget();
+        budget.used = Some(
+            before
+                .checked_sub(1)
+                .map_or(ProgramPoint::BlockEntry(block), |previous| {
+                    ProgramPoint::AfterOperation(operations[previous].id)
+                }),
+        );
         Ok(self.reaching(
             tables,
             Asked::Window {
@@ -4580,6 +4659,12 @@ impl<'a> Storage<'a> {
     /// terminator that has one, and otherwise just before the operation or
     /// at the end of the block.
     fn point(&self, touch: &Touch<'_>) -> Checked<ProgramPoint> {
+        if let Some((edge, action_ordinal)) = touch.cleanup {
+            return Ok(ProgramPoint::BeforeCleanup {
+                edge,
+                action_ordinal,
+            });
+        }
         if let Construct::Edge(edge) = touch.at {
             return Ok(ProgramPoint::Edge(edge));
         }
@@ -4623,6 +4708,7 @@ impl<'a> Storage<'a> {
                         &window.owner,
                         touch.block,
                         touch.up_to,
+                        self.point(&touch)?,
                         Construct::Obligation(window.obligation),
                     ),
                 });
@@ -4643,6 +4729,7 @@ fn position_of(cases: &[StructuralCaseDeclaration], case: StructuralCaseId) -> u
 /// place `place` of that type holds at one point: each field the one value
 /// the walk finds there, each case test whether the walk finds that case.
 struct Held<'s, 'a> {
+    point: Option<ProgramPoint>,
     storage: &'s Storage<'a>,
     tables: &'s MachineTables,
     place: &'s Lineage,
@@ -4748,6 +4835,7 @@ impl<'s, 'a, Inputs: InputPlaces> Returned<'s, 'a, Inputs> {
             .locate(self.point)
             .map_err(crate::Unbound::Refused)?;
         Ok(Held {
+            point: Some(self.point),
             storage: self.storage,
             tables: self.tables,
             place,
@@ -5130,6 +5218,7 @@ impl<'a> AtCall<'_, 'a> {
 
     fn held_at<'p>(&'p self, place: &'p Lineage) -> Held<'p, 'a> {
         Held {
+            point: None,
             storage: self.storage,
             tables: self.tables,
             place,
@@ -5576,6 +5665,7 @@ impl Held<'_, '_> {
             ));
         }
         let mut budget = storage.budget();
+        budget.used = self.point;
         let reached = storage
             .reaching(
                 self.tables,
@@ -5709,6 +5799,7 @@ impl crate::Bindings for Held<'_, '_> {
         let sum = self.beneath(root, path)?;
         let storage = self.storage;
         let mut budget = storage.budget();
+        budget.used = self.point;
         match storage
             .reaching(
                 self.tables,
@@ -6140,13 +6231,18 @@ mod observation_tests {
         }
         storage.log[row_index].stored = Stored::Moved(source);
 
-        // Remove the invocation's incoming edge from the equation graph.
+        // Disconnect the invocation's incoming edges from the equation graph.
+        // Keep their identities so each cleanup still names its actual source.
         // The remaining backedges can carry contents but cannot initialize them.
         let mut unseeded = tables.clone();
-        unseeded.edges = IdTable::default();
-        for (_, edge) in tables.edges.iter() {
-            if edge.source != graph.entry() {
-                unseeded.edges.push(edge.clone());
+        for (_, edge) in unseeded.edges.iter_mut() {
+            if edge.source == graph.entry()
+                && matches!(
+                    edge.destination,
+                    terminal_check_tables::edges::Destination::Block(_)
+                )
+            {
+                edge.destination = terminal_check_tables::edges::Destination::Return;
             }
         }
         let cyclic_graph = Graph::new(machine.id, machine, &unseeded).unwrap();

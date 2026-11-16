@@ -922,6 +922,12 @@ pub(crate) mod runtime_evidence_encoding {
                 );
             });
         });
+        bytes.slice(catalog.owned_cleanups(), |bytes, row| {
+            bytes.id(row.machine);
+            bytes.id(row.edge);
+            bytes.u32(row.action_ordinal);
+            super::structural_encoding::encode_owned_cleanup(bytes, &row.invocation);
+        });
         bytes.slice(catalog.applications(), |bytes, application| {
             bytes.id(application.id);
             bytes.id(application.declaration);
@@ -1757,6 +1763,14 @@ pub(crate) mod structural_encoding {
         bytes.u8(u8::from(declaration.owns_linear_claim));
         bytes.u8(u8::from(declaration.descriptor_cleanup));
         bytes.u8(u8::from(declaration.copyable));
+        encode_optional(
+            bytes,
+            declaration.nominal_cleanup.as_ref(),
+            |bytes, selection| {
+                bytes.u32(selection.declaration.identity().0);
+                bytes.id(selection.cleanup_machine);
+            },
+        );
         match &declaration.shape {
             StructuralTypeShape::Opaque => bytes.u8(19),
             StructuralTypeShape::Reference { referent, access } => {
@@ -2051,6 +2065,22 @@ pub(crate) mod structural_encoding {
         bytes.id(discard.structural_type);
     }
 
+    pub(super) fn encode_owned_cleanup(
+        bytes: &mut CanonicalBytes,
+        cleanup: &terminal_psi::OwnedCleanupInvocation,
+    ) {
+        bytes.u8(6);
+        super::carrier_encoding::encode_structural_argument(bytes, &cleanup.subject);
+        bytes.id(cleanup.structural_type);
+        bytes.id(cleanup.cleanup_machine);
+        bytes.slice(&cleanup.claim_transfers, |bytes, transfer| {
+            bytes.id(transfer.claim);
+            bytes.u32(transfer.argument_index);
+            bytes.slice(&transfer.path, encode_structural_path_segment);
+        });
+        encode_ids(bytes, &cleanup.requirement_obligations);
+    }
+
     pub(super) fn encode_cleanup(bytes: &mut CanonicalBytes, action: &TerminalAffineCleanupAction) {
         match action {
             TerminalAffineCleanupAction::RetireHome(place) => {
@@ -2065,17 +2095,8 @@ pub(crate) mod structural_encoding {
                 bytes.u8(2);
                 encode_residual_cleanup(bytes, discard);
             }
-            TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
-                bytes.u8(if cleanup.retains_descendants { 5 } else { 3 });
-                bytes.id(cleanup.place);
-                bytes.slice(&cleanup.path, encode_structural_path_segment);
-                bytes.id(cleanup.structural_type);
-                bytes.id(cleanup.cleanup_machine);
-                encode_ids(bytes, &cleanup.consumed_claims);
-                encode_optional(bytes, cleanup.cleanup_receiver.as_ref(), |bytes, place| {
-                    bytes.id(*place)
-                });
-                encode_ids(bytes, &cleanup.requirement_obligations);
+            TerminalAffineCleanupAction::InvokeOwned(cleanup) => {
+                encode_owned_cleanup(bytes, cleanup)
             }
         }
     }
@@ -2085,7 +2106,8 @@ pub(crate) mod structural_encoding {
         use super::*;
         use semantic_vocabulary::{MachineId, PlaceId, StructuralTypeId};
         use terminal_psi::{
-            NominalAffineCleanup, StructuralPathSegment, TerminalAffineCleanupAction,
+            OwnedCleanupInvocation, StructuralAccess, StructuralArgument, StructuralPathSegment,
+            TerminalAffineCleanupAction,
         };
 
         #[test]
@@ -2113,6 +2135,42 @@ pub(crate) mod structural_encoding {
         }
 
         #[test]
+        fn selected_cleanup_changes_structural_identity() {
+            let mut encodings = Vec::new();
+            for selected in [None, Some((2, 3)), Some((4, 3)), Some((2, 5))] {
+                let declaration = StructuralTypeDeclaration {
+                    requires: Vec::new(),
+                    quotient_carrier: None,
+                    owns_linear_claim: false,
+                    no_code_affine_cleanup: false,
+                    descriptor_cleanup: false,
+                    nominal_cleanup: selected.map(|(identity, machine)| {
+                        terminal_psi::NominalCleanupSelection {
+                            declaration: terminal_psi::NominalDeclarationIdentity::new(
+                                terminal_psi::TerminalIdentityIndex(identity),
+                            ),
+                            cleanup_machine: MachineId::new(machine).unwrap(),
+                        }
+                    }),
+                    copyable: false,
+                    scalar_restriction: None,
+                    id: StructuralTypeId::new(1).unwrap(),
+                    identity: terminal_psi::TerminalIdentityIndex(1),
+                    declaration_identity: terminal_psi::TerminalIdentityIndex(1),
+                    shape: StructuralTypeShape::Record {
+                        fields: Vec::new(),
+                        storage: terminal_psi::StructuralRecordStorage::Packed,
+                    },
+                };
+                let mut encoder = CanonicalBytes::collect();
+                encode_structural_type(&mut encoder, &declaration);
+                let bytes = encoder.finish();
+                assert!(!encodings.contains(&bytes));
+                encodings.push(bytes);
+            }
+        }
+
+        #[test]
         fn logical_copy_permission_changes_encoded_identity() {
             let mut encodings = Vec::new();
             for copyable in [false, true] {
@@ -2123,6 +2181,7 @@ pub(crate) mod structural_encoding {
                     owns_linear_claim: false,
                     no_code_affine_cleanup: false,
                     descriptor_cleanup: true,
+                    nominal_cleanup: None,
                     copyable,
                     scalar_restriction: None,
                     id: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
@@ -2141,42 +2200,44 @@ pub(crate) mod structural_encoding {
         }
 
         #[test]
-        fn nominal_cleanup_identity_distinguishes_paths_and_descendant_custody() {
-            let mut previous_encoding = None;
-            for (path, retains_descendants) in [
-                (Vec::new(), false),
-                (Vec::new(), true),
-                (
-                    vec![StructuralPathSegment::Field(
+        fn owned_cleanup_identity_distinguishes_sources_paths_and_claim_transfers() {
+            let original = OwnedCleanupInvocation {
+                subject: StructuralArgument::whole(
+                    PlaceId::new(1).unwrap(),
+                    StructuralAccess::Owned,
+                ),
+                structural_type: StructuralTypeId::new(2).unwrap(),
+                cleanup_machine: MachineId::new(3).unwrap(),
+                claim_transfers: Vec::new(),
+                requirement_obligations: Vec::new(),
+            };
+            let mut encodings = Vec::new();
+            for change in 0..6 {
+                let mut cleanup = original.clone();
+                match change {
+                    0 => {}
+                    1 => cleanup.subject.place = PlaceId::new(2).unwrap(),
+                    2 => cleanup.subject.path.push(StructuralPathSegment::Field(
                         terminal_psi::TerminalIdentityIndex(1),
-                    )],
-                    false,
-                ),
-                (
-                    vec![
-                        StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(1)),
-                        StructuralPathSegment::FixedIndex(1),
-                    ],
-                    false,
-                ),
-            ] {
-                let action = TerminalAffineCleanupAction::InvokeNominal(NominalAffineCleanup {
-                    retains_descendants,
-                    place: PlaceId::new(1).unwrap(),
-                    path,
-                    structural_type: StructuralTypeId::new(2).unwrap(),
-                    cleanup_machine: MachineId::new(3).unwrap(),
-                    consumed_claims: Vec::new(),
-                    cleanup_receiver: None,
-                    requirement_obligations: Vec::new(),
-                });
+                    )),
+                    3 => cleanup.cleanup_machine = MachineId::new(4).unwrap(),
+                    4 | 5 => cleanup.claim_transfers.push(terminal_psi::ClaimTransfer {
+                        claim: semantic_vocabulary::ClaimId::new(1).unwrap(),
+                        argument_index: 0,
+                        path: if change == 5 {
+                            vec![StructuralPathSegment::FixedIndex(1)]
+                        } else {
+                            Vec::new()
+                        },
+                    }),
+                    _ => unreachable!(),
+                }
+                let action = TerminalAffineCleanupAction::InvokeOwned(cleanup);
                 let mut bytes = CanonicalBytes::collect();
                 encode_cleanup(&mut bytes, &action);
                 let encoded = bytes.finish();
-                if let Some(previous) = previous_encoding {
-                    assert_ne!(encoded, previous);
-                }
-                previous_encoding = Some(encoded);
+                assert!(!encodings.contains(&encoded));
+                encodings.push(encoded);
             }
         }
     }
@@ -2741,6 +2802,9 @@ pub(crate) mod unit_encoding {
                 bytes.slice(path, encode_structural_path_segment)
             });
         });
+        bytes.slice(&snapshot.nominal_partitions, |bytes, partition| {
+            super::structural_encoding::encode_residual_cleanup(bytes, partition);
+        });
     }
 
     fn encode_function(bytes: &mut CanonicalBytes, function: &PsiOptimizationFunction) {
@@ -2748,11 +2812,6 @@ pub(crate) mod unit_encoding {
         encode_optional(bytes, function.attachment.as_ref(), |bytes, attachment| {
             bytes.id(*attachment)
         });
-        encode_optional(
-            bytes,
-            function.nominal_cleanup_subject.as_ref(),
-            |bytes, attachment| bytes.id(*attachment),
-        );
         bytes.id(function.entry);
         bytes.slice(&function.parameters, encode_definition);
         bytes.slice(&function.structural_parameters, encode_structural_parameter);
@@ -3094,6 +3153,7 @@ pub(crate) mod operation_encoding {
             | abstract_operations::move_or_store_structural_field_pattern!()
             | O::StructuralLeafCopy { .. }
             | O::MoveStructuralValue { .. }
+            | O::DecomposeStructuralValue { .. }
             | O::TransformContent { .. }
             | O::EstablishNativeCodeLayout { .. }
             | O::EstablishRecord { .. } => structural::encode(bytes, operation),
@@ -5050,6 +5110,13 @@ pub(crate) mod operation_encoding {
                         derivations,
                         super::super::structural_encoding::encode_content_transformation,
                     );
+                }
+                O::DecomposeStructuralValue {
+                    psi_operation,
+                    subject,
+                } => {
+                    tag!(bytes, 138, psi_operation);
+                    encode_structural_argument(bytes, subject);
                 }
                 O::MoveStructuralValue {
                     psi_operation,

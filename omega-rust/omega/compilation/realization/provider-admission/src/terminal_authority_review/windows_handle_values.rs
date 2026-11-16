@@ -21,9 +21,7 @@ use terminal_semantics::descriptor_results::{
 };
 
 use super::context::ReviewContext;
-use super::windows_handle_calls::{
-    CallSite, CallTarget, Caller, HandleCallGraph, RuntimeArguments,
-};
+use super::windows_handle_calls::{CallTarget, Caller, HandleCallGraph, RuntimeArguments};
 use super::windows_handle_contracts::{WindowsHandleContract, reviewed_call};
 
 pub(super) struct LocalScalarExpressions {
@@ -423,9 +421,7 @@ impl<'a> HandleValueReader<'a> {
                     WindowsHandleContract::ReadFile | WindowsHandleContract::WriteFile => &[2],
                     _ => &[],
                 };
-                let RuntimeArguments::Explicit { structural, .. } = call.arguments else {
-                    return Err("native output call has no explicit argument custody".into());
-                };
+                let RuntimeArguments { structural, .. } = call.arguments;
                 for &parameter in parameters {
                     if reviewed.declaration.parameter_order.get(parameter)
                         != Some(&BoundaryParameterKind::Structural)
@@ -529,9 +525,7 @@ impl<'a> HandleValueReader<'a> {
                 machine: identity,
                 block: position.0,
                 operation_index: position.1 as usize,
-                site: CallSite::Invocation(semantic_vocabulary::InvocationSite::Operation(
-                    operation.id,
-                )),
+                site: semantic_vocabulary::InvocationSite::Operation(operation.id),
             };
             if self.calls.calls.contains_key(&caller) {
                 return Ok(ScalarDefinition::CallResult(caller));
@@ -575,9 +569,7 @@ impl<'a> HandleValueReader<'a> {
         parameter: usize,
     ) -> Result<ValueId, String> {
         self.require_machine_call(call, callee)?;
-        let RuntimeArguments::Explicit { scalar, .. } = call.arguments else {
-            return Err("scalar formal has no explicit invocation operand".into());
-        };
+        let RuntimeArguments { scalar, .. } = call.arguments;
         scalar.get(parameter).copied().ok_or_else(|| {
             format!(
                 "handle caller {:?} omits scalar formal {parameter} of {callee:?}",
@@ -649,25 +641,8 @@ impl<'a> HandleValueReader<'a> {
                     matches!(original.target, CallTarget::Machine(actual) if actual == callee)
                         && original.boundary == call.boundary
                         && original.normal_return == call.normal_return
-                        && match (original.arguments, call.arguments) {
-                            (
-                                RuntimeArguments::Explicit {
-                                    scalar: left,
-                                    structural: left_storage,
-                                },
-                                RuntimeArguments::Explicit {
-                                    scalar: right,
-                                    structural: right_storage,
-                                },
-                            ) => {
-                                std::ptr::eq(left, right)
-                                    && std::ptr::eq(left_storage, right_storage)
-                            }
-                            (RuntimeArguments::Cleanup(left), RuntimeArguments::Cleanup(right)) => {
-                                std::ptr::eq(left, right)
-                            }
-                            _ => false,
-                        }
+                        && std::ptr::eq(original.arguments.scalar, call.arguments.scalar)
+                        && std::ptr::eq(original.arguments.structural, call.arguments.structural)
                 })
             })
         {
@@ -857,9 +832,7 @@ impl<'a> HandleValueReader<'a> {
                         machine: identity,
                         block: write_position.0,
                         operation_index: write_position.1 as usize,
-                        site: CallSite::Invocation(semantic_vocabulary::InvocationSite::Operation(
-                            operation.id,
-                        )),
+                        site: semantic_vocabulary::InvocationSite::Operation(operation.id),
                     };
                     if calls.contains_key(&caller) {
                         written.push((

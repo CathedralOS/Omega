@@ -118,7 +118,6 @@ fn shared_function() -> SelectedFunction {
         contracts: std::sync::Arc::new(selected_instructions::SelectedFunctionContracts {
             machine: MachineId::new(1).unwrap(),
             attachment: None,
-            nominal_cleanup_subject: None,
             provenance: Default::default(),
             structural: None,
             outgoing_arguments: Vec::new(),
@@ -333,7 +332,6 @@ pub(super) fn function_with_operand(access: RegisterOperandAccess) -> SelectedFu
         contracts: std::sync::Arc::new(selected_instructions::SelectedFunctionContracts {
             machine: MachineId::new(1).unwrap(),
             attachment: None,
-            nominal_cleanup_subject: None,
             provenance: Default::default(),
             structural: None,
             outgoing_arguments: Vec::new(),

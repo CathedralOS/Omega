@@ -320,6 +320,17 @@ fn definition_equation(
 }
 
 fn caller_position(caller: Caller) -> Result<DescriptorPosition, String> {
+    if matches!(
+        caller.site,
+        semantic_vocabulary::InvocationSite::Cleanup { .. }
+    ) {
+        // This origin equation can name operation snapshots only. Ordered
+        // cleanup reads require their own pre-action state; the terminator
+        // snapshot could precede another cleanup's write.
+        return Err(
+            "handle origin storage at ordered cleanup requires an action-specific snapshot".into(),
+        );
+    }
     Ok((
         caller.block,
         u32::try_from(caller.operation_index)
@@ -372,11 +383,8 @@ fn result_equation(
                 });
             }
             CallTarget::Intrinsic(_) if alternatives.len() == 1 && projection.is_none() => {
-                let super::windows_handle_calls::RuntimeArguments::Explicit { scalar, structural } =
-                    call.arguments
-                else {
-                    return Err("intrinsic scalar result has no explicit invocation inputs".into());
-                };
+                let super::windows_handle_calls::RuntimeArguments { scalar, structural } =
+                    call.arguments;
                 if !structural.is_empty() {
                     return Err("intrinsic scalar result requires an unsupported structural operand interpretation".into());
                 }
@@ -524,4 +532,31 @@ fn expression_equation(
             })
             .collect(),
     })
+}
+
+#[cfg(test)]
+mod cleanup_position_tests {
+    use super::*;
+    use semantic_vocabulary::{BlockId, EdgeId, InvocationSite, OperationId};
+
+    #[test]
+    fn demanded_cleanup_storage_cannot_reuse_the_terminator_snapshot() {
+        let mut caller = Caller {
+            machine: MachineId::new(1).unwrap(),
+            block: BlockId::new(1).unwrap(),
+            operation_index: 3,
+            site: InvocationSite::Operation(OperationId::new(1).unwrap()),
+        };
+        assert_eq!(caller_position(caller).unwrap(), (caller.block, 3));
+        for action_ordinal in [0, 1] {
+            caller.site = InvocationSite::Cleanup {
+                edge: EdgeId::new(1).unwrap(),
+                action_ordinal,
+            };
+            assert_eq!(
+                caller_position(caller).unwrap_err(),
+                "handle origin storage at ordered cleanup requires an action-specific snapshot"
+            );
+        }
+    }
 }

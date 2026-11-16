@@ -27,7 +27,6 @@ use terminal_psi::CrashRouteBucket;
 pub struct LegalizedScalarFunction {
     pub machine: MachineId,
     pub attachment: Option<StructuralTypeId>,
-    pub nominal_cleanup_subject: Option<StructuralTypeId>, // Exact owner-designated cleanup subject, independent of attachment or call sites.
     pub provenance: TerminalPsiProvenance,
     pub call_plan: CallPlan,
     pub parameters: Vec<LegalizedScalarParameter>,
@@ -346,6 +345,7 @@ impl LegalizedScalarInstruction {
             | LegalizedScalarInstructionKind::SelectImplementation { .. }
             | LegalizedScalarInstructionKind::EstablishStructuralArray { .. }
             | LegalizedScalarInstructionKind::Constant(_)
+            | LegalizedScalarInstructionKind::DecomposeStructuralValue { .. }
             | LegalizedScalarInstructionKind::EstablishTrivialAffineLocal { .. }
             | LegalizedScalarInstructionKind::EstablishZeroedStructural { .. }
             | LegalizedScalarInstructionKind::EstablishStructuralLocal { .. }
@@ -769,6 +769,10 @@ pub enum LegalizedScalarInstructionKind {
         shape: calling_conventions::ValueShape,
         indices: Vec<LegalizedRuntimeIndexOperand>, // Resolved operands for `RuntimeIndex` segments in path order.
     },
+    /// A checked custody partition; selection emits no machine instruction.
+    DecomposeStructuralValue {
+        subject: terminal_psi::StructuralArgument,
+    },
     EstablishTrivialAffineLocal {
         place: terminal_psi::StructuralPlaceDeclaration,
         structural_type: terminal_psi::StructuralTypeDeclaration,
@@ -1086,6 +1090,7 @@ impl LegalizedScalarInstructionKind {
             | Self::StructuralByteSequenceFieldByteStore { .. }
             | Self::StructuralCaseMembership { .. }
             | Self::StoreStructuralField { .. }
+            | Self::DecomposeStructuralValue { .. }
             | Self::EstablishTrivialAffineLocal { .. }
             | Self::WriteOnlyPrimitiveStore { .. }
             | Self::HostedWriteByteI32 { .. }
