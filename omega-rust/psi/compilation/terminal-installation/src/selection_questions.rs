@@ -172,15 +172,32 @@ fn cover<Key: Ord + Copy, Value>(
     }
 }
 
+type MachineOrigin = (
+    (MachineId, SelectionDeclarationId),
+    semantic_vocabulary::BlockId,
+);
+
+/// Every head at which `machine` begins the source declaration `source`.
+/// Rows are sorted by key, so a declaration's heads are adjacent.
+fn origin_heads(
+    rows: &[MachineOrigin],
+    machine: MachineId,
+    source: SelectionDeclarationId,
+) -> &[MachineOrigin] {
+    let key = (machine, source);
+    let start = rows.partition_point(|(row, _)| *row < key);
+    let end = rows.partition_point(|(row, _)| *row <= key);
+    &rows[start..end]
+}
+
 fn origin(
-    rows: &[(
-        (MachineId, SelectionDeclarationId),
-        semantic_vocabulary::BlockId,
-    )],
+    rows: &[MachineOrigin],
     machine: MachineId,
     source: SelectionDeclarationId,
 ) -> Option<semantic_vocabulary::BlockId> {
-    lookup(rows, (machine, source)).copied()
+    origin_heads(rows, machine, source)
+        .first()
+        .map(|(_, head)| *head)
 }
 
 /// The caller must supply the private source-issued companion, not decoded data
@@ -361,9 +378,26 @@ pub fn validate_selection_questions(
             _ => (),
         }
     }
-    origins.sort_unstable_by_key(|(key, _)| *key);
-    if origins.windows(2).any(|rows| rows[0].0 == rows[1].0) {
-        return Err("source selection repeats a machine origin".into());
+    origins.sort_unstable();
+    // A declaration starts at one head of an emitted machine, with one
+    // exception. When calls that cycle among nested machines are folded into
+    // each machine of the cycle, a machine's own declaration starts both at its
+    // entry, where outside callers arrive, and at its folded head, where edges
+    // inside the cycle arrive. Any other repeated origin is refused.
+    for rows in origins.chunk_by(|left, right| left.0 == right.0) {
+        let ((machine, _), _) = rows[0];
+        let entry = module
+            .machine(machine)
+            .map(|body| body.entry)
+            .ok_or("source selection origin has no emitted machine")?;
+        let repeated = match rows {
+            [_] => false,
+            [(_, first), (_, second)] => first == second || (*first != entry && *second != entry),
+            _ => true,
+        };
+        if repeated {
+            return Err("source selection repeats a machine origin".into());
+        }
     }
     boundary_origins.sort_unstable_by_key(|(key, _)| *key);
     if boundary_origins
@@ -522,7 +556,9 @@ pub fn validate_selection_questions(
                 if row.occurrence.lexical_owner != *original_caller
                     || !selected
                     || origin(&origins, *machine, *original_caller).is_none()
-                    || origin(&origins, *machine, *original_target) != Some(*head)
+                    || !origin_heads(&origins, *machine, *original_target)
+                        .iter()
+                        .any(|(_, target_head)| target_head == head)
                 {
                     return Err(
                         "folded selection lost its original caller, target or actual head".into(),

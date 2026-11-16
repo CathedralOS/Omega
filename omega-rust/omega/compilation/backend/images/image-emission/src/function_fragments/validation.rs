@@ -1,4 +1,11 @@
 //! Independently replay object custody, bytes, geometry and settlements.
+//!
+//! Every read checks the object against its current producer chain: the
+//! resolved machine program, its contracts and the facts the driver carried.
+//! Comparing the object with what stage 02 lowered needs stage 02's output,
+//! which only a compile that requested a correspondence audit keeps; without
+//! it those comparisons do not run, and the mandatory current checks still do
+//! (wiki/spec/build/command_line.md "Independent stage validators").
 
 mod stack {
     use super::super::source::CallStackEdge;
@@ -295,9 +302,10 @@ use object_file::{
 };
 
 pub(crate) fn validate_function_fragment_object_artifact(
-    source: &StagedOptimizedRelocationFreeObjectContainer,
+    replay: &super::replay::FragmentReplay,
     artifact: &ObjectArtifact,
 ) -> Result<(), Error> {
+    let source = replay.0.as_ref();
     crate::entries::physical_entry::validate_binding(artifact).map_err(Error::PhysicalEntry)?;
     if artifact.composition_source.is_some() {
         let root = artifact
@@ -315,17 +323,25 @@ pub(crate) fn validate_function_fragment_object_artifact(
         }
         return Ok(());
     }
-    validate(source, artifact)
+    validate(source, replay.1.as_ref(), artifact)
 }
 
 fn validate(
     source: &StagedOptimizedRelocationFreeObjectContainer,
+    original: Option<&crate::RetainedTargetOperations>,
     artifact: &ObjectArtifact,
 ) -> Result<(), Error> {
     object_file::validate_optimized_relocation_free_object_container(source)
         .map_err(Error::Source)?;
-    source::retained_source_validation::admit(source)?;
-    source::retained_source_validation::establish_geometry(source)?;
+    let current = source.source().source().source().source();
+    source::privileged_termination::validate(
+        current.installation_authority().installed_entry_execution(),
+        current.physical_program(),
+    )?;
+    if let Some(original) = original {
+        source::retained_source_validation::admit(source, original)?;
+        source::retained_source_validation::establish_geometry(source, original)?;
+    }
     if artifact.profile != source::profile(source) {
         return Err(Error::Mismatch("object deployment profile changed"));
     }
@@ -424,8 +440,8 @@ fn validate(
         .zip(&artifact.functions)
         .zip(layout.symbols.iter())
     {
-        let (abstracted, targeted) =
-            source::retained_source_validation::audited_function(source, placed.machine)?;
+        let abstracted = source::abstract_function(source, placed.machine)?;
+        let abi = source::function_abi(source, placed.machine)?;
         let fragment = fragments
             .function(placed.machine)
             .ok_or(Error::Mismatch("missing current fragment"))?;
@@ -438,19 +454,39 @@ fn validate(
         } else {
             format!("omega_terminal_machine_{}", placed.machine.get())
         };
-        let unit_abi_matches = match (&function.parameter_abi, source::parameter_abi(targeted)) {
+        let parameter_abi_matches = |published: Option<(
+            &calling_conventions::CallPlan,
+            &[target_operations::ScalarAbiValue],
+            &[target_operations::TargetStructuralParameter],
+        )>| match (&function.parameter_abi, published) {
             (None, None) => true,
             (Some(actual), Some((call_plan, parameters, _))) => {
                 actual.call_plan == *call_plan && actual.parameters == parameters
             }
             _ => false,
         };
+        // The current contract is what the object was built from; stage 02's
+        // function, when retained, must agree with both.
+        let original_abi_matches = match original {
+            None => true,
+            Some(original) => {
+                let (_, targeted) = source::retained_source_validation::audited_function(
+                    source,
+                    original,
+                    placed.machine,
+                )?;
+                function.scalar_abi == targeted.scalar_abi
+                    && function.mixed_structural_scalar_abi == targeted.mixed_structural_scalar_abi
+                    && parameter_abi_matches(source::parameter_abi(targeted))
+            }
+        };
         if function.machine != placed.machine
             || function.attachment != attachment
             || function.provenance != *provenance
-            || function.scalar_abi != targeted.scalar_abi
-            || function.mixed_structural_scalar_abi != targeted.mixed_structural_scalar_abi
-            || !unit_abi_matches
+            || function.scalar_abi != abi.scalar
+            || function.mixed_structural_scalar_abi != abi.mixed_structural_scalar
+            || !parameter_abi_matches(abi.parameter_abi())
+            || !original_abi_matches
             || function.text_offset != offset
             || function.byte_count != length
             || function.symbol != symbol_handle
@@ -495,8 +531,11 @@ fn validate(
                 abstract_operations::AbstractFunctionResult::Unit
             );
             let frame = source::frame(source, placed.machine)?;
-            let calls =
-                source::stack_calls(source, placed.machine, source::callable_invocations(source))?;
+            let calls = source::stack_calls(
+                source,
+                placed.machine,
+                source::callable_invocations(source)?,
+            )?;
             stack::validate(
                 unit,
                 (

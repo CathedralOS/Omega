@@ -1075,7 +1075,6 @@ name = "machine-emission"
 version = "0.1.0"
 dependencies = [
  "abstract-operations",
- "abstract-operations-to-target-operations",
  "arena",
  "calling-conventions",
  "diagnostics",
@@ -1086,7 +1085,6 @@ dependencies = [
  "layout-plans",
  "machine-code",
  "optimization-core",
- "optimization-unit",
  "post-allocation-machine",
  "post-allocation-machine-to-selected-form-encoding",
  "provider-admission",
@@ -1104,7 +1102,6 @@ dependencies = [
  "target",
  "target-operations",
  "terminal-psi",
- "terminal-work",
  "verified-optimization-input",
 ]
 
@@ -1347,13 +1344,11 @@ dependencies = [
  "machine-code",
  "machine-emission",
  "optimization-core",
- "provider-admission",
  "selected-instructions",
  "semantic-vocabulary",
  "target",
  "target-operations",
  "terminal-psi",
- "verified-optimization-input",
 ]
 
 [[package]]

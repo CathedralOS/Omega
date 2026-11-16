@@ -39,7 +39,9 @@ pub fn evaluate_call_plan(
     let mut plan = match policy {
         CallingPolicy::MicrosoftX64 => evaluate_microsoft_x64(&runtime_signature)?,
         CallingPolicy::SystemVAMD64 => evaluate_system_v_amd64(&runtime_signature)?,
-        CallingPolicy::Aapcs64 => evaluate_aapcs64(&runtime_signature)?,
+        CallingPolicy::Aapcs64 | CallingPolicy::DarwinAapcs64 => {
+            evaluate_aapcs64(policy, &runtime_signature)?
+        }
         CallingPolicy::LinuxSyscallX86_64 => evaluate_linux_syscall_x86_64(&runtime_signature)?,
         CallingPolicy::LinuxSyscallAarch64 => evaluate_linux_syscall_aarch64(&runtime_signature)?,
     };
@@ -106,7 +108,7 @@ fn validate_signature_shapes(
                 ));
             }
             ValueClass::HomogeneousFloatAggregate { members }
-                if !matches!(policy, CallingPolicy::Aapcs64 | CallingPolicy::SystemVAMD64)
+                if !(policy.is_aapcs64() || policy == CallingPolicy::SystemVAMD64)
                     || !(1..=4).contains(&members)
                     || shape.byte_size % u32::from(members.max(1)) != 0 =>
             {
@@ -569,17 +571,21 @@ fn evaluate_system_v_amd64(signature: &CallSignature) -> Result<CallPlan, PlanDi
     Ok(plan)
 }
 
-fn evaluate_aapcs64(signature: &CallSignature) -> Result<CallPlan, PlanDiagnostic> {
+fn evaluate_aapcs64(
+    policy: CallingPolicy,
+    signature: &CallSignature,
+) -> Result<CallPlan, PlanDiagnostic> {
+    debug_assert!(policy.is_aapcs64());
     let integer = (0..8).map(MachineRegister::Aarch64X).collect::<Vec<_>>();
     let mut plan = evaluate_split_bank_call(
-        CallingPolicy::Aapcs64,
+        policy,
         signature,
         &integer,
         8,
         MachineRegister::Aarch64V,
         &integer[..2],
         16,
-        CallingPolicy::Aapcs64.ordinary_clobbers(),
+        policy.ordinary_clobbers(),
     )?;
     if let Some(result) = plan.result.as_mut()
         && matches!(result.shape.class, ValueClass::Integer)
@@ -717,7 +723,7 @@ fn evaluate_split_bank_call(
             }
             float_index += registers_needed;
         } else if float_members.is_none() && shape.byte_size > 16 {
-            if policy == CallingPolicy::Aapcs64 {
+            if policy.is_aapcs64() {
                 let pointer =
                     indirect_pointer(integer_registers, &mut integer_index, &mut stack_offset)?;
                 locations.push(ValueLocation::indirect(
@@ -732,7 +738,7 @@ fn evaluate_split_bank_call(
             }
         } else if float_members.is_none() && shape.byte_size > 8 {
             let register_count = shape.byte_size.div_ceil(8) as usize;
-            if policy == CallingPolicy::Aapcs64 && shape.alignment >= 16 {
+            if policy.is_aapcs64() && shape.alignment >= 16 {
                 integer_index = integer_index.next_multiple_of(2);
             }
             if integer_index + register_count <= integer_registers.len() {
@@ -741,7 +747,7 @@ fn evaluate_split_bank_call(
                 }));
                 integer_index += register_count;
             } else {
-                if policy == CallingPolicy::Aapcs64 {
+                if policy.is_aapcs64() {
                     integer_index = integer_registers.len();
                 }
                 spill_integer_fragments(shape, &mut stack_offset, &mut locations)?;
@@ -753,15 +759,25 @@ fn evaluate_split_bank_call(
             integer_index += 1;
         } else {
             // AAPCS64 C.3: once a float value misses the vector registers,
-            // no later float may use them, so close the bank. C.4 and C.6
-            // then place it at an 8-byte-aligned slot whose size is rounded
-            // up to whole 8-byte units (a three-`f32` record takes 16 bytes).
+            // no later float may use them, so close the bank. Apple arm64
+            // keeps that rule.
             if float_members.is_some() {
                 float_index = float_register_count;
             }
-            stack_offset = align_up(stack_offset, u32::from(shape.alignment).max(8))?;
-            locations.push(stack_location(stack_offset, shape));
-            stack_offset = stack_end(stack_offset, align_up(shape.byte_size, 8)?)?;
+            if policy == CallingPolicy::DarwinAapcs64 {
+                // Apple arm64 packs a stack scalar or float record at its
+                // natural alignment with no 8-byte minimum slot.
+                stack_offset = align_up(stack_offset, u32::from(shape.alignment))?;
+                locations.push(stack_location(stack_offset, shape));
+                stack_offset = stack_end(stack_offset, shape.byte_size)?;
+            } else {
+                // AAPCS64 C.4 and C.6 place it at an 8-byte-aligned slot whose
+                // size is rounded up to whole 8-byte units (a three-`f32`
+                // record takes 16 bytes).
+                stack_offset = align_up(stack_offset, u32::from(shape.alignment).max(8))?;
+                locations.push(stack_location(stack_offset, shape));
+                stack_offset = stack_end(stack_offset, align_up(shape.byte_size, 8)?)?;
+            }
         }
         parameters.push(ValuePlacement { shape, locations });
     }

@@ -2400,21 +2400,28 @@ pub(crate) mod identity_context {
                 .symbol_source_origin(symbol)
                 .is_some_and(source::SourceOrigin::is_toolchain)
             {
-                program
-                    .symbols
-                    .symbol_provenance_source_span(symbol)
-                    .and_then(|span| {
-                        self.exact_toolchain_sources
-                            .iter()
-                            .find(|(source_id, _)| *source_id == span.source_id)
-                    })
-                    .map(|(_, digest)| PackageQualifiedNominalOwner::ToolchainSource(*digest))
-                    .unwrap_or_else(|| {
-                        if let Some(missing) = self.missing_exact_nominal_owner {
-                            missing.set(true);
-                        }
-                        PackageQualifiedNominalOwner::Toolchain
-                    })
+                let span = program.symbols.symbol_provenance_source_span(symbol);
+                span.and_then(|span| {
+                    self.exact_toolchain_sources
+                        .iter()
+                        .find(|(source_id, _)| *source_id == span.source_id)
+                        .map(|(_, digest)| *digest)
+                })
+                // A caller that requires an exact owner but did not pass this
+                // source's digest gets the digest of the declaring file
+                // itself: the same value a complete source list supplies.
+                .or_else(|| {
+                    self.missing_exact_nominal_owner?;
+                    let file = program.symbols.source_file(span?)?;
+                    source::source_identity::toolchain_source_identity_digest(file).ok()
+                })
+                .map(PackageQualifiedNominalOwner::ToolchainSource)
+                .unwrap_or_else(|| {
+                    if let Some(missing) = self.missing_exact_nominal_owner {
+                        missing.set(true);
+                    }
+                    PackageQualifiedNominalOwner::Toolchain
+                })
             } else {
                 if let Some(missing) = self.missing_exact_nominal_owner {
                     missing.set(true);
@@ -5579,6 +5586,40 @@ pub(crate) mod package_policy_reading_tests {
             failures.len(),
             witnesses.len(),
             failures.join("\n"),
+        );
+    }
+
+    #[test]
+    fn an_exact_toolchain_owner_is_the_declaring_files_digest_when_none_is_supplied() {
+        // A bundled declaration has no package; its exact owner is its source
+        // file's digest. A caller that requires an exact owner without passing
+        // the digests (as a Build layout policy's selection did) gets the same
+        // identity a complete list gives, and a supplied list still decides.
+        let fixture = Fixture::new();
+        let toolchain_data = fixture.symbol("Source");
+        let complete = source::source_identity::toolchain_source_identities(
+            fixture.program.symbols.source_files(),
+        )
+        .expect("fixture sources remain inside their toolchain root");
+        let absent = fixture
+            .program
+            .exact_owner_nominal_identity(toolchain_data, &[])
+            .expect("the declaring file supplies the exact toolchain owner");
+        assert_eq!(
+            Some(absent),
+            fixture
+                .program
+                .exact_owner_nominal_identity(toolchain_data, &complete)
+        );
+        let [(source_id, _)] = complete.as_slice() else {
+            panic!("the fixture has one toolchain source");
+        };
+        assert_ne!(
+            Some(absent),
+            fixture
+                .program
+                .exact_owner_nominal_identity(toolchain_data, &[(*source_id, [9; 32])]),
+            "a supplied digest is used as given"
         );
     }
 

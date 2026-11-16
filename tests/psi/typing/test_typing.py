@@ -438,6 +438,32 @@ def main() -> None:
         b"machine f() { let a: u8 = 7u8; let b: bool = 300u16 > 299; }",
         ((b"7u8", "u8"), (b"300u16", "u16"), (b"299", "u16"), (b"300u16 > 299", "bool")),
     )
+    # Typing reads each integer literal's value and suffix as the lexer
+    # decoded them, whatever the base, separators or suffix: `0xF_Fu8` is 255
+    # and fits u8, the same digits one past it (`0x1_00`) do not, and a based
+    # length sizes its array by value.
+    accepted(
+        program,
+        "based-literals-land-by-decoded-value",
+        b"machine f() -> [u8; 0b10] {\n"
+        b"    let a: u8 = 0xF_Fu8;\n    let b: u8 = 0o3_77;\n"
+        b"    let c: u64 = 0xFFFF_FFFF_FFFF_FFFFu64;\n    [a, b]\n}",
+        (
+            (b"0xF_Fu8", "u8"),
+            (b"0o3_77", "u8"),
+            (b"0xFFFF_FFFF_FFFF_FFFFu64", "u64"),
+            (b"[a, b]", "[u8; 2]"),
+        ),
+        adaptations=((b"0o3_77", "landed"),),
+    )
+    rejected(program, "based-literal-past-its-carrier", b"machine f() { let a: u8 = 0x1_00; }",
+             "LiteralOutOfRange", b"0x1_00")
+    rejected(program, "suffixed-literal-past-its-carrier", b"machine f() { let a: u8 = 0b1_0000_0000u8; }",
+             "LiteralOutOfRange", b"0b1_0000_0000u8")
+    rejected(program, "literal-past-u64", b"machine f() { let a: u64 = 0x1_0000_0000_0000_0000; }",
+             "UnsupportedLiteral", b"0x1_0000_0000_0000_0000")
+    rejected(program, "literal-with-an-unknown-suffix", b"machine f() { let a: u8 = 7u13; }",
+             "UnsupportedLiteral", b"7u13")
     # A suffix chooses the carrier, not the policy: the literal lands at a
     # policy-qualified destination of that carrier, where a typed value of
     # another policy does not.
@@ -1491,6 +1517,30 @@ def main() -> None:
         program,
         "transition-complementary-equalities-cover",
         b"machine f(x: u8, y: u8) { transition { x == y -> g() x != y -> g() } machine g() {} }",
+        (),
+    )
+    # Complementary guards cover only over the same unchanged subjects: a
+    # call evaluated between them may change what the later guard reads, so
+    # `cell == false` can fail after `cell == true` failed. A pair that
+    # finishes before the call, or starts after it, still covers.
+    flip = b"machine flip(value: &mut bool) -> bool { value = false; false }\n"
+    rejected(
+        program,
+        "a-call-between-complementary-guards-uncovers-them",
+        flip + b"machine f(value: &mut bool) { transition { value == true -> g() flip(value) == true -> g() value == false -> g() } machine g() {} }",
+        "UncoveredDispatch",
+        b"transition { value == true -> g() flip(value) == true -> g() value == false -> g() }",
+    )
+    accepted(
+        program,
+        "complementary-guards-before-a-call-cover",
+        flip + b"machine f(value: &mut bool) { transition { value == true -> g() value == false -> g() flip(value) == true -> g() } machine g() {} }",
+        (),
+    )
+    accepted(
+        program,
+        "complementary-guards-after-a-call-cover",
+        flip + b"machine f(value: &mut bool) { transition { flip(value) == true -> g() value == true -> g() value == false -> g() } machine g() {} }",
         (),
     )
     accepted(

@@ -55,12 +55,25 @@ pub(crate) mod entry_values {
             contract: semantic_vocabulary::CallableContractId,
             descriptor: semantic_vocabulary::MachineDescriptorId,
         },
+        /// A non-null `addr` a native import returned. Its number is a real
+        /// host pointer, not an interpreter storage identity, so it carries
+        /// its provenance here: the interpreter may store, copy and compare
+        /// it with other host addresses and pass it back to native imports,
+        /// but refuses arithmetic, casts and comparison against its own
+        /// addresses (spec: terminal-psi/boundary_calls.md#host-result-validation).
+        HostAddress {
+            scalar_type: IntegerType,
+            address: u64,
+        },
     }
 
     impl TerminalScalarValue {
         pub fn satisfies_field(self, field: &terminal_psi::StructuralFieldType) -> bool {
             if let Self::Callable { contract, .. } = self {
                 return matches!(field, terminal_psi::StructuralFieldType::Scalar(ScalarType::Callable(expected)) if *expected == contract);
+            }
+            if let Self::HostAddress { scalar_type, .. } = self {
+                return matches!(field, terminal_psi::StructuralFieldType::Scalar(ScalarType::Integer(expected)) if *expected == scalar_type);
             }
             self.literal().is_some_and(|literal| {
                 terminal_semantics::scalar_field_accepts_literal(field, &literal)
@@ -75,7 +88,7 @@ pub(crate) mod entry_values {
                     semantic_vocabulary::ScalarTerm::Integer { scalar_type, value }
                 }
                 Self::IeeeFloat(value) => semantic_vocabulary::ScalarTerm::IeeeFloatLiteral(value),
-                Self::Callable { .. } => return None,
+                Self::Callable { .. } | Self::HostAddress { .. } => return None,
             })
         }
 
@@ -85,6 +98,7 @@ pub(crate) mod entry_values {
                 Self::Integer { scalar_type, .. } => ScalarType::Integer(scalar_type),
                 Self::IeeeFloat(value) => ScalarType::IeeeFloat(value.format()),
                 Self::Callable { contract, .. } => ScalarType::Callable(contract),
+                Self::HostAddress { scalar_type, .. } => ScalarType::Integer(scalar_type),
             }
         }
     }

@@ -633,9 +633,34 @@ mod tests {
         ];
         for (profile, abis) in cases {
             let mut changed = original.clone();
+            let execution = (!abis.is_empty()).then(|| {
+                target_vocabulary::NativeExecutionFacts::seal(
+                    target_vocabulary::NativeExecutionRoots {
+                        psi: original.psi,
+                        work_schedule: original.work_schedule,
+                        entry: original.entry,
+                        optimization_unit:
+                            optimization_core::OptimizationUnitIdentity::from_canonical_bytes(
+                                b"metadata substitution",
+                            ),
+                        pre_physical: original.publication.record().pre_physical,
+                    },
+                    Arc::new(
+                        target_vocabulary::execution_facts::ReachableCallableInvocations {
+                            roots: vec![original.entry],
+                            reached_machines: vec![original.entry],
+                            invocations: Vec::new(),
+                            inputs: Vec::new(),
+                        },
+                    ),
+                    Vec::new(),
+                )
+                .unwrap()
+            });
             let publication = target_vocabulary::NativePublicationFacts::seal(
                 abis.iter()
                     .map(|abi| target_vocabulary::NativeFunctionPublication {
+                        call_targets: Vec::new(),
                         machine: abi.machine,
                         operation_count: 0,
                         sites: Vec::new(),
@@ -651,6 +676,7 @@ mod tests {
                     profile,
                     abis,
                     publication,
+                    execution,
                 )
                 .unwrap(),
             );

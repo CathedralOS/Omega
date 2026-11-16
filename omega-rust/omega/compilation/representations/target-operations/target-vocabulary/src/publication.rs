@@ -6,11 +6,11 @@
 
 use std::sync::Arc;
 
-use native_vocabulary::provenance::PsiProvenance;
+pub use native_vocabulary::provenance::PsiProvenance;
 use optimization_core::digest_encoder::DomainDigestEncoder;
 use semantic_vocabulary::{MachineId, OperationId, PlaceId};
 
-pub const NATIVE_PUBLICATION_DOMAIN: &[u8] = b"omega.native-publication-facts.v2\0";
+pub const NATIVE_PUBLICATION_DOMAIN: &[u8] = b"omega.native-publication-facts.v3\0";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeByteLiteral {
@@ -28,6 +28,8 @@ pub struct NativeFunctionPublication {
     pub sites: Vec<(PsiProvenance, u32)>,
     /// Ordered by operation. Empty literals still have an explicit row.
     pub byte_literals: Vec<NativeByteLiteral>,
+    /// The exact evaluated target of each source structural call, by operation.
+    pub call_targets: Vec<(OperationId, crate::NativeCallTarget)>,
 }
 
 impl NativeFunctionPublication {
@@ -43,6 +45,13 @@ impl NativeFunctionPublication {
             .binary_search_by_key(&operation, |row| row.operation)
             .ok()
             .map(|position| &self.byte_literals[position])
+    }
+
+    pub fn call_target(&self, operation: OperationId) -> Option<crate::NativeCallTarget> {
+        self.call_targets
+            .binary_search_by_key(&operation, |row| row.0)
+            .ok()
+            .map(|position| self.call_targets[position].1)
     }
 }
 
@@ -65,6 +74,19 @@ impl NativePublicationFacts {
             return Err("publication functions are unordered or repeated");
         }
         for function in &functions {
+            if function
+                .call_targets
+                .windows(2)
+                .any(|rows| rows[0].0 >= rows[1].0)
+                || function
+                    .call_targets
+                    .iter()
+                    .any(|row| function.ordinal(PsiProvenance::Operation(row.0)).is_none())
+            {
+                return Err(
+                    "publication calls are repeated, unordered or have no source occurrence",
+                );
+            }
             if function.sites.windows(2).any(|rows| rows[0].0 >= rows[1].0) {
                 return Err("publication source sites are unordered or repeated");
             }
@@ -158,6 +180,11 @@ fn encode(
             write(&(literal.bytes.len() as u64).to_le_bytes());
             write(&literal.bytes);
         }
+        write(&(function.call_targets.len() as u64).to_le_bytes());
+        for (operation, target) in &function.call_targets {
+            write(&operation.get().to_le_bytes());
+            target.visit_canonical_bytes(&mut write);
+        }
     }
     code_catalogs.encode(write);
 }
@@ -169,6 +196,7 @@ mod tests {
     fn function() -> NativeFunctionPublication {
         let operation = OperationId::new(1).unwrap();
         NativeFunctionPublication {
+            call_targets: Vec::new(),
             machine: MachineId::new(1).unwrap(),
             operation_count: 2,
             sites: vec![
