@@ -5003,10 +5003,9 @@ pub fn decode_closed_parts(
     // checker does; an artifact cannot carry a domain the checker would refuse.
     terminal_semantics::structural_qualifications::validate(&module)
         .map_err(|error| CodecError::MalformedStructuralFoundation(error.detail))?;
-    crate::identity_formations::validate_identity_formations(
-        &module,
-        &mut proof_admission::Budget::default(),
-    )?;
+    // Canonical shape only; source-bound `verify_identity_formations` replays
+    // the kernel. Decoding does not re-decide a carried judgment.
+    crate::identity_formations::validate_identity_formations(&module)?;
     dynamic_result_admission::validate_dynamic_descriptor_results(&module)?;
     let (canonical, mut types) = module_wire::encode_raw_closed(&module)?;
     types.record_callables(&module);
