@@ -365,8 +365,9 @@ mod calls {
     /*
         Resolve a compile-time static argument in the role of the binder it fills
         (`wiki/spec/language/modules.md#builtin-type-names`). A type binder reads
-        a builtin or data type and a value binder reads a constant; lexical
-        binders and runtime subjects are the caller's, which knows their kinds.
+        a builtin or data type and a value binder reads a constant or named
+        record; lexical binders and runtime subjects are the caller's, which
+        knows their kinds.
         Otherwise the argument selects a declaration: a machine stands for its
         entry state (a free machine is spelled `work`, an attached one
         `Card::power`) and denotes no runtime value. Lookup never tries both
@@ -395,7 +396,9 @@ mod calls {
         };
         match role {
             BinderRole::Type => return top_level(&[SymbolKind::BuiltinType, SymbolKind::Data]),
-            BinderRole::Value => return top_level(&[SymbolKind::Const]),
+            BinderRole::Value => {
+                return top_level(&[SymbolKind::Const, SymbolKind::Conformance]);
+            }
             BinderRole::Declaration => {}
         }
         if owner.is_empty() {
@@ -521,9 +524,9 @@ mod calls {
         A type binder reads a type binder in scope, then a builtin or data type.
         A value binder reads a value binder in scope, then a parameter or local
         of `subjects` (the enclosing state, or invalid where no runtime value is
-        in scope), then a constant. A binding of the other role is never
-        consulted: `const u16` cannot stand for the type `u16`, and the type
-        never stands in for a missing value.
+        in scope), then a constant or named record. A binding of the other
+        role is never consulted: `const u16` cannot stand for the type `u16`,
+        and the type never stands in for a missing value.
     */
     fn assign_role_argument_symbol(
         symbols: &SymbolTable,
@@ -1842,6 +1845,18 @@ mod tests {
         assert_eq!(
             static_argument_kinds(binder),
             [("identity", Some(SymbolKind::BuiltinType))]
+        );
+        let record = "trait Step { machine apply(); }\n\
+                      Hold satisfies Step { machine apply() { } }\n\
+                      machine count<const Selected: Step>() -> u64 { 0u64 }\n\
+                      machine relay<const Selected: Step>() -> u64 { count<Selected>() }\n\
+                      machine main() -> u64 { count<Hold>() }";
+        assert_eq!(
+            static_argument_kinds(record),
+            [
+                ("count", Some(SymbolKind::TypeParameter)),
+                ("count", Some(SymbolKind::Conformance)),
+            ]
         );
     }
 

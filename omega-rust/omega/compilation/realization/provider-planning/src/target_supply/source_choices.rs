@@ -805,7 +805,10 @@ fn selection_declarations(
 /// form yet. Each is named for what a program asked for, and an empty table
 /// asks for nothing. Checked candidate declarations are inventory: reached
 /// choices join them through canonical realization and its actual execution
-/// inputs. They introduce no instance demand of their own.
+/// inputs. They introduce no instance demand of their own. Calling requests
+/// record checked policy declarations; their presence creates no provider
+/// demand. For an activated schema, execution preparation evaluates its policy
+/// for the exact application and target before realization uses the plan.
 fn unplanned_demands(module: &TerminalModule) -> Vec<&'static str> {
     [
         (
@@ -820,10 +823,6 @@ fn unplanned_demands(module: &TerminalModule) -> Vec<&'static str> {
             !module.boundary_application_candidates.is_empty()
                 || !module.boundary_application_demands.is_empty(),
             "an applied boundary requirement",
-        ),
-        (
-            !module.calling_policy_requests.is_empty(),
-            "a calling policy",
         ),
         (
             !module.callback_applications.is_empty()

@@ -760,9 +760,18 @@ pub(super) fn realize_target_supply_detailed(
                 && module.identities.text(declaration.source.callable)
                     == Some(leaf.callable_identity.as_str())
         }) {
-            return Err(
-                "reached requirement has no normalized chosen provider or exact native leaf".into(),
-            );
+            let row = module
+                .boundary_machine(*boundary)
+                .ok_or("provider demand names an absent boundary")?;
+            return Err(format!(
+                "reached requirement has no normalized chosen provider or exact native leaf: target `{}`, boundary {}, requirement `{}`, owner `{}`, callable `{}`",
+                request.target,
+                boundary.get(),
+                text(module, row.identity)?,
+                text(module, row.owner.identity())?,
+                text(module, declaration.source.callable)?,
+            )
+            .into());
         }
     }
     RealizedTargetSupply::from_checked(
