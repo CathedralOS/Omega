@@ -133,7 +133,7 @@ Write each item so any agent can start from it alone: current state, files and e
   - Unbounded `i` and `u` classify as unbounded integers (`written_carrier`), but no stage forms them as types yet.
 
 - **OPERATION-ARITHMETIC-POLICY.** Implement [policy operators](wiki/spec/language/numeric_values.md#policy-operators) and their [declared policy-domain overloads](wiki/spec/language/numeric_values.md#policy-domains). Preserve exact qualified/plain signatures through selection, lowered-form checking and realization; no implicit conversions or surrounding-policy propagation.
-  - Give Saturating left shift a canonical contract term with the Exact count obligation. Its executable form clamps under that obligation. Verify the SHA-256 and wire customers after static-machine and qualification migration.
+  - Verify the SHA-256 and wire customers after static-machine and qualification migration.
 
 - **NAMED-DOMAIN-CASTS.** Implement [casts](wiki/drafts/designs/named_domain_casts.md).
 
