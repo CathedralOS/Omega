@@ -23,11 +23,10 @@
 //! ordinary: the specialization pass then serves each one, and the
 //! lowered-form checker judges them like any other call.
 //!
-//! Served today: a record with no parameters of its own declared in the
-//! caller's package, a callback with exactly the binder's one type parameter,
-//! and a context written or taken from a borrowed binding. Runtime and sum
-//! visitation, and binder contracts that would need a refinement proof, stay
-//! refused.
+//! Runtime visitation uses the same expansion, capturing the subject once and
+//! borrowing its exact field for each ordinary call. Erased fields have no
+//! runtime loan. Mutable traversal changes only that borrow's access; the
+//! ordinary checker still owns disjointness, escape and handback.
 
 use super::callable_binder::{Bound, satisfies_binder};
 use super::{Served, Stop, named_type, unserved};
@@ -37,8 +36,8 @@ use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::TypedTrees;
 use typed_trees::data::{DataField, DataMember, MachineParameterContract, TypeParameterKind};
 use typed_trees::expression::{
-    Expression, ExpressionHandle, ExpressionNode, NamePath, StaticMachineArgument,
-    TableBorrowExpression, TableCallExpression,
+    Expression, ExpressionHandle, ExpressionNode, MemberSelection, NamePath, StaticMachineArgument,
+    TableBorrowExpression, TableCallExpression, TableMemberExpression,
 };
 use typed_trees::machine::Machine;
 use typed_trees::name::Identifier;
@@ -65,7 +64,7 @@ pub(super) fn elaborate(
                 let StatementNode::Call(call) = program.statement_table.statement(handle) else {
                     return None;
                 };
-                inspects_record_fields(program, call.target_symbol).then(|| (handle, call.clone()))
+                record_query(program, call.target_symbol).map(|_| (handle, call.clone()))
             }) else {
                 break;
             };
@@ -80,13 +79,26 @@ pub(super) fn elaborate(
     Ok(())
 }
 
-fn inspects_record_fields(program: &TypedTrees, target: SymbolHandle) -> bool {
-    declaration(program, target).is_some_and(|machine| {
-        program.core_vocabulary(machine.symbol)
-            == Some(CoreVocabulary::Reflection(
-                ReflectionDeclaration::InspectRecordFields,
-            ))
-    })
+#[derive(Clone, Copy)]
+enum RecordQuery {
+    Inspect,
+    Visit(ReferenceAccess),
+}
+
+fn record_query(program: &TypedTrees, target: SymbolHandle) -> Option<RecordQuery> {
+    let machine = declaration(program, target)?;
+    match program.core_vocabulary(machine.symbol)? {
+        CoreVocabulary::Reflection(ReflectionDeclaration::InspectRecordFields) => {
+            Some(RecordQuery::Inspect)
+        }
+        CoreVocabulary::Reflection(ReflectionDeclaration::VisitRuntimeFields) => {
+            Some(RecordQuery::Visit(ReferenceAccess::Shared))
+        }
+        CoreVocabulary::Reflection(ReflectionDeclaration::VisitRuntimeFieldsMut) => {
+            Some(RecordQuery::Visit(ReferenceAccess::Mutable))
+        }
+        _ => None,
+    }
 }
 
 /// The machine a call target names: the machine or its entry state.
@@ -110,6 +122,8 @@ fn close(
     let query = declaration(program, call.target_symbol)
         .cloned()
         .ok_or(unserved("a field inspection lost its declaration"))?;
+    let operation = record_query(program, call.target_symbol)
+        .ok_or(unserved("a field traversal lost its declaration"))?;
     let parameters = program.machine_callable_parameters(&query);
     let [subject_binder, visitor_binder, context_binder] = parameters.as_slice() else {
         return Err(unserved(
@@ -154,13 +168,26 @@ fn close(
         .statement_table
         .expression_handles(call.arguments)
         .to_vec();
-    let [operand] = operands.as_slice() else {
-        return Err(unserved(
-            "a field inspection takes exactly its context operand",
-        ));
+    let (subject_operand, operand) = match (operation, operands.as_slice()) {
+        (RecordQuery::Inspect, [context]) => (None, *context),
+        (RecordQuery::Visit(access), [subject, context]) => (Some((*subject, access)), *context),
+        _ => {
+            return Err(unserved(
+                "a field traversal has an unexpected operand roster",
+            ));
+        }
     };
-    let context = context_type(program, state, *operand, written_context)?;
+    let context = context_type(program, state, operand, written_context)?;
     let visitor = callback(program, visitor)?;
+    let included = |field: &&DataField| {
+        matches!(operation, RecordQuery::Inspect) || !field.relevance.is_erased()
+    };
+    let applications = record
+        .fields
+        .iter()
+        .filter(included)
+        .map(|field| field.type_reference)
+        .collect::<Vec<_>>();
     if program
         .authored_service_reach_rows_for(binder.symbol)
         .next()
@@ -174,11 +201,12 @@ fn close(
         program,
         &binder,
         &visitor.machine,
-        "reflect::inspect_record_fields",
+        &format!("reflect::{}", program.symbols.name(query.symbol)),
         &[
             (subject_binder.symbol, Bound::Type(record.type_reference)),
             (context_binder.symbol, Bound::Type(context)),
         ],
+        Some(&applications),
     )?;
     let field_info = field_info_type(program, &binder)?;
     let field_query = field_query_entry(program, query.symbol)?;
@@ -196,7 +224,30 @@ fn close(
 
     let span = call.source_span;
     let mut replacement = Vec::with_capacity(1 + 2 * record.fields.len());
-    // The context is evaluated once; each callback call reborrows it.
+    // Capture operands once, in their authored left-to-right order.
+    let subject_local = subject_operand.map(|(operand, access)| {
+        let reference = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Reference {
+                referee: record.type_reference,
+                access,
+                lifetime: None,
+            });
+        (
+            local(
+                program,
+                state.symbol,
+                query.symbol,
+                "subject",
+                site,
+                reference,
+                operand,
+                &mut replacement,
+            ),
+            access,
+        )
+    });
+    // Each callback call reborrows the captured context.
     let context_reference = program
         .type_reference_table
         .insert(TypeReferenceNode::Reference {
@@ -211,10 +262,10 @@ fn close(
         "context",
         site,
         context_reference,
-        *operand,
+        operand,
         &mut replacement,
     );
-    for field in &record.fields {
+    for field in record.fields.iter().filter(included) {
         let operand = name(
             program,
             vec![record.name.clone(), field.name.clone()],
@@ -303,9 +354,35 @@ fn close(
                     access: ReferenceAccess::Shared,
                 }));
         program.expression_table.set_source_span(borrowed, span);
-        let arguments = program
-            .statement_table
-            .insert_expression_handles([context_argument, borrowed]);
+        let mut arguments = vec![context_argument, borrowed];
+        if let Some((subject, access)) = subject_local {
+            let receiver = name(
+                program,
+                vec![Identifier::generated(program.symbols.name(subject))],
+                vec![subject],
+                span,
+            );
+            let projected =
+                program
+                    .expression_table
+                    .insert(ExpressionNode::Member(TableMemberExpression {
+                        receiver,
+                        selection: MemberSelection::Field(field.symbol),
+                        member: field.name.clone(),
+                        case_variant: None,
+                    }));
+            program.expression_table.set_source_span(projected, span);
+            let borrowed =
+                program
+                    .expression_table
+                    .insert(ExpressionNode::Borrow(TableBorrowExpression {
+                        target: projected,
+                        access,
+                    }));
+            program.expression_table.set_source_span(borrowed, span);
+            arguments.push(borrowed);
+        }
+        let arguments = program.statement_table.insert_expression_handles(arguments);
         replacement.push(StatementNode::Call(TableCall {
             authored_machine_application: application,
             target_symbol: visitor.entry,
@@ -335,6 +412,7 @@ fn record_fields(
     holder: &Machine,
     subject: &StaticMachineArgument,
 ) -> Served<Record> {
+    let type_reference = named_type(program, subject)?;
     let symbol = subject.symbol;
     if subject.application.is_some()
         || subject.const_literal.is_some()
@@ -377,12 +455,6 @@ fn record_fields(
         ));
     }
     let name = data.name.clone();
-    let type_reference = program
-        .type_reference_table
-        .insert(TypeReferenceNode::Named {
-            symbol,
-            name: name.clone(),
-        });
     Ok(Record {
         symbol,
         name,
@@ -478,7 +550,7 @@ fn callback(program: &TypedTrees, argument: &StaticMachineArgument) -> Served<Ca
 /// vocabulary type each generated query local is declared with.
 fn field_info_type(program: &TypedTrees, binder: &StateSignature) -> Served<TypeReferenceHandle> {
     let parameters = program.state_signature_parameters(binder);
-    let Some([_, field]) = parameters.as_array() else {
+    let Some(field) = parameters.get(1) else {
         return Err(unserved("the callback binder lost its field parameter"));
     };
     let TypeReferenceNode::Reference { referee, .. } = program

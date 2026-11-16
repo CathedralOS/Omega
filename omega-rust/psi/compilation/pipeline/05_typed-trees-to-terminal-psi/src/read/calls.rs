@@ -27,7 +27,7 @@ use crate::{SourceOrigin, Unserved, refuse};
 use semantic_vocabulary::StructuralFieldId;
 use terminal_psi::ResolvedStructuralPathSegment as Segment;
 
-struct RigidInvocation<'a> {
+struct StaticInvocation<'a> {
     target: SymbolHandle,
     application: StaticMachineApplicationHandle,
     authored_arguments: &'a [StaticMachineArgument],
@@ -35,6 +35,7 @@ struct RigidInvocation<'a> {
     selection: Option<AuthoredDeclarationSelectionOccurrenceId>,
     binding: Option<ResolvedAuthoredCallBinding>,
     unsupported: bool,
+    runtime_receiver: bool,
 }
 
 impl<'t> Program<'t> {
@@ -237,7 +238,8 @@ impl<'t> Program<'t> {
             .executable_callable_template(target)
             .map_err(|what| refuse(id, Construct::Machine, Unserved::Call(what)))?;
         if let Some(generated) = generated
-            && generated == application.registration_operation
+            && self.instantiates_callable(target, application.registration_operation)
+            && self.closes_rigid_parameters_only(application.registration_operation)
             && self.closes_rigid_parameters_only(generated)
         {
             return Ok(());
@@ -337,6 +339,13 @@ impl<'t> Program<'t> {
         Ok(target)
     }
 
+    /// A finite alternative still checks a generic declaration's body. Its
+    /// type bindings happen to be concrete; calls use the same generic
+    /// contracts as a form whose binders remain rigid.
+    fn checking_generic_entry(&self, id: MachineId) -> bool {
+        id.get() == 1 && (self.rigid || self.alternative.is_some())
+    }
+
     /// Whether every generic parameter of `declared`, a machine or its entry
     /// state, is an implementation, value or type parameter. Only such a
     /// declaration's generated machines are read. Each is a closed machine:
@@ -391,6 +400,39 @@ impl<'t> Program<'t> {
                 }
             }
             _ => None,
+        }
+    }
+
+    /// Copied lexical declarations may be applied again at their independent
+    /// binders. Authenticate the complete recorded path, including each entry
+    /// correspondence, instead of accepting only the immediately preceding copy.
+    fn instantiates_callable(&self, selected: SymbolHandle, original: SymbolHandle) -> bool {
+        let (Some(instance), Some(template)) = (
+            self.entered_machine(selected),
+            self.entered_machine(original),
+        ) else {
+            return false;
+        };
+        match self.typed.symbols.get(original).kind {
+            SymbolKind::Machine => self
+                .typed
+                .machine_instantiation_path(instance, template)
+                .is_some(),
+            SymbolKind::State => {
+                let entry = if self.typed.symbols.get(selected).kind == SymbolKind::State {
+                    Some(selected)
+                } else {
+                    self.typed
+                        .machine_by_symbol(instance)
+                        .and_then(|machine| self.typed.machine_states(machine).first())
+                        .map(|state| state.symbol)
+                };
+                entry.is_some_and(|entry| {
+                    self.typed
+                        .instantiated_machine_state_matches(instance, template, original, entry)
+                })
+            }
+            _ => false,
         }
     }
 
@@ -567,7 +609,8 @@ impl<'t> Program<'t> {
                 .executable_callable_template(target)
                 .map_err(|what| refuse(id, Construct::Machine, Unserved::Call(what)))?,
         };
-        let names_target = |symbol: SymbolHandle| symbol == target || generated == Some(symbol);
+        let names_target =
+            |symbol: SymbolHandle| symbol == target || self.instantiates_callable(target, symbol);
         let selects_target = |symbol| {
             names_target(symbol)
                 || self.entered_machine(symbol).is_some_and(|selected| {
@@ -621,41 +664,11 @@ impl<'t> Program<'t> {
             // while the authored binding keeps its original declaration.
             // The existing application/state correspondence must join them;
             // generated provenance alone is not that association.
-            Some(binding) if binding.selected == target => {
-                if !binding.original.is_valid()
-                    || !self
-                        .typed
-                        .symbols
-                        .symbols()
-                        .nodes()
-                        .is_valid(binding.original)
-                {
-                    return unserved("rebound call");
-                }
-                let Some(instance) = self.entered_machine(binding.selected) else {
-                    return unserved("rebound call");
-                };
-                let Some(template) = self.entered_machine(binding.original) else {
-                    return unserved("rebound call");
-                };
-                let matches = match self.typed.symbols.get(binding.original).kind {
-                    SymbolKind::State => self.typed.instantiated_machine_state_matches(
-                        instance,
-                        template,
-                        binding.original,
-                        binding.selected,
-                    ),
-                    SymbolKind::Machine => self
-                        .typed
-                        .machine_instantiation_path(instance, template)
-                        .is_some(),
-                    _ => false,
-                };
-                if matches {
-                    Ok(())
-                } else {
-                    unserved("rebound call")
-                }
+            Some(binding)
+                if self.instantiates_callable(target, binding.selected)
+                    && self.instantiates_callable(binding.selected, binding.original) =>
+            {
+                Ok(())
             }
             Some(_) => unserved("rebound call"),
         }
@@ -778,6 +791,18 @@ impl<'t> Program<'t> {
         if call.installed_interrupt_operation.is_some() || call.reflected_field_origin.is_some() {
             return unserved("interrupt, requirement dispatch or reflected call");
         }
+        if self.checking_generic_entry(id) {
+            let invocation = self.static_invocation(StaticArgumentCall::Statement(call));
+            if let Some(arguments) = self.type_arguments(id, &invocation)? {
+                return self.generic_call(
+                    id,
+                    slots,
+                    invocation,
+                    arguments,
+                    SourceOrigin::of(call.source_span),
+                );
+            }
+        }
         self.applies_nothing(
             id,
             call.target_symbol,
@@ -897,7 +922,7 @@ impl<'t> Program<'t> {
         // (`evidence_requirement_declaration`), never the member's name.
         // A Build selection is neither: it is read below, where its
         // designated operands are attached, and nowhere else.
-        if self.rigid && id.get() == 1 && !call.build_selection.is_valid() {
+        if self.checking_generic_entry(id) && !call.build_selection.is_valid() {
             if let Some(read) = self.rigid_call(
                 id,
                 slots,
@@ -909,8 +934,9 @@ impl<'t> Program<'t> {
             // A call of another generic machine at this body's own type
             // parameters, `same<T>(left, right)`: held to that machine's
             // contract at them.
-            if let Some(arguments) = self.type_arguments(id, call)? {
-                return self.generic_call(id, slots, call, arguments, source);
+            let invocation = self.static_invocation(StaticArgumentCall::Expression(handle, call));
+            if let Some(arguments) = self.type_arguments(id, &invocation)? {
+                return self.generic_call(id, slots, invocation, arguments, source);
             }
         }
         self.applies_nothing(
@@ -1786,22 +1812,22 @@ impl<'t> Program<'t> {
     /// type parameters at, in the callee's declaration order, when the call
     /// is a type application: every binding of its static application gives
     /// one type parameter of the callee a type. `None` for any other call.
-    /// Each type must be one of the entry's own rigid type parameters: a
-    /// generic machine applied at a concrete type inside a generic body is
-    /// not generated by stage 04 and has no closed machine to call.
+    /// Arguments may be opaque binders or concrete members of a checked
+    /// finite family. Both call the callee's contract here; its own generic
+    /// forms still check every admitted body independently of this caller.
     fn type_arguments(
         &mut self,
         id: MachineId,
-        call: &TableCallExpression,
+        call: &StaticInvocation<'_>,
     ) -> Checked<Option<Vec<crate::body::ValueType>>> {
         use typed_trees::static_applications::StaticMachineBindingValue;
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
-        if !call.authored_machine_application.is_valid() {
+        if !call.application.is_valid() {
             return Ok(None);
         }
         let typed = self.typed;
         let table = &typed.expression_table;
-        let bindings = table.static_machine_application_bindings(call.authored_machine_application);
+        let bindings = table.static_machine_application_bindings(call.application);
         if bindings.is_empty()
             || bindings
                 .iter()
@@ -1809,7 +1835,7 @@ impl<'t> Program<'t> {
         {
             return Ok(None);
         }
-        let application = table.static_machine_application(call.authored_machine_application);
+        let application = table.static_machine_application(call.application);
         if !application.selected_machine_arguments.is_empty()
             || !application.input_selections.is_empty()
             || !application.lifetime_bindings.is_empty()
@@ -1818,9 +1844,9 @@ impl<'t> Program<'t> {
         {
             return unserved("type application with another static feature");
         }
-        let owner = match typed.symbols.get(call.target_symbol).kind {
-            SymbolKind::State => typed.symbols.get(call.target_symbol).parent,
-            SymbolKind::Machine => call.target_symbol,
+        let owner = match typed.symbols.get(call.target).kind {
+            SymbolKind::State => typed.symbols.get(call.target).parent,
+            SymbolKind::Machine => call.target,
             other => return unserved(symbol_kind(other)),
         };
         let Some(callee) = typed.machine_by_symbol(owner) else {
@@ -1842,55 +1868,34 @@ impl<'t> Program<'t> {
                 return unserved("type parameter bound to something other than a type");
             };
             let argument = self.value_type(id, *type_reference)?;
-            if !matches!(argument, crate::body::ValueType::Rigid(_)) {
-                return unserved("generic call at a concrete type inside a generic body");
-            }
             arguments.push(argument);
         }
         Ok(Some(arguments))
     }
 
-    /// The entry of a generic check form calling another generic machine at
-    /// its own type parameters: a direct call of that machine's contract at
-    /// them (`application`).
+    /// A generic check form calls the callee's contract at the entry's exact
+    /// opaque or concrete type bindings (`application`).
     fn generic_call(
         &mut self,
         id: MachineId,
         slots: &[Slot],
-        call: &TableCallExpression,
+        call: StaticInvocation<'_>,
         type_arguments: Vec<crate::body::ValueType>,
         source: SourceOrigin,
     ) -> Checked<Expression> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
-        if call.installed_interrupt_operation.is_some()
-            || call.static_requirement_dispatch.is_some()
-            || call.build_selection.is_valid()
-            || call.quotient_operation.is_some()
-            || call.private_layout_operation.is_some()
-            || call.layout_query.is_some()
-            || call.native_code_layout.is_some()
-            || call.receiver.is_valid()
-            || call.requirement_application.is_valid()
-            || call.exact_coercion_target.is_valid()
-            || call.static_machine_parameter.is_valid()
-            || !call.evidence_arguments.is_empty()
-        {
+        if call.unsupported || call.runtime_receiver {
             return unserved("type application with another call feature");
         }
-        self.direct_selection(
-            id,
-            call.target_symbol,
-            call.authored_call_selection,
-            call.authored_call_binding,
-        )?;
+        self.direct_selection(id, call.target, call.selection, call.binding)?;
         // A call names its callee's entry state; the machine is that
         // state's parent, and must have exactly that one state.
-        let machine = match self.typed.symbols.get(call.target_symbol).kind {
-            SymbolKind::Machine => call.target_symbol,
+        let machine = match self.typed.symbols.get(call.target).kind {
+            SymbolKind::Machine => call.target,
             SymbolKind::State => {
-                let parent = self.typed.symbols.get(call.target_symbol).parent;
+                let parent = self.typed.symbols.get(call.target).parent;
                 let (_, state) = self.declaration(id, parent)?;
-                if state.symbol != call.target_symbol {
+                if state.symbol != call.target {
                     return unserved("state other than the entry");
                 }
                 parent
@@ -1898,11 +1903,14 @@ impl<'t> Program<'t> {
             other => return unserved(symbol_kind(other)),
         };
         let callee = self.application(machine, type_arguments)?;
-        let arguments = self
-            .typed
-            .expression_table
-            .expression_handles(call.arguments);
-        self.call_of(id, slots, (callee.into(), None), arguments, source, None)
+        self.call_of(
+            id,
+            slots,
+            (callee.into(), None),
+            call.arguments,
+            source,
+            None,
+        )
     }
 
     /// The entry of a generic check form calling through a rigid
@@ -1915,9 +1923,18 @@ impl<'t> Program<'t> {
         call: StaticArgumentCall<'_>,
         source: SourceOrigin,
     ) -> Checked<Option<Expression>> {
-        if !self.rigid || id.get() != 1 {
+        if !self.checking_generic_entry(id) {
             return Ok(None);
         }
+        self.read_rigid_call(id, slots, self.static_invocation(call), source)
+    }
+
+    /// Both source call forms expose one retained static application and the
+    /// same authored selection. Their operands still belong to their own arena.
+    fn static_invocation<'call>(&self, call: StaticArgumentCall<'call>) -> StaticInvocation<'call>
+    where
+        't: 'call,
+    {
         let (target, application, authored_arguments, arguments, selection, binding, unsupported) =
             match call {
                 StaticArgumentCall::Expression(_, call) => (
@@ -1957,20 +1974,24 @@ impl<'t> Program<'t> {
                         || !call.evidence_arguments.is_empty(),
                 ),
             };
-        self.read_rigid_call(
-            id,
-            slots,
-            RigidInvocation {
-                target,
-                application,
-                authored_arguments,
-                arguments,
-                selection,
-                binding,
-                unsupported,
-            },
-            source,
-        )
+        let runtime_receiver = match call {
+            StaticArgumentCall::Expression(_, call) => call.receiver.is_valid(),
+            StaticArgumentCall::Statement(call) => {
+                call.receiver_root_symbol.is_valid()
+                    || call.receiver_symbol.is_valid()
+                    || !call.receiver.is_empty()
+            }
+        };
+        StaticInvocation {
+            target,
+            application,
+            authored_arguments,
+            arguments,
+            selection,
+            binding,
+            unsupported,
+            runtime_receiver,
+        }
     }
 
     /// A named transition publishes the same binder contract as a call
@@ -1984,13 +2005,13 @@ impl<'t> Program<'t> {
         selection: Option<AuthoredDeclarationSelectionOccurrenceId>,
         source: SourceOrigin,
     ) -> Checked<Option<Expression>> {
-        if !self.rigid || id.get() != 1 {
+        if !self.checking_generic_entry(id) {
             return Ok(None);
         }
         self.read_rigid_call(
             id,
             slots,
-            RigidInvocation {
+            StaticInvocation {
                 target,
                 application: StaticMachineApplicationHandle::invalid(),
                 authored_arguments: &[],
@@ -1998,6 +2019,7 @@ impl<'t> Program<'t> {
                 selection,
                 binding: None,
                 unsupported: false,
+                runtime_receiver: false,
             },
             source,
         )
@@ -2007,10 +2029,10 @@ impl<'t> Program<'t> {
         &mut self,
         id: MachineId,
         slots: &[Slot],
-        invocation: RigidInvocation<'_>,
+        invocation: StaticInvocation<'_>,
         source: SourceOrigin,
     ) -> Checked<Option<Expression>> {
-        let RigidInvocation {
+        let StaticInvocation {
             target,
             application,
             authored_arguments,
@@ -2018,6 +2040,7 @@ impl<'t> Program<'t> {
             selection,
             binding,
             unsupported,
+            runtime_receiver: _,
         } = invocation;
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Call(what));
         let requirement = match self.typed.evidence_requirement_declaration(target) {
@@ -2144,7 +2167,7 @@ impl<'t> Program<'t> {
         id: MachineId,
         target: SymbolHandle,
     ) -> Option<Vec<crate::body::ValueType>> {
-        if !self.rigid || id.get() != 1 {
+        if !self.checking_generic_entry(id) {
             return None;
         }
         let caller = *self.symbols.get(id)?;
@@ -2163,11 +2186,9 @@ impl<'t> Program<'t> {
         parameters
             .iter()
             .map(|parameter| {
-                self.scope.iter().find_map(|(binder, value)| {
-                    (*binder == parameter.symbol
-                        && matches!(value, crate::body::ValueType::Rigid(_)))
-                    .then_some(*value)
-                })
+                self.scope
+                    .iter()
+                    .find_map(|(binder, value)| (*binder == parameter.symbol).then_some(*value))
             })
             .collect()
     }

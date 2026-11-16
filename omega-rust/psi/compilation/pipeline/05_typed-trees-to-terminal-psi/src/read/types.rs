@@ -335,6 +335,28 @@ impl Program<'_> {
         left: TypeReferenceHandle,
         right: TypeReferenceHandle,
     ) -> Option<bool> {
+        if let Some((position, excluded)) = self
+            .alternative
+            .as_ref()
+            .and_then(|world| world.remainder.as_ref())
+        {
+            let rigid = |reference| {
+                matches!(self.resolve_written(scope, Written::Reference(reference)),
+                Bound::Value(ValueType::Rigid(parameter)) if parameter.0 as usize == *position)
+            };
+            let other = match (rigid(left), rigid(right)) {
+                (true, false) => Some(right),
+                (false, true) => Some(left),
+                _ => None,
+            };
+            if let Some(other) = other
+                && excluded
+                    .iter()
+                    .any(|known| self.closed_type_equation(scope, other, *known) == Some(true))
+            {
+                return Some(false);
+            }
+        }
         enum Closed {
             Atom(BuiltinTypeAtom),
             Scalar(ScalarType),

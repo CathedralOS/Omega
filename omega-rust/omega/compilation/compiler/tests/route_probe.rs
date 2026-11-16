@@ -839,6 +839,31 @@ fn a_generic_machine_that_exceeds_its_callee_is_rejected_where_it_is_applied() {
     );
 }
 
+/// An open classifier checks both named types and the opaque remainder.
+/// Its sole caller selects u8; neither an unused bool arm nor the fallback
+/// may violate the authored result contract.
+#[test]
+fn an_open_type_classifier_checks_unused_cases_and_the_remainder() {
+    let source = "machine classify<T>() -> u8 ensures result <= 2u8 {\n\
+        transition { T == u8 -> 0u8 T == bool -> 1u8 _ -> 2u8 }\n\
+        }\n machine main() { let value: u8 = classify<u8>(); }\n";
+    assert_eq!(verdicts("open_type_classifier", source), ["accepted"; 4]);
+    for (name, broken) in [
+        (
+            "unused_type_classifier_case",
+            source.replace("bool -> 1u8", "bool -> 3u8"),
+        ),
+        (
+            "type_classifier_remainder",
+            source.replace("_ -> 2u8", "_ -> 3u8"),
+        ),
+    ] {
+        let results = verdicts(name, &broken);
+        assert!(results.contains(&"rejected"), "{name}: {results:?}");
+        assert!(!results.contains(&"not-supported"), "{name}: {results:?}");
+    }
+}
+
 /// A finite family: `pick<T>` admits `u8` and `u16` and is applied at both.
 /// Each generated machine is the body under its own type, and each listed
 /// type is judged once as an alternative of the generic machine.
