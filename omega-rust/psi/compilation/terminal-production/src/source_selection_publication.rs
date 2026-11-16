@@ -1556,10 +1556,10 @@ machine entry() -> u64 crashes none {
     Second::pick(repeated)
 }
 "#;
-        calls_from_source(TEXT)
+        accepted_source(TEXT, &[])
     }
 
-    fn calls_from_source(text: &str) -> AcceptedTerminalSource {
+    fn accepted_source(text: &str, metadata_names: &[&str]) -> AcceptedTerminalSource {
         let mut sources = source::SourceMap::default();
         let id = sources
             .add_checked_instance(
@@ -1591,6 +1591,17 @@ machine entry() -> u64 crashes none {
             .find(|machine| machine.name.as_str() == "entry")
             .unwrap()
             .symbol;
+        let metadata = metadata_names
+            .iter()
+            .map(|name| {
+                typed
+                    .traits()
+                    .iter()
+                    .find(|declaration| declaration.name.as_str() == *name)
+                    .expect("the fixture names its actual declaration")
+                    .symbol
+            })
+            .collect::<Vec<_>>();
         let (frozen, _) = typed_trees_to_typed_trees::prepare_typed_trees(
             typed,
             &typed_trees_to_typed_trees::PreparationRequest::settled(),
@@ -1599,11 +1610,11 @@ machine entry() -> u64 crashes none {
         AcceptedTerminalSource::judge(
             Arc::new(frozen),
             typed_trees_to_terminal_psi::Compilation {
-                declaration_metadata: &[],
+                declaration_metadata: &metadata,
                 entries: &[entry],
                 subjects: &[],
                 purpose: source::DependencyScope::Product,
-                selected: &[],
+                selected: &metadata,
                 bindings: &[],
                 calling: None,
                 providers: None,
@@ -1616,21 +1627,17 @@ machine entry() -> u64 crashes none {
 
     #[test]
     fn requirement_overloads_keep_their_signatures_and_refuse_header_swaps() {
-        let source = calls_from_source(
+        // Publish both complete headers directly. A signature-free named call
+        // would test overload selection before reaching this identity owner.
+        let source = accepted_source(
             r#"
-trait Input {
+boundary trait Input {
     machine pick(value: u64) -> u64 reaches none crashes none;
     machine pick(value: bool) -> bool reaches none crashes none;
 }
-Both satisfies Input {
-    machine pick(value: u64) -> u64 { value }
-    machine pick(value: bool) -> bool { value }
-}
-machine entry() -> u64 crashes none {
-    let flag: bool = Both::pick(true);
-    Both::pick(7u64)
-}
+machine entry() reaches Input {}
 "#,
+            &["Input"],
         );
         let module = source.module();
         let prepared = prepare(&source, module, None).unwrap();
@@ -1656,37 +1663,41 @@ machine entry() -> u64 crashes none {
             .collect::<Vec<_>>();
         assert_eq!(identities.len(), 2);
         assert_ne!(identities[0], identities[1]);
-        let calls = module
-            .machines
+        let headers = prepared
+            .questions
+            .joins
             .iter()
-            .flat_map(|machine| {
-                machine.operations().filter_map(move |operation| {
-                    operation.declared_invocation()?;
-                    Some((machine.id, operation.id, operation.required_contract?))
-                })
+            .filter_map(|join| match join {
+                SelectionJoin::Boundary {
+                    declaration,
+                    boundary,
+                } => Some((*declaration, *boundary)),
+                _ => None,
             })
             .collect::<Vec<_>>();
-        assert_eq!(calls.len(), 2);
-        assert_ne!(calls[0].2, calls[1].2);
-        for (original, other) in [(calls[0], calls[1]), (calls[1], calls[0])] {
-            let mut changed = module.clone();
-            let operation = changed
-                .machines
+        assert_eq!(headers.len(), 2);
+        assert_ne!(headers[0].0, headers[1].0);
+        for (original, other) in [(headers[0], headers[1]), (headers[1], headers[0])] {
+            let mut changed = prepared.questions.clone();
+            let joined = changed
+                .joins
                 .iter_mut()
-                .find(|machine| machine.id == original.0)
-                .unwrap()
-                .blocks
-                .iter_mut()
-                .flat_map(|block| &mut block.operations)
-                .find(|operation| operation.id == original.1)
+                .find_map(|join| match join {
+                    SelectionJoin::Boundary {
+                        declaration,
+                        boundary,
+                    } if *boundary == original.1 => Some(declaration),
+                    _ => None,
+                })
                 .unwrap();
-            operation.required_contract = Some(other.2);
-            let error = prepare(&source, &changed, None).err().unwrap();
+            *joined = other.0;
+            let error = terminal_installation::selection_questions::validate_selection_questions(
+                module, &changed,
+            )
+            .unwrap_err();
             assert!(
-                error
-                    .message
-                    .contains("exact caller, public header and body association"),
-                "{error:?}"
+                error.contains("boundary differs from its checked semantic declaration"),
+                "{error}"
             );
         }
     }
