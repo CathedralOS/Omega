@@ -96,13 +96,6 @@ framework or a list of unimplemented features.
 - Cost: Readers of the runner and TASKS.md assume test groups run; admitting registration later makes both latent bugs live. Deliver group admission with both bugs fixed, or say on the TASKS item that registration is refused and own both bugs there.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/testing.md
 
-### The observation-profile code has no users, but the wire README says acceptance checks profiles
-- Category: Zombie machinery
-- Where: [profile types](omega-rust/psi/compilation/representations/terminal-psi/src/observation.rs#L159), [trace builder](omega-rust/psi/compilation/representations/terminal-psi/src/observation.rs#L180), [README claim](omega-rust/psi/compilation/representations/terminal-psi/wire/README.md#L86), [section list](omega-rust/psi/compilation/representations/terminal-psi/wire/src/sections.rs#L3)
-- Saw: [reconstructed rows](wiki/spec/terminal-psi/observations.md#L100) says checking derives the observation profile from the validated module and compares it with the decoded one, and the wire README says acceptance does so and the encoder writes the terminal-external group. No `.rs` file outside `observation.rs` uses `TerminalTraceV1Profile` or `begin_trace`, and the string `observation-profile` appears in no Rust file; the roughly 690 lines before the module's tests are called only by those tests.
-- Cost: Agents believe trap and boundary-crash sites are reconstructed and checked against a profile when nothing does it. Delete the unused types and correct the README and `sections.rs`, or add the deriver and codec under a `TASKS.md` item.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/terminal-psi/observations.md
-
 ### Default compilation re-checks the image it just wrote, which one spec page requires and two forbid
 - Category: The documents disagree
 - Where: [default image emission](omega-rust/omega/compilation/backend/images/image-emission/src/image.rs#L1851), [validate_terminal_image](omega-rust/omega/compilation/backend/images/image-emission/src/image.rs#L803), [machine-state evidence](wiki/spec/build/machine_state_evidence.md#L24), [verification placement](omega-rust/pipeline.md#L65), [optimizations](wiki/spec/build/optimizations.md#L59)
