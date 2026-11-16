@@ -42,6 +42,7 @@ pub(super) fn frontier_with_core(
     let mut sources = source::SourceMap::default();
     let mut syntax = None;
     let mut product_source = None;
+    let mut build_source = None;
     for (path, text, scope) in [
         ("package/main.omg", product, DependencyScope::Product),
         ("package/build.omg", build, DependencyScope::Build),
@@ -59,6 +60,8 @@ pub(super) fn frontier_with_core(
             .source_id;
         if scope == DependencyScope::Product {
             product_source = Some(id);
+        } else {
+            build_source = Some(id);
         }
         let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
         match &mut syntax {
@@ -74,7 +77,7 @@ pub(super) fn frontier_with_core(
     let mut syntax = syntax.unwrap();
     let root =
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../../source/library/core");
-    let mut bindings = Vec::with_capacity(core.len());
+    let mut bindings = Vec::with_capacity(core.len() * 2);
     for &(file, declaration, text) in core {
         let id = sources
             .add_with_metadata(
@@ -87,12 +90,14 @@ pub(super) fn frontier_with_core(
             .source_id;
         let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
         tokens_to_syntax_trees::parse(&mut syntax, id, &tokens).unwrap();
-        bindings.push(symbols::SourceScopedTopLevelBinding::logical_module_import(
-            product_source.unwrap(),
-            id,
-            &format!("omega::language::core::{declaration}"),
-            3,
-        ));
+        for importing_source in [product_source.unwrap(), build_source.unwrap()] {
+            bindings.push(symbols::SourceScopedTopLevelBinding::logical_module_import(
+                importing_source,
+                id,
+                &format!("omega::language::core::{declaration}"),
+                3,
+            ));
+        }
     }
     let mut request = syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax);
     request.sources = Some(Arc::new(sources));
@@ -169,7 +174,14 @@ fn a_compilation_claims_the_subject_declarations_of_its_own_purpose_only() {
 /// implementations gets is a further refusal of the same reading, which the
 /// closure's refusal already refuses the compilation for.
 pub(super) fn judge_build(build: &str) -> Result<RouteVerdict, crate::CompilationRefusal> {
-    let typed = frontier_of("machine product_entry() { }", build);
+    judge_build_with_core(build, &[])
+}
+
+pub(super) fn judge_build_with_core(
+    build: &str,
+    core: &[(&str, &str, &str)],
+) -> Result<RouteVerdict, crate::CompilationRefusal> {
+    let typed = frontier_with_core("machine product_entry() { }", build, core);
     let entry = symbol(&typed, "build_entry");
     let mut verdicts = crate::judge_compilation(
         typed_trees_to_terminal_psi::prepare_compilation(

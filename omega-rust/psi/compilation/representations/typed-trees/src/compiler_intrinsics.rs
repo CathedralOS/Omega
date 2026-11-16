@@ -50,6 +50,13 @@ impl TypedTrees {
                 "sealed compiler primitive has a different supply mode or an authored body",
             ));
         }
+        if matches!(operation, CompilerPrimitive::ByteObservation(_))
+            && !byte_observation_header(self, machine)
+        {
+            return Err(Diagnostic::error(
+                "sealed byte observation differs from its complete pure shared-byte declaration",
+            ));
+        }
         normalized_schema(self, machine)
             .map(|schema| Some((operation, schema)))
             .ok_or_else(|| {
@@ -58,6 +65,89 @@ impl TypedTrees {
                 )
             })
     }
+}
+
+// Byte-domain classification and executable uses must agree on the actual
+// declaration. These four rows have no generic contracts to approximate: the
+// complete header is one own-lifetime shared u8 view, a bool, and pure total
+// completion. A matching file does not excuse a changed typed declaration.
+fn byte_observation_header(program: &TypedTrees, machine: &Machine) -> bool {
+    use crate::types::TypeReferenceNode;
+    use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
+    if !program.symbols.symbols().nodes().is_valid(machine.symbol)
+        || program.symbols.name(machine.symbol) != machine.name.as_str()
+        || !machine.is_public
+        || machine.interface_exposure != AuthoredDeclarationSelectionExposure::PublicInterface
+        || machine.purpose != crate::machine::MachinePurpose::Runtime
+        || machine.spelling.is_some()
+        || machine.admitted_same_stack_bytes != 0
+        || machine.assembly_target_requirement
+            != language_core::inline_assembly::AsmTargetApplicability::Any
+        || machine.type_parameters != arena::HandleSpan::empty()
+        || machine.lifetime_parameters.len() != 1
+        || machine.contracts != arena::HandleSpan::empty()
+        || !machine.declares_no_crash_route
+        || machine.suspends
+        || machine.blocks
+        || !machine.suspends_keyword_source_spans.is_empty()
+        || !machine.blocks_keyword_source_spans.is_empty()
+        || machine.service_reach_row != language_semantics::ServiceReachRowTable::EMPTY_ROW
+        || !matches!(&machine.termination_plan.interface, language_semantics::TerminationInterface::Published(
+            language_semantics::TerminationGuarantee::Terminates { premises }) if premises.is_empty())
+    {
+        return false;
+    }
+    let Some([entry]) = schema_span(&program.machine_states, machine.states) else {
+        return false;
+    };
+    if entry.statement_nodes != arena::HandleSpan::empty()
+        || entry.contracts != arena::HandleSpan::empty()
+    {
+        return false;
+    }
+    let Some([formal]) = schema_span(&program.state_parameters, entry.parameters) else {
+        return false;
+    };
+    if formal.is_const
+        || formal.is_mutable
+        || formal.relevance != language_core::BindingRelevance::Relevant
+    {
+        return false;
+    }
+    let table = &program.type_reference_table;
+    if !table.contains_type_reference(formal.type_reference)
+        || !table.contains_type_reference(entry.return_type)
+    {
+        return false;
+    }
+    let TypeReferenceNode::Reference {
+        referee,
+        access: language_core::ReferenceAccess::Shared,
+        lifetime: Some(lifetime),
+    } = table.type_reference(formal.type_reference)
+    else {
+        return false;
+    };
+    if lifetime.as_str() != machine.lifetime_parameters[0].as_str()
+        || table.operand_lifetimes(formal.type_reference)
+            != [LifetimeParameterIdentity {
+                declaration: machine.symbol,
+                ordinal: 0,
+            }]
+        || !table.contains_type_reference(*referee)
+    {
+        return false;
+    }
+    let TypeReferenceNode::Slice { element_type } = table.type_reference(*referee) else {
+        return false;
+    };
+    if !table.contains_type_reference(*element_type) {
+        return false;
+    }
+    matches!(table.type_reference(*element_type), TypeReferenceNode::Named { symbol, .. }
+        if program.symbols.builtin_type_atom(*symbol) == Some(symbols::BuiltinTypeAtom::U8))
+        && matches!(table.type_reference(entry.return_type), TypeReferenceNode::Named { symbol, .. }
+        if program.symbols.builtin_type_atom(*symbol) == Some(symbols::BuiltinTypeAtom::Bool))
 }
 
 // Schema coordinates use the existing canonical identity interner. They are

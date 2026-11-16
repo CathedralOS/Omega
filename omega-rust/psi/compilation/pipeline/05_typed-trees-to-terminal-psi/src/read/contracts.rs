@@ -539,9 +539,16 @@ impl Program<'_> {
                 "byte predicate of something that is not a byte carrier",
             ));
         };
+        let explicit_loan = matches!(
+            self.typed.expression_table.expression(argument),
+            ExpressionNode::Borrow(_)
+        );
         let valid = match self.data_type(id, row)?.shape {
-            StorageShape::ByteSequence(_) => true,
-            StorageShape::FixedArray { .. } => {
+            StorageShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+            }) => true,
+            StorageShape::ByteSequence(_) if explicit_loan => true,
+            StorageShape::FixedArray { .. } if explicit_loan => {
                 let Some(array) = self.opened(id, Some(value_type), Access::Read)? else {
                     return Err(unserved("byte array is not readable"));
                 };

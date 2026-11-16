@@ -13,9 +13,23 @@
 //!
 //! Each twin below differs from its partner only in the bytes it stores.
 
-use super::build_purpose::judge_build;
 use super::*;
 use terminal_psi::{ByteSequencePredicate, StructuralFieldType, StructuralTypeShape};
+
+fn judge_build(build: &str) -> Result<RouteVerdict, crate::CompilationRefusal> {
+    let source = format!("use omega::language::core::byte_observation;\n{build}");
+    super::build_purpose::judge_build_with_core(
+        &source,
+        &[(
+            "byte_observation.omg",
+            "byte_observation",
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../../../../source/library/core/byte_observation.omg"
+            )),
+        )],
+    )
+}
 
 /// `accepted` for a program the checker accepts and can publish; for one it
 /// judges wrong, what it could not establish; else the refusal's text.
@@ -48,7 +62,7 @@ fn rejection(predicate: &str, bytes: &str) -> String {
         r#"
 domain [u8]::Text
 requires
-    {predicate}(self);
+    byte_observation::{predicate}(&self[..]);
 data Rejection<'reason> {{ reason: &'reason [u8] in Text; }}
 data Outcome<'reason> {{
     case Accepted(value: u64);
@@ -122,7 +136,7 @@ fn what_no_bytes_decide_is_refused() {
     let declarations = r#"
 domain [u8]::Text
 requires
-    valid_utf8(self);
+    byte_observation::valid_utf8(&self[..]);
 data Rejection<'reason> { reason: &'reason [u8] in Text; }
 "#;
     let uncast = format!(
@@ -147,7 +161,7 @@ data Rejection<'reason> { reason: &'reason [u8] in Text; }
     let laundered = r#"
 domain [u8]::Text
 requires
-    valid_utf8(self);
+    byte_observation::valid_utf8(&self[..]);
 data Plain<'reason> { reason: &'reason [u8]; }
 machine build_entry() { let p: Plain = Plain { reason: ("\xff" as +Text) as -Text }; }
 "#;
@@ -159,7 +173,7 @@ machine build_entry() { let p: Plain = Plain { reason: ("\xff" as +Text) as -Tex
     let non_empty = r#"
 domain [u8]::Filled
 requires
-    non_empty(self);
+    byte_observation::non_empty(&self[..]);
 data Named<'name> { name: &'name [u8] in Filled; }
 machine build_entry() { let n: Named = Named { name: "x" as +Filled }; }
 "#;
@@ -187,7 +201,7 @@ fn byte_predicate_spelling_needs_its_exact_domain_call() {
 
     let shadowed = format!(
         "machine valid_utf8(value: &[u8]) -> bool {{ false }}\n{}",
-        rejection("valid_utf8", "plain")
+        rejection("valid_utf8", "plain").replace("byte_observation::valid_utf8", "valid_utf8")
     );
     let reason = verdict(&shadowed);
     assert!(
@@ -208,7 +222,7 @@ fn forwarded(bytes: &str) -> String {
         r#"
 domain [u8]::Name
 requires
-    no_nul(self);
+    byte_observation::no_nul(&self[..]);
 machine keep(name: &[u8] in Name) {{ }}
 machine forward(name: &[u8] in Name) {{ keep(name); }}
 machine build_entry() {{ forward("{bytes}" as +Name); }}
@@ -245,7 +259,7 @@ fn fixed_text(predicate: &str, bytes: &str) -> String {
         r#"
 domain [u8; 3]::Text
 requires
-    {predicate}(self);
+    byte_observation::{predicate}(&self[..]);
 data Holder {{ bytes: [u8; 3] in Text; }}
 machine first(bytes: &[u8; 3] in Text) -> u8 {{ bytes[0] }}
 machine build_entry() {{
@@ -306,7 +320,7 @@ fn a_fixed_byte_array_of_unknown_bytes_is_not_cast_into_its_domain() {
     let unknown = r#"
 domain [u8; 3]::Text
 requires
-    valid_utf8(self);
+    byte_observation::valid_utf8(&self[..]);
 data Raw { bytes: [u8; 3]; }
 data Holder { bytes: [u8; 3] in Text; }
 machine relabel(raw: &Raw) -> u8 {

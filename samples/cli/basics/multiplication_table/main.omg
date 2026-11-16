@@ -1,3 +1,4 @@
+use omega::language::core::byte_observation;
 use omega::language::core::ProcessExit;
 // A 9x9 multiplication table -- the first sample that produces FORMATTED NUMERIC OUTPUT.
 // Every other sample renders glyphs or animation frames; this one converts computed
@@ -13,10 +14,10 @@ use omega::language::core::narrow_i32_to_u8_trapping;
 
 domain [u8]::Utf8
 requires
-    valid_utf8(self);
+    byte_observation::valid_utf8(&self[..]);
 domain [u8; 28]::Utf8
 requires
-    valid_utf8(self);
+    byte_observation::valid_utf8(&self[..]);
 data Main {
     line: [u8; 28] in Utf8;
     i: i32 in Wrapping;   // row factor 1..9
@@ -91,7 +92,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         transition { _ -> block col_loop(main) }
     }
     machine emit_row(main: &mut Main) {
-        Console::write_line(main.line);
+        Console::write_line(&main.line[..]);
         main.i = main.i + 1;
         transition { _ -> block row_loop(main) }
     }

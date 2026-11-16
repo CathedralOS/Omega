@@ -22,30 +22,85 @@ pub mod evidence {
             if !program.call_has_no_runtime_receiver_for_target(call)
                 || !call.machine_arguments.is_empty()
                 || !call.evidence_arguments.is_empty()
+                || call.requirement_application.is_valid()
+                || call.exact_coercion_target.is_valid()
+                || call.build_selection.is_valid()
+                || call.static_machine_parameter.is_valid()
+                || call.static_requirement_dispatch.is_some()
+                || call.quotient_operation.is_some()
+                || call.private_layout_operation.is_some()
+                || call.installed_interrupt_operation.is_some()
+                || call.layout_query.is_some()
+                || call.native_code_layout.is_some()
+                || call.operational_acknowledgement.acknowledges_suspend
+                || call.operational_acknowledgement.acknowledges_block
             {
                 return None;
             }
-            let declaration = program
-                .machine_by_symbol(call.target_symbol)
-                .or_else(|| program.machine_holding_state(call.target_symbol))?;
-            let Some(language_core::sealed_intrinsics::SealedIntrinsic::CompilerPrimitive(
-                language_core::sealed_intrinsics::CompilerPrimitive::ByteObservation(predicate),
-            )) = program
-                .symbols
-                .sealed_declaration(declaration.symbol, declaration.name.as_str())
-            else {
-                return None;
-            };
-            if declaration.supply_mode != language_semantics::MachineSupplyMode::CompilerProvided
-                || declaration.body_is_present
+            let (declaration, predicate) =
+                byte_observation_declaration(program, call.target_symbol)?;
+            let entry = program
+                .machine_states(program.machine_by_symbol(declaration)?)
+                .first()?
+                .symbol;
+            let names_target =
+                |symbol| symbol == call.target_symbol || symbol == declaration || symbol == entry;
+            if let Some(binding) = call.authored_call_binding
+                && (binding.selected != call.target_symbol || binding.original != binding.selected)
             {
                 return None;
+            }
+            if let Some(occurrence) = call.authored_call_selection {
+                let selected = program.authored_declaration_selections().get(occurrence)?;
+                if !matches!(selected.target(), language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(resolved)
+                    if names_target(resolved.selected_symbol()))
+                {
+                    return None;
+                }
+            }
+            if call.authored_machine_application.is_valid() {
+                let application = program
+                    .expression_table
+                    .static_machine_application(call.authored_machine_application);
+                if !application.arguments.is_empty()
+                    || !application.selected_machine_arguments.is_empty()
+                    || !application.input_selections.is_empty()
+                    || !application.bindings.is_empty()
+                    || !application.lifetime_bindings.is_empty()
+                    || application.conformance_selection.is_some()
+                    || application.callable_contract_source.is_valid()
+                    || (application.registration_operation.is_valid()
+                        && !names_target(application.registration_operation))
+                {
+                    return None;
+                }
             }
             let arguments = program.expression_table.expression_handles(call.arguments);
             let [argument] = arguments else {
                 return None;
             };
             Some((predicate, *argument))
+        }
+
+        /// Catalog custody and the complete canonical header nominate the
+        /// observation. Callers still owe argument and storage formation.
+        pub fn byte_observation_declaration(
+            program: &TypedTrees,
+            target: SymbolHandle,
+        ) -> Option<(SymbolHandle, ByteSequencePredicate)> {
+            let declaration = program
+                .machine_by_symbol(target)
+                .or_else(|| program.machine_holding_state(target))?;
+            let (
+                language_core::sealed_intrinsics::CompilerPrimitive::ByteObservation(predicate),
+                _,
+            ) = program
+                .compiler_primitive_schema(declaration.symbol)
+                .ok()??
+            else {
+                return None;
+            };
+            Some((declaration.symbol, predicate))
         }
 
         pub fn domain_byte_predicate(
@@ -131,6 +186,15 @@ pub mod evidence {
                 return None;
             };
             let (predicate, argument) = byte_predicate_call(program, *expression)?;
+            // The domain subject is a logical value, not an implicit loan.
+            // Its declaration must explicitly form the shared whole view the
+            // selected observer's ordinary formal receives.
+            if !matches!(program.expression_table.expression(argument),
+                crate::expression::ExpressionNode::Borrow(borrow)
+                    if borrow.access == language_core::ReferenceAccess::Shared)
+            {
+                return None;
+            }
             let subject = whole_byte_observation_subject(program, argument)?;
             crate::domain::domain_subject_reference(program, domain, subject)
                 .then_some((*expression, predicate))

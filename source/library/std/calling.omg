@@ -1,3 +1,4 @@
+use omega::language::core::byte_observation;
 // CALLING POLICIES (design_briefs/calling_plans.md): ordinary packages may
 // author a policy machine, but the values it receives and returns come from
 // this compiler-owned, closed vocabulary. Array tails beyond each explicit
@@ -13,7 +14,7 @@
 
 public domain [u8]::Utf8
 requires
-    valid_utf8(self);
+    byte_observation::valid_utf8(&self[..]);
 
 public data SystemVEightbyteClass {
     case Integer;

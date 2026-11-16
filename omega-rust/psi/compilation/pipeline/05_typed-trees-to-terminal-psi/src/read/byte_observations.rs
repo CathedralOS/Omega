@@ -2,7 +2,6 @@
 //! special spelling. Runtime calls form an ordinary shared loan; logical
 //! calls retain the exact storage subject and the same complete pure header.
 
-use language_core::sealed_intrinsics::{CompilerPrimitive, SealedIntrinsic};
 use semantic_vocabulary::{ByteSequencePredicate, MachineId, ScalarType};
 use symbols::SymbolHandle;
 use terminal_check_tables::{Checked, Construct};
@@ -17,18 +16,7 @@ impl Program<'_> {
         &self,
         target: SymbolHandle,
     ) -> Option<(SymbolHandle, ByteSequencePredicate)> {
-        let machine = self
-            .typed
-            .machine_by_symbol(target)
-            .or_else(|| self.typed.machine_holding_state(target))?;
-        let Some(SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::ByteObservation(predicate))) =
-            self.typed
-                .symbols
-                .sealed_declaration(machine.symbol, machine.name.as_str())
-        else {
-            return None;
-        };
-        Some((machine.symbol, predicate))
+        typed_trees::byte_predicates::byte_observation_declaration(self.typed, target)
     }
 
     pub(super) fn byte_observation(

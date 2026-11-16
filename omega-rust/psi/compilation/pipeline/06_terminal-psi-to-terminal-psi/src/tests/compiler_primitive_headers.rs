@@ -330,7 +330,7 @@ machine main() {{ let valid: bool = checked("Room A1"); }}
 
 #[test]
 fn authenticated_byte_calls_still_require_their_complete_actual_header() {
-    for mutation in 0..3 {
+    for mutation in 0..5 {
         let mut typed = observed_typed(
             r#"
 use omega::language::core::byte_observation;
@@ -351,15 +351,64 @@ machine main() { let valid: bool = byte_observation::ascii_only("Room A1"); }
             2 => typed.machines_mut()[index]
                 .lifetime_parameters
                 .push(typed_trees::name::Identifier::generated("extra")),
+            3 => {
+                let foreign = typed
+                    .machines()
+                    .iter()
+                    .find(|machine| machine.name.as_str() == "valid_utf8")
+                    .unwrap()
+                    .symbol;
+                let machine = typed.machine_by_symbol(symbol).unwrap();
+                let [entry] = typed.machine_states(machine) else {
+                    panic!("one actual entry");
+                };
+                let reference = typed.state_parameters(entry)[0].type_reference;
+                typed
+                    .type_reference_table
+                    .retain_operand_lifetimes(
+                        reference,
+                        [typed_trees::type_identity::LifetimeParameterIdentity {
+                            declaration: foreign,
+                            ordinal: 0,
+                        }],
+                    )
+                    .unwrap();
+            }
+            4 => {
+                typed.machines_mut()[index].name =
+                    typed_trees::name::Identifier::generated("valid_utf8")
+            }
             _ => unreachable!(),
         }
-        assert!(typed.compiler_primitive_schema(symbol).unwrap().is_some());
+        assert!(typed.compiler_primitive_schema(symbol).is_err());
         let verdicts = judge_observed(&typed);
         assert!(
             verdicts
                 .iter()
                 .any(|verdict| !matches!(verdict, Ok(crate::RouteVerdict::Accepted(_)))),
             "catalog custody must not erase actual header differences: {verdicts:?}"
+        );
+    }
+}
+
+#[test]
+fn byte_domains_form_an_explicit_shared_whole_observation_of_self() {
+    for (argument, accepted) in [("&self[..]", true), ("self", false)] {
+        let text = format!(
+            r#"
+use omega::language::core::byte_observation;
+domain [u8; 2]::Ascii requires byte_observation::ascii_only({argument});
+data Holder {{ bytes: [u8; 2] in Ascii; }}
+machine main() {{ let plain: [u8; 2] = [65u8, 66u8]; let holder: Holder = Holder {{ bytes: plain as +Ascii }}; }}
+"#
+        );
+        let verdicts = observed_program(&text);
+        assert_eq!(
+            verdicts
+                .iter()
+                .all(|verdict| matches!(verdict, Ok(crate::RouteVerdict::Accepted(_)))),
+            accepted,
+            "a logical subject grants no implicit loan: {argument}: {verdicts:?}"
         );
     }
 }

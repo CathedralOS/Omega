@@ -1176,6 +1176,12 @@ mod domain_facts {
             return None;
         };
         let mut argument = *argument;
+        if !matches!(
+            program.tables.bodies.expressions.expression(argument),
+            ExpressionNode::Borrow(_)
+        ) {
+            return None;
+        }
         if let ExpressionNode::Borrow(borrow) =
             program.tables.bodies.expressions.expression(argument)
         {

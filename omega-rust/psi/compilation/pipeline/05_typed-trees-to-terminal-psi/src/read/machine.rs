@@ -1899,6 +1899,19 @@ impl<'t> Program<'t> {
         id: MachineId,
         target: SymbolHandle,
     ) -> Checked<Signature> {
+        let elision = std::mem::replace(&mut self.elision, super::regions::Elision::Inputs(target));
+        let owner = std::mem::replace(&mut self.lifetime_owner, target);
+        let read = self.read_byte_observation_signature(id, target);
+        self.lifetime_owner = owner;
+        self.elision = elision;
+        read
+    }
+
+    fn read_byte_observation_signature(
+        &mut self,
+        id: MachineId,
+        target: SymbolHandle,
+    ) -> Checked<Signature> {
         use language_core::sealed_intrinsics::CompilerPrimitive;
         let unavailable = |detail| refuse(id, Construct::Machine, Unserved::Call(detail));
         let Some((CompilerPrimitive::ByteObservation(_), _schema)) = self
@@ -1942,7 +1955,7 @@ impl<'t> Program<'t> {
         )?;
         signature.termination = self.termination(id, machine)?;
         signature.reaches = self.reach_ceiling(id, machine.symbol, false)?;
-        signature.invokes = self.entry_ceiling(id, self.typed.machine_invokes(machine), false)?;
+        signature.invokes = self.entry_ceiling(id, self.typed.machine_invokes(machine), true)?;
         signature.operational = crate::body::OperationalCeilings {
             suspension: Some(machine.suspends),
             blocking: Some(machine.blocks),
@@ -1960,11 +1973,19 @@ impl<'t> Program<'t> {
             }
             _ => false,
         };
+        let input_region = super::regions::Region::Parameter(
+            typed_trees::type_identity::LifetimeParameterIdentity {
+                declaration: machine.symbol,
+                ordinal: 0,
+            },
+        );
         if !valid_parameter
             || signature.borrowed.len() != 1
             || signature.borrowed[0].position != 0
             || signature.borrowed[0].access != language_core::ReferenceAccess::Shared
             || signature.borrowed[0].referent != crate::body::BorrowedReferent::Slice
+            || self.region_tuple(signature.borrowed[0].regions) != [input_region]
+            || self.region_tuple(signature.parameters[0].regions()) != [input_region]
             || !signature.erased.is_empty()
             || signature.result != Some(ValueType::plain(semantic_vocabulary::ScalarType::Boolean))
             || !signature.requires.is_empty()
