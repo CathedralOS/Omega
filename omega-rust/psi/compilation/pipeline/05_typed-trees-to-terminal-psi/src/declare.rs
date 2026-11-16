@@ -587,7 +587,35 @@ fn application(
         );
     }
     let (parameters, enclosing_capture) = match row {
-        MachineInstantiation::Specialization(_) => (typed.machine_type_parameters(declared), false),
+        MachineInstantiation::Specialization(specialization) => {
+            // An enclosing application binds the inherited prefix of a nested
+            // helper. The helper's own binders survive under fresh symbols;
+            // authenticate both parts rather than inventing bindings for them.
+            let parameters = typed
+                .data_type_parameters
+                .span(specialization.template_parameters)
+                .ok_or("a specialization lost its retained binder roster")?;
+            let source = typed.machine_type_parameters(declared);
+            let remaining = typed
+                .machine_by_symbol(instance)
+                .map(|machine| typed.machine_type_parameters(machine))
+                .ok_or("a specialization lost its instance declaration")?;
+            if source.len() != parameters.len() + remaining.len()
+                || !source.iter().take(parameters.len()).eq(parameters.iter())
+                || !source
+                    .iter()
+                    .skip(parameters.len())
+                    .zip(remaining)
+                    .all(|(original, copied)| {
+                        typed.symbols.get(copied.symbol).generated_from == original.symbol
+                            && original.kind == copied.kind
+                            && original.bounds == copied.bounds
+                    })
+            {
+                return Err("a specialization changed its bound or remaining binder roster");
+            }
+            (parameters, false)
+        }
         MachineInstantiation::Capture(capture) => {
             let (owner, _) = typed
                 .owned_conformance_realization(template)
