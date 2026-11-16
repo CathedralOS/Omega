@@ -787,6 +787,8 @@ impl<'a> Storage<'a> {
             references,
             domains,
         };
+        // Entry observations occupy position zero. Install them before the
+        // operation loop appends reads in position order for binary search.
         storage.initial_contents_are_declared(tables)?;
         storage.log = storage.stores(value_types)?;
         storage.log_is_stated(tables)?;

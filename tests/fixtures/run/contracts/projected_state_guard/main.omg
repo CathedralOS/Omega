@@ -7,7 +7,7 @@ data Frame {
 machine main() crashes Trap {
     let mut state: Frame;
     render(&mut state);
-    transition state.frame == 2 && state.bytes[1] == 35 && state.bytes[0] == 0 {
+    transition state.frame == 2 && state.bytes[1] == 35 && state.bytes[0] == 0 && state.bytes[11] == 71 {
         true -> done()
         _ -> bad()
     }
@@ -32,6 +32,8 @@ machine render(state: &mut Frame) {
     {
         state.frame = state.frame + 1;
         state.bytes[state.position] = 35;
+        state.position = 11u32 as +Wrapping;
+        state.bytes[state.position] = 71;
         transition { _ -> repeat(state) }
     }
     machine finish() {}

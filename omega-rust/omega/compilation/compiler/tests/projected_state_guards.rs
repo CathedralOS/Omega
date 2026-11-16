@@ -22,9 +22,9 @@ fn fixture(kind: &str, name: &str) -> PathBuf {
 fn a_state_guard_binds_the_incoming_field_until_that_field_is_written() {
     std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {
-            // The state changes a sibling before indexing the array with the
-            // guarded field. Checking the frame contents exercises the loop
-            // and ensures the index changes across iterations.
+            // The state changes a sibling before indexing with the guarded
+            // field, then overwrites the field and indexes with a fresh read.
+            // The frame contents show that both indices reached their stores.
             let checked = orchestration::check_source(
                 &mut compiler::CompilationSession::default(),
                 compiler::CheckedCompileRequest::new(
