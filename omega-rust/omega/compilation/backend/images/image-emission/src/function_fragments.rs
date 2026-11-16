@@ -109,6 +109,7 @@ mod attribution {
             .collect::<Result<Vec<_>, Error>>()?;
         target_vocabulary::NativePublicationFacts::seal(
             vec![target_vocabulary::NativeFunctionPublication {
+                call_targets: Vec::new(),
                 machine: source.machine,
                 operation_count: u32::try_from(source.operations().count())
                     .map_err(|_| Error::Overflow)?,
@@ -1773,6 +1774,7 @@ mod byte_literals {
             let place = PlaceId::new(1).unwrap();
             let facts = NativePublicationFacts::seal(
                 vec![NativeFunctionPublication {
+                    call_targets: Vec::new(),
                     machine: MachineId::new(1).unwrap(),
                     operation_count: 1,
                     sites: vec![(SemanticCodeSite::Operation(operation), 0)],
@@ -3846,15 +3848,32 @@ mod production {
 
     pub struct FunctionFragmentObjectArtifactRequest {
         pub replay: Arc<StagedOptimizedRelocationFreeObjectContainer>,
+        /// Stage 02's output, present only when the compile requested an
+        /// explicit correspondence audit. Building the object never reads it.
+        pub original_target: Option<crate::RetainedTargetOperations>,
     }
 
     pub fn build_function_fragment_object_artifact(
         request: FunctionFragmentObjectArtifactRequest,
     ) -> Result<ObjectArtifact, Error> {
-        let FunctionFragmentObjectArtifactRequest { replay } = request;
+        let FunctionFragmentObjectArtifactRequest {
+            replay,
+            original_target,
+        } = request;
         let source = replay.as_ref();
+        if let Some(original) = &original_target {
+            let projection = &source.emission_facts().projection;
+            let optimized = original.target().optimized();
+            if optimized.projection() != projection.identity
+                || optimized.final_unit() != projection.final_unit
+            {
+                return Err(Error::Mismatch(
+                    "retained target operations belong to another optimized program",
+                ));
+            }
+        }
         let catalogs = source::code_catalogs(source);
-        let callable_invocations = source::callable_invocations(source);
+        let callable_invocations = source::callable_invocations(source)?;
         let profile = super::source::profile(source);
         let text = source.source().text_section();
         let fragments = source::fragments(source);
@@ -4102,7 +4121,10 @@ mod production {
             physical_entry: None,
             retained_entry_storage,
             requires_graph_storage_replay,
-            fragment_replay: Some(super::replay::FragmentReplay(Arc::clone(&replay))),
+            fragment_replay: Some(super::replay::FragmentReplay(
+                Arc::clone(&replay),
+                original_target,
+            )),
             composition_source: None,
             semantic_source: None,
             psi: text.psi,
@@ -4136,20 +4158,43 @@ pub(crate) mod replay {
         verify_retained_target_operations,
     };
 
+    use abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations;
     use object_file::StagedOptimizedRelocationFreeObjectContainer;
 
+    /// Stage 02's output, kept beside an emitted object only when the compile
+    /// requested an explicit correspondence audit. Ordinary emission never
+    /// holds it; the audits that compare the object with what stage 02
+    /// lowered refuse without it.
     #[derive(Debug, Clone)]
-    pub(crate) struct FragmentReplay(pub(crate) Arc<StagedOptimizedRelocationFreeObjectContainer>);
+    pub struct RetainedTargetOperations(Arc<ValidatedOptimizedTargetOperations>);
+
+    impl RetainedTargetOperations {
+        pub fn new(target: Arc<ValidatedOptimizedTargetOperations>) -> Self {
+            Self(target)
+        }
+
+        pub fn target(&self) -> &ValidatedOptimizedTargetOperations {
+            &self.0
+        }
+    }
+
+    /// The emitted object's current producer chain, plus stage 02's output
+    /// when an audit asked for it.
+    #[derive(Debug, Clone)]
+    pub(crate) struct FragmentReplay(
+        pub(crate) Arc<StagedOptimizedRelocationFreeObjectContainer>,
+        pub(crate) Option<RetainedTargetOperations>,
+    );
 
     impl FragmentReplay {
         pub(crate) fn terminal_module(&self) -> &terminal_psi::TerminalModule {
-            self.0.lowering_facts().module()
+            self.0.emission_facts().lowering.module()
         }
 
         pub(crate) fn target_context(
             &self,
         ) -> Option<&terminal_installation::TerminalTargetContext> {
-            self.0.lowering_facts().target_context()
+            self.0.emission_facts().lowering.target_context()
         }
 
         pub(crate) fn selected_terminal_entry(
@@ -4159,16 +4204,9 @@ pub(crate) mod replay {
             native_target: target::NativeTarget,
         ) -> Result<Option<semantic_vocabulary::MachineId>, &'static str> {
             let identity = artifact.view().identity();
-            let input = self.0.lowering_facts();
-            let plan = self
-                .0
-                .source()
-                .source()
-                .source()
-                .source()
-                .optimized_target()
-                .optimized()
-                .plan();
+            let facts = self.0.emission_facts();
+            let input = &facts.lowering;
+            let plan = &facts.abstract_program;
             if plan.psi != identity
                 || input.module() != artifact.semantic_module()
                 || plan.entry != entry
@@ -4366,7 +4404,7 @@ pub(crate) mod replay {
             ));
         }
         if let Some(replay) = &artifact.fragment_replay {
-            super::validate_function_fragment_object_artifact(&replay.0, artifact)
+            super::validate_function_fragment_object_artifact(replay, artifact)
                 .map_err(|error| diagnostics::Diagnostic::error(error.to_string()))?;
         }
         Ok(())
@@ -9920,12 +9958,12 @@ mod source {
         }
     }
 
-    mod privileged_termination {
+    pub(super) mod privileged_termination {
         use crate::FunctionFragmentObjectArtifactError as Error;
         use provider_admission::AdmittedInstalledEntryExecution;
         use selected_instructions::{SelectedInstructionKind as Kind, SelectedTerminator};
 
-        pub(super) fn validate(
+        pub(in crate::function_fragments) fn validate(
             execution: Option<&AdmittedInstalledEntryExecution>,
             selected: &post_allocation_machine::PostAllocationMachineProgram,
         ) -> Result<(), Error> {
@@ -20626,13 +20664,8 @@ mod source {
         machine: MachineId,
     ) -> Result<&AbstractFunction, Error> {
         let mut functions = source
-            .source()
-            .source()
-            .source()
-            .source()
-            .optimized_target()
-            .optimized()
-            .plan()
+            .emission_facts()
+            .abstract_program
             .functions
             .iter()
             .filter(|function| function.machine == machine);
@@ -20645,18 +20678,22 @@ mod source {
     }
 
     /// Callable reach was evaluated during preparation against the exact optimized
-    /// program and invocation roots retained by this execution plan.
+    /// program and invocation roots; the driver carried the program entry's summary.
     pub(super) fn callable_invocations(
         source: &StagedOptimizedRelocationFreeObjectContainer,
-    ) -> &terminal_semantics::callable_values::ReachableCallableInvocations {
+    ) -> Result<&terminal_semantics::callable_values::ReachableCallableInvocations, Error> {
         source
             .source()
             .source()
             .source()
             .source()
-            .optimized_target()
-            .execution_plan()
-            .callable_invocations()
+            .physical_program()
+            .contracts
+            .execution()
+            .map(target_vocabulary::NativeExecutionFacts::callable_invocations)
+            .ok_or(Error::Mismatch(
+                "current program has no prepared callable invocation context",
+            ))
     }
 
     pub(super) fn code_catalogs(
@@ -24850,7 +24887,7 @@ mod structural {
                             return Err(Error::Mismatch("completion provider custody"));
                         }
                     }
-                    crate::object::object_artifact::replay::boundary::completion_receipts::validate_completion_custody(row, &source.lowering_facts().module().identities)
+                    crate::object::object_artifact::replay::boundary::completion_receipts::validate_completion_custody(row, &source.emission_facts().lowering.module().identities)
                         .map_err(|_| Error::Mismatch("completion receipts"))?;
                 }
             }

@@ -227,8 +227,8 @@ mod legalization_target;
 
 pub(crate) use legalization::LegalizationError;
 pub use legalization::{
-    LegalizationError as TargetOperationAuditError, PreparationEvidence, prepare_execution_plan,
-    verify_execution_plan, verify_target_operation_plan_with_closed_module,
+    ExecutionPlanReplayInputs, LegalizationError as TargetOperationAuditError, PreparationEvidence,
+    prepare_execution_plan, verify_execution_plan, verify_target_operation_plan_with_closed_module,
 };
 pub use native_geometry::{ModuleTypes, accepted_types};
 

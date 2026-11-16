@@ -10,8 +10,8 @@ How target selection shapes the run:
 - Zero `--target` flags select `BuildTargets::Host`; one selects
   `BuildTargets::Single`; two or more select `BuildTargets::Batch`.
 - A single-target invocation (`present_single`) prints the check summary or
-  published artifact lines directly and writes `--report-file` only when
-  compilation succeeds.
+  published artifact lines directly. `--report-file` gets the full report on
+  success and the same `target:`/`failed:` block a batch writes on refusal.
 - A multi-target invocation (`present_batch`) compiles every requested target
   in one prepared session and continues past individual target failures so a
   cross-target sweep reports all broken targets in one pass. Each target block
@@ -36,6 +36,12 @@ outright `Reject`ed, returning 2 for the batch would hide a proven source or
 target violation behind a resource-bound status. We therefore return 2 only
 when every refusal in the batch is `Incomplete`; any `Reject` wins and produces
 exit code 1.
+
+`CompilerRequestOutcome::InternalFailure` (exit code 3) outranks both: it means
+the compiler caught a defect in itself, such as its own stage output failing an
+independent validator. A script reading `$?` must learn that the compiler is at
+fault, even when another target in the batch was rejected, because the batch's
+verdicts no longer carry the compiler's authority.
 
 */
 
@@ -155,7 +161,21 @@ fn present_single(
     }
     let outcome = match result {
         Ok(outcome) => outcome,
-        Err(error) => exit_on_refusal([&error]),
+        Err(error) => {
+            // The report is written before the exit status is chosen, so a
+            // refused compilation still leaves its rows, including failed
+            // stage validator rows, in `--report-file`.
+            if let Some(path) = report_file {
+                write_report_or_exit(
+                    path,
+                    &format!(
+                        "{roster}{}",
+                        failed_report_text(target_name.unwrap_or("host default"), &error)
+                    ),
+                );
+            }
+            exit_on_refusal([&error])
+        }
     };
     if let Some(path) = report_file {
         write_report_or_exit(
@@ -210,7 +230,7 @@ fn present_batch(
             Err(error) => {
                 eprintln!("{error}");
                 println!("target {name} failed");
-                report_contents.push_str(&format!("target: {name}\nfailed: {error}\n"));
+                report_contents.push_str(&failed_report_text(name, &error));
                 failed.push(name);
                 refusals.push(error);
             }
@@ -242,15 +262,27 @@ fn exit_on_refusal<'a>(refusals: impl IntoIterator<Item = &'a BuildError>) -> ! 
 }
 
 fn refusal_exit_status<'a>(refusals: impl IntoIterator<Item = &'a BuildError>) -> i32 {
-    let mut outcomes = refusals.into_iter().map(BuildError::outcome);
-    match outcomes.next() {
-        Some(first @ CompilerRequestOutcome::Incomplete(_))
-            if outcomes.all(|outcome| matches!(outcome, CompilerRequestOutcome::Incomplete(_))) =>
-        {
-            i32::from(first.halt_value())
-        }
-        _ => i32::from(CompilerRequestOutcome::Reject.halt_value()),
+    i32::from(batch_outcome(refusals.into_iter().map(BuildError::outcome)).halt_value())
+}
+
+fn batch_outcome(
+    outcomes: impl IntoIterator<Item = CompilerRequestOutcome>,
+) -> CompilerRequestOutcome {
+    let mut combined: Option<CompilerRequestOutcome> = None;
+    for outcome in outcomes {
+        combined = Some(match (combined, outcome) {
+            (_, CompilerRequestOutcome::InternalFailure)
+            | (Some(CompilerRequestOutcome::InternalFailure), _) => {
+                CompilerRequestOutcome::InternalFailure
+            }
+            (
+                None | Some(CompilerRequestOutcome::Incomplete(_)),
+                CompilerRequestOutcome::Incomplete(_),
+            ) => combined.unwrap_or(outcome),
+            _ => CompilerRequestOutcome::Reject,
+        });
     }
+    combined.unwrap_or(CompilerRequestOutcome::Reject)
 }
 
 fn print_timings(outcome: &BuildReport) {
@@ -340,6 +372,12 @@ fn report_text(
     contents
 }
 
+// A refused target's report block. A stage validator failure's text holds
+// every row that target ran, passed and failed.
+fn failed_report_text(target: &str, error: &BuildError) -> String {
+    format!("target: {target}\nfailed: {error}\n")
+}
+
 // One line per requested validator and target; empty for default compilation.
 fn format_stage_validations(outcome: &BuildReport) -> String {
     outcome
@@ -390,5 +428,41 @@ fn write_report_or_exit(path: &Path, contents: &str) {
             path.display()
         );
         std::process::exit(1);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{batch_outcome, refusal_exit_status};
+    use compiler::CompilerRequestOutcome::{Incomplete, InternalFailure, Reject};
+    use diagnostics::{Diagnostic, ExceededProvision};
+    use orchestration::BuildError;
+
+    const PROVISION: ExceededProvision = ExceededProvision {
+        resource: "proof steps",
+        limit: 1,
+        requested: 2,
+        coordinate: 0,
+    };
+
+    #[test]
+    fn a_source_rejection_exits_1_and_a_compiler_defect_exits_3() {
+        let rejected = BuildError::Diagnostics(vec![Diagnostic::error("bad source")]);
+        assert_eq!(refusal_exit_status([&rejected]), 1);
+        assert_eq!(batch_outcome([InternalFailure]).halt_value(), 3);
+    }
+
+    #[test]
+    fn a_compiler_defect_outranks_every_other_refusal_in_a_batch() {
+        assert_eq!(batch_outcome([Reject, InternalFailure]), InternalFailure);
+        assert_eq!(
+            batch_outcome([InternalFailure, Incomplete(PROVISION)]),
+            InternalFailure
+        );
+        assert_eq!(batch_outcome([Incomplete(PROVISION), Reject]), Reject);
+        assert_eq!(
+            batch_outcome([Incomplete(PROVISION), Incomplete(PROVISION)]),
+            Incomplete(PROVISION)
+        );
     }
 }

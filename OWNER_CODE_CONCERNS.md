@@ -82,32 +82,11 @@ framework or a list of unimplemented features.
 - Cost: The checker accepts a call whose precondition is false at run time. Log a write row for each referent backing a call can reach through lent or moved values carrying `&mut`, reusing the cleanup walk, and pin it with the in-callee twin of `a_store_through_a_stored_reference_ends_facts_about_the_original_cell`.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/dependent_values.md
 
-### A call writing a field through a `&mut` loan never reopens the enclosing record's `requires`
-- Category: Knowledge crossing a boundary
-- Where: [owed returns nothing for calls](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places.rs#L1289), [windows open only from DataDomain rows](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/lib.rs#L903), [stale README rows](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/README.md#L549), [callee trusts its formal's type](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places/contents.rs#L342)
-- Saw: [invariant windows](wiki/spec/language/dependent_values.md) says a write not known to preserve the domain "opens a window on the place", re-proved at the next consumption point, including borrow creation, calls and loan handback. `Storage::owed` returns no clauses for a call (`_ => return Ok(Vec::new())`), so a callee writing `&mut rec.field` neither owes nor opens anything for `rec`'s type. With `data Span requires self.low <= self.high`, `bump(&mut s.low)` writing 99 then `width(s)` computing `s.high - s.low` is accepted and underflows; the `indexed_array_contract` fixture without `forward`'s own `requires` proves a false `ensures`. The README still says "Borrows are refused by elaboration" and "Loans are refused by elaboration". Traced, not run.
-- Cost: The checker accepts proofs, `ensures` included, that are false at run time whenever a field of a record with `requires` is lent `&mut`. Treat an exclusive-loan call as a write to every enclosing data type above the lent place, opening windows as a field store does, and update the README.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/dependent_values.md
-
-### Matching on storage lent to a live `&mut` is not checked against the loan, though copying it is refused
-- Category: One idea, several implementations
-- Where: [loan check walks operations](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places/loans.rs#L1076), [then cleanup only](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places/loans.rs#L1195), [match subject checked for availability only](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/plain_affine.rs#L1919)
-- Saw: [borrows and aliases](wiki/spec/language/ownership.md) says exclusive children "suspend the corresponding parent branch". `uses_retained_loan` visits operations and cleanup actions but no block-ending instruction (`StructuralCase` dispatch, `EliminateEmpty`, `ReturnStructural`, owned `Jump`/`InvokeNoNormal` arguments). With `holder` holding `&mut engine`, `let moved: Mode = engine.mode;` is refused with `ObserveWhileExclusive`, but `transition engine.mode { ... }` reading the same storage while `holder` is still used is not judged. Whether lowering keeps the loan live at the dispatch was not confirmed.
-- Cost: The same observation is refused as a copy and passes as a `match`. Visit each block-ending instruction in `uses_retained_loan`, counting a dispatch subject as a shared read and owned edge or return arguments as changes.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/ownership.md
-
 ### A read through a runtime index gets a field equation the spec says it never supplies
 - Category: The documents disagree
 - Where: [read leaf](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places.rs#L2251), [read_equation](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places.rs#L3514), [runtime-indexed store logged as value](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places/log.rs#L479)
 - Saw: [store vocabulary](wiki/spec/terminal-psi/structural_access.md#L556) says a runtime-element read "supplies no field equation", and such a store "publishes no field equation" (L639). The write log records a store at `[RuntimeIndex i]` as `Stored::Value(v)`, and `read_equation` gives a later read of the same path `r == v`, so `a[i] = 7; need7(a[i]);` is accepted. This is sound (same selector, overlap-based retirement), but contradicts the page.
 - Cost: A change made to match the spec would silently refuse programs that pass today. Either allow the equation for an identical selector in the spec, or drop it for runtime-index paths.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/terminal-psi/structural_access.md
-
-### Inside a `match` arm, `x.p` returns the payload from before the arm even after the arm changes `x`
-- Category: Re-deriving
-- Where: [read_payload uses the dispatch-time parameter](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/lower/places.rs#L3624), [select creates the parameters](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/lower/places.rs#L3477), [selected stack push and pop](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/lower/control.rs#L370)
-- Saw: [store vocabulary](wiki/spec/terminal-psi/structural_access.md) says "A read is not equality with the initializer or a previous read: intervening stores and calls can change storage", and [a sum held in a field](wiki/spec/language/patterns.md) keeps ordinary invalidation for payload mutation and case replacement. When a dispatch selects a case, lowering copies each scalar payload field into the arm block's parameters, and `read_payload` returns that parameter for every `x.p` in the arm; nothing clears `selected` on a write or call. In `match s { Slot::Full { .. } -> refill(&mut s) + s.n, ... }` where `refill` stores `Full { n: 9 }`, the program computes 1 instead of 9; if `refill` stores `Empty`, the inactive-case read the checker should refuse never reaches it. Read end to end; not compiled.
-- Cost: Psi and native both compute the stale value, so `omega run --both` cannot catch it. Use the dispatch-time value only while no write or exclusive loan has touched the subject, and otherwise emit an ordinary read with a `Case` step for the checker to judge.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/terminal-psi/structural_access.md
 
 ### `c = R { .. }` on a record local binds a fresh root, so live loans and cleanup keep the old value
@@ -117,40 +96,12 @@ framework or a list of unimplemented features.
 - Cost: A write under a live shared loan is accepted and the reference sees the old value; displaced-value cleanup moves to exit. Lower whole assignment as an empty-path store on the existing root with displaced-value disposal, delete the rebinding route and update the test.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/terminal-psi/structural_access.md
 
-### Match and transition pattern bindings may reuse a parameter or local name
-- Category: One idea, several implementations
-- Where: [repeated-name check covers only `let`](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/symbols.rs#L2572), [parser checks one arm](omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/expressions_frames.rs#L1365), [bindings substituted by spelling](omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/type_syntax_and_patterns.rs#L421)
-- Saw: [bindings and arrivals](wiki/spec/language/state_contracts.md) says "A name is declared at most once among one machine's parameters and the locals of its own body", and pattern bindings within one arm follow the same rule. `reject_repeated_local_names` looks only at `Statement::LocalData`; match and transition arm bindings never become locals, because the parser rewrites each use of the name into a projection of the subject and checks only duplicates inside the arm. `machine pick(value: u32, r: Reading) -> u32 { match r { Reading::Sample { value } -> value  Reading::Idle -> value } }` is accepted, with `value` meaning the payload in one arm and the parameter in the other.
-- Cost: Programs the spec rejects are accepted, and a binding can shadow a parameter that facts and contracts name. Check arm bindings against the machine's parameters and earlier locals in the same pass as `let`.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/state_contracts.md
-
-### Build operand lookup falls back to the first same-named declaration when lookup is ambiguous or unimported
-- Category: A verdict with nothing behind it
-- Where: [descendant fallback](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/symbols_targets.rs#L799), [provider-selection fallback](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/symbols_targets.rs#L870), [assumed-binding fallback](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/symbols_targets.rs#L897), [first child wins](omega-rust/psi/foundation/symbols/src/table.rs#L3265)
-- Saw: [resolution](wiki/spec/language/modules.md) says "Ambiguous imported declarations reject. Compiler traversal order cannot select between them." `assign_provider_selection_argument_symbol` and `assign_assumed_binding_argument_symbol` call a lookup that returns `None` for both "not found" and "ambiguous", then fall back to `find_descendant_by_path`, which takes the first root child with that spelling and checks only dependency scope, not import exposure. In a Build file with `use a; use b;` where both declare `boundary trait Clock`, `Build::await_provider<Clock, …>` gets whichever comes first, and a `Clock` the file never imported is also found. Whether later stages re-resolve deferred operations (`select_provider`, `exclude_service`) was not traced.
-- Cost: Root-roster order decides a Build provider operand. Delete the fallback, or make it report ambiguity and check import exposure, and refuse unresolved operands.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/modules.md
-
-### The language guide says a module declaration goes at the top of a file; the compiler accepts it anywhere
-- Category: The documents disagree
-- Where: [guide chapter 15](wiki/language_guide/chapter_15_modules_imports_visibility.md#L25), [parser](omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/declarations.rs#L2448), [later header found deliberately](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lowering.rs#L685)
-- Saw: The guide says "A module declaration goes at the top of a file"; modules.md gives no position, the parser accepts `module m;` after other declarations, and `declared_module_path` scans the whole file, so `machine f() {} module m;` puts `f` in module `m`.
-- Cost: The guide states a rule nothing enforces. Refuse a header after a declaration and say so in modules.md, or soften the guide.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/language_guide/chapter_15_modules_imports_visibility.md
-
 ### Specialization never checks a type parameter's `[copy]`, `[linear]` or `carry` bound against the supplied type
 - Category: One idea, several implementations
 - Where: [Operand::read](omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/passes/specialization.rs#L1095), [named_type](omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/passes/specialization.rs#L1537), [generate](omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/passes/specialization.rs#L2257), [callable applications refuse bounds](omega-rust/psi/compilation/representations/typed-trees/src/callable_applications.rs#L419)
 - Saw: [applications and specialization](wiki/spec/language/generics.md) says "Every application validates the complete argument tuple, including kinds, ranges, and constraints of unused parameters", and [property declarations](wiki/spec/language/ownership.md) says every use of `T` receives the property fixed by the declaration and application. `Operand::read` binds a type argument through `named_type` without reading `TypeParameter::bounds`, `generate` checks only callable binders, and the checker re-checks the generated copy as a closed machine. So `machine keep<T [copy]>(x: T) -> T { x }` called as `keep<Token>(t)` with a non-`[copy]` `Token` is accepted. Three other application paths refuse any non-default bound as unjudged; machine specialization is the one that skips it.
 - Cost: A `[copy]` bound in a generic API is not enforced at its callers. Compare the argument's multiplicity and carry with the binder's bounds in `Operand::read`, and refuse bounds it cannot judge, as the other paths do.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/generics.md
-
-### A callback binder declared `crashes none` admits a private callback with inferred crash routes
-- Category: A verdict with nothing behind it
-- Where: [satisfies_binder crash test](omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/passes/specialization/callable_binder.rs#L174), [checker's binder comparison](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/calls.rs#L2359), [binding record](omega-rust/psi/compilation/representations/terminal-psi/src/boundary.rs#L1862)
-- Saw: [guarded crashes](wiki/spec/language/effects.md) says "a requirement stating `crashes none` admits only crash-free selections", and private bodies may omit `crashes` to request inference. `satisfies_binder` refuses only when the callback has an authored `crashes` clause, so a private `machine bump(x: u32) -> u32 { x +! 1u32 }`, which publishes an inferred `Trap` route, passes as `const F: machine(x: u32) -> u32 crashes none`. The checker later compares the callee's reach, suspension and blocking with the binder, but `ClosedReachMachineBinding` carries no crash bound, so nothing compares crashes. Read end to end; acceptance through a private wrapper was inferred, not run.
-- Cost: `crashes none` on a callback type guarantees nothing. Carry the binder's crash bound into the binding record and compare it with the callee's published routes in the checker, as reach is compared.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/effects.md
 
 ### Domain lookup silently prefers the same-module or same-package domain over visible competitors
 - Category: One idea, several implementations
@@ -166,20 +117,6 @@ framework or a list of unimplemented features.
 - Cost: An author's `terminates by (i, j)` silently becomes a bounded-distance ranking, and adding lexicographic products later would change what existing code means. Refuse multi-subject witnesses without a view and pin that refusal.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/termination.md
 
-### A bitwise and/or bound uses semantic axioms the certificate never cites
-- Category: A verdict with nothing behind it
-- Where: [bounded_bitwise_sibling](omega-rust/psi/compilation/proof-admission/src/integer_affine.rs#L3285), [bitwise-and branch](omega-rust/psi/compilation/proof-admission/src/integer_affine.rs#L3178), [bitwise-or branch](omega-rust/psi/compilation/proof-admission/src/integer_affine.rs#L3216), [cited list](omega-rust/psi/compilation/proof-admission/src/proof.rs#L528), [core rule instance](omega-rust/psi/compilation/proof-admission/src/bounded_denotation.rs#L8357)
-- Saw: The `IntegerAffineBound` row in [classicality.md](wiki/spec/proofs/classicality.md) says each use re-records the witness's cited axioms, "never as silent steps"; the proof-admission README says admission "runs no proof search of its own"; [kernel_metatheory.md](wiki/spec/proofs/kernel_metatheory.md) says a rule-instance assumption names its content exactly. When the sibling of `x & y` or `x | y` is not a literal, `bounded_bitwise_sibling` searches every prior axiom for `y = m` and `m <= U` and builds a mask bound, but those axioms enter neither the witness's definitions nor `cited`. With axioms `[y <= 3, z = x & y]`, the kernel accepts `z <= 3` recording only the second, and the core assumes `Truth → (z = x & y) → z <= 3`, which is false alone (x = y = 255).
-- Cost: Receivers read a premise list missing a premise the kernel used, and the core rests on a false-alone assumption. Cite and pass the mask axioms as premises, or delete the route, which no prover emits and no test exercises; document the bitwise steps in integer_certificates.md either way.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/proofs/classicality.md
-
-### Four provisional float rules and two discreteness forms skip the mathematical core check
-- Category: A verdict with nothing behind it
-- Where: [IntegerFloatExact](omega-rust/psi/compilation/proof-admission/src/bounded_denotation.rs#L7737), [FloatIntegerConversion](omega-rust/psi/compilation/proof-admission/src/bounded_denotation.rs#L7755), [FloatMeaningNormalization](omega-rust/psi/compilation/proof-admission/src/bounded_denotation.rs#L7770), [IeeeFloatOrderChain](omega-rust/psi/compilation/proof-admission/src/bounded_denotation.rs#L7783), [discreteness](omega-rust/psi/compilation/proof-admission/src/bounded_denotation.rs#L1640), [Unsupported becomes Refused](omega-rust/psi/compilation/proof-admission/src/proof.rs#L258)
-- Saw: [encoding-scheme correspondence](wiki/spec/proofs/kernel_metatheory.md) says "Every certificate rule family denotes" and soundness "reduces to the kernel's own judgment". Denotation returns `Unsupported` for `IeeeFloatOrderChain`, `FloatMeaningNormalization`, `FloatIntegerConversion`, `IntegerFloatExact`, and the strict-to-nonstrict and open `a < b ⊢ a + 1 <= b` forms of `IntegerOrderDiscreteness`; `re_decide_in_mathematical_core` turns that into `MathematicalCoreDecision::Refused`, which only tests read. Certificates containing these steps are accepted with no core check.
-- Cost: Four of the eight provisional (trusted, underived) rows are exactly the ones the double check skips. Denote them as rule instances, as `IntegerPowerOfTwoOrder` is, or correct kernel_metatheory.md and make receivers handle `Refused`.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/proofs/kernel_metatheory.md
-
 ### Three kernel rules accept more forms than their audited rows say
 - Category: The documents disagree
 - Where: [open-term fallback](omega-rust/psi/compilation/proof-admission/src/integer_rules.rs#L224), [exact-op lift](omega-rust/psi/compilation/proof-admission/src/kernel.rs#L252), [strict carrier bound](omega-rust/psi/compilation/proof-admission/src/kernel.rs#L45), [open discreteness](omega-rust/psi/compilation/proof-admission/src/proof.rs#L1634), [inward discreteness](omega-rust/psi/compilation/proof-admission/src/proof.rs#L1666)
@@ -190,19 +127,6 @@ framework or a list of unimplemented features.
 - Cost: Reviewers checking the rows approve a smaller trusted surface than the kernel has; the extra forms appear sound but are unaudited, and the discreteness ones also skip the core. Document every accepted form with its core status, or restrict the code to the rows; decide explicitly whether exact operations are read as total.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/proofs/classicality.md
 
-### On arm64, a float record that misses the vector registers still lets later floats use them
-- Category: One idea, several implementations
-- Where: [HFA register test](omega-rust/omega/compilation/backend/calling-conventions/src/plans/call_plan_evaluation.rs#L697), [stack fallback](omega-rust/omega/compilation/backend/calling-conventions/src/plans/call_plan_evaluation.rs#L754), [AAPCS64 entry](omega-rust/omega/compilation/backend/calling-conventions/src/plans/call_plan_evaluation.rs#L572), [only test](omega-rust/omega/compilation/backend/calling-conventions/src/plans/tests/parameter_and_aggregate_placement.rs#L206)
-- Saw: [public aggregates](wiki/spec/build/boundary_shapes.md#L12) lets a policy place an aggregate "under its target's rules", and the `Aapcs64` policy claims AAPCS64, whose rule C.3 sets the next vector register to 8 and rounds the stack size up to 8 when a homogeneous float aggregate does not fit. `evaluate_split_bank_call` falls to the generic stack branch, which leaves `float_index` unchanged and advances by `byte_size.max(8)` without rounding. With seven `f64` arguments, then `{f64, f64}`, then `f64 z`, C passes `z` at sp+16 and Omega in v7; a stacked three-`f32` record followed by a `u32` puts the `u32` at sp+12 instead of sp+16. Imports and callbacks share the plan.
-- Cost: Foreign calls and callbacks with this shape exchange wrong arguments silently. Set `float_index = 8` and advance by `align_up(byte_size, 8)` on the overflow path, and test the seven-floats case.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/boundary_shapes.md
-
-### Static linux_arm64 executables align segments to 4 KiB and fail on 16 KiB and 64 KiB page kernels
-- Category: One idea, several implementations
-- Where: [static PAGE_SIZE](omega-rust/omega/compilation/backend/images/image-elf/src/lib.rs#L85), [p_align written](omega-rust/omega/compilation/backend/images/image-elf/src/static_executable.rs#L97), [data segment placement](omega-rust/omega/compilation/backend/images/image-elf/src/static_executable.rs#L136), [dynamic path uses 64 KiB](omega-rust/omega/compilation/backend/images/image-elf/src/load_placement.rs#L1827)
-- Saw: No spec page states page alignment; the AArch64 ELF ABI allows 64 KiB pages, and the crate's own header gives the dynamic path 64 KiB alignment "portable across 64 KiB AArch64 translation granules". `emit_elf_executable`, used for every import-free linux_arm64 executable, writes `p_align = 0x1000` and puts the data segment on the next 4 KiB page, so on a 16 KiB or 64 KiB kernel both segments share a page and the second mapping fails or replaces the text.
-- Cost: A hosted target's normal output does not start on common arm64 Linux machines. Use the target's maximum page size for the static path, shared with the dynamic layout, and state the rule in the native target spec.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/configuration.md
 
 ### The Psi interpreter compares and offsets host-returned addresses that the spec says it must refuse
 - Category: A verdict with nothing behind it
@@ -218,30 +142,11 @@ framework or a list of unimplemented features.
 - Cost: Psi gives the wrong answer on a well-formed program. Compute view-element addresses from the `OriginalByteArrayWindow` the view already carries. TASKS.md ADDRESS-EXPOSURE owns completing `address_of` and may absorb this; this is a wrong answer from the part already in use, not a refusal.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/counts_and_addresses.md
 
-### `Clock::sleep` promises it never blocks a worker, but every provider blocks for the whole wait
-- Category: A verdict with nothing behind it
-- Where: [Clock::sleep](source/library/std/clock.omg#L10), [LinuxClockWait::poll](source/library/std/targets/linux_x86_64/clock_impl.omg#L15), [LinuxX64TimeRead::poll](source/library/std/targets/linux_x86_64/time_host_impl.omg#L39), [Windows Clock binding](source/library/std/build.omg#L104), [WindowsTimeRead::sleep](source/library/std/targets/windows_x86_64/time_host_impl.omg#L51)
-- Saw: [implementation boundaries](wiki/spec/language/effects.md) says that on published surfaces "omitted `blocks` means never blocks a worker". `Clock::sleep` omits `blocks` although its comment says "Block the caller for `milliseconds`", and so do its raw waits `LinuxClockWait::poll`, `LinuxArmClockWait::nanosleep` and `DarwinClockWait::poll`. The same native calls are bound elsewhere with `blocks`: syscall 7 is also `LinuxX64TimeRead::poll` (entered as `block ...`), and kernel32 `Sleep` is also `WindowsTimeRead::sleep`.
-- Cost: The task runtime and synchronization checks read `blocks` to decide whether a call can hold a worker; `Clock::sleep(60000)` holds one for a minute with no evidence. Declare `blocks` on `Clock::sleep` and its three raw waits, as `TimeHost::sleep` does, and mark the call sites with `block`.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/effects.md
-
 ### On Windows, sleeping for `u32::MAX` milliseconds never returns
 - Category: One idea, several implementations
 - Where: [Windows Clock binding](source/library/std/build.omg#L104), [Windows TimeHost sleep](source/library/std/targets/windows_x86_64/time_host_impl.omg#L119), [POSIX split of large waits](source/library/std/targets/linux_x86_64/clock_impl.omg#L30), [sleep_for saturates](source/library/std/time.omg#L1065)
 - Saw: [three layers](wiki/spec/build/platform_services.md) requires a portable service to mean the same thing on every target. The Linux and Darwin providers split a count above `i32::MAX` into finite waits, so `sleep(4294967295)` returns after about 49.7 days. Windows binds `Clock::sleep` and `WindowsTimeRead::sleep` straight to `Sleep(DWORD)`, where 0xFFFFFFFF is `INFINITE`. `sleep_for` saturates any duration of 49.7 days or more to exactly that value, and its comment says the saturated request "is RETURNED so the caller can observe it".
 - Cost: A long sleep hangs forever on Windows only. Give Windows a checked adapter that never passes 0xFFFFFFFF, for example by splitting the wait as the POSIX providers do.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/platform_services.md
-
-### POSIX and Windows filesystem adapters give five portable calls different meanings
-- Category: One idea, several implementations
-- Where: [Windows open_with](source/library/std/targets/windows_x86_64/filesystem/handles.omg#L30), [POSIX open_with](source/library/std/posix_filesystem_adapter.omg#L1191), [POSIX Default permissions](source/library/std/posix_filesystem_adapter.omg#L1009), [Windows Default permissions](source/library/std/targets/windows_x86_64/filesystem/metadata.omg#L161), [POSIX removal budget](source/library/std/posix_filesystem_adapter.omg#L1477), [POSIX removal stack](source/library/std/posix_filesystem_adapter.omg#L422), [POSIX create_dir_all prefix](source/library/std/posix_filesystem_adapter.omg#L919), [Windows read](source/library/std/targets/windows_x86_64/filesystem/handles.omg#L110), [Linux read clamp](source/library/std/targets/linux_x86_64/posix_filesystem_impl.omg#L148)
-- Saw: [three layers](wiki/spec/build/platform_services.md) says the portable service "is identical on every target" and all translation to the OS shape happens in the adapter. Each family decides these cases itself:
-  - `open_with` with `truncate` and no write access (or with `append`): Windows refuses with `InvalidInput`; POSIX encodes `O_RDONLY|O_TRUNC` and empties the file.
-  - `set_permissions(p, Permissions::Default)`: Windows only clears read-only; POSIX calls `chmod(p, 0o666)`, which strips execute, set-ID and sticky bits (a 0755 script stops running, a directory loses its search bit), unlike its own `Readonly { value: false }` path.
-  - `remove_dir_all`: POSIX stops after 4096 steps or 16 levels, after deleting part of the tree, with `Other`; Windows has no budget.
-  - `create_dir_all`: POSIX skips any parent prefix ending at byte 255 or later and ignores every intermediate `mkdir` failure; Windows creates every prefix and stops at the first real error.
-  - `read`, `read_all` and `copy` with a count larger than the buffer: Windows refuses with `InvalidInput`; POSIX clamps to the buffer.
-- Cost: The same call is harmless on one target and destroys data or half-finishes on another. Decide each rule once in the portable layer and make both families follow it.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/platform_services.md
 
 ### POSIX std reads `errno` by `memcpy` from a raw address and declares it cannot crash
@@ -251,33 +156,12 @@ framework or a list of unimplemented features.
 - Cost: Reviewers see a crash-free boundary that is really an unchecked dereference. Provide one shared errno requirement whose provider returns the `int`, or an admitted view of the thread-local slot, for both callers.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/foreign_storage.md
 
-### The Omega-written compiler counts effectful guards as complementary coverage
-- Category: One idea, several implementations
-- Where: [opposed_guards](source/psi/pipeline/03_symbol-resolved-trees-to-typed-trees/coverage.omg#L243), [same_tree](source/psi/pipeline/03_symbol-resolved-trees-to-typed-trees/coverage.omg#L386), [unmatched-arm trap](source/psi/pipeline/05_checked-trees-to-scalar-operations/statements.omg#L327), [Rust refusal test](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/equality_and_exhaustiveness.rs#L377)
-- Saw: [coverage and domain tests](wiki/spec/language/patterns.md#L197) says missing coverage "is a compile error, not an implicit trap or fallthrough", and complementary `==`/`!=` guards cover only "over the same unchanged subjects"; [expressions.md](wiki/spec/language/expressions.md#L32) says an effectful guard "cannot be replayed as a fact about operands it may have changed". `opposed_guards` pairs any `l == r`/`l != r` or `x == true`/`x == false` arms, and `same_tree` compares only spellings, never the arms between them. With `machine flip(v: &mut bool) -> bool { v = true; false }`, `transition { cell == true -> 1  flip(&mut cell) == true -> 2  cell == false -> 3 }` counts as covered; from `cell = false` no arm matches, and stage 05 lowers that path to `Trap`. The Rust compiler refuses this shape ("the call can change the pointee between alternatives").
-- Cost: The two compilers disagree, and the Omega-written one turns a coverage error into an undeclared runtime trap. Refuse a guard pair when any guard between them can write storage the pair reads, as Rust's `guard_may_change_storage` does.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/patterns.md
-
 ### The Omega-written compiler lets a case pattern with a `field: value` test cover the whole case
 - Category: A verdict with nothing behind it
 - Where: [case_pattern](source/psi/pipeline/03_symbol-resolved-trees-to-typed-trees/coverage.omg#L206), [valued field typing](source/psi/pipeline/03_symbol-resolved-trees-to-typed-trees/statements.omg#L484)
 - Saw: [patterns.md](wiki/spec/language/patterns.md#L30) says "`field: value` is ordinary projected equality", so `Reading::Value { level: 0 }` matches only some `Value` readings. `case_pattern` checks only that the arm names the case and ignores the pattern's fields, so `transition r { Reading::Value { level: 0 } -> 0  Reading::Missing -> 1 }` passes coverage and `Value { level: 5 }` matches nothing.
 - Cost: The coverage verdict has nothing behind it. Only an arm whose fields are all binders or `as _` should close its case.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/patterns.md
-
-### The Omega-written resolver accepts type names spelled like builtin integers
-- Category: One idea, several implementations
-- Where: [builtin_shadow](source/psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/resolver.omg#L288), [builtin_type](source/psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/resolver.omg#L1470), [type_binding](source/psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/resolver.omg#L1224), [Rust check](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_builtin_type_names.rs#L23)
-- Saw: [builtin type names](wiki/spec/language/modules.md#L146) makes the integer family "every `i` or `u` followed by decimal digits" and says a data declaration or generic type binder with such a spelling "rejects where it is introduced" (`data u7 { value: u32; } // Rejected`). The Omega-written resolver checks only root type declarations against a fixed list (`u8`…`u64`, `i8`…`i64`, …), so `data u7` and `data u128` are accepted, and it never checks generic binders, so in `machine pick<u32>(x: u32) -> u32` the binder silently hides the builtin. The Rust compiler refuses both with the open-ended `is_builtin_type_spelling`.
-- Cost: The same source means different types in the two compilers. Use the open-ended family test for every type introducer, generic binders included.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/modules.md
-
-### Omega-written typing re-scans integer literals from source bytes
-- Category: Re-deriving
-- Where: [literal_value](source/psi/pipeline/03_symbol-resolved-trees-to-typed-trees/literals.omg#L15), [suffix_carrier](source/psi/pipeline/03_symbol-resolved-trees-to-typed-trees/literals.omg#L180), [lexer](source/psi/pipeline/00_source_files_to_tokens.omg#L944), [token kind](source/psi/representations/tokens.omg#L109)
-- Saw: AGENTS.md says stages consume their declared input representation and must not bypass the pipeline with "source re-analysis". The lexer already records each integer literal's base, digit run and suffix presence in `TokenKind::Integer`; stage 03's `literal_value` reopens the source bytes at the span, detects the base again, re-scans digits and separators, and matches the suffix against eight spellings.
-- Cost: Two scanners must agree on literal grammar, so a change to one (such as the spec's `u13` suffixes) can split them silently. Decode value and carrier once in the lexer or parser and carry them forward.
-- Reported: 2026-11-16, Claude Code, while auditing code against omega-rust/pipeline.md
 
 ### The compiler has no `InternalFailure` outcome, so a defect it detects in itself exits as "source rejected"
 - Category: A verdict with nothing behind it
@@ -286,33 +170,12 @@ framework or a list of unimplemented features.
 - Cost: Scripts reading `$?` cannot tell a compiler bug from a rejected program. Add `InternalFailure` (exit 3), classify compiler-invariant errors as it, and exit with it.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/compiler_request.md
 
-### A failed stage validator never reaches the `--report-file` report
-- Category: A verdict with nothing behind it
-- Where: [first failure drops the rows](omega-rust/omega/build-system/orchestration/src/project/stage_validators.rs#L201), [exit before the report](omega-rust/omega/application/src/commands/compile.rs#L158), [report write](omega-rust/omega/application/src/commands/compile.rs#L161)
-- Saw: [independent stage validators](wiki/spec/build/command_line.md#L152) says to report validator names and "passed/failed results in the existing compile report; `--report-file` retains those rows". `StageValidatorRequest::run_with` returns `Err(BuildError::StageValidation(row))` at the first failure and drops the rows already gathered, and `present_single` exits on refusal before `write_report_or_exit`. `omega --every-validator --report-file r.txt main.omg` with one failing validator writes no `r.txt`; with several targets the batch report keeps a `failed:` line but loses that target's passed rows. No report can contain a failed row.
-- Cost: The report is missing exactly when validation fails. Carry the complete row list out with the error and write the report before choosing the exit status.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/command_line.md
-
-### `omega packages audit --help` documents exit 2 for invalid arguments; the code exits 64
-- Category: The documents disagree
-- Where: [audit usage text](omega-rust/omega/application/src/arguments/audit.rs#L13), [parse errors exit 64](omega-rust/omega/application/src/main.rs#L62), [bad adapter exits 64](omega-rust/omega/application/src/commands/packages.rs#L125)
-- Saw: The usage text promises "2: invalid arguments". Every parse error exits with `USAGE_ERROR_EXIT` (64), as does a bad adapter, and the comment in `arguments/mod.rs` explains that 2 is the compiler request contract's `Incomplete` status. `omega packages audit --bogus; echo $?` prints 64.
-- Cost: A script written from `--help` never sees its argument errors. Change the help text to 64, or state the audit statuses in command_line.md.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/command_line.md
-
 ### `x == S::C` on a payload-bearing sum becomes a bare tag test when Psi 03 cannot type `x`
 - Category: One idea, several implementations
 - Where: [untyped comparison left in place](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/equality_preparation.rs#L217), [no type for a receiver call](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/typing_queries.rs#L1425), [read as a case test](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/expressions.rs#L500), [case test without payload check](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/places.rs#L1412)
 - Saw: conformances.md says "Records and payload-bearing sums require an explicit named conformance", and data_and_literals.md forbids "silently changing tag equality into field equality". Psi 03 enforces that only when `DeclaredExpressionTypes` types both operands; otherwise it `continue`s, and the query returns `None` for receiver calls, calls with machine arguments and `match` expressions. Psi 05 then reads any `==` whose right side names a case as `IsCase`, without checking for payload cases or a selected `Equatable`. With `data Cmd { Stop; Move { dx: i32; } }`, `Codecs::decode(&bytes) == Cmd::Stop` compiles as a tag test while `let c: Cmd = Codecs::decode(&bytes); c == Cmd::Stop` is refused (or calls the custom `Equatable<Cmd>`).
 - Cost: The compiler accepts an equality the spec refuses, and `==` means different things depending on how the operand is spelled. Let Psi 05 read `==` as a case test only for payload-free sums, or have Psi 03 refuse a comparison it cannot type.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/conformances.md
-
-### The test runner cannot run, because Build admission refuses every test group
-- Category: Zombie machinery
-- Where: [registration refused](omega-rust/psi/compilation/build-time-evaluation/src/product/product_declarations.rs#L48), [groups always empty](omega-rust/psi/compilation/build-time-evaluation/src/product/product_declarations.rs#L65), [test discovery](omega-rust/omega/compilation/compiler/src/checked/test_roots.rs#L74), [native verdict](omega-rust/omega/build-system/orchestration/src/compile/test_execution.rs#L260), [std slot found by package name](omega-rust/omega/compilation/compiler/src/checked/test_roots.rs#L40)
-- Saw: `product_declarations::admit` refuses any Build that uses `TestGroupRegistration` or `TestGroupService`, and otherwise returns `test_groups: Vec::new()`. So `select_test_roots`, `test_execution::run_tests` and the private-filesystem runner that [TEST-GROUP-FILESYSTEM-TARGETS](TASKS.md#L308) describes as working cannot be reached; no fixture registers a test group. The unreachable code also departs from [testing.md](wiki/spec/build/testing.md): `execute_native` passes any test whose process exits 0, although the outcome table says a process exit instead of returning to the runner is "Not a pass"; and `group_filesystem` recognizes the std `FilesystemService` slot by the package name `omega_language_std`, although [declarations.md](wiki/spec/build/declarations.md#L151) says a package named `std` cannot confer compiler custody.
-- Cost: Readers of the runner and TASKS.md assume test groups run; admitting registration later makes both latent bugs live. Deliver group admission with both bugs fixed, or say on the TASKS item that registration is refused and own both bugs there.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/testing.md
 
 ### Default compilation re-checks the image it just wrote, which one spec page requires and two forbid
 - Category: The documents disagree
@@ -363,12 +226,12 @@ framework or a list of unimplemented features.
 - Cost: Orchestration, the review example and compiler tests each repeat the prepare, evaluate, compile sequence, and conditions are evaluated twice. Select the execution and complete its demand once where the retained native product is formed, pass the completed scalars in `NativeCompileRequest`, and delete `NativeScalarCompletion` and the split entry.
 - Reported: 2026-11-16, pi, while checking that only the native driver calls Omega stages.
 
-### Emission libraries keep earlier stage outputs beside the final layout
+### Emission libraries still name earlier stage outputs
 - Category: knowledge crossing a boundary
-- Where: [fragment source](omega-rust/omega/compilation/backend/machine-emission/src/fragment_emission.rs#L211), [driver join](omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L227), [image call binding](omega-rust/omega/compilation/backend/images/image-emission/src/callable_calls.rs#L8), [object accessors](omega-rust/omega/compilation/backend/object-file/src/fragment_container.rs#L204), [runtime-only route](omega-rust/omega/compilation/native-compiler/src/realization.rs#L172), [stage-call exceptions](tools/xtask/src/boundary.rs)
-- Saw: `StagedOptimizedFunctionFragmentEmissionSource::new` joins the stage 09 realization with stage 02's whole output, and frame staging between stages 06 and 07 runs in machine-emission on types defined inside stage crates. The source keeps that `Arc<ValidatedOptimizedTargetOperations>` on every compile; `pre_physical_manifest()` reads stage 01's output through `optimized_target().optimized()`. Image emission's `callable_calls::prepare_from` reads stage 02's execution plan through it, and `object-file` reaches it through `source().source().source()`. Function-realization replay is now opt-in (`retain_replay_for_validation`); this field is not. [pipeline.md](omega-rust/pipeline.md#portable-materialization-and-consumer-ownership) keeps producer history "off the path ordinary consumers walk to get current data". `admit_terminal_runtime` runs stage 01, then calls stage 02's `capture_runtime_borrowed_storage_layouts` on the side. `native-artifact` reads Omega 00's `VerifiedNativeArtifactInput` for runtime provisions.
-- Cost: Emission can read anything an earlier stage knew, so a missing fact never has to be carried forward. Move the stage output types emission names into `compilation/representations`, carry the rows emission needs in each stage's output, and delete each `STAGE_CALL_ALLOWANCES` row as its edge goes.
-- Reported: 2026-11-16, pi, while checking that only the native driver calls Omega stages.
+- Where: [emission facts](omega-rust/omega/compilation/backend/machine-emission/src/emission_facts.rs), [function realization](omega-rust/omega/compilation/backend/machine-emission/src/function_realization.rs), [runtime-only route](omega-rust/omega/compilation/native-compiler/src/realization.rs#L172), [stage-call exceptions](tools/xtask/src/boundary.rs)
+- Saw: Fragment emission no longer keeps stage 02's output; the driver hands it `EmissionFacts`, and stage 02's output reaches the object only when a validator request retains it. Three reaches remain. Frame staging between stages 06 and 07 runs in machine-emission on types defined inside stage crates 05–09. `EmissionFacts` carries the whole optimized `AbstractOperationPlan`, because image emission's attribution and stack code looks up abstract functions by machine instead of reading rows the current form carries. `admit_terminal_runtime` runs stage 01, then calls stage 02's `capture_runtime_borrowed_storage_layouts` on the side, and `native-artifact` reads Omega 00's `VerifiedNativeArtifactInput` for runtime provisions.
+- Cost: Emission can still read anything the abstract program knew, so a missing fact need not be carried into the selected form. Move the stage output types frame staging names into `compilation/representations`, carry the abstract-operation rows image emission reads in the current form, and delete each `STAGE_CALL_ALLOWANCES` row as its edge goes.
+- Reported: 2026-11-16, pi, while checking that only the native driver calls Omega stages; narrowed 2026-11-16 by Claude Code after emission stopped holding stage 02's output.
 
 ### Borrowed field recasts lose the target carrier layout of the enclosing record
 - Category: re-deriving
@@ -404,3 +267,10 @@ framework or a list of unimplemented features.
 - Saw: Replacing symbols on a shared typed tree can copy side records, normalized identities and owned containers even with no bodies selected. The [call and machine record repair](https://github.com/CathedralOS/Omega/pull/3747) measured empty activation and two nonempty batches on both Windows x86-64 routes. Empty activation requested 2,182,456 bytes in 12,456 allocations and cloned 36 arenas per route on fixed `570d707` with the repair and observer (opt-level 1). See the [data-child repair](https://github.com/CathedralOS/Omega/pull/3720) for the earlier baseline.
 - Cost: Share immutable storage where measurements still show copies. Limit writes to changed records or new batches. Preserve source application preparation, projection, authority checks, and signature and inferred-summary dependencies. Re-measure empty activation and nonempty completion on both [scalar and borrowed-root workloads](wiki/drafts/measurements/selected_body_copies.md#workloads-and-boundary), counting copied storage and new output separately. See the [body ownership design](wiki/drafts/designs/compiler_work_ownership.md#representation-and-execution-contract).
 - Reported: 2026-11-15, Codex, while measuring continuation construction and body completion.
+
+### Omega-written resolution compares integer type arguments by spelling
+- Category: Re-deriving
+- Where: [same-form literal rows](source/psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/resolver.omg#L2239), [same head](source/psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/domains.omg#L342)
+- Saw: both compare two `Literal` type rows (`[u8; 4]`, `Buffer<u8, 4>`) with `spans_equal` on their source bytes, so `4` and `0x4` differ there, while typing interns the same rows as one `StaticInteger` by decoded value. Each `Literal` row now names its lexer-decoded value in `SyntaxTrees::integer_literals`.
+- Cost: resolution and typing can disagree on whether two types are the same. Compare the decoded rows' values (and reject an invalid literal) instead of the spelling.
+- Reported: 2026-11-16, Claude Code, while moving integer literal decoding into the lexer

@@ -207,15 +207,19 @@ impl StageValidatorRequest {
                     target.target_name()
                 ))]));
             }
-            let row = StageValidationRow {
+            rows.push(StageValidationRow {
                 validator,
                 target: target.target_name(),
                 result,
-            };
-            if matches!(row.result, StageValidationResult::Failed(_)) {
-                return Err(BuildError::StageValidation(row));
-            }
-            rows.push(row);
+            });
+        }
+        // A failure still runs the remaining validators and carries every row
+        // out with the error, so the report shows what passed beside what failed.
+        if rows
+            .iter()
+            .any(|row| matches!(row.result, StageValidationResult::Failed(_)))
+        {
+            return Err(BuildError::StageValidation(rows));
         }
         Ok(rows)
     }
@@ -393,6 +397,38 @@ mod tests {
     }
 
     #[test]
+    fn a_failing_validator_keeps_every_row_of_its_target() {
+        // The middle validator fails; the rows before and after it still
+        // reach the error, which the report writes before the command exits.
+        let request = StageValidatorRequest::from_exact_names([], true).unwrap();
+        let error = request
+            .run_with(&native(), host(), |validator| {
+                if validator == StageValidator::FixedFrameCorrespondence {
+                    StageValidationResult::Failed("changed frame".into())
+                } else {
+                    StageValidationResult::Passed
+                }
+            })
+            .unwrap_err();
+        let BuildError::StageValidation(rows) = &error else {
+            panic!("expected a stage validation failure, got {error}");
+        };
+        let results: Vec<_> = rows.iter().map(|row| row.result.clone()).collect();
+        assert_eq!(
+            results,
+            [
+                StageValidationResult::Passed,
+                StageValidationResult::Failed("changed frame".into()),
+                StageValidationResult::Passed,
+            ]
+        );
+        let text = error.to_string();
+        for row in rows {
+            assert!(text.contains(&row.to_string()), "{text}");
+        }
+    }
+
+    #[test]
     fn a_failing_validator_fails_the_compilation_as_a_compiler_defect() {
         let request = StageValidatorRequest::from_exact_names([], true).unwrap();
         let error = request
@@ -401,7 +437,10 @@ mod tests {
             })
             .unwrap_err();
         assert!(matches!(error, BuildError::StageValidation(_)));
-        assert_eq!(error.outcome(), compiler::CompilerRequestOutcome::Reject);
+        assert_eq!(
+            error.outcome(),
+            compiler::CompilerRequestOutcome::InternalFailure
+        );
         let text = error.to_string();
         assert!(text.contains("stage validator TargetOperationCorrespondence (target linux_x86_64, stage target operations): failed: changed operand"), "{text}");
         assert!(

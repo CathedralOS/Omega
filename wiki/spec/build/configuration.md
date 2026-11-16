@@ -142,6 +142,17 @@ It does not authenticate the file installed at that path or grant installation
 or execution authority. Those remain subject to
 [receiver admission](permissions.md#artifact-production-versus-receiver-admission).
 
+## ELF load segment alignment
+
+A Linux ELF executable must load on every page size its target's kernels may
+use, not only on the build host's. `linux_arm64` kernels run with 4 KiB,
+16 KiB or 64 KiB pages, and the x86-64 psABI allows pages up to 64 KiB. Every
+`PT_LOAD` segment of a static or dynamically linked executable therefore
+declares `p_align` equal to 64 KiB, starts at a file offset and virtual address
+that are both multiples of 64 KiB, and never shares a 64 KiB page with another
+load segment. A segment that shares a page with its neighbour makes the kernel
+refuse the mapping or replace the earlier one.
+
 ## Test groups
 
 [Requirement-based tests](testing.md) register exact product machine requirements

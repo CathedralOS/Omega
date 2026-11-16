@@ -299,6 +299,24 @@ pub(super) fn encode_call(
     Ok(())
 }
 
+pub(super) fn decode_native_call_target(
+    cursor: &mut Cursor<'_>,
+) -> Result<target_vocabulary::NativeCallTarget, FixedViewCopyDecodeError> {
+    Ok(match cursor.byte()? {
+        0 => target_vocabulary::NativeCallTarget::Machine(decode_id(cursor, MachineId::new)?),
+        1 => target_vocabulary::NativeCallTarget::Dynamic {
+            selector: decode_id(cursor, ValueId::new)?,
+            interface: cursor.u32()?,
+            slot: cursor.u32()?,
+        },
+        2 => target_vocabulary::NativeCallTarget::Callable {
+            callee: decode_id(cursor, ValueId::new)?,
+            contract: decode_id(cursor, semantic_vocabulary::CallableContractId::new)?,
+        },
+        tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
+    })
+}
+
 pub(super) fn decode_call(
     cursor: &mut Cursor<'_>,
 ) -> Result<SelectedCallContract, FixedViewCopyDecodeError> {
@@ -323,15 +341,7 @@ pub(super) fn decode_call(
     };
     let access_bindings = decode_access_bindings(cursor)?;
     let source = decode_call_source(cursor, true)?;
-    let target = match cursor.byte()? {
-        0 => target_vocabulary::NativeCallTarget::Machine(decode_id(cursor, MachineId::new)?),
-        1 => target_vocabulary::NativeCallTarget::Dynamic {
-            selector: decode_id(cursor, ValueId::new)?,
-            interface: cursor.u32()?,
-            slot: cursor.u32()?,
-        },
-        tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
-    };
+    let target = decode_native_call_target(cursor)?;
     let call_plan = decode_call_plan(cursor)?;
     let count = cursor.length()?;
     let mut arguments = Vec::new();
@@ -1615,6 +1625,41 @@ mod tests {
     use target_vocabulary::encode_locator;
 
     const REQUIREMENT_INDEX: u32 = 1;
+
+    #[test]
+    fn native_call_target_wire_keeps_direct_dynamic_and_callable_routes() {
+        use semantic_vocabulary::{CallableContractId, MachineId, ValueId};
+        use target_vocabulary::NativeCallTarget;
+        for target in [
+            NativeCallTarget::Machine(MachineId::new(1).unwrap()),
+            NativeCallTarget::Dynamic {
+                selector: ValueId::new(2).unwrap(),
+                interface: 3,
+                slot: 4,
+            },
+            NativeCallTarget::Callable {
+                callee: ValueId::new(5).unwrap(),
+                contract: CallableContractId::new(6).unwrap(),
+            },
+        ] {
+            let bytes = target.canonical_bytes();
+            let mut cursor = Cursor::new(&bytes);
+            assert_eq!(
+                super::decode_native_call_target(&mut cursor).unwrap(),
+                target
+            );
+            assert_eq!(cursor.remaining(), 0);
+            for prefix in 0..bytes.len() {
+                assert!(
+                    super::decode_native_call_target(&mut Cursor::new(&bytes[..prefix])).is_err()
+                );
+            }
+        }
+        assert_eq!(
+            super::decode_native_call_target(&mut Cursor::new(&[255])).unwrap_err(),
+            FixedViewCopyDecodeError::UnknownOption(255)
+        );
+    }
 
     #[test]
     fn argument_source_round_trip_preserves_origin_and_establishment() {

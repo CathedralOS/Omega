@@ -94,7 +94,7 @@ pub use object::object_artifact::{
 pub use object::private_object_composition::compose_private_function_objects;
 
 pub use object::function_fragments::replay::{
-    verify_retained_fixed_frame, verify_retained_selected_optimization,
+    RetainedTargetOperations, verify_retained_fixed_frame, verify_retained_selected_optimization,
     verify_retained_target_operations,
 };
 

@@ -758,16 +758,26 @@ fn evaluate_split_bank_call(
             locations.push(register_location(integer_registers[integer_index], shape));
             integer_index += 1;
         } else {
-            // Apple arm64 packs a stack scalar or float aggregate at its natural
-            // alignment; every other policy here gives it at least an 8-byte slot.
-            let slot_bytes = if policy == CallingPolicy::DarwinAapcs64 {
-                shape.byte_size
+            // AAPCS64 C.3: once a float value misses the vector registers,
+            // no later float may use them, so close the bank. Apple arm64
+            // keeps that rule.
+            if float_members.is_some() {
+                float_index = float_register_count;
+            }
+            if policy == CallingPolicy::DarwinAapcs64 {
+                // Apple arm64 packs a stack scalar or float record at its
+                // natural alignment with no 8-byte minimum slot.
+                stack_offset = align_up(stack_offset, u32::from(shape.alignment))?;
+                locations.push(stack_location(stack_offset, shape));
+                stack_offset = stack_end(stack_offset, shape.byte_size)?;
             } else {
-                shape.byte_size.max(8)
-            };
-            stack_offset = align_up(stack_offset, u32::from(shape.alignment))?;
-            locations.push(stack_location(stack_offset, shape));
-            stack_offset = stack_end(stack_offset, slot_bytes)?;
+                // AAPCS64 C.4 and C.6 place it at an 8-byte-aligned slot whose
+                // size is rounded up to whole 8-byte units (a three-`f32`
+                // record takes 16 bytes).
+                stack_offset = align_up(stack_offset, u32::from(shape.alignment).max(8))?;
+                locations.push(stack_location(stack_offset, shape));
+                stack_offset = stack_end(stack_offset, align_up(shape.byte_size, 8)?)?;
+            }
         }
         parameters.push(ValuePlacement { shape, locations });
     }
