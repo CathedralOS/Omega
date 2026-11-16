@@ -75,20 +75,6 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-### encoding.md tag tables still omit tags the codec decodes
-- Category: The documents disagree
-- Where: [structural type shapes](wiki/spec/terminal-psi/encoding.md#L2089), [byte-sequence carriers](wiki/spec/terminal-psi/encoding.md#L2108), [structural field types](wiki/spec/terminal-psi/encoding.md#L2122), [structural path segments](wiki/spec/terminal-psi/encoding.md#L2152), [canonical path segments](wiki/spec/terminal-psi/encoding.md#L2176), [structural decoders](omega-rust/psi/compilation/representations/terminal-psi/wire/src/structural_wire.rs#L208), [tag-table test](omega-rust/psi/compilation/representations/terminal-psi/wire/src/spec_tag_tables.rs)
-- Saw: The page says a tag absent from a closed-sum table rejects. A spec-table pilot fed every byte value to each decoder and found five tables missing tags the codec accepts:
-  - structural type shapes: 12 (refined `PrimitiveScalar`), 16 (`AtomicCell`) and 19 (`Opaque`) appear nowhere on the page;
-  - byte-sequence carriers: 3 `BoundedView` (access plus `u64` capacity);
-  - structural field types: 9 `RefinedScalar` and 10 `AtomicBoundedInteger`;
-  - canonical path segments: 4 `Referent`, though the summary row at L458 lists it;
-  - structural path segments: 7 `Case`, 8 `RepresentationView` and 10 `AllElements`.
-
-  The scalar-field-carrier path table (L561) lists 1–2 while its summary row (L460) lists 1–4. `spec_tag_tables.rs` checks only 7 of the page's 82 marked tag tables, so none of these was caught.
-- Cost: Encoders and refusal tests written from the page miss valid forms. Add the missing rows, decide the L561 table, and extend `spec_tag_tables.rs` to every marked tag table so the next drift fails the test.
-- Reported: 2026-11-16, Claude Code, while piloting a spec-table drift check
-
 ### Three more portable filesystem calls mean different things on Windows and POSIX
 - Category: One idea, several implementations
 - Where: [Windows timestamp range](source/library/std/targets/windows_x86_64/filesystem/metadata.omg#L110), [Windows directory name limit](source/library/std/targets/windows_x86_64/windows_filesystem_directory_entry.omg#L140), [Windows transfer limit](source/library/std/targets/windows_x86_64/windows_filesystem_transfer.omg#L78), [pilot diff](https://github.com/CathedralOS/Omega/tree/work/pilot-library-cross-target)

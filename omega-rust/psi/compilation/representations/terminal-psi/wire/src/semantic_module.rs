@@ -2067,7 +2067,9 @@ pub(crate) mod machine_wire {
         Ok(())
     }
 
-    fn decode_ranked_scc(reader: &mut Reader<'_>) -> Result<Option<TerminalRankedScc>, CodecError> {
+    pub(crate) fn decode_ranked_scc(
+        reader: &mut Reader<'_>,
+    ) -> Result<Option<TerminalRankedScc>, CodecError> {
         match reader.u8()? {
             0 => Ok(None),
             3 => {
@@ -2506,7 +2508,9 @@ pub(crate) mod reach_application_wire {
         }))
     }
 
-    fn decode_telescope(reader: &mut Reader<'_>) -> Result<Vec<ClosedReachParameter>, CodecError> {
+    pub(crate) fn decode_telescope(
+        reader: &mut Reader<'_>,
+    ) -> Result<Vec<ClosedReachParameter>, CodecError> {
         decode_counted(reader, |reader| {
             Ok(match reader.u8()? {
                 0 => ClosedReachParameter::Type {
