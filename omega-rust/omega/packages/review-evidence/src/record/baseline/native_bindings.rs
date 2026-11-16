@@ -67,12 +67,21 @@ impl PackagePolicyNativeBinding {
         let [calling] = self.method.calling.as_slice() else {
             return Err("native inventory has no unique pinned calling application");
         };
-        if self
-            .application
-            .as_ref()
-            .is_some_and(|application| application != &calling.abi.requirement_identity)
-        {
-            return Err("native inventory application differs from its complete calling identity");
+        match &self.application {
+            Some(application)
+                if !self
+                    .method
+                    .requirement
+                    .matches_closed_calling_application(application, &calling.abi)? =>
+            {
+                return Err(
+                    "native inventory application differs from its complete calling identity",
+                );
+            }
+            None if !calling.abi.operands.is_empty() => {
+                return Err("native inventory lost its closed calling application");
+            }
+            _ => {}
         }
         if calling.abi.requirement_identity == calling.requirement.path {
             return Err("native inventory has no complete declaration ABI key");

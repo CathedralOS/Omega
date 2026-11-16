@@ -27,8 +27,7 @@ impl PackagePolicyCallingPlan {
             return self.validate_canonical_structure();
         }
         self.validate_structure()?;
-        if !self.abi.operands.is_empty()
-            || !self.static_parameters.is_empty()
+        if !self.static_parameters.is_empty()
             || !self.boundary_arguments.is_empty()
             || !self.requirement_arguments.is_empty()
             || !self.requirement_lifetime_arguments.is_empty()

@@ -359,13 +359,31 @@ impl PackageReviewInput<'_> {
                 continue;
             }
             let signatures = typed.trait_machine_signatures(trait_declaration);
-            if (local_service && signatures.len() != rows.len())
+            let mut templates = rows
+                .iter()
+                .map(|(_, original, _)| {
+                    typed
+                        .closed_requirement_application(*original)
+                        .map_or(*original, |closed| closed.template)
+                })
+                .collect::<Vec<_>>();
+            templates.sort_unstable_by_key(|symbol| symbol_key(*symbol));
+            templates.dedup();
+            let mut declared = signatures
+                .iter()
+                .map(|signature| signature.symbol)
+                .collect::<Vec<_>>();
+            declared.sort_unstable_by_key(|symbol| symbol_key(*symbol));
+            if (local_service && templates != declared)
                 || rows.windows(2).any(|pair| pair[0].1 == pair[1].1)
             {
                 return Err(unavailable("the complete public requirement roster"));
             }
             let mut callables = Vec::with_capacity(rows.len());
             for &(_, original, boundary) in rows {
+                let original = typed
+                    .closed_requirement_application(original)
+                    .map_or(original, |closed| closed.template);
                 let (_, signature) = typed
                     .trait_machine_signature(original)
                     .filter(|(declaration, _)| declaration.symbol == owner)
@@ -388,10 +406,12 @@ impl PackageReviewInput<'_> {
                 continue;
             }
             if publish_trait {
-                let requirements = callables
+                let mut requirements = callables
                     .iter()
                     .map(|(_, callable)| service_requirement(callable))
-                    .collect();
+                    .collect::<Vec<_>>();
+                requirements.sort_by(|left, right| left.identity.cmp(&right.identity));
+                requirements.dedup();
                 review
                     .public_traits
                     .push(service_trait(service_identity, requirements));
@@ -842,8 +862,29 @@ impl PackageReviewInput<'_> {
                 "the selected requirement's complete published contract",
             ));
         }
-        let callable =
-            self.checked_requirement(signature, boundary, requirement.clone(), declarations)?;
+        let declared_signature = if let Some(application) = self
+            .typed()
+            .closed_requirement_application(signature.symbol)
+        {
+            self.typed()
+                .trait_machine_signature(application.template)
+                .map(|(_, signature)| signature)
+                .ok_or_else(|| unavailable("the closed requirement's original signature"))?
+        } else {
+            signature
+        };
+        let callable = self.checked_requirement(
+            declared_signature,
+            boundary,
+            requirement.clone(),
+            declarations,
+        )?;
+        let parameters = self.requirement_parameters(signature)?;
+        let result = signature
+            .return_type
+            .is_valid()
+            .then(|| self.type_identity_for_private_contract(signature.return_type))
+            .transpose()?;
         let invocation_authority = callable
             .declared_synchronous_invocations
             .clone()
@@ -862,8 +903,8 @@ impl PackageReviewInput<'_> {
                 requirement_lifetime_arguments: Vec::new(),
                 requirement_lifetime_parameter_count: 0,
                 static_parameters: Vec::new(),
-                parameters: callable.parameters.clone(),
-                result: callable.return_type.clone(),
+                parameters,
+                result,
             },
             PackagePolicyServiceAuthority {
                 service_reach: authority,
@@ -872,6 +913,25 @@ impl PackageReviewInput<'_> {
             },
         );
         Ok((selected, callable))
+    }
+
+    fn requirement_parameters(
+        &self,
+        signature: &StateSignature,
+    ) -> Result<Vec<PackageReviewSignatureParameter>, Vec<Diagnostic>> {
+        self.typed()
+            .state_signature_parameters(signature)
+            .iter()
+            .map(|parameter| {
+                Ok(PackageReviewSignatureParameter {
+                    name: parameter.name.as_str().to_owned(),
+                    type_identity: self
+                        .type_identity_for_private_contract(parameter.type_reference)?,
+                    is_const: parameter.is_const,
+                    is_mutable: parameter.is_mutable,
+                })
+            })
+            .collect()
     }
 
     fn checked_requirement(
@@ -890,27 +950,62 @@ impl PackageReviewInput<'_> {
         // but cannot deliver storage to the caller.
         let completes_normally =
             boundary.completion == semantic_vocabulary::BoundaryCompletion::NormalReturn;
+        let contracts = self.signature_contracts(
+            source.state_signature_contracts(signature).iter(),
+            super::declarations::ContractScope {
+                owner: signature.symbol,
+                subject: None,
+                statics: source.state_signature_type_parameters(signature),
+                parameters: source.state_signature_parameters(signature),
+                result: None,
+            },
+            signature.return_type,
+        )?;
+        if !declaration.method_arguments.is_empty() {
+            let abi = backend_plan::DirectBoundaryLeaf::declared_calling_abi(
+                declarations.accepted.module(),
+                boundary.id,
+            )
+            .map_err(|reason| unavailable(&reason))?;
+            let module = declarations.accepted.module();
+            let (owner, _) = source
+                .trait_machine_signature(signature.symbol)
+                .ok_or_else(|| unavailable("the boundary requirement's original source"))?;
+            if module.identities.text(abi.requirement_identity)
+                != Some(
+                    source
+                        .trait_requirement_callable_identity_text(owner, signature)
+                        .as_str(),
+                )
+            {
+                return Err(unavailable(
+                    "the boundary requirement's exact original calling method",
+                ));
+            }
+        }
         if !signature.lifetime_parameters.is_empty()
-            || !signature.type_parameters.is_empty()
             || !signature.conformance_bounds.is_empty()
             || signature.spelling.is_some()
             || signature.is_default
             || !signature.native_callback_parameters.is_empty()
-            || !source.state_signature_contracts(signature).is_empty()
             || !signature.declares_no_crash_route
             || !boundary.crash_routes.is_empty()
             || boundary.role != BoundaryDeclarationRole::Callable
             || declaration.execution != CheckedBoundaryExecution::Provider
-            || !declaration.method_arguments.is_empty()
             || boundary.structural_parameters.iter().any(|parameter| {
                 !parameter.is_unqualified_root()
                     || !parameter.additional_input_qualifications.is_empty()
             })
-            || !boundary.requires.is_empty()
+            || ((!boundary.requires.is_empty() || !boundary.scalar_requires.is_empty())
+                && !contracts.iter().any(|clause| {
+                    clause.kind == crate::record::PackageReviewContractKind::Requires
+                }))
+            || (!boundary.scalar_ensures.is_empty()
+                && !contracts
+                    .iter()
+                    .any(|clause| clause.kind == crate::record::PackageReviewContractKind::Ensures))
             || !boundary.normal_qualifications.is_empty()
             || !boundary.scalar_domain_requirements.is_empty()
-            || !boundary.scalar_requires.is_empty()
-            || !boundary.scalar_ensures.is_empty()
             || !boundary.reference_outputs.is_empty()
             || !boundary.program_local_root_introductions.is_empty()
             || !boundary.content_guarantees.is_empty()
@@ -928,16 +1023,33 @@ impl PackageReviewInput<'_> {
                 "the boundary requirement's complete published contract",
             ));
         }
-        let parameters = source
-            .state_signature_parameters(signature)
+        let parameters = self.requirement_parameters(signature)?;
+        let type_parameters = source
+            .state_signature_type_parameters(signature)
             .iter()
             .map(|parameter| {
-                Ok(PackageReviewSignatureParameter {
-                    name: parameter.name.as_str().to_owned(),
-                    type_identity: self
-                        .type_identity_for_private_contract(parameter.type_reference)?,
-                    is_const: parameter.is_const,
-                    is_mutable: parameter.is_mutable,
+                use crate::record::PackagePolicyTypeParameterKind as Kind;
+                use typed_trees::data::TypeParameterKind as Source;
+                let kind = match parameter.kind {
+                    Source::Type => Kind::Type,
+                    Source::Const { type_reference } => {
+                        Kind::Const(self.type_identity_for_private_contract(type_reference)?)
+                    }
+                    Source::Value { type_reference } => {
+                        Kind::Value(self.type_identity_for_private_contract(type_reference)?)
+                    }
+                    _ => {
+                        return Err(unavailable(
+                            "the requirement's complete static parameter contract",
+                        ));
+                    }
+                };
+                Ok(crate::record::PackagePolicyTypeParameter {
+                    kind,
+                    bounds: crate::record::PackageReviewDataProperties {
+                        multiplicity: parameter.bounds.multiplicity,
+                        carry: parameter.bounds.carry,
+                    },
                 })
             })
             .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
@@ -977,14 +1089,14 @@ impl PackageReviewInput<'_> {
             supply: PackageReviewCallableSupply::Boundary,
             spelling: signature.spelling,
             lifetime_parameter_count: 0,
-            type_parameters: Vec::new(),
+            type_parameters,
             conformance_bounds: Vec::new(),
             parameters,
             return_type,
             conformances: Vec::new(),
             operator_realizations: Vec::new(),
             requirement_realizations: Vec::new(),
-            contracts: Vec::new(),
+            contracts,
             declared_service_reach: Some(declared_reach.clone()),
             service_reach_dependency: PackagePolicyServiceReachDependency {
                 concrete: if signature.service_reach_is_installation_bound {

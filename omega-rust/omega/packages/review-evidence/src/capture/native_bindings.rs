@@ -144,6 +144,26 @@ impl PackageReviewInput<'_> {
                     "the native binding's complete callable identity",
                 ));
             }
+            let abi = backend_plan::DirectBoundaryLeaf::declared_calling_abi(module, boundary.id)
+                .map_err(|reason| unavailable(&reason))?;
+            let declared = module
+                .identities
+                .text(abi.requirement_identity)
+                .ok_or_else(|| unavailable("the native binding's original method identity"))?;
+            let template = source
+                .closed_requirement_application(signature.symbol)
+                .map_or(signature.symbol, |application| application.template);
+            let (_, declared_signature) = source
+                .trait_machine_signature(template)
+                .filter(|(owner, _)| owner.symbol == service.symbol)
+                .ok_or_else(|| unavailable("the native binding's original method declaration"))?;
+            if source.trait_requirement_callable_identity_text(service, declared_signature)
+                != declared
+            {
+                return Err(unavailable(
+                    "the native binding's exact original schema method",
+                ));
+            }
             let binding = provider_planning::native_bindings::normalize_native_binding(
                 supply,
                 &canonical,
@@ -168,8 +188,8 @@ impl PackageReviewInput<'_> {
             let matches = |index: usize| {
                 schema.identity_text(schema.declaration.methods[index].requirement_identity)
             };
-            let first = methods.partition_point(|&index| matches(index) < canonical.as_str());
-            let last = methods.partition_point(|&index| matches(index) <= canonical.as_str());
+            let first = methods.partition_point(|&index| matches(index) < declared);
+            let last = methods.partition_point(|&index| matches(index) <= declared);
             let [index] = &methods[first..last] else {
                 return Err(unavailable("one native binding method in the exact schema"));
             };
@@ -179,7 +199,7 @@ impl PackageReviewInput<'_> {
                 boundary,
                 method,
                 schema,
-                self.nominal(signature.symbol)?,
+                self.nominal(template)?,
                 self.nominal(service.symbol)?,
                 declarations,
             )?;
@@ -260,7 +280,18 @@ impl PackageReviewInput<'_> {
                 .receipt()
                 .build_origin()
                 .and_then(|origin| identities.as_table().text(origin.requirement_identity));
-            if requirement != Some(application.requirement_identity.as_str()) {
+            let abi = backend_plan::DirectBoundaryLeaf::declared_calling_abi(module, row.boundary)
+                .map_err(|reason| unavailable(&reason))?;
+            if requirement
+                != module
+                    .boundary_machine(row.boundary)
+                    .and_then(|boundary| boundary.declaration.as_ref())
+                    .and_then(|declaration| module.identities.text(declaration.source.callable))
+                || abi
+                    .identity(&module.identities)
+                    .map_err(|reason| unavailable(&reason))?
+                    != application.abi
+            {
                 return Err(unavailable(
                     "the native binding's exact calling requirement",
                 ));

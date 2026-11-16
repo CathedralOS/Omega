@@ -1654,6 +1654,25 @@ pub fn closed_requirement_matches_calling_abi(
     Ok(matched && closed_callable_matches(callable, template, nominal_template, abi, &mut syntax)?)
 }
 
+/// Compare the retained closed callable with the same original method and
+/// ordered ABI arguments during inert package review. Declaration custody
+/// remains with the caller; malformed or unsupported identities refuse.
+pub fn closed_callable_matches_calling_abi(
+    callable: &str,
+    semantic_template: &str,
+    nominal_template: &str,
+    abi: &semantic_vocabulary::CallingAbiIdentity,
+) -> Result<bool, TypeIdentityVisitError> {
+    abi.validate().map_err(|_| Error::MalformedIdentity)?;
+    closed_callable_matches(
+        callable,
+        semantic_template,
+        nominal_template,
+        abi,
+        &mut DeclarationIdentitySyntax { depth: 0 },
+    )
+}
+
 fn trait_application(
     reader: &mut framing::Reader<'_>,
     syntax: &mut dyn TypeIdentityPackageOwnerVisitor,
