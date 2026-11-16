@@ -36,6 +36,8 @@ machine main() crashes Trap {
     transition packet.before == 37u64 && packet.key == 17u32 && packet.after == 91u64
         && packet.nested.value == 0u32 && packet.nested.enabled
         && selected_is_right(packet.chosen)
+        && first_is_zero(Choice::Second { .. }) == false
+        && selected_is_right(Choice::First { value: 23u32, .. }) == false
         && defaults.before == 43u64 && defaults.key == 19u32 && defaults.after == 97u64
         && defaults.nested.value == 0u32 && defaults.nested.enabled == false
         && first_is_zero(defaults.chosen)
