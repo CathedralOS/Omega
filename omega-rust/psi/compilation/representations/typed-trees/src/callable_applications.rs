@@ -4588,16 +4588,14 @@ pub(crate) mod requirement_instances {
                                     type_reference: right,
                                     ..
                                 },
-                            ) => {
-                                applied_type_identity(self, *left, right_source.lexical_owner, &[])
-                                    .zip(applied_type_identity(
-                                        self,
-                                        *right,
-                                        right_source.lexical_owner,
-                                        &[],
-                                    ))
-                                    .is_some_and(|(left, right)| left == right)
-                            }
+                            ) => applied_type_identity(self, *left, left_source.lexical_owner, &[])
+                                .zip(applied_type_identity(
+                                    self,
+                                    *right,
+                                    right_source.lexical_owner,
+                                    &[],
+                                ))
+                                .is_some_and(|(left, right)| left == right),
                             (
                                 static_applications::StaticMachineBindingValue::Machine(_),
                                 static_applications::StaticMachineBindingValue::Machine(right),
@@ -4842,6 +4840,75 @@ pub(crate) mod requirement_instances {
         use super::*;
         use crate::{expression, machine::Machine, name::Identifier, state::State};
         use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+
+        #[test]
+        fn runtime_binding_carriers_keep_each_applications_lifetime_scope() {
+            let mut symbols = SymbolTableBuilder::default();
+            let template = symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("take"));
+            let left = symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("left"));
+            let right = symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("right"));
+            let binder =
+                symbols.insert_root(SymbolKind::TypeParameter, SymbolNameRef::Static("Value"));
+            let scalar = symbols.insert_root(SymbolKind::BuiltinType, SymbolNameRef::Static("u32"));
+            let mut program = TypedTrees {
+                symbols: symbols.finish(),
+                ..Default::default()
+            };
+            for (symbol, name) in [(left, "left"), (right, "right")] {
+                program.push_machine(Machine {
+                    symbol,
+                    name: Identifier::generated(name),
+                    lifetime_parameters: vec![Identifier::generated("slot")],
+                    ..Default::default()
+                });
+            }
+            let scalar = program
+                .type_reference_table
+                .insert(types::TypeReferenceNode::Named {
+                    symbol: scalar,
+                    name: Identifier::generated("u32"),
+                });
+            let carrier =
+                program
+                    .type_reference_table
+                    .insert(types::TypeReferenceNode::Reference {
+                        referee: scalar,
+                        access: language_semantics::ReferenceAccess::Shared,
+                        lifetime: Some(Identifier::generated("slot")),
+                    });
+            let mut application = |owner| {
+                let application = program.expression_table.retain_static_machine_application(
+                    template,
+                    Identifier::generated("take"),
+                    &[],
+                );
+                let row = program
+                    .expression_table
+                    .static_machine_application_mut(application);
+                row.binding_declaration = template;
+                row.lexical_owner = owner;
+                program
+                    .expression_table
+                    .set_static_machine_application_bindings(
+                        application,
+                        &[static_applications::StaticMachineBinding {
+                            parameter: binder,
+                            value: static_applications::StaticMachineBindingValue::RuntimeValue {
+                                type_reference: carrier,
+                                subject: Default::default(),
+                                expression: Default::default(),
+                            },
+                        }],
+                    );
+                application
+            };
+            let first = application(left);
+            let same_scope = application(left);
+            let other_scope = application(right);
+            assert!(program.same_static_machine_application_bindings(first, same_scope));
+            assert!(!program.same_static_machine_application_bindings(first, other_scope));
+            assert!(!program.same_static_machine_application_bindings(other_scope, first));
+        }
 
         #[test]
         fn requirement_machine_operands_keep_callable_identity_across_entry_selection() {
