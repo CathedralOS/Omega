@@ -82,8 +82,8 @@ framework or a list of unimplemented features.
 
 ### Static arguments still judge selected predicates in syntax
 - Category: one idea, several implementations
-- Where: [index canonicalization](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_const_evaluation.rs#L5839), [receiving carrier refusal](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/type_reference.rs#L882)
-- Saw: Structural const arguments still reach `ProveSyntax`, which approximates selected operators from spellings and parameter carriers. Typing retains an explicit refusal when a record/case argument needs admission against its receiving data type. These paths were identified by inspection.
+- Where: [index canonicalization](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_const_evaluation.rs#L5838), [receiving carrier refusal](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/type_reference.rs#L882)
+- Saw: Structural const arguments still reach `ProveSyntax`, which approximates selected operators from spellings and parameter carriers. At `20e51a433b772` on Windows x86-64, `omega --check` refuses [the receiving-application program](tests/fixtures/pass/constants/receiving_application/main.omg): "a record or case const argument is not typed against its declared data type".
 - Cost: Index encoding duplicates part of predicate judgment. Route these arguments through ordinary checked evaluation with their selected receiving declaration, carrier and substitutions before publishing their identity. [EARLY-TERMINAL-JOBS](TASKS.md#early-terminal-jobs) owns the remaining handoff and its acceptance checks.
 - Reported: 2026-11-15, Codex, while separating declaration initializer evaluation from static argument admission.
 
