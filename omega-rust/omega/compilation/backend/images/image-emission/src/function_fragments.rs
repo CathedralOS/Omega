@@ -12934,11 +12934,7 @@ mod source {
                     let caller = descriptor_machine(graph, caller)
                         .ok_or("selected caller has no reference-origin graph")?;
                     let mut calls = caller
-                        .calls
-                        .iter()
-                        .flat_map(|(position, calls)| {
-                            calls.iter().map(move |call| (position, call))
-                        })
+                        .known_invocations()
                         .filter(|(_, call)| call.owner == owner);
                     let (Some((position, call)), None) = (calls.next(), calls.next()) else {
                         return Err(
@@ -13112,10 +13108,8 @@ mod source {
                         let caller = graph.iter_mut().find(|row| row.id == function.machine)?;
                         let owner = DescriptorInvocationOwner::Operation(*psi_operation);
                         if caller
-                            .calls
-                            .values()
-                            .flatten()
-                            .any(|call| call.owner == owner)
+                            .known_invocations()
+                            .any(|(_, call)| call.owner == owner)
                         {
                             continue;
                         }
@@ -13195,7 +13189,16 @@ mod source {
                         {
                             return None;
                         }
-                        caller.insert_call(position, call)?;
+                        if let Some(row) = caller.calls.get_mut(&position) {
+                            if row.is_some() {
+                                return None;
+                            }
+                            // Native selection has resolved this exact boundary invocation
+                            // to the checked machine above; source-only graphs retain None.
+                            *row = Some(vec![call]);
+                        } else {
+                            caller.insert_call(position, call)?;
+                        }
                     }
                 }
                 Some(())

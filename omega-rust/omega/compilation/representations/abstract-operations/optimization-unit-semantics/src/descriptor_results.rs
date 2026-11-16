@@ -2478,6 +2478,16 @@ fn adapt(
                 }
                 _ => {}
             }
+            if matches!(
+                operation,
+                O::Call { .. }
+                    | O::CallStructural { .. }
+                    | O::BoundaryCall { .. }
+                    | O::InvokeNoNormal { .. }
+            ) && !graph.calls.contains_key(&position)
+            {
+                graph.calls.insert(position, None);
+            }
             if let O::EstablishZeroedStructural { result, .. } = operation {
                 graph.case_constructors.insert(
                     position,

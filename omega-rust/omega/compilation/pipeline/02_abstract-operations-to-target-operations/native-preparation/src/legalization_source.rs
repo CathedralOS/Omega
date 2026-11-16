@@ -2871,7 +2871,7 @@ pub(crate) mod scalar_graph {
         pub(crate) fn with_metadata(
             source: &target_operations::TargetInstructionSource,
             kind: LegalizedScalarInstructionKind,
-            types: &legalized_operations::RetainedIntegerTypes,
+            types: &crate::native_geometry::ModuleTypes,
         ) -> Result<LegalizedScalarInstruction, Error> {
             Ok(LegalizedScalarInstruction {
                 operation: source.operation,
@@ -3416,7 +3416,7 @@ pub(crate) mod scalar_graph {
     /// Parameter sites are ordinal in the retained function ABI, not body-derived.
     pub(crate) fn parameters(
         target: &target_operations::TargetFunction,
-        types: &legalized_operations::RetainedIntegerTypes,
+        types: &crate::native_geometry::ModuleTypes,
     ) -> Result<Vec<LegalizedScalarParameter>, LegalizationError> {
         target
             .graph
@@ -3543,7 +3543,7 @@ pub(crate) fn derive_source_function_rosters(
     target: &TargetOperationPlan,
     abstract_plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
-    closed_types: &legalized_operations::RetainedIntegerTypes,
+    closed_types: &crate::native_geometry::ModuleTypes,
 ) -> Result<SourceFunctionRosters, LegalizationError> {
     let plan_geometry = crate::native_geometry::NativeGeometry::with_owned_sequence_bounds(
         &abstract_plan.structural_types,
@@ -3579,7 +3579,7 @@ pub(crate) use custody::validate_source_custody;
 pub(crate) fn derive_target_function_rosters(
     target: &TargetOperationPlan,
     evidence: crate::PreparationEvidence<'_>,
-    types: &legalized_operations::RetainedIntegerTypes,
+    types: &crate::native_geometry::ModuleTypes,
 ) -> Result<SourceFunctionRosters, LegalizationError> {
     let geometries =
         crate::native_geometry::NativeGeometries::new(target.functions.iter().map(|function| {

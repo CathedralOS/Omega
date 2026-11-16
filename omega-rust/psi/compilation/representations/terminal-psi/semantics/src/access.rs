@@ -1625,13 +1625,9 @@ pub(crate) mod access_ram_origins {
                             .filter(|caller| self.reachable.contains(&caller.id))
                             .flat_map(|caller| {
                                 caller
-                                    .calls
-                                    .iter()
-                                    .flat_map(|(position, calls)| {
-                                        calls.iter().map(move |call| (*position, call))
-                                    })
+                                    .known_invocations()
                                     .filter(move |(_, call)| call.callee() == Some(machine))
-                                    .map(move |(position, call)| (caller.id, position, call.owner))
+                                    .map(move |(position, call)| (caller.id, *position, call.owner))
                             })
                             .collect::<Vec<_>>();
                         if callers.is_empty() {

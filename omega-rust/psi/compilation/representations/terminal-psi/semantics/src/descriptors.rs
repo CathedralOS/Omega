@@ -2895,11 +2895,9 @@ pub mod descriptor_results {
                             position: machine.entry,
                         });
                     }
-                    calls.extend(machine.calls.iter().flat_map(|(&position, calls)| {
-                        calls.iter().filter_map(move |call| {
-                            call.stored_effects_callee()
-                                .map(|callee| (machine.id, position, call.owner, callee))
-                        })
+                    calls.extend(machine.known_invocations().filter_map(|(&position, call)| {
+                        call.stored_effects_callee()
+                            .map(|callee| (machine.id, position, call.owner, callee))
                     }));
                 }
                 loop {
@@ -12607,17 +12605,17 @@ pub mod descriptor_results {
                 );
                 // One normal exit cannot secretly select two cleanup edges.
                 assert!(graph.validate_invocation_owners().is_none());
-                graph.calls.get_mut(&position).unwrap().retain(|call| {
+                graph.calls.get_mut(&position).unwrap().as_mut().unwrap().retain(|call| {
                     matches!(call.owner, DescriptorInvocationOwner::Cleanup { edge, .. } if edge == EdgeId::new(1).unwrap())
                 });
                 assert!(graph.validate_invocation_owners().is_some());
                 let second = graph.calls_at(position)[1].owner;
-                let calls = graph.calls.get_mut(&position).unwrap();
+                let calls = graph.calls.get_mut(&position).unwrap().as_mut().unwrap();
                 calls[1].owner = calls[0].owner;
                 let duplicate = calls[0].owner;
                 assert!(graph.invocation(position, duplicate).is_none());
                 assert!(graph.validate_invocation_owners().is_none());
-                let calls = graph.calls.get_mut(&position).unwrap();
+                let calls = graph.calls.get_mut(&position).unwrap().as_mut().unwrap();
                 calls[1].owner = second;
                 calls.swap(0, 1);
                 assert!(
@@ -15181,6 +15179,10 @@ pub mod descriptor_results {
                             .push((location, ScalarTerm::value(result.id, result.scalar_type)));
                     }
                     let mut step = DescriptorFlowStep::default();
+                    let is_invocation = matches!(
+                        &operation.kind,
+                        terminal_psi::call_structural_argument_variants!(_arguments)
+                    ) || matches!(&operation.kind, OperationKind::Call { .. });
                     // A scalar sibling does not observe the reference leaves
                     // beside it. Retain the representation's projected uses;
                     // reducing them to roots spuriously extends those loans.
@@ -16472,6 +16474,11 @@ pub mod descriptor_results {
                         }
                         _ => {}
                     }
+                    // Record unresolved invocations only after attempting exact
+                    // construction; a later cohort cannot overwrite unknown effects.
+                    if is_invocation && !graph.calls.contains_key(&position) {
+                        graph.calls.insert(position, None);
+                    }
                     record_owned_consumption(module, machine, operation, &mut step)?;
                     // Borrowing a carrier slot makes a child resource, not
                     // another spelling of the parent's permission. Payload
@@ -16679,6 +16686,7 @@ pub mod descriptor_results {
                         structural_arguments,
                         ..
                     } => {
+                        graph.calls.insert(position, None);
                         // These invocations can write before terminating.
                         // Their absent normal result is not an empty frame;
                         // no selected terminal-call frame is represented here.
@@ -17451,16 +17459,21 @@ pub mod descriptor_results {
         pub unresolved_contents_writes: BTreeSet<DescriptorPosition>,
         pub storage_derivations:
             BTreeSet<(DescriptorPosition, DescriptorLocation, DescriptorLocation)>,
-        pub calls: BTreeMap<DescriptorPosition, Vec<DescriptorInvocation>>,
+        /// Missing is not a call; None is a real invocation whose effects
+        /// cannot be represented. Known rows retain their exact ordered owners.
+        pub calls: BTreeMap<DescriptorPosition, Option<Vec<DescriptorInvocation>>>,
         pub normal_exits: Vec<DescriptorPosition>,
     }
 
     pub fn insert_invocation(
-        calls: &mut BTreeMap<DescriptorPosition, Vec<DescriptorInvocation>>,
+        calls: &mut BTreeMap<DescriptorPosition, Option<Vec<DescriptorInvocation>>>,
         position: DescriptorPosition,
         call: DescriptorInvocation,
     ) -> Option<()> {
-        let calls = calls.entry(position).or_default();
+        let calls = calls
+            .entry(position)
+            .or_insert_with(|| Some(Vec::new()))
+            .as_mut()?;
         if !calls.is_empty()
             && (matches!(call.owner, DescriptorInvocationOwner::Operation(_))
                 || matches!(calls[0].owner, DescriptorInvocationOwner::Operation(_)))
@@ -17476,7 +17489,10 @@ pub mod descriptor_results {
 
     impl DescriptorMachine {
         pub fn calls_at(&self, position: DescriptorPosition) -> &[DescriptorInvocation] {
-            self.calls.get(&position).map_or(&[], Vec::as_slice)
+            self.calls
+                .get(&position)
+                .and_then(Option::as_ref)
+                .map_or(&[], Vec::as_slice)
         }
 
         pub fn operation_call(
@@ -17521,6 +17537,9 @@ pub mod descriptor_results {
         pub(crate) fn validate_invocation_owners(&self) -> Option<()> {
             for (&position, calls) in &self.calls {
                 let step = self.flow.get(&position)?;
+                let Some(calls) = calls else {
+                    continue;
+                };
                 if calls.is_empty() || !calls.windows(2).all(|rows| rows[0].owner < rows[1].owner) {
                     return None;
                 }
@@ -17554,6 +17573,21 @@ pub mod descriptor_results {
                 }
             }
             Some(())
+        }
+
+        pub fn known_invocation(
+            &self,
+            position: &DescriptorPosition,
+        ) -> Option<&DescriptorInvocation> {
+            self.operation_call(*position)
+        }
+
+        pub fn known_invocations(
+            &self,
+        ) -> impl Iterator<Item = (&DescriptorPosition, &DescriptorInvocation)> {
+            self.calls.iter().flat_map(|(position, calls)| {
+                calls.iter().flatten().map(move |call| (position, call))
+            })
         }
 
         pub(crate) fn producer(&self, root: PlaceId) -> Option<DescriptorPosition> {
@@ -18273,7 +18307,7 @@ pub mod descriptor_results {
                     continue;
                 }
             };
-            for call in graph.calls.values().flatten() {
+            for (_, call) in graph.known_invocations() {
                 match &call.target {
                     DescriptorInvocationTarget::Machine(callee) => pending.push(*callee),
                     DescriptorInvocationTarget::Public {

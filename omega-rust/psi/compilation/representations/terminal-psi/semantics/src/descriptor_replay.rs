@@ -42,15 +42,11 @@ pub(crate) mod analysis {
                     .replay
                     .machine(identity)
                     .ok_or("caller descriptor graph is absent")?;
-                let mut calls = machine
-                    .calls
-                    .iter()
-                    .flat_map(|(position, calls)| calls.iter().map(move |call| (position, call)))
-                    .filter(|(_, call)| {
-                        call.result
-                            .as_ref()
-                            .is_some_and(|location| *location == DescriptorLocation::whole(result))
-                    });
+                let mut calls = machine.known_invocations().filter(|(_, call)| {
+                    call.result
+                        .as_ref()
+                        .is_some_and(|location| *location == DescriptorLocation::whole(result))
+                });
                 let (position, call) = calls
                     .next()
                     .ok_or("descriptor result has no producing call")?;
@@ -592,8 +588,8 @@ pub(crate) mod analysis {
                 .summaries
                 .get(&identity)
                 .and_then(Option::as_ref)
-                .and_then(|summary| summary.write_frame.as_ref())
-                .and_then(Option::as_ref)
+                .and_then(|summary| summary.storage_frame.writes.as_ref())
+                .and_then(|writes| writes.as_ref().as_ref())
             else {
                 return Ok(None);
             };
@@ -626,6 +622,38 @@ pub(crate) mod analysis {
                 }
             }
             Ok(Some(normalized))
+        }
+
+        /// Keep each operation at its original instruction and operand. A
+        /// complete frame also requires complete frames for actual callees,
+        /// reached through the existing invocation graph. Callers traverse
+        /// that shared graph with their own argument context; the summary
+        /// never expands all possible call paths.
+        pub fn storage_access_frame(
+            &mut self,
+            identity: MachineId,
+        ) -> Result<Option<&[(DescriptorPosition, usize)]>, &'static str> {
+            self.replay.prepare_access_frame(identity)?;
+            Ok(self
+                .replay
+                .summaries
+                .get(&identity)
+                .and_then(Option::as_ref)
+                .and_then(|summary| summary.storage_frame.accesses.as_ref())
+                .and_then(|accesses| accesses.as_ref().as_deref()))
+        }
+
+        pub fn storage_access(
+            &self,
+            identity: MachineId,
+            (position, input): (DescriptorPosition, usize),
+        ) -> Option<(
+            access_plans::AccessOperation,
+            &crate::descriptor_lifetimes::DescriptorFlowSource,
+        )> {
+            let step = self.replay.machine(identity)?.flow.get(&position)?;
+            let (operation, source) = step.inputs.get(input)?.1.as_ref()?;
+            Some((*operation, source))
         }
 
         pub fn payload_targets(
@@ -2376,14 +2404,19 @@ pub(crate) mod case_flow {
                         case: StructuralCaseId::new(1).unwrap(),
                     }],
                 );
-                graph[0].calls.get_mut(&position(0)).unwrap()[0].target =
-                    DescriptorInvocationTarget::Public {
-                        effects_machine: Some(graph[1].id),
-                        realizations: vec![],
-                        extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
-                        results: vec![],
-                        invalidates_contents: false,
-                    };
+                graph[0]
+                    .calls
+                    .get_mut(&position(0))
+                    .unwrap()
+                    .as_mut()
+                    .unwrap()[0]
+                    .target = DescriptorInvocationTarget::Public {
+                    effects_machine: Some(graph[1].id),
+                    realizations: vec![],
+                    extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
+                    results: vec![],
+                    invalidates_contents: false,
+                };
                 let mut analysis = DescriptorAnalysis::with_reference_slots(&types, &graph);
                 assert_eq!(
                     analysis.case_feasibility(graph[0].id, position(1), &predicate(3)),
@@ -4253,6 +4286,24 @@ pub(crate) mod engine {
         Alternatives,
     }
 
+    /// Invalidation and semantic accesses are requested independently. A
+    /// missing component has not been prepared; a prepared None is unknown.
+    /// Sharing the prepared vectors keeps ordinary Summary clones cheap.
+    #[derive(Clone, Default)]
+    pub(crate) struct StorageFrame {
+        pub(crate) writes: Option<Arc<Option<Vec<DescriptorLocation>>>>,
+        pub(crate) accesses: Option<Arc<Option<Vec<(DescriptorPosition, usize)>>>>,
+    }
+
+    impl StorageFrame {
+        fn unknown() -> Self {
+            Self {
+                writes: Some(Arc::new(None)),
+                accesses: Some(Arc::new(None)),
+            }
+        }
+    }
+
     #[derive(Clone)]
     pub(crate) struct Summary {
         pub(crate) result: Option<Vec<DescriptorResultSlot>>,
@@ -4265,11 +4316,10 @@ pub(crate) mod engine {
         pub(crate) result_cases: super::case_flow::ResultCases,
         pub(crate) effects: Vec<DescriptorStoredEffect>,
         pub(crate) invalidates_contents: bool,
-        /// Outer `None` has not been prepared. `Some(None)` is an unknown
-        /// frame, also installed while visiting a recursive dependency.
-        /// Keep this derived fact with the existing per-body summary rather
-        /// than rebuilding its storage graph for every call.
-        pub(crate) write_frame: Option<Option<Vec<DescriptorLocation>>>,
+        /// Calls share the body's prepared memory effects. Writes invalidate
+        /// facts; original accesses retain the operation and its call path.
+        /// Each component can remain unknown independently.
+        pub(crate) storage_frame: StorageFrame,
     }
 
     fn direct_target_summary(target: &DescriptorInvocationTarget) -> Option<Summary> {
@@ -4285,7 +4335,7 @@ pub(crate) mod engine {
                 result_cases: Default::default(),
                 effects: effects.clone(),
                 invalidates_contents: *invalidates_contents,
-                write_frame: Some(None),
+                storage_frame: StorageFrame::unknown(),
             }),
             DescriptorInvocationTarget::Public {
                 results,
@@ -4297,7 +4347,7 @@ pub(crate) mod engine {
                 result_cases: Default::default(),
                 effects: Vec::new(),
                 invalidates_contents: *invalidates_contents,
-                write_frame: Some(None),
+                storage_frame: StorageFrame::unknown(),
             }),
         }
     }
@@ -4531,19 +4581,115 @@ pub(crate) mod engine {
                 .get_mut(&identity)
                 .and_then(Option::as_mut)
                 .ok_or("write frame has no prepared body summary")?;
-            if summary.write_frame.is_some() {
+            if summary.storage_frame.writes.is_some() {
                 return Ok(());
             }
             // A recursive dependency sees an unknown frame. It cannot turn
             // incomplete inference into an empty set of writes.
-            summary.write_frame = Some(None);
-            let frame = self.infer_write_frame(identity)?;
+            summary.storage_frame.writes = Some(Arc::new(None));
+            let writes = self.infer_write_frame(identity)?;
             self.summaries
                 .get_mut(&identity)
                 .and_then(Option::as_mut)
                 .ok_or("write frame body summary disappeared")?
-                .write_frame = Some(frame);
+                .storage_frame
+                .writes = Some(Arc::new(writes));
             Ok(())
+        }
+
+        pub(crate) fn prepare_access_frame(
+            &mut self,
+            identity: MachineId,
+        ) -> Result<(), &'static str> {
+            if self.machine(identity).is_none() {
+                return Err("access frame has no owning machine");
+            }
+            if self.summary(identity, 0).is_none() {
+                return Ok(());
+            }
+            let summary = self
+                .summaries
+                .get_mut(&identity)
+                .and_then(Option::as_mut)
+                .ok_or("access frame has no prepared body summary")?;
+            if summary.storage_frame.accesses.is_some() {
+                return Ok(());
+            }
+            summary.storage_frame.accesses = Some(Arc::new(None));
+            let accesses = self.infer_access_frame(identity)?;
+            self.summaries
+                .get_mut(&identity)
+                .and_then(Option::as_mut)
+                .ok_or("access frame body summary disappeared")?
+                .storage_frame
+                .accesses = Some(Arc::new(accesses));
+            Ok(())
+        }
+
+        fn infer_access_frame(
+            &mut self,
+            identity: MachineId,
+        ) -> Result<Option<Vec<(DescriptorPosition, usize)>>, &'static str> {
+            if self.prepare_states(identity).is_none() {
+                return Ok(None);
+            }
+            let machine = self
+                .machine(identity)
+                .ok_or("storage frame owner disappeared")?;
+            // Borrow the graph's inputs and retain only their coordinates.
+            // Queries stay at their original pre-operation cut; a caller
+            // substitutes through each actual invocation when consuming it.
+            let positions: Vec<_> = self
+                .snapshots
+                .get(&identity)
+                .and_then(Option::as_ref)
+                .ok_or("storage frame has no prepared flow")?
+                .before
+                .keys()
+                .copied()
+                .collect();
+            let mut accesses = Vec::new();
+            for position in positions {
+                let step = machine
+                    .flow
+                    .get(&position)
+                    .ok_or("storage access cut disappeared")?;
+                for (input, (_, access)) in step.inputs.iter().enumerate() {
+                    if access.is_some() {
+                        accesses.push((position, input));
+                    }
+                }
+                let Some(invocation) = machine.calls.get(&position) else {
+                    continue;
+                };
+                let Some(invocations) = invocation else {
+                    return Ok(None);
+                };
+                for invocation in invocations {
+                    if self
+                        .invocation_state(identity, position, invocation.owner)
+                        .is_none()
+                    {
+                        continue;
+                    }
+                    // Public and provider calls need their retained interface
+                    // effect owner. A possible private implementation is not it.
+                    let Some(callee) = invocation.callee() else {
+                        return Ok(None);
+                    };
+                    self.prepare_access_frame(callee)?;
+                    let complete = self
+                        .summaries
+                        .get(&callee)
+                        .and_then(Option::as_ref)
+                        .and_then(|summary| summary.storage_frame.accesses.as_ref())
+                        .is_some_and(|accesses| accesses.as_ref().is_some());
+                    if !complete {
+                        return Ok(None);
+                    }
+                }
+            }
+            Ok(Some(accesses))
         }
 
         fn infer_write_frame(
@@ -4571,6 +4717,9 @@ pub(crate) mod engine {
                 let Some(mut writes) = self.storage_writes(identity, position)? else {
                     return Ok(None);
                 };
+                if matches!(machine.calls.get(&position), Some(None)) {
+                    return Ok(None);
+                }
                 for call in machine.calls_at(position) {
                     // Each action uses its own genuine prestate. Infeasible
                     // branch actions have no snapshot and publish no writes.
@@ -4590,8 +4739,8 @@ pub(crate) mod engine {
                         .summaries
                         .get(callee)
                         .and_then(Option::as_ref)
-                        .and_then(|summary| summary.write_frame.as_ref())
-                        .and_then(Option::as_ref)
+                        .and_then(|summary| summary.storage_frame.writes.as_ref())
+                        .and_then(|writes| writes.as_ref().as_ref())
                     else {
                         return Ok(None);
                     };
@@ -5844,6 +5993,9 @@ pub(crate) mod engine {
                 .copied()
                 .collect::<BTreeSet<_>>();
             for (position, calls) in &machine.calls {
+                let Some(calls) = calls else {
+                    continue;
+                };
                 let step = machine.flow.get(position)?;
                 let normal_exit = normal_exit_positions.contains(position);
                 let edges = step
@@ -5993,6 +6145,7 @@ pub(crate) mod engine {
                         .calls
                         .get(&position)
                         .into_iter()
+                        .flatten()
                         .flatten()
                         .filter_map(|call| match call.owner {
                             DescriptorInvocationOwner::Cleanup { edge, .. } => Some(edge),
@@ -6826,7 +6979,7 @@ pub(crate) mod engine {
                 result_cases: result_cases.unwrap_or_default(),
                 effects,
                 invalidates_contents,
-                write_frame: None,
+                storage_frame: StorageFrame::default(),
             };
             self.summaries.insert(identity, Some(summary.clone()));
             Some(summary)
@@ -7737,6 +7890,144 @@ pub(crate) mod engine {
             }
         }
 
+        #[test]
+        fn storage_access_frames_keep_helper_identity_and_unknown_calls() {
+            use crate::descriptors::descriptor_lifetimes::{
+                DescriptorFlowSource, DescriptorFlowStep,
+            };
+            use access_plans::AccessOperation;
+            use semantic_vocabulary::{BlockId, OperationId};
+
+            let caller_id = MachineId::new(1).unwrap();
+            let helper_id = MachineId::new(2).unwrap();
+            let entry = (BlockId::new(1).unwrap(), 0);
+            let parameter = location(1);
+            let scalar = StructuralTypeId::new(1).unwrap();
+            let reference = StructuralTypeId::new(2).unwrap();
+            let types = vec![
+                scalar_type(1),
+                reference_type(2, scalar, StructuralAccess::MutableBorrow),
+            ];
+            let body = |id| {
+                let mut body = bare_machine(
+                    id,
+                    vec![DescriptorPlace {
+                        producer: None,
+                        place: parameter.root,
+                        definition: DescriptorDefinition::Parameter {
+                            position: 0,
+                            access: StructuralAccess::MutableBorrow,
+                            structural_type: reference,
+                        },
+                    }],
+                    BTreeMap::from([(parameter.root, reference)]),
+                    BTreeSet::new(),
+                );
+                body.flow.insert(entry, DescriptorFlowStep::default());
+                body
+            };
+            let mut caller = body(caller_id);
+            let mut helper = body(helper_id);
+            let source = DescriptorFlowSource::Location(DescriptorLocation {
+                root: parameter.root,
+                path: vec![DescriptorPathSegment::Referent],
+            });
+            // An event need not observe the old descriptor value. Keep its
+            // original operand index and distinguish read from write.
+            helper.flow.get_mut(&entry).unwrap().inputs = vec![
+                (Some(parameter.clone()), None),
+                (None, Some((AccessOperation::Read, source.clone()))),
+                (None, Some((AccessOperation::Write, source.clone()))),
+            ];
+            caller.calls.insert(
+                entry,
+                Some(vec![DescriptorInvocation {
+                    scalar_arguments: Vec::new(),
+                    owner: DescriptorInvocationOwner::Operation(OperationId::new(1).unwrap()),
+                    target: DescriptorInvocationTarget::Machine(helper_id),
+                    arguments: vec![Some(parameter.clone())],
+                    argument_contents: vec![Some(DescriptorContentsQuery::from_location(
+                        &parameter,
+                    ))],
+                    result: None,
+                }]),
+            );
+            let mut graph = vec![caller, helper];
+            {
+                let mut analysis = DescriptorAnalysis::with_borrowed_storage_slots(&types, &graph);
+                // The caller points to the helper in the existing invocation
+                // graph. Its summary does not copy the helper's event rows.
+                assert_eq!(
+                    analysis.storage_access_frame(caller_id).unwrap(),
+                    Some([].as_slice())
+                );
+                assert_eq!(
+                    graph[0].known_invocation(&entry).unwrap().callee(),
+                    Some(helper_id)
+                );
+                let inputs = analysis
+                    .storage_access_frame(helper_id)
+                    .unwrap()
+                    .unwrap()
+                    .to_vec();
+                assert_eq!(inputs, [(entry, 1), (entry, 2)]);
+                for (input, operation) in inputs
+                    .into_iter()
+                    .zip([AccessOperation::Read, AccessOperation::Write])
+                {
+                    assert!(matches!(analysis.storage_access(helper_id, input),
+                        Some((actual_operation, DescriptorFlowSource::Location(actual)))
+                        if actual_operation == operation
+                            && matches!(&source, DescriptorFlowSource::Location(expected) if actual == expected)
+                    ));
+                    // Equal instruction and operand numbers in a different
+                    // machine cannot select the helper's memory operation.
+                    assert!(analysis.storage_access(caller_id, input).is_none());
+                }
+            }
+            graph[0].calls.insert(entry, None);
+            assert!(
+                DescriptorAnalysis::with_borrowed_storage_slots(&types, &graph)
+                    .storage_access_frame(caller_id)
+                    .unwrap()
+                    .is_none()
+            );
+            graph[0].calls.clear();
+            assert_eq!(
+                DescriptorAnalysis::with_borrowed_storage_slots(&types, &graph)
+                    .storage_access_frame(caller_id)
+                    .unwrap(),
+                Some([].as_slice())
+            );
+            // Knowing a possible implementation does not publish its private
+            // accesses as the public requirement's checked effects.
+            graph[0].calls.insert(
+                entry,
+                Some(vec![DescriptorInvocation {
+                    scalar_arguments: Vec::new(),
+                    owner: DescriptorInvocationOwner::Operation(OperationId::new(1).unwrap()),
+                    target: DescriptorInvocationTarget::Public {
+                        effects_machine: Some(helper_id),
+                        realizations: vec![],
+                        extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
+                        results: vec![],
+                        invalidates_contents: false,
+                    },
+                    arguments: vec![Some(parameter.clone())],
+                    argument_contents: vec![Some(DescriptorContentsQuery::from_location(
+                        &parameter,
+                    ))],
+                    result: None,
+                }]),
+            );
+            assert!(
+                DescriptorAnalysis::with_borrowed_storage_slots(&types, &graph)
+                    .storage_access_frame(caller_id)
+                    .unwrap()
+                    .is_none()
+            );
+        }
+
         // An incomplete call leaves its callee summary unprepared. The
         // caller's physical storage snapshot can nevertheless complete.
         #[test]
@@ -8645,7 +8936,7 @@ pub(crate) mod provider {
     }
 }
 pub(crate) mod summary_interface {
-    use super::engine::{Replay, Summary};
+    use super::engine::{Replay, StorageFrame, Summary};
     use super::*;
 
     impl Replay<'_> {
@@ -8692,7 +8983,7 @@ pub(crate) mod summary_interface {
                 let body = self.machine(identity)?;
                 super::case_flow::validate_graph(self, body)?;
                 invalidates_contents |= !body.unresolved_contents_writes.is_empty();
-                for call in body.calls.values().flatten() {
+                for (_, call) in body.known_invocations() {
                     invalidates_contents |= call.argument_contents.iter().any(Option::is_none);
                     match &call.target {
                         DescriptorInvocationTarget::Machine(callee) => pending.push(*callee),
@@ -8721,7 +9012,7 @@ pub(crate) mod summary_interface {
                 result_cases: Default::default(),
                 effects: Vec::new(),
                 invalidates_contents,
-                write_frame: None,
+                storage_frame: StorageFrame::default(),
             })
         }
     }

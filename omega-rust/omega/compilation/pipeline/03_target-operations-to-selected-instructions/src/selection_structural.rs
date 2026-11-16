@@ -441,7 +441,7 @@ pub(crate) use block_views::block_entry;
 pub(crate) use entry::entry;
 pub(crate) mod atomic_outcome {
     use super::{
-        Builder, LegalizedScalarInstruction, LegalizedScalarInstructionKind, ScalarType,
+        Builder, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
         SelectedInstructionKind, SelectedMemoryAccessRole, VirtualRegisterId, invalid, memory,
         provenance, transport_register,
     };
@@ -453,7 +453,7 @@ pub(crate) mod atomic_outcome {
         builder: &mut Builder<'_>,
         observed: VirtualRegisterId,
         tag: VirtualRegisterId,
-        scalar: ScalarType,
+        scalar: semantic_vocabulary::ClosedScalarType,
     ) -> Result<(), SelectedInstructionError> {
         let LegalizedScalarInstructionKind::AtomicAccess {
             outcome: Some((result, layout)),
@@ -464,7 +464,7 @@ pub(crate) mod atomic_outcome {
             return Err(invalid());
         };
         let custody = event.single_attempt_custody().ok_or_else(invalid)?;
-        let ScalarType::Integer(integer) = scalar else {
+        let semantic_vocabulary::ClosedScalarType::Integer(integer) = scalar else {
             return Err(invalid());
         };
         let declaration = source
@@ -477,16 +477,14 @@ pub(crate) mod atomic_outcome {
                     .find(|row| row.id == result.structural_type)
             })
             .ok_or_else(invalid)?;
-        let integer = source.closed_integer(integer).ok_or_else(invalid)?;
         if target_vocabulary::conventional_atomic_once_layout_closed(declaration, integer, custody)
             .as_ref()
             != Some(layout)
         {
             return Err(invalid());
         }
-        let normalization = crate::selection::scalar_call_abi::integer_carrier_normalization(
-            source.closed_scalar(scalar).ok_or_else(invalid)?,
-        );
+        let normalization =
+            crate::selection::scalar_call_abi::integer_carrier_normalization(scalar);
         let prior = if normalization == SelectedInstructionKind::CopyI64 {
             observed
         } else {
@@ -509,7 +507,7 @@ pub(crate) mod atomic_outcome {
                 };
                 let (_, proposed, _, proposed_type) =
                     builder.resolve(*replacement).ok_or_else(invalid)?;
-                if proposed_type.as_checking() != scalar {
+                if proposed_type != scalar {
                     return Err(invalid());
                 }
                 let one = super::fragmented_scalar::constant(builder, row, result.place, 1)?;
@@ -1660,7 +1658,7 @@ pub(crate) fn establish_atomic_outcome(
     builder: &mut Builder<'_>,
     observed: VirtualRegisterId,
     expected: VirtualRegisterId,
-    scalar: ScalarType,
+    scalar: semantic_vocabulary::ClosedScalarType,
 ) -> Result<(), SelectedInstructionError> {
     atomic_outcome::establish(source, row, builder, observed, expected, scalar)
 }
@@ -4534,10 +4532,10 @@ pub(crate) mod runtime_address {
             let (_, index_register, _, index_type) = builder
                 .resolve(index.operand.value)
                 .ok_or_else(|| invalid())?;
-            let Some(integer) = index.operand.scalar_type.as_integer() else {
+            // The index value's closed type is the plan's; the operand row must agree with it.
+            let semantic_vocabulary::ClosedScalarType::Integer(integer) = index_type else {
                 return Err(invalid());
             };
-            let integer = builder.closed_integer(integer).ok_or_else(invalid)?;
             if integer.bits() > 64 || index_type.as_checking() != index.operand.scalar_type {
                 return Err(invalid());
             }

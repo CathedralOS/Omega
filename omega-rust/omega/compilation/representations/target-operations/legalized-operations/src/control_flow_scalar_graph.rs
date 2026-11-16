@@ -59,6 +59,65 @@ impl LegalizedScalarFunction {
         self.blocks.iter().flat_map(|block| &block.instructions)
     }
 
+    /// Every closed scalar type the function states: its parameters, block
+    /// arrivals, case payloads, instruction results, the operand types its
+    /// instructions carry, and its returned values. Preparation closed each
+    /// one against the accepted module; a validator walks them to check that
+    /// they still belong to it.
+    pub fn visit_closed_types(&self, mut visit: impl FnMut(ClosedScalarType)) {
+        self.parameters
+            .iter()
+            .for_each(|parameter| visit(parameter.scalar_type));
+        for block in &self.blocks {
+            block
+                .parameters
+                .iter()
+                .for_each(|parameter| visit(parameter.scalar_type));
+            for instruction in &block.instructions {
+                if let Some(result) = &instruction.result {
+                    visit(result.scalar_type);
+                }
+                match &instruction.kind {
+                    LegalizedScalarInstructionKind::AtomicAccess { scalar_type, .. }
+                    | LegalizedScalarInstructionKind::IntegerWiden {
+                        source_type: scalar_type,
+                        ..
+                    }
+                    | LegalizedScalarInstructionKind::IntegerExactCast {
+                        source_type: scalar_type,
+                        ..
+                    } => visit(ClosedScalarType::Integer(*scalar_type)),
+                    LegalizedScalarInstructionKind::ScalarRepresentationView {
+                        source_type,
+                        ..
+                    } => visit(*source_type),
+                    LegalizedScalarInstructionKind::Compare {
+                        operand_type,
+                        right_operand_type,
+                        ..
+                    } => {
+                        visit(*operand_type);
+                        visit(*right_operand_type);
+                    }
+                    _ => {}
+                }
+            }
+            match &block.terminator {
+                LegalizedScalarTerminator::Return(returned)
+                | LegalizedScalarTerminator::ReturnCleanup { returned, .. } => {
+                    if let LegalizedScalarReturnValue::Value { scalar_type, .. } = returned.value {
+                        visit(scalar_type);
+                    }
+                }
+                LegalizedScalarTerminator::StructuralCase { cases, .. } => cases
+                    .iter()
+                    .flat_map(|case| &case.payloads)
+                    .for_each(|payload| visit(payload.parameter.scalar_type)),
+                _ => {}
+            }
+        }
+    }
+
     pub fn block_parameters(&self) -> impl Iterator<Item = &LegalizedValueDefinition> + '_ {
         self.blocks.iter().flat_map(|block| &block.parameters)
     }

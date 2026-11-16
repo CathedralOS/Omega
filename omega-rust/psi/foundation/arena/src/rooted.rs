@@ -1,4 +1,4 @@
-//! Declaration roots name logical rows, not the allocation holding a record.
+//! Declaration roots and child spans name logical rows, not record allocations.
 //! Projection appends row associations and keeps the records immutable. A write
 //! copies one shared record into private output; it never detaches its cohort.
 
@@ -274,7 +274,7 @@ impl<T> RootedArena<T> {
                 .checked_add(span.len())
                 .filter(|end| *end <= self.length)?;
             if self.fresh && span.start().generation() == self.fresh_generation {
-                return Some(RootRows { arena: self, span });
+                return Some(RootRows::retained(self, span));
             }
             let mut position = start;
             while position < end {
@@ -291,7 +291,7 @@ impl<T> RootedArena<T> {
                 position += count;
             }
         }
-        Some(RootRows { arena: self, span })
+        Some(RootRows::retained(self, span))
     }
 
     #[track_caller]
@@ -301,19 +301,26 @@ impl<T> RootedArena<T> {
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (Handle<T>, &T)> {
+        self.iter_from(0)
+    }
+
+    /// Visit live logical rows starting at the requested storage slot.
+    pub fn iter_from(&self, first_slot: usize) -> impl Iterator<Item = (Handle<T>, &T)> {
         self.associations
             .iter()
             .enumerate()
+            .skip(first_slot / ASSOCIATIONS_PER_PAGE)
             .flat_map(move |(page, rows)| {
-                rows.iter().map(move |(handle, address)| {
-                    (
-                        Handle::from_parts(
-                            handle.arena_index() + (page * ASSOCIATIONS_PER_PAGE) as u32,
-                            handle.generation(),
-                        ),
-                        self.record(*address),
-                    )
-                })
+                rows.iter_from(first_slot.saturating_sub(page * ASSOCIATIONS_PER_PAGE))
+                    .map(move |(handle, address)| {
+                        (
+                            Handle::from_parts(
+                                handle.arena_index() + (page * ASSOCIATIONS_PER_PAGE) as u32,
+                                handle.generation(),
+                            ),
+                            self.record(*address),
+                        )
+                    })
             })
     }
 
@@ -529,8 +536,17 @@ impl<T: Clone> RootedArena<T> {
 }
 
 pub struct RootRows<'arena, T> {
-    arena: &'arena RootedArena<T>,
-    span: HandleSpan<T>,
+    source: RowSource<'arena, T>,
+}
+enum RowSource<'arena, T> {
+    Retained(&'arena RootedArena<T>, HandleSpan<T>),
+    Slice(&'arena [T]),
+}
+impl<T> Copy for RowSource<'_, T> {}
+impl<T> Clone for RowSource<'_, T> {
+    fn clone(&self) -> Self {
+        *self
+    }
 }
 impl<T> Copy for RootRows<'_, T> {}
 impl<T> Clone for RootRows<'_, T> {
@@ -539,20 +555,38 @@ impl<T> Clone for RootRows<'_, T> {
     }
 }
 impl<'arena, T> RootRows<'arena, T> {
+    fn retained(arena: &'arena RootedArena<T>, span: HandleSpan<T>) -> Self {
+        Self {
+            source: RowSource::Retained(arena, span),
+        }
+    }
+
+    /// Borrow temporary contiguous rows through the same read-only interface
+    /// as retained logical rows, without copying either representation.
+    pub fn from_slice(rows: &'arena [T]) -> Self {
+        Self {
+            source: RowSource::Slice(rows),
+        }
+    }
+
     pub fn len(self) -> usize {
-        self.span.len()
+        match self.source {
+            RowSource::Retained(_, span) => span.len(),
+            RowSource::Slice(rows) => rows.len(),
+        }
     }
     pub fn is_empty(self) -> bool {
-        self.span.is_empty()
+        self.len() == 0
     }
     #[inline]
     pub fn get(self, position: usize) -> Option<&'arena T> {
         // The view checked the complete span once. Its immutable arena borrow
         // keeps those slots live, even when another fork changes its own rows.
-        (position < self.len()).then(|| {
-            self.arena
-                .record_at_slot(self.span.start().arena_index() as usize - 1 + position)
-        })
+        match self.source {
+            RowSource::Retained(arena, span) => (position < span.len())
+                .then(|| arena.record_at_slot(span.start().arena_index() as usize - 1 + position)),
+            RowSource::Slice(rows) => rows.get(position),
+        }
     }
     #[track_caller]
     pub fn at(self, position: usize) -> &'arena T {
@@ -567,11 +601,63 @@ impl<'arena, T> RootRows<'arena, T> {
             .checked_sub(1)
             .and_then(|position| self.get(position))
     }
+    /// Borrow exactly N rows, returning none for any other cardinality.
+    pub fn as_array<const N: usize>(self) -> Option<[&'arena T; N]> {
+        (self.len() == N).then(|| std::array::from_fn(|position| self.at(position)))
+    }
+
+    /// Borrow a subrange in logical order; invalid bounds panic like a slice.
+    pub fn slice(self, range: Range<usize>) -> Self {
+        assert!(
+            range.start <= range.end && range.end <= self.len(),
+            "declaration view range out of bounds"
+        );
+        if range.is_empty() {
+            return Self::default();
+        }
+        match self.source {
+            RowSource::Retained(arena, span) => Self::retained(
+                arena,
+                HandleSpan::from_parts(
+                    span.handle_at(range.start as u32),
+                    (range.end - range.start) as u32,
+                ),
+            ),
+            RowSource::Slice(rows) => Self::from_slice(&rows[range]),
+        }
+    }
     pub fn iter(self) -> RootRowsIter<'arena, T> {
         RootRowsIter {
             rows: self,
             positions: 0..self.len(),
         }
+    }
+
+    pub fn to_vec(self) -> Vec<T>
+    where
+        T: Clone,
+    {
+        self.iter().cloned().collect()
+    }
+}
+impl<'arena, T> Default for RootRows<'arena, T> {
+    fn default() -> Self {
+        Self::from_slice(&[])
+    }
+}
+impl<'arena, T> From<&'arena [T]> for RootRows<'arena, T> {
+    fn from(rows: &'arena [T]) -> Self {
+        Self::from_slice(rows)
+    }
+}
+impl<'arena, T, const N: usize> From<&'arena [T; N]> for RootRows<'arena, T> {
+    fn from(rows: &'arena [T; N]) -> Self {
+        Self::from_slice(rows)
+    }
+}
+impl<'arena, T> From<&'arena Vec<T>> for RootRows<'arena, T> {
+    fn from(rows: &'arena Vec<T>) -> Self {
+        Self::from_slice(rows)
     }
 }
 impl<T> Index<usize> for RootRows<'_, T> {
@@ -693,6 +779,67 @@ impl<T: compiler_storage::Record> compiler_storage::Record for RootedArena<T> {
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
+
+    #[test]
+    fn empty_subranges_do_not_mint_a_handle_past_the_slot_domain() {
+        let arena = RootedArena::<u8>::new();
+        // This tests span arithmetic only: an empty subrange reads no row,
+        // so it must not ask the owner for a one-past-end handle or record.
+        let geometry = RootRows::retained(
+            &arena,
+            HandleSpan::from_parts(Handle::from_parts(u32::MAX, 1), 1),
+        );
+        assert!(geometry.slice(1..1).is_empty());
+        assert!(geometry.slice(0..0).is_empty());
+    }
+
+    #[test]
+    fn borrowed_rows_preserve_exact_cardinality_and_logical_subranges() {
+        let mut original = RootedArena::new();
+        let span = original.insert_many(0u32..300);
+        let mut fork = original.clone();
+        fork.set(span.handle_at(129), 900);
+        let rows = fork.span_or_empty(span);
+        let selected = rows.slice(128..131);
+        let contiguous = [128, 900, 130];
+        let borrowed = RootRows::from_slice(&contiguous);
+        assert_eq!(selected.to_vec(), borrowed.to_vec());
+        assert_eq!(selected.as_array::<3>(), Some([&128, &900, &130]));
+        assert!(selected.as_array::<2>().is_none());
+        assert_eq!(
+            selected.iter().rev().copied().collect::<Vec<_>>(),
+            [130, 900, 128]
+        );
+        assert!(rows.slice(300..300).is_empty());
+        assert!(RootRows::<u32>::default().as_array::<0>().is_some());
+        assert_eq!(*original.get(span.handle_at(129)), 129);
+    }
+
+    #[test]
+    fn iteration_starts_at_a_logical_slot_and_preserves_reused_generations() {
+        let mut rows = RootedArena::new();
+        let span = rows.insert_many(0u32..300);
+        let retired = span.handle_at(129);
+        assert!(rows.free(retired));
+        let reused = rows.insert(900);
+        assert_eq!(reused.arena_index(), retired.arena_index());
+        assert_ne!(reused.generation(), retired.generation());
+        let tail = rows
+            .iter_from(128)
+            .take(3)
+            .map(|(handle, row)| (handle, *row))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            tail,
+            [
+                (span.handle_at(128), 128),
+                (reused, 900),
+                (span.handle_at(130), 130)
+            ]
+        );
+        assert!(rows.iter_from(300).next().is_none());
+        assert!(rows.iter_from(usize::MAX).next().is_none());
+    }
 
     #[derive(Default)]
     struct Tracked {

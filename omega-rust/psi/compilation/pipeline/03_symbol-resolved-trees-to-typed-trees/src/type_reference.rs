@@ -1329,7 +1329,7 @@ pub(crate) mod const_arguments {
                         .tables
                         .data_type_parameters
                         .span(alias.type_parameters)
-                        .map(<[_]>::to_vec)
+                        .map(|rows| rows.to_vec())
                 }
                 symbols::SymbolKind::Machine | symbols::SymbolKind::State => {
                     let machine = program

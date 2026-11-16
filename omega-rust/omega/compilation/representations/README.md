@@ -73,8 +73,9 @@ type; the folder is not one IR:
 
 | Program form | Root and operation |
 | --- | --- |
-| Layout-independent selected-form encoding | [`SelectedFormEncoding`](machine-code/src/encoding.rs), produced by [Omega 07](../pipeline/07_post-allocation-machine-to-selected-form-encoding/src/lib.rs) from the post-allocation machine and selected-program roots. |
-| Function-relative resolved layout | [`ResolvedMachineLayout`](machine-code/src/layout.rs), produced by [Omega 08](../pipeline/08_selected-form-encoding-to-resolved-layout/src/lib.rs) from encoded forms. [Omega 09](../pipeline/09_resolved-layout-to-resolved-layout/src/lib.rs) optimizes the same layout type. |
+| Framed machine program | [`FramedMachineProgram`](machine-code/src/machine_forms.rs): the post-allocation machine plan with its frame layout, and the selected program and register model it was allocated against. [Backend machine emission](../backend/machine-emission/src/function_realization.rs) produces it when it computes the frame; it is the one form Omega 07 reads. |
+| Layout-independent selected-form encoding | [`SelectedFormEncoding`](machine-code/src/encoding.rs), produced by [Omega 07](../pipeline/07_post-allocation-machine-to-selected-form-encoding/src/lib.rs) from the framed machine program, which its output keeps. |
+| Function-relative resolved layout | [`ResolvedMachineLayout`](machine-code/src/layout.rs), produced by [Omega 08](../pipeline/08_selected-form-encoding-to-resolved-layout/src/lib.rs) from Omega 07's output, which its output keeps. [Omega 09](../pipeline/09_resolved-layout-to-resolved-layout/src/lib.rs) optimizes the same layout type and keeps Omega 08's output. Each stage reads its input through the traits in [`machine_forms.rs`](machine-code/src/machine_forms.rs), so final assembly takes Omega 09's output alone. |
 | Emitted machine-code program | [`FunctionFragmentEmissionPlan`](machine-code/src/fragments.rs) placed into one [`RelocationFreeTextSectionPlacement`](machine-code/src/layout/text_section.rs), containing target fragments and their executable bytes. [Backend machine emission](../backend/machine-emission/src/lib.rs) owns function realization, fragment emission, frame application, and text placement; object and image owners consume their results. |
 
 [`ResolvedMachineProgram`](machine-code/src/layout.rs)

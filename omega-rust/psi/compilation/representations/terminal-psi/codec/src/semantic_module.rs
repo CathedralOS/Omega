@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 282`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 283`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -1030,7 +1030,8 @@ pub(crate) mod canonical_order {
                             .map_err(CodecError::MalformedStructuralFoundation)?;
                     }
                     Proposition::FloatIntegerConversion(_)
-                    | Proposition::IeeeFloatIntegerExact { .. } => {
+                    | Proposition::IeeeFloatIntegerExact { .. }
+                    | Proposition::IntegerIeeeFloatExact { .. } => {
                         proposition
                             .validate()
                             .map_err(CodecError::MalformedProposition)?;
@@ -4891,11 +4892,12 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Marker 280 retains transparent scalar predicate bodies and their own formals.
 // A 279 artifact cannot state declaration-time arithmetic formation for them.
 // Marker 281 adds total integer-result conversion and exact-cast predicates.
-// Marker 282 combines those predicates with owned nominal cleanup selections,
+// Marker 282 adds exact integer-to-float predicates.
+// Marker 283 combines those predicates with owned nominal cleanup selections,
 // ordinary owned cleanup actions, and consuming decomposition. Both preceding
-// layouts used 281; neither supplies this combined schema, and borrowed cleanup
+// layouts used 282; neither supplies this combined schema, and borrowed cleanup
 // action tags cannot acquire owned-transfer meaning.
-pub(crate) const FORMAT_MARKER: u16 = 282;
+pub(crate) const FORMAT_MARKER: u16 = 283;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
@@ -5979,7 +5981,7 @@ mod format_marker_tests {
         // float conversion ordinal also cannot supply the retained carrier identity.
         for legacy in [
             250u16, 251, 252, 256, 260, 261, 264, 265, 266, 267, 268, 269, 270, 271, 272, 273, 274,
-            275, 276, 277, 278, 279, 280, 281,
+            275, 276, 277, 278, 279, 280, 281, 282,
         ] {
             for payload in [&[][..], &[0xff, 0xff, 0xff][..]] {
                 let mut bytes = MAGIC.to_vec();

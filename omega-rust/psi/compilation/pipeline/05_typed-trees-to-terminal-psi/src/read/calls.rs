@@ -24,6 +24,8 @@ use super::storage_path::{names_storage, root_slot};
 use super::{Program, Slot, symbol_kind};
 use crate::body::{Expression, ExpressionKind, ValueType};
 use crate::{SourceOrigin, Unserved, refuse};
+use semantic_vocabulary::StructuralFieldId;
+use terminal_psi::ResolvedStructuralPathSegment as Segment;
 
 struct RigidInvocation<'a> {
     target: SymbolHandle,
@@ -483,7 +485,8 @@ impl<'t> Program<'t> {
             ));
         }
         let capture = self
-            .named_captures
+            .shared
+            .captures
             .get(self.typed, call)
             .map_err(unserved)?
             .ok_or_else(|| unserved("named map body has no prepared capture"))?;
@@ -1777,7 +1780,7 @@ impl<'t> Program<'t> {
         } else {
             return unserved("requirement call lost its binding declaration");
         };
-        let binders = self.value_binder_correspondence(id, binders, &parameters)?;
+        let binders = self.value_binder_correspondence(id, binders, (&parameters).into())?;
         self.bound_scalar_values(id, &binders, application_handle)
     }
 
@@ -2406,9 +2409,24 @@ impl<'t> Program<'t> {
                 self.unify(id, &free, *declared, actual, &mut bound)?;
             }
         }
-        lent_storage_is_untouched(id, &read, &self.captures, |place| {
-            place.result.is_some_and(|held| self.is_borrowed_view(held))
-        })?;
+        lent_storage_is_untouched(
+            id,
+            &read,
+            &self.captures,
+            |place| place.result.is_some_and(|held| self.is_borrowed_view(held)),
+            |slot| {
+                slots
+                    .get(slot)
+                    .is_some_and(|held| held.borrowed == Some(ReferenceAccess::Shared))
+            },
+            |record, field| match record {
+                ValueType::Record(row, _, _) => match &self.data_type(id, row).ok()?.shape {
+                    crate::StorageShape::Record(fields) => fields.get(field).map(|field| field.id),
+                    _ => None,
+                },
+                _ => None,
+            },
+        )?;
         if let SourceOrigin::Authored(span) = source
             && let Some(names) = self.names.get_mut(id)
         {
@@ -2939,14 +2957,30 @@ impl<'t> Program<'t> {
 }
 
 /// Arguments run left to right, but this lowering forms loans together at
-/// the call. Conservatively refuse any argument read or newly evaluated
-/// selector of a root this call lends, including reads before a loan. This
-/// preserves the existing restriction until loan timing is represented.
+/// the call. An argument read or newly evaluated selector that touches
+/// storage this call lends is refused, including reads before the loan,
+/// until loan timing is represented.
+///
+/// Storage is judged by field path, not by root (AGENTS.md rule 3), with
+/// the checker's own relation (`place_paths::may_overlap`, which
+/// `places::overlap` uses): two different fields of one record are disjoint, and every
+/// other pair of paths below one root may share storage. So `fs.a` does not
+/// touch a loan of `fs.b`, but does touch a loan of `fs` or of `fs.a.c`.
+/// An index selects a runtime element, so a path stops at its first index.
+///
+/// A shared loan only forbids changing the lent storage (ownership.md,
+/// "Borrows and aliases": "Shared loans may duplicate or reborrow, while
+/// exclusive loans must not overlap incompatibly"). A read beside it is
+/// harmless. A mutable loan conflicts with any use of overlapping storage,
+/// and so does a whole non-scalar slot that is not a shared reference,
+/// because using it moves or reborrows its value.
 ///
 /// A place that holds a byte view lends none of its binding's storage: the
 /// callee is given the view, whose bytes are elsewhere. lifetimes.md: "The
 /// result carries loans into the original backing, not a borrow of the
-/// caller's private carrier storage." `holds_view` says which places do.
+/// caller's private carrier storage." `holds_view` says which places do;
+/// `shared_reference` says which slots hold shared references, and
+/// `field_identity` names the field a record type has at a position.
 fn lent_storage_is_untouched<'a>(
     id: MachineId,
     arguments: &'a [Expression],
@@ -2955,6 +2989,8 @@ fn lent_storage_is_untouched<'a>(
         Expression,
     )],
     holds_view: impl Fn(&Expression) -> bool,
+    shared_reference: impl Fn(usize) -> bool,
+    field_identity: impl Fn(ValueType, usize) -> Option<StructuralFieldId>,
 ) -> Checked<()> {
     let mut captures: Vec<_> = captures
         .iter()
@@ -2962,26 +2998,36 @@ fn lent_storage_is_untouched<'a>(
         .collect();
     let mut lent = Vec::new();
     for argument in arguments {
-        if let ExpressionKind::Borrow { place, .. } = &argument.kind
+        if let ExpressionKind::Borrow { place, access, .. } = &argument.kind
             && !holds_view(place)
-            && let Some(slot) = root_slot(id, place, &captures)?
+            && let Some((slot, path)) = place_path(id, place, &captures, &field_identity)?
         {
-            lent.push(slot);
+            lent.push(Lent {
+                slot,
+                path,
+                mutable: *access != ReferenceAccess::Shared,
+            });
         }
     }
     if lent.is_empty() {
         return Ok(());
     }
+    let touches = Touches {
+        id,
+        lent: &lent,
+        shared_reference: &shared_reference,
+        field_identity: &field_identity,
+    };
     for argument in arguments {
         if let ExpressionKind::Borrow { place, .. } = &argument.kind {
-            if selectors_mention(id, place, &lent, &mut captures)? {
+            if touches.selectors(place, &mut captures)? {
                 return Err(refuse(
                     id,
                     Construct::Machine,
                     Unserved::Call("loan selector that names storage another argument lends"),
                 ));
             }
-        } else if mentions(id, argument, &lent, &mut captures)? {
+        } else if touches.expression(argument, false, &mut captures)? {
             return Err(refuse(
                 id,
                 Construct::Machine,
@@ -2992,144 +3038,253 @@ fn lent_storage_is_untouched<'a>(
     Ok(())
 }
 
-/// A saved subject's selectors are captured, so they do not evaluate again.
-/// New index operands still run while earlier argument loans are live.
-fn selectors_mention<'a>(
-    id: MachineId,
-    place: &'a Expression,
-    slots: &[usize],
-    captures: &mut Vec<(
-        arena::Handle<typed_trees::expression::CompletedValueCapture>,
-        &'a Expression,
-    )>,
-) -> Checked<bool> {
-    match &place.kind {
-        ExpressionKind::Index { base, index } => {
-            Ok(selectors_mention(id, base, slots, captures)?
-                || mentions(id, index, slots, captures)?)
-        }
-        ExpressionKind::Field { base, .. }
-        | ExpressionKind::Payload { base, .. }
-        | ExpressionKind::Referent(base) => selectors_mention(id, base, slots, captures),
-        ExpressionKind::SavedSubject(_) => {
-            root_slot(id, place, captures)?;
-            Ok(false)
-        }
-        _ => Ok(false),
-    }
+type SavedSubjects<'a> = Vec<(
+    arena::Handle<typed_trees::expression::CompletedValueCapture>,
+    &'a Expression,
+)>;
+
+/// A lent place: its root slot and the storage path below it. Crossing a
+/// reference adds no segment: whether a path spells `Referent` depends on how
+/// it was formed, and leaving it out only merges paths, never separates them.
+/// A path stops at its first index or case payload, so it covers the whole
+/// collection or sum: case payloads overlay one another.
+struct Lent {
+    slot: usize,
+    path: Vec<Segment>,
+    mutable: bool,
 }
 
-/// A saved subject still reads its captured backing, but not its old selector.
-fn mentions<'a>(
+/// The root slot and static path a place names, without evaluating any
+/// selector. `None` when the place is not rooted in a slot.
+fn place_path<'a>(
     id: MachineId,
-    expression: &'a Expression,
-    slots: &[usize],
-    captures: &mut Vec<(
+    place: &'a Expression,
+    captures: &[(
         arena::Handle<typed_trees::expression::CompletedValueCapture>,
         &'a Expression,
-    )>,
-) -> Checked<bool> {
-    match &expression.kind {
-        ExpressionKind::Atomic(operation) => {
-            for operand in operation.inputs() {
-                if mentions(id, operand, slots, captures)? {
-                    return Ok(true);
+    )],
+    field_identity: &dyn Fn(ValueType, usize) -> Option<StructuralFieldId>,
+) -> Checked<Option<(usize, Vec<Segment>)>> {
+    let mut resolved = super::storage_path::Captures::new(id, captures);
+    let mut steps = Vec::new();
+    let root = super::storage_path::walk(
+        place,
+        |capture| resolved.resolve(capture),
+        |projection, _| {
+            match &projection.kind {
+                ExpressionKind::Field { base, field } => steps.push(
+                    base.result
+                        .and_then(|record| field_identity(record, *field))
+                        .map(Segment::Field),
+                ),
+                ExpressionKind::Payload { .. } | ExpressionKind::Index { .. } => steps.push(None),
+                _ => {}
+            }
+            Ok(())
+        },
+    )?;
+    let ExpressionKind::Slot(slot) = root.kind else {
+        return Ok(None);
+    };
+    steps.reverse();
+    let path = steps.into_iter().map_while(|step| step).collect();
+    Ok(Some((slot, path)))
+}
+
+struct Touches<'l> {
+    id: MachineId,
+    lent: &'l [Lent],
+    shared_reference: &'l dyn Fn(usize) -> bool,
+    field_identity: &'l dyn Fn(ValueType, usize) -> Option<StructuralFieldId>,
+}
+
+impl Touches<'_> {
+    /// Whether using the storage at `slot` and `path` conflicts with a loan,
+    /// by the one storage-path relation the checker also uses.
+    /// `changes` marks a use that may change, move or mutably reborrow it.
+    fn conflicts(&self, slot: usize, path: &[Segment], changes: bool) -> bool {
+        self.lent.iter().any(|lent| {
+            lent.slot == slot
+                && (lent.mutable || changes)
+                && terminal_semantics::storage::place_paths::may_overlap(&lent.path, path)
+        })
+    }
+
+    /// A saved subject's selectors are captured, so they do not evaluate
+    /// again. New index operands still run while earlier argument loans
+    /// are live.
+    fn selectors<'a>(
+        &self,
+        place: &'a Expression,
+        captures: &mut SavedSubjects<'a>,
+    ) -> Checked<bool> {
+        match &place.kind {
+            ExpressionKind::Index { base, index } => {
+                Ok(self.selectors(base, captures)? || self.expression(index, false, captures)?)
+            }
+            ExpressionKind::Field { base, .. }
+            | ExpressionKind::Payload { base, .. }
+            | ExpressionKind::Referent(base) => self.selectors(base, captures),
+            ExpressionKind::SavedSubject(_) => {
+                root_slot(self.id, place, captures)?;
+                Ok(false)
+            }
+            _ => Ok(false),
+        }
+    }
+
+    /// A place touches the storage its path names; its new selectors and
+    /// any root that is not a slot are evaluated expressions. A saved
+    /// subject still uses its captured backing, but not its old selector.
+    fn place<'a>(
+        &self,
+        place: &'a Expression,
+        changes: bool,
+        captures: &mut SavedSubjects<'a>,
+    ) -> Checked<bool> {
+        let mut root = place;
+        loop {
+            match &root.kind {
+                ExpressionKind::Index { base, index } => {
+                    if self.expression(index, false, captures)? {
+                        return Ok(true);
+                    }
+                    root = base;
                 }
+                ExpressionKind::Field { base, .. }
+                | ExpressionKind::Payload { base, .. }
+                | ExpressionKind::Referent(base) => root = base,
+                _ => break,
             }
-            Ok(false)
         }
-        ExpressionKind::Slot(slot) => Ok(slots.contains(slot)),
-        ExpressionKind::SavedSubject(_) => {
-            Ok(root_slot(id, expression, captures)?.is_some_and(|root| slots.contains(&root)))
+        if !matches!(
+            root.kind,
+            ExpressionKind::Slot(_) | ExpressionKind::SavedSubject(_)
+        ) {
+            return self.expression(root, changes, captures);
         }
-        ExpressionKind::Integer(_)
-        | ExpressionKind::Float(_)
-        | ExpressionKind::ScalarApplication { .. }
-        | ExpressionKind::ByteLiteral(_)
-        | ExpressionKind::Boolean(_) => Ok(false),
-        ExpressionKind::Referent(operand)
-        | ExpressionKind::Not(operand)
-        | ExpressionKind::BitwiseNot(operand)
-        | ExpressionKind::Cast(operand)
-        | ExpressionKind::Requalify(operand)
-        | ExpressionKind::Establish { operand, .. }
-        | ExpressionKind::Field { base: operand, .. }
-        | ExpressionKind::ArrayView { base: operand, .. }
-        | ExpressionKind::CollectionMeasure { base: operand, .. }
-        | ExpressionKind::Payload { base: operand, .. }
-        | ExpressionKind::IsCase {
-            subject: operand, ..
-        }
-        | ExpressionKind::Borrow { place: operand, .. } => mentions(id, operand, slots, captures),
-        ExpressionKind::Array { elements } => {
-            for element in elements {
-                if mentions(id, element, slots, captures)? {
-                    return Ok(true);
-                }
-            }
-            Ok(false)
-        }
-        ExpressionKind::CollectionSubslice { base, start, end } => {
-            for operand in std::iter::once(base.as_ref())
-                .chain(start.as_deref())
-                .chain(end.as_deref())
-            {
-                if mentions(id, operand, slots, captures)? {
-                    return Ok(true);
-                }
-            }
-            Ok(false)
-        }
-        ExpressionKind::Index { base, index } | ExpressionKind::ByteElement { base, index } => {
-            Ok(mentions(id, base, slots, captures)? || mentions(id, index, slots, captures)?)
-        }
-        ExpressionKind::Record { fields } | ExpressionKind::Case { fields, .. } => {
-            for (_, operand) in fields {
-                if mentions(id, operand, slots, captures)? {
-                    return Ok(true);
-                }
-            }
-            Ok(false)
-        }
-        ExpressionKind::Match {
-            capture,
-            subject,
-            arms,
-            default,
-        } => {
-            if mentions(id, subject, slots, captures)? {
-                return Ok(true);
-            }
-            if let Some(capture) = capture {
-                captures.push((*capture, subject));
-            }
-            let result = (|| {
-                for (_, arm) in arms {
-                    if mentions(id, arm, slots, captures)? {
+        let Some((slot, path)) = place_path(self.id, place, captures, self.field_identity)? else {
+            return Ok(false);
+        };
+        // Using a whole slot moves or reborrows its value unless it is a
+        // scalar copy or a shared reference.
+        let whole = matches!(place.kind, ExpressionKind::Slot(_))
+            && place.result.and_then(ValueType::scalar).is_none()
+            && !(self.shared_reference)(slot);
+        Ok(self.conflicts(slot, &path, changes || whole))
+    }
+
+    fn expression<'a>(
+        &self,
+        expression: &'a Expression,
+        changes: bool,
+        captures: &mut SavedSubjects<'a>,
+    ) -> Checked<bool> {
+        match &expression.kind {
+            ExpressionKind::Atomic(operation) => {
+                for operand in operation.inputs() {
+                    if self.expression(operand, false, captures)? {
                         return Ok(true);
                     }
                 }
-                match default {
-                    Some(arm) => mentions(id, arm, slots, captures),
-                    None => Ok(false),
-                }
-            })();
-            if capture.is_some() {
-                captures.pop();
+                Ok(false)
             }
-            result
-        }
-        ExpressionKind::Strict { left, right, .. }
-        | ExpressionKind::ShortCircuit { left, right, .. } => {
-            Ok(mentions(id, left, slots, captures)? || mentions(id, right, slots, captures)?)
-        }
-        ExpressionKind::Call { arguments, .. } => {
-            for argument in arguments {
-                if mentions(id, argument, slots, captures)? {
+            ExpressionKind::Slot(_)
+            | ExpressionKind::SavedSubject(_)
+            | ExpressionKind::Field { .. }
+            | ExpressionKind::Payload { .. }
+            | ExpressionKind::Index { .. }
+            | ExpressionKind::Referent(_) => self.place(expression, changes, captures),
+            ExpressionKind::Integer(_)
+            | ExpressionKind::Float(_)
+            | ExpressionKind::ScalarApplication { .. }
+            | ExpressionKind::ByteLiteral(_)
+            | ExpressionKind::Boolean(_) => Ok(false),
+            ExpressionKind::Not(operand)
+            | ExpressionKind::BitwiseNot(operand)
+            | ExpressionKind::Cast(operand)
+            | ExpressionKind::Requalify(operand)
+            | ExpressionKind::Establish { operand, .. }
+            | ExpressionKind::ArrayView { base: operand, .. }
+            | ExpressionKind::CollectionMeasure { base: operand, .. }
+            | ExpressionKind::IsCase {
+                subject: operand, ..
+            } => self.expression(operand, changes, captures),
+            ExpressionKind::Borrow { place, access, .. } => self.expression(
+                place,
+                changes || *access != ReferenceAccess::Shared,
+                captures,
+            ),
+            ExpressionKind::Array { elements } => {
+                for element in elements {
+                    if self.expression(element, changes, captures)? {
+                        return Ok(true);
+                    }
+                }
+                Ok(false)
+            }
+            ExpressionKind::CollectionSubslice { base, start, end } => {
+                if self.expression(base, changes, captures)? {
                     return Ok(true);
                 }
+                for operand in start.iter().chain(end.iter()) {
+                    if self.expression(operand, false, captures)? {
+                        return Ok(true);
+                    }
+                }
+                Ok(false)
             }
-            Ok(false)
+            ExpressionKind::ByteElement { base, index } => Ok(self
+                .expression(base, false, captures)?
+                || self.expression(index, false, captures)?),
+            ExpressionKind::Record { fields } | ExpressionKind::Case { fields, .. } => {
+                for (_, operand) in fields {
+                    if self.expression(operand, changes, captures)? {
+                        return Ok(true);
+                    }
+                }
+                Ok(false)
+            }
+            ExpressionKind::Match {
+                capture,
+                subject,
+                arms,
+                default,
+            } => {
+                if self.expression(subject, changes, captures)? {
+                    return Ok(true);
+                }
+                if let Some(capture) = capture {
+                    captures.push((*capture, subject));
+                }
+                let result = (|| {
+                    for (_, arm) in arms {
+                        if self.expression(arm, changes, captures)? {
+                            return Ok(true);
+                        }
+                    }
+                    match default {
+                        Some(arm) => self.expression(arm, changes, captures),
+                        None => Ok(false),
+                    }
+                })();
+                if capture.is_some() {
+                    captures.pop();
+                }
+                result
+            }
+            ExpressionKind::Strict { left, right, .. }
+            | ExpressionKind::ShortCircuit { left, right, .. } => Ok(self
+                .expression(left, false, captures)?
+                || self.expression(right, false, captures)?),
+            ExpressionKind::Call { arguments, .. } => {
+                for argument in arguments {
+                    if self.expression(argument, false, captures)? {
+                        return Ok(true);
+                    }
+                }
+                Ok(false)
+            }
         }
     }
 }
@@ -3385,40 +3540,60 @@ mod tests {
         )];
         // The payload aliases the original array, but its selector was read
         // before the call. Lending that selector's slot must not replay it.
-        let overlapping =
-            lent_storage_is_untouched(id, &[borrow(slot(0)), payload(capture)], &captures, |_| {
-                false
-            })
-            .unwrap_err();
+        let overlapping = lent_storage_is_untouched(
+            id,
+            &[borrow(slot(0)), payload(capture)],
+            &captures,
+            |_| false,
+            |_| false,
+            |_, _| None,
+        )
+        .unwrap_err();
         assert!(
             overlapping
                 .detail
                 .contains("argument that names storage another argument lends")
         );
         assert!(
-            lent_storage_is_untouched(id, &[borrow(slot(1)), payload(capture)], &captures, |_| {
-                false
-            })
+            lent_storage_is_untouched(
+                id,
+                &[borrow(slot(1)), payload(capture)],
+                &captures,
+                |_| false,
+                |_| false,
+                |_, _| None
+            )
             .is_ok()
         );
         assert!(
-            lent_storage_is_untouched(id, &[borrow(slot(2)), payload(capture)], &captures, |_| {
-                false
-            })
+            lent_storage_is_untouched(
+                id,
+                &[borrow(slot(2)), payload(capture)],
+                &captures,
+                |_| false,
+                |_| false,
+                |_, _| None
+            )
             .is_ok()
         );
-        let refused =
-            lent_storage_is_untouched(id, &[borrow(slot(0)), payload(foreign)], &captures, |_| {
-                false
-            })
-            .unwrap_err();
+        let refused = lent_storage_is_untouched(
+            id,
+            &[borrow(slot(0)), payload(foreign)],
+            &captures,
+            |_| false,
+            |_| false,
+            |_, _| None,
+        )
+        .unwrap_err();
         assert!(refused.detail.contains("outside its match capture"));
         assert!(
             lent_storage_is_untouched(
                 id,
                 &[borrow(saved(capture)), payload(capture)],
                 &captures,
-                |_| false
+                |_| false,
+                |_| false,
+                |_, _| None
             )
             .is_err()
         );
@@ -3427,9 +3602,91 @@ mod tests {
                 id,
                 &[borrow(slot(2)), payload(capture)],
                 &[(capture, saved(capture))],
-                |_| false
+                |_| false,
+                |_| false,
+                |_, _| None
             )
             .is_err()
         );
+    }
+
+    /// AGENTS.md rule 3: a loan of one field leaves a sibling field usable,
+    /// and a shared loan leaves its own storage readable.
+    #[test]
+    fn lent_storage_is_judged_by_field_path_and_access() {
+        let id = MachineId::new(1).unwrap();
+        let source = SourceOrigin::Unpositioned(Unpositioned::SpanAbsent);
+        let record = ValueType::record(StructuralTypeId::new(1).unwrap());
+        let scalar = ValueType::plain(ScalarType::Integer(
+            IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
+        ));
+        let root = || Expression {
+            call_context: None,
+            kind: ExpressionKind::Slot(0),
+            result: Some(record),
+            source,
+        };
+        let field = |field, result| Expression {
+            call_context: None,
+            kind: ExpressionKind::Field {
+                base: Box::new(Expression {
+                    call_context: None,
+                    kind: ExpressionKind::Referent(Box::new(root())),
+                    result: Some(record),
+                    source,
+                }),
+                field,
+            },
+            result: Some(result),
+            source,
+        };
+        let borrow = |access, place: Expression| Expression {
+            call_context: None,
+            result: place.result,
+            kind: ExpressionKind::Borrow {
+                access,
+                place: Box::new(place),
+                home: None,
+            },
+            source,
+        };
+        let check = |arguments: &[Expression], shared: bool| {
+            lent_storage_is_untouched(
+                id,
+                arguments,
+                &[],
+                |_| false,
+                |_| shared,
+                |_, field| StructuralFieldId::new(u64::try_from(field).ok()? + 1),
+            )
+        };
+        let mutable = || borrow(ReferenceAccess::Mutable, field(1, record));
+        let shared = || borrow(ReferenceAccess::Shared, field(1, record));
+        // `f(fs.fd, &mut fs.buffer)`: distinct fields.
+        assert!(check(&[field(0, scalar), mutable()], false).is_ok());
+        // `f(fs.buffer.len, &mut fs.buffer)`: inside the mutable loan.
+        let inner = Expression {
+            call_context: None,
+            kind: ExpressionKind::Field {
+                base: Box::new(field(1, record)),
+                field: 0,
+            },
+            result: Some(scalar),
+            source,
+        };
+        let refused = check(&[inner.clone(), mutable()], false).unwrap_err();
+        assert!(
+            refused
+                .detail
+                .contains("argument that names storage another argument lends")
+        );
+        // `f(fs, &mut fs.buffer)`: the whole root contains the loan.
+        assert!(check(&[root(), mutable()], true).is_err());
+        // `f(fs.buffer.len, &fs.buffer)`: reading beside a shared loan.
+        assert!(check(&[inner, shared()], false).is_ok());
+        // `f(fs, &fs.buffer)`: a shared reference passed whole only reads;
+        // an owned record passed whole moves the lent storage.
+        assert!(check(&[root(), shared()], true).is_ok());
+        assert!(check(&[root(), shared()], false).is_err());
     }
 }

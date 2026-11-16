@@ -1,6 +1,6 @@
 /*
 We lower allocated post-allocation machine plans (`PostAllocationMachinePlan`) and their stage 07–09 encodings and layouts into placed native function text (`StagedOptimizedFixedFrameTextSection`), and we emit the target-owned native entry and foreign C calling bridges (`native_entry_bridge`, `native_foreign_bridge`) that sit outside the ordinary function compilation route. Native realization drives our four route stages in sequence:
-1. `stage_function_frame` and `assemble_fixed_frame_realization` (`function_realization`) compute per-function callee-save storage and frame geometry (`frame_layout`), encode target prologue and epilogue byte spans (`frame_protocol`), join the stage 07–09 encoding and layout artifacts, and stage whole-function exit evidence (`exit_contract`).
+1. `stage_function_frame` and `assemble_fixed_frame_realization` (`function_realization`) compute per-function callee-save storage and frame geometry (`frame_layout`), encode target prologue and epilogue byte spans (`frame_protocol`), produce the framed machine program stage 07 reads, and, from stage 09's output alone, stage whole-function exit evidence (`exit_contract`).
 2. `stage_optimized_function_fragment_emission` (`fragment_emission`) projects the fixed-frame realization into unplaced function fragments while preserving maximal source-attributed byte intervals and unresolved call or image-address fixup records.
 3. `stage_function_fragment_frame_application` (`frame_application`) inserts each function's prologue at block entry and epilogue before every retained return, reflows block, instruction, and fixup offsets, and re-encodes any relative branches whose displacements cross an inserted frame sequence.
 4. `stage_optimized_fixed_frame_text_section` (`text_placement`) places the framed function fragments into one aligned text section and resolves internal machine calls.
@@ -65,7 +65,8 @@ pub use frame_protocol::{
     TargetFrameProtocolEncodingPolicy, target_frame_protocol_encoding_identity,
 };
 pub use function_realization::{
-    FunctionRelativeFrame, FunctionRelativeOptimizationRealizationError,
+    EncodedFunction, FramedFunction, FunctionRelativeFrame,
+    FunctionRelativeOptimizationRealizationError, LaidOutFunction, OptimizedFunctionLayout,
     StagedFixedFrameFunctionRelativeRealization, assemble_fixed_frame_realization,
     stage_function_frame,
 };

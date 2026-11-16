@@ -56,7 +56,6 @@ mod subjects;
 mod transitions;
 mod types;
 
-use arena::Arena;
 use semantic_vocabulary::{
     BoundaryMachineId, CrashCause, IdTable, MachineId, PackageKeyIdentity, StructuralTypeId,
 };
@@ -102,7 +101,7 @@ pub(crate) struct Program<'t> {
     /// Publication assigns portable identities to the prepared definitions.
     pub predicate_definitions: Vec<Option<PredicateDefinition>>,
     typed: &'t TypedTrees,
-    named_captures: crate::NamedCaptures,
+    shared: crate::SharedReading,
     /// Irreversible storage-description phase, entered after the body closure.
     descriptor_storage: bool,
     /// The typed-tree machine of each discovered `MachineId`.
@@ -326,15 +325,13 @@ fn crash_cause(cause: typed_trees::signature::CrashCause) -> CrashCause {
 
 /// Reads a span of a typed-tree arena, refusing an invalid span instead of
 /// reading it as empty.
-fn span<'a, T: Default>(
-    arena: &'a Arena<T>,
+fn span<T, Rows>(
+    read: impl FnOnce(arena::HandleSpan<T>) -> Option<Rows>,
     span: arena::HandleSpan<T>,
     machine: MachineId,
     what: &'static str,
-) -> Checked<&'a [T]> {
-    arena
-        .span(span)
-        .ok_or_else(|| refuse(machine, Construct::Machine, Unserved::Machine(what)))
+) -> Checked<Rows> {
+    read(span).ok_or_else(|| refuse(machine, Construct::Machine, Unserved::Machine(what)))
 }
 impl<'t> Program<'t> {
     pub fn typed(&self) -> &'t TypedTrees {
@@ -363,7 +360,7 @@ impl<'t> Program<'t> {
             typed,
             rigid,
             source::DependencyScope::Product,
-            crate::named_captures(typed),
+            crate::shared_reading(typed),
         )
     }
 
@@ -371,7 +368,7 @@ impl<'t> Program<'t> {
         typed: &'t TypedTrees,
         rigid: bool,
         purpose: source::DependencyScope,
-        captures: crate::NamedCaptures,
+        shared: crate::SharedReading,
     ) -> Self {
         Self {
             publication: terminal_codec::TerminalPublication::Portable,
@@ -381,7 +378,7 @@ impl<'t> Program<'t> {
                 .take(typed.mathematical_definitions().len())
                 .collect(),
             typed,
-            named_captures: captures,
+            shared,
             descriptor_storage: false,
             symbols: IdTable::default(),
             signatures: IdTable::default(),

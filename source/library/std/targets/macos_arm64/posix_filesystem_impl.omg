@@ -616,25 +616,25 @@ reaches FilesystemNamespaceMutation
     }
 }
 
-machine macos_arm64_posix_read_metadata(path: &[u8] in Path, buffer: &mut [u8]) -> i32
+machine macos_arm64_posix_read_metadata(path: &[u8] in Path, buffer: &mut [u8; 144]) -> i32
     satisfies PosixFilesystemHost::read_metadata
 reaches FilesystemMetadataQuery
 {
     PosixFilesystemHost::read_metadata_at(-2, path as -Path, buffer, 0)
 }
 
-machine macos_arm64_posix_read_file_metadata(fd: i32, buffer: &mut [u8]) -> i32
+machine macos_arm64_posix_read_file_metadata(fd: i32, buffer: &mut [u8; 144]) -> i32
     satisfies PosixFilesystemHost::read_file_metadata
 reaches FilesystemMetadataQuery
 {
-    transition buffer.len >= 144 { true -> query(fd, buffer) _ -> -22 }
-    machine query(fd: i32, buffer: &mut [u8]) -> i32 requires buffer.len >= 144 {
-        let outcome: i32 = PosixFilesystemDarwin::c_read_file_metadata(fd, &mut buffer[0] as &mut [u8; 144]);
+    query(fd, buffer)
+    machine query(fd: i32, buffer: &mut [u8; 144]) -> i32 {
+        let outcome: i32 = PosixFilesystemDarwin::c_read_file_metadata(fd, buffer);
         transition outcome < 0 { true -> darwin_failure_i32() _ -> outcome }
     }
 }
 
-machine macos_arm64_posix_read_symlink_metadata(path: &[u8] in Path, buffer: &mut [u8]) -> i32
+machine macos_arm64_posix_read_symlink_metadata(path: &[u8] in Path, buffer: &mut [u8; 144]) -> i32
     satisfies PosixFilesystemHost::read_symlink_metadata
 reaches FilesystemMetadataQuery
 {
@@ -643,22 +643,20 @@ reaches FilesystemMetadataQuery
 
 // The kernel writes one complete native record into caller-owned storage.
 // Only path termination needs scratch; undersized output never reaches libc.
-machine macos_arm64_posix_read_metadata_at(directory_descriptor: i32, name: &[u8], buffer: &mut [u8], flags: i32) -> i32
+machine macos_arm64_posix_read_metadata_at(directory_descriptor: i32, name: &[u8], buffer: &mut [u8; 144], flags: i32) -> i32
     satisfies PosixFilesystemHost::read_metadata_at
 reaches FilesystemMetadataQuery
 {
-    transition buffer.len >= 144 { true -> prepare(directory_descriptor, name, buffer, flags) _ -> -22 }
-    machine prepare(directory_descriptor: i32, name: &[u8], buffer: &mut [u8], flags: i32) -> i32
-    requires buffer.len >= 144
+    prepare(directory_descriptor, name, buffer, flags)
+    machine prepare(directory_descriptor: i32, name: &[u8], buffer: &mut [u8; 144], flags: i32) -> i32
     {
         let mut terminated: [u8; 4096];
         let fits: bool = posix_terminated_path(name, &mut terminated[..]);
         transition fits { true -> query(directory_descriptor, terminated, buffer, flags) _ -> -63 }
     }
-    machine query(directory_descriptor: i32, terminated: [u8; 4096], buffer: &mut [u8], flags: i32) -> i32
-    requires buffer.len >= 144
+    machine query(directory_descriptor: i32, terminated: [u8; 4096], buffer: &mut [u8; 144], flags: i32) -> i32
     {
-        let outcome: i32 = PosixFilesystemDarwin::c_read_metadata_at(directory_descriptor, &terminated, &mut buffer[0] as &mut [u8; 144], flags);
+        let outcome: i32 = PosixFilesystemDarwin::c_read_metadata_at(directory_descriptor, &terminated, buffer, flags);
         transition outcome < 0 { true -> darwin_failure_i32() _ -> outcome }
     }
 }
@@ -674,17 +672,17 @@ reaches FilesystemContentWrite + FilesystemMetadataMutation
     }
 }
 
-machine macos_arm64_posix_set_file_times(fd: i32, times: &[u8]) -> i32
+machine macos_arm64_posix_set_file_times(fd: i32, times: &[u8; 32]) -> i32
     satisfies PosixFilesystemHost::set_file_times
 reaches FilesystemMetadataMutation
 {
-    transition times.len >= 32 { true -> update(fd, times) _ -> -22 }
-    machine update(fd: i32, times: &[u8]) -> i32 requires times.len >= 32 {
+    update(fd, times)
+    machine update(fd: i32, times: &[u8; 32]) -> i32 {
         let mut native: DarwinFileTimes;
-        native[0].seconds = darwin_timestamp_word(times[0..8]);
-        native[0].nanoseconds = darwin_timestamp_word(times[8..16]);
-        native[1].seconds = darwin_timestamp_word(times[16..24]);
-        native[1].nanoseconds = darwin_timestamp_word(times[24..32]);
+        native[0].seconds = darwin_timestamp_word(&times[0..8]);
+        native[0].nanoseconds = darwin_timestamp_word(&times[8..16]);
+        native[1].seconds = darwin_timestamp_word(&times[16..24]);
+        native[1].nanoseconds = darwin_timestamp_word(&times[24..32]);
         let outcome: i32 = PosixFilesystemDarwin::c_set_file_times(fd, &native);
         transition outcome < 0 { true -> darwin_failure_i32() _ -> outcome }
     }

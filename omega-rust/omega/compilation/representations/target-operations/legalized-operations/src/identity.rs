@@ -2,7 +2,7 @@
 Canonical identity construction for `LegalizedOperationPlan` and its subordinate representations.
 
 We compute collision-resistant SHA-256 identity digests (`LegalizedOperationPlanIdentity`) over
-the canonical wire encoding of a legalized plan (`omega.terminal-legalized-operations.v86\0` and
+the canonical wire encoding of a legalized plan (`omega.terminal-legalized-operations.v87\0` and
 `ordinary-scalar-graph.v45\0`). Every optional field uses a tagged `0` / `1 + payload` frame
 (`encode_option`) so an absent row and an empty payload never share bytes.
 */
@@ -48,7 +48,7 @@ pub fn legalized_operation_plan_identity(
     plan: &LegalizedOperationPlan,
 ) -> LegalizedOperationPlanIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-legalized-operations.v86\0");
+    bytes.extend_from_slice(b"omega.terminal-legalized-operations.v87\0");
     bytes.extend_from_slice(plan.psi.program_fingerprint.as_bytes());
     crate::codec_bytes::push_encoded(&mut bytes, plan.psi.vocabulary_marker.get().to_le_bytes());
     bytes.extend_from_slice(&plan.optimization_unit.bytes());
@@ -60,16 +60,6 @@ pub fn legalized_operation_plan_identity(
         bytes.extend_from_slice(name);
     });
     crate::codec_bytes::push_encoded(&mut bytes, plan.entry.get().to_le_bytes());
-    match &plan.retained_integers {
-        crate::RetainedIntegerTypes::Unsealed => bytes.push(0),
-        crate::RetainedIntegerTypes::Module(retained) => {
-            bytes.push(1);
-            encode_len(&mut bytes, retained.len());
-            for integer in retained {
-                encode_integer_type(&mut bytes, integer.as_checking());
-            }
-        }
-    }
     encode_len(&mut bytes, plan.installation_operations.len());
     for operation in &plan.installation_operations {
         crate::codec_bytes::push_encoded(&mut bytes, operation.get().to_le_bytes());
@@ -402,24 +392,12 @@ mod tests {
     }
 
     #[test]
-    fn prepared_plan_identity_binds_retained_types_and_installations() {
+    fn prepared_plan_identity_binds_installations() {
         let mut plan = crate::tests::scalar_call_unit_plan();
-        let unsealed = super::legalized_operation_plan_identity(&plan);
-        plan.retained_integers = crate::RetainedIntegerTypes::Module(vec![]);
-        let empty_module = super::legalized_operation_plan_identity(&plan);
-        assert_ne!(unsealed, empty_module);
-        plan.retained_integers = crate::RetainedIntegerTypes::Module(vec![
-            semantic_vocabulary::ClosedIntegerType::new(
-                semantic_vocabulary::IntegerSign::Unsigned,
-                64,
-            )
-            .unwrap(),
-        ]);
-        let retained = super::legalized_operation_plan_identity(&plan);
-        assert_ne!(empty_module, retained);
+        let original = super::legalized_operation_plan_identity(&plan);
         plan.installation_operations
             .push(semantic_vocabulary::OperationId::new(99).unwrap());
-        assert_ne!(retained, super::legalized_operation_plan_identity(&plan));
+        assert_ne!(original, super::legalized_operation_plan_identity(&plan));
     }
 
     #[test]

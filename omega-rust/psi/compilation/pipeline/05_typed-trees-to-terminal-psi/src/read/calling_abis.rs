@@ -9,8 +9,8 @@ use symbols::SymbolHandle;
 use terminal_check_tables::{Checked, Construct, Refusal, RefusalReason};
 use terminal_psi::calling_policies::*;
 use terminal_psi::{StructuralAccess, TerminalIdentityTableBuilder, TerminalModule};
+use typed_trees::service_declarations::ProviderSchemaDeclaration;
 use typed_trees::service_declarations::provider_declarations::ProviderPlanningContext;
-use typed_trees::service_declarations::{PreparedServiceCatalog, ProviderSchemaDeclaration};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 use super::Program;
@@ -71,13 +71,13 @@ impl Program<'_> {
         }
         let typed = self.typed;
         let context = ProviderPlanningContext::new(typed, self.purpose);
-        // This catalog supplies source signatures, not selection authority.
-        // The coordinator authenticates the nominated handles against its
-        // admitted source registry before constructing this compilation.
-        let sources =
-            source::source_identity::toolchain_source_identities(typed.symbols.source_files())
-                .map_err(|reason| unavailable(entry, reason))?;
-        let catalog = Arc::new(PreparedServiceCatalog::prepare(context, &sources));
+        // Every reading of this typed program and purpose shares one catalog.
+        let catalog = self
+            .shared
+            .calling_catalog(typed, self.purpose)
+            .as_ref()
+            .map(Arc::clone)
+            .map_err(|reason| unavailable(entry, reason.clone()))?;
         let services = catalog
             .bind(context)
             .map_err(|error| unavailable(entry, format!("calling metadata catalog: {error:?}")))?;
@@ -1086,6 +1086,48 @@ mod tests {
                 .err()
                 .unwrap(),
             "calling ABI source copies disagree on declared result storage in the selected checked context"
+        );
+    }
+
+    #[test]
+    fn readings_of_one_program_share_one_calling_catalog_per_purpose() {
+        // Conformance witnesses each read the same typed program. The second
+        // reading that asks for boundary metadata must borrow the catalog the
+        // first prepared instead of building another one.
+        let (typed, row, _) = fixture();
+        let shared = crate::shared_reading(&typed);
+        let entry = MachineId::new(1).unwrap();
+        let boundary = [row.projections[0].source];
+        let mut refusals = Vec::new();
+        for purpose in [
+            DependencyScope::Product,
+            DependencyScope::Product,
+            DependencyScope::Build,
+        ] {
+            let mut program = Program::with_captures(&typed, false, purpose, shared.clone());
+            program.begin_declaration_storage(entry, 0).unwrap();
+            let refused = match program.prepare_calling_abis(entry, &boundary) {
+                Ok(_) => panic!("the fixture boundary has no exact schema"),
+                Err(refusal) => refusal.detail,
+            };
+            refusals.push(refused);
+            let expected = match purpose {
+                DependencyScope::Product => 1,
+                DependencyScope::Build => 2,
+            };
+            assert_eq!(shared.prepared_calling_catalogs(), expected);
+        }
+        let product = shared.calling_catalog(&typed, DependencyScope::Product);
+        let again = shared.calling_catalog(&typed, DependencyScope::Product);
+        assert!(Arc::ptr_eq(
+            product.as_ref().unwrap(),
+            again.as_ref().unwrap()
+        ));
+        // Sharing the catalog leaves each reading's verdict as it was.
+        assert_eq!(refusals[0], refusals[1]);
+        assert_eq!(
+            refusals[0],
+            "metadata declaration has no exact boundary schema"
         );
     }
 }

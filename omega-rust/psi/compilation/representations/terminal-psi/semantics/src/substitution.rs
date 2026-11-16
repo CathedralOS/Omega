@@ -38,6 +38,12 @@ pub fn substitute_proposition_values(
                 target: *target,
             }
         }
+        Proposition::IntegerIeeeFloatExact { source, target } => {
+            Proposition::IntegerIeeeFloatExact {
+                source: substitute_scalar_term_values(source, substitutions),
+                target: *target,
+            }
+        }
         Proposition::Truth => Proposition::Truth,
         Proposition::Falsehood => Proposition::Falsehood,
         Proposition::Atom(atom) => Proposition::Atom(*atom),
@@ -151,6 +157,12 @@ pub fn substitute_proposition_structural_places(
         }
         Proposition::IeeeFloatIntegerExact { source, target } => {
             Proposition::IeeeFloatIntegerExact {
+                source: substitute_scalar_term_places(source, substitutions),
+                target: *target,
+            }
+        }
+        Proposition::IntegerIeeeFloatExact { source, target } => {
+            Proposition::IntegerIeeeFloatExact {
                 source: substitute_scalar_term_places(source, substitutions),
                 target: *target,
             }

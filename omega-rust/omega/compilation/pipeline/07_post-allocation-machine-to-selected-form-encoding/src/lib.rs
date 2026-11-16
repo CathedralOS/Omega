@@ -53,15 +53,16 @@ not run replay on its own output.
 /*
 Provenance and custody boundaries:
 
-We consume `CurrentSelectedProgram` (`selected-instructions`),
-`PostAllocationMachinePlan` (`post-allocation-machine`, produced by Stage 06),
-`ValidatedPhysicalRegisterModel` (`register-model`), and an optional
-`TargetFrameLayoutPlan` (`machine-code`). We produce
-`StagedOptimizedSelectedFormEncoding`, which wraps an immutable
-`SelectedFormEncoding` (`machine-code`) bound by its canonical content digest
-and row-state counts. Stage 08 (`selected-form-encoding-to-resolved-layout`)
-consumes this encoding to assign dense function-relative byte offsets and
-encode deferred branch instructions.
+We read one form, `FramedMachineProgram` (`machine-code`), which the frame step
+in backend machine emission produces: the `PostAllocationMachinePlan` from
+Stage 06, its `TargetFrameLayoutPlan`, and the selected program and
+`ValidatedPhysicalRegisterModel` it was allocated against. Any input that can
+reach that form (`FramedMachineSource`) will do. We produce
+`StagedOptimizedSelectedFormEncoding`, which keeps that input beside an
+immutable `SelectedFormEncoding` (`machine-code`) bound by its canonical
+content digest and row-state counts. Stage 08
+(`selected-form-encoding-to-resolved-layout`) reads this output alone to assign
+dense function-relative byte offsets and encode deferred branch instructions.
 */
 
 #![forbid(unsafe_code)]
@@ -82,9 +83,9 @@ use isa_x86_64::{
     X86_64SelectedFormEncodingError,
 };
 use machine_code::{
-    SelectedFormEncodedRowStore, SelectedFormEncoding, SelectedFormEncodingCounts,
-    SelectedFormEncodingIdentity, SelectedFormEncodingRow, SelectedFormEncodingState,
-    TargetFrameLayoutPlan,
+    EncodedMachineSource, FramedMachineProgram, FramedMachineSource, SelectedFormEncodedRowStore,
+    SelectedFormEncoding, SelectedFormEncodingCounts, SelectedFormEncodingIdentity,
+    SelectedFormEncodingRow, SelectedFormEncodingState, TargetFrameLayoutPlan,
 };
 use post_allocation_machine::{
     PostAllocationMachineFunction, PostAllocationMachineIdentity, PostAllocationMachineInstruction,
@@ -96,34 +97,66 @@ use selected_instructions::{
     SelectedInstructionPlanIdentity, terminator_instruction,
 };
 
-pub fn stage_optimized_layout_independent_selected_form_encoding(
-    selected: CurrentSelectedProgram<'_>,
-    machine: &PostAllocationMachinePlan,
-    physical: &ValidatedPhysicalRegisterModel,
-    frame: Option<&TargetFrameLayoutPlan>,
-) -> Result<StagedOptimizedSelectedFormEncoding, OptimizedSelectedFormEncodingError> {
-    let artifact = compute(selected, machine, physical, frame)?;
+/// Encode the framed machine program `source` carries. The output keeps
+/// `source`, so stage 08 and final assembly read the program this encoding
+/// was computed from instead of being handed it again.
+pub fn stage_optimized_layout_independent_selected_form_encoding<Source: FramedMachineSource>(
+    source: Source,
+) -> Result<StagedOptimizedSelectedFormEncoding<Source>, OptimizedSelectedFormEncodingError> {
+    let framed = source.framed_machine();
+    let artifact = compute(
+        framed.selected_program(),
+        &framed.machine,
+        &framed.physical,
+        Some(&framed.frame),
+    )?;
     Ok(StagedOptimizedSelectedFormEncoding {
+        source,
         program: Arc::new(artifact),
     })
 }
 
-pub fn validate_optimized_layout_independent_selected_form_encoding(
-    selected: CurrentSelectedProgram<'_>,
-    machine: &PostAllocationMachinePlan,
-    physical: &ValidatedPhysicalRegisterModel,
-    frame: Option<&TargetFrameLayoutPlan>,
-    artifact: &StagedOptimizedSelectedFormEncoding,
+/// Replay the encoding from the framed machine program it retains.
+pub fn validate_optimized_layout_independent_selected_form_encoding<Source: FramedMachineSource>(
+    artifact: &StagedOptimizedSelectedFormEncoding<Source>,
 ) -> Result<(), OptimizedSelectedFormEncodingError> {
-    validation::validate(selected, machine, physical, frame, artifact.program())
+    let framed = artifact.source.framed_machine();
+    validation::validate(
+        framed.selected_program(),
+        &framed.machine,
+        &framed.physical,
+        Some(&framed.frame),
+        artifact.program(),
+    )
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StagedOptimizedSelectedFormEncoding {
+pub struct StagedOptimizedSelectedFormEncoding<Source> {
+    source: Source, // The framed machine program this encoding was computed from.
     program: Arc<SelectedFormEncoding>,
 }
 
-impl StagedOptimizedSelectedFormEncoding {
+impl<Source: FramedMachineSource> FramedMachineSource
+    for StagedOptimizedSelectedFormEncoding<Source>
+{
+    fn framed_machine(&self) -> &FramedMachineProgram {
+        self.source.framed_machine()
+    }
+}
+
+impl<Source: FramedMachineSource> EncodedMachineSource
+    for StagedOptimizedSelectedFormEncoding<Source>
+{
+    fn encoding(&self) -> &SelectedFormEncoding {
+        &self.program
+    }
+}
+
+impl<Source> StagedOptimizedSelectedFormEncoding<Source> {
+    pub const fn source(&self) -> &Source {
+        &self.source
+    }
+
     pub fn program(&self) -> &SelectedFormEncoding {
         &self.program
     }

@@ -374,6 +374,11 @@ pub(crate) mod proposition_encoding {
                 encode_scalar_term(bytes, source);
                 encode_integer_type(bytes, *target);
             }
+            Proposition::IntegerIeeeFloatExact { source, target } => {
+                bytes.u8(22);
+                encode_scalar_term(bytes, source);
+                encode_float_format(bytes, *target);
+            }
             Proposition::FloatMeaningEqual(clause) => {
                 use semantic_vocabulary::{
                     FloatMeaningClauseOperand as Operand, FloatMeaningClauseValue as Value,

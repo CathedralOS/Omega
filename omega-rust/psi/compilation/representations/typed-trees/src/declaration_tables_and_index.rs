@@ -2434,10 +2434,13 @@ pub(crate) mod declaration_tables {
             }
             let row = Handle::from_parts(application.arena_index(), application.generation());
             let definition = self.tables.data_definitions.insert(definition);
-            *self.tables.data_application_definitions.get_mut(row) = crate::DataApplicationView {
-                definition,
-                is_closed,
-            };
+            self.tables.data_application_definitions.set(
+                row,
+                crate::DataApplicationView {
+                    definition,
+                    is_closed,
+                },
+            );
         }
 
         /// Drops the view retained for `application`, so the next
@@ -2450,8 +2453,9 @@ pub(crate) mod declaration_tables {
         ) {
             if self.data_application_definition(application).is_some() {
                 let row = Handle::from_parts(application.arena_index(), application.generation());
-                *self.tables.data_application_definitions.get_mut(row) =
-                    crate::DataApplicationView::default();
+                self.tables
+                    .data_application_definitions
+                    .set(row, crate::DataApplicationView::default());
             }
         }
 
@@ -2492,17 +2496,17 @@ pub(crate) mod declaration_tables {
 
         crate::declaration_columns! {
             data_type_parameters(data_definition: data::DataDefinition)
-                -> &[data::TypeParameter] = data_type_parameters.type_parameters;
+                -> rows[data::TypeParameter] = data_type_parameters.type_parameters;
             #[inline]
             data_members(data_definition: data::DataDefinition)
-                -> &[data::DataMember] = data_members.members
+                -> rows[data::DataMember] = data_members.members
                 [push_data_member];
             #[inline]
             data_payload_fields(variant: data::DataVariant)
-                -> &[data::DataField] = data_payload_fields.payload
+                -> rows[data::DataField] = data_payload_fields.payload
                 [push_data_payload_field];
             domain_type_parameters(domain: domain::DomainDefinition)
-                -> &[data::TypeParameter] = data_type_parameters.type_parameters;
+                -> rows[data::TypeParameter] = data_type_parameters.type_parameters;
             proposition_binders(proposition: proposition::PropositionDefinition)
                 -> &[proposition::PropositionBinder] = proposition_binders.binders
                 [push_proposition_binder];
@@ -2512,7 +2516,7 @@ pub(crate) mod declaration_tables {
             proof_facts(domain: domain::DomainDefinition)
                 -> &[domain::ProofFact] = proof_facts.facts;
             operator_type_parameters(operator: crate::operator::OperatorDefinition)
-                -> &[data::TypeParameter] = data_type_parameters.type_parameters;
+                -> rows[data::TypeParameter] = data_type_parameters.type_parameters;
             operator_parameters(operator: crate::operator::OperatorDefinition)
                 -> &[signature::StateParameter] = state_parameters.parameters
                 [push_operator_parameter];
@@ -2538,10 +2542,12 @@ pub(crate) mod declaration_tables {
 
         pub fn data_member_fields<'a>(
             &'a self,
-            members: &'a [data::DataMember],
+            members: impl IntoIterator<Item = &'a data::DataMember> + 'a,
         ) -> impl Iterator<Item = &'a data::DataField> + 'a {
-            members.iter().flat_map(|member| match member {
-                data::DataMember::Field(field) => std::slice::from_ref(field),
+            members.into_iter().flat_map(|member| match member {
+                data::DataMember::Field(field) => {
+                    arena::RootRows::from_slice(std::slice::from_ref(field))
+                }
                 data::DataMember::Variant(variant) => self.data_payload_fields(variant),
             })
         }
@@ -3866,9 +3872,9 @@ pub(crate) mod trait_and_machine_tables {
 
         crate::declaration_columns! {
             conformance_type_parameters(conformance: trait_definition::Conformance)
-                -> &[data::TypeParameter] = data_type_parameters.type_parameters;
+                -> rows[data::TypeParameter] = data_type_parameters.type_parameters;
             trait_type_parameters(trait_definition: trait_definition::TraitDefinition)
-                -> &[data::TypeParameter] = data_type_parameters.type_parameters;
+                -> rows[data::TypeParameter] = data_type_parameters.type_parameters;
             trait_requirements(trait_definition: trait_definition::TraitDefinition)
                 -> &[trait_definition::TraitRequirement] = trait_requirements.requires
                 [push_trait_requirement];
@@ -3877,7 +3883,7 @@ pub(crate) mod trait_and_machine_tables {
                 [push_trait_machine_signature];
             #[inline]
             machine_type_parameters(machine: machine::Machine)
-                -> &[data::TypeParameter] = data_type_parameters.type_parameters;
+                -> rows[data::TypeParameter] = data_type_parameters.type_parameters;
             machine_owned_data(machine: machine::Machine)
                 -> &[machine::OwnedData] = machine_owned_data.owned_data
                 [push_machine_owned_data];
@@ -3906,7 +3912,7 @@ pub(crate) mod trait_and_machine_tables {
                 -> &[signature::StateParameter] = state_parameters.parameters
                 [push_state_signature_parameter];
             state_signature_type_parameters(signature: signature::StateSignature)
-                -> &[data::TypeParameter] = data_type_parameters.type_parameters;
+                -> rows[data::TypeParameter] = data_type_parameters.type_parameters;
             state_signature_invokes(signature: signature::StateSignature)
                 -> &[signature::AuthoredInvocation] = signature_invokes.invokes
                 [push_state_signature_invoke];
@@ -4063,7 +4069,10 @@ pub(crate) mod trait_and_machine_tables {
                 .set(self.roots.machines.handle_at(position as u32), machine);
         }
 
-        pub fn declaration_type_parameters(&self, symbol: SymbolHandle) -> &[data::TypeParameter] {
+        pub fn declaration_type_parameters(
+            &self,
+            symbol: SymbolHandle,
+        ) -> arena::RootRows<'_, data::TypeParameter> {
             use symbols::SymbolKind;
             match self.symbols.get(symbol).kind {
                 SymbolKind::Data => self
@@ -4161,7 +4170,7 @@ pub(crate) mod trait_and_machine_tables {
                         return None;
                     }
                 } else {
-                    parameters = &[];
+                    parameters = Default::default();
                 }
             }
         }
@@ -4585,20 +4594,20 @@ pub(crate) mod trait_and_machine_tables {
 pub(crate) mod type_parameters {
     use crate::data::TypeParameter;
     use crate::declaration_index::SymbolRows;
-    use arena::{Arena, Handle, OwnedIndex};
+    use arena::{Arena, Handle, OwnedIndex, RootedArena};
 
     pub(crate) type TypeParameterIndex = SymbolRows<Handle<TypeParameter>>;
 
     #[derive(Clone, Default, PartialEq, Eq, compiler_storage::Record)]
     pub struct TypeParameterTable {
-        arena: Arena<TypeParameter>,
+        arena: RootedArena<TypeParameter>,
         index: OwnedIndex<TypeParameterIndex, ()>,
     }
 
     impl From<Arena<TypeParameter>> for TypeParameterTable {
         fn from(arena: Arena<TypeParameter>) -> Self {
             Self {
-                arena,
+                arena: arena.into(),
                 index: OwnedIndex::default(),
             }
         }
@@ -4609,7 +4618,7 @@ pub(crate) mod type_parameters {
         }
     }
     impl std::ops::Deref for TypeParameterTable {
-        type Target = Arena<TypeParameter>;
+        type Target = RootedArena<TypeParameter>;
         fn deref(&self) -> &Self::Target {
             &self.arena
         }
@@ -4783,7 +4792,7 @@ pub(crate) mod type_parameters {
                 replacement.revision(),
                 p.tables.data_type_parameters.revision()
             );
-            *p.tables.data_type_parameters = replacement;
+            *p.tables.data_type_parameters = replacement.into();
             assert_queries(&p, &symbols);
             let frozen = FrozenTypedTrees::from(p);
             assert_queries(&frozen, &symbols);
