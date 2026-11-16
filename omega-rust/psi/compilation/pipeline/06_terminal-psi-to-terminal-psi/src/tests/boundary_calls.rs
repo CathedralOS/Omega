@@ -1195,6 +1195,28 @@ machine entry() -> u32 crashes none {
     }
     executable.publish().unwrap();
     executable.publish_invocation().unwrap();
+    // A standalone generic check still owns an inherited method's binder.
+    // This only forms that check input; its declaration-only judgment has an
+    // independent diagnostic-context limitation.
+    let open = typed(
+        "trait Parent { machine read<const Limit: u64>(value: u32) -> u32 requires value <= Limit; } trait Child: Parent {} machine entry() {}",
+    );
+    let child = open
+        .traits()
+        .iter()
+        .find(|owner| owner.name.as_str() == "Child")
+        .unwrap();
+    let parent = open
+        .traits()
+        .iter()
+        .find(|owner| owner.name.as_str() == "Parent")
+        .unwrap();
+    let method = &open.trait_machine_signatures(parent)[0];
+    let binder = open.state_signature_type_parameters(method)[0].symbol;
+    let mut forms =
+        typed_trees_to_terminal_psi::elaborate_generic_forms(&open, &[child.symbol]).unwrap();
+    let form = forms.remove(0);
+    assert_eq!(form.generic_binders, [binder]);
     let mut wrongly_accepted = Vec::new();
     for missing in [false, true] {
         let mut changed = prepared.clone().into_inner();

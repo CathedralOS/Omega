@@ -789,6 +789,31 @@ impl Program<'_> {
                 Unserved::Declaration("generic trait lost its actual declaration"),
             ));
         }
+        // This check form owns the open requirements in its prepared schema
+        // family, including inherited method binders. Closed products only
+        // read those schemas; they do not adopt the schema's source namespace.
+        for schema in &self.static_contracts.schemas {
+            for requirement in &schema.requirements {
+                let (_, signature) = self
+                    .typed
+                    .trait_machine_signature(requirement.declaration)
+                    .ok_or_else(|| {
+                        refuse(
+                            diagnostic,
+                            Construct::Machine,
+                            Unserved::Declaration(
+                                "generic schema lost its exact requirement declaration",
+                            ),
+                        )
+                    })?;
+                self.generic_binders.extend(
+                    self.typed
+                        .state_signature_type_parameters(signature)
+                        .iter()
+                        .map(|parameter| parameter.symbol),
+                );
+            }
+        }
         Ok(())
     }
 }

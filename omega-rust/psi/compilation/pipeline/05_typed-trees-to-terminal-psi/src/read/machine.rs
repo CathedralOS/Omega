@@ -2259,8 +2259,9 @@ impl<'t> Program<'t> {
         } else {
             Vec::new()
         };
-        self.generic_binders
-            .extend(binders.iter().map(|binder| binder.symbol));
+        // The schema retains these binders as its own logical formals below.
+        // Reading that metadata must preserve the executable closure's scope;
+        // a standalone generic check form owns its binders in generic_trait.
         let outer = std::mem::replace(&mut self.scope, scope);
         let schema_types =
             std::mem::replace(&mut self.schema_types, abstract_schema.then(Vec::new));
