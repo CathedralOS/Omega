@@ -13,7 +13,7 @@ mod location_map;
 use location_map::LocationMap;
 
 pub(crate) mod analysis {
-    use super::engine::{Origin, StorageResolution};
+    use super::engine::{DescriptorReadDepth, Origin, StorageResolution};
     use super::*;
     use crate::descriptors::descriptor_lifetimes::descriptor_location;
     use crate::descriptors::descriptor_lifetimes::descriptor_location_type;
@@ -99,8 +99,74 @@ pub(crate) mod analysis {
         }
     }
 
+    // Proof and loan consumers revisit the same storage at the same cut.
+    // These rows belong only to this immutable graph and contain actual flow
+    // positions of machines the query has selected, never a raw-ID maximum.
+    // In-progress replay states remain outside this prepared query owner.
+    #[derive(Default)]
+    struct StorageQueries {
+        machines: Vec<MachineStorageQueries>,
+    }
+
+    struct MachineStorageQueries {
+        identity: MachineId,
+        positions: Vec<(DescriptorPosition, LocationMap<Option<StorageResolution>>)>,
+    }
+
+    impl StorageQueries {
+        fn get(
+            &self,
+            machine: MachineId,
+            position: DescriptorPosition,
+            location: &DescriptorLocation,
+        ) -> Option<&Option<StorageResolution>> {
+            let machine = self
+                .machines
+                .binary_search_by_key(&machine, |row| row.identity)
+                .ok()?;
+            let positions = &self.machines[machine].positions;
+            let position = positions
+                .binary_search_by_key(&position, |(position, _)| *position)
+                .ok()?;
+            positions[position].1.get(location)
+        }
+
+        fn at(
+            &mut self,
+            machine: &DescriptorMachine,
+            position: DescriptorPosition,
+        ) -> Option<&mut LocationMap<Option<StorageResolution>>> {
+            let index = match self
+                .machines
+                .binary_search_by_key(&machine.id, |row| row.identity)
+            {
+                Ok(index) => index,
+                Err(index) => {
+                    self.machines.insert(
+                        index,
+                        MachineStorageQueries {
+                            identity: machine.id,
+                            positions: machine
+                                .flow
+                                .keys()
+                                .map(|position| (*position, LocationMap::new()))
+                                .collect(),
+                        },
+                    );
+                    index
+                }
+            };
+            let positions = &mut self.machines[index].positions;
+            let index = positions
+                .binary_search_by_key(&position, |(position, _)| *position)
+                .ok()?;
+            Some(&mut positions[index].1)
+        }
+    }
+
     pub struct DescriptorAnalysis<'a> {
         replay: Replay<'a>,
+        storage_queries: StorageQueries,
     }
 
     pub type DescriptorSourceObservations =
@@ -212,6 +278,7 @@ pub(crate) mod analysis {
         ) -> Self {
             Self {
                 replay: Replay::new(types, machines),
+                storage_queries: StorageQueries::default(),
             }
         }
         pub fn flow_feasibility(
@@ -337,6 +404,7 @@ pub(crate) mod analysis {
         ) -> Self {
             Self {
                 replay: Replay::with_slot_kind(types, machines, DescriptorSlotKind::References),
+                storage_queries: StorageQueries::default(),
             }
         }
 
@@ -350,6 +418,7 @@ pub(crate) mod analysis {
                     machines,
                     DescriptorSlotKind::BorrowedStorage,
                 ),
+                storage_queries: StorageQueries::default(),
             }
         }
         pub fn with_access_origins(
@@ -358,6 +427,7 @@ pub(crate) mod analysis {
         ) -> Self {
             Self {
                 replay: Replay::with_slot_kind(types, machines, DescriptorSlotKind::AccessOrigins),
+                storage_queries: StorageQueries::default(),
             }
         }
         pub(crate) fn compatibility_machines(&self) -> &[DescriptorMachine] {
@@ -424,11 +494,47 @@ pub(crate) mod analysis {
             location: &DescriptorLocation,
         ) -> Option<DescriptorLocation> {
             self.replay.prepare_states(identity)?;
-            let machine = self.replay.machine(identity)?;
-            let states = self.replay.snapshots.get(&identity)?.as_ref()?;
-            self.replay
-                .canonical_storage(machine, states.get(&position)?, location, None)
+            match Self::prepared_storage(
+                &self.replay,
+                &mut self.storage_queries,
+                identity,
+                position,
+                location,
+                true,
+            )? {
+                StorageResolution::Unique(location) => Some(location),
+                StorageResolution::Alternatives => None,
+            }
         }
+
+        fn prepared_storage(
+            replay: &Replay<'_>,
+            queries: &mut StorageQueries,
+            identity: MachineId,
+            position: DescriptorPosition,
+            location: &DescriptorLocation,
+            retain: bool,
+        ) -> Option<StorageResolution> {
+            let machine = replay.machine(identity)?;
+            let states = replay.snapshots.get(&identity)?.as_ref()?;
+            let state = states.get(&position)?;
+            if let Some(result) = queries.get(identity, position, location) {
+                return result.clone();
+            }
+            let depth = DescriptorReadDepth::at(machine, state, None);
+            let result = replay.resolve_storage_with_depth(machine, state, location, &depth);
+            // A completed caller snapshot can still consult a callee whose
+            // result account has not been prepared. Its answer can change
+            // later without changing the caller snapshot.
+            if retain
+                && !depth.unprepared_summary.get()
+                && let Some(values) = queries.at(machine, position)
+            {
+                values.insert(location.clone(), result.clone());
+            }
+            result
+        }
+
         pub fn storage_origins(
             &mut self,
             identity: MachineId,
@@ -1034,8 +1140,15 @@ pub(crate) mod analysis {
                     continue;
                 };
                 let incomplete_step = || incomplete(Some(*position));
-                let canonical = |location: &DescriptorLocation| {
-                    match self.replay.resolve_storage(machine, before, location, None) {
+                let replay = &self.replay;
+                let queries = &mut self.storage_queries;
+                let mut canonical = |location: &DescriptorLocation| {
+                    // Flow visits whole slot inventories. Retain only queries
+                    // demanded by individual consumers, rather than keeping
+                    // every bulk scan's cut/location combination alive.
+                    match Self::prepared_storage(
+                        replay, queries, identity, *position, location, false,
+                    ) {
                         Some(StorageResolution::Unique(location)) => Ok(location),
                         // Exact flow can refuse a use without discarding its site or
                         // treating one of several possible backings as established.
@@ -1052,26 +1165,28 @@ pub(crate) mod analysis {
                 step.definitions = step
                     .definitions
                     .iter()
-                    .map(canonical)
+                    .map(&mut canonical)
                     .collect::<Result<_, _>>()?;
-                let aliases = before
-                    .slots
-                    .keys()
-                    .filter_map(|location| {
-                        let canonical_location = canonical(location).ok()?;
-                        step.definitions
-                            .iter()
-                            .any(|definition| definition.contains(&canonical_location))
-                            .then_some(location.clone())
-                    })
-                    .collect::<Vec<_>>();
-                step.definitions.extend(aliases);
+                if !step.definitions.is_empty() {
+                    let aliases = before
+                        .slots
+                        .keys()
+                        .filter_map(|location| {
+                            let canonical_location = canonical(location).ok()?;
+                            step.definitions
+                                .iter()
+                                .any(|definition| definition.contains(&canonical_location))
+                                .then_some(location.clone())
+                        })
+                        .collect::<Vec<_>>();
+                    step.definitions.extend(aliases);
+                }
                 step.definitions.sort();
                 step.definitions.dedup();
                 let mut observations = step
                     .inputs
                     .iter()
-                    .map(canonical)
+                    .map(&mut canonical)
                     .collect::<Result<Vec<_>, _>>()?;
                 for input in &step.inputs {
                     if input.path.is_empty()
@@ -1097,11 +1212,11 @@ pub(crate) mod analysis {
                     .map(|(source, destination)| Ok((canonical(source)?, canonical(destination)?)))
                     .collect::<Result<_, DescriptorGraphError>>()?;
                 for edge in &mut step.successors {
-                    edge.definitions = edge.definitions.iter().map(canonical).collect::<Result<
-                        _,
-                        DescriptorGraphError,
-                    >>(
-                    )?;
+                    edge.definitions = edge
+                        .definitions
+                        .iter()
+                        .map(&mut canonical)
+                        .collect::<Result<_, DescriptorGraphError>>()?;
                 }
                 if residence_rules.is_some() {
                     for edge in &mut step.successors {
@@ -1258,9 +1373,7 @@ pub(crate) mod analysis {
                     }
                     for location in before.slots.keys() {
                         if strong
-                            && let Some(canonical) = self
-                                .replay
-                                .canonical_storage(machine, before, location, None)
+                            && let Some(canonical) = canonical(location).ok()
                             && destination.contains(&canonical)
                             && !step.definitions.contains(location)
                         {
@@ -2492,8 +2605,9 @@ pub(crate) mod contents_queries {
             &self,
             machine: &DescriptorMachine,
             location: &DescriptorLocation,
-            completed: Option<(MachineId, DescriptorPosition)>,
+            depth: &DescriptorReadDepth<'_>,
         ) -> Option<(MachineId, DescriptorPosition)> {
+            let completed = depth.captured.get();
             if let Some(capture) = machine.location_capture(self.types, location, completed) {
                 return Some(capture);
             }
@@ -2505,7 +2619,8 @@ pub(crate) mod contents_queries {
                 root: location.root,
                 path: location.path[..index].to_vec(),
             };
-            let (position, origins) = self.returned_roster_origins(machine, &roster, completed)?;
+            let (position, origins) =
+                self.returned_roster_origins(machine, &roster, completed, Some(depth))?;
             if origins.is_empty()
                 || !origins.iter().all(|origin| {
                     matches!(
@@ -2523,14 +2638,15 @@ pub(crate) mod contents_queries {
             &self,
             machine: &DescriptorMachine,
             location: &DescriptorLocation,
-            completed: Option<(MachineId, DescriptorPosition)>,
+            depth: &DescriptorReadDepth<'_>,
         ) -> bool {
+            let completed = depth.captured.get();
             (location.path.is_empty()
                 && machine
                     .sequence_construction(self.types, location.root, completed)
                     .is_some())
                 || self
-                    .returned_roster_origins(machine, location, completed)
+                    .returned_roster_origins(machine, location, completed, Some(depth))
                     .is_some_and(|(_, origins)| {
                         !origins.is_empty()
                             && origins.iter().all(|origin| {
@@ -2548,6 +2664,7 @@ pub(crate) mod contents_queries {
             machine: &DescriptorMachine,
             location: &DescriptorLocation,
             completed: Option<(MachineId, DescriptorPosition)>,
+            depth: Option<&DescriptorReadDepth<'_>>,
         ) -> Option<(DescriptorPosition, Vec<&'replay DescriptorStoredOrigin>)> {
             if !std::ptr::eq(self.machine(machine.id)?, machine)
                 || completed.is_some_and(|(owner, _)| owner != machine.id)
@@ -2570,7 +2687,13 @@ pub(crate) mod contents_queries {
             let DescriptorInvocationTarget::Machine(callee) = call.target else {
                 return None;
             };
-            let slots = self.summaries.get(&callee)?.as_ref()?.result.as_ref()?;
+            let Some(summary) = self.summaries.get(&callee).and_then(Option::as_ref) else {
+                if let Some(depth) = depth {
+                    depth.unprepared_summary.set(true);
+                }
+                return None;
+            };
+            let slots = summary.result.as_ref()?;
             let slot = DescriptorResultSlot::matching(slots, suffix)?;
             Some((position, slot.origins_at(suffix)?))
         }
@@ -2633,6 +2756,7 @@ pub(crate) mod contents_queries {
                                 machine,
                                 &backing,
                                 depth.captured.get(),
+                                Some(depth),
                             )?;
                             if origins.is_empty() {
                                 return None;
@@ -2760,9 +2884,7 @@ pub(crate) mod contents_queries {
             }
             if self.slot_kind.tracks_references()
                 && let Some(location) = query.exact_location()
-                && self
-                    .location_capture(machine, &location, depth.captured.get())
-                    .is_none()
+                && self.location_capture(machine, &location, depth).is_none()
                 && let Some(carrier) =
                     self.reference_referent_carrier(machine, state, &location, depth)?
             {
@@ -2770,11 +2892,8 @@ pub(crate) mod contents_queries {
             }
             if self.slot_kind.tracks_references()
                 && let Some(queried) = query.exact_location()
-                && self
-                    .location_capture(machine, &queried, depth.captured.get())
-                    .is_none()
-                && let Some(value) =
-                    self.known_current_contents(machine, state, &queried, depth.captured.get())
+                && self.location_capture(machine, &queried, depth).is_none()
+                && let Some(value) = self.known_current_contents(machine, state, &queried, depth)
             {
                 return value.clone();
             }
@@ -2811,9 +2930,13 @@ pub(crate) mod contents_queries {
             machine: &DescriptorMachine,
             state: &'state State,
             queried: &DescriptorLocation,
-            completed: Option<(MachineId, DescriptorPosition)>,
+            depth: &DescriptorReadDepth<'_>,
         ) -> Option<&'state Value> {
-            match self.resolve_storage(machine, state, queried, completed)? {
+            let reads = DescriptorReadDepth::at(machine, state, None);
+            let _capture = reads.capture(depth.captured.get());
+            let resolved = self.resolve_storage_with_depth(machine, state, queried, &reads);
+            depth.absorb_summary_reads(&reads);
+            match resolved? {
                 StorageResolution::Unique(location) => (!state
                     .has_selected_inline_contents(&location))
                 .then(|| state.slots.get(&location))?,
@@ -2833,12 +2956,9 @@ pub(crate) mod contents_queries {
             let state = self.live_state(machine, state, depth)?;
             if self.slot_kind.tracks_references()
                 && let Some(location) = query.exact_location()
-                && self
-                    .location_capture(machine, &location, depth.captured.get())
-                    .is_none()
+                && self.location_capture(machine, &location, depth).is_none()
                 && self.incoming_references_unchanged(machine, state, &location, depth)
-                && let Some(value) =
-                    self.known_current_contents(machine, state, &location, depth.captured.get())
+                && let Some(value) = self.known_current_contents(machine, state, &location, depth)
             {
                 return value.clone();
             }
@@ -3099,9 +3219,10 @@ pub(crate) mod contents_queries {
                             self.canonical_storage_with_depth(machine, state, &selected, depth)?
                         }
                     },
-                    completed: depth.captured.get().or_else(|| {
-                        self.location_capture(machine, &selected, depth.captured.get())
-                    }),
+                    completed: depth
+                        .captured
+                        .get()
+                        .or_else(|| self.location_capture(machine, &selected, depth)),
                 }]));
             };
             let selected = match account {
@@ -3338,13 +3459,18 @@ pub(crate) mod contents_queries {
             let before = self.target_state(machine, state, Some((owner, position)), depth)?;
             let reads =
                 DescriptorReadDepth::at(machine, before, depth.history.map(|(_, states)| states));
-            let mut value = BTreeSet::new();
-            for origin in origins {
-                value.extend(
-                    self.substitute_result_with_depth(machine, before, call, origin, &reads)?,
-                );
-            }
-            (!value.is_empty()).then_some(value)
+            let value = (|| {
+                let mut value = BTreeSet::new();
+                for origin in origins {
+                    value.extend(
+                        self.substitute_result_with_depth(machine, before, call, origin, &reads)?,
+                    );
+                }
+                (!value.is_empty()).then_some(value)
+            })();
+            // Failed substitutions still consulted the child read context.
+            depth.absorb_summary_reads(&reads);
+            value
         }
 
         fn stored_view_targets(
@@ -3435,9 +3561,12 @@ pub(crate) mod contents_queries {
                         }
                         return Some(targets);
                     }
-                    if let Some((producer, origins)) =
-                        self.returned_roster_origins(machine, &location, depth.captured.get())
-                    {
+                    if let Some((producer, origins)) = self.returned_roster_origins(
+                        machine,
+                        &location,
+                        depth.captured.get(),
+                        Some(depth),
+                    ) {
                         let owner = (machine.id, (producer.0, producer.1.checked_add(1)?));
                         let captured = self.target_state(machine, state, Some(owner), depth)?;
                         let _capture = depth.capture(Some(owner));
@@ -3849,6 +3978,7 @@ pub(crate) mod engine {
     }
     pub(crate) type States = BTreeMap<DescriptorPosition, State>;
 
+    #[derive(Clone)]
     pub(crate) enum StorageResolution {
         Unique(DescriptorLocation),
         Alternatives,
@@ -3914,6 +4044,8 @@ pub(crate) mod engine {
     #[derive(Default)]
     pub(crate) struct DescriptorReadDepth<'state> {
         depth: std::cell::Cell<usize>,
+        // A later result account can change a query that consulted this gap.
+        pub(super) unprepared_summary: std::cell::Cell<bool>,
         pub(super) captured: std::cell::Cell<Option<(MachineId, DescriptorPosition)>>,
         pub(super) history: Option<(&'state DescriptorMachine, &'state States)>,
         pub(super) live: Option<(&'state DescriptorMachine, &'state State)>,
@@ -3927,6 +4059,12 @@ pub(crate) mod engine {
     }
 
     impl<'state> DescriptorReadDepth<'state> {
+        pub(super) fn absorb_summary_reads(&self, child: &DescriptorReadDepth<'_>) {
+            if child.unprepared_summary.get() {
+                self.unprepared_summary.set(true);
+            }
+        }
+
         pub(crate) fn at(
             machine: &'state DescriptorMachine,
             live: &'state State,
@@ -4344,7 +4482,6 @@ pub(crate) mod engine {
             location: &DescriptorLocation,
             depth: &DescriptorReadDepth<'_>,
         ) -> Option<StorageResolution> {
-            let completed = depth.captured.get();
             let mut current = location.clone();
             let mut captured_entry: Option<DescriptorLocation> = None;
             let mut expansions = BTreeMap::new();
@@ -4399,7 +4536,7 @@ pub(crate) mod engine {
                         .all(|origin| matches!(origin, Origin::Storage(_)))
                     && !(matches!(find_structural_type(self.types, root_type)?.shape, StructuralTypeShape::ElementView { .. })
                         && origins.iter().all(|origin| matches!(origin, Origin::Storage(backing)
-                            if self.has_roster_source(machine, backing, completed))))
+                            if self.has_roster_source(machine, backing, depth))))
                 {
                     let mut locations = self.storage_origins_with_depth(machine, state, &current, depth)?.into_iter();
                     let first = locations.next()?;
@@ -5797,7 +5934,8 @@ pub(crate) mod engine {
             // A returned roster may have arrived through another ordinary
             // call. Rebase its existing result account at that call's own
             // input cut; callee coordinates never become caller history.
-            if let Some((position, origins)) = self.returned_roster_origins(machine, backing, None)
+            if let Some((position, origins)) =
+                self.returned_roster_origins(machine, backing, None, None)
             {
                 let call = machine.calls.get(&position)?;
                 let before = states.get(&position)?;
@@ -6797,7 +6935,54 @@ pub(crate) mod engine {
                     .read_contents(&graph[0], &moved, &cell_query)
                     .is_none()
             );
+            // Storage identity survives a loss of readable contents. Repeated
+            // queries must agree with direct replay at each completed cut.
+            fn send_and_sync<T: Send + Sync>() {}
+            send_and_sync::<DescriptorAnalysis<'_>>();
+            let mut analysis = DescriptorAnalysis::with_reference_slots(&types, &graph);
+            let original_backing = analysis.location(id, positions[0], &leaf);
+            assert!(original_backing.is_some());
+            for position in positions[..2].iter().copied() {
+                assert_eq!(
+                    analysis.location(id, position, &leaf),
+                    replay.canonical_storage(&graph[0], &completed[&position], &leaf, None)
+                );
+            }
+            assert_eq!(analysis.location(id, positions[1], &leaf), original_backing);
+            assert_eq!(analysis.location(id, positions[0], &leaf), original_backing);
+            assert_eq!(analysis.location(id, positions[1], &leaf), original_backing);
+            let foreign = location(u64::MAX);
+            assert_eq!(analysis.location(id, positions[0], &foreign), None);
+            assert_eq!(analysis.location(id, positions[0], &foreign), None);
+            drop(analysis);
+
             drop(replay);
+
+            // Replacing the reference really changes the later address. A
+            // cached query at either cut must not overwrite the other cut.
+            graph[0]
+                .flow
+                .get_mut(&positions[0])
+                .unwrap()
+                .derivations
+                .push((replacement_parameter.clone(), parameter.clone()));
+            let mut analysis = DescriptorAnalysis::with_reference_slots(&types, &graph);
+            assert_eq!(
+                analysis.location(id, positions[1], &leaf),
+                Some(replacement_leaf.clone())
+            );
+            assert_eq!(analysis.location(id, positions[0], &leaf), original_backing);
+            assert_eq!(
+                analysis.location(id, positions[1], &leaf),
+                Some(replacement_leaf)
+            );
+            drop(analysis);
+            graph[0]
+                .flow
+                .get_mut(&positions[0])
+                .unwrap()
+                .derivations
+                .clear();
 
             let mut limited =
                 Replay::with_slot_kind(&types, &graph, DescriptorSlotKind::References);
@@ -6812,6 +6997,11 @@ pub(crate) mod engine {
                 Replay::with_slot_kind(&types, &graph, DescriptorSlotKind::References);
             assert!(unavailable.states(id, 0).is_none());
             assert!(unavailable.snapshots.get(&id).is_some_and(Option::is_none));
+            // The same IDs in another graph have their own preparation and
+            // cannot borrow a successful query from the earlier analysis.
+            let mut analysis = DescriptorAnalysis::with_reference_slots(&types, &graph);
+            assert_eq!(analysis.location(id, positions[0], &leaf), None);
+            assert_eq!(analysis.location(id, positions[0], &leaf), None);
             assert_eq!(completed.len(), 3);
             assert_eq!(
                 completed[&positions[0]].slots.get(&parameter),
@@ -7071,6 +7261,184 @@ pub(crate) mod engine {
                 calls: BTreeMap::new(),
                 normal_exits: vec![entry],
             }
+        }
+
+        // An incomplete call leaves its callee summary unprepared. The
+        // caller's physical storage snapshot can nevertheless complete.
+        #[test]
+        fn late_return_summary_cannot_freeze_an_earlier_storage_query() {
+            use crate::descriptors::descriptor_lifetimes::{
+                DescriptorFlowEdge, DescriptorFlowStep,
+            };
+            use semantic_vocabulary::{BlockId, OperationId};
+
+            let caller_id = MachineId::new(1).unwrap();
+            let callee_id = MachineId::new(2).unwrap();
+            let block = BlockId::new(1).unwrap();
+            let point = |index| (block, index);
+            let edge = |target| DescriptorFlowEdge {
+                definitions: Vec::new(),
+                target,
+                parameters: Vec::new(),
+                bindings: Vec::new(),
+            };
+            let scalar = scalar_type(1);
+            let roster_id = StructuralTypeId::new(2).unwrap();
+            let borrowed_id = StructuralTypeId::new(3).unwrap();
+            let types = vec![
+                scalar.clone(),
+                StructuralTypeDeclaration {
+                    shape: StructuralTypeShape::ElementView {
+                        element: scalar.id,
+                        access: None,
+                    },
+                    copyable: false,
+                    ..scalar_type(2)
+                },
+                StructuralTypeDeclaration {
+                    shape: StructuralTypeShape::ElementView {
+                        element: scalar.id,
+                        access: Some(StructuralAccess::SharedBorrow),
+                    },
+                    ..scalar_type(3)
+                },
+            ];
+            let returned = location(1);
+            let borrowed = location(2);
+            let mut caller = bare_machine(
+                caller_id,
+                vec![
+                    DescriptorPlace {
+                        producer: Some(point(0)),
+                        place: returned.root,
+                        definition: DescriptorDefinition::Local,
+                    },
+                    DescriptorPlace {
+                        producer: Some(point(1)),
+                        place: borrowed.root,
+                        definition: DescriptorDefinition::Arrival {
+                            access: StructuralAccess::SharedBorrow,
+                        },
+                    },
+                ],
+                BTreeMap::from([(returned.root, roster_id), (borrowed.root, borrowed_id)]),
+                BTreeSet::from([(point(1), returned.clone(), borrowed.clone())]),
+            );
+            caller.flow = BTreeMap::from([
+                (
+                    point(0),
+                    DescriptorFlowStep {
+                        definitions: vec![returned.clone()],
+                        successors: vec![edge(point(1))],
+                        ..Default::default()
+                    },
+                ),
+                (
+                    point(1),
+                    DescriptorFlowStep {
+                        definitions: vec![borrowed.clone()],
+                        derivations: vec![(returned.clone(), borrowed.clone())],
+                        successors: vec![edge(point(2))],
+                        ..Default::default()
+                    },
+                ),
+                (point(2), DescriptorFlowStep::default()),
+            ]);
+            caller.normal_exits = vec![point(2)];
+            caller.calls.insert(
+                point(0),
+                DescriptorInvocation {
+                    scalar_arguments: Vec::new(),
+                    operation: OperationId::new(1).unwrap(),
+                    target: DescriptorInvocationTarget::Machine(callee_id),
+                    arguments: vec![None],
+                    argument_contents: vec![None],
+                    result: Some(returned.clone()),
+                },
+            );
+
+            let empty = location(1);
+            let unused_input = location(2);
+            let mut callee = bare_machine(
+                callee_id,
+                vec![
+                    DescriptorPlace {
+                        producer: Some(point(0)),
+                        place: empty.root,
+                        definition: DescriptorDefinition::Local,
+                    },
+                    DescriptorPlace {
+                        producer: None,
+                        place: unused_input.root,
+                        definition: DescriptorDefinition::Parameter {
+                            position: 0,
+                            access: StructuralAccess::SharedBorrow,
+                            structural_type: borrowed_id,
+                        },
+                    },
+                ],
+                BTreeMap::from([(empty.root, roster_id), (unused_input.root, borrowed_id)]),
+                BTreeSet::new(),
+            );
+            callee.flow = BTreeMap::from([
+                (
+                    point(0),
+                    DescriptorFlowStep {
+                        definitions: vec![empty.clone()],
+                        successors: vec![edge(point(1))],
+                        ..Default::default()
+                    },
+                ),
+                (point(1), DescriptorFlowStep::default()),
+            ]);
+            callee
+                .originations
+                .insert(point(0), vec![(empty.clone(), DescriptorCallOrigin::Empty)]);
+            callee.normal_exits = vec![point(1)];
+            callee.returns = Some(vec![(point(1), empty)]);
+            let graph = vec![caller, callee];
+
+            // Pin both original answers against one unchanged caller snapshot.
+            let mut replay = Replay::new(&types, &graph);
+            let snapshots = replay.states(caller_id, 0).unwrap();
+            assert!(!replay.summaries.contains_key(&callee_id));
+            let before = &snapshots[&point(2)];
+            assert_eq!(
+                replay.canonical_storage(&graph[0], before, &borrowed, None),
+                Some(returned.clone()),
+            );
+            let summary = replay.summary(callee_id, 0).unwrap();
+            assert!(matches!(
+                summary.result.as_deref(),
+                Some([slot]) if matches!(slot.origins.as_slice(),
+                    [DescriptorStoredOrigin::Empty])
+            ));
+            assert_eq!(
+                replay.canonical_storage(&graph[0], before, &borrowed, None),
+                Some(borrowed.clone()),
+            );
+            drop(replay);
+
+            // Preparing another machine is not a graph edit; the memo must
+            // not freeze an answer depending on that unavailable summary.
+            let mut analysis = DescriptorAnalysis::new(&types, &graph);
+            assert_eq!(
+                analysis.location(caller_id, point(2), &borrowed),
+                Some(returned.clone()),
+            );
+            assert_eq!(
+                analysis.location(caller_id, point(2), &borrowed),
+                Some(returned),
+            );
+            assert!(analysis.result_slots(callee_id).is_some());
+            assert_eq!(
+                analysis.location(caller_id, point(2), &borrowed),
+                Some(borrowed.clone()),
+            );
+            assert_eq!(
+                analysis.location(caller_id, point(2), &borrowed),
+                Some(borrowed),
+            );
         }
 
         #[test]
