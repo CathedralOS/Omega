@@ -21,7 +21,7 @@ use crate::body::{
     Termination, ValueType,
 };
 use crate::outcome::Outcome;
-use crate::{SourceOrigin, Unpositioned};
+use crate::{SourceOrigin, StorageShape, Unpositioned};
 
 fn u32_type() -> ScalarType {
     ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap())

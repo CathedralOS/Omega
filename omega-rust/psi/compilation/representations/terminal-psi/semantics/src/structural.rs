@@ -1798,8 +1798,8 @@ pub mod owned_structure {
         case_payload_required: bool,
     ) -> Option<Vec<(Vec<StructuralPathSegment>, StructuralTypeId)>> {
         let mut children = Vec::new();
-        let fields = |fields: &[terminal_psi::StructuralFieldDeclaration],
-                      prefix: &[StructuralPathSegment]| {
+        let mut fields = |fields: &[terminal_psi::StructuralFieldDeclaration],
+                          prefix: &[StructuralPathSegment]| {
             for field in fields
                 .iter()
                 .rev()
