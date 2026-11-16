@@ -423,10 +423,62 @@ fn bounded_concat_keeps_its_original_room_a1_execution_oracle() {
         "/../../../../../samples/cli/probes/bounded_concat/main.omg"
     ))
     .replace("machine entry_start()", "machine main()");
-    let mut verdicts = observed_program(&source);
+    let typed = observed_typed(&source);
+    let mut verdicts = judge_observed(&typed);
     let accepted = match verdicts.remove(0) {
         Ok(crate::RouteVerdict::Accepted(accepted)) => accepted,
-        other => panic!("the kept buffer program must be checked: {other:?}"),
+        other => {
+            // Keep the failed original program diagnosable without reducing
+            // it to a different buffer example or erasing its requirements.
+            let owners = typed_trees::references::collect_program_operand_owners(&typed);
+            let unselected: Vec<_> = typed
+                .expression_table
+                .expression_entries()
+                .filter_map(|(handle, node)| {
+                    let typed_trees::expression::ExpressionNode::Call(call) = node else {
+                        return None;
+                    };
+                    if call.target_symbol.is_valid() {
+                        return None;
+                    }
+                    Some((
+                        call.target.as_str(),
+                        typed.expression_table.source_span(handle),
+                        typed.symbols.top_level_candidates_from_source(
+                            call.target.as_str(),
+                            &[symbols::SymbolKind::Machine],
+                            typed.expression_table.source_span(handle),
+                        ),
+                        owners
+                            .expression_owners(handle)
+                            .map(|owner| {
+                                if typed.symbols.symbols().nodes().is_valid(owner) {
+                                    typed.symbols.display_path(owner, "::")
+                                } else {
+                                    format!("invalid owner {owner:?}")
+                                }
+                            })
+                            .collect::<Vec<_>>(),
+                        typed
+                            .expression_table
+                            .expression_handles(call.arguments)
+                            .iter()
+                            .map(|argument| {
+                                (
+                                    typed.expression_table.expression(*argument),
+                                    typed
+                                        .expression_table
+                                        .constructed_value_type_reference(*argument),
+                                )
+                            })
+                            .collect::<Vec<_>>(),
+                    ))
+                })
+                .collect();
+            panic!(
+                "the kept buffer program must be checked: {other:?}; unselected calls: {unselected:#?}"
+            );
+        }
     };
     assert!(
         verdicts

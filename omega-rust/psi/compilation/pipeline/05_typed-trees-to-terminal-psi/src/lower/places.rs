@@ -3675,16 +3675,9 @@ impl<'a> Lowering<'a> {
             return Err(self.internal("a byte observation has no structural argument"));
         };
         let lent = continuing!(self.lend(place, *access));
-        let before = self.here()?;
-        self.obligation(
-            ObligationKind::Loan {
-                captured: lent.place,
-                access: *access,
-                lender: lent.lender,
-            },
-            before,
-            source,
-        );
+        // This primitive only reads the captured view. Any reference or
+        // view formation in its argument already owns its real loan row;
+        // a byte read is neither another call nor a loan-forming operation.
         let at = Located {
             root: lent.argument.0,
             place: lent.place,
