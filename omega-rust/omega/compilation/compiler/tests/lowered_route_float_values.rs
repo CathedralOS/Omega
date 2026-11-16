@@ -19,6 +19,54 @@ fn receiving_error(module: terminal_psi::TerminalModule) -> String {
 }
 
 #[test]
+fn unqualified_float_integer_conversions_keep_the_normal_input_contract() {
+    std::thread::scope(|scope| {
+        compiler::checked::spawn_compile_worker(scope, || {
+            let main = repository()
+                .join("tests/fixtures/run/float/unqualified_integer_conversion/main.omg");
+            let checked = orchestration::check_source(
+                &mut compiler::CompilationSession::default(),
+                compiler::CheckedCompileRequest::new(&main, Some("macos_arm64")),
+            )
+            .result
+            .unwrap_or_else(|failure| panic!("{:?}", failure.into_diagnostics()));
+            let publication = checked
+                .terminal_publication()
+                .accepted()
+                .unwrap()
+                .closure()
+                .publish()
+                .unwrap();
+            terminal_codec::ClosedTerminalModule::from_semantic_bytes(
+                publication.artifact.semantic_bytes(),
+            )
+            .unwrap();
+            let invalid = repository()
+                .join("tests/fixtures/fail/float/unqualified_integer_conversion/main.omg");
+            let diagnostics = orchestration::check_source(
+                &mut compiler::CompilationSession::default(),
+                compiler::CheckedCompileRequest::new(&invalid, Some("macos_arm64")),
+            )
+            .result
+            .expect_err("the caller must establish the converter's upper bound")
+            .into_diagnostics();
+            assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+            // The diagnostic numbers the upper bound as clause 2. The twin
+            // removes it and keeps the other two conditions.
+            assert!(
+                diagnostics[0]
+                    .message
+                    .starts_with("cannot prove requires clause 2 of the called machine."),
+                "{diagnostics:?}"
+            );
+        })
+        .unwrap()
+        .join()
+        .unwrap_or_else(|panic| std::panic::resume_unwind(panic));
+    });
+}
+
+#[test]
 fn trapping_float_integer_conversions_retain_the_guarded_crash_contract() {
     std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {
