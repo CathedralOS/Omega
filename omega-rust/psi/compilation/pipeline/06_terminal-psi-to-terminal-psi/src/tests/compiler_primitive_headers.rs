@@ -459,6 +459,70 @@ machine main() {{ let plain: [u8; 2] = [65u8, 66u8]; let holder: Holder = Holder
 }
 
 #[test]
+fn a_utf8_array_element_write_must_preserve_the_whole_sequence() {
+    // Both starting arrays are UTF-8. The identical write keeps AB valid,
+    // but turns C3 A9 into 41 A9, whose continuation byte has no lead.
+    let positive_source = r#"
+use omega::language::core::byte_observation;
+domain [u8; 2]::Utf8 requires byte_observation::valid_utf8(&self[..]);
+machine main() crashes Trap {
+    let plain: [u8; 2] = [65u8, 66u8];
+    let mut bytes: [u8; 2] in Utf8 = plain as +Utf8;
+    bytes[0] = 65u8;
+    let valid: bool = byte_observation::valid_utf8(&bytes[..]);
+    transition valid { true -> {} false -> bad() }
+    machine bad() crashes Trap { crash Trap; }
+}
+"#;
+    let negative_source = positive_source.replace("[65u8, 66u8]", "[195u8, 169u8]");
+    assert_ne!(negative_source, positive_source);
+    let mut positive = judge_observed(&observed_typed(positive_source));
+    let mut negative = judge_observed(&observed_typed(&negative_source));
+    // Record both actual verdicts before either assertion, so an unserved
+    // cast or observation is visible rather than counted as a store refusal.
+    eprintln!("UTF-8 store positive: {positive:?}");
+    eprintln!("UTF-8 store negative: {negative:?}");
+    assert_eq!(positive.len(), 1, "one ordinary positive entry verdict");
+    assert_eq!(negative.len(), 1, "one ordinary negative entry verdict");
+    let accepted = match positive.remove(0) {
+        Ok(crate::RouteVerdict::Accepted(accepted)) => accepted,
+        other => panic!("the same write over an ASCII UTF-8 array must check: {other:?}"),
+    };
+    execute_observed(accepted);
+    match negative.remove(0) {
+        Ok(crate::RouteVerdict::Rejected {
+            formations,
+            violations,
+            unproved,
+            unestablished,
+            conflicts,
+            exceeded,
+        }) => {
+            assert!(formations.is_empty() && violations.is_empty());
+            assert!(unestablished.is_empty() && conflicts.is_empty() && exceeded.is_empty());
+            assert!(
+                !unproved.is_empty(),
+                "the whole-array invariant must be owed"
+            );
+            assert!(
+                unproved.iter().all(|failure| {
+                    matches!(
+                        failure.kind,
+                        terminal_check_tables::obligations::ObligationKind::DataDomain { .. }
+                    ) && (failure.statement.contains("Utf8")
+                        || failure.statement.contains("valid_utf8"))
+                }),
+                "only the whole-array UTF-8 invariant may refuse this twin: {unproved:?}"
+            );
+        }
+        other => panic!(
+            "a UTF-8-destroying write must fail its whole-array invariant, \
+             not parsing, type selection, cast formation, or an unserved observer: {other:?}"
+        ),
+    }
+}
+
+#[test]
 fn bounded_concat_keeps_its_original_room_a1_execution_oracle() {
     // Use the actual customer body. Only the harness entry spelling changes;
     // both copies, every bound, and the Room A1/length-seven check stay intact.
