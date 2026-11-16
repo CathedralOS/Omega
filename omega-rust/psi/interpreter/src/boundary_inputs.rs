@@ -2224,8 +2224,20 @@ pub(crate) mod contents {
 
     #[derive(Clone, Copy)]
     struct ContentsOrigin {
-        argument_index: u32,
+        argument_index: Option<u32>,
         place: semantic_vocabulary::PlaceId,
+    }
+
+    impl ContentsOrigin {
+        fn invalid(self, reason: &'static str) -> TerminalInterpretError {
+            match self.argument_index {
+                Some(argument_index) => TerminalInterpretError::StructuralContentsArgumentInvalid {
+                    argument_index,
+                    reason,
+                },
+                None => TerminalInterpretError::StructuralContentsResultInvalid { reason },
+            }
+        }
     }
 
     impl TerminalExecution<'_> {
@@ -2252,7 +2264,7 @@ pub(crate) mod contents {
                 let root = self.structural_value(parameter.place)?.clone();
                 self.stage_structural_contents(
                     ContentsOrigin {
-                        argument_index: argument.argument_index,
+                        argument_index: Some(argument.argument_index),
                         place: parameter.place,
                     },
                     &root,
@@ -2267,6 +2279,27 @@ pub(crate) mod contents {
             Ok(())
         }
 
+        pub(crate) fn stage_structural_result_contents(
+            &self,
+            place: semantic_vocabulary::PlaceId,
+            root: &crate::TerminalStructuralValue,
+            values: &[TerminalBoundaryStorageValue],
+            staged: &mut ConstructorStorage,
+            cursor: &mut Option<u64>,
+        ) -> Result<(), TerminalInterpretError> {
+            self.stage_structural_contents(
+                ContentsOrigin {
+                    argument_index: None,
+                    place,
+                },
+                root,
+                values,
+                &[],
+                staged,
+                cursor,
+            )
+        }
+
         fn stage_structural_contents(
             &self,
             origin: ContentsOrigin,
@@ -2276,13 +2309,19 @@ pub(crate) mod contents {
             staged: &mut ConstructorStorage,
             cursor: &mut Option<u64>,
         ) -> Result<(), TerminalInterpretError> {
-            let invalid = |reason| TerminalInterpretError::StructuralContentsArgumentInvalid {
-                argument_index: origin.argument_index,
-                reason,
-            };
+            let invalid = |reason| origin.invalid(reason);
             if values.windows(2).any(|pair| pair[0].path >= pair[1].path) {
                 return Err(invalid(
                     "contents must have unique paths in canonical order",
+                ));
+            }
+            if let Ok(plan) = crate::boundary::values::AggregatePlan::new(
+                self.structural_declaration(root.structural_type)?,
+                |identity| self.structural_types().get(&identity),
+            ) && plan.count()? != values.len()
+            {
+                return Err(invalid(
+                    "contents differ from the complete declared leaf count",
                 ));
             }
             let description = contents::describe_at(

@@ -469,6 +469,9 @@ pub(crate) mod errors {
             argument_index: u32,
             reason: &'static str,
         },
+        StructuralContentsResultInvalid {
+            reason: &'static str,
+        },
         UnboundExternalCompletions {
             missing: Vec<crate::engine::capabilities::TerminalExternalCompletionDemand>,
         },
@@ -1171,7 +1174,7 @@ pub(crate) mod result_custody {
 pub(crate) mod results {
     use crate::boundary::errors::TerminalInterpretError;
     use crate::boundary::values::{
-        TerminalScalarAggregateValue, TerminalScalarValue, TerminalStructuralValue,
+        TerminalAggregateValue, TerminalScalarValue, TerminalStructuralValue,
     };
     use crate::storage::scalar_array::TerminalScalarArrayResult;
     use semantic_vocabulary::{
@@ -1246,13 +1249,13 @@ pub(crate) mod results {
 
     #[derive(compiler_storage::Record)]
     struct ScalarCaseStorage {
-        value: TerminalScalarAggregateValue,
+        value: TerminalAggregateValue,
         #[record(skip)]
         _lease: Option<evaluation_accounting::EvaluationStorageLease>,
     }
 
     impl TerminalScalarCaseResult {
-        pub fn value(&self) -> &TerminalScalarAggregateValue {
+        pub fn value(&self) -> &TerminalAggregateValue {
             &self.storage.value
         }
 
@@ -1272,10 +1275,7 @@ pub(crate) mod results {
                 .map_err(TerminalInterpretError::Storage)?;
             let mut payload = Vec::new();
             let requested_bytes = count
-                .checked_mul(std::mem::size_of::<(
-                    Vec<CanonicalStructuralPathSegment>,
-                    TerminalScalarValue,
-                )>())
+                .checked_mul(std::mem::size_of::<crate::TerminalBoundaryStorageValue>())
                 .ok_or(crate::boundary::errors::malformed())?;
             payload.try_reserve_exact(count).map_err(|reason| {
                 TerminalInterpretError::StorageAllocationFailed {
@@ -1288,17 +1288,20 @@ pub(crate) mod results {
                 let (field, scalar) = fields
                     .next()
                     .ok_or(crate::boundary::errors::malformed())??;
-                payload.push((vec![CanonicalStructuralPathSegment::Field(field)], scalar));
+                payload.push(crate::TerminalBoundaryStorageValue {
+                    path: vec![CanonicalStructuralPathSegment::Field(field)],
+                    contents: super::values::scalar_contents(scalar),
+                });
             }
             if fields.next().is_some() {
                 return Err(crate::boundary::errors::malformed());
             }
-            let value = TerminalScalarAggregateValue {
+            let mut value = TerminalAggregateValue {
                 structural_type: declaration.id,
                 result_case: Some(case),
                 fields: payload,
             };
-            value.validate_against(declaration, |_| None)?;
+            value.set_declared_scalar_storage(declaration, |_| None)?;
             Ok(Self {
                 storage: std::sync::Arc::new(ScalarCaseStorage {
                     value,
@@ -1392,18 +1395,65 @@ pub(crate) mod values {
 
     pub use terminal_installation::{TerminalScalarValue, TerminalStructuralValue};
 
+    pub(crate) fn scalar_contents(value: TerminalScalarValue) -> crate::TerminalStorageContents {
+        crate::TerminalStorageContents::Scalar {
+            value,
+            stored_scalar: value.scalar_type(),
+        }
+    }
+
     #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
-    pub struct TerminalScalarAggregateValue {
+    pub struct TerminalAggregateValue {
         pub structural_type: StructuralTypeId,
         pub result_case: Option<StructuralCaseId>,
-        pub fields: Vec<(
-            Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
-            TerminalScalarValue,
-        )>,
+        pub fields: Vec<crate::TerminalBoundaryStorageValue>,
+    }
+
+    impl TerminalAggregateValue {
+        /// Plain scalar adapters have the same logical and stored carrier.
+        /// Adapters with a packed representation retain its exact stored
+        /// carrier directly in the canonical field contents instead.
+        pub fn from_scalars(
+            structural_type: StructuralTypeId,
+            result_case: Option<StructuralCaseId>,
+            fields: Vec<(
+                Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+                TerminalScalarValue,
+            )>,
+        ) -> Self {
+            Self {
+                structural_type,
+                result_case,
+                fields: fields
+                    .into_iter()
+                    .map(|(path, value)| crate::TerminalBoundaryStorageValue {
+                        path,
+                        contents: scalar_contents(value),
+                    })
+                    .collect(),
+            }
+        }
+
+        pub(crate) fn canonical_contents(&self) -> Vec<crate::TerminalBoundaryStorageValue> {
+            use semantic_vocabulary::CanonicalStructuralPathSegment as Path;
+            let Some(case) = self.result_case else {
+                return self.fields.clone();
+            };
+            let mut contents = Vec::with_capacity(self.fields.len() + 1);
+            contents.push(crate::TerminalBoundaryStorageValue {
+                path: Vec::new(),
+                contents: crate::TerminalStorageContents::Case(case),
+            });
+            contents.extend(self.fields.iter().cloned().map(|mut field| {
+                field.path.insert(0, Path::Case(case));
+                field
+            }));
+            contents
+        }
     }
 
     pub(crate) mod aggregates {
-        use super::TerminalScalarAggregateValue;
+        use super::TerminalAggregateValue;
         use crate::boundary::errors::{TerminalInterpretError, malformed};
         use semantic_vocabulary::{CanonicalStructuralPathSegment as Path, StructuralTypeId};
         use terminal_psi::{
@@ -1411,51 +1461,34 @@ pub(crate) mod values {
             StructuralTypeDeclaration, StructuralTypeShape,
         };
 
-        enum Element<'declaration> {
-            Scalar(&'declaration StructuralFieldType),
+        enum Element {
+            Scalar,
             Structural(usize),
         }
 
         enum Shape<'declaration> {
             Scalar(StructuralFieldType),
-            Record(
-                Vec<(
-                    &'declaration StructuralFieldDeclaration,
-                    Element<'declaration>,
-                )>,
-            ),
-            Array {
-                element: usize,
-                length: u64,
-            },
+            Record(Vec<(&'declaration StructuralFieldDeclaration, Element)>),
+            Array { element: usize, length: u64 },
         }
 
         struct Node<'declaration> {
             identity: StructuralTypeId,
             shape: Shape<'declaration>,
             count: Option<u64>,
-            scalar_tree: bool,
+            requires_erased_establishment: bool,
         }
 
-        pub(crate) struct ScalarAggregatePlan<'declaration> {
+        pub(crate) struct AggregatePlan<'declaration> {
             nodes: Vec<Node<'declaration>>,
             root: usize,
-        }
-
-        pub(crate) enum ScalarAggregatePart<'declaration> {
-            Field(&'declaration StructuralFieldType),
-            Primitive(&'declaration StructuralFieldType),
-            Array {
-                structural_type: StructuralTypeId,
-                count: usize,
-            },
         }
 
         enum Visit<'declaration> {
             Node(usize),
             Field(
                 &'declaration StructuralFieldDeclaration,
-                &'declaration Element<'declaration>,
+                &'declaration Element,
             ),
             Element {
                 node: usize,
@@ -1465,7 +1498,14 @@ pub(crate) mod values {
             Pop,
         }
 
-        impl<'declaration> ScalarAggregatePlan<'declaration> {
+        impl<'declaration> AggregatePlan<'declaration> {
+            pub(crate) fn is_plain_leaf(field: &StructuralFieldType) -> bool {
+                field.scalar_type().is_some()
+                    || field
+                        .byte_sequence_carrier()
+                        .is_some_and(|carrier| carrier.is_shared_readable_view())
+            }
+
             pub(crate) fn new(
                 declaration: &'declaration StructuralTypeDeclaration,
                 lookup: impl Fn(StructuralTypeId) -> Option<&'declaration StructuralTypeDeclaration>,
@@ -1494,6 +1534,12 @@ pub(crate) mod values {
                         };
                         match &declaration.shape {
                             StructuralTypeShape::PrimitiveScalar(_) => {}
+                            StructuralTypeShape::ByteSequence(carrier)
+                                if carrier.is_shared_readable_view() => {}
+                            StructuralTypeShape::ElementView {
+                                element,
+                                access: None | Some(terminal_psi::StructuralAccess::SharedBorrow),
+                            } => child(*element)?,
                             StructuralTypeShape::Record { fields, storage } => {
                                 if matches!(
                                     storage,
@@ -1511,7 +1557,7 @@ pub(crate) mod values {
                                         field.field_type
                                     {
                                         child(identity)?;
-                                    } else if field.field_type.scalar_type().is_none() {
+                                    } else if !Self::is_plain_leaf(&field.field_type) {
                                         return Err(malformed());
                                     }
                                 }
@@ -1530,7 +1576,7 @@ pub(crate) mod values {
                             .position(|node| node.identity == identity)
                             .ok_or(malformed())
                     };
-                    let (shape, count, scalar_tree) = match &declaration.shape {
+                    let (shape, count, requires_erased_establishment) = match &declaration.shape {
                         StructuralTypeShape::PrimitiveScalar(scalar) => {
                             let field_type = declaration
                                 .scalar_restriction
@@ -1539,8 +1585,25 @@ pub(crate) mod values {
                             if field_type.scalar_type() != Some(*scalar) {
                                 return Err(malformed());
                             }
-                            (Shape::Scalar(field_type), Some(1), true)
+                            (Shape::Scalar(field_type), Some(1), false)
                         }
+                        StructuralTypeShape::ByteSequence(carrier)
+                            if carrier.is_shared_readable_view() =>
+                        {
+                            (
+                                Shape::Scalar(StructuralFieldType::ByteSequence(*carrier)),
+                                Some(1),
+                                false,
+                            )
+                        }
+                        StructuralTypeShape::ElementView {
+                            access: None | Some(terminal_psi::StructuralAccess::SharedBorrow),
+                            ..
+                        } => (
+                            Shape::Scalar(StructuralFieldType::Structural(declaration.id)),
+                            Some(1),
+                            false,
+                        ),
                         StructuralTypeShape::Record { fields, .. } => {
                             let mut members = Vec::new();
                             let mut count = Some(0_u64);
@@ -1551,14 +1614,16 @@ pub(crate) mod values {
                                         let index = child(identity)?;
                                         (Element::Structural(index), nodes[index].count)
                                     }
-                                    _ => (Element::Scalar(&field.field_type), Some(1)),
+                                    _ => (Element::Scalar, Some(1)),
                                 };
                                 count = count
                                     .zip(leaves)
                                     .and_then(|(count, leaves)| count.checked_add(leaves));
                                 members.push((field, element));
                             }
-                            (Shape::Record(members), count, false)
+                            let requires_erased = fields.iter().any(|field| field.relevance.is_erased())
+                                || members.iter().any(|(_, element)| matches!(element, Element::Structural(index) if nodes[*index].requires_erased_establishment));
+                            (Shape::Record(members), count, requires_erased)
                         }
                         StructuralTypeShape::FixedArray {
                             element,
@@ -1578,7 +1643,7 @@ pub(crate) mod values {
                                     length: *length,
                                 },
                                 count,
-                                nodes[element].scalar_tree,
+                                *length != 0 && nodes[element].requires_erased_establishment,
                             )
                         }
                         _ => return Err(malformed()),
@@ -1587,7 +1652,7 @@ pub(crate) mod values {
                         identity: declaration.id,
                         shape,
                         count,
-                        scalar_tree,
+                        requires_erased_establishment,
                     });
                 }
                 let root = nodes.len().checked_sub(1).ok_or(malformed())?;
@@ -1602,34 +1667,27 @@ pub(crate) mod values {
                     .map_err(|_| malformed())
             }
 
+            pub(crate) fn requires_erased_establishment(&self) -> bool {
+                self.nodes[self.root].requires_erased_establishment
+            }
+
+            pub(crate) fn is_scalar(&self) -> bool {
+                self.nodes.iter().all(|node| match &node.shape {
+                    Shape::Scalar(field) => field.scalar_type().is_some(),
+                    Shape::Record(fields) => fields.iter().all(|(field, element)| {
+                        !matches!(element, Element::Scalar)
+                            || field.field_type.scalar_type().is_some()
+                    }),
+                    Shape::Array { .. } => true,
+                })
+            }
+
             pub(crate) fn scalar_fields(
                 &self,
                 mut scalar: impl FnMut(
                     &[Path],
                     &StructuralFieldType,
-                ) -> Result<(), TerminalInterpretError>,
-            ) -> Result<(), TerminalInterpretError> {
-                self.walk(false, |path, part| match part {
-                    ScalarAggregatePart::Field(field) | ScalarAggregatePart::Primitive(field) => {
-                        scalar(path, field)
-                    }
-                    ScalarAggregatePart::Array { .. } => Err(malformed()),
-                })
-            }
-
-            pub(crate) fn storage_parts(
-                &self,
-                part: impl FnMut(&[Path], ScalarAggregatePart<'_>) -> Result<(), TerminalInterpretError>,
-            ) -> Result<(), TerminalInterpretError> {
-                self.walk(true, part)
-            }
-
-            fn walk(
-                &self,
-                group_scalar_arrays: bool,
-                mut part: impl FnMut(
-                    &[Path],
-                    ScalarAggregatePart<'_>,
+                    semantic_vocabulary::ScalarType,
                 ) -> Result<(), TerminalInterpretError>,
             ) -> Result<(), TerminalInterpretError> {
                 let mut pending = vec![Visit::Node(self.root)];
@@ -1638,29 +1696,12 @@ pub(crate) mod values {
                     match visit {
                         Visit::Node(index) => {
                             let node = &self.nodes[index];
-                            if group_scalar_arrays
-                                && node.scalar_tree
-                                && matches!(node.shape, Shape::Array { .. })
-                            {
-                                part(
-                                    &path,
-                                    ScalarAggregatePart::Array {
-                                        structural_type: node.identity,
-                                        count: usize::try_from(node.count.ok_or(malformed())?)
-                                            .map_err(|_| malformed())?,
-                                    },
-                                )?;
-                                continue;
-                            }
-                            if node.count == Some(0)
-                                && (!group_scalar_arrays
-                                    || matches!(node.shape, Shape::Array { .. }))
-                            {
+                            if node.count == Some(0) {
                                 continue;
                             }
                             match &node.shape {
                                 Shape::Scalar(field) => {
-                                    part(&path, ScalarAggregatePart::Primitive(field))?
+                                    scalar(&path, field, field.scalar_type().ok_or(malformed())?)?
                                 }
                                 Shape::Record(fields) => pending.extend(
                                     fields
@@ -1679,8 +1720,15 @@ pub(crate) mod values {
                             path.push(Path::Field(field.id));
                             pending.push(Visit::Pop);
                             match element {
-                                Element::Scalar(field_type) => {
-                                    part(&path, ScalarAggregatePart::Field(field_type))?
+                                Element::Scalar => {
+                                    let logical =
+                                        field.field_type.scalar_type().ok_or(malformed())?;
+                                    let stored = field
+                                        .storage
+                                        .as_ref()
+                                        .and_then(|storage| storage.stored_scalar())
+                                        .unwrap_or(logical);
+                                    scalar(&path, &field.field_type, stored)?;
                                 }
                                 Element::Structural(index) => pending.push(Visit::Node(*index)),
                             }
@@ -1710,58 +1758,133 @@ pub(crate) mod values {
             }
         }
 
-        impl TerminalScalarAggregateValue {
-            pub(crate) fn validate_against<'declaration>(
+        fn declared_scalar_fields<'declaration>(
+            declaration: &'declaration StructuralTypeDeclaration,
+            selected: Option<semantic_vocabulary::StructuralCaseId>,
+            count: usize,
+            lookup: impl Fn(StructuralTypeId) -> Option<&'declaration StructuralTypeDeclaration>,
+            mut visit: impl FnMut(
+                &[Path],
+                &StructuralFieldType,
+                semantic_vocabulary::ScalarType,
+            ) -> Result<(), TerminalInterpretError>,
+        ) -> Result<(), TerminalInterpretError> {
+            if declaration.quotient_carrier.is_some() {
+                return Err(malformed());
+            }
+            match (&declaration.shape, selected) {
+                (
+                    StructuralTypeShape::Record { .. }
+                    | StructuralTypeShape::FixedArray { .. }
+                    | StructuralTypeShape::PrimitiveScalar(_),
+                    None,
+                ) => {
+                    let plan = AggregatePlan::new(declaration, lookup)?;
+                    if !plan.is_scalar() || plan.count()? != count {
+                        return Err(malformed());
+                    }
+                    plan.scalar_fields(visit)
+                }
+                (StructuralTypeShape::Sum { cases }, Some(selected)) => {
+                    let case =
+                        terminal_psi::find_structural_case(cases, selected).ok_or(malformed())?;
+                    if case.fields.len() != count {
+                        return Err(malformed());
+                    }
+                    for field in &case.fields {
+                        if field.relevance.is_erased() {
+                            return Err(malformed());
+                        }
+                        let scalar = field.field_type.scalar_type().ok_or(malformed())?;
+                        let stored = field
+                            .storage
+                            .as_ref()
+                            .and_then(|storage| storage.stored_scalar())
+                            .unwrap_or(scalar);
+                        visit(&[Path::Field(field.id)], &field.field_type, stored)?;
+                    }
+                    Ok(())
+                }
+                _ => Err(malformed()),
+            }
+        }
+
+        impl TerminalAggregateValue {
+            pub(crate) fn set_declared_scalar_storage<'declaration>(
+                &mut self,
+                declaration: &'declaration StructuralTypeDeclaration,
+                lookup: impl Fn(StructuralTypeId) -> Option<&'declaration StructuralTypeDeclaration>,
+            ) -> Result<(), TerminalInterpretError> {
+                if declaration.id != self.structural_type {
+                    return Err(malformed());
+                }
+                let count = self.fields.len();
+                let mut fields = self.fields.iter_mut();
+                declared_scalar_fields(
+                    declaration,
+                    self.result_case,
+                    count,
+                    lookup,
+                    |path, field_type, stored| {
+                        let field = fields.next().ok_or(malformed())?;
+                        let crate::TerminalStorageContents::Scalar {
+                            value,
+                            stored_scalar,
+                        } = &mut field.contents
+                        else {
+                            return Err(malformed());
+                        };
+                        if field.path != path
+                            || field_type.scalar_type() != Some(value.scalar_type())
+                            || !value.satisfies_field(field_type)
+                            || !crate::storage::primitive_storage::scalar_fits_storage(
+                                stored, *value,
+                            )
+                        {
+                            return Err(malformed());
+                        }
+                        *stored_scalar = stored;
+                        Ok(())
+                    },
+                )
+            }
+
+            pub(crate) fn validate_scalar_against<'declaration>(
                 &self,
                 declaration: &'declaration StructuralTypeDeclaration,
                 lookup: impl Fn(StructuralTypeId) -> Option<&'declaration StructuralTypeDeclaration>,
             ) -> Result<(), TerminalInterpretError> {
-                if declaration.id != self.structural_type || declaration.quotient_carrier.is_some()
-                {
+                if declaration.id != self.structural_type {
                     return Err(malformed());
                 }
-                let mut actual = self.fields.iter();
-                let mut accept = |path: &[Path], field_type: &StructuralFieldType| {
-                    let (found, value) = actual.next().ok_or(malformed())?;
-                    if found != path
-                        || field_type.scalar_type() != Some(value.scalar_type())
-                        || !value.satisfies_field(field_type)
-                    {
-                        return Err(malformed());
-                    }
-                    Ok(())
-                };
-                match (&declaration.shape, self.result_case) {
-                    (
-                        StructuralTypeShape::Record { .. }
-                        | StructuralTypeShape::FixedArray { .. }
-                        | StructuralTypeShape::PrimitiveScalar(_),
-                        None,
-                    ) => {
-                        let plan = ScalarAggregatePlan::new(declaration, lookup)?;
-                        if plan.count()? != self.fields.len() {
+                let mut fields = self.fields.iter();
+                declared_scalar_fields(
+                    declaration,
+                    self.result_case,
+                    self.fields.len(),
+                    lookup,
+                    |path, field_type, stored| {
+                        let field = fields.next().ok_or(malformed())?;
+                        let crate::TerminalStorageContents::Scalar {
+                            value,
+                            stored_scalar,
+                        } = field.contents
+                        else {
+                            return Err(malformed());
+                        };
+                        if field.path != path
+                            || stored_scalar != stored
+                            || field_type.scalar_type() != Some(value.scalar_type())
+                            || !value.satisfies_field(field_type)
+                            || !crate::storage::primitive_storage::scalar_fits_storage(
+                                stored, value,
+                            )
+                        {
                             return Err(malformed());
                         }
-                        plan.scalar_fields(&mut accept)?;
-                    }
-                    (StructuralTypeShape::Sum { cases }, Some(selected)) => {
-                        let case = terminal_psi::find_structural_case(cases, selected)
-                            .ok_or(malformed())?;
-                        for field in &case.fields {
-                            if field.relevance.is_erased()
-                                || field.field_type.scalar_type().is_none()
-                            {
-                                return Err(malformed());
-                            }
-                            accept(&[Path::Field(field.id)], &field.field_type)?;
-                        }
-                    }
-                    _ => return Err(malformed()),
-                }
-                if actual.next().is_some() {
-                    return Err(malformed());
-                }
-                Ok(())
+                        Ok(())
+                    },
+                )
             }
         }
 
@@ -1861,9 +1984,63 @@ pub(crate) mod values {
                 )
             }
 
+            fn publish_aggregate(
+                declarations: Vec<StructuralTypeDeclaration>,
+                payload: TerminalAggregateValue,
+            ) -> crate::engine::execution::TerminalExecution<'static> {
+                use std::sync::Arc;
+                let mut program = crate::engine::calls::frames::tests::empty_program();
+                Arc::get_mut(&mut program)
+                    .unwrap()
+                    .fixture_module_mut()
+                    .structural_types = declarations;
+                let mut execution =
+                    crate::engine::execution::TerminalExecution::start_with_program(
+                        program,
+                        &[],
+                        crate::TerminalStructuralInputs::default(),
+                        None,
+                        None,
+                    )
+                    .unwrap();
+                let result = terminal_psi::StructuralOperationResult {
+                    place: semantic_vocabulary::PlaceId::new(1).unwrap(),
+                    structural_type: payload.structural_type,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    additional_input_qualifications: Vec::new(),
+                    qualification_establishments: Vec::new(),
+                    claims: Vec::new(),
+                };
+                let expected = terminal_psi::BoundaryMachineResult::Structural(
+                    terminal_psi::BoundaryStructuralResultDeclaration {
+                        structural_type: result.structural_type,
+                        multiplicity: result.multiplicity,
+                        qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
+                    },
+                );
+                let mut boundary =
+                    crate::boundary::effects::boundary_predicates::tests::idle_boundary();
+                boundary.result = expected.clone();
+                let operation_result = terminal_psi::OperationResult::Structural(result);
+                execution
+                    .preflight_boundary_result(&boundary, &operation_result)
+                    .unwrap();
+                execution
+                    .commit_boundary_result(
+                        &operation_result,
+                        &expected,
+                        crate::TerminalEffectResult::Aggregate(payload),
+                    )
+                    .unwrap();
+                execution
+            }
+
             struct Fixture {
                 declarations: Vec<StructuralTypeDeclaration>,
-                payload: TerminalScalarAggregateValue,
+                payload: TerminalAggregateValue,
             }
 
             impl Fixture {
@@ -1904,11 +2081,7 @@ pub(crate) mod values {
                     }
                     Self {
                         declarations,
-                        payload: TerminalScalarAggregateValue {
-                            structural_type: identity(1),
-                            result_case: None,
-                            fields,
-                        },
+                        payload: TerminalAggregateValue::from_scalars(identity(1), None, fields),
                     }
                 }
 
@@ -1916,13 +2089,13 @@ pub(crate) mod values {
                     self.declarations.iter().find(|row| row.id == value)
                 }
 
-                fn plan(&self) -> Result<ScalarAggregatePlan<'_>, TerminalInterpretError> {
-                    ScalarAggregatePlan::new(&self.declarations[0], |value| self.lookup(value))
+                fn plan(&self) -> Result<AggregatePlan<'_>, TerminalInterpretError> {
+                    AggregatePlan::new(&self.declarations[0], |value| self.lookup(value))
                 }
 
                 fn validate(&self) -> Result<(), TerminalInterpretError> {
                     self.payload
-                        .validate_against(&self.declarations[0], |value| self.lookup(value))
+                        .validate_scalar_against(&self.declarations[0], |value| self.lookup(value))
                 }
             }
 
@@ -1932,7 +2105,7 @@ pub(crate) mod values {
                 let plan = fixture.plan().unwrap();
                 assert_eq!(plan.count().unwrap(), 10);
                 let mut observed = Vec::new();
-                plan.scalar_fields(|path, field| {
+                plan.scalar_fields(|path, field, _| {
                     observed.push((path.to_vec(), field.scalar_type().unwrap()));
                     Ok(())
                 })
@@ -1941,7 +2114,13 @@ pub(crate) mod values {
                     .payload
                     .fields
                     .iter()
-                    .map(|(path, value)| (path.clone(), value.scalar_type()))
+                    .map(|field| {
+                        let crate::TerminalStorageContents::Scalar { value, .. } = field.contents
+                        else {
+                            panic!("the fixture supplies scalar fields");
+                        };
+                        (field.path.clone(), value.scalar_type())
+                    })
                     .collect::<Vec<_>>();
                 assert_eq!(observed, expected);
                 assert!(fixture.validate().is_ok());
@@ -1969,15 +2148,16 @@ pub(crate) mod values {
                 assert!(fixture.validate().is_err());
 
                 let mut fixture = Fixture::mixed_arrays();
-                fixture.payload.fields[5].0[1] = Path::FixedIndex(2);
+                fixture.payload.fields[5].path[1] = Path::FixedIndex(2);
                 assert!(fixture.validate().is_err());
 
                 let mut fixture = Fixture::mixed_arrays();
-                fixture.payload.fields[4].0[3] = Path::FixedIndex(4);
+                fixture.payload.fields[4].path[3] = Path::FixedIndex(4);
                 assert!(fixture.validate().is_err());
 
                 let mut fixture = Fixture::mixed_arrays();
-                fixture.payload.fields[1].1 = signed_value(0);
+                fixture.payload.fields[1].contents =
+                    crate::boundary::values::scalar_contents(signed_value(0));
                 assert!(fixture.validate().is_err());
             }
 
@@ -1994,61 +2174,73 @@ pub(crate) mod values {
                         .unwrap(),
                     ));
                 assert!(fixture.validate().is_ok());
-                fixture.payload.fields[9].1 = byte_value(128);
+                fixture.payload.fields[9].contents =
+                    crate::boundary::values::scalar_contents(byte_value(128));
                 assert!(fixture.validate().is_err());
             }
 
             #[test]
-            fn storage_parts_group_each_byte_array_once_but_walk_record_array_elements() {
+            fn mixed_record_arrays_publish_each_scalar_and_byte_backing() {
+                use crate::boundary::values::{
+                    StructuralRuntimePlace, StructuralScalarRuntimeField,
+                };
                 let fixture = Fixture::mixed_arrays();
-                let plan = fixture.plan().unwrap();
-                let mut observed = Vec::new();
-                plan.storage_parts(|path, part| {
-                    let description = match part {
-                        ScalarAggregatePart::Field(field) => {
-                            assert_eq!(field.scalar_type(), Some(signed()));
-                            None
-                        }
-                        ScalarAggregatePart::Array {
-                            structural_type,
-                            count,
-                        } => Some((structural_type, count)),
-                        ScalarAggregatePart::Primitive(_) => {
-                            panic!("guard bytes must be grouped for byte backing")
-                        }
-                    };
-                    observed.push((path.to_vec(), description));
-                    Ok(())
-                })
-                .unwrap();
-                assert_eq!(
-                    observed,
-                    vec![
-                        (vec![member(1), Path::FixedIndex(0), member(1)], None),
-                        (
-                            vec![member(1), Path::FixedIndex(0), member(2)],
-                            Some((identity(4), 4))
-                        ),
-                        (vec![member(1), Path::FixedIndex(1), member(1)], None),
-                        (
-                            vec![member(1), Path::FixedIndex(1), member(2)],
-                            Some((identity(4), 4))
-                        ),
-                    ]
+                let execution = publish_aggregate(fixture.declarations, fixture.payload);
+                let root = StructuralRuntimePlace::from(
+                    execution
+                        .structural_values
+                        .get(&semantic_vocabulary::PlaceId::new(1).unwrap())
+                        .unwrap(),
                 );
+                for index in 0..2 {
+                    let mut parent = root.clone();
+                    parent.path.extend([
+                        terminal_psi::StructuralPathSegment::Field(TerminalIdentityIndex(1)),
+                        terminal_psi::StructuralPathSegment::FixedIndex(index),
+                    ]);
+                    let scalar = execution
+                        .structural_scalar_fields
+                        .get(&StructuralScalarRuntimeField::member(
+                            parent.clone(),
+                            StructuralFieldId::new(1).unwrap(),
+                        ))
+                        .unwrap()
+                        .read()
+                        .unwrap();
+                    assert_eq!(
+                        scalar,
+                        signed_value(if index == 0 { -23_333_333_333 } else { -1 })
+                    );
+                    parent.path.push(terminal_psi::StructuralPathSegment::Field(
+                        TerminalIdentityIndex(2),
+                    ));
+                    let bytes = execution
+                        .structural_byte_storage
+                        .get(&parent)
+                        .unwrap()
+                        .read_view()
+                        .unwrap();
+                    assert_eq!(bytes.len(), 4);
+                    for guard in 0..4 {
+                        assert_eq!(
+                            u64::from(bytes.read(guard).unwrap()),
+                            index * 4 + guard as u64
+                        );
+                    }
+                }
             }
 
             #[test]
-            fn multidimensional_scalar_array_has_full_leaf_paths_and_one_storage_part() {
+            fn multidimensional_scalar_array_keeps_full_paths_and_byte_backing() {
                 let declarations = [
                     array(1, 2, 2),
                     array(2, 3, 2),
                     declaration(3, StructuralTypeShape::PrimitiveScalar(byte())),
                 ];
                 let lookup = |value| declarations.iter().find(|row| row.id == value);
-                let plan = ScalarAggregatePlan::new(&declarations[0], lookup).unwrap();
+                let plan = AggregatePlan::new(&declarations[0], lookup).unwrap();
                 let mut paths = Vec::new();
-                plan.scalar_fields(|path, _| {
+                plan.scalar_fields(|path, _, _| {
                     paths.push(path.to_vec());
                     Ok(())
                 })
@@ -2062,32 +2254,50 @@ pub(crate) mod values {
                         vec![Path::FixedIndex(1), Path::FixedIndex(1)],
                     ]
                 );
-                let mut groups = Vec::new();
-                plan.storage_parts(|path, part| {
-                    let ScalarAggregatePart::Array {
-                        structural_type,
-                        count,
-                    } = part
-                    else {
-                        panic!("pure scalar array must use the existing array storage owner")
-                    };
-                    groups.push((path.to_vec(), structural_type, count));
-                    Ok(())
-                })
-                .unwrap();
-                assert_eq!(groups, vec![(Vec::new(), identity(1), 4)]);
+                let fields = paths
+                    .into_iter()
+                    .enumerate()
+                    .map(|(position, path)| (path, byte_value(position as u64)))
+                    .collect();
+                let execution = publish_aggregate(
+                    declarations.to_vec(),
+                    TerminalAggregateValue::from_scalars(identity(1), None, fields),
+                );
+                let root = crate::boundary::values::StructuralRuntimePlace::from(
+                    execution
+                        .structural_values
+                        .get(&semantic_vocabulary::PlaceId::new(1).unwrap())
+                        .unwrap(),
+                );
+                for index in 0..2 {
+                    let mut home = root.clone();
+                    home.path
+                        .push(terminal_psi::StructuralPathSegment::FixedIndex(index));
+                    let bytes = execution
+                        .structural_byte_storage
+                        .get(&home)
+                        .unwrap()
+                        .read_view()
+                        .unwrap();
+                    assert_eq!(bytes.len(), 2);
+                    for position in 0..2 {
+                        assert_eq!(
+                            u64::from(bytes.read(position).unwrap()),
+                            index * 2 + position as u64
+                        );
+                    }
+                }
             }
 
             #[test]
             fn zero_array_dimensions_do_not_hide_missing_cyclic_or_unsupported_elements() {
                 let missing = array(1, 99, 0);
-                assert!(ScalarAggregatePlan::new(&missing, |_| None).is_err());
+                assert!(AggregatePlan::new(&missing, |_| None).is_err());
 
                 let cyclic = array(1, 1, 0);
                 assert!(
-                    ScalarAggregatePlan::new(&cyclic, |value| (value == cyclic.id)
-                        .then_some(&cyclic))
-                    .is_err()
+                    AggregatePlan::new(&cyclic, |value| (value == cyclic.id).then_some(&cyclic))
+                        .is_err()
                 );
 
                 for unsupported in [
@@ -2099,7 +2309,7 @@ pub(crate) mod values {
                 ] {
                     let declarations = [array(1, 2, 0), declaration(2, unsupported)];
                     assert!(
-                        ScalarAggregatePlan::new(&declarations[0], |value| declarations
+                        AggregatePlan::new(&declarations[0], |value| declarations
                             .iter()
                             .find(|row| row.id == value))
                         .is_err()
@@ -2108,21 +2318,28 @@ pub(crate) mod values {
             }
 
             #[test]
-            fn repeated_empty_record_schema_has_no_materialized_leaves_or_storage_parts() {
+            fn repeated_empty_records_publish_without_expanding_absent_storage() {
                 let declarations = [array(1, 2, u64::MAX), record(2, Vec::new())];
                 let lookup = |value| declarations.iter().find(|row| row.id == value);
-                let plan = ScalarAggregatePlan::new(&declarations[0], lookup).unwrap();
+                let plan = AggregatePlan::new(&declarations[0], lookup).unwrap();
                 assert_eq!(plan.count().unwrap(), 0);
-                plan.scalar_fields(|_, _| panic!("empty records have no scalar payload"))
+                plan.scalar_fields(|_, _, _| panic!("empty records have no scalar payload"))
                     .unwrap();
-                plan.storage_parts(|_, _| panic!("empty records need no scalar storage"))
-                    .unwrap();
-                let payload = TerminalScalarAggregateValue {
-                    structural_type: identity(1),
-                    result_case: None,
-                    fields: Vec::new(),
-                };
-                assert!(payload.validate_against(&declarations[0], lookup).is_ok());
+                let payload = TerminalAggregateValue::from_scalars(identity(1), None, Vec::new());
+                assert!(
+                    payload
+                        .validate_scalar_against(&declarations[0], lookup)
+                        .is_ok()
+                );
+                let execution = publish_aggregate(declarations.to_vec(), payload);
+                assert_eq!(
+                    execution
+                        .structural_values
+                        .get(&semantic_vocabulary::PlaceId::new(1).unwrap())
+                        .unwrap()
+                        .structural_type,
+                    identity(1)
+                );
             }
 
             #[test]
@@ -2133,31 +2350,29 @@ pub(crate) mod values {
                     array(3, 4, u64::MAX),
                     declaration(4, StructuralTypeShape::PrimitiveScalar(byte())),
                 ];
-                let plan = ScalarAggregatePlan::new(&declarations[0], |value| {
+                let plan = AggregatePlan::new(&declarations[0], |value| {
                     declarations.iter().find(|row| row.id == value)
                 })
                 .unwrap();
                 assert_eq!(plan.count().unwrap(), 0);
-                plan.scalar_fields(|_, _| {
+                plan.scalar_fields(|_, _, _| {
                     panic!("zero outer dimension creates no scalar instances")
                 })
                 .unwrap();
-                let mut groups = Vec::new();
-                plan.storage_parts(|path, part| {
-                    let ScalarAggregatePart::Array {
-                        structural_type,
-                        count,
-                    } = part
-                    else {
-                        panic!("scalar array grouping lost")
-                    };
-                    groups.push((path.to_vec(), structural_type, count));
-                    Ok(())
-                })
-                .unwrap();
-                assert_eq!(groups, vec![(Vec::new(), identity(1), 0)]);
+                let execution = publish_aggregate(
+                    declarations.to_vec(),
+                    TerminalAggregateValue::from_scalars(identity(1), None, Vec::new()),
+                );
+                assert_eq!(
+                    execution
+                        .structural_values
+                        .get(&semantic_vocabulary::PlaceId::new(1).unwrap())
+                        .unwrap()
+                        .structural_type,
+                    identity(1)
+                );
                 assert!(
-                    ScalarAggregatePlan::new(&declarations[1], |value| declarations
+                    AggregatePlan::new(&declarations[1], |value| declarations
                         .iter()
                         .find(|row| row.id == value))
                     .is_err()
@@ -2167,7 +2382,7 @@ pub(crate) mod values {
                     access: terminal_psi::StructuralAccess::SharedBorrow,
                 };
                 assert!(
-                    ScalarAggregatePlan::new(&declarations[0], |value| declarations
+                    AggregatePlan::new(&declarations[0], |value| declarations
                         .iter()
                         .find(|row| row.id == value))
                     .is_err()
@@ -2175,7 +2390,7 @@ pub(crate) mod values {
             }
         }
     }
-    pub(crate) use aggregates::{ScalarAggregatePart, ScalarAggregatePlan};
+    pub(crate) use aggregates::AggregatePlan;
 
     #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct TerminalStructuralBooleanFieldValue {
@@ -2341,11 +2556,11 @@ pub(crate) mod values {
                 scalar_restriction: None,
             }
         }
-        fn payload() -> TerminalScalarAggregateValue {
-            TerminalScalarAggregateValue {
-                structural_type: StructuralTypeId::new(1).unwrap(),
-                result_case: None,
-                fields: (1..=2)
+        fn payload() -> TerminalAggregateValue {
+            TerminalAggregateValue::from_scalars(
+                StructuralTypeId::new(1).unwrap(),
+                None,
+                (1..=2)
                     .map(|id| {
                         (
                             vec![semantic_vocabulary::CanonicalStructuralPathSegment::Field(
@@ -2358,35 +2573,87 @@ pub(crate) mod values {
                         )
                     })
                     .collect(),
-            }
+            )
         }
         #[test]
         fn scalar_record_requires_complete_ordered_typed_fields() {
             let d = declaration();
             let p = payload();
-            assert!(p.validate_against(&d, |_| None).is_ok());
+            assert!(p.validate_scalar_against(&d, |_| None).is_ok());
             let mut bad = p.clone();
             bad.fields.swap(0, 1);
-            assert!(bad.validate_against(&d, |_| None).is_err());
+            assert!(bad.validate_scalar_against(&d, |_| None).is_err());
             let mut bad = p.clone();
             bad.fields.pop();
-            assert!(bad.validate_against(&d, |_| None).is_err());
+            assert!(bad.validate_scalar_against(&d, |_| None).is_err());
             let mut bad = p.clone();
             bad.fields.push(p.fields[0].clone());
-            assert!(bad.validate_against(&d, |_| None).is_err());
+            assert!(bad.validate_scalar_against(&d, |_| None).is_err());
             let mut bad = p.clone();
-            bad.fields[0].1 = TerminalScalarValue::Boolean(true);
-            assert!(bad.validate_against(&d, |_| None).is_err());
+            bad.fields[0].contents =
+                crate::boundary::values::scalar_contents(TerminalScalarValue::Boolean(true));
+            assert!(bad.validate_scalar_against(&d, |_| None).is_err());
             let mut bad = p.clone();
-            bad.fields[0].1 = TerminalScalarValue::Integer {
-                scalar_type: integer(),
-                value: IntegerValue::Signed(i128::MAX),
-            };
-            assert!(bad.validate_against(&d, |_| None).is_err());
+            bad.fields[0].contents =
+                crate::boundary::values::scalar_contents(TerminalScalarValue::Integer {
+                    scalar_type: integer(),
+                    value: IntegerValue::Signed(i128::MAX),
+                });
+            assert!(bad.validate_scalar_against(&d, |_| None).is_err());
             let mut bad = p.clone();
             bad.structural_type = StructuralTypeId::new(2).unwrap();
-            assert!(bad.validate_against(&d, |_| None).is_err());
+            assert!(bad.validate_scalar_against(&d, |_| None).is_err());
         }
+        #[test]
+        fn scalar_storage_keeps_the_declared_carrier_and_rejects_overflow() {
+            let mut declaration = declaration();
+            let stored = ScalarType::Integer(
+                IntegerType::new(semantic_vocabulary::IntegerSign::Signed, 8).unwrap(),
+            );
+            let StructuralTypeShape::Record { fields, .. } = &mut declaration.shape else {
+                unreachable!()
+            };
+            fields[0].storage = Some(semantic_vocabulary::AuthoredFieldStorage::Scalar {
+                byte_offset: 0,
+                stored_scalar: Some(stored),
+            });
+            let mut value = payload();
+            assert!(
+                value
+                    .validate_scalar_against(&declaration, |_| None)
+                    .is_err()
+            );
+            value
+                .set_declared_scalar_storage(&declaration, |_| None)
+                .unwrap();
+            value
+                .validate_scalar_against(&declaration, |_| None)
+                .unwrap();
+            let crate::TerminalStorageContents::Scalar { stored_scalar, .. } =
+                value.fields[0].contents
+            else {
+                panic!("a scalar field")
+            };
+            assert_eq!(stored_scalar, stored);
+            value.fields[0].contents = crate::TerminalStorageContents::Scalar {
+                value: TerminalScalarValue::Integer {
+                    scalar_type: integer(),
+                    value: IntegerValue::Signed(-129),
+                },
+                stored_scalar: stored,
+            };
+            assert!(
+                value
+                    .validate_scalar_against(&declaration, |_| None)
+                    .is_err()
+            );
+            assert!(
+                value
+                    .set_declared_scalar_storage(&declaration, |_| None)
+                    .is_err()
+            );
+        }
+
         #[test]
         fn record_and_sum_discriminators_cannot_be_interchanged() {
             let record = declaration();
@@ -2394,7 +2661,7 @@ pub(crate) mod values {
             let case = StructuralCaseId::new(1).unwrap();
             let mut tagged = p.clone();
             tagged.result_case = Some(case);
-            assert!(tagged.validate_against(&record, |_| None).is_err());
+            assert!(tagged.validate_scalar_against(&record, |_| None).is_err());
             let StructuralTypeShape::Record { fields, .. } = record.shape.clone() else {
                 unreachable!()
             };
@@ -2407,10 +2674,10 @@ pub(crate) mod values {
                     fields,
                 }],
             };
-            assert!(p.validate_against(&sum, |_| None).is_err());
-            assert!(tagged.validate_against(&sum, |_| None).is_ok());
+            assert!(p.validate_scalar_against(&sum, |_| None).is_err());
+            assert!(tagged.validate_scalar_against(&sum, |_| None).is_ok());
             tagged.result_case = Some(StructuralCaseId::new(2).unwrap());
-            assert!(tagged.validate_against(&sum, |_| None).is_err());
+            assert!(tagged.validate_scalar_against(&sum, |_| None).is_err());
         }
         #[test]
         fn nested_scalar_record_binds_complete_containing_paths() {
@@ -2424,26 +2691,28 @@ pub(crate) mod values {
             fields.truncate(1);
             fields[0].field_type = terminal_psi::StructuralFieldType::Structural(child.id);
             let mut value = payload();
-            for (path, _) in &mut value.fields {
-                path.insert(0, Path::Field(StructuralFieldId::new(1).unwrap()));
+            for field in &mut value.fields {
+                field
+                    .path
+                    .insert(0, Path::Field(StructuralFieldId::new(1).unwrap()));
             }
             let lookup = |identity| (identity == child.id).then_some(&child);
-            assert!(value.validate_against(&root, lookup).is_ok());
-            assert!(value.validate_against(&root, |_| None).is_err());
+            assert!(value.validate_scalar_against(&root, lookup).is_ok());
+            assert!(value.validate_scalar_against(&root, |_| None).is_err());
             let mut flat = value.clone();
-            for (path, _) in &mut flat.fields {
-                path.remove(0);
+            for field in &mut flat.fields {
+                field.path.remove(0);
             }
-            assert!(flat.validate_against(&root, lookup).is_err());
+            assert!(flat.validate_scalar_against(&root, lookup).is_err());
             let mut changed = value.clone();
-            changed.fields[0].0[0] = Path::Field(StructuralFieldId::new(2).unwrap());
-            assert!(changed.validate_against(&root, lookup).is_err());
+            changed.fields[0].path[0] = Path::Field(StructuralFieldId::new(2).unwrap());
+            assert!(changed.validate_scalar_against(&root, lookup).is_err());
             let mut missing = value.clone();
             missing.fields.pop();
-            assert!(missing.validate_against(&root, lookup).is_err());
+            assert!(missing.validate_scalar_against(&root, lookup).is_err());
             let mut repeated = value.clone();
             repeated.fields[1] = repeated.fields[0].clone();
-            assert!(repeated.validate_against(&root, lookup).is_err());
+            assert!(repeated.validate_scalar_against(&root, lookup).is_err());
             let terminal_psi::StructuralTypeShape::Record { fields, .. } = &mut child.shape else {
                 unreachable!()
             };
@@ -2451,7 +2720,8 @@ pub(crate) mod values {
             value.fields.clear();
             assert!(
                 value
-                    .validate_against(&root, |identity| (identity == child.id).then_some(&child))
+                    .validate_scalar_against(&root, |identity| (identity == child.id)
+                        .then_some(&child))
                     .is_ok()
             );
             let terminal_psi::StructuralTypeShape::Record { fields, .. } = &mut child.shape else {
@@ -2467,7 +2737,8 @@ pub(crate) mod values {
             fields.push(root_fields[0].clone());
             assert!(
                 value
-                    .validate_against(&root, |identity| (identity == child.id).then_some(&child))
+                    .validate_scalar_against(&root, |identity| (identity == child.id)
+                        .then_some(&child))
                     .is_err()
             );
         }

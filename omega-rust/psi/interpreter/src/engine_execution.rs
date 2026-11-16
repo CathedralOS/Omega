@@ -140,14 +140,16 @@ pub(crate) mod atomic_operations {
                             )]
                         }
                     };
-                    self.publish_scalar_aggregate(
-                        result,
-                        crate::boundary::values::TerminalScalarAggregateValue {
-                            structural_type: result.structural_type,
-                            result_case: Some(result_case),
-                            fields,
-                        },
+                    let mut value = crate::boundary::values::TerminalAggregateValue::from_scalars(
+                        result.structural_type,
+                        Some(result_case),
+                        fields,
+                    );
+                    value.set_declared_scalar_storage(
+                        self.structural_declaration(result.structural_type)?,
+                        |identity| self.structural_types().get(&identity),
                     )?;
+                    self.publish_aggregate(result, value)?;
                 }
                 (Some(prior), OperationResult::Scalar(result))
                     if result.scalar_type == scalar_type =>
@@ -3021,7 +3023,7 @@ pub(crate) mod execution {
 pub(crate) mod native_code_layouts {
     use crate::boundary::errors::{TerminalInterpretError, malformed};
     use crate::boundary::values::{
-        StructuralRuntimePlace, StructuralScalarRuntimeField, TerminalScalarAggregateValue,
+        StructuralRuntimePlace, StructuralScalarRuntimeField, TerminalAggregateValue,
         TerminalScalarValue, TerminalStructuralValue,
     };
     use crate::engine::execution::TerminalExecution;
@@ -3130,10 +3132,10 @@ pub(crate) mod native_code_layouts {
             let elements = ImmutableStructuralSequence::from_values(
                 layout.regions.len(),
                 layout.regions.iter().map(|region| {
-                    let aggregate = TerminalScalarAggregateValue {
-                        structural_type: element_type,
-                        result_case: None,
-                        fields: vec![
+                    let mut aggregate = TerminalAggregateValue::from_scalars(
+                        element_type,
+                        None,
+                        vec![
                             (
                                 vec![CanonicalStructuralPathSegment::Field(base_field)],
                                 number(base_type, region.base),
@@ -3143,8 +3145,8 @@ pub(crate) mod native_code_layouts {
                                 number(length_type, region.length),
                             ),
                         ],
-                    };
-                    aggregate.validate_against(
+                    );
+                    aggregate.set_declared_scalar_storage(
                         self.structural_declaration(element_type)?,
                         |identity| self.structural_types().get(&identity),
                     )?;
@@ -3153,11 +3155,15 @@ pub(crate) mod native_code_layouts {
                         element_type,
                         Vec::new(),
                     );
-                    storage.stage_scalar_aggregate(
-                        self,
-                        &aggregate,
-                        &StructuralRuntimePlace::from(&element),
+                    let mut cursor = self.local_structural_identities.cursor();
+                    self.stage_structural_result_contents(
+                        result.place,
+                        &element,
+                        &aggregate.canonical_contents(),
+                        &mut storage,
+                        &mut cursor,
                     )?;
+                    self.local_structural_identities.commit_cursor(cursor);
                     Ok(element)
                 }),
                 account.as_ref(),
