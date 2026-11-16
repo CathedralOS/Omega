@@ -152,13 +152,6 @@ framework or a list of unimplemented features.
 - Cost: Adding a domain to a module silently changes what an imported domain spelling means in its sibling files, with different predicates and authority. Delete both local tiers, refuse two visible candidates naming both owners, and flip the test.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/modules.md
 
-### `terminates by (a, b)` without a view becomes `Nat::BoundedDistance` because it has two subjects
-- Category: Tests that pin the bug
-- Where: [pending_ranking_default](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L208), [test](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/ranking_defaults_tests.rs#L48), [Psi 05 README](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/README.md#L575)
-- Saw: [ranking](wiki/spec/language/termination.md) says the short form without `-> View` "requires a carrier-declared stable canonical default", writes the pair example with an explicit `-> Nat::BoundedDistance`, and lists lexicographic product as another view. `pending_ranking_default` returns `NAT_BOUNDED_DISTANCE` for any two-subject witness before looking at either type, and `ranking_defaults_tests.rs` pins `terminates by (index, limit)` to it.
-- Cost: An author's `terminates by (i, j)` silently becomes a bounded-distance ranking, and adding lexicographic products later would change what existing code means. Refuse multi-subject witnesses without a view and pin that refusal.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/termination.md
-
 ### A bitwise and/or bound uses semantic axioms the certificate never cites
 - Category: A verdict with nothing behind it
 - Where: [bounded_bitwise_sibling](omega-rust/psi/compilation/proof-admission/src/integer_affine.rs#L3285), [bitwise-and branch](omega-rust/psi/compilation/proof-admission/src/integer_affine.rs#L3178), [bitwise-or branch](omega-rust/psi/compilation/proof-admission/src/integer_affine.rs#L3216), [cited list](omega-rust/psi/compilation/proof-admission/src/proof.rs#L528), [core rule instance](omega-rust/psi/compilation/proof-admission/src/bounded_denotation.rs#L8357)
