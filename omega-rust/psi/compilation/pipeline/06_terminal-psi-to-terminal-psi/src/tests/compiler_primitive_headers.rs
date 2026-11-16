@@ -217,8 +217,26 @@ ensures result.len == items.len { items }
     );
 }
 
-fn observed_program(text: &str) -> Vec<Result<crate::RouteVerdict, crate::CompilationRefusal>> {
-    let typed = super::build_purpose::frontier_with_core(
+#[test]
+fn copied_or_edited_byte_observation_headers_cannot_acquire_catalog_supply() {
+    const SOURCE: &str = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../source/library/core/byte_observation.omg"
+    ));
+    let edited = SOURCE.replace("reaches none", "reaches none\nsuspends true");
+    for (source, origin) in [
+        (SOURCE, source::SourceOrigin::User),
+        (edited.as_str(), source::SourceOrigin::Toolchain),
+    ] {
+        assert!(
+            typed_at(source, "byte_observation.omg", origin).is_err(),
+            "a copied or changed header cannot nominate compiler supply"
+        );
+    }
+}
+
+fn observed_typed(text: &str) -> typed_trees::TypedTrees {
+    super::build_purpose::frontier_with_core(
         text,
         "machine build_entry() {}",
         &[(
@@ -229,11 +247,16 @@ fn observed_program(text: &str) -> Vec<Result<crate::RouteVerdict, crate::Compil
                 "/../../../../../source/library/core/byte_observation.omg"
             )),
         )],
-    );
-    let entry = super::build_purpose::symbol(&typed, "main");
+    )
+}
+
+fn judge_observed(
+    typed: &typed_trees::TypedTrees,
+) -> Vec<Result<crate::RouteVerdict, crate::CompilationRefusal>> {
+    let entry = super::build_purpose::symbol(typed, "main");
     crate::judge_compilation(
         typed_trees_to_terminal_psi::prepare_compilation(
-            &typed,
+            typed,
             super::build_purpose::roster(
                 &[entry],
                 &[Some(super::build_purpose::package())],
@@ -243,6 +266,10 @@ fn observed_program(text: &str) -> Vec<Result<crate::RouteVerdict, crate::Compil
         )
         .program,
     )
+}
+
+fn observed_program(text: &str) -> Vec<Result<crate::RouteVerdict, crate::CompilationRefusal>> {
+    judge_observed(&observed_typed(text))
 }
 
 #[test]
@@ -297,6 +324,42 @@ machine main() {{ let valid: bool = checked("Room A1"); }}
                 .iter()
                 .any(|verdict| matches!(verdict, Ok(crate::RouteVerdict::Rejected { .. }))),
             "neither constant result proves exact membership: {verdicts:?}"
+        );
+    }
+}
+
+#[test]
+fn authenticated_byte_calls_still_require_their_complete_actual_header() {
+    for mutation in 0..3 {
+        let mut typed = observed_typed(
+            r#"
+use omega::language::core::byte_observation;
+machine main() { let valid: bool = byte_observation::ascii_only("Room A1"); }
+"#,
+        );
+        let index = typed
+            .machines()
+            .iter()
+            .position(|machine| machine.name.as_str() == "ascii_only")
+            .unwrap();
+        let symbol = typed.machines()[index].symbol;
+        // Keep the exact authenticated source, symbol and signature types.
+        // These are different actual headers, not copied catalog spellings.
+        match mutation {
+            0 => typed.machines_mut()[index].is_public = false,
+            1 => typed.machines_mut()[index].admitted_same_stack_bytes = 1,
+            2 => typed.machines_mut()[index]
+                .lifetime_parameters
+                .push(typed_trees::name::Identifier::generated("extra")),
+            _ => unreachable!(),
+        }
+        assert!(typed.compiler_primitive_schema(symbol).unwrap().is_some());
+        let verdicts = judge_observed(&typed);
+        assert!(
+            verdicts
+                .iter()
+                .any(|verdict| !matches!(verdict, Ok(crate::RouteVerdict::Accepted(_)))),
+            "catalog custody must not erase actual header differences: {verdicts:?}"
         );
     }
 }

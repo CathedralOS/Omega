@@ -2190,11 +2190,18 @@ pub(crate) mod primitive_store_memberships {
             let identity = StructuralDomainId::new(1).unwrap();
             let restriction = |predicate| {
                 let domain = StructuralDomainDeclaration {
-                    id: identity,
-                    carrier: array,
+                    subject_identity: Default::default(),
+                    access_policy: None,
                     required_memberships: Some(Vec::new()),
+                    complete_predicate_theory: true,
+                    predicate: None,
+                    id: identity,
+                    semantic_domain: semantic_vocabulary::DomainSemanticId::new(1).unwrap(),
+                    identity: TerminalIdentityIndex(3),
+                    carrier: array,
+                    content_projection: None,
                     byte_predicate: Some(predicate),
-                    ..Default::default()
+                    establishment_routes: None,
                 };
                 primitive_store_restriction(
                     types.iter(),

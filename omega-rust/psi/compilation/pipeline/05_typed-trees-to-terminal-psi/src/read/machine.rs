@@ -1910,6 +1910,23 @@ impl<'t> Program<'t> {
         };
         self.served(id, target)?;
         let (machine, state) = self.declaration(id, target)?;
+        if !machine.is_public
+            || machine.interface_exposure != language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
+            || machine.purpose != MachinePurpose::Runtime
+            || machine.spelling.is_some()
+            || machine.type_parameters != arena::HandleSpan::empty()
+            || machine.lifetime_parameters.len() != 1
+            || machine.admitted_same_stack_bytes != 0
+            || machine.assembly_target_requirement != language_core::inline_assembly::AsmTargetApplicability::Any
+            || !machine.suspends_keyword_source_spans.is_empty()
+            || !machine.blocks_keyword_source_spans.is_empty()
+            || !state.statement_nodes.is_empty() || !state.contracts.is_empty()
+            || self.typed.state_parameters(state).iter().any(|formal|
+                formal.is_const || formal.is_mutable
+                || formal.relevance != language_core::BindingRelevance::Relevant)
+        {
+            return Err(unavailable("byte observation has another static, operational or entry contract"));
+        }
         let (mut signature, _) = self.contract(
             id,
             machine.symbol,
