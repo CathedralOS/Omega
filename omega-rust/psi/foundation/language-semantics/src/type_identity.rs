@@ -68,6 +68,15 @@ pub mod encoding {
         }
     }
 
+    /// A declaration's name and selected signature identify one overload.
+    /// Source producers and receiving checks must frame both the same way.
+    pub fn callable_declaration_path(path: &str, callable: &str) -> String {
+        compound(
+            CoordinateTag::Declaration,
+            [atom(CoordinateTag::Path, path), callable.to_owned()],
+        )
+    }
+
     pub fn bare(tag: impl Spelled) -> String {
         tag.spelling().to_owned()
     }
@@ -1560,8 +1569,8 @@ pub mod vocabulary {
 pub use callable_display::callable_display_path;
 pub use lifetime_partition::normalize_requirement_lifetime_partition;
 
-/// The semantic name of a declaration owned by a package. Nominal identity
-/// queries and source publication use this same spelling for that owner/path.
+/// Source publication and receiving checks must name a package declaration
+/// with the same package digest and declaration path.
 pub fn package_declaration_identity(
     package: semantic_vocabulary::PackageKeyIdentity,
     path: &str,
@@ -1720,6 +1729,8 @@ fn closed_callable_matches(
         // of a toolchain declaration. Do not guess an owner correspondence.
         _ => return Err(Error::UnsupportedEmbeddedName),
     };
+    let declared_path =
+        encoding::callable_declaration_path(&declared_path, &abi.requirement_identity);
     if package_declaration_identity(package, &declared_path) != semantic_template {
         return Ok(false);
     }
