@@ -5,7 +5,7 @@
 use semantic_vocabulary::{MachineId, StructuralTypeId};
 use terminal_check_tables::Checked;
 use terminal_psi::{CallingAbiStorage, CallingRuntimeFormal, CallingSignatureTelescope};
-use typed_trees::types::TypeReferenceNode;
+use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 use super::{Program, services};
 use crate::body::{StorageShape, ValueType};
