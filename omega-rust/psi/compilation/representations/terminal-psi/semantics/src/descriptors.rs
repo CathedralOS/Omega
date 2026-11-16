@@ -14823,7 +14823,7 @@ pub mod descriptor_results {
                 slot_kind: DescriptorSlotKind,
                 invocation: terminal_psi::ModuleInvocation<'_>,
                 result: Option<&terminal_psi::StructuralOperationResult>,
-                selector: &impl Fn(ValueId) -> Option<ScalarTerm>,
+                selector: impl Fn(ValueId) -> Option<ScalarTerm>,
             ) -> Option<DescriptorInvocation> {
                 let inputs = invocation.inputs;
                 let callee = terminal_graph_machine(machines, inputs.callee)?;
