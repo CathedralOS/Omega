@@ -75,6 +75,13 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Target validation rejects an executable provider call with two mutable inputs
+- Category: verifying costs more than writing
+- Where: [selected boundary correspondence](omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/native-preparation/src/legalization_scalar_graph.rs#L2407)
+- Saw: A Build-selected provider writes 41 and 43 through two distinct `&mut i64` inputs. On macOS arm64, the caller checks both values and exits 0 in native execution and Psi at `b0780cf0613`. The same source with `TargetOperationCorrespondence` reports `SourceCustodyMismatch` for machine 1, operation 5. The reproduction uses elided lifetimes.
+- Cost: Independent target validation refuses this provider call. Identify the disagreement between the selected requirement and call record, and verify a valid pair of loans and a mismatched provider record.
+- Reported: 2026-11-16, Codex, while qualifying named boundary input lifetimes.
+
 ### Selected-body activation copies retained side records
 - Category: re-deriving
 - Where: [body activation](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L555), [continuation storage clone](omega-rust/psi/compilation/representations/typed-trees/src/lib.rs#L1295), [retained pages](omega-rust/psi/foundation/arena/src/retained.rs)
