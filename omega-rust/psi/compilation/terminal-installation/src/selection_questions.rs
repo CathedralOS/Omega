@@ -172,15 +172,24 @@ fn cover<Key: Ord + Copy, Value>(
     }
 }
 
-fn origin(
+fn has_origin(
     rows: &[(
         (MachineId, SelectionDeclarationId),
         semantic_vocabulary::BlockId,
     )],
     machine: MachineId,
     source: SelectionDeclarationId,
-) -> Option<semantic_vocabulary::BlockId> {
-    lookup(rows, (machine, source)).copied()
+    head: Option<semantic_vocabulary::BlockId>,
+) -> bool {
+    let key = (machine, source);
+    let start = rows.partition_point(|(candidate, _)| *candidate < key);
+    let end = rows.partition_point(|(candidate, _)| *candidate <= key);
+    match head {
+        Some(head) => rows[start..end]
+            .binary_search_by_key(&head, |(_, head)| *head)
+            .is_ok(),
+        None => start != end,
+    }
 }
 
 /// The caller must supply the private source-issued companion, not decoded data
@@ -361,8 +370,11 @@ pub fn validate_selection_questions(
             _ => (),
         }
     }
-    origins.sort_unstable_by_key(|(key, _)| *key);
-    if origins.windows(2).any(|rows| rows[0].0 == rows[1].0) {
+    // A recursive declaration has both its invocation entry and its folded
+    // loop head. Keep both coordinates; only repeating the same complete
+    // origin is a duplicate. Folded calls below require their exact head.
+    origins.sort_unstable();
+    if origins.windows(2).any(|rows| rows[0] == rows[1]) {
         return Err("source selection repeats a machine origin".into());
     }
     boundary_origins.sort_unstable_by_key(|(key, _)| *key);
@@ -411,7 +423,7 @@ pub fn validate_selection_questions(
             } => {
                 let row = published_question(packet, *id)?;
                 if row.occurrence.lexical_owner != *original_caller
-                    || origin(&origins, *machine, *original_caller).is_none()
+                    || !has_origin(&origins, *machine, *original_caller, None)
                 {
                     return Err("invocation selection lost its original lexical caller".into());
                 }
@@ -423,7 +435,7 @@ pub fn validate_selection_questions(
                 if let SelectionReference::Declaration(selected) = &row.selected {
                     let same = match target {
                         SelectionCallTarget::Declared(TargetMachineCallable::Machine(target)) => {
-                            origin(&origins, *target, *selected).is_some()
+                            has_origin(&origins, *target, *selected, None)
                         }
                         SelectionCallTarget::Declared(TargetMachineCallable::Boundary(target)) => {
                             lookup(&boundary_origins, *target) == Some(selected)
@@ -487,7 +499,7 @@ pub fn validate_selection_questions(
                 declaration(packet, *selected)?;
                 if row.selected != SelectionReference::Declaration(*selected)
                     || lookup(&constructed, (*machine, *operation)) != Some(descriptor)
-                    || origin(&origins, *machine, row.occurrence.lexical_owner).is_none()
+                    || !has_origin(&origins, *machine, row.occurrence.lexical_owner, None)
                 {
                     return Err("descriptor selection differs from its actual construction".into());
                 }
@@ -495,7 +507,7 @@ pub fn validate_selection_questions(
                     .callables
                     .descriptor(*descriptor)
                     .ok_or("descriptor selection names no descriptor")?;
-                if origin(&origins, value.machine, *selected).is_none() {
+                if !has_origin(&origins, value.machine, *selected, None) {
                     return Err(
                         "descriptor selection lost its original selected declaration".into(),
                     );
@@ -521,8 +533,8 @@ pub fn validate_selection_questions(
                 };
                 if row.occurrence.lexical_owner != *original_caller
                     || !selected
-                    || origin(&origins, *machine, *original_caller).is_none()
-                    || origin(&origins, *machine, *original_target) != Some(*head)
+                    || !has_origin(&origins, *machine, *original_caller, None)
+                    || !has_origin(&origins, *machine, *original_target, Some(*head))
                 {
                     return Err(
                         "folded selection lost its original caller, target or actual head".into(),

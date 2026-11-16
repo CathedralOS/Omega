@@ -1814,6 +1814,79 @@ machine entry() -> u64 crashes none {
     }
 
     #[test]
+    fn recursive_declarations_keep_both_entry_and_folded_head_origins() {
+        let source = accepted_source(
+            r#"
+machine repeat(index: u64) {
+    transition index < 3 {
+        true -> repeat(index + 1)
+        _ -> {}
+    }
+}
+machine entry() { repeat(0); }
+"#,
+            &[],
+        );
+        let module = source.module();
+        let prepared = prepare(&source, module, None).unwrap();
+        let validate = |questions: &SelectionQuestions| {
+            terminal_installation::selection_questions::validate_selection_questions(
+                module, questions,
+            )
+        };
+        validate(&prepared.questions).unwrap();
+        let (machine, declaration, head) = prepared
+            .questions
+            .joins
+            .iter()
+            .find_map(|join| match join {
+                SelectionJoin::FoldedCall {
+                    machine,
+                    original_target,
+                    head,
+                    ..
+                } => Some((*machine, *original_target, *head)),
+                _ => None,
+            })
+            .expect("the real recursive call must retain its folded target");
+        let entry = module.machine(machine).unwrap().entry;
+        assert_ne!(entry, head);
+        let is_origin = |join: &SelectionJoin, expected| {
+            matches!(join, SelectionJoin::Machine {
+                declaration: source, machine: body, head,
+            } if *source == declaration && *body == machine && *head == expected)
+        };
+        assert!(
+            prepared
+                .questions
+                .joins
+                .iter()
+                .any(|join| is_origin(join, entry))
+        );
+        let origin = prepared
+            .questions
+            .joins
+            .iter()
+            .find(|join| is_origin(join, head))
+            .unwrap()
+            .clone();
+        let mut duplicate = prepared.questions.clone();
+        duplicate.joins.push(origin);
+        assert!(
+            validate(&duplicate)
+                .unwrap_err()
+                .contains("repeats a machine origin")
+        );
+        let mut missing_head = prepared.questions.clone();
+        missing_head.joins.retain(|join| !is_origin(join, head));
+        assert!(
+            validate(&missing_head)
+                .unwrap_err()
+                .contains("folded selection lost its original caller, target or actual head")
+        );
+    }
+
+    #[test]
     fn domain_declarations_keep_their_subjects_without_splitting_their_meaning() {
         let source = accepted_source(
             r#"
