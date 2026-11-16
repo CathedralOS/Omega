@@ -466,10 +466,10 @@ mod grammar {
         Error, Result, TypeIdentityPackageOwnerVisitor, framing::Reader, index, scoped, unadmitted,
     };
 
-    pub(super) fn compound<T>(
-        reader: &mut Reader<'_>,
+    pub(super) fn compound<'text, T>(
+        reader: &mut Reader<'text>,
         visitor: &mut dyn TypeIdentityPackageOwnerVisitor,
-        children: impl FnOnce(&mut Reader<'_>, &mut dyn TypeIdentityPackageOwnerVisitor) -> Result<T>,
+        children: impl FnOnce(&mut Reader<'text>, &mut dyn TypeIdentityPackageOwnerVisitor) -> Result<T>,
     ) -> Result<T> {
         scoped(visitor, |visitor| {
             reader.expect(b'(')?;
