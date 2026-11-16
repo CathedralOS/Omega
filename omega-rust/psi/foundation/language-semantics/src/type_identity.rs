@@ -1552,6 +1552,112 @@ pub mod vocabulary {
 pub use callable_display::callable_display_path;
 pub use lifetime_partition::normalize_requirement_lifetime_partition;
 
+/// A closed declaration and its physical ABI retain the same complete static
+/// application in different existing identities. Match their template, owner
+/// and ordered operands without treating the template alone as the closed call.
+pub fn closed_requirement_matches_calling_abi(
+    declaration: &str,
+    template: &str,
+    abi: &semantic_vocabulary::CallingAbiIdentity,
+) -> Result<bool, TypeIdentityVisitError> {
+    use encoding::CoordinateTag;
+    use semantic_vocabulary::CallingOperandKind;
+    use vocabulary::Label;
+
+    abi.validate().map_err(|_| Error::MalformedIdentity)?;
+    if template.is_empty() {
+        return Err(Error::MalformedIdentity);
+    }
+    let mut syntax = DeclarationIdentitySyntax { depth: 0 };
+    let mut reader = framing::Reader::new(declaration);
+    reader.callable_regions = true;
+    reader.expect_tag(CoordinateTag::ClosedRequirement)?;
+    let matched = grammar::compound(&mut reader, &mut syntax, |reader, syntax| {
+        let actual_template = reader.atom(CoordinateTag::Template, syntax)?;
+        reader.expect(b',')?;
+        let owner = reader.atom(CoordinateTag::TraitApplication, syntax)?;
+        let mut owner_reader = framing::Reader::new(&owner);
+        owner_reader.callable_regions = true;
+        grammar::type_identity(&mut owner_reader, syntax)?;
+        owner_reader.finish()?;
+        reader.expect(b',')?;
+        reader.expect_tag(CoordinateTag::LocalArguments)?;
+        let operands_match = grammar::compound(reader, syntax, |reader, syntax| {
+            let mut ordinal = 0_usize;
+            let mut matched = true;
+            while !reader.next(b')') {
+                if ordinal != 0 {
+                    reader.expect(b',')?;
+                }
+                reader.expect_tag(CoordinateTag::Parameter)?;
+                let matches = grammar::compound(reader, syntax, |reader, syntax| {
+                    let kind = reader.atom(Label::Kind, syntax)?;
+                    reader.expect(b',')?;
+                    let start = reader.position();
+                    index::static_argument(reader, syntax)?;
+                    let identity = reader.consumed_since(start);
+                    Ok(abi.operands.get(ordinal).is_some_and(|operand| {
+                        let expected_kind = match operand.kind {
+                            CallingOperandKind::Type => "type",
+                            CallingOperandKind::Const => "const",
+                            CallingOperandKind::Value => "value",
+                            CallingOperandKind::Machine => "machine",
+                            CallingOperandKind::Implementation => "conformance",
+                            CallingOperandKind::Proposition => "proposition",
+                        };
+                        usize::try_from(operand.ordinal).ok() == Some(ordinal)
+                            && kind == expected_kind
+                            && identity == operand.identity
+                    }))
+                })?;
+                matched &= matches;
+                ordinal = ordinal.checked_add(1).ok_or(Error::ResourceLimitExceeded)?;
+            }
+            Ok(matched && ordinal == abi.operands.len())
+        })?;
+        Ok(actual_template == template && owner == abi.declaring_application && operands_match)
+    })?;
+    reader.finish()?;
+    Ok(matched)
+}
+
+// This query validates framing, not package authority. Bound recursive identity
+// syntax while leaving declaration custody with the caller's existing owner.
+struct DeclarationIdentitySyntax {
+    depth: usize,
+}
+
+impl TypeIdentityPackageOwnerVisitor for DeclarationIdentitySyntax {
+    fn enter(&mut self) -> Result {
+        self.depth = self
+            .depth
+            .checked_add(1)
+            .ok_or(Error::ResourceLimitExceeded)?;
+        if self.depth > 128 {
+            return Err(Error::ResourceLimitExceeded);
+        }
+        Ok(())
+    }
+    fn leave(&mut self) {
+        self.depth -= 1;
+    }
+    fn reserve(&mut self, _: usize) -> Result {
+        Ok(())
+    }
+    fn package_owner(&mut self, _: [u8; 32]) -> Result {
+        Ok(())
+    }
+    fn embedded_name(&mut self, name: &str) -> Result {
+        if name.is_empty() {
+            return Err(Error::MalformedIdentity);
+        }
+        Ok(())
+    }
+    fn descriptive_toolchain_owner(&mut self) -> Result {
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TypeIdentityVisitError {
     MalformedIdentity,

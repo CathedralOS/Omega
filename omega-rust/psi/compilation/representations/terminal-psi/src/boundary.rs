@@ -921,6 +921,64 @@ pub(crate) mod declarations {
     }
 
     impl CheckedBoundaryCallable {
+        /// A closed requirement keeps its source application while physical
+        /// calling uses the original declaration and the same static tuple.
+        /// Neither a common template nor a common runtime shape is sufficient.
+        pub fn matches_calling_abi(
+            &self,
+            identities: &crate::TerminalIdentityTable,
+            abi: &semantic_vocabulary::CallingAbiIdentity,
+        ) -> Result<bool, String> {
+            let text = |index| {
+                identities
+                    .text(index)
+                    .filter(|value| !value.is_empty())
+                    .ok_or_else(|| {
+                        "boundary calling correspondence lost a source identity".to_owned()
+                    })
+            };
+            let Some(application) = &self.source.specialization else {
+                return Ok(self.method_arguments.is_empty()
+                    && abi.requirement_identity == text(self.source.callable)?);
+            };
+            if application.capture.is_some()
+                || application.template != application.template_entry
+                || abi.requirement_identity != text(application.template_callable)?
+                || !language_semantics::type_identity::closed_requirement_matches_calling_abi(
+                    text(self.source.semantic_declaration)?,
+                    text(application.template_semantic_declaration)?,
+                    abi,
+                )
+                .map_err(|reason| reason.to_string())?
+            {
+                return Ok(false);
+            }
+            let arguments = self
+                .method_arguments
+                .iter()
+                .map(|argument| {
+                    use language_semantics::conformance_identity::MachineOperandSelectionIdentity;
+                    match argument {
+                        crate::ClosedReachArgument::Type(index) => Ok(
+                            MachineOperandSelectionIdentity::Type(text(*index)?.to_owned()),
+                        ),
+                        crate::ClosedReachArgument::Const(index) => Ok(
+                            MachineOperandSelectionIdentity::Const(text(*index)?.to_owned()),
+                        ),
+                        _ => {
+                            Err("boundary calling needs a complete type or value tuple".to_owned())
+                        }
+                    }
+                })
+                .collect::<Result<Vec<_>, String>>()?;
+            Ok(
+                language_semantics::conformance_identity::requirement_application_commitment(
+                    text(application.template_callable)?,
+                    &arguments,
+                )? == application.commitment,
+            )
+        }
+
         pub fn same_identity_as(
             &self,
             module: &crate::TerminalModule,

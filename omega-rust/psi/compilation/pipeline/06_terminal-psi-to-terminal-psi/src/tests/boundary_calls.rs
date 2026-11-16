@@ -745,7 +745,61 @@ machine entry() -> u32 crashes none {
     )
     .unwrap()
     .0;
-    let positive = judge(read_applied_boundary(&prepared)).unwrap();
+    let elaboration = read_applied_boundary(&prepared).unwrap();
+    let module = &elaboration.module;
+    assert_eq!(module.boundary_machines.len(), 2);
+    let abis = module
+        .boundary_machines
+        .iter()
+        .map(|boundary| module.calling_abi_identity(boundary.id).unwrap())
+        .collect::<Vec<_>>();
+    for (ordinal, boundary) in module.boundary_machines.iter().enumerate() {
+        let declaration = boundary.declaration.as_ref().unwrap();
+        let abi = &abis[ordinal];
+        assert!(
+            declaration
+                .matches_calling_abi(&module.identities, abi)
+                .unwrap()
+        );
+        for mutation in 0..5 {
+            let mut changed = abi.clone();
+            match mutation {
+                0 => changed.operands[0].identity = abis[1 - ordinal].operands[0].identity.clone(),
+                1 => changed.operands[0].kind = semantic_vocabulary::CallingOperandKind::Type,
+                2 => changed.requirement_identity.push_str("other-template"),
+                3 => changed.declaring_application.push_str("other-owner"),
+                4 => changed.operands.clear(),
+                _ => unreachable!(),
+            }
+            assert!(
+                !declaration
+                    .matches_calling_abi(&module.identities, &changed)
+                    .unwrap(),
+                "another argument, kind, template, owner or tuple must not share calling authority: {mutation}"
+            );
+        }
+        let application = declaration.source.specialization.as_ref().unwrap();
+        let identity = module
+            .identities
+            .text(declaration.source.semantic_declaration)
+            .unwrap();
+        let template = module
+            .identities
+            .text(application.template_semantic_declaration)
+            .unwrap();
+        for malformed in [
+            format!("{identity}trailing"),
+            identity[..identity.len() - 1].to_owned(),
+        ] {
+            assert!(
+                language_semantics::type_identity::closed_requirement_matches_calling_abi(
+                    &malformed, template, abi,
+                )
+                .is_err()
+            );
+        }
+    }
+    let positive = judge(Ok(elaboration)).unwrap();
     assert!(
         matches!(positive, RouteVerdict::Accepted(_)),
         "{positive:?}"
