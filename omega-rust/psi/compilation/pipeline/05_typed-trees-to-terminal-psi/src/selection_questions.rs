@@ -217,6 +217,7 @@ struct ExpressionScope {
 struct Capture<'a> {
     typed: &'a TypedTrees,
     admitted: &'a DeclarationSelection,
+    bodies: &'a DeclarationSelection,
     completed_operators: &'a CompletedOperators,
     signature_views: &'a [typed_trees::signature::StateSignature],
     closed_signature_templates: Vec<SymbolHandle>,
@@ -679,6 +680,9 @@ impl Extend<SymbolHandle> for Capture<'_> {
 }
 
 impl TypedReferences for Capture<'_> {
+    fn machine_body(&mut self, machine: &typed_trees::machine::Machine) -> bool {
+        self.bodies.contains(machine.symbol)
+    }
     fn declaration(&mut self, symbol: SymbolHandle) -> bool {
         if !self.admitted.contains(symbol) {
             return false;
@@ -995,9 +999,26 @@ impl TypedReferences for Capture<'_> {
     }
 }
 
+#[cfg(test)]
 pub(crate) fn capture(
     typed: &TypedTrees,
     admitted: &DeclarationSelection,
+    completed_operators: &CompletedOperators,
+    signature_views: &[typed_trees::signature::StateSignature],
+) -> Result<RawSelectionQuestions, SelectionCaptureError> {
+    capture_with_bodies(
+        typed,
+        admitted,
+        admitted,
+        completed_operators,
+        signature_views,
+    )
+}
+
+pub(crate) fn capture_with_bodies(
+    typed: &TypedTrees,
+    admitted: &DeclarationSelection,
+    bodies: &DeclarationSelection,
     completed_operators: &CompletedOperators,
     signature_views: &[typed_trees::signature::StateSignature],
 ) -> Result<RawSelectionQuestions, SelectionCaptureError> {
@@ -1007,6 +1028,14 @@ pub(crate) fn capture(
                 .into(),
         )
     })?;
+    let body_roots = bodies.explicit_symbols().ok_or_else(|| {
+        SelectionCaptureError("source body capture requires an explicit finite body roster".into())
+    })?;
+    if body_roots.iter().any(|symbol| !admitted.contains(*symbol)) {
+        return Err(SelectionCaptureError(
+            "source body capture names a declaration this form did not admit".into(),
+        ));
+    }
     for &symbol in roots {
         if !symbol.is_valid() || !typed.symbols.symbols().nodes().is_valid(symbol) {
             return Err(SelectionCaptureError(
@@ -1025,6 +1054,7 @@ pub(crate) fn capture(
     let mut capture = Capture {
         typed,
         admitted,
+        bodies,
         completed_operators,
         signature_views,
         closed_signature_templates,

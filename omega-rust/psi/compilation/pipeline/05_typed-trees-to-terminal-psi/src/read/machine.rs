@@ -3698,6 +3698,7 @@ impl<'t> Program<'t> {
                 ));
             }
         }
+        self.admitted_bodies.include(machine.symbol);
         Ok(Body {
             slots: slots.iter().map(|slot| slot.value_type).collect(),
             statements: body,

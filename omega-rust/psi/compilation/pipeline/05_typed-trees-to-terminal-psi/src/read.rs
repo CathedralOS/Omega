@@ -120,6 +120,9 @@ pub(crate) struct Program<'t> {
     pub(super) typed: &'t TypedTrees,
     /// Exact declarations admitted by this reader form, before source questions are captured.
     pub(crate) admitted_declarations: typed_trees::references::DeclarationSelection,
+    /// Source implementations actually read by this form. Synthetic witness
+    /// bodies and signature-only requirements do not admit private source code.
+    pub(crate) admitted_bodies: typed_trees::references::DeclarationSelection,
     /// Applied signatures can share a declaration symbol while owning
     /// different source expressions. Capture the views this reader formed.
     pub(crate) admitted_signature_views: Vec<typed_trees::signature::StateSignature>,
@@ -411,6 +414,7 @@ impl<'t> Program<'t> {
             type_purpose: storage_metadata::TypePurpose::Value,
             value_records: Vec::new(),
             admitted_declarations: typed_trees::references::DeclarationSelection::from_symbols([]),
+            admitted_bodies: typed_trees::references::DeclarationSelection::from_symbols([]),
             admitted_signature_views: Vec::new(),
             boundary_parent_contracts: Vec::new(),
             completed_operators: crate::selection_questions::CompletedOperators::default(),

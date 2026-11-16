@@ -219,3 +219,183 @@ fn mutable_boolean_locals_do_not_reuse_their_initial_static_truth() {
         true,
     );
 }
+
+#[test]
+fn nested_indexed_record_stores_keep_the_actual_array_and_hoisted_selector_types() {
+    let typed = super::boundary_calls::typed(
+        r#"
+data Cell [copy] { value: u32; }
+data Schema [copy] { fields: [Cell; 4]; }
+data Capture { schema: Schema; }
+data Info { position: u64; }
+machine replacement() -> u32 { 7u32 }
+machine describe<Kind>(capture: &mut Capture, info: &Info)
+requires info.position < 4u64
+{
+    put(capture, info)
+    machine put(capture: &mut Capture, info: &Info)
+    requires info.position < 4u64
+    {
+        capture.schema.fields[info.position] = Cell { value: replacement() };
+    }
+}
+machine entry() -> bool {
+    let mut capture: Capture;
+    let info: Info = Info { position: 1u64 };
+    describe<bool>(&mut capture, &info);
+    capture.schema.fields[1u64].value == 7u32
+}
+"#,
+    );
+    let (typed, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+        typed,
+        &typed_trees_to_typed_trees::PreparationRequest::settled(),
+    )
+    .expect("the nested writer retains its actual enclosing application");
+    assert_operator_value(operator_program(&typed), true);
+}
+
+#[test]
+fn an_unselected_declared_value_index_is_explicitly_refused_for_reads_and_writes() {
+    let declarations = "data Cell [copy] { value: u32; }\n\
+        machine [] at(buffer: &[Cell; 4], index: u64) -> Cell { Cell { value: 99u32 } }";
+    for body in [
+        "let buffer: [Cell; 4]; buffer[0u64].value == 99u32",
+        "let mut buffer: [Cell; 4]; buffer[0u64] = Cell { value: 7u32 }; true",
+    ] {
+        let typed = super::boundary_calls::typed(&format!(
+            "{declarations}\nmachine entry() -> bool {{ {body} }}"
+        ));
+        let (typed, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+            typed,
+            &typed_trees_to_typed_trees::PreparationRequest::settled(),
+        )
+        .expect("the ordinary preparation path retains the indexed expression");
+        let refusal = operator_program(&typed)
+            .expect_err("an unselected value index cannot silently acquire builtin semantics");
+        assert_eq!(
+            refusal,
+            "admitted source selection Operator remains unresolved as CheckedOperator in `entry` at buffer[0]"
+        );
+    }
+}
+
+fn indexed_writer_source(requirement: &str) -> String {
+    format!(
+        r#"
+trait Writer {{
+    machine put(items: &mut [u32; 4], index: u64)
+    requires index < 4u64 reaches none crashes none;
+}}
+machine supplied(items: &mut [u32; 4], index: u64)
+{requirement} reaches none crashes none
+{{ items[index] = 7u32; }}
+machine entry() -> bool {{
+    let mut items: [u32; 4];
+    supplied(&mut items, 1u64);
+    items[1u64] == 7u32
+}}
+"#
+    )
+}
+
+#[test]
+fn logical_callable_witnesses_capture_headers_without_reading_indexed_bodies() {
+    for requirement in ["", "requires index < 4u64"] {
+        let source = indexed_writer_source(requirement);
+        // A finite authored ceiling supplies the public contract without
+        // inferring entries from the uninvoked body, as in the ceiling tests.
+        let complete = format!(
+            "boundary trait HeaderCallback {{}}\n{}",
+            source.replace(
+                "reaches none crashes none",
+                "reaches none crashes none invokes HeaderCallback",
+            )
+        );
+        for (source, complete_header) in [(&source, false), (&complete, true)] {
+            let typed = super::boundary_calls::typed(source);
+            let required = typed
+                .trait_machine_signatures
+                .iter()
+                .find(|(_, signature)| signature.name.as_str() == "put")
+                .unwrap()
+                .1;
+            let supplied = typed
+                .machines()
+                .iter()
+                .find(|machine| machine.name.as_str() == "supplied")
+                .unwrap()
+                .symbol;
+            let witness = typed_trees_to_terminal_psi::elaborate_callable_witness(
+                &typed,
+                required,
+                typed_trees_to_terminal_psi::CallableDeclaration::Machine(supplied),
+            );
+            if !complete_header {
+                let Err(refused) = witness else {
+                    panic!("an unread body cannot supply its inferred public entry row");
+                };
+                assert_eq!(
+                    refused.reason,
+                    terminal_check_tables::RefusalReason::Unsupported
+                );
+                assert_eq!(
+                    refused.detail,
+                    "machine invokes ceiling over a requirement that defers its entries"
+                );
+                continue;
+            }
+            let witness = witness
+                .expect("logical refinement reads the complete header, not its uninvoked body");
+            crate::prove_callable_refinement(witness, &mut crate::ProofSearchActivity::default())
+                .expect("the public callable contract refines the requirement");
+        }
+    }
+}
+
+#[test]
+fn demanded_indexed_bodies_still_need_their_own_bounds_proof() {
+    assert_enum_operator_value(&indexed_writer_source("requires index < 4u64"), true);
+    let verdict = enum_operator(&indexed_writer_source("requires true"))
+        .expect("the body is well typed and reaches ordinary checking");
+    let RouteVerdict::Rejected {
+        formations,
+        violations,
+        unproved,
+        unestablished,
+        conflicts,
+        exceeded,
+    } = verdict
+    else {
+        panic!("the demanded body must be rejected");
+    };
+    assert!(formations.is_empty());
+    assert!(violations.is_empty());
+    assert!(unestablished.is_empty());
+    assert!(conflicts.is_empty());
+    assert!(exceeded.is_empty());
+    assert_eq!(unproved.len(), 1);
+    assert!(matches!(
+        unproved[0].kind,
+        ObligationKind::OperationSafety {
+            site: terminal_psi::ExecutionSite::Operation(_)
+        }
+    ));
+    assert_eq!(
+        unproved[0].statement,
+        "cannot prove operation safety in machine `supplied` state `entry`: cannot prove index is within length 4"
+    );
+}
+
+#[test]
+fn an_inlined_predicate_body_keeps_its_own_source_operator_owner() {
+    let typed = super::boundary_calls::typed(
+        "data Other [copy] { value: u32; }\n\
+         machine < other_order(left: Other, right: Other) -> bool { false }\n\
+         machine below_limit(value: u32) -> bool { value < 4u32 }\n\
+         machine entry(value: u32) -> bool requires below_limit(value) { true }",
+    );
+    let verdict =
+        operator_program(&typed).expect("the actual denotational body has its own source owner");
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+}
