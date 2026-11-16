@@ -553,6 +553,34 @@ fn a_typed_const_record_keeps_its_value_binding_and_exact_named_call() {
         partial,
         ..
     } = source_with_typed_record(true);
+    // Source typing has selected the requirement, but has not retained an
+    // application for this typed receiver's empty static tuple yet.
+    let authored_member = program
+        .expression_table
+        .iter_expressions()
+        .find_map(|(expression, node)| {
+            matches!(node, ExpressionNode::Call(call) if call.target_symbol == requirement)
+                .then_some(expression)
+        })
+        .expect("the authored requirement call");
+    let ExpressionNode::Call(call) = program.expression_table.expression_mut(authored_member)
+    else {
+        panic!("the authored requirement call");
+    };
+    assert!(call.machine_arguments.is_empty());
+    call.authored_machine_application = Default::default();
+    program
+        .retain_static_argument_contexts()
+        .expect("retain the authored member application");
+    let authored = program.expression_table.call_node(authored_member).unwrap();
+    assert!(authored.authored_machine_application.is_valid());
+    let application = program
+        .expression_table
+        .static_machine_application(authored.authored_machine_application);
+    assert_eq!(application.registration_operation, requirement);
+    assert_eq!(application.lexical_owner, advance);
+    assert!(application.arguments.is_empty());
+
     prepare(&mut program).expect("typed record preparation");
     assert!(
         program.deferred_refusal(main).is_none(),
