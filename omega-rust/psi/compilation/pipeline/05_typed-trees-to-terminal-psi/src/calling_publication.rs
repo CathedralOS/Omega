@@ -407,7 +407,13 @@ mod tests {
                     semantic_vocabulary::CallingDeclarationOwner::TopLevelRequirement,
                 ),
                 storage: Ok(CallingAbiStorage {
-                    parameters: Vec::new(),
+                    parameters: vec![terminal_psi::CallingAbiParameter {
+                        structural_type: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
+                        callback_backing: Some(
+                            semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
+                        ),
+                        access: terminal_psi::StructuralAccess::Owned,
+                    }],
                     result: None,
                     telescope: terminal_psi::CallingSignatureTelescope {
                         parameters: Vec::new(),
@@ -438,6 +444,21 @@ mod tests {
             "{error:?}"
         );
         assert!(error.detail.contains("storage result"), "{error:?}");
+        for changed_field in 0..3 {
+            let mut conflicting = selected.clone();
+            let parameter = &mut conflicting.storage.as_mut().unwrap().parameters[0];
+            match changed_field {
+                0 => parameter.callback_backing = None,
+                1 => {
+                    parameter.structural_type =
+                        semantic_vocabulary::StructuralTypeId::new(2).unwrap()
+                }
+                _ => parameter.access = terminal_psi::StructuralAccess::SharedBorrow,
+            }
+            let error =
+                join_abi_declarations(context, &identities, &existing, &[conflicting]).unwrap_err();
+            assert!(error.detail.contains("storage parameters"), "{error:?}");
+        }
         for (retained, selected_rows) in [
             (vec![selected.clone(), selected.clone()], Vec::new()),
             (Vec::new(), vec![selected.clone(), selected.clone()]),
