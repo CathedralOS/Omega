@@ -279,11 +279,12 @@ fn external_calling_application<'row>(
             "external binding lost its exact declaration ABI application",
         )]
     })?;
-    let dispatch_only = u32::from(matches!(
+    let dispatch_only = matches!(
         row.binding,
         calling_conventions::ExternalBindingKind::TableFunction { .. }
-    ));
-    if application.dispatch_only_parameter_count != dispatch_only {
+    )
+    .then_some(0);
+    if application.dispatch_only_formal != dispatch_only {
         return Err(vec![Diagnostic::error(
             "external calling application has another dispatch projection",
         )]);

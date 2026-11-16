@@ -1522,8 +1522,10 @@ Earlier semantic formats reject before table decoding.
 Semantic format marker 281 adds proposition tags 20 and 21 for integer-result
 conversion graphs and source-only exact cast eligibility. Vocabulary marker
 138 distinguishes these predicates. Earlier semantic formats reject before
-table decoding. The native terminal-input record uses `OMGNTI33` and rejects
-`OMGNTI32`. The separate in-memory proof-system marker is 8; its conversion
+table decoding. The native terminal-input record uses `OMGNTI34` and rejects
+`OMGNTI33` and earlier schemas. Calling applications retain an optional exact
+semantic formal for dispatch-only table use, replacing the former omitted-prefix
+count. The separate in-memory proof-system marker is 8; its conversion
 rule fingerprints every checked child, without adding a stored certificate
 decoder or changing the `PSICORE` envelope.
 

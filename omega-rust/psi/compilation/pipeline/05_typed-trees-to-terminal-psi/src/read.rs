@@ -97,6 +97,8 @@ pub(crate) struct Program<'t> {
     pub publication: terminal_codec::TerminalPublication,
     pub purpose: source::DependencyScope,
     pub declaration_metadata: Vec<SymbolHandle>,
+    calling_policy_boundaries: Vec<SymbolHandle>,
+    calling_policy_roots: Vec<calling_abis::PreparedCallingPolicy>,
     /// One output slot per source mathematical declaration, not per call.
     /// Publication assigns portable identities to the prepared definitions.
     pub predicate_definitions: Vec<Option<PredicateDefinition>>,
@@ -371,6 +373,8 @@ impl<'t> Program<'t> {
             publication: terminal_codec::TerminalPublication::Portable,
             purpose,
             declaration_metadata: Vec::new(),
+            calling_policy_boundaries: Vec::new(),
+            calling_policy_roots: Vec::new(),
             predicate_definitions: std::iter::repeat_with(|| None)
                 .take(typed.mathematical_definitions().len())
                 .collect(),

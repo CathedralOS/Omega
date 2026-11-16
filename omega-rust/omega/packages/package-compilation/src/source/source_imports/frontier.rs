@@ -29,7 +29,7 @@ pub(crate) struct SourceStorage {
     default_package_root: PathBuf, // Root directory of the primary package or standalone project.
     default_package_identity: Option<PackageKeyIdentity>, // Bound `PackageKeyIdentity` (`None` while an anonymous Build is unbound).
     anonymous_capture: Option<std::sync::Arc<source::CapturedSourceTree>>, // Unbound standalone source capture tree.
-    anonymous_core_capture: Option<(PathBuf, std::sync::Arc<source::CapturedSourceTree>)>, // Captured `core` dependency tree for standalone owner derivation.
+    core_capture: Option<crate::CapturedLocalSource>, // Exact core input shared by Build imports, Product typing and owner derivation.
     pub(crate) package_roots: Vec<RegisteredPackageRoot>, // Dense registered source-owner rows; inventories belong to their exact capture.
     toolchain_root: Option<PathBuf>, // Bundled toolchain root (`omega` or `core`).
     pub toolchain_contract_custody: ToolchainContractCustody, // Closed toolchain contract roots and directories.
@@ -91,9 +91,9 @@ impl SourceStorage {
             )]);
         }
         if self
-            .anonymous_core_capture
+            .core_capture
             .as_ref()
-            .is_some_and(|(original_root, tree)| original_root != &root || tree != capture.tree())
+            .is_some_and(|original| original != capture)
         {
             return Err(vec![Diagnostic::error(
                 "toolchain capture differs from the receiving captured core",
@@ -133,7 +133,7 @@ impl SourceStorage {
                     "toolchain capture conflicts with the receiving source capture: {error}"
                 ))]
             })?;
-        self.anonymous_core_capture = Some((root, capture.tree().clone()));
+        self.core_capture = Some(capture.clone());
         Ok(())
     }
 
@@ -189,7 +189,7 @@ impl SourceStorage {
                 "source preparation cannot combine an unbound capture with a supplied package graph",
             )]);
         }
-        match package_inputs {
+        let mut storage = match package_inputs {
             Some(package_inputs) => {
                 package_inputs.validate_for_compilation(root_path, &super::bundled_core_root()?)?;
                 let root_package = package_inputs
@@ -209,7 +209,7 @@ impl SourceStorage {
                 storage
                     .sources
                     .retain_product_dependency_scope(package_inputs.dependencies());
-                Ok(storage)
+                storage
             }
             None => {
                 let captured = match source_capture {
@@ -234,33 +234,24 @@ impl SourceStorage {
                     })?;
                 storage.sources = catalogue.begin_selection();
                 storage.anonymous_capture = Some(captured.tree().clone());
-                let core = source_acquisition::local::operations::capture_local_source_input(
-                    super::bundled_core_root()?,
-                    source_acquisition::LocalSourceLimits::default(),
-                )
-                .map_err(|error| {
-                    vec![Diagnostic::error(format!(
-                        "cannot capture anonymous core dependency: {error}"
-                    ))]
-                })?;
-                let core_root = core.canonical_live_root().to_path_buf();
-                let core_tree = if core_root == storage.default_package_root {
-                    captured.tree().clone()
-                } else {
-                    storage
-                        .filesystem
-                        .add_capture(core_root.clone(), core.tree().clone())
-                        .map_err(|error| {
-                            vec![Diagnostic::error(format!(
-                                "cannot mount captured core dependency: {error}"
-                            ))]
-                        })?;
-                    core.tree().clone()
-                };
-                storage.anonymous_core_capture = Some((core_root, core_tree));
-                Ok(storage)
+                if storage.default_package_root == super::bundled_core_root()? {
+                    storage.core_capture = Some(captured);
+                }
+                storage
             }
-        }
+        };
+        // Build imports can select core before a Build machine is typed. Mount
+        // that exact immutable input here for package and anonymous sources.
+        let core = match &storage.core_capture {
+            Some(capture) => capture.clone(),
+            None => crate::capture_anonymous_compilation_source(&super::bundled_core_root()?)?,
+        };
+        storage.admit_toolchain_capture(&core)?;
+        Ok(storage)
+    }
+
+    pub(crate) fn core_capture(&self) -> Option<&crate::CapturedLocalSource> {
+        self.core_capture.as_ref()
     }
 
     pub(crate) fn join_package_inputs(
@@ -315,7 +306,6 @@ impl SourceStorage {
         self.sources
             .retain_product_dependency_scope(inputs.dependencies());
         self.anonymous_capture = None;
-        self.anonymous_core_capture = None;
         Ok(())
     }
 
@@ -425,17 +415,17 @@ impl SourceStorage {
                 ))]);
             }
         }
-        let (core_root, core_snapshot) = self.anonymous_core_capture.as_ref().ok_or_else(|| {
+        let core = self.core_capture.as_ref().ok_or_else(|| {
             vec![Diagnostic::error(
                 "anonymous source capture lost its core dependency",
             )]
         })?;
-        let core_identity = crate::source::anonymous_owner::core_snapshot_identity(core_snapshot)
+        let core_identity = crate::source::anonymous_owner::core_snapshot_identity(core.tree())
             .map_err(|message| vec![Diagnostic::error(message)])?;
         let contracts = crate::toolchain_source_identities(
             self.sources
                 .selected_files()
-                .filter(|file| file.package_root != *core_root),
+                .filter(|file| file.package_root != core.canonical_live_root()),
         )?;
         Ok(Some(crate::AnonymousSourceCapture {
             root: self.default_package_root.clone(),
@@ -909,7 +899,7 @@ mod tests {
             } else {
                 admitted.expect("matching parsed source keeps its exact immutable capture");
                 assert_eq!(
-                    &storage.anonymous_core_capture.as_ref().unwrap().1,
+                    storage.core_capture.as_ref().unwrap().tree(),
                     capture.tree()
                 );
             }

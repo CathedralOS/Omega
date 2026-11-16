@@ -449,7 +449,7 @@ fn validate_native_calling(
     let abi = module.calling_abi_identity(row.boundary)?;
     if application.abi != abi
         || application.target != profile.native_target()
-        || application.dispatch_only_parameter_count != 0
+        || application.dispatch_only_formal.is_some()
     {
         return Err("calling application changed its exact ABI, target or dispatch".into());
     }
@@ -513,7 +513,7 @@ fn validate_native_calling_plan(
         report_fingerprint: application.report_fingerprint,
         commitment: application.commitment,
         plan: application.plan.plan().clone(),
-        dispatch_only_parameter_count: application.dispatch_only_parameter_count,
+        dispatch_only_formal: application.dispatch_only_formal,
         signature: application.signature.clone(),
         opaque_applications: application.opaque_applications.clone(),
         callback_context: application.callback_context.clone(),
@@ -867,7 +867,7 @@ mod tests {
             report_fingerprint: 1,
             commitment: [0; 32],
             plan: plan_for(4),
-            dispatch_only_parameter_count: 0,
+            dispatch_only_formal: None,
             signature: BoundarySignatureGeometry {
                 shapes: vec![BoundaryValueShape {
                     class: BoundaryValueClass::Integer,

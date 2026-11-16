@@ -114,7 +114,7 @@ mod admissions {
                 report_fingerprint,
                 commitment,
                 plan,
-                dispatch_only_parameter_count,
+                dispatch_only_formal,
                 signature,
                 opaque_applications,
                 callback_context,
@@ -127,7 +127,7 @@ mod admissions {
             report_fingerprint.write(output)?;
             commitment.write(output)?;
             plan.plan().write(output)?;
-            dispatch_only_parameter_count.write(output)?;
+            dispatch_only_formal.write(output)?;
             signature.write(output)?;
             opaque_applications.write(output)?;
             callback_context.write(output)?;
@@ -143,7 +143,7 @@ mod admissions {
                     report_fingerprint: RecordValue::read(input)?,
                     commitment: RecordValue::read(input)?,
                     plan: RecordValue::read(input)?,
-                    dispatch_only_parameter_count: RecordValue::read(input)?,
+                    dispatch_only_formal: RecordValue::read(input)?,
                     signature: RecordValue::read(input)?,
                     opaque_applications: RecordValue::read(input)?,
                     callback_context: RecordValue::read(input)?,
@@ -351,7 +351,7 @@ mod admissions {
                     },
                 )
                 .unwrap(),
-                dispatch_only_parameter_count: 0,
+                dispatch_only_formal: None,
                 signature: BoundarySignatureGeometry {
                     shapes: vec![],
                     fields: vec![],
@@ -493,7 +493,7 @@ mod admissions {
                         formal_ordinal: ordinal,
                     },
                 }));
-            application.dispatch_only_parameter_count = 1;
+            application.dispatch_only_formal = Some(0);
             application.plan = calling_conventions::evaluate_ordinary_boundary_entry_plan(
                 CallingPolicy::MicrosoftX64,
                 &CallSignature {
@@ -522,7 +522,7 @@ mod admissions {
             assert_eq!(recovered.plan.plan().call.parameters.len(), 1);
 
             let mut changed = application.clone();
-            changed.dispatch_only_parameter_count = 0;
+            changed.dispatch_only_formal = None;
             changed.plan = calling_conventions::evaluate_ordinary_boundary_entry_plan(
                 CallingPolicy::MicrosoftX64,
                 &CallSignature {

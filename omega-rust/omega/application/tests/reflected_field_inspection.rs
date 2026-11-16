@@ -48,3 +48,21 @@ fn a_callback_with_a_precondition_the_binder_does_not_publish_is_refused() {
     assert!(report.contains(expected.trim()), "{report}");
     assert!(report.contains("main.omg:21:5"), "{report}");
 }
+
+#[test]
+fn a_parameter_description_retains_a_non_first_formal_in_both_engines() {
+    let (success, report) = run_both("run/reflection/parameter_description");
+    assert!(success, "{report}");
+    for receipt in ["native exit 0", "interp exit: 0"] {
+        assert!(report.lines().any(|line| line == receipt), "{report}");
+    }
+}
+
+#[test]
+fn an_address_field_cannot_substitute_for_a_parameter_declaration() {
+    let name = "fail/reflection/parameter_description_wrong_kind";
+    let expected = std::fs::read_to_string(fixture(name).join("expected.txt")).unwrap();
+    let (success, report) = run_both(name);
+    assert!(!success, "{report}");
+    assert!(report.contains(expected.trim()), "{report}");
+}
