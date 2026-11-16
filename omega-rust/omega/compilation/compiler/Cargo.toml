@@ -243,6 +243,11 @@ path = "tests/lowered_route_float_contracts.rs"
 name = "lowered_route_scalar_match"
 path = "tests/lowered_route_scalar_match.rs"
 
+# `==` against a case is a tag test only on a payload-free sum.
+[[test]]
+name = "lowered_route_case_equality"
+path = "tests/lowered_route_case_equality.rs"
+
 # A store into one field keeps a `requires` clause over several fields when
 # the unwritten fields still hold the values the record arrived with.
 [[test]]
