@@ -1069,12 +1069,13 @@ fn fill_knowledge(
                     Justification::OperationSemantics(operation.id),
                 );
             }
-            // A read or a returning call establishes the applicable type
-            // constraints on its exact observed storage versions.
+            // Storage operations establish constraints on the specific
+            // versions they observe or produce.
             for premise in storage
                 .read_premises(tables, operation)?
                 .into_iter()
                 .chain(storage.returned_type_premises(tables, operation)?)
+                .chain(storage.subslice_predicate_premises(operation)?)
             {
                 push_knowledge(
                     tables,

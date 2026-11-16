@@ -267,12 +267,48 @@ fn a_subslice_cast_requires_the_exact_backing_to_preserve_its_predicate() {
             unproved.iter().any(|obligation| {
                 matches!(obligation.kind, ObligationKind::ArrivalInvariant { .. })
                     && obligation
-                        .detail
-                        .contains("the source does not establish the byte predicate for this slice")
+                        .statement
+                        .contains("cannot prove the value of this cast is in the domain it adds")
             }),
             "{unproved:?}"
         );
     }
+}
+
+#[test]
+fn a_slice_uses_the_byte_predicate_of_the_current_loop_parameter() {
+    let source = r#"
+domain [u8]::Text requires no_nul(self);
+machine length(text: &[u8] in Text) -> u64 { text.len }
+machine prefix_length(text: &[u8] in Text, end: u64, remaining: u32) -> u64
+requires end <= text.len {
+    let prefix: &[u8] = &text[0..end];
+    let measured: u64 = length(prefix as +Text);
+    transition remaining > 0 {
+        true -> prefix_length(text, end, remaining - 1)
+        false -> measured
+    }
+}
+machine build_entry() {
+    let measured: u64 = prefix_length("plain" as +Text, 2, 3);
+}
+"#;
+    assert_eq!(verdict(source), "accepted");
+    let unknown = source
+        .replace(" in Text, end:", ", end:")
+        .replace("\"plain\" as +Text", "\"plain\"");
+    let Ok(RouteVerdict::Rejected { unproved, .. }) = judge_build(&unknown) else {
+        panic!("an unqualified loop parameter cannot establish the slice's byte predicate");
+    };
+    assert!(
+        unproved.iter().any(|obligation| {
+            matches!(obligation.kind, ObligationKind::ArrivalInvariant { .. })
+                && obligation
+                    .statement
+                    .contains("cannot prove the value of this cast is in the domain it adds")
+        }),
+        "{unproved:?}"
+    );
 }
 
 /// A fixed byte array in a byte domain, `bytes: [u8; 3] in Text`.

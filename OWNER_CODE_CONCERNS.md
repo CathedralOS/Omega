@@ -75,6 +75,13 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Conformance witnesses rebuild the same calling ABI catalog
+- Category: re-deriving
+- Where: [witness loop](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/compilation.rs#L225), [calling ABI preparation](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/calling_abis.rs#L66), [catalog owner](omega-rust/psi/compilation/representations/typed-trees/src/service_declarations.rs#L1348)
+- Saw: The witness loop passes the same typed program and purpose into each elaboration. Elaborations that need boundary metadata recompute the toolchain source identities and build a full `PreparedServiceCatalog`. A one-second macOS arm64 sampler during [note_vault](samples/cli/systems/note_vault/main.omg) checking at `2d3abb168fe` observed catalog preparation in 16 of 30 samples on the active compiler worker.
+- Cost: Each conformance can repeat whole-program service preparation before choosing its boundary rows. Reuse the catalog for matching program ownership, dependency scope, and source authorities. Measure catalog preparations across the same witness roster and preserve applicability and caller-specific ABI rows.
+- Reported: 2026-11-15, Codex, while checking the filesystem sample through recursive contracts.
+
 ### Selected-body activation copies retained side records
 - Category: re-deriving
 - Where: [body activation](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L568), [continuation storage clone](omega-rust/psi/compilation/representations/typed-trees/src/lib.rs#L1283), [retained pages](omega-rust/psi/foundation/arena/src/retained.rs)
