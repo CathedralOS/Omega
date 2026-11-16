@@ -159,13 +159,6 @@ framework or a list of unimplemented features.
 - Cost: An author's `terminates by (i, j)` silently becomes a bounded-distance ranking, and adding lexicographic products later would change what existing code means. Refuse multi-subject witnesses without a view and pin that refusal.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/termination.md
 
-### A bitwise and/or bound uses semantic axioms the certificate never cites
-- Category: A verdict with nothing behind it
-- Where: [bounded_bitwise_sibling](omega-rust/psi/compilation/proof-admission/src/integer_affine.rs#L3285), [bitwise-and branch](omega-rust/psi/compilation/proof-admission/src/integer_affine.rs#L3178), [bitwise-or branch](omega-rust/psi/compilation/proof-admission/src/integer_affine.rs#L3216), [cited list](omega-rust/psi/compilation/proof-admission/src/proof.rs#L528), [core rule instance](omega-rust/psi/compilation/proof-admission/src/bounded_denotation.rs#L8357)
-- Saw: The `IntegerAffineBound` row in [classicality.md](wiki/spec/proofs/classicality.md) says each use re-records the witness's cited axioms, "never as silent steps"; the proof-admission README says admission "runs no proof search of its own"; [kernel_metatheory.md](wiki/spec/proofs/kernel_metatheory.md) says a rule-instance assumption names its content exactly. When the sibling of `x & y` or `x | y` is not a literal, `bounded_bitwise_sibling` searches every prior axiom for `y = m` and `m <= U` and builds a mask bound, but those axioms enter neither the witness's definitions nor `cited`. With axioms `[y <= 3, z = x & y]`, the kernel accepts `z <= 3` recording only the second, and the core assumes `Truth → (z = x & y) → z <= 3`, which is false alone (x = y = 255).
-- Cost: Receivers read a premise list missing a premise the kernel used, and the core rests on a false-alone assumption. Cite and pass the mask axioms as premises, or delete the route, which no prover emits and no test exercises; document the bitwise steps in integer_certificates.md either way.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/proofs/classicality.md
-
 ### Three kernel rules accept more forms than their audited rows say
 - Category: The documents disagree
 - Where: [open-term fallback](omega-rust/psi/compilation/proof-admission/src/integer_rules.rs#L224), [exact-op lift](omega-rust/psi/compilation/proof-admission/src/kernel.rs#L252), [strict carrier bound](omega-rust/psi/compilation/proof-admission/src/kernel.rs#L45), [open discreteness](omega-rust/psi/compilation/proof-admission/src/proof.rs#L1634), [inward discreteness](omega-rust/psi/compilation/proof-admission/src/proof.rs#L1666)

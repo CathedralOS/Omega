@@ -26,7 +26,10 @@ fn u8_type() -> IntegerType {
 }
 
 fn value(identity: u64) -> ScalarTerm {
-    ScalarTerm::value(ValueId::new(identity).unwrap(), ScalarType::Integer(u8_type()))
+    ScalarTerm::value(
+        ValueId::new(identity).unwrap(),
+        ScalarType::Integer(u8_type()),
+    )
 }
 
 fn literal(number: i128) -> ScalarTerm {
@@ -38,9 +41,12 @@ fn literal(number: i128) -> ScalarTerm {
 }
 
 fn context() -> PropositionContext {
-    PropositionContext::from_value_types(
-        [X, Y, Z].map(|identity| (ValueId::new(identity).unwrap(), ScalarType::Integer(u8_type()))),
-    )
+    PropositionContext::from_value_types([X, Y, Z].map(|identity| {
+        (
+            ValueId::new(identity).unwrap(),
+            ScalarType::Integer(u8_type()),
+        )
+    }))
     .unwrap()
 }
 
@@ -97,7 +103,10 @@ fn admitted(facts: &[Proposition], axioms: &[Proposition], proof: &ProofNode) ->
 #[test]
 fn bitwise_and_mask_must_be_a_cited_literal() {
     let conclusion = Proposition::LessOrEqual(value(Z), literal(3));
-    let fixed = [Proposition::Equal(value(Y), literal(3)), definition(Operation::And)];
+    let fixed = [
+        Proposition::Equal(value(Y), literal(3)),
+        definition(Operation::And),
+    ];
     assert!(admitted(
         &[],
         &fixed,
@@ -110,7 +119,11 @@ fn bitwise_and_mask_must_be_a_cited_literal() {
     ];
     for landing in [None, Some(0)] {
         assert!(
-            !admitted(&[], &bounded, &certificate(truth(), landing, conclusion.clone())),
+            !admitted(
+                &[],
+                &bounded,
+                &certificate(truth(), landing, conclusion.clone())
+            ),
             "landing {landing:?}"
         );
     }
@@ -126,7 +139,10 @@ fn bitwise_or_sibling_must_be_a_cited_literal() {
         rule: ProofRule::Assumption { index: 0 },
     };
     let conclusion = Proposition::LessOrEqual(value(Z), literal(7));
-    let fixed = [Proposition::Equal(value(Y), literal(3)), definition(Operation::Or)];
+    let fixed = [
+        Proposition::Equal(value(Y), literal(3)),
+        definition(Operation::Or),
+    ];
     assert!(admitted(
         std::slice::from_ref(&root),
         &fixed,

@@ -2,8 +2,8 @@
 //! shared support modules are declared once, and `cargo nextest run -p <crate> --test suite`
 //! runs them all. A new `tests/<topic>.rs` joins by one `mod` line below.
 
-mod common;
 mod bitwise_sibling_premises;
+mod common;
 mod contradiction_elimination;
 mod equality_symmetry;
 mod exact_multiply_result_bound;
