@@ -66,12 +66,25 @@ impl<'a> Envelope<'a> {
     fn entries(self) -> Option<Vec<Entry>> {
         match self {
             Self::Runtime(envelope) => Some(envelope.invocations.clone()),
-            Self::Abstract(envelope) => match &envelope.invokes {
-                terminal_check_tables::contracts::Ceiling::Inferred => None,
-                terminal_check_tables::contracts::Ceiling::Authored(row) => {
-                    Some(row.iter().copied().map(Entry::Service).collect())
-                }
-            },
+            Self::Abstract(envelope) => envelope.invokes.clone(),
+        }
+    }
+    fn suspension(self) -> Option<bool> {
+        match self {
+            Self::Runtime(envelope) => Some(envelope.suspends),
+            Self::Abstract(envelope) => envelope.suspension,
+        }
+    }
+    fn blocking(self) -> Option<bool> {
+        match self {
+            Self::Runtime(envelope) => Some(envelope.blocks),
+            Self::Abstract(envelope) => envelope.blocking,
+        }
+    }
+    fn termination(self) -> &'a terminal_psi::TerminalCallableTermination {
+        match self {
+            Self::Runtime(envelope) => &envelope.termination,
+            Self::Abstract(envelope) => &envelope.termination,
         }
     }
     fn row(self, axis: Axis) -> Option<Vec<Permission>> {
@@ -86,22 +99,27 @@ impl<'a> Envelope<'a> {
             Axis::Entries => self
                 .entries()
                 .map(|row| row.into_iter().map(Permission::Entry).collect()),
-            Axis::Suspension | Axis::Blocking | Axis::Termination => {
-                let Self::Runtime(envelope) = self else {
-                    return None;
-                };
-                let permitted = match axis {
-                    Axis::Suspension => envelope.suspends.then_some(Permission::MaySuspend),
-                    Axis::Blocking => envelope.blocks.then_some(Permission::MayBlock),
-                    Axis::Termination => matches!(
-                        envelope.termination,
-                        terminal_psi::TerminalCallableTermination::NotGuaranteed
-                    )
-                    .then_some(Permission::MayDiverge),
-                    _ => unreachable!(),
-                };
-                Some(permitted.into_iter().collect())
-            }
+            Axis::Suspension => self.suspension().map(|allowed| {
+                allowed
+                    .then_some(Permission::MaySuspend)
+                    .into_iter()
+                    .collect()
+            }),
+            Axis::Blocking => self.blocking().map(|allowed| {
+                allowed
+                    .then_some(Permission::MayBlock)
+                    .into_iter()
+                    .collect()
+            }),
+            Axis::Termination => Some(
+                matches!(
+                    self.termination(),
+                    terminal_psi::TerminalCallableTermination::NotGuaranteed
+                )
+                .then_some(Permission::MayDiverge)
+                .into_iter()
+                .collect(),
+            ),
         }
     }
 }
@@ -275,15 +293,32 @@ struct Contributions {
 }
 
 impl Contributions {
-    fn operational(&mut self, envelope: &TerminalCallableEnvelope) {
-        self.suspends |= envelope.suspends;
-        self.blocks |= envelope.blocks;
-        match &envelope.termination {
+    fn operational(
+        &mut self,
+        envelope: Envelope<'_>,
+        ceiling: Envelope<'_>,
+    ) -> Result<(), &'static str> {
+        match envelope.suspension() {
+            Some(allowed) => self.suspends |= allowed,
+            None if ceiling.suspension().is_some() => {
+                return Err("callee has no checked suspension bound");
+            }
+            None => {}
+        }
+        match envelope.blocking() {
+            Some(allowed) => self.blocks |= allowed,
+            None if ceiling.blocking().is_some() => {
+                return Err("callee has no checked blocking bound");
+            }
+            None => {}
+        }
+        match envelope.termination() {
             terminal_psi::TerminalCallableTermination::NotGuaranteed => self.may_diverge = true,
             terminal_psi::TerminalCallableTermination::Terminates { premises } => {
                 self.conditional_progress |= !premises.is_empty();
             }
         }
+        Ok(())
     }
     fn row(&self, axis: Axis) -> Vec<Permission> {
         match axis {
@@ -323,6 +358,7 @@ struct Calls<'a> {
     module: &'a TerminalModule,
     values: Option<&'a CallableValueProgram<'a>>,
     caller: &'a TerminalMachine,
+    ceiling: Envelope<'a>,
     at: Construct,
 }
 impl Calls<'_> {
@@ -658,7 +694,9 @@ impl Calls<'_> {
         let values = self.resolve(query)?;
         self.holder(contract, &values, reached)?;
         let envelope = &self.contract(contract)?.envelope;
-        reached.operational(envelope);
+        reached
+            .operational(Envelope::Runtime(envelope), self.ceiling)
+            .map_err(|reason| self.unsupported(reason))?;
         union(&mut reached.reach, envelope.service_reach.iter().copied());
         for entry in &envelope.invocations {
             match entry {
@@ -962,6 +1000,7 @@ pub(crate) fn judge(
                 module,
                 values: values.as_ref(),
                 caller,
+                ceiling,
                 at,
             };
             let mut reached = Contributions::default();
@@ -988,15 +1027,9 @@ pub(crate) fn judge(
                     "open abstract invocation ceiling cannot establish a finite caller ceiling",
                 ));
             }
-            match envelope {
-                Envelope::Runtime(envelope) => reached.operational(envelope),
-                Envelope::Abstract(_) if matches!(ceiling, Envelope::Runtime(_)) => {
-                    return Err(context.unsupported(
-                        "abstract callable has no closed suspension, blocking or progress envelope",
-                    ));
-                }
-                Envelope::Abstract(_) => {}
-            }
+            reached
+                .operational(envelope, ceiling)
+                .map_err(|reason| context.unsupported(reason))?;
             if let Callee::Selected { callable } = call.inputs.callee {
                 let contract = call.inputs.contract.ok_or_else(|| {
                     context.foreign("selected invocation lost its exact contract")
@@ -1104,14 +1137,15 @@ fn tail_contribution(
 ) -> Checked<()> {
     let module = &elaboration.module;
     let at = Construct::Edge(edge);
+    let ceiling = machine_envelope(elaboration, caller.id)?;
     let context = Calls {
         module,
         values,
         caller,
+        ceiling,
         at,
     };
     let tail = crate::call_contracts::tail_call(module, tails, callee, edge)?;
-    let ceiling = machine_envelope(elaboration, caller.id)?;
     let envelope = machine_envelope(elaboration, callee)?;
     let mut reached = Contributions::default();
     if let Some(reach) = envelope.reach() {
@@ -1134,15 +1168,9 @@ fn tail_contribution(
             "open abstract invocation ceiling cannot establish a finite caller ceiling",
         ));
     }
-    match envelope {
-        Envelope::Runtime(envelope) => reached.operational(envelope),
-        Envelope::Abstract(_) if matches!(ceiling, Envelope::Runtime(_)) => {
-            return Err(context.unsupported(
-                "abstract callable has no closed suspension, blocking or progress envelope",
-            ));
-        }
-        Envelope::Abstract(_) => {}
-    }
+    reached
+        .operational(envelope, ceiling)
+        .map_err(|reason| context.unsupported(reason))?;
     if reached.conditional_progress
         && matches!(ceiling, Envelope::Runtime(envelope) if matches!(envelope.termination,
             terminal_psi::TerminalCallableTermination::Terminates { .. }))
@@ -1259,4 +1287,74 @@ fn fixed_refinement_reach(
     fixed.sort_unstable();
     fixed.dedup();
     Ok(fixed)
+}
+
+#[cfg(test)]
+mod abstract_bound_tests {
+    use super::*;
+    use terminal_check_tables::contracts::{Ceiling, RequirementCeilings};
+
+    fn open() -> RequirementCeilings {
+        RequirementCeilings {
+            reaches: Ceiling::Inferred,
+            invokes: None,
+            suspension: None,
+            blocking: None,
+            termination: terminal_psi::TerminalCallableTermination::NotGuaranteed,
+        }
+    }
+
+    #[test]
+    fn abstract_bounds_keep_unknown_empty_and_permitted_effects_distinct() {
+        let unknown = open();
+        let closed = RequirementCeilings {
+            reaches: Ceiling::Authored(Vec::new()),
+            invokes: Some(Vec::new()),
+            suspension: Some(false),
+            blocking: Some(false),
+            termination: terminal_psi::TerminalCallableTermination::Terminates {
+                premises: Vec::new(),
+            },
+        };
+        for axis in [Axis::Reach, Axis::Entries, Axis::Suspension, Axis::Blocking] {
+            assert_eq!(Envelope::Abstract(&unknown).row(axis), None);
+            assert_eq!(Envelope::Abstract(&closed).row(axis), Some(Vec::new()));
+        }
+        assert!(
+            Contributions::default()
+                .operational(Envelope::Abstract(&unknown), Envelope::Abstract(&closed))
+                .is_err()
+        );
+        assert!(
+            Contributions::default()
+                .operational(Envelope::Abstract(&unknown), Envelope::Abstract(&unknown))
+                .is_ok()
+        );
+        let supplied = RequirementCeilings {
+            invokes: Some(vec![Entry::Parameter(3)]),
+            suspension: Some(true),
+            blocking: Some(true),
+            ..open()
+        };
+        assert_eq!(
+            Envelope::Abstract(&supplied).entries(),
+            Some(vec![Entry::Parameter(3)])
+        );
+        let mut reached = Contributions::default();
+        reached
+            .operational(Envelope::Abstract(&supplied), Envelope::Abstract(&closed))
+            .unwrap();
+        assert_eq!(reached.row(Axis::Suspension), vec![Permission::MaySuspend]);
+        assert_eq!(reached.row(Axis::Blocking), vec![Permission::MayBlock]);
+        assert_eq!(reached.row(Axis::Termination), vec![Permission::MayDiverge]);
+        let no_suspend = RequirementCeilings {
+            suspension: Some(false),
+            ..open()
+        };
+        assert_eq!(
+            Contributions::default()
+                .operational(Envelope::Abstract(&no_suspend), Envelope::Abstract(&closed)),
+            Err("callee has no checked blocking bound")
+        );
+    }
 }

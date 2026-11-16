@@ -105,6 +105,7 @@ impl CallableNamespace {
         &self,
         context: MachineId,
         signatures: &IdTable<MachineId, Signature>,
+        abstract_requirements: &[MachineId],
         outcomes: &IdTable<MachineId, crate::Outcome>,
         records: &crate::lower::places::Records<'_>,
         boundaries: &crate::boundaries::BoundaryNamespace,
@@ -201,6 +202,11 @@ impl CallableNamespace {
             .envelopes
             .iter()
             .map(|(machine, envelope)| {
+                // An issued abstract requirement retains its source bounds in
+                // the check tables; it is not an executable named declaration.
+                if abstract_requirements.binary_search(&machine).is_ok() {
+                    return Ok(None);
+                }
                 envelope
                     .as_ref()
                     .map(|envelope| {
