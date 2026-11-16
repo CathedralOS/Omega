@@ -1003,6 +1003,7 @@ pub mod product_operand {
                             })
                             .collect::<Result<Vec<_>, String>>()?;
                         ProductExpressionKind::Record {
+                            zero_omitted_fields: literal.zero_omitted_fields,
                             name,
                             case,
                             fields: self.environment.graph.fields.insert_many(fields),

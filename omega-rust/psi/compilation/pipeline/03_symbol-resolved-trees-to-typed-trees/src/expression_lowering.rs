@@ -1880,6 +1880,7 @@ pub(crate) mod expression {
                             Ok(self.target().insert(
                                 typed::expression::ExpressionNode::StructLiteral(
                                     typed::expression::TableStructLiteral {
+                                        zero_omitted_fields: struct_literal.zero_omitted_fields,
                                         application_type,
                                         type_name: lower_name(&struct_literal.type_name),
                                         type_symbol: struct_literal.type_symbol,

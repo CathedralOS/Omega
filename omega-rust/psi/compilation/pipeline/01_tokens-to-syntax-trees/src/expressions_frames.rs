@@ -1128,6 +1128,24 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
         mut frame: Box<StructLiteralFrame<'tokens, 'source>>,
         input: Input<'tokens, 'source>,
     ) -> StepResult<'tokens, 'source> {
+        // The marker is not a field or a spread operand. Finish this literal
+        // here, leaving nested literals to account for their own omissions.
+        let (zero_omitted_fields, input) = if input.at_punctuation(PunctuationKind::DotDot) {
+            let input = input.take_punctuation(PunctuationKind::DotDot, "..")?;
+            let input = if input.at_punctuation(PunctuationKind::Comma) {
+                input.take_punctuation(PunctuationKind::Comma, ",")?
+            } else {
+                input
+            };
+            if !input.at_punctuation(PunctuationKind::RightBrace) {
+                return Err(
+                    input.error_here("field omission marker must be final and has no operand")
+                );
+            }
+            (true, input)
+        } else {
+            (false, input)
+        };
         if !input.at_punctuation(PunctuationKind::RightBrace) {
             let (name, rest) = input.take_identifier()?;
             let input = rest.take_punctuation(PunctuationKind::Colon, ":")?;
@@ -1148,6 +1166,7 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
         let expression = syntax_trees
             .expressions
             .insert(ExpressionNode::StructLiteral(TableStructLiteral {
+                zero_omitted_fields,
                 application_type: Default::default(),
                 constructor_name,
                 fields,

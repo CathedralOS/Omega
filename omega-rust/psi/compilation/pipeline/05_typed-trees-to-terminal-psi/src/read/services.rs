@@ -908,6 +908,7 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut Vec<Use<'a>>) 
             }
         }
         E::SavedSubject(_)
+        | E::Zero
         | E::Float(_)
         | E::ScalarApplication { .. }
         | E::ByteLiteral(_)

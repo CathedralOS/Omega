@@ -4418,6 +4418,8 @@ pub mod inspection {
                     end_inclusive: bool,
                 },
                 StructLiteral {
+                    #[serde(skip_serializing_if = "std::ops::Not::not")]
+                    zero_omitted_fields: bool,
                     #[serde(skip_serializing_if = "Option::is_none")]
                     application_type: Option<Box<TypeReferenceSnapshot>>,
                     type_name: String,
@@ -4818,6 +4820,7 @@ pub mod inspection {
             end_inclusive: range.end_inclusive,
         },
         ExpressionNode::StructLiteral(struct_literal) => ExpressionSnapshot::StructLiteral {
+                    zero_omitted_fields: struct_literal.zero_omitted_fields,
             application_type: struct_literal.application_type.is_valid().then(|| {
                 Box::new(type_reference_snapshot(
                     program,

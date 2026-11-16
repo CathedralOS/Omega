@@ -170,7 +170,7 @@ fn zero_establishing_a_build_is_refused_by_name() {
     refused_with(
         "zeroed",
         "machine wrong() -> bool {\n    let forged: Build;\n    forged.freestanding\n}\n",
-        "zero-established value in a domain that must be established",
+        "cast that adds a domain whose issuers are in an access plan",
     );
 }
 

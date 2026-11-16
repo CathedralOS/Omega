@@ -896,6 +896,7 @@ fn expression_homes<'b>(
         | ExpressionKind::ScalarApplication { .. }
         | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::MachineValue { .. }
+        | ExpressionKind::Zero
         | ExpressionKind::Boolean(_)
         | ExpressionKind::Slot(_) => {}
         ExpressionKind::Borrow { place, home, .. } => {
@@ -2079,6 +2080,16 @@ impl<'a> Lowering<'a> {
         match &expression.kind {
             ExpressionKind::Atomic(_) => {
                 Err(self.internal("an atomic scalar event is used as structural storage"))
+            }
+            ExpressionKind::Zero => {
+                let (root, place) = self.establish_zeroed(value_type, expression.source)?;
+                Ok(Reached::Value(Located {
+                    root,
+                    place,
+                    path: Vec::new(),
+                    record,
+                    fresh: true,
+                }))
             }
             ExpressionKind::SavedSubject(capture) => {
                 let mut at = self
@@ -4396,7 +4407,11 @@ impl<'a> Lowering<'a> {
     }
 
     /// A constant zero of a scalar type.
-    fn zero(&mut self, scalar_type: ScalarType, source: SourceOrigin) -> Checked<ValueId> {
+    pub(super) fn zero(
+        &mut self,
+        scalar_type: ScalarType,
+        source: SourceOrigin,
+    ) -> Checked<ValueId> {
         let kind = match scalar_type {
             ScalarType::Boolean => OperationKind::BooleanConstant { value: false },
             ScalarType::Integer(integer) => OperationKind::IntegerConstant {

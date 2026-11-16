@@ -857,6 +857,7 @@ mod constructors {
             syntax.expressions.replace_expression(
                 expression,
                 ExpressionNode::StructLiteral(syntax_trees::expression::TableStructLiteral {
+                    zero_omitted_fields: false,
                     application_type: alias.application,
                     constructor_name: Identifier::new(name, authored_name.source_span()),
                     fields: HandleSpan::empty(),
