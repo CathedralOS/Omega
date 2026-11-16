@@ -1340,6 +1340,39 @@ impl<'a> Lowering<'a> {
         }
     }
 
+    /// Register every leaf a `requires` clause names, for each data type a
+    /// field access passes through on its way from `root` down `steps`. A
+    /// clause such as `self.i <= 5 && self.j <= 4` is stated over all of
+    /// its fields at once: the goal of a store into `i` names what `j`
+    /// holds there, and what a formal held at entry is known under the
+    /// clause only when each field it names has an entry value
+    /// (`terminal-psi-to-terminal-psi`, `Storage::entry_type_premises`).
+    /// The names stop at a runtime index or a case payload: neither has a
+    /// fixed place an entry value could belong to.
+    fn name_passed_clauses(&mut self, root: PlaceId, steps: &[Step]) -> Checked<()> {
+        let subject = terminal_check_tables::program::self_place()
+            .ok_or_else(|| self.internal("data subject identity"))?;
+        let mut place = self.exact_root(root)?;
+        for step in steps {
+            let owner = match *step {
+                Step::Field { owner, .. }
+                | Step::Referent { owner }
+                | Step::Index {
+                    owner,
+                    fixed: Some(_),
+                    ..
+                } => owner,
+                Step::Index { fixed: None, .. } | Step::Payload { .. } => break,
+            };
+            let data = self.record_type(owner)?;
+            for clause in &data.requires {
+                self.name_clause_contents(clause, &[(subject, place)], None)?;
+            }
+            place = self.step(place, *step)?;
+        }
+        Ok(())
+    }
+
     /// The declared field or payload field a step selects.
     fn declared(&self, step: Step) -> Checked<&'a RecordField> {
         match step {
@@ -3432,6 +3465,7 @@ impl<'a> Lowering<'a> {
             }
         }
         self.name_contents(leaf, ValueType::Scalar(scalar_type, Qualification::NONE))?;
+        self.name_passed_clauses(root, steps)?;
         let operation = self.operation_identity(source);
         let path = self.storage_path(steps, ExecutionSite::Operation(operation), source)?;
         self.emit(
@@ -3898,6 +3932,7 @@ impl<'a> Lowering<'a> {
             };
             owed += self.record_type(owner)?.requires.len();
         }
+        self.name_passed_clauses(root, &steps)?;
         if value.result.map(ValueType::erased) != Some(expected.erased()) {
             return Err(self.internal("a replacement has another type than its destination"));
         }
