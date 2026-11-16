@@ -341,7 +341,7 @@ pub(crate) mod proof_kernel {
             }
 
             pub const fn get(self) -> u16 {
-                8
+                9
             }
         }
 
@@ -400,6 +400,9 @@ pub(crate) mod proof_kernel {
 
         #[derive(Debug, Clone, PartialEq, Eq)]
         pub enum ProofRule {
+            /// Exact integer representability, including complete-carrier
+            /// embedding. Provisional until derived in the mathematical core.
+            IntegerFloatExact,
             /// A checked exactness premise entails the converter's entry
             /// conditions. Alternatively, finite nonzero IEEE equality
             /// transports a separately checked computed goal.

@@ -1,6 +1,8 @@
-//! Decide the total integer-conversion relations, then check the one admitted
-//! conversion rule against its actual premises. Exact eligibility never calls
-//! the partial converter. IEEE equality can transport these semantic goals
+//! Check exact integer/float casts before the compiler calls a rounded
+//! converter. Integer sources use exact representability; float sources need
+//! finite, integral, in-range meaning without negative zero. Total conversion
+//! graphs retain named converter behavior separately from these obligations.
+//! IEEE equality can transport float-source semantic goals
 //! only at a finite nonzero literal, whose meaning has one representation.
 //! In particular, an equality with zero cannot discard a negative zero sign.
 
@@ -198,6 +200,53 @@ pub fn check_float_integer_conversion(
     } else {
         Err(FloatIntegerError::NotEstablished)
     }
+}
+
+fn integer_magnitude_exact(magnitude: u128, precision: u64, maximum_exponent: u64) -> bool {
+    magnitude == 0 || {
+        let bits = u64::from(u128::BITS - magnitude.leading_zeros());
+        bits - u64::from(magnitude.trailing_zeros()) <= precision && bits - 1 <= maximum_exponent
+    }
+}
+
+/// The complete source carrier embeds, or this particular integer has at
+/// most the target precision's significant bits after removing powers of two.
+/// No rounded conversion result is used as evidence. The canonical formats
+/// represent every integer quantum; only precision and maximum exponent matter.
+pub fn check_integer_float_exact(
+    context: &PropositionContext,
+    goal: &Proposition,
+) -> Result<(), FloatIntegerError> {
+    context
+        .validate(goal)
+        .map_err(|error| FloatIntegerError::Malformed(Box::new(error)))?;
+    let Proposition::IntegerIeeeFloatExact { source, target } = goal else {
+        return Err(FloatIntegerError::NotEstablished);
+    };
+    let carrier = source
+        .scalar_type()
+        .as_integer()
+        .ok_or(FloatIntegerError::NotEstablished)?;
+    let carrier =
+        semantic_vocabulary::fixed_integer_type(carrier).map_err(FloatIntegerError::Unsupported)?;
+    let (precision, maximum_exponent) = match target {
+        semantic_vocabulary::IeeeFloatFormat::Binary32 => (24u64, 127u64),
+        semantic_vocabulary::IeeeFloatFormat::Binary64 => (53, 1023),
+    };
+    let all_values = carrier.width() - u64::from(carrier.is_signed()) <= precision
+        && carrier.width() - 1 <= maximum_exponent;
+    let exact = if all_values {
+        true
+    } else if let ScalarTerm::Integer { value, .. } = source {
+        let magnitude = match value {
+            IntegerValue::Signed(value) => value.unsigned_abs(),
+            IntegerValue::Unsigned(value) => *value,
+        };
+        integer_magnitude_exact(magnitude, precision, maximum_exponent)
+    } else {
+        false
+    };
+    exact.then_some(()).ok_or(FloatIntegerError::NotEstablished)
 }
 
 #[cfg(test)]

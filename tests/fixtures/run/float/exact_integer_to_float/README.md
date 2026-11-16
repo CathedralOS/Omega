@@ -1,0 +1,9 @@
+An integer can be cast with `as f32` or `as f64` only when the checker proves that its exact value is representable. The named Core conversion may round, so its success alone is insufficient.
+
+This pair discharges LOWERED-FORM-CHECKER’s exact integer-to-float cast requirement. The positive checks all i32 values can widen to f64, selected large positive and negative i64 powers remain exact in f32, unsigned 2^63 stays positive in f64, and integer zero becomes positive zero. Parameterized helpers and trap checks expose wrong values, signs and zero signs. All four hosted ProgramEntry bindings are present.
+
+The [negative](../../../fail/float/exact_integer_to_float/main.omg) changes only `single`’s entry guarantee to an interval permitting 2^24+1, which cannot be represented exactly in f32. It retains the same callers and runtime oracle. No caller guard supplies the missing guarantee.
+
+The checker establishes a source-only exactness obligation before calling Core. It uses the [provisional representability rule](../../../../../wiki/spec/proofs/classicality.md), ordinary integer equality substitution and case proofs. The canonical conversion keeps its complete result contract and selected target implementation. Integer zero is a separate valid case; signedness and the actual source carrier remain part of the proof.
+
+Baseline producer ee9a0f87fba (optimized macOS arm64), with corrected fixture revision 0da335b5357, refuses all three helpers as unsupported exact carrier conversions. Initial parse refusals before the local type annotations are retained separately. On optimized producer 3e5e0cc0c668 (macOS arm64), the unchanged positive runs with native and Psi exit 0 and empty output; the negative rejects solely for `single`’s missing f32 exactness proof. Twelve focused checks and all-target Clippy for the eleven touched crates pass. Other hosts, transport places and source carriers without an authored Core converter are unverified.

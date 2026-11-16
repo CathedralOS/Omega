@@ -204,6 +204,50 @@ impl Program<'_> {
                 operand,
                 source,
             )?
+        } else if let (Some(ScalarType::Integer(from)), Some(ScalarType::IeeeFloat(to))) =
+            (source_type.scalar(), target.scalar())
+        {
+            use language_semantics::numeric_intrinsics::{NumericIntrinsic, NumericType};
+            let carrier = semantic_vocabulary::fixed_integer_type(from)
+                .map_err(|detail| refuse(id, Construct::Machine, Unserved::Expression(detail)))?;
+            let source_term = semantic_vocabulary::ScalarTerm::value(
+                semantic_vocabulary::ValueId::new(1).expect("fixed predicate formal"),
+                ScalarType::Integer(from),
+            );
+            let operand = Expression {
+                result: operand.result,
+                kind: ExpressionKind::Establish {
+                    operand: Box::new(operand),
+                    clauses: vec![semantic_vocabulary::Proposition::IntegerIeeeFloatExact {
+                        source: source_term,
+                        target: to,
+                    }],
+                    stated: terminal_check_tables::program::CastCondition::ExactRepresentation(
+                        format!(
+                            "the integer value is exactly representable in {}",
+                            match to {
+                                semantic_vocabulary::IeeeFloatFormat::Binary32 => "f32",
+                                semantic_vocabulary::IeeeFloatFormat::Binary64 => "f64",
+                            }
+                        ),
+                    ),
+                },
+                call_context: None,
+                source,
+            };
+            self.exact_numeric_conversion(
+                id,
+                NumericIntrinsic::Conversion {
+                    source: NumericType::Integer(carrier),
+                    target: match to {
+                        semantic_vocabulary::IeeeFloatFormat::Binary32 => NumericType::F32,
+                        semantic_vocabulary::IeeeFloatFormat::Binary64 => NumericType::F64,
+                    },
+                    domain: ArithmeticDomain::Exact,
+                },
+                operand,
+                source,
+            )?
         } else {
             let (Some(ScalarType::Integer(from)), Some(carrier @ ScalarType::Integer(to))) =
                 (source_type.scalar(), target.scalar())

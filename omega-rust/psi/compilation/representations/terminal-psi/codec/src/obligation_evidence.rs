@@ -746,6 +746,7 @@ impl TableTerm for ProofNode {
 
 fn write_proof_row(writer: &mut Writer, node: &ProofNode) -> Result<(), CodecError> {
     match &node.rule {
+        ProofRule::IntegerFloatExact => writer.u8(32),
         ProofRule::FloatIntegerConversion { computed, .. } => {
             writer.u8(31);
             writer.u8(u8::from(computed.is_some()));
@@ -1018,6 +1019,42 @@ mod tests {
         let encoded = canonical_certificate_bytes(&closed).unwrap();
         closed.rule = ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation);
         assert_ne!(canonical_certificate_bytes(&closed).unwrap(), encoded);
+    }
+
+    #[test]
+    fn integer_float_exact_fingerprint_keeps_source_target_and_rule() {
+        use semantic_vocabulary::{
+            IeeeFloatFormat, IntegerSign, IntegerType, ScalarTerm, ScalarType, ValueId,
+        };
+        let goal = |raw, target| Proposition::IntegerIeeeFloatExact {
+            source: ScalarTerm::value(
+                ValueId::new(raw).unwrap(),
+                ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
+            ),
+            target,
+        };
+        let proof = |conclusion, rule| ProofNode { conclusion, rule };
+        let original = canonical_certificate_bytes(&proof(
+            goal(1, IeeeFloatFormat::Binary64),
+            ProofRule::IntegerFloatExact,
+        ))
+        .unwrap();
+        for changed in [
+            proof(
+                goal(2, IeeeFloatFormat::Binary64),
+                ProofRule::IntegerFloatExact,
+            ),
+            proof(
+                goal(1, IeeeFloatFormat::Binary32),
+                ProofRule::IntegerFloatExact,
+            ),
+            proof(
+                goal(1, IeeeFloatFormat::Binary64),
+                ProofRule::Primitive(PrimitiveJudgment::Truth),
+            ),
+        ] {
+            assert_ne!(canonical_certificate_bytes(&changed).unwrap(), original);
+        }
     }
 
     #[test]

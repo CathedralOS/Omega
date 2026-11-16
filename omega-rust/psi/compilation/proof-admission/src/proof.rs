@@ -74,6 +74,7 @@ pub enum AcceptedProofRule {
     FloatMeaningNormalization,
     /// Checked finite-nonzero IEEE transport for exact conversion; provisional.
     FloatIntegerConversion,
+    IntegerFloatExact,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2588,7 +2589,8 @@ mod traversal {
         pending: &mut Vec<Action<'proof>>,
     ) -> Result<(), ProofError> {
         match &proof.rule {
-            ProofRule::Primitive(_)
+            ProofRule::IntegerFloatExact
+            | ProofRule::Primitive(_)
             | ProofRule::SemanticAxiom { .. }
             | ProofRule::Assumption { .. }
             | ProofRule::IntegerCorrelatedForbiddenRoots { .. } => {}
@@ -2781,6 +2783,14 @@ fn check_node_locally(
         machine_parameter_values,
     };
     match &proof.rule {
+        ProofRule::IntegerFloatExact => {
+            crate::check_integer_float_exact(context, &proof.conclusion)
+                .map_err(|error| ProofError::FloatIntegerConversion(Box::new(error)))?;
+            acceptance
+                .rules
+                .insert(AcceptedProofRule::IntegerFloatExact);
+            Ok(())
+        }
         ProofRule::FloatIntegerConversion { premise, computed } => {
             crate::check_float_integer_conversion(
                 context,
