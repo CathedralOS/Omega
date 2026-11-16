@@ -187,8 +187,9 @@ pub enum BuildError {
     CheckWorkspace(std::io::Error),
     BuildDirectory(String),
     /// A requested independent stage validator rejected the compiler's own
-    /// stage output: a compiler invariant failure, not invalid source.
-    StageValidation(StageValidationRow),
+    /// stage output: a compiler invariant failure, not invalid source. Holds
+    /// every requested row for the target, passed and failed, in roster order.
+    StageValidation(Vec<StageValidationRow>),
 }
 
 impl From<Vec<Diagnostic>> for BuildError {
@@ -212,10 +213,15 @@ impl std::fmt::Display for BuildError {
                 write!(formatter, "cannot create the check workspace: {error}")
             }
             Self::BuildDirectory(conflict) => write!(formatter, "{conflict}"),
-            Self::StageValidation(row) => write!(
-                formatter,
-                "{row}\nthe compiler's own stage output failed an independent validator; this is a compiler defect, not an error in the source"
-            ),
+            Self::StageValidation(rows) => {
+                for row in rows {
+                    writeln!(formatter, "{row}")?;
+                }
+                write!(
+                    formatter,
+                    "the compiler's own stage output failed an independent validator; this is a compiler defect, not an error in the source"
+                )
+            }
         }
     }
 }

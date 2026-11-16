@@ -10,8 +10,8 @@ How target selection shapes the run:
 - Zero `--target` flags select `BuildTargets::Host`; one selects
   `BuildTargets::Single`; two or more select `BuildTargets::Batch`.
 - A single-target invocation (`present_single`) prints the check summary or
-  published artifact lines directly and writes `--report-file` only when
-  compilation succeeds.
+  published artifact lines directly. `--report-file` gets the full report on
+  success and the same `target:`/`failed:` block a batch writes on refusal.
 - A multi-target invocation (`present_batch`) compiles every requested target
   in one prepared session and continues past individual target failures so a
   cross-target sweep reports all broken targets in one pass. Each target block
@@ -155,7 +155,21 @@ fn present_single(
     }
     let outcome = match result {
         Ok(outcome) => outcome,
-        Err(error) => exit_on_refusal([&error]),
+        Err(error) => {
+            // The report is written before the exit status is chosen, so a
+            // refused compilation still leaves its rows, including failed
+            // stage validator rows, in `--report-file`.
+            if let Some(path) = report_file {
+                write_report_or_exit(
+                    path,
+                    &format!(
+                        "{roster}{}",
+                        failed_report_text(target_name.unwrap_or("host default"), &error)
+                    ),
+                );
+            }
+            exit_on_refusal([&error])
+        }
     };
     if let Some(path) = report_file {
         write_report_or_exit(
@@ -210,7 +224,7 @@ fn present_batch(
             Err(error) => {
                 eprintln!("{error}");
                 println!("target {name} failed");
-                report_contents.push_str(&format!("target: {name}\nfailed: {error}\n"));
+                report_contents.push_str(&failed_report_text(name, &error));
                 failed.push(name);
                 refusals.push(error);
             }
@@ -338,6 +352,12 @@ fn report_text(
     contents.push_str(&format_publication_lines(outcome));
     contents.push_str(&format_stage_validations(outcome));
     contents
+}
+
+// A refused target's report block. A stage validator failure's text holds
+// every row that target ran, passed and failed.
+fn failed_report_text(target: &str, error: &BuildError) -> String {
+    format!("target: {target}\nfailed: {error}\n")
 }
 
 // One line per requested validator and target; empty for default compilation.
