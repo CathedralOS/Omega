@@ -2088,6 +2088,7 @@ pub(crate) fn boundary_source(
     typed: &TypedTrees,
     source: SymbolHandle,
     owner: SymbolHandle,
+    entry: SymbolHandle,
     signature: &typed_trees::signature::StateSignature,
     callable: String,
 ) -> Result<BoundaryDeclarationSource, &'static str> {
@@ -2096,6 +2097,16 @@ pub(crate) fn boundary_source(
             .map_err(|_| "a boundary toolchain source has no exact identity")?;
     if callable.is_empty() {
         return Err("the boundary has no callable identity");
+    }
+    if let Some(machine) = typed.machine_by_symbol(source) {
+        let [state] = typed.machine_states(machine) else {
+            return Err("the machine boundary has no exact entry declaration");
+        };
+        if entry != state.symbol {
+            return Err("the machine boundary names another entry declaration");
+        }
+    } else if entry != signature.symbol {
+        return Err("the boundary header names another entry declaration");
     }
     let formals = typed
         .state_parameters
@@ -2118,7 +2129,7 @@ pub(crate) fn boundary_source(
         callable,
         owner: nominal_text(owner)?,
         machine: nominal_text(source)?,
-        state: nominal_text(signature.symbol)?,
+        state: nominal_text(entry)?,
         semantic: typed
             .normalized_hermetic_symbol_identity(source)
             .map_err(|_| "the boundary has no hermetic declaration identity")?,
@@ -2259,16 +2270,19 @@ pub(crate) fn intrinsic_boundary_source(
         let [state] = typed.machine_states(machine) else {
             return Err("intrinsic has no exact entry");
         };
-        let (_, signature) = typed
+        let (declaration, signature) = typed
             .bodyless_declaration(symbol)?
             .ok_or("intrinsic has no bodyless signature")?;
-        if signature.symbol != state.symbol {
-            return Err("intrinsic bodyless signature has another entry declaration");
+        // The authored machine owns the contracts; its sole generated state
+        // supplies the entry identity and runtime telescope independently.
+        if declaration != machine.symbol || signature.symbol != declaration {
+            return Err("intrinsic bodyless signature has another contract declaration");
         }
         return boundary_source(
             typed,
             symbol,
             symbol,
+            state.symbol,
             &signature,
             typed
                 .machine_callable_identity_text(machine)

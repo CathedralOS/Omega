@@ -308,6 +308,7 @@ impl Program<'_> {
             self.typed,
             target,
             owner.symbol,
+            declared.symbol,
             declared,
             self.typed
                 .trait_requirement_callable_identity_text(owner, declared),

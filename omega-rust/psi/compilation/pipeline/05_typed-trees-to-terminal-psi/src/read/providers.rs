@@ -303,6 +303,7 @@ impl Program<'_> {
             typed,
             machine.symbol,
             provider_symbol.unwrap_or(machine.symbol),
+            state.symbol,
             &declared,
             callable,
         )

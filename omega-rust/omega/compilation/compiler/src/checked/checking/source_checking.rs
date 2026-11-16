@@ -40,9 +40,14 @@ pub(crate) fn check_product_source(
         // that choose them, and targets choose from the judged module. The
         // first pass lays out the entries and the Build's own selections. When
         // a target then chooses a default the source was not laid out for, the
-        // source is prepared again from this unprepared copy, which exists
-        // only when the Build has dependency defaults.
-        let unprepared = (!build.default_provider_selections.is_empty()).then(|| typed.clone());
+        // source is prepared again from this unprepared copy. Both source
+        // policy declarations and exported Build rows offer defaults; neither
+        // origin makes a default an actual supply before a target chooses it.
+        let has_defaults = !build.default_provider_selections.is_empty()
+            || typed.machines().iter().any(|machine| {
+                machine.purpose == typed_trees::machine::MachinePurpose::ProviderDefaults
+            });
+        let unprepared = has_defaults.then(|| typed.clone());
         let mut pass = ProductSourcePass {
             computed_build_config: &computed_build_config,
             package_inputs,
@@ -64,7 +69,7 @@ pub(crate) fn check_product_source(
                 crate::checked::SupplyJudgment::PrepareLayouts(chosen) => {
                     let typed = unprepared.clone().ok_or_else(|| {
                         vec![Diagnostic::error(
-                            "a target chose a provider default the Build does not declare",
+                            "a target chose a provider default absent from the source preparation frontier",
                         )]
                     })?;
                     judged = prepare_and_judge(&mut pass, typed, &chosen)?;
@@ -290,6 +295,20 @@ fn prepare_and_judge(
                 source::DependencyScope::Product,
             ),
         )?;
+    // Keep every available default for settlement. Only actual target choices
+    // become normalized provider records and concrete body judgments here;
+    // those choices already entered this pass's exact layout scopes above.
+    // Subject declarations and explicit Build supplies are judged separately.
+    let prepared_provider_defaults = chosen_defaults
+        .iter()
+        .map(
+            |chosen| build_time_evaluation::provider_declarations::TargetProviderDefaults {
+                target: Some(chosen.target.target_name().to_owned()),
+                machines: Vec::new(),
+                selections: vec![chosen.selection.clone()],
+            },
+        )
+        .collect::<Vec<_>>();
     for selection in &build.default_provider_selections {
         provider_defaults.push(
             build_time_evaluation::provider_declarations::TargetProviderDefaults {
@@ -310,7 +329,7 @@ fn prepare_and_judge(
         pass.calling_targets,
         &build.provider_selections,
         &[],
-        &provider_defaults,
+        &prepared_provider_defaults,
     )?;
     roster.selected.extend(declaration_roots);
     let mut entry_contracts = Vec::with_capacity(pass.calling_targets.len());
@@ -423,12 +442,16 @@ fn prepare_and_judge(
     // target chooses are judged in it before anything is published. The
     // judgment kept is that module's: the verdict, the demand of each target
     // and the publication are all read from it.
+    let deferred_defaults = provider_defaults
+        .iter()
+        .flat_map(|row| row.selections.iter().cloned())
+        .collect::<Vec<_>>();
     let judgment = crate::checked::judge_supplied_product(crate::checked::ProductSupplySource {
         publication: terminal_publication,
         build: &build.provider_selections,
         native_bindings: &build.native_bindings,
         defaults: &provider_defaults,
-        layout_deferred: &build.default_provider_selections,
+        layout_deferred: &deferred_defaults,
         layout_prepared: chosen_defaults,
     })?;
     Ok(JudgedSource {

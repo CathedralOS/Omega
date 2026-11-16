@@ -133,6 +133,26 @@ mod calls {
                     _ => return SymbolHandle::invalid(),
                 }
             }
+            // A typed static record keeps its Const binder. Select its
+            // member from the exact declared schema just as for an ordinary
+            // parameter; specialization supplies the record value later.
+            if let Some(type_reference) = machine.type_parameters.iter().find_map(|parameter| {
+                if parameter.symbol != receiver_symbol {
+                    return None;
+                }
+                match &parameter.kind {
+                    TypeParameterKind::Const { type_reference } => Some(type_reference),
+                    _ => None,
+                }
+            }) {
+                return call_target_for_type_reference(
+                    machine,
+                    symbols,
+                    child_type_references,
+                    type_reference,
+                    target,
+                );
+            }
             if let Some(parameter) = parameters
                 .iter()
                 .find(|parameter| parameter.symbol == receiver_symbol)
@@ -1876,6 +1896,19 @@ mod tests {
         state_name: String,
         machine_name: String,
         target_symbol: symbols::SymbolHandle,
+    }
+
+    #[test]
+    fn typed_const_record_members_keep_the_declared_schema_requirement() {
+        for body in ["Selected::apply()", "Selected::apply();"] {
+            let text = format!(
+                "trait Step {{ machine apply(); }} trait Other {{ machine apply(); }} machine relay<const Selected: Step>() {{ {body} }}"
+            );
+            let call = resolved_call(&text, "apply");
+            assert_eq!(call.symbols_kind, SymbolKind::State);
+            assert_eq!(call.machine_name, "Step");
+            assert_eq!(call.state_name, "apply");
+        }
     }
 
     fn resolved_call(text: &str, target: &str) -> ResolvedCall {
