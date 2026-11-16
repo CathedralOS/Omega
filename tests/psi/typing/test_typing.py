@@ -1493,6 +1493,30 @@ def main() -> None:
         b"machine f(x: u8, y: u8) { transition { x == y -> g() x != y -> g() } machine g() {} }",
         (),
     )
+    # Complementary guards cover only over the same unchanged subjects: a
+    # call evaluated between them may change what the later guard reads, so
+    # `cell == false` can fail after `cell == true` failed. A pair that
+    # finishes before the call, or starts after it, still covers.
+    flip = b"machine flip(value: &mut bool) -> bool { value = false; false }\n"
+    rejected(
+        program,
+        "a-call-between-complementary-guards-uncovers-them",
+        flip + b"machine f(value: &mut bool) { transition { value == true -> g() flip(value) == true -> g() value == false -> g() } machine g() {} }",
+        "UncoveredDispatch",
+        b"transition { value == true -> g() flip(value) == true -> g() value == false -> g() }",
+    )
+    accepted(
+        program,
+        "complementary-guards-before-a-call-cover",
+        flip + b"machine f(value: &mut bool) { transition { value == true -> g() value == false -> g() flip(value) == true -> g() } machine g() {} }",
+        (),
+    )
+    accepted(
+        program,
+        "complementary-guards-after-a-call-cover",
+        flip + b"machine f(value: &mut bool) { transition { flip(value) == true -> g() value == true -> g() value == false -> g() } machine g() {} }",
+        (),
+    )
     accepted(
         program,
         "transition-opposed-boolean-comparisons-cover",
