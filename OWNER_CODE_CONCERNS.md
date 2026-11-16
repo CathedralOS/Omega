@@ -197,13 +197,6 @@ framework or a list of unimplemented features.
 - Cost: The task runtime and synchronization checks read `blocks` to decide whether a call can hold a worker; `Clock::sleep(60000)` holds one for a minute with no evidence. Declare `blocks` on `Clock::sleep` and its three raw waits, as `TimeHost::sleep` does, and mark the call sites with `block`.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/effects.md
 
-### On Windows, sleeping for `u32::MAX` milliseconds never returns
-- Category: One idea, several implementations
-- Where: [Windows Clock binding](source/library/std/build.omg#L104), [Windows TimeHost sleep](source/library/std/targets/windows_x86_64/time_host_impl.omg#L119), [POSIX split of large waits](source/library/std/targets/linux_x86_64/clock_impl.omg#L30), [sleep_for saturates](source/library/std/time.omg#L1065)
-- Saw: [three layers](wiki/spec/build/platform_services.md) requires a portable service to mean the same thing on every target. The Linux and Darwin providers split a count above `i32::MAX` into finite waits, so `sleep(4294967295)` returns after about 49.7 days. Windows binds `Clock::sleep` and `WindowsTimeRead::sleep` straight to `Sleep(DWORD)`, where 0xFFFFFFFF is `INFINITE`. `sleep_for` saturates any duration of 49.7 days or more to exactly that value, and its comment says the saturated request "is RETURNED so the caller can observe it".
-- Cost: A long sleep hangs forever on Windows only. Give Windows a checked adapter that never passes 0xFFFFFFFF, for example by splitting the wait as the POSIX providers do.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/platform_services.md
-
 ### POSIX and Windows filesystem adapters give five portable calls different meanings
 - Category: One idea, several implementations
 - Where: [Windows open_with](source/library/std/targets/windows_x86_64/filesystem/handles.omg#L30), [POSIX open_with](source/library/std/posix_filesystem_adapter.omg#L1191), [POSIX Default permissions](source/library/std/posix_filesystem_adapter.omg#L1009), [Windows Default permissions](source/library/std/targets/windows_x86_64/filesystem/metadata.omg#L161), [POSIX removal budget](source/library/std/posix_filesystem_adapter.omg#L1477), [POSIX removal stack](source/library/std/posix_filesystem_adapter.omg#L422), [POSIX create_dir_all prefix](source/library/std/posix_filesystem_adapter.omg#L919), [Windows read](source/library/std/targets/windows_x86_64/filesystem/handles.omg#L110), [Linux read clamp](source/library/std/targets/linux_x86_64/posix_filesystem_impl.omg#L148)
