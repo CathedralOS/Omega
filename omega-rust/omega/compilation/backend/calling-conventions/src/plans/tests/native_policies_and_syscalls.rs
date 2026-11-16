@@ -29,7 +29,10 @@ fn native_for_target_maps_each_declared_pair_to_its_policy() {
             CallingPolicy::SystemVAMD64,
         ),
         (target::NativeTarget::linux_arm64(), CallingPolicy::Aapcs64),
-        (target::NativeTarget::macos_arm64(), CallingPolicy::Aapcs64),
+        (
+            target::NativeTarget::macos_arm64(),
+            CallingPolicy::DarwinAapcs64,
+        ),
         (
             target::NativeTarget::macos_x64(),
             CallingPolicy::SystemVAMD64,
@@ -217,4 +220,51 @@ fn syscall_two_word_formals_use_physical_slot_capacity() {
             "one formal cannot consume seven words"
         );
     }
+}
+
+// Apple arm64 packs stack arguments at their natural alignment, while generic
+// AAPCS64 gives each one at least an 8-byte slot. Both policies send the first
+// eight integers in x0..x7, so the 9th and 10th `u32` and a following `u64`
+// show the difference: an Apple callee reads the 10th argument at sp+4.
+#[test]
+fn darwin_aapcs64_packs_narrow_stack_arguments_and_generic_aapcs64_does_not() {
+    let mut parameters = vec![ValueShape::integer(8, 8); 8];
+    parameters.extend([
+        ValueShape::integer(4, 4),
+        ValueShape::integer(4, 4),
+        ValueShape::integer(8, 8),
+    ]);
+    let signature = call_signature(parameters, None);
+    let stack_offsets = |policy| {
+        let plan = evaluate_call_plan(policy, &signature).expect("call plan");
+        validate_call_plan(&plan, &signature).expect("valid plan");
+        assert_eq!(
+            plan.parameters[7].locations,
+            [ValueLocation::register(MachineRegister::Aarch64X(7), 0, 8)]
+        );
+        plan.parameters[8..]
+            .iter()
+            .map(|placement| match placement.locations.as_slice() {
+                [ValueLocation::Stack {
+                    stack_byte_offset, ..
+                }] => *stack_byte_offset,
+                other => panic!("expected one stack location, found {other:?}"),
+            })
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(stack_offsets(CallingPolicy::DarwinAapcs64), [0, 4, 8]);
+    assert_eq!(stack_offsets(CallingPolicy::Aapcs64), [0, 8, 16]);
+
+    // Floats past v7 pack the same way on Apple arm64.
+    let floats = call_signature(vec![ValueShape::float(4); 10], None);
+    let darwin = evaluate_call_plan(CallingPolicy::DarwinAapcs64, &floats).expect("call plan");
+    assert_eq!(
+        darwin.parameters[9].locations,
+        [ValueLocation::stack(4, 0, 4, 4)]
+    );
+    let generic = evaluate_call_plan(CallingPolicy::Aapcs64, &floats).expect("call plan");
+    assert_eq!(
+        generic.parameters[9].locations,
+        [ValueLocation::stack(8, 0, 4, 4)]
+    );
 }

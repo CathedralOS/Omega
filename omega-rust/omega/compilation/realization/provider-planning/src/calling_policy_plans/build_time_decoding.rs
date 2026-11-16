@@ -170,6 +170,7 @@ fn decode_calling_convention(value: &BuildTimeValue) -> Result<CallingPolicy, St
         "Aapcs64" => Ok(CallingPolicy::Aapcs64),
         "LinuxSyscallX86_64" => Ok(CallingPolicy::LinuxSyscallX86_64),
         "LinuxSyscallAarch64" => Ok(CallingPolicy::LinuxSyscallAarch64),
+        "DarwinAapcs64" => Ok(CallingPolicy::DarwinAapcs64),
         other => Err(format!(
             "CallingConvention case `{other}` is outside the compiler-owned vocabulary"
         )),
