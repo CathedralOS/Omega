@@ -1286,13 +1286,22 @@ impl TerminalModule {
         &self,
         boundary: semantic_vocabulary::BoundaryMachineId,
     ) -> Result<&crate::CallingAbiDeclaration, String> {
-        let mut declarations = self
+        // Source publication sorts this roster; the receiving foundation check
+        // requires increasing boundary IDs. Reuse that order for each demand.
+        let missing = "boundary has no unique Terminal calling declaration";
+        let position = self
             .calling_signatures
-            .iter()
-            .filter(|row| row.boundary == boundary);
-        let (Some(declaration), None) = (declarations.next(), declarations.next()) else {
-            return Err("boundary has no unique Terminal calling declaration".into());
-        };
+            .binary_search_by_key(&boundary, |row| row.boundary)
+            .map_err(|_| missing.to_owned())?;
+        if (position != 0 && self.calling_signatures[position - 1].boundary == boundary)
+            || self
+                .calling_signatures
+                .get(position + 1)
+                .is_some_and(|row| row.boundary == boundary)
+        {
+            return Err(missing.into());
+        }
+        let declaration = &self.calling_signatures[position];
         self.calling_abi_signature(*declaration.application.as_ref().map_err(Clone::clone)?)
             .ok_or_else(|| "boundary lost its exact declaration ABI".into())
     }
