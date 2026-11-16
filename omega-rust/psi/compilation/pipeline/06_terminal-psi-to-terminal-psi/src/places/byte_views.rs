@@ -282,11 +282,17 @@ impl Storage<'_> {
                 })?;
         if backing.storage == terminal_semantics::CollectionStorage::Borrowed {
             let actual = self.collection_backing_source(source, 0, element, concerns)?;
-            let (whole, projected) = StructuralPathQualification::select(
+            let (whole, projected) = StructuralPathQualification::select_restorable(
                 &actual.qualifications,
                 &actual.projected_qualifications,
                 &source.path,
-            );
+            )
+            .ok_or_else(|| {
+                self.unsupported(
+                    concerns,
+                    "a collection view cannot discard an enclosing qualification",
+                )
+            })?;
             if !whole.is_empty()
                 || !projected.is_empty()
                 || !actual.additional_input_qualifications.is_empty()

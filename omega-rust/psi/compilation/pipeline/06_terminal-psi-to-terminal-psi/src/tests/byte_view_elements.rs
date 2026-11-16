@@ -339,7 +339,10 @@ fn mutable_windows_reborrow_the_same_backing_without_moving_the_parent() {
     assert_eq!(verdict(source), "accepted");
     let shared = source.replace("window(bytes: &mut [u8]", "window(bytes: &[u8]");
     let refusal = verdict(&shared);
-    assert!(refusal.contains("access"), "{refusal}");
+    assert!(
+        refusal.contains("collection view needs its exact plain backing and access"),
+        "{refusal}"
+    );
     let unbounded = source.replace("end > 0 && end <= bytes.len", "end > 0");
     assert!(verdict(&unbounded).starts_with("rejected"));
 
