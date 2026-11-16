@@ -2271,68 +2271,6 @@ pub(crate) mod quotient {
             define(arena, 3, &statement, &body)
         }
 
-        fn lift_precondition_declaration(arena: &mut TermArena) -> Declaration {
-            let statement = pi_description(pi(
-                "B",
-                ty(2),
-                pi(
-                    "_",
-                    is_set(Level::Parameter(2), v("B")),
-                    pi(
-                        "Pub",
-                        pi("_", quotient_of(), ty(3)),
-                        pi(
-                            "Pre",
-                            pi("_", v("A"), ty(4)),
-                            pi(
-                                "t",
-                                pi(
-                                    "a",
-                                    v("A"),
-                                    pi!("_" => app(v("Pub"), project_of(v("a"))) => app(v("Pre"), v("a"))),
-                                ),
-                                pi(
-                                    "f",
-                                    pi("a", v("A"), pi("_", app(v("Pre"), v("a")), v("B"))),
-                                    pi(
-                                        "respect",
-                                        related_pis(
-                                            "_",
-                                            pi(
-                                                "ha",
-                                                app(v("Pub"), project_of(v("a"))),
-                                                pi(
-                                                    "hb",
-                                                    app(v("Pub"), project_of(v("b"))),
-                                                    id(
-                                                        v("B"),
-                                                        app(
-                                                            app(v("f"), v("a")),
-                                                            apps(v("t"), [v("a"), v("ha")]),
-                                                        ),
-                                                        app(
-                                                            app(v("f"), v("b")),
-                                                            apps(v("t"), [v("b"), v("hb")]),
-                                                        ),
-                                                    ),
-                                                ),
-                                            ),
-                                        ),
-                                        pi(
-                                            "z",
-                                            quotient_of(),
-                                            pi("_", app(v("Pub"), v("z")), v("B")),
-                                        ),
-                                    ),
-                                ),
-                            ),
-                        ),
-                    ),
-                ),
-            ));
-            assume(arena, 5, &statement)
-        }
-
         fn id_sym_declaration(arena: &mut TermArena) -> Declaration {
             let statement = pi(
                 "X",
@@ -2816,7 +2754,6 @@ pub(crate) mod quotient {
                 id_trans_declaration(arena),
                 transport_const_declaration(arena),
                 lift_declaration(arena),
-                lift_precondition_declaration(arena),
                 id_sym_declaration(arena),
                 id_cancel_declaration(arena),
                 prop_is_set_declaration(arena),
@@ -2841,14 +2778,13 @@ pub(crate) mod quotient {
     pub const QUOTIENT_ID_TRANS: u32 = 9;
     pub const QUOTIENT_TRANSPORT_CONST: u32 = 10;
     pub const QUOTIENT_LIFT: u32 = 11;
-    pub const QUOTIENT_LIFT_PRECONDITION: u32 = 12;
-    pub const QUOTIENT_ID_SYM: u32 = 13;
-    pub const QUOTIENT_ID_CANCEL: u32 = 14;
-    pub const QUOTIENT_PROP_IS_SET: u32 = 15;
-    pub const QUOTIENT_BOX_PROP: u32 = 16;
-    pub const QUOTIENT_IND_PROP: u32 = 17;
-    pub const QUOTIENT_COVERAGE: u32 = 18;
-    pub const QUOTIENT_UNIQUE: u32 = 19;
+    pub const QUOTIENT_ID_SYM: u32 = 12;
+    pub const QUOTIENT_ID_CANCEL: u32 = 13;
+    pub const QUOTIENT_PROP_IS_SET: u32 = 14;
+    pub const QUOTIENT_BOX_PROP: u32 = 15;
+    pub const QUOTIENT_IND_PROP: u32 = 16;
+    pub const QUOTIENT_COVERAGE: u32 = 17;
+    pub const QUOTIENT_UNIQUE: u32 = 18;
 
     fn carrier_level() -> Level {
         Level::Maximum(Box::new(Level::Parameter(0)), Box::new(Level::Parameter(1)))
@@ -3111,40 +3047,6 @@ pub(crate) mod quotient {
                 QUOTIENT_LIFT,
                 vec![motive_level],
                 &[result, set_proof, operation, respect, element],
-            )
-        }
-
-        pub fn lift_precondition(
-            &self,
-            arena: &mut TermArena,
-            result_level: Level,
-            public_level: Level,
-            representative_level: Level,
-            result: TermHandle,
-            set_proof: TermHandle,
-            public: TermHandle,
-            representative: TermHandle,
-            transport: TermHandle,
-            operation: TermHandle,
-            respect: TermHandle,
-            element: TermHandle,
-            premise: TermHandle,
-        ) -> TermHandle {
-            self.spine(
-                arena,
-                QUOTIENT_LIFT_PRECONDITION,
-                vec![result_level, public_level, representative_level],
-                &[
-                    result,
-                    set_proof,
-                    public,
-                    representative,
-                    transport,
-                    operation,
-                    respect,
-                    element,
-                    premise,
-                ],
             )
         }
 
@@ -4821,9 +4723,9 @@ pub use indexed::{
 pub use quotient::{
     EquivalenceProofs, QUOTIENT, QUOTIENT_BETA, QUOTIENT_BOX_PROP, QUOTIENT_COVERAGE,
     QUOTIENT_EFFECTIVE, QUOTIENT_ELIM, QUOTIENT_ID_CANCEL, QUOTIENT_ID_SYM, QUOTIENT_ID_TRANS,
-    QUOTIENT_IND_PROP, QUOTIENT_IS_SET, QUOTIENT_LIFT, QUOTIENT_LIFT_PRECONDITION,
-    QUOTIENT_PROJECT, QUOTIENT_PROP_IS_SET, QUOTIENT_SET, QUOTIENT_SOUND, QUOTIENT_TRANSPORT,
-    QUOTIENT_TRANSPORT_CONST, QUOTIENT_UNIQUE, QuotientFamily, quotient_scheme,
+    QUOTIENT_IND_PROP, QUOTIENT_IS_SET, QUOTIENT_LIFT, QUOTIENT_PROJECT, QUOTIENT_PROP_IS_SET,
+    QUOTIENT_SET, QUOTIENT_SOUND, QUOTIENT_TRANSPORT, QUOTIENT_TRANSPORT_CONST, QUOTIENT_UNIQUE,
+    QuotientFamily, quotient_scheme,
 };
 pub use signature::{
     Declaration, Signature, SignatureCheckError, assumption_closure, check_signature,
@@ -6780,10 +6682,10 @@ mod tests {
             };
             use crate::mathematical_core::{
                 Context, CoreError, Level, MathematicalCertificate, QUOTIENT, QUOTIENT_BETA,
-                QUOTIENT_EFFECTIVE, QUOTIENT_ELIM, QUOTIENT_LIFT_PRECONDITION, QUOTIENT_PROJECT,
-                QUOTIENT_SET, QUOTIENT_SOUND, QuotientFamily, Signature, TermArena,
-                assumption_closure, certificate_assumption_closure, check_type, infer_type,
-                quotient_scheme, verify_mathematical_certificate,
+                QUOTIENT_EFFECTIVE, QUOTIENT_ELIM, QUOTIENT_PROJECT, QUOTIENT_SET, QUOTIENT_SOUND,
+                QuotientFamily, Signature, TermArena, assumption_closure,
+                certificate_assumption_closure, check_type, infer_type, quotient_scheme,
+                verify_mathematical_certificate,
             };
 
             fn squashed_two_quotient(arena: &mut TermArena) -> QuotientFamily {
@@ -7179,7 +7081,6 @@ mod tests {
                     QUOTIENT_EFFECTIVE,
                     QUOTIENT_ELIM,
                     QUOTIENT_BETA,
-                    QUOTIENT_LIFT_PRECONDITION,
                 ]
                 .into_iter()
                 .collect();
@@ -7208,10 +7109,12 @@ mod tests {
                 two, two_identity, two_quotient, type_sort, variable,
             };
             use crate::mathematical_core::{
-                Context, CoreError, Declaration, Level, QUOTIENT_ELIM, QUOTIENT_IS_SET,
-                QUOTIENT_LIFT, QUOTIENT_SOUND, TermArena, check_signature, check_type, infer_type,
-                quotient_scheme,
+                Context, CoreError, Declaration, Level, QUOTIENT, QUOTIENT_BETA,
+                QUOTIENT_EFFECTIVE, QUOTIENT_ELIM, QUOTIENT_IS_SET, QUOTIENT_LIFT,
+                QUOTIENT_PROJECT, QUOTIENT_SET, QUOTIENT_SOUND, QUOTIENT_UNIQUE, TermArena,
+                check_signature, check_type, infer_type, quotient_scheme,
             };
+            use std::collections::BTreeSet;
 
             #[test]
             fn quotient_beta_is_propositional_evidence_not_conversion() {
@@ -7387,109 +7290,31 @@ mod tests {
             }
 
             #[test]
-            fn quotient_lift_precondition_admits_the_transport_backed_shape() {
+            fn quotient_assumption_closure_records_the_admitted_interface() {
+                // quotients.md and classicality.md admit exactly seven named
+                // assumptions; every other quotient declaration must carry a
+                // checked body, so the kernel cannot grow an unlisted axiom.
                 let mut arena = TermArena::new();
-                let mut budget = default_budget();
-                let family = two_quotient(&mut arena);
-                let signature = quotient_signature(&mut arena);
-                let zero = Level::Constant(0);
-                let one = Level::Constant(1);
-
-                let two_ty = two(&mut arena);
-                let set_b = is_set_zero(&mut arena, two_ty);
-                let public = {
-                    let domain = family.quotient(&mut arena);
-                    let codomain = type_sort(&mut arena, 0);
-                    lambda(&mut arena, domain, codomain)
-                };
-                let representative_premise = {
-                    let domain = two(&mut arena);
-                    let codomain = type_sort(&mut arena, 0);
-                    lambda(&mut arena, domain, codomain)
-                };
-                let transport_type = {
-                    let domain = two(&mut arena);
-                    let premise = type_sort(&mut arena, 0);
-                    let conclusion = type_sort(&mut arena, 0);
-                    let inner = pi(&mut arena, premise, conclusion);
-                    pi(&mut arena, domain, inner)
-                };
-                let operation_type = {
-                    let domain = two(&mut arena);
-                    let premise = type_sort(&mut arena, 0);
-                    let conclusion = two(&mut arena);
-                    let inner = pi(&mut arena, premise, conclusion);
-                    pi(&mut arena, domain, inner)
-                };
-                let respect_type = {
-                    let a_domain = two(&mut arena);
-                    let b_domain = two(&mut arena);
-                    let r_domain = two_identity(&mut arena, 1, 0);
-                    let ha_domain = type_sort(&mut arena, 0);
-                    let hb_domain = type_sort(&mut arena, 0);
-                    let codomain = {
-                        let f = variable(&mut arena, 5);
-                        let a = variable(&mut arena, 4);
-                        let left = apply(&mut arena, f, a);
-                        let t = variable(&mut arena, 6);
-                        let a = variable(&mut arena, 4);
-                        let transported = apply(&mut arena, t, a);
-                        let ha = variable(&mut arena, 1);
-                        let transported = apply(&mut arena, transported, ha);
-                        let left = apply(&mut arena, left, transported);
-                        let f = variable(&mut arena, 5);
-                        let b = variable(&mut arena, 3);
-                        let right = apply(&mut arena, f, b);
-                        let t = variable(&mut arena, 6);
-                        let b = variable(&mut arena, 3);
-                        let transported = apply(&mut arena, t, b);
-                        let hb = variable(&mut arena, 0);
-                        let transported = apply(&mut arena, transported, hb);
-                        let right = apply(&mut arena, right, transported);
-                        let ty = two(&mut arena);
-                        id(&mut arena, ty, left, right)
-                    };
-                    let inner = pi(&mut arena, hb_domain, codomain);
-                    let inner = pi(&mut arena, ha_domain, inner);
-                    let inner = pi(&mut arena, r_domain, inner);
-                    let middle = pi(&mut arena, b_domain, inner);
-                    pi(&mut arena, a_domain, middle)
-                };
-                let element = family.quotient(&mut arena);
-                let premise = type_sort(&mut arena, 0);
-                let context = Context::empty()
-                    .with_signature(signature)
-                    .extend(set_b)
-                    .extend(transport_type)
-                    .extend(operation_type)
-                    .extend(respect_type)
-                    .extend(element)
-                    .extend(premise);
-
-                let result_ty = two(&mut arena);
-                let set_b_var = variable(&mut arena, 5);
-                let transport_var = variable(&mut arena, 4);
-                let operation_var = variable(&mut arena, 3);
-                let respect_var = variable(&mut arena, 2);
-                let element_var = variable(&mut arena, 1);
-                let premise_var = variable(&mut arena, 0);
-                let lifted = family.lift_precondition(
-                    &mut arena,
-                    zero.clone(),
-                    one.clone(),
-                    one,
-                    result_ty,
-                    set_b_var,
-                    public,
-                    representative_premise,
-                    transport_var,
-                    operation_var,
-                    respect_var,
-                    element_var,
-                    premise_var,
-                );
-                let result = two(&mut arena);
-                check_type(&mut arena, &context, lifted, result, &mut budget).unwrap();
+                let declarations = quotient_scheme(&mut arena);
+                let assumed: BTreeSet<u32> = declarations
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, declaration)| declaration.is_assumption())
+                    .map(|(index, _)| u32::try_from(index).unwrap())
+                    .collect();
+                let admitted: BTreeSet<u32> = [
+                    QUOTIENT,
+                    QUOTIENT_PROJECT,
+                    QUOTIENT_SET,
+                    QUOTIENT_SOUND,
+                    QUOTIENT_EFFECTIVE,
+                    QUOTIENT_ELIM,
+                    QUOTIENT_BETA,
+                ]
+                .into_iter()
+                .collect();
+                assert_eq!(assumed, admitted);
+                assert_eq!(declarations.len(), QUOTIENT_UNIQUE as usize + 1);
             }
 
             #[test]
