@@ -1412,7 +1412,11 @@ fn template_commitment(
             );
             // These are the source header's promises, not an inferred private
             // ranking or the effects of a particular specialization.
-            machine.contract.termination.hash(&mut contract);
+            match machine.contract.termination {
+                semantic_vocabulary::Termination::Terminates => crate::body::Termination::Promised,
+                semantic_vocabulary::Termination::NoGuarantee => crate::body::Termination::Silent,
+            }
+            .hash(&mut contract);
             (
                 machine.declared_service_reach.is_some(),
                 machine.declared_synchronous_entries.is_some(),
