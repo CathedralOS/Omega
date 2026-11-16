@@ -1,5 +1,9 @@
 // Expected exit: 0
 // Saturating conversions keep their result policy until explicitly removed.
+use omega::language::core::I32::from_f32;
+use omega::language::core::I32::from_f64;
+use omega::language::core::U32::from_f32;
+use omega::language::core::U32::from_f64;
 machine signed32(value: f32) -> i32
 requires true {
     let converted: i32 in Saturating = I32::from_f32(value);
