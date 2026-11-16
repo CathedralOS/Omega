@@ -976,6 +976,17 @@ impl TypedReferences for Capture<'_> {
             RawDependencyKind::CodeSelection,
         );
     }
+    fn static_application(
+        &mut self,
+        _: typed_trees::static_applications::StaticMachineApplicationHandle,
+        formation_owner: SymbolHandle,
+    ) {
+        // A Product use can share a header formed by Build. Retain and validate
+        // that forming declaration without claiming the use selects its code.
+        if self.valid_symbol(formation_owner, "static application formation owner") {
+            self.output.declarations.push(formation_owner);
+        }
+    }
     fn declaration_description_dependency(&mut self, symbol: SymbolHandle) {
         self.dependency(
             symbol,
@@ -1087,7 +1098,14 @@ pub(crate) fn capture(
     }
     match capture.error {
         Some(error) => Err(error),
-        None => Ok(capture.output),
+        None => {
+            capture
+                .output
+                .declarations
+                .sort_unstable_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
+            capture.output.declarations.dedup();
+            Ok(capture.output)
+        }
     }
 }
 

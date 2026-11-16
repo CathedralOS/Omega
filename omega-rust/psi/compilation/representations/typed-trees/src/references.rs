@@ -1303,7 +1303,15 @@ pub trait TypedReferences: Extend<SymbolHandle> {
     fn enter_lexical_scope(&mut self, _: SymbolHandle) {}
     fn leave_lexical_scope(&mut self) {}
     fn authored_selection(&mut self, _: crate::AuthoredDeclarationSelectionOccurrenceId) {}
-    fn static_application(&mut self, _: StaticMachineApplicationHandle) {}
+    /// The forming declaration supplies the application's lexical context. It
+    /// remains reachable metadata, not an authored selection by its later user.
+    fn static_application(
+        &mut self,
+        _: StaticMachineApplicationHandle,
+        formation_owner: SymbolHandle,
+    ) {
+        self.declaration_description_dependency(formation_owner);
+    }
     fn declaration_description_dependency(&mut self, _: SymbolHandle) {}
     fn layout_realization_dependency(&mut self, symbol: SymbolHandle) {
         self.extend([symbol]);
@@ -1400,8 +1408,12 @@ impl<References: TypedReferences> TypedReferences for CodeSelectionReferences<'_
     fn authored_selection(&mut self, occurrence: crate::AuthoredDeclarationSelectionOccurrenceId) {
         self.0.authored_selection(occurrence);
     }
-    fn static_application(&mut self, application: StaticMachineApplicationHandle) {
-        self.0.static_application(application);
+    fn static_application(
+        &mut self,
+        application: StaticMachineApplicationHandle,
+        formation_owner: SymbolHandle,
+    ) {
+        self.0.static_application(application, formation_owner);
     }
     fn declaration_description_dependency(&mut self, symbol: SymbolHandle) {
         self.0.declaration_description_dependency(symbol);
@@ -2384,7 +2396,6 @@ fn visit_callable_symbol(
     }
     let source = program.static_machine_application(application.application);
     visit_symbol(retained, source.binding_declaration);
-    retained.declaration_description_dependency(source.lexical_owner);
     visit_static_machine_bindings(program, retained, application.application);
 }
 
@@ -2443,8 +2454,8 @@ fn visit_static_machine_bindings_inner(
     {
         return;
     }
-    retained.static_application(application);
     let source = program.static_machine_application(application);
+    retained.static_application(application, source.lexical_owner);
     visit_static_machine_bindings_inner(
         program,
         retained,
@@ -2456,7 +2467,6 @@ fn visit_static_machine_bindings_inner(
         .is_empty()
     {
         retained.declaration_description_dependency(source.lifetime_binding_declaration);
-        retained.declaration_description_dependency(source.lexical_owner);
     }
     for selection in program
         .product_input_selections
@@ -3915,8 +3925,6 @@ fn visit_machine_with_sidecars(
                 .filter(|(_, capture)| capture.instance == machine.symbol)
             {
                 visit_symbol(retained, capture.template);
-                let source = program.static_machine_application(capture.supplying_application);
-                retained.declaration_description_dependency(source.lexical_owner);
                 for (_, selected) in
                     program
                         .data_implementation_applications
