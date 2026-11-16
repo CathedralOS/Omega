@@ -52,12 +52,14 @@ nothing else: lowering never asks what a place holds.
 - What a formal holds at entry is not a write. It is one value per scalar
   leaf with `ValueOrigin::StorageContent { place, after: None }`. Clauses
   and operations request the leaves; final lowering names them in place order.
-  A call that returns a result or an exclusive argument supplies a distinct
-  `after: Some(call)` version. Later writes do not change either snapshot.
+  A block formal binds a new snapshot on each arrival. A call that returns a
+  result or an exclusive argument supplies a distinct `after: Some(call)`
+  version. Later writes do not change a captured snapshot.
 */
 
 #[path = "places_contents.rs"]
 mod contents;
+pub(super) use contents::ContentDemand;
 
 use crate::body::Qualification;
 use semantic_vocabulary::{
@@ -69,7 +71,7 @@ use terminal_check_tables::edges::Destination;
 use terminal_check_tables::obligations::{ExecutionSite, Lender, ObligationKind};
 use terminal_check_tables::values::ValueOrigin;
 use terminal_check_tables::{
-    Checked, Construct, ExactPlaceId, ProgramPoint, PsiSemanticId, Refusal, RefusalReason,
+    Checked, Construct, ExactPlaceId, ProgramPoint, Refusal, RefusalReason,
 };
 use terminal_psi::{
     NativeLayoutCatalog, NativeLayoutFieldIdentity, Operation, OperationKind, OperationResult,
@@ -1193,16 +1195,7 @@ impl<'a> Lowering<'a> {
     /// Register a demanded scalar leaf. Logical identities are allocated in
     /// exact-place order after lowering, including leaves named only in clauses.
     fn initial_content(&mut self, leaf: ExactPlaceId, scalar_type: ScalarType) -> Checked<()> {
-        let index = usize::try_from(leaf.get() - 1)
-            .map_err(|_| self.internal("place identity exceeds the address space"))?;
-        if self.demanded_contents.len() <= index {
-            self.demanded_contents.resize(index + 1, None);
-        }
-        if self.demanded_contents[index].is_some_and(|previous| previous != scalar_type) {
-            return Err(self.internal("a demanded storage leaf has two scalar types"));
-        }
-        self.demanded_contents[index] = Some(scalar_type);
-        Ok(())
+        self.demand_content(leaf, scalar_type, false)
     }
 
     /// Register the storage leaves a use or type contract observes. Calls and
@@ -1586,7 +1579,7 @@ impl<'a> Lowering<'a> {
                 .ok_or_else(|| self.internal("cast subject place identity"))?;
             let mut predicate = Vec::with_capacity(clauses.len());
             for clause in clauses {
-                self.name_clause_contents(clause, &[(subject, exact)], None)?;
+                self.name_block_clause_contents(clause, &[(subject, exact)])?;
                 predicate.push(crate::canonical::substitute_parameters(
                     clause,
                     &[],

@@ -236,8 +236,8 @@ fn asked_root(asked: Asked<'_>) -> PlaceId {
     asked.place().root
 }
 
-/// Logical values indexed by exact place at entry and by (call, place) on
-/// return. The producer lists snapshots in (place, boundary) order, so
+/// Logical values indexed by exact place at its owner's entry and by
+/// (call, place) on return. The producer lists snapshots in (place, boundary) order, so
 /// duplicate or exchanged identities cannot change which leaf a clause names.
 struct Contents {
     entry: Vec<Option<ValueId>>,
@@ -293,15 +293,13 @@ fn initial_contents(
     Ok(contents)
 }
 
-/// Only invocation formals have invocation-wide initial contents. A call
-/// result's fresh contents cannot become a block predicate's entry premise.
-/// An unavailable owner remains outside scope; storage validation independently
-/// refuses malformed owner tables.
-pub(crate) fn input_content(
+/// The declaration says which entry binds the snapshot. Joins apply that
+/// entry's scope; storage validation independently checks the owner and leaf.
+pub(crate) fn content_root_kind(
     lowered: &TerminalMachine,
     tables: &MachineTables,
     place: ExactPlaceId,
-) -> bool {
+) -> Option<StructuralPlaceKind> {
     lineage(lowered.id, &tables.places, place)
         .ok()
         .and_then(|source| {
@@ -310,7 +308,7 @@ pub(crate) fn input_content(
                 .get(index(source.root.get()))
                 .filter(|root| root.id == source.root)
         })
-        .is_some_and(|root| matches!(root.kind, StructuralPlaceKind::Parameter { .. }))
+        .map(|root| root.kind)
 }
 
 /// What one scalar leaf holds on every path to a point.
@@ -372,9 +370,9 @@ impl Reached {
     }
 }
 
-/// A read supplies a value snapshot without writing or restoring storage.
+/// A read or block entry observes a value without writing or restoring it.
 struct Observation {
-    operation: OperationId,
+    point: ProgramPoint,
     position: usize,
     value: ValueId,
 }
@@ -451,6 +449,7 @@ struct Reaching {
     keys: BTreeMap<(BlockId, usize, Lineage, QueryKind), usize>,
     equations: Vec<ReachingEquation>,
     initialization_only: bool,
+    observe_block_entries: bool,
     remaining: usize,
     crossed_entries: Vec<bool>,
     used: Option<ProgramPoint>,
@@ -836,7 +835,7 @@ impl<'a> Storage<'a> {
                     .entry(leaf)
                     .or_default()
                     .push(Observation {
-                        operation: operation.id,
+                        point: ProgramPoint::AfterOperation(operation.id),
                         position: before + 1,
                         value,
                     });
@@ -2746,16 +2745,10 @@ impl<'a> Storage<'a> {
             // Entry crossings discovered anywhere in the query retire reads
             // from an earlier iteration, even if we saw the read first.
             if let Reached::Value(value) = equation.direct
-                && let Some(ValueOrigin::Operation(operation)) =
-                    tables.values.get(value).map(|row| row.origin)
-                && self
-                    .read_leaf(self.operation(operation, concerns)?)?
-                    .is_some()
+                && let Some(owner) = self.observation_block(tables, value, concerns)?
+                && trace.crossed_entries[index(owner.get())]
             {
-                let (owner, _) = self.graph.locate(ProgramPoint::AfterOperation(operation))?;
-                if trace.crossed_entries[index(owner.get())] {
-                    equation.direct = Reached::Unknown;
-                }
+                equation.direct = Reached::Unknown;
             }
         }
         Ok(match trace.solve(source).within(depth) {
@@ -2846,10 +2839,12 @@ impl<'a> Storage<'a> {
                     let end =
                         observations.partition_point(|observation| observation.position <= up_to);
                     if let Some(observation) = end.checked_sub(1).map(|last| &observations[last])
+                        && (budget.observe_block_entries
+                            || !matches!(observation.point, ProgramPoint::BlockEntry(_)))
                         && last.is_none_or(|(_, row)| row.position < observation.position)
                         && !budget.crossed_entries[index(block.get())]
                         && self.graph.dominates(
-                            ProgramPoint::AfterOperation(observation.operation),
+                            observation.point,
                             budget.used.ok_or_else(|| {
                                 self.foreign(concerns, "a storage trace has no use point")
                             })?,
@@ -3035,6 +3030,7 @@ impl<'a> Storage<'a> {
             keys: BTreeMap::new(),
             equations: Vec::new(),
             initialization_only: false,
+            observe_block_entries: true,
             remaining: self.reaching_budget,
             crossed_entries: vec![false; self.graph.block_count()],
             used: None,
@@ -3194,7 +3190,12 @@ impl<'a> Storage<'a> {
         // contents retain their original path. With no single name, the
         // trace retains only the part of the current path established on
         // every arrival, inside the value supplied by another machine.
-        let mut budget = self.budget();
+        let mut budget = Reaching {
+            // A block snapshot gives the current value a name. Independently
+            // follow its actual back to an established data type boundary.
+            observe_block_entries: false,
+            ..self.budget()
+        };
         let arrived = match self.reaching(
             tables,
             Asked::Contents(leaf),
@@ -5218,6 +5219,31 @@ impl crate::Bindings for AtJoin<'_, '_> {
             return Err(crate::Unbound::Unsupported(
                 "join argument has another scalar carrier",
             ));
+        }
+        if let ValueOrigin::StorageContent { place, after: None } = actual.origin {
+            let observed = lineage(
+                self.inputs.storage.machine,
+                &self.inputs.tables.places,
+                place,
+            )
+            .map_err(crate::Unbound::Refused)?;
+            if let Some(formal) = terminal_psi::StructuralParameterDeclaration::find_by_place(
+                self.inputs.callee_formals,
+                observed.root,
+            ) {
+                // Each incoming edge proves the destination predicate about
+                // its own actual. It may not use the destination's snapshot
+                // as if that binding already existed on the edge.
+                let mut leaf = self.inputs.readable_actual(formal)?.clone();
+                if let Some((Segment::Extent, parent)) = observed.segments.split_last()
+                    && let ScalarType::Integer(integer) = scalar_type
+                {
+                    leaf.segments.extend_from_slice(parent);
+                    return self.inputs.held_at(&leaf).extent_of(&leaf, integer);
+                }
+                leaf.segments.extend_from_slice(&observed.segments);
+                return self.inputs.held_at(&leaf).observation(&leaf, scalar_type);
+            }
         }
         Ok(ScalarTerm::value(value, scalar_type))
     }

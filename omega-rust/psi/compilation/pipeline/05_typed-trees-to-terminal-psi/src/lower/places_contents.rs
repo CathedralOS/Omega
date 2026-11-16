@@ -18,6 +18,13 @@ struct Named {
     leaves: Vec<(PlaceId, Vec<Segment>, ScalarType)>,
 }
 
+#[derive(Clone, Copy)]
+pub(in crate::lower) struct ContentDemand {
+    scalar_type: ScalarType,
+    /// An authored block predicate observes this leaf anew on each entry.
+    block_entry: bool,
+}
+
 fn path(path: &[CanonicalStructuralPathSegment]) -> Result<Vec<Segment>, &'static str> {
     path.iter()
         .map(|segment| match segment {
@@ -90,11 +97,51 @@ impl ClauseBindings for Named {
 }
 
 impl Lowering<'_> {
+    pub(super) fn demand_content(
+        &mut self,
+        leaf: ExactPlaceId,
+        scalar_type: ScalarType,
+        block_entry: bool,
+    ) -> Checked<()> {
+        let index = usize::try_from(leaf.get() - 1)
+            .map_err(|_| self.internal("place identity exceeds the address space"))?;
+        if self.demanded_contents.len() <= index {
+            self.demanded_contents.resize(index + 1, None);
+        }
+        let demand = self.demanded_contents[index].get_or_insert(ContentDemand {
+            scalar_type,
+            block_entry,
+        });
+        if demand.scalar_type != scalar_type {
+            return Err(self.internal("a demanded storage leaf has two scalar types"));
+        }
+        demand.block_entry |= block_entry;
+        Ok(())
+    }
+
     pub(in crate::lower) fn name_clause_contents(
         &mut self,
         clause: &Proposition,
         bindings: &[(PlaceId, ExactPlaceId)],
         result: Option<PlaceId>,
+    ) -> Checked<()> {
+        self.name_clause_observations(clause, bindings, result, false)
+    }
+
+    pub(in crate::lower) fn name_block_clause_contents(
+        &mut self,
+        clause: &Proposition,
+        bindings: &[(PlaceId, ExactPlaceId)],
+    ) -> Checked<()> {
+        self.name_clause_observations(clause, bindings, None, true)
+    }
+
+    fn name_clause_observations(
+        &mut self,
+        clause: &Proposition,
+        bindings: &[(PlaceId, ExactPlaceId)],
+        result: Option<PlaceId>,
+        block_entry: bool,
     ) -> Checked<()> {
         let mut named = Named { leaves: Vec::new() };
         let _ = substitute_clause(clause, &mut named);
@@ -112,7 +159,7 @@ impl Lowering<'_> {
             for segment in path {
                 leaf = self.project(leaf, segment)?;
             }
-            self.initial_content(leaf, scalar_type)?;
+            self.demand_content(leaf, scalar_type, block_entry)?;
         }
         Ok(())
     }
@@ -127,7 +174,11 @@ impl Lowering<'_> {
             .collect();
         call_operations.sort_unstable();
         for slot in 0..self.demanded_contents.len() {
-            let Some(scalar_type) = self.demanded_contents[slot] else {
+            let Some(ContentDemand {
+                scalar_type,
+                block_entry,
+            }) = self.demanded_contents[slot]
+            else {
                 continue;
             };
             let leaf = ExactPlaceId::new(slot as u64 + 1)
@@ -158,10 +209,11 @@ impl Lowering<'_> {
                     PlaceOrigin::Projection { parent, .. } => at = parent,
                 }
             };
-            if matches!(
-                self.roots.get(root).map(|(kind, _)| kind),
-                Some(StructuralPlaceKind::Parameter { .. })
-            ) {
+            if match self.roots.get(root).map(|(kind, _)| kind) {
+                Some(StructuralPlaceKind::Parameter { .. }) => true,
+                Some(StructuralPlaceKind::BlockParameter { .. }) => block_entry,
+                _ => false,
+            } {
                 self.value(
                     scalar_type,
                     ValueOrigin::StorageContent {
