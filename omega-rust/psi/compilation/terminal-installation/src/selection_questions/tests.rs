@@ -415,10 +415,10 @@ fn every_emitted_call_keeps_its_actual_source_selection() {
     for (index, name) in ["caller", "target", "decoy"].iter().enumerate() {
         let id = MachineId::new(index as u64 + 1).unwrap();
         module.machines.push(machine(id, identities.intern(name)));
-        let source = packet.declarations.push(SelectionDeclaration {
-            identity: declaration_identity(name, Some(name)).unwrap(),
-            ..declaration_row(name, package(1), SelectionPurpose::Build)
-        });
+        let source =
+            packet
+                .declarations
+                .push(declaration_row(name, package(1), SelectionPurpose::Build));
         packet.joins.push(SelectionJoin::Machine {
             declaration: source,
             machine: id,

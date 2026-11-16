@@ -28,34 +28,6 @@ pub struct SelectionDeclaration {
     pub purpose: SelectionPurpose,
 }
 
-/// A source dictionary distinguishes callable overloads and their descendants
-/// without changing the checked declaration's nominal identity. The signature
-/// is the existing complete callable selector, including an overloaded outer
-/// machine for nested declarations. Lengths frame arbitrary UTF-8 identities.
-pub fn declaration_identity(
-    nominal: &str,
-    callable_scope: Option<&str>,
-) -> Result<String, &'static str> {
-    if nominal.is_empty() {
-        return Err("source declaration has no nominal identity");
-    }
-    match callable_scope {
-        None => Ok(format!(
-            "source-declaration-v1|owner={}:{}|scope=none",
-            nominal.len(),
-            nominal
-        )),
-        Some("") => Err("source declaration has no complete callable scope"),
-        Some(scope) => Ok(format!(
-            "source-declaration-v1|owner={}:{}|scope=some:{}:{}",
-            nominal.len(),
-            nominal,
-            scope.len(),
-            scope
-        )),
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum SelectionPurpose {
     Build,
