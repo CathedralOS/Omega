@@ -444,12 +444,12 @@ impl<'source> Questions<'source> {
                     // Source calls may name the machine's entry State, while
                     // the published call names the machine. Only its uniquely
                     // registered entry authenticates that same declaration.
-                    let entered_machine = match target {
-                        TargetMachineCallable::Machine(_) => typed
-                            .unique_machine_by_entry_state_symbol(source_target)
-                            .map(|(machine, _)| machine.symbol),
-                        TargetMachineCallable::Boundary(_) => None,
-                    };
+                    // A boundary machine registers its entry the same way, so
+                    // a call to a compiler primitive such as
+                    // `ProcessExitPrimitive` is authenticated identically.
+                    let entered_machine = typed
+                        .unique_machine_by_entry_state_symbol(source_target)
+                        .map(|(machine, _)| machine.symbol);
                     if entered_machine != Some(selected) {
                         return Err(refused(format_args!(
                             "declared invocation differs from its exact source selection: source {} ({source_target:?}), emitted {} ({selected:?}), owner {} ({owner:?}), occurrence {node:?}",
