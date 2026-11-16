@@ -22,10 +22,12 @@ boundary trait PosixFilesystemLinuxArm64ByteViews: Calling<LinuxArm64ByteViewCal
 // Linux arm64 writes its 128-byte kernel stat record. The caller lends that
 // complete checked window rather than the first byte of a larger view.
 boundary trait PosixFilesystemLinuxArm64Metadata {
-    machine newfstatat(dirfd: i32, path: &[u8; 4096], buffer: &mut [u8; 128], flags: i32) -> i32
+    // The kernel writes its 128-byte record into the front of std's shared
+    // 144-byte stat buffer (`PosixFilesystem::stat_buf`).
+    machine newfstatat(dirfd: i32, path: &[u8; 4096], buffer: &mut [u8; 144], flags: i32) -> i32
     reaches FilesystemMetadataQuery
     crashes none;
-    machine fstat(fd: i32, buffer: &mut [u8; 128]) -> i32
+    machine fstat(fd: i32, buffer: &mut [u8; 144]) -> i32
     reaches FilesystemMetadataQuery
     crashes none;
 }
@@ -368,46 +370,44 @@ reaches FilesystemNamespaceMutation
     }
 }
 
-machine linux_arm64_posix_read_metadata(path: &[u8] in Path, buffer: &mut [u8]) -> i32
+machine linux_arm64_posix_read_metadata(path: &[u8] in Path, buffer: &mut [u8; 144]) -> i32
     satisfies PosixFilesystemHost::read_metadata
 reaches FilesystemMetadataQuery
 {
     PosixFilesystemHost::read_metadata_at(-100, path as -Path, buffer, 0)
 }
 
-machine linux_arm64_posix_read_file_metadata(fd: i32, buffer: &mut [u8]) -> i32
+machine linux_arm64_posix_read_file_metadata(fd: i32, buffer: &mut [u8; 144]) -> i32
     satisfies PosixFilesystemHost::read_file_metadata
 reaches FilesystemMetadataQuery
 {
-    transition buffer.len >= 128 { true -> query(fd, buffer) _ -> -22 }
-    machine query(fd: i32, buffer: &mut [u8]) -> i32 requires buffer.len >= 128 {
-        PosixFilesystemLinuxArm64Metadata::fstat(fd, &mut buffer[0] as &mut [u8; 128])
+    query(fd, buffer)
+    machine query(fd: i32, buffer: &mut [u8; 144]) -> i32 {
+        PosixFilesystemLinuxArm64Metadata::fstat(fd, buffer)
     }
 }
 
-machine linux_arm64_posix_read_symlink_metadata(path: &[u8] in Path, buffer: &mut [u8]) -> i32
+machine linux_arm64_posix_read_symlink_metadata(path: &[u8] in Path, buffer: &mut [u8; 144]) -> i32
     satisfies PosixFilesystemHost::read_symlink_metadata
 reaches FilesystemMetadataQuery
 {
     PosixFilesystemHost::read_metadata_at(-100, path as -Path, buffer, 256)
 }
 
-machine linux_arm64_posix_read_metadata_at(directory_descriptor: i32, name: &[u8], buffer: &mut [u8], flags: i32) -> i32
+machine linux_arm64_posix_read_metadata_at(directory_descriptor: i32, name: &[u8], buffer: &mut [u8; 144], flags: i32) -> i32
     satisfies PosixFilesystemHost::read_metadata_at
 reaches FilesystemMetadataQuery
 {
-    transition buffer.len >= 128 { true -> prepare(directory_descriptor, name, buffer, flags) _ -> -22 }
-    machine prepare(directory_descriptor: i32, name: &[u8], buffer: &mut [u8], flags: i32) -> i32
-    requires buffer.len >= 128
+    prepare(directory_descriptor, name, buffer, flags)
+    machine prepare(directory_descriptor: i32, name: &[u8], buffer: &mut [u8; 144], flags: i32) -> i32
     {
         let mut terminated: [u8; 4096];
         let fits: bool = posix_terminated_path(name, &mut terminated[..]);
         transition fits { true -> query(directory_descriptor, terminated, buffer, flags) _ -> -36 }
     }
-    machine query(directory_descriptor: i32, terminated: [u8; 4096], buffer: &mut [u8], flags: i32) -> i32
-    requires buffer.len >= 128
+    machine query(directory_descriptor: i32, terminated: [u8; 4096], buffer: &mut [u8; 144], flags: i32) -> i32
     {
-        PosixFilesystemLinuxArm64Metadata::newfstatat(directory_descriptor, &terminated, &mut buffer[0] as &mut [u8; 128], flags)
+        PosixFilesystemLinuxArm64Metadata::newfstatat(directory_descriptor, &terminated, buffer, flags)
     }
 }
 
@@ -419,14 +419,14 @@ reaches FilesystemContentWrite + FilesystemMetadataMutation
     outcome
 }
 
-machine linux_arm64_posix_set_file_times(fd: i32, times: &[u8]) -> i32
+machine linux_arm64_posix_set_file_times(fd: i32, times: &[u8; 32]) -> i32
     satisfies PosixFilesystemHost::set_file_times
 reaches FilesystemMetadataMutation
 {
-    transition times.len >= 32 { true -> update(fd, times) _ -> -22 }
-    machine update(fd: i32, times: &[u8]) -> i32 requires times.len >= 32 {
+    update(fd, times)
+    machine update(fd: i32, times: &[u8; 32]) -> i32 {
         // The raw syscall copies bytes from user storage, without a libc object.
-        PosixFilesystemLinux::utimensat(fd, 0, &times[0] as &[u8; 32], 0)
+        PosixFilesystemLinux::utimensat(fd, 0, times, 0)
     }
 }
 
