@@ -152,6 +152,7 @@ fn publish_retained_call_loans(elaboration: &mut crate::Elaboration) -> Checked<
             .machines
             .get_mut(machine.id)
             .ok_or_else(|| unavailable("retained call loan lost its machine tables"))?;
+        let loans = ordered_loans(tables);
         let sources = elaboration
             .sources
             .get_mut(machine.id)
@@ -186,12 +187,20 @@ fn publish_retained_call_loans(elaboration: &mut crate::Elaboration) -> Checked<
                         .ok_or_else(|| unavailable("retained call loan has no borrowed input"))?;
                     // The argument's own row supplies the lender and source
                     // coordinates; the narrower row is formed by the same call.
-                    let argument_loan =
-                        retained_loan_row(module, machine, tables, point, argument, access, &[])
-                            .map_err(unavailable)?
-                            .ok_or_else(|| {
-                                unavailable("retained call loan has no argument occurrence row")
-                            })?;
+                    let argument_loan = retained_loan_row(
+                        module,
+                        machine,
+                        tables,
+                        loan_rows_at(&loans, point),
+                        argument,
+                        access,
+                        &[],
+                    )
+                    .map_err(unavailable)?
+                    .map(|(id, _, _)| id)
+                    .ok_or_else(|| {
+                        unavailable("retained call loan has no argument occurrence row")
+                    })?;
                     let Some(ObligationKind::Loan { lender, .. }) =
                         tables.obligations.get(argument_loan).map(|row| row.kind)
                     else {
@@ -514,11 +523,8 @@ fn publish_parents(
                 "reference parent publication lost its machine tables",
             )
         })?;
-        let demanded = tables
-            .obligations
-            .iter()
-            .any(|(_, row)| matches!(row.kind, ObligationKind::Loan { .. }));
-        if !demanded {
+        let loans = ordered_loans(tables);
+        if loans.is_empty() {
             continue;
         }
         let mut children = tables.obligations.map(|_, _| None);
@@ -588,7 +594,14 @@ fn publish_parents(
             let mut before = ProgramPoint::BlockEntry(block.id);
             for operation in &block.operations {
                 if let Some(call) = operation.declared_invocation() {
-                    publish_payload_children(module, machine, tables, call, before, &mut children)?;
+                    publish_payload_children(
+                        module,
+                        machine,
+                        tables,
+                        loan_rows_at(&loans, before),
+                        call,
+                        &mut children,
+                    )?;
                 }
                 if let terminal_psi::OperationKind::EstablishElementView { source, .. }
                 | terminal_psi::OperationKind::EstablishMutableElementView { source, .. } =
@@ -608,8 +621,8 @@ fn publish_parents(
                             module,
                             machine,
                             tables,
+                            loan_rows_at(&loans, before),
                             source,
-                            before,
                             &mut Vec::new(),
                             &mut children,
                         )?;
@@ -618,7 +631,14 @@ fn publish_parents(
                 before = ProgramPoint::AfterOperation(operation.id);
             }
             if let Some((_, call)) = block.terminator.declared_invocation() {
-                publish_payload_children(module, machine, tables, call, before, &mut children)?;
+                publish_payload_children(
+                    module,
+                    machine,
+                    tables,
+                    loan_rows_at(&loans, before),
+                    call,
+                    &mut children,
+                )?;
             }
         }
         for successor in successor_loans
@@ -708,21 +728,20 @@ fn publish_parents(
                         unavailable(machine.id, "reference formation has no exact source place")
                     })?;
                     let mut matching = Vec::new();
-                    for (id, row) in tables.obligations.iter() {
+                    for &(id, row) in loan_rows_at(&loans, before) {
                         let ObligationKind::Loan {
                             captured, access, ..
                         } = row.kind
                         else {
                             continue;
                         };
-                        if row.created_at != before
-                            || access
-                                != reference_access(source.access).ok_or_else(|| {
-                                    unavailable(
-                                        machine.id,
-                                        "reference formation has no borrowed access",
-                                    )
-                                })?
+                        if access
+                            != reference_access(source.access).ok_or_else(|| {
+                                unavailable(
+                                    machine.id,
+                                    "reference formation has no borrowed access",
+                                )
+                            })?
                         {
                             continue;
                         }
@@ -779,9 +798,16 @@ fn publish_parents(
                             continue;
                         };
                         let id = retained_loan_row(
-                            module, machine, tables, before, source, access, &claimed,
+                            module,
+                            machine,
+                            tables,
+                            loan_rows_at(&loans, before),
+                            source,
+                            access,
+                            &claimed,
                         )
                         .map_err(|reason| unavailable(machine.id, reason))?
+                        .map(|(id, _, _)| id)
                         .ok_or_else(|| {
                             unavailable(
                                 machine.id,
@@ -810,9 +836,16 @@ fn publish_parents(
                                 access: argument.access,
                             };
                             let id = retained_loan_row(
-                                module, machine, tables, before, &region, access, &claimed,
+                                module,
+                                machine,
+                                tables,
+                                loan_rows_at(&loans, before),
+                                &region,
+                                access,
+                                &claimed,
                             )
-                            .map_err(|reason| unavailable(machine.id, reason))?;
+                            .map_err(|reason| unavailable(machine.id, reason))?
+                            .map(|(id, _, _)| id);
                             claimed.extend(id);
                             id
                         }
@@ -903,17 +936,61 @@ fn publish_parents(
     Ok(())
 }
 
-/// The unclaimed `Loan` row formed at `before` that captures exactly
-/// `source` with `access`.
+/// Calls and views select only loans minted at their formation point. Keep
+/// argument order within each point so identical arguments retain distinct rows.
+fn ordered_loans(
+    tables: &terminal_check_tables::MachineTables,
+) -> Vec<(
+    semantic_vocabulary::ObligationId,
+    terminal_check_tables::obligations::ObligationRow,
+)> {
+    use terminal_check_tables::obligations::ObligationKind;
+    let mut loans: Vec<_> = tables
+        .obligations
+        .iter()
+        .filter(|(_, row)| matches!(row.kind, ObligationKind::Loan { .. }))
+        .map(|(id, row)| (id, *row))
+        .collect();
+    loans.sort_unstable_by_key(|(id, row)| (row.created_at, *id));
+    loans
+}
+
+fn loan_rows_at(
+    loans: &[(
+        semantic_vocabulary::ObligationId,
+        terminal_check_tables::obligations::ObligationRow,
+    )],
+    before: terminal_check_tables::ProgramPoint,
+) -> &[(
+    semantic_vocabulary::ObligationId,
+    terminal_check_tables::obligations::ObligationRow,
+)] {
+    let start = loans.partition_point(|(_, row)| row.created_at < before);
+    let end = loans.partition_point(|(_, row)| row.created_at <= before);
+    &loans[start..end]
+}
+
+/// The unclaimed occurrence at this formation point that captures exactly
+/// `source` with `access`, together with its captured descriptor location.
 fn retained_loan_row(
     module: &TerminalModule,
     machine: &terminal_psi::TerminalMachine,
     tables: &terminal_check_tables::MachineTables,
-    before: terminal_check_tables::ProgramPoint,
+    loans: &[(
+        semantic_vocabulary::ObligationId,
+        terminal_check_tables::obligations::ObligationRow,
+    )],
     source: &terminal_psi::StructuralArgument,
     access: language_core::ReferenceAccess,
     claimed: &[semantic_vocabulary::ObligationId],
-) -> Result<Option<semantic_vocabulary::ObligationId>, &'static str> {
+) -> Result<
+    Option<(
+        semantic_vocabulary::ObligationId,
+        terminal_check_tables::ProgramPoint,
+        terminal_semantics::descriptor_lifetimes::DescriptorLocation,
+    )>,
+    &'static str,
+> {
     use terminal_check_tables::obligations::ObligationKind;
     use terminal_semantics::descriptor_lifetimes::{DescriptorLocation, descriptor_location};
     let ty = machine
@@ -927,7 +1004,7 @@ fn retained_loan_row(
         None,
     )
     .ok_or("retained call loan has no exact source")?;
-    for (id, row) in tables.obligations.iter() {
+    for &(id, row) in loans {
         let ObligationKind::Loan {
             captured,
             access: actual,
@@ -936,12 +1013,12 @@ fn retained_loan_row(
         else {
             continue;
         };
-        if row.created_at != before || actual != access || claimed.contains(&id) {
+        if actual != access || claimed.contains(&id) {
             continue;
         }
         let (root, path) = captured_path(tables, captured)?;
         if DescriptorLocation::captured(root, &path).as_ref() == Some(&location) {
-            return Ok(Some(id));
+            return Ok(Some((id, row.created_at, location)));
         }
     }
     Ok(None)
@@ -953,8 +1030,11 @@ fn publish_payload_children(
     module: &TerminalModule,
     machine: &terminal_psi::TerminalMachine,
     tables: &terminal_check_tables::MachineTables,
+    loans: &[(
+        semantic_vocabulary::ObligationId,
+        terminal_check_tables::obligations::ObligationRow,
+    )],
     call: terminal_psi::ModuleInvocationInputs<'_, semantic_vocabulary::TargetMachineCallable>,
-    before: terminal_check_tables::ProgramPoint,
     children: &mut semantic_vocabulary::IdTable<
         semantic_vocabulary::ObligationId,
         Option<(
@@ -987,8 +1067,8 @@ fn publish_payload_children(
             module,
             machine,
             tables,
+            loans,
             argument,
-            before,
             &mut claimed,
             children,
         )?;
@@ -1000,8 +1080,11 @@ fn publish_payload_child(
     module: &TerminalModule,
     machine: &terminal_psi::TerminalMachine,
     tables: &terminal_check_tables::MachineTables,
+    loans: &[(
+        semantic_vocabulary::ObligationId,
+        terminal_check_tables::obligations::ObligationRow,
+    )],
     source: &terminal_psi::StructuralArgument,
-    before: terminal_check_tables::ProgramPoint,
     claimed: &mut Vec<semantic_vocabulary::ObligationId>,
     children: &mut semantic_vocabulary::IdTable<
         semantic_vocabulary::ObligationId,
@@ -1011,45 +1094,13 @@ fn publish_payload_child(
         )>,
     >,
 ) -> Checked<()> {
-    use terminal_check_tables::obligations::ObligationKind;
-    use terminal_semantics::descriptor_lifetimes::descriptor_location;
     let unavailable = |reason| refuse(machine.id, Construct::Machine, Unserved::Call(reason));
     let access = reference_access(source.access)
         .ok_or_else(|| unavailable("payload loan has no borrowed access"))?;
-    let ty = machine
-        .structural_place_type(source.place)
-        .ok_or_else(|| unavailable("payload loan has no source type"))?;
-    let location = descriptor_location(
-        &module.structural_types,
-        source.place,
-        ty,
-        &source.path,
-        None,
-    )
-    .ok_or_else(|| unavailable("payload loan has no exact source descriptor"))?;
-    let mut found = None;
-    for (id, row) in tables.obligations.iter() {
-        let ObligationKind::Loan {
-            captured,
-            access: actual,
-            ..
-        } = row.kind
-        else {
-            continue;
-        };
-        if row.created_at != before || actual != access || claimed.contains(&id) {
-            continue;
-        }
-        let (root, path) = captured_path(tables, captured).map_err(unavailable)?;
-        if terminal_semantics::descriptor_lifetimes::DescriptorLocation::captured(root, &path)
-            .as_ref()
-            == Some(&location)
-        {
-            found = Some(id);
-            break;
-        }
-    }
-    let id = found.ok_or_else(|| unavailable("payload loan has no exact occurrence row"))?;
+    let (id, before, location) =
+        retained_loan_row(module, machine, tables, loans, source, access, claimed)
+            .map_err(unavailable)?
+            .ok_or_else(|| unavailable("payload loan has no exact occurrence row"))?;
     claimed.push(id);
     *children
         .get_mut(id)
