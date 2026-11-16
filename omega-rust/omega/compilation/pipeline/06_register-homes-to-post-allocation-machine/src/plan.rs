@@ -117,6 +117,7 @@ pub enum PostAllocationMachineError {
     PhysicalRegisterModelMismatch,
     RegisterConstraintCatalogMismatch,
     PostAllocationManifestMismatch,
+    PreservationRootMismatch,
     OptimizationUnitMismatch,
     WorkScheduleMismatch,
     FunctionMismatch {
@@ -268,6 +269,7 @@ fn validate_roots(sources: &PlanSources<'_>) -> Result<(), PostAllocationMachine
         homes,
         homes_identity,
         manifest,
+        ..
     } = allocation;
     if effects.selected != selected.identity || ranges.selected != selected.identity {
         return Err(PostAllocationMachineError::SelectedRootMismatch);
@@ -302,6 +304,16 @@ fn validate_roots(sources: &PlanSources<'_>) -> Result<(), PostAllocationMachine
         || manifest.register_environment != register_environment
     {
         return Err(PostAllocationMachineError::PostAllocationManifestMismatch);
+    }
+    let preservation = allocation.preservation.plan();
+    if preservation.selected != selected.identity
+        || preservation.homes != homes_identity
+        || preservation.post_allocation_manifest != manifest.identity
+        || preservation.register_environment != register_environment
+        || preservation.physical_register_model != physical.identity()
+        || preservation.target != selected.plan.target
+    {
+        return Err(PostAllocationMachineError::PreservationRootMismatch);
     }
     if effects.target != selected.plan.target {
         return Err(PostAllocationMachineError::TargetMismatch);

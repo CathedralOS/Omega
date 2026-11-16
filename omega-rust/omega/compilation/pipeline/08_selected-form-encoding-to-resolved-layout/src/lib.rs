@@ -11,8 +11,7 @@ Branch displacements depend on block adjacency, and widening a branch shifts lat
   - `stage_optimized_resolved_selected_form_layout`: computes and retains function-relative block and instruction layout.
   - `validate_optimized_resolved_selected_form_layout`: replays root custody, layout policy selection, canonical block ordering, monotone branch widening, target branch decoding, fixup bounds, and layout identity.
 - Custody:
-  - Input: stage 07's output alone (`EncodedMachineSource`), which carries the encoding and the framed machine program it encodes.
-  - `StagedOptimizedResolvedSelectedFormLayout`: keeps that input beside the producer's immutable `Arc<ResolvedMachineLayout>` and exposes upstream identities, layout policy, and per-function resolved rows. Stage 09 reads it alone.
+  - `StagedOptimizedResolvedSelectedFormLayout`: holds the producer's immutable `Arc<ResolvedMachineLayout>` and exposes upstream identities, layout policy, and per-function resolved rows.
   - `OptimizedResolvedSelectedFormLayoutError`: enumerates root mismatches, unsupported function shapes, missing or duplicate instructions, branch fallthrough or size mismatches, and target encoding failures.
 - Support modules:
   - `ordinary`: selects the function layout policy, orders blocks along mandatory conditional fallthrough chains, converges AArch64 branch widening, and resolves per-row bytes and branch evidence.
@@ -26,24 +25,17 @@ use std::sync::Arc;
 
 use isa_aarch64::Aarch64SelectedFormEncodingError;
 use isa_x86_64::X86_64SelectedFormEncodingError;
-use machine_code::{
-    EncodedMachineSource, FramedMachineProgram, FramedMachineSource, ResolvedLayoutSource,
-    ResolvedMachineLayout, SelectedFormEncoding, SelectedFormEncodingIdentity,
-    resolved_machine_layout_identity as layout_identity,
-};
 pub use machine_code::{
     ResolvedBranchEvidence, ResolvedConditionalBranchEvidence, ResolvedConditionalBranchPredicate,
     ResolvedJumpEvidence, ResolvedSelectedBlockLayout, ResolvedSelectedFormLayoutIdentity,
     ResolvedSelectedFormRow, ResolvedSelectedFunctionLayout, SelectedFunctionLayoutPolicy,
 };
-use post_allocation_machine::{
-    PostAllocationMachineOptimizationCustody, PostAllocationMachinePlan,
+use machine_code::{
+    ResolvedMachineLayout, SelectedFormEncoding, SelectedFormEncodingIdentity,
+    resolved_machine_layout_identity as layout_identity,
 };
-use register_model::ValidatedPhysicalRegisterModel;
-use selected_instructions::{
-    CurrentSelectedProgram, MachineSizeKnowledge, SelectedFunction, SelectedInstructionId,
-    SelectedTerminator,
-};
+use post_allocation_machine::PostAllocationMachineOptimizationCustody;
+use selected_instructions::{MachineSizeKnowledge, SelectedInstructionId};
 use semantic_vocabulary::MachineId;
 use target::NativeTarget;
 
@@ -54,6 +46,7 @@ mod validation;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizedResolvedSelectedFormLayoutError {
+    CurrentProgram(post_allocation_machine::program_validation::PhysicalProgramValidationError),
     RootMismatch,
     MixedOrdinaryAndStructuralFunctions,
     StructuralReturnRosterMismatch(SelectedInstructionId),
@@ -85,77 +78,63 @@ impl std::fmt::Display for OptimizedResolvedSelectedFormLayoutError {
 
 impl std::error::Error for OptimizedResolvedSelectedFormLayoutError {}
 
-/// Lay out the encoding `source` carries. The output keeps `source`, so
-/// stage 09 and final assembly reach the encoding and the framed machine
-/// program through it.
-pub fn stage_optimized_resolved_selected_form_layout<Source: EncodedMachineSource>(
-    source: Source,
-) -> Result<
-    StagedOptimizedResolvedSelectedFormLayout<Source>,
-    OptimizedResolvedSelectedFormLayoutError,
-> {
-    let framed = source.framed_machine();
-    let program = compute(
-        framed.selected_program(),
-        &framed.machine,
-        &framed.physical,
-        source.encoding(),
-    )?;
+pub fn stage_optimized_resolved_selected_form_layout(
+    input: &machine_code::EncodedMachineProgram,
+) -> Result<StagedOptimizedResolvedSelectedFormLayout, OptimizedResolvedSelectedFormLayoutError> {
+    let program = Arc::new(compute(&input.instructions, &input.encoding)?);
     Ok(StagedOptimizedResolvedSelectedFormLayout {
-        source,
-        program: Arc::new(program),
+        current: machine_code::ResolvedMachineProgram {
+            frame_identity: input.frame_identity,
+            protocol_identity: input.protocol_identity,
+            instructions: input.instructions.clone(),
+            encoding: Arc::clone(&input.encoding),
+            layout: Arc::clone(&program),
+            frame: Arc::clone(&input.frame),
+            protocol: Arc::clone(&input.protocol),
+        },
+        program,
     })
 }
 
-/// Replay the layout from the encoding it retains.
-pub fn validate_optimized_resolved_selected_form_layout<Source: EncodedMachineSource>(
-    artifact: &StagedOptimizedResolvedSelectedFormLayout<Source>,
+/// Explicit replay relates the current layout to its admitted original owners.
+pub struct ResolvedLayoutValidation<'source> {
+    pub replay: post_allocation_machine::program_validation::PhysicalProgramReplay<'source>,
+    pub pre_layout: &'source SelectedFormEncoding,
+    pub artifact: &'source StagedOptimizedResolvedSelectedFormLayout,
+}
+
+pub fn validate_optimized_resolved_selected_form_layout(
+    input: ResolvedLayoutValidation<'_>,
 ) -> Result<(), OptimizedResolvedSelectedFormLayoutError> {
-    let framed = artifact.source.framed_machine();
+    let ResolvedLayoutValidation {
+        replay,
+        pre_layout,
+        artifact,
+    } = input;
+    post_allocation_machine::program_validation::validate_current_program(
+        &artifact.current.instructions,
+        replay,
+    )
+    .map_err(OptimizedResolvedSelectedFormLayoutError::CurrentProgram)?;
     validation::validate(
-        framed.selected_program(),
-        &framed.machine,
-        &framed.physical,
-        artifact.source.encoding(),
+        replay.selected,
+        replay.machine,
+        replay.environment.physical(),
+        pre_layout,
         artifact.program(),
     )
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StagedOptimizedResolvedSelectedFormLayout<Source> {
-    source: Source,                      // The encoding this layout was computed from.
+pub struct StagedOptimizedResolvedSelectedFormLayout {
+    current: machine_code::ResolvedMachineProgram,
     program: Arc<ResolvedMachineLayout>, // Producer-owned function-relative machine layout.
 }
 
-impl<Source: EncodedMachineSource> FramedMachineSource
-    for StagedOptimizedResolvedSelectedFormLayout<Source>
-{
-    fn framed_machine(&self) -> &FramedMachineProgram {
-        self.source.framed_machine()
+impl StagedOptimizedResolvedSelectedFormLayout {
+    pub fn current(&self) -> &machine_code::ResolvedMachineProgram {
+        &self.current
     }
-}
-
-impl<Source: EncodedMachineSource> EncodedMachineSource
-    for StagedOptimizedResolvedSelectedFormLayout<Source>
-{
-    fn encoding(&self) -> &SelectedFormEncoding {
-        self.source.encoding()
-    }
-}
-
-impl<Source: EncodedMachineSource> ResolvedLayoutSource
-    for StagedOptimizedResolvedSelectedFormLayout<Source>
-{
-    fn resolved_layout(&self) -> &Arc<ResolvedMachineLayout> {
-        &self.program
-    }
-}
-
-impl<Source> StagedOptimizedResolvedSelectedFormLayout<Source> {
-    pub const fn source(&self) -> &Source {
-        &self.source
-    }
-
     pub fn selected(&self) -> selected_instructions::SelectedInstructionPlanIdentity {
         self.program.selected
     }
@@ -200,24 +179,23 @@ impl<Source> StagedOptimizedResolvedSelectedFormLayout<Source> {
 }
 
 fn compute(
-    selected: CurrentSelectedProgram<'_>,
-    machine: &PostAllocationMachinePlan,
-    physical: &ValidatedPhysicalRegisterModel,
+    input: &post_allocation_machine::PostAllocationMachineProgram,
     pre_layout: &SelectedFormEncoding,
 ) -> Result<ResolvedMachineLayout, OptimizedResolvedSelectedFormLayoutError> {
-    let selected_plan = selected.plan;
+    let selected_plan = input;
+    let machine = &input.machine;
     let machine_plan = machine;
-    if pre_layout.selected() != selected.identity
+    let physical = input.physical();
+    if pre_layout.selected() != machine.selected
         || pre_layout.machine() != machine.identity
-        || selected_plan.target != machine_plan.target
-        || selected_plan.target.architecture != physical.model().architecture
+        || machine.target.architecture != physical.model().architecture
         || selected_plan.functions.len() != machine_plan.functions.len()
         || pre_layout.post_allocation_machine_optimization().is_some()
     {
         return Err(OptimizedResolvedSelectedFormLayoutError::RootMismatch);
     }
 
-    let policy = ordinary::select(selected_plan)?;
+    let policy = ordinary::select(&selected_plan.functions)?;
     let mut pre_rows = pre_layout.rows().iter();
     let mut functions = Vec::with_capacity(selected_plan.functions.len());
     for (function, machine_function) in selected_plan.functions.iter().zip(&machine_plan.functions)
@@ -249,7 +227,7 @@ fn compute(
             .map(|instruction| (instruction.instruction, instruction))
             .collect::<BTreeMap<_, _>>();
         functions.push(ordinary::layout(
-            selected_plan.target.architecture,
+            machine.target.architecture,
             function,
             &function_pre_rows,
             &machine_rows,
@@ -262,10 +240,10 @@ fn compute(
         return Err(OptimizedResolvedSelectedFormLayoutError::RootMismatch);
     }
 
-    let selected_root = selected.identity;
+    let selected_root = machine.selected;
     let machine_root = machine.identity;
     let pre_layout_root = pre_layout.identity();
-    let target = selected_plan.target;
+    let target = machine.target;
     let identity = layout_identity(
         selected_root,
         machine_root,
@@ -300,11 +278,13 @@ pub(crate) fn declared_size_matches(knowledge: MachineSizeKnowledge, actual: u64
     }
 }
 
-pub(crate) fn is_admitted_canonical_shape(function: &SelectedFunction) -> bool {
+pub(crate) fn is_admitted_canonical_shape(
+    function: &post_allocation_machine::PhysicalFunction,
+) -> bool {
     !function.blocks.is_empty() && function.block(function.entry_block).is_some()
 }
 
-pub(crate) fn is_single_entry(function: &SelectedFunction) -> bool {
+pub(crate) fn is_single_entry(function: &post_allocation_machine::PhysicalFunction) -> bool {
     let Some(block) = function
         .blocks
         .first()
@@ -313,5 +293,8 @@ pub(crate) fn is_single_entry(function: &SelectedFunction) -> bool {
         return false;
     };
     function.entry_block == block.id
-        && matches!(block.terminator, SelectedTerminator::Return { .. })
+        && matches!(
+            block.terminator,
+            selected_instructions::SelectedTerminator::Return { .. }
+        )
 }
