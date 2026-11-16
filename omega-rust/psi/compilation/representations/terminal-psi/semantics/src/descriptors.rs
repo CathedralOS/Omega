@@ -14768,11 +14768,10 @@ pub mod descriptor_results {
                             .push((location, ScalarTerm::value(result.id, result.scalar_type)));
                     }
                     let mut step = DescriptorFlowStep::default();
-                    let is_invocation = match &operation.kind {
-                        terminal_psi::call_structural_argument_variants!(_arguments) => true,
-                        OperationKind::Call { .. } => true,
-                        _ => false,
-                    };
+                    let is_invocation = matches!(
+                        &operation.kind,
+                        terminal_psi::call_structural_argument_variants!(_arguments)
+                    ) || matches!(&operation.kind, OperationKind::Call { .. });
                     if is_invocation {
                         graph.calls.insert(position, None);
                     }
