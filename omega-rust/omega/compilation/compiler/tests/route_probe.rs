@@ -246,6 +246,29 @@ fn trapping_primitives_retain_their_crash_predicate() {
     }
 }
 
+/// A literal shift count has no carrier of its own, so it lands in the
+/// shifted value's carrier (`wiki/spec/language/numeric_values.md`, "Policy
+/// operators": "the other lands to that carrier"). Landing does not discharge
+/// the Exact count law: a count of 32 on a `u32` value is still refused, and a
+/// typed count keeps its own carrier.
+#[test]
+fn a_literal_shift_count_lands_in_the_shifted_carrier() {
+    for (name, expression, expected) in [
+        ("literal_left", "left << 3", "accepted"),
+        ("literal_right", "left >> 31", "accepted"),
+        ("anonymous_tree", "left >> (8 + 8)", "accepted"),
+        ("typed_count", "left << 3u8", "accepted"),
+        ("count_at_width", "left >> 32", "rejected"),
+        ("left_overflow", "(left + 1) << 31", "rejected"),
+    ] {
+        let source = format!(
+            "machine spare(left: u32) -> u32 requires left <= 10 {{ {expression} }}\n\
+             machine main() {{ }}"
+        );
+        assert_eq!(verdicts(name, &source), [expected], "{name}");
+    }
+}
+
 #[test]
 fn trapping_normal_results_are_retained_in_guarantees() {
     // Observe the denotation using clause forms the current prover handles.

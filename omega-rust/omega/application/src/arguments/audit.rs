@@ -4,12 +4,11 @@
 // the named project or the current directory. The two forms do not combine:
 // `--rev` belongs to the locator, and project flags stay on the project form.
 
-use super::{parse_build_input, set_flag, take_text, take_value};
+use super::{explicit_targets, parse_build_input, set_flag, take_text, take_value};
 use package_compilation::BuildSourceCaptureRequest;
 use package_manager::operations::PackageInspectionOptions;
 use std::ffi::OsString;
 use std::path::PathBuf;
-use target::TargetProfile;
 
 pub(super) const USAGE: &str = "usage: omega packages audit --kind <local|git> <locator> [--rev <rev>]\n       omega packages audit [--project <dir>] [--target <name>]... [--details] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\nChecks current project source with accepted dependency pins; no lock means fresh unaccepted inspection.\n--offline disables package source network acquisition for this invocation.\n--details includes full normalized policy after the readable summary.\nExit 0: checked; 1: unavailable; 2: invalid arguments; 3: policy requires review.\nInspection never accepts changes or resumes a pending publication.";
 
@@ -28,7 +27,7 @@ pub(super) fn parse(
     mut arguments: impl Iterator<Item = OsString>,
 ) -> Result<Option<ParsedAudit>, String> {
     let mut project_root = None;
-    let mut targets = Vec::new();
+    let mut target_names = Vec::new();
     let mut help = false;
     let mut details = false;
     let mut offline = false;
@@ -66,15 +65,7 @@ pub(super) fn parse(
                 }
                 project_root = Some(PathBuf::from(take_value(&mut arguments, "--project")?));
             }
-            Some("--target") => {
-                let name = take_text(&mut arguments, "--target")?;
-                let target = TargetProfile::from_omega_target_name(Some(&name))
-                    .map_err(|error| error.to_string())?;
-                if targets.contains(&target) {
-                    return Err(format!("duplicate target {name:?}"));
-                }
-                targets.push(target);
-            }
+            Some("--target") => target_names.push(take_text(&mut arguments, "--target")?),
             _ => {
                 if argument.as_encoded_bytes().starts_with(b"-") {
                     return Err(format!(
@@ -100,7 +91,7 @@ pub(super) fn parse(
         return Ok(None);
     }
     let project_arguments = project_root.is_some()
-        || !targets.is_empty()
+        || !target_names.is_empty()
         || details
         || offline
         || !build_inputs.is_empty();
@@ -119,6 +110,7 @@ pub(super) fn parse(
             rev,
         })));
     }
+    let targets = explicit_targets(&target_names)?;
     let build_inputs = if build_inputs.is_empty() {
         None
     } else {

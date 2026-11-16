@@ -257,6 +257,41 @@ framework or a list of unimplemented features.
 - Cost: One rule has three parsers that disagree. Parse every `--target` list through `ExplicitTargetSet::from_caller_names` and delete the per-command checks.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/configuration.md
 
+### Register allocation picks its route from optimization history
+- Category: One idea, several implementations
+- Where: [allocation entrance](omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/register_allocation.rs#L29), [history routes](omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/assignment.rs#L691), [history output](omega-rust/omega/compilation/representations/selected-instructions/analyses/src/lib.rs#L495)
+- Saw: `stage_register_allocation` matches `SelectedOptimizationOutput::{Identity, SelectedLowering, PreAllocation}`. Each arm runs its own assign, runtime-spill and retain sequence with its own error variant (`Homes`, `TransformedHomes`, `PreAllocationHomes`). `CompletedSelectedOptimization` also hands Omega 05 the pre-rewrite `StagedOptimizedAllocationLegality` as `source`. [pipeline.md](omega-rust/pipeline.md#crate-placement-rule) says optimization history "must not select a different downstream representation"; [optimizations.md](wiki/spec/build/optimizations.md#phase-and-product-boundaries) says history alone is not a representation boundary.
+- Cost: Every new Omega 04 phase needs another allocation route, spill route, error type and route test. Give Omega 05 one current selected program with its analyses and keep the run as separate evidence.
+- Reported: 2026-11-16, Claude Code, while checking a backend review against the spec
+
+### Omega 04 replays its own rewrites on every optimized compile
+- Category: Re-deriving
+- Where: [output construction](omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/selected_optimization.rs#L35), [fold replay](omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/literal_fold_rewrites.rs#L415), [pre-allocation replay](omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites.rs#L1934)
+- Saw: `SelectedInstructionOptimizationOutput::from_evidence` calls `validate_selected_lowering_optimization_custody` or `validate_pre_allocation_optimization_custody` before returning. The first rebuilds every fold step with the same `build_step` the run used; the second calls the same `run_passes` again and compares. This runs in production whenever an Omega 04 rule is selected. [optimizations.md](wiki/spec/build/optimizations.md#phase-and-product-boundaries) keeps re-validation off the default compile path, and [independent validation](wiki/spec/build/optimizations.md#atomic-candidates-and-independent-validation) forbids a producer acting as its own validator.
+- Cost: Optimized compiles pay for each rewrite twice, and the check proves only that the code is deterministic. Move it behind [validator selection](wiki/spec/build/command_line.md#independent-stage-validators) and the tests, as `retain_replay_for_validation` already does for function realization.
+- Reported: 2026-11-16, Claude Code, while checking a backend review against the spec
+
+### Allocation recovery dispatches on optimization names, not catalog entries
+- Category: One idea, several implementations
+- Where: [recovery selector](omega-rust/omega/compilation/representations/selected-instructions/analyses/src/lib.rs#L425), [name dispatch](omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/register_allocation.rs#L44)
+- Saw: `selected_allocation_recovery_rule` finds the catalog entry, then returns only its `Optimization` name. `stage_register_allocation` maps that name to a route in its own `match`, with a `_ => UnsupportedComposition` arm. [Exact selection](wiki/spec/build/optimizations.md#exact-selection): "Custody coordinators consume the selected entry, not a duplicate name-to-rule table."
+- Cost: Adding a recovery rule means editing both the catalog and this match. A catalog row with no arm passes selection and refuses only at allocation.
+- Reported: 2026-11-16, Claude Code, while checking a backend review against the spec
+
+### Allocation route tests pin source spelling instead of allocation
+- Category: Tests that pin the bug
+- Where: [`route_tests`](omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/register_allocation.rs#L101)
+- Saw: Five tests `include_str!` `register_allocation.rs` or `assignment.rs` and assert that strings such as `SelectedOptimizationOutput::SelectedLowering(run)` appear in a given order. They pass whether or not the homes are correct.
+- Cost: They defend the per-history routes above and fail when those routes merge. Replace them with tests that allocate programs after each Omega 04 phase, with and without register pressure.
+- Reported: 2026-11-16, Claude Code, while checking a backend review against the spec
+
+### Legalization replaces its failure causes with a bare custody error
+- Category: Verifying costs more than writing
+- Where: [scalar graph](omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/native-preparation/src/legalization_scalar_graph.rs#L1084) and four sibling `legalization_*.rs` files in `native-preparation`
+- Saw: 39 calls to `map_err(|_| LegalizationError::custody())` drop the underlying error. The result records the Rust call site and nothing about which argument, storage or result failed.
+- Cost: Each new legalization refusal needs a diagnostic build to find its cause. Keep the cause in the error; this changes no accepted program.
+- Reported: 2026-11-16, Claude Code, while checking a backend review against the spec
+
 ### Callable analysis hides its storage-flow refusal
 - Category: Verifying costs more than writing
 - Where: [callable projection](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/callable_values/terminal.rs#L124)
@@ -287,8 +322,8 @@ framework or a list of unimplemented features.
 
 ### Emission libraries keep earlier stage outputs beside the final layout
 - Category: knowledge crossing a boundary
-- Where: [fragment source](omega-rust/omega/compilation/backend/machine-emission/src/fragment_emission.rs#L463), [driver join](omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L202), [runtime-only route](omega-rust/omega/compilation/native-compiler/src/realization.rs#L172), [stage-call exceptions](tools/xtask/src/boundary.rs)
-- Saw: `StagedOptimizedFunctionFragmentEmissionSource::new` joins the stage 09 realization with stage 02's whole output, and frame staging between stages 06 and 07 runs in machine-emission on types defined inside stage crates. `admit_terminal_runtime` runs stage 01, then calls stage 02's `capture_runtime_borrowed_storage_layouts` on the side. `native-artifact` reads Omega 00's `VerifiedNativeArtifactInput` for runtime provisions.
+- Where: [fragment source](omega-rust/omega/compilation/backend/machine-emission/src/fragment_emission.rs#L211), [driver join](omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L227), [image call binding](omega-rust/omega/compilation/backend/images/image-emission/src/callable_calls.rs#L8), [object accessors](omega-rust/omega/compilation/backend/object-file/src/fragment_container.rs#L204), [runtime-only route](omega-rust/omega/compilation/native-compiler/src/realization.rs#L172), [stage-call exceptions](tools/xtask/src/boundary.rs)
+- Saw: `StagedOptimizedFunctionFragmentEmissionSource::new` joins the stage 09 realization with stage 02's whole output, and frame staging between stages 06 and 07 runs in machine-emission on types defined inside stage crates. The source keeps that `Arc<ValidatedOptimizedTargetOperations>` on every compile; `pre_physical_manifest()` reads stage 01's output through `optimized_target().optimized()`. Image emission's `callable_calls::prepare_from` reads stage 02's execution plan through it, and `object-file` reaches it through `source().source().source()`. Function-realization replay is now opt-in (`retain_replay_for_validation`); this field is not. [pipeline.md](omega-rust/pipeline.md#portable-materialization-and-consumer-ownership) keeps producer history "off the path ordinary consumers walk to get current data". `admit_terminal_runtime` runs stage 01, then calls stage 02's `capture_runtime_borrowed_storage_layouts` on the side. `native-artifact` reads Omega 00's `VerifiedNativeArtifactInput` for runtime provisions.
 - Cost: Emission can read anything an earlier stage knew, so a missing fact never has to be carried forward. Move the stage output types emission names into `compilation/representations`, carry the rows emission needs in each stage's output, and delete each `STAGE_CALL_ALLOWANCES` row as its edge goes.
 - Reported: 2026-11-16, pi, while checking that only the native driver calls Omega stages.
 

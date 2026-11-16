@@ -49,6 +49,8 @@ mod obligation_evidence;
 mod sections;
 mod semantic_module;
 mod service_schema_wire;
+#[cfg(test)]
+mod spec_tag_tables;
 mod structural_wire;
 mod term_table;
 mod term_wire;
@@ -206,6 +208,12 @@ pub use sections::semantic_module::module_wire::access_view_plan_wire::{
 };
 pub use sections::semantic_module::module_wire::access_view_wire::{
     decode_access_view_input_catalog, encode_access_view_input_catalog,
+};
+pub use sections::semantic_module::module_wire::callable_values_wire::{
+    decode_callable_catalog, encode_callable_catalog,
+};
+pub use sections::semantic_module::module_wire::dynamic_dispatch_wire::{
+    decode_dynamic_dispatch_catalog, encode_dynamic_dispatch_catalog,
 };
 pub use sections::semantic_module::module_wire::quotient_wire::{
     decode_quotient_catalog, encode_quotient_catalog,

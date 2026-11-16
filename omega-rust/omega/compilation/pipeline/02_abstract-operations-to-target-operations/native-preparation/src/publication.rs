@@ -8,7 +8,7 @@ use target_vocabulary::{NativeByteLiteral, NativeFunctionPublication, NativePubl
 
 pub fn capture_source_publication(
     plan: &AbstractOperationPlan,
-) -> Result<NativePublicationFacts, &'static str> {
+) -> Result<NativePublicationFacts, String> {
     let mut functions = Vec::with_capacity(plan.functions.len());
     for function in &plan.functions {
         let count = function
@@ -38,7 +38,7 @@ pub fn capture_source_publication(
                         | Operation::ExternalCompletion { psi_edge, .. }
                         | Operation::EliminateEmpty { psi_edge, .. }
                         | Operation::Crash { psi_edge, .. } => *psi_edge,
-                        _ => return Err("publication operation has no semantic occurrence"),
+                        _ => return Err("publication operation has no semantic occurrence".into()),
                     };
                     sites.push((PsiProvenance::Edge(edge), ordinal));
                 }
@@ -69,13 +69,23 @@ pub fn capture_source_publication(
             byte_literals,
         });
     }
-    NativePublicationFacts::seal(functions)
+    let catalogs = target_vocabulary::NativeCodeCatalogs::seal(
+        plan.dynamic_dispatch.clone(),
+        plan.callables.clone(),
+    )
+    .map_err(|error| format!("publication code catalogs cannot be encoded: {error}"))?;
+    NativePublicationFacts::seal(functions, catalogs).map_err(str::to_owned)
 }
 
 pub(crate) fn verify_source_publication(
     plan: &AbstractOperationPlan,
     facts: &NativePublicationFacts,
 ) -> Result<(), &'static str> {
+    if facts.code_catalogs().dynamic_dispatch() != &plan.dynamic_dispatch
+        || facts.code_catalogs().callables() != &plan.callables
+    {
+        return Err("publication code catalogs differ from their source");
+    }
     if plan.functions.len() != facts.functions().len() {
         return Err("publication function roster differs from its source");
     }
@@ -204,13 +214,60 @@ mod tests {
     }
 
     #[test]
+    fn resealed_callable_catalogs_still_need_original_correspondence() {
+        let mut source = source();
+        source
+            .callables
+            .machine_envelopes
+            .push(Some(terminal_psi::TerminalMachineEnvelope {
+                machine: source.entry,
+                envelope: terminal_psi::TerminalCallableEnvelope {
+                    service_reach: Vec::new(),
+                    invocations: Vec::new(),
+                    suspends: false,
+                    blocks: false,
+                    termination: terminal_psi::TerminalCallableTermination::NotGuaranteed,
+                },
+            }));
+        let original = capture_source_publication(&source).unwrap();
+        verify_source_publication(&source, &original).unwrap();
+        let mut changed_catalog = source.callables.clone();
+        changed_catalog.machine_envelopes[0]
+            .as_mut()
+            .unwrap()
+            .envelope
+            .blocks = true;
+        let changed = NativePublicationFacts::seal(
+            original.functions().to_vec(),
+            target_vocabulary::NativeCodeCatalogs::seal(
+                source.dynamic_dispatch.clone(),
+                changed_catalog,
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_ne!(original.identity_bytes(), changed.identity_bytes());
+        assert_eq!(
+            verify_source_publication(&source, &changed),
+            Err("publication code catalogs differ from their source")
+        );
+        let missing =
+            NativePublicationFacts::seal(original.functions().to_vec(), Default::default())
+                .unwrap();
+        assert_eq!(
+            verify_source_publication(&source, &missing),
+            Err("publication code catalogs differ from their source")
+        );
+    }
+
+    #[test]
     fn resealed_source_ordinals_still_need_exact_original_correspondence() {
         let source = source();
         let facts = capture_source_publication(&source).unwrap();
         verify_source_publication(&source, &facts).unwrap();
         let mut changed = facts.functions().to_vec();
         changed[0].sites[1].1 = 0;
-        let changed = NativePublicationFacts::seal(changed).unwrap();
+        let changed = NativePublicationFacts::seal(changed, facts.code_catalogs().clone()).unwrap();
         assert_ne!(facts.identity_bytes(), changed.identity_bytes());
         assert_eq!(
             verify_source_publication(&source, &changed),
@@ -218,7 +275,7 @@ mod tests {
         );
         let mut missing = facts.functions().to_vec();
         missing[0].sites.pop();
-        let missing = NativePublicationFacts::seal(missing).unwrap();
+        let missing = NativePublicationFacts::seal(missing, facts.code_catalogs().clone()).unwrap();
         assert_eq!(
             verify_source_publication(&source, &missing),
             Err("publication edge site differs from its source ordinal")
@@ -228,7 +285,7 @@ mod tests {
             1,
             (PsiProvenance::Operation(OperationId::new(2).unwrap()), 1),
         );
-        let extra = NativePublicationFacts::seal(extra).unwrap();
+        let extra = NativePublicationFacts::seal(extra, facts.code_catalogs().clone()).unwrap();
         assert_eq!(
             verify_source_publication(&source, &extra),
             Err("publication adds or drops a source site or literal")
@@ -287,14 +344,14 @@ mod tests {
         );
         let mut changed = facts.functions().to_vec();
         changed[0].byte_literals[0].bytes = Arc::from(b"other".as_slice());
-        let changed = NativePublicationFacts::seal(changed).unwrap();
+        let changed = NativePublicationFacts::seal(changed, facts.code_catalogs().clone()).unwrap();
         assert_eq!(
             verify_source_publication(&source, &changed),
             Err("publication literal differs from its source place or bytes")
         );
         let mut missing = facts.functions().to_vec();
         missing[0].byte_literals.clear();
-        let missing = NativePublicationFacts::seal(missing).unwrap();
+        let missing = NativePublicationFacts::seal(missing, facts.code_catalogs().clone()).unwrap();
         assert_eq!(
             verify_source_publication(&source, &missing),
             Err("publication literal is missing from its source occurrence")

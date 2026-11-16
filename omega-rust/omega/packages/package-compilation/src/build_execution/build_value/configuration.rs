@@ -19,7 +19,7 @@ pub struct EvaluatedBuildSettings {
     pub application_intent: Option<HostedApplicationIntent>, // Authored hosted presentation intent, independent of PE loader metadata.
     pub application_identifier: Option<ApplicationIdentifier>, // Build-validated authored application identifier (`None` when omitted or empty).
     pub subsystem: u16, // PE optional-header Subsystem word (console 3 when unstated).
-    pub freestanding: bool, // Freestanding image: no ambient host packages or import thunks.
+    pub freestanding: bool, // Machine-owner assembly authority for every bound target; selects no packages or imports (OWNER_QUESTIONS.md#freestanding-machine-owner-authority).
     pub optimizations: OptimizationSelections, // Exact root-build optimization selections.
     pub x86_deployment_claim: X86DeploymentClaim, // Authored x86 deployment-feature claim admitted per realized x86 profile.
     pub privileged_services: PrivilegedServicesGrants, // Authored granular privileged-service grants (`port_io`, `interrupt_table`).

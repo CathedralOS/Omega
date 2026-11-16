@@ -1,4 +1,4 @@
-// Verify that accepted lock records match the current source closure and loaded compiler/toolchain identity before any Build activation or compiler pass executes.
+// Verify that accepted lock records match the current source closure and loaded compiler/toolchain identity. `require_current_compiler` also runs before any Build activation; `require_current_acceptance` runs at admission once the executed graph is closed.
 // Request-path spellings (`.` vs. an absolute path) are navigation rather than compiler input, whereas package identity, immutable resolution, root role, dependency selections, and every occurrence's compiler identity must match exactly.
 
 use crate::lock::PackageLockTarget;
@@ -77,6 +77,18 @@ pub(super) fn require_current_acceptance(
     {
         return Err(stale(root_name, "dependency selections changed"));
     }
+    require_current_compiler(accepted, compiler_identity)?;
+    Ok(())
+}
+
+/// Refuse a lock whose accepted occurrences were compiled by another compiler
+/// or toolchain library. Compilation calls this before any Build runs, and
+/// again at admission.
+pub(crate) fn require_current_compiler(
+    accepted: &PackageLockTarget,
+    compiler_identity: [u8; 32],
+) -> Result<(), String> {
+    let source = accepted.source();
     for occurrence in accepted.occurrences() {
         if occurrence
             .compilation()
@@ -87,9 +99,13 @@ pub(super) fn require_current_acceptance(
                 .packages()
                 .iter()
                 .find(|package| package.key().identity() == occurrence.acceptance().package())
-                .map(|package| package.key().name().as_str())
-                .unwrap_or(root_name);
-            return Err(stale(package, "compiler identity changed"));
+                .unwrap_or(source.root().selected())
+                .key()
+                .name()
+                .as_str();
+            return Err(format!(
+                "accepted package `{package}` compiler identity changed; run `omega packages update` for fresh review before compiling"
+            ));
         }
     }
     Ok(())
