@@ -852,9 +852,8 @@ fn zero_establishing_a_record_with_a_governed_field_is_refused_by_name() {
     );
 }
 
-/// The parser has no `..` yet, so a literal names every field or is not
-/// one; when `..` arrives it zero-establishes the fields it omits and meets
-/// the same gate as `let sealed: Sealed;`.
+/// Without `..`, a literal must supply every runtime field, including a
+/// field whose declared qualification governs its contents.
 #[test]
 fn omitting_a_governed_field_from_a_literal_is_not_accepted() {
     refused_with(
@@ -976,6 +975,7 @@ machine mint_zero() -> IssuedHolder { IssuedHolder { .. } }
     // finding another case or assuming the new membership as a premise.
     let nonzero = source.replace("self == 0u32", "self != 0u32");
     let rejected = verdicts("omitted-nonzero-first-payload", &nonzero);
+    eprintln!("nonzero first payload: {rejected:?}");
     assert!(
         rejected
             .iter()
