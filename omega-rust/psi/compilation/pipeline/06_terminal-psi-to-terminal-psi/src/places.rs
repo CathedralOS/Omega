@@ -300,6 +300,14 @@ pub(crate) fn content_root_kind(
     tables: &MachineTables,
     place: ExactPlaceId,
 ) -> Option<StructuralPlaceKind> {
+    content_root(lowered, tables, place).map(|root| root.kind)
+}
+
+pub(crate) fn content_root<'a>(
+    lowered: &'a TerminalMachine,
+    tables: &MachineTables,
+    place: ExactPlaceId,
+) -> Option<&'a terminal_psi::StructuralPlaceDeclaration> {
     lineage(lowered.id, &tables.places, place)
         .ok()
         .and_then(|source| {
@@ -308,7 +316,6 @@ pub(crate) fn content_root_kind(
                 .get(index(source.root.get()))
                 .filter(|root| root.id == source.root)
         })
-        .map(|root| root.kind)
 }
 
 /// What one scalar leaf holds on every path to a point.
