@@ -442,23 +442,12 @@ impl PreparedCallingAbis {
             })
             .collect::<Vec<_>>();
         module.identities = identities.build();
-        for row in rows {
-            if let Some(existing) = module
-                .calling_abi_signatures
-                .iter()
-                .find(|existing| existing.id == row.id)
-            {
-                if existing != &row {
-                    return Err(unavailable(
-                        self.entry,
-                        "calling ABI metadata conflicts with an existing exact declaration",
-                    ));
-                }
-            } else {
-                module.calling_abi_signatures.push(row);
-            }
-        }
-        module.calling_abi_signatures.sort_by_key(|row| row.id);
+        module.calling_abi_signatures = crate::calling_publication::join_abi_declarations(
+            self.entry,
+            &module.identities,
+            &module.calling_abi_signatures,
+            &rows,
+        )?;
         for application in self.boundary_applications {
             if module.boundary_machine(application.boundary).is_none() {
                 return Err(unavailable(

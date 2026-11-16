@@ -180,6 +180,11 @@ fn source_with_typed_record(typed_record: bool) -> Source {
         symbols: builder.finish(),
         ..Default::default()
     };
+    // Source resolution records the owner of every inline member.
+    program
+        .symbols
+        .record_declaration_owner(hold_apply, hold)
+        .unwrap();
 
     // trait Step { machine apply(); }
     let machines = program
@@ -549,7 +554,11 @@ fn a_typed_const_record_keeps_its_value_binding_and_exact_named_call() {
         ..
     } = source_with_typed_record(true);
     prepare(&mut program).expect("typed record preparation");
-    assert!(program.deferred_refusal(main).is_none());
+    assert!(
+        program.deferred_refusal(main).is_none(),
+        "{:?}",
+        program.deferred_refusal(main)
+    );
     assert_eq!(
         program.deferred_refusal(partial).map(|row| row.request),
         Some(DeferredRequest::StaticApplication)

@@ -24,6 +24,109 @@ pub(crate) struct PreparedCallingStorage {
     pub(crate) physical_owner: semantic_vocabulary::CallingDeclarationOwner,
 }
 
+/// ABI metadata and selected policies may publish the same application.
+/// Join only complete agreeing declarations, keeping every metadata-only row.
+/// Validate both rosters before returning any replacement publication.
+pub(crate) fn join_abi_declarations(
+    context: MachineId,
+    identities: &terminal_psi::TerminalIdentityTable,
+    existing: &[CallingAbiDeclaration],
+    incoming: &[CallingAbiDeclaration],
+) -> Checked<Vec<CallingAbiDeclaration>> {
+    fn ordered<'a>(
+        context: MachineId,
+        identities: &terminal_psi::TerminalIdentityTable,
+        rows: &'a [CallingAbiDeclaration],
+        roster: &str,
+    ) -> Checked<Vec<&'a CallingAbiDeclaration>> {
+        let mut ordered: Vec<_> = rows.iter().collect();
+        ordered.sort_unstable_by_key(|row| row.id);
+        for pair in ordered.windows(2) {
+            if pair[0].id == pair[1].id {
+                return Err(services::unavailable(
+                    context,
+                    format!(
+                        "duplicate calling ABI {} in {roster} publication",
+                        pair[0].id.get(),
+                    ),
+                ));
+            }
+        }
+        for row in &ordered {
+            row.identity(identities).map_err(|reason| services::unavailable(
+                context,
+                format!("calling ABI {} in {roster} publication has an invalid complete identity: {reason}", row.id.get()),
+            ))?;
+        }
+        Ok(ordered)
+    }
+    fn difference(
+        left: &CallingAbiDeclaration,
+        right: &CallingAbiDeclaration,
+    ) -> Option<&'static str> {
+        if left.requirement_identity != right.requirement_identity {
+            Some("requirement identity")
+        } else if left.declaring_application != right.declaring_application {
+            Some("declaring application")
+        } else if left.operands != right.operands {
+            Some("ordered static operands")
+        } else if left.formals != right.formals {
+            Some("generic formals")
+        } else if left.default_eligible != right.default_eligible {
+            Some("default eligibility")
+        } else if left.physical_owner != right.physical_owner {
+            Some("physical owner")
+        } else {
+            match (&left.storage, &right.storage) {
+                (Ok(left), Ok(right)) if left.parameters != right.parameters => {
+                    Some("storage parameters")
+                }
+                (Ok(left), Ok(right)) if left.result != right.result => Some("storage result"),
+                (Ok(left), Ok(right)) if left.telescope != right.telescope => {
+                    Some("storage telescope")
+                }
+                (left, right) if left != right => Some("storage availability or refusal"),
+                _ => None,
+            }
+        }
+    }
+    let existing = ordered(context, identities, existing, "existing")?;
+    let incoming = ordered(context, identities, incoming, "incoming")?;
+    let mut joined = Vec::with_capacity(existing.len() + incoming.len());
+    let (mut left, mut right) = (0, 0);
+    while left < existing.len() && right < incoming.len() {
+        match existing[left].id.cmp(&incoming[right].id) {
+            std::cmp::Ordering::Less => {
+                joined.push(existing[left].clone());
+                left += 1;
+            }
+            std::cmp::Ordering::Greater => {
+                joined.push(incoming[right].clone());
+                right += 1;
+            }
+            std::cmp::Ordering::Equal => {
+                if existing[left] != incoming[right] {
+                    let field =
+                        difference(existing[left], incoming[right]).unwrap_or("declaration");
+                    return Err(services::unavailable(
+                        context,
+                        format!(
+                            "calling ABI {} conflicts in {field} between retained metadata and selected policy publication",
+                            existing[left].id.get(),
+                        ),
+                    ));
+                }
+                joined.push(existing[left].clone());
+                left += 1;
+                right += 1;
+            }
+        }
+    }
+    joined.extend(existing[left..].iter().map(|row| (*row).clone()));
+    joined.extend(incoming[right..].iter().map(|row| (*row).clone()));
+    Ok(joined)
+}
+
 pub(crate) fn publish(
     typed: &typed_trees::TypedTrees,
     context: MachineId,
@@ -48,7 +151,6 @@ pub(crate) fn publish(
         }
     }
     if !elaboration.module.calling_policy_requests.is_empty()
-        || !elaboration.module.calling_abi_signatures.is_empty()
         || !elaboration.module.service_schemas.is_empty()
         || !elaboration.module.program_entry_contracts.is_empty()
     {
@@ -256,7 +358,12 @@ pub(crate) fn publish(
     // Restoring this table preserves every unrelated declaration even if a
     // selected source question refuses before either row roster publishes.
     elaboration.module.identities = identities.build();
-    let declarations = prepared?;
+    let declarations = join_abi_declarations(
+        context,
+        &elaboration.module.identities,
+        &elaboration.module.calling_abi_signatures,
+        &prepared?,
+    )?;
     for property in &descriptions.properties {
         let row = elaboration
             .module
@@ -273,4 +380,73 @@ pub(crate) fn publish(
     elaboration.module.service_schemas = schemas;
     elaboration.module.program_entry_contracts = entries;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn abi_publication_joins_exact_rows_and_preserves_unselected_metadata() {
+        let context = MachineId::new(1).unwrap();
+        let mut identities = terminal_psi::TerminalIdentityTable::default().into_builder();
+        let mut declaration = |requirement: &str| {
+            let key = CallingAbiIdentity {
+                requirement_identity: requirement.to_owned(),
+                declaring_application: "applied-service".to_owned(),
+                operands: Vec::new(),
+            };
+            CallingAbiDeclaration {
+                id: key.id(),
+                requirement_identity: identities.intern(requirement),
+                declaring_application: identities.intern(&key.declaring_application),
+                operands: Vec::new(),
+                formals: Vec::new(),
+                default_eligible: true,
+                physical_owner: Ok(
+                    semantic_vocabulary::CallingDeclarationOwner::TopLevelRequirement,
+                ),
+                storage: Ok(CallingAbiStorage {
+                    parameters: Vec::new(),
+                    result: None,
+                    telescope: terminal_psi::CallingSignatureTelescope {
+                        parameters: Vec::new(),
+                        binders: Vec::new(),
+                        direct_callbacks: Vec::new(),
+                    },
+                }),
+            }
+        };
+        let selected = declaration("selected-requirement");
+        let metadata_only = declaration("metadata-only-requirement");
+        let identities = identities.build();
+        let existing = vec![selected.clone(), metadata_only.clone()];
+        let incoming = vec![selected.clone()];
+        let joined = join_abi_declarations(context, &identities, &existing, &incoming).unwrap();
+        assert_eq!(joined.len(), 2);
+        assert!(joined.contains(&selected));
+        assert!(joined.contains(&metadata_only));
+        assert!(joined.windows(2).all(|pair| pair[0].id < pair[1].id));
+
+        let mut conflicting = selected.clone();
+        conflicting.storage.as_mut().unwrap().result =
+            Some(semantic_vocabulary::StructuralTypeId::new(1).unwrap());
+        let error =
+            join_abi_declarations(context, &identities, &existing, &[conflicting]).unwrap_err();
+        assert!(
+            error.detail.contains(&selected.id.get().to_string()),
+            "{error:?}"
+        );
+        assert!(error.detail.contains("storage result"), "{error:?}");
+        for (retained, selected_rows) in [
+            (vec![selected.clone(), selected.clone()], Vec::new()),
+            (Vec::new(), vec![selected.clone(), selected.clone()]),
+        ] {
+            let error =
+                join_abi_declarations(context, &identities, &retained, &selected_rows).unwrap_err();
+            assert!(error.detail.contains("duplicate calling ABI"), "{error:?}");
+        }
+        assert_eq!(existing, vec![selected.clone(), metadata_only]);
+        assert_eq!(incoming, vec![selected]);
+    }
 }
