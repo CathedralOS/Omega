@@ -130,15 +130,15 @@ fn reject_changed_entry_literal(
 /// First the plan is selected with nothing but itself, its bound installations
 /// and the register environment: the selection entry takes no source module,
 /// abstract program or optimization-unit table, so none can be consulted.
-/// Then three separate corruptions are each refused by the check that owns
-/// them: a narrowed value type and a dropped proof record by stage 02's
-/// validator, and installations admitted for another program by the binding
+/// Then separate corruptions are each refused by the check that owns them: a
+/// changed value type, a width the module does not retain and a dropped
+/// proof record by stage 02's validator, and installations admitted for another program by the binding
 /// check in front of selection.
 fn check_published_plan(
     target: &abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations,
     entry: MachineId,
 ) {
-    use legalized_operations::{PreparedExecutionPlan, RetainedIntegerTypes};
+    use legalized_operations::PreparedExecutionPlan;
     use native_preparation::TargetOperationAuditError::PublishedPlanMismatch;
     use semantic_vocabulary::{ClosedIntegerType, ClosedScalarType};
     use target_operations_to_selected_instructions::{
@@ -187,7 +187,9 @@ fn check_published_plan(
             .expect("the plan holds the entry")
     };
 
-    // A value's concrete type is part of the plan.
+    // A value's concrete type is part of the plan: one changed to another
+    // type the module closes (every module closes Boolean) differs from the
+    // derivation.
     let mut narrowed = published.plan().clone();
     let index = entry_function(&mut narrowed);
     let result = narrowed.scalar_functions[index]
@@ -199,24 +201,37 @@ fn check_published_plan(
     let wide =
         ClosedScalarType::Integer(ClosedIntegerType::new(IntegerSign::Unsigned, 64).unwrap());
     assert_eq!(result.scalar_type, wide);
-    result.scalar_type =
-        ClosedScalarType::Integer(ClosedIntegerType::new(IntegerSign::Unsigned, 32).unwrap());
+    result.scalar_type = ClosedScalarType::Boolean;
     assert!(
         matches!(
             verify(&reseal(narrowed)),
             Err(PublishedPlanMismatch { machine: Some(machine), part: "a block, instruction or terminator" })
                 if machine == entry
         ),
-        "a narrowed value type is refused"
+        "a changed value type is refused"
     );
 
-    // So is the record of which integer types the module retains.
-    let mut unsealed = published.plan().clone();
-    unsealed.retained_integers = RetainedIntegerTypes::Unsealed;
-    assert!(matches!(
-        verify(&reseal(unsealed)),
-        Err(PublishedPlanMismatch { machine: None, .. })
-    ));
+    // Preparation closed every type against the accepted module, so a
+    // resolved width that module never retained is refused before the plan is
+    // compared with its derivation.
+    let mut foreign = published.plan().clone();
+    let index = entry_function(&mut foreign);
+    let result = foreign.scalar_functions[index]
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.instructions)
+        .find_map(|instruction| instruction.result.as_mut())
+        .expect("the entry defines a value");
+    result.scalar_type =
+        ClosedScalarType::Integer(ClosedIntegerType::new(IntegerSign::Unsigned, 24).unwrap());
+    assert!(
+        matches!(
+            verify(&reseal(foreign)),
+            Err(PublishedPlanMismatch { machine: Some(machine), part: "a closed type the module does not retain" })
+                if machine == entry
+        ),
+        "a resolved width the module does not retain is refused"
+    );
 
     // Proof evidence stays with the function it was accepted for. This small
     // program records none, so the corruption is a record the sources lack;

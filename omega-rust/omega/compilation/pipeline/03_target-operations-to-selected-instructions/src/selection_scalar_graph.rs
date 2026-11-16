@@ -141,11 +141,18 @@ pub(crate) mod accessor_scalar_access {
             }
             registers.push(register);
         }
-        // The accessor's declared scalar is a structural declaration; close it once for the result.
-        let demand_scalar = builder.closed_scalar(demand.scalar).ok_or_else(invalid)?;
+        // Preparation closed the result's type; it must be the accessor's declared scalar.
+        if row
+            .result
+            .is_some_and(|result| result.scalar_type.as_checking() != demand.scalar)
+        {
+            return Err(invalid());
+        }
         let output = row
             .result
-            .map(|result| builder.register(result.value, result.definition_site, demand_scalar))
+            .map(|result| {
+                builder.register(result.value, result.definition_site, result.scalar_type)
+            })
             .transpose()?;
         if let Some(output) = output {
             registers.push(output);
@@ -181,15 +188,13 @@ pub(crate) mod accessor_scalar_access {
         )?;
         if let (Some(raw), Some(result)) = (output, row.result) {
             let normalization = crate::selection::scalar_call_abi::integer_carrier_normalization(
-                builder
-                    .closed_scalar(demand.scalar)
-                    .ok_or_else(SelectedInstructionError::custody)?,
+                result.scalar_type,
             );
             let output = if normalization == SelectedInstructionKind::CopyI64 {
                 raw
             } else {
                 let output =
-                    builder.register(result.value, result.definition_site, demand_scalar)?;
+                    builder.register(result.value, result.definition_site, result.scalar_type)?;
                 builder.emit(
                     normalization,
                     builder.constraints.keys.copy_i64,
@@ -198,9 +203,12 @@ pub(crate) mod accessor_scalar_access {
                 )?;
                 output
             };
-            builder
-                .definitions
-                .push((result.value, output, result.definition_site, demand_scalar));
+            builder.definitions.push((
+                result.value,
+                output,
+                result.definition_site,
+                result.scalar_type,
+            ));
         }
         Ok(true)
     }
@@ -1088,15 +1096,12 @@ pub(crate) mod atomic_access {
             let (_, register, _, actual_type) = builder
                 .resolve(*value)
                 .ok_or(SelectedInstructionError::custody())?;
-            if actual_type.as_checking() != scalar_type {
+            if actual_type != scalar_type {
                 return Err(SelectedInstructionError::custody());
             }
             registers.push(register);
         }
-        // The cell's declared scalar is a structural declaration; close it once for the result.
-        let closed_type = builder
-            .closed_scalar(scalar_type)
-            .ok_or_else(SelectedInstructionError::custody)?;
+        let closed_type = scalar_type;
         let raw = if let Some(result) = row.result {
             let register = builder.register(result.value, result.definition_site, closed_type)?;
             registers.push(register);
@@ -1153,11 +1158,8 @@ pub(crate) mod atomic_access {
             ),
         )?;
         if let (Some(raw), Some(result)) = (raw, row.result) {
-            let normalization = crate::selection::scalar_call_abi::integer_carrier_normalization(
-                builder
-                    .closed_scalar(scalar_type)
-                    .ok_or_else(SelectedInstructionError::custody)?,
-            );
+            let normalization =
+                crate::selection::scalar_call_abi::integer_carrier_normalization(closed_type);
             let output = if normalization == SelectedInstructionKind::CopyI64 {
                 raw
             } else {
@@ -6087,7 +6089,7 @@ pub(crate) mod register_access {
         }
         .ok_or_else(|| SelectedInstructionError::unsupported_shape(function))?;
         let matches_carrier = |scalar, bits| {
-            matches!(builder.closed_scalar(scalar), Some(semantic_vocabulary::ClosedScalarType::Integer(integer))
+            matches!(scalar, semantic_vocabulary::ClosedScalarType::Integer(integer)
             if !integer.is_address() && integer.bits() == bits && integer.sign() == IntegerSign::Unsigned)
         };
         let mut registers = Vec::new();
@@ -6095,7 +6097,7 @@ pub(crate) mod register_access {
             let (_, register, _, scalar) = builder
                 .resolve(*value)
                 .ok_or_else(SelectedInstructionError::custody)?;
-            if !matches_carrier(scalar.as_checking(), carrier.bits()) {
+            if !matches_carrier(scalar, carrier.bits()) {
                 return Err(SelectedInstructionError::custody());
             }
             registers.push(register);
@@ -6103,7 +6105,7 @@ pub(crate) mod register_access {
         let output = match (operation.result_carrier(), row.result) {
             (None, None) => None,
             (Some(carrier), Some(result))
-                if matches_carrier(result.scalar_type.as_checking(), carrier.bits()) =>
+                if matches_carrier(result.scalar_type, carrier.bits()) =>
             {
                 let register =
                     builder.register(result.value, result.definition_site, result.scalar_type)?;
@@ -7112,7 +7114,6 @@ pub(crate) fn block_containing_operation(
 pub(crate) fn build_with_environment(
     function: usize,
     source: &legalized_operations::LegalizedScalarFunction,
-    closed_types: &legalized_operations::RetainedIntegerTypes,
     geometry: &crate::native_geometry::NativeGeometry<'_>,
     constraints: &SelectedSelectionConstraints,
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
@@ -7122,7 +7123,7 @@ pub(crate) fn build_with_environment(
     interrupt_helpers: &crate::installed_interrupts::PreparedHelperCohort<'_>,
     installed_entry_execution: Option<&provider_admission::AdmittedInstalledEntryExecution>,
 ) -> Result<SelectedFunction, SelectedInstructionError> {
-    let source = crate::native_geometry::NativeInput::with_types(source, geometry, closed_types);
+    let source = crate::native_geometry::NativeInput::new(source, geometry);
     let mut current_operation = None;
     select_function(
         function,
@@ -7160,7 +7161,6 @@ pub(crate) fn select_function(
     };
     let class = operand.class;
     let mut builder = Builder {
-        closed_types: source.closed_types(),
         environment,
         backings,
         installed_interrupts,
@@ -7674,7 +7674,6 @@ pub(crate) fn select_function(
         blocks: blocks.into(),
     };
     crate::selection::edge_transfers::prepare(
-        source,
         function,
         &mut selected,
         constraints,
@@ -7696,7 +7695,6 @@ pub(crate) fn next_index(len: usize) -> Result<u32, SelectedInstructionError> {
 }
 
 pub(crate) struct Builder<'a> {
-    pub(crate) closed_types: &'a legalized_operations::RetainedIntegerTypes,
     pub(crate) installed_entry_execution:
         Option<&'a provider_admission::AdmittedInstalledEntryExecution>,
     pub(crate) installed_interrupts: &'a provider_admission::AdmittedInstalledInterruptCohort,
@@ -7728,20 +7726,6 @@ pub(crate) struct Builder<'a> {
 }
 
 impl Builder<'_> {
-    pub(crate) fn closed_scalar(
-        &self,
-        scalar: ScalarType,
-    ) -> Option<semantic_vocabulary::ClosedScalarType> {
-        self.closed_types.scalar(scalar)
-    }
-
-    pub(crate) fn closed_integer(
-        &self,
-        integer: semantic_vocabulary::IntegerType,
-    ) -> Option<semantic_vocabulary::ClosedIntegerType> {
-        self.closed_types.integer(integer)
-    }
-
     pub(crate) fn crash_form(
         &self,
     ) -> Result<(SelectedInstructionKind, RegisterConstraintKey), SelectedInstructionError> {

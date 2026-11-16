@@ -15,13 +15,14 @@ pub(crate) mod atomic_access {
     };
     use legalized_operations::{LegalizedScalarInstruction, LegalizedScalarInstructionKind};
     use selected_instructions::AtomicForm;
-    use semantic_vocabulary::ScalarType;
+    use semantic_vocabulary::{ClosedScalarType, ScalarType};
     use terminal_psi::StructuralAccess;
 
+    /// The access form, the cell's geometry and its closed logical type.
     pub(crate) fn form(
         source: &crate::native_geometry::NativeFunction<'_>,
         row: &LegalizedScalarInstruction,
-    ) -> Option<(AtomicForm, PrimitiveAccessGeometry, ScalarType)> {
+    ) -> Option<(AtomicForm, PrimitiveAccessGeometry, ClosedScalarType)> {
         let LegalizedScalarInstructionKind::AtomicAccess {
             location,
             scalar_type,
@@ -75,15 +76,20 @@ pub(crate) mod atomic_access {
             &location.path,
         )?;
         let logical_type = cell.scalar_type();
-        if target_vocabulary::atomic_storage_integer_type_closed(
-            *event,
-            source.closed_scalar(logical_type)?,
-        )?
-        .as_checking()
-            != scalar_type.as_checking()
+        // Preparation closed the cell's storage integer. A Boolean cell keeps
+        // its own type; every other atomic cell's logical type is that same
+        // integer, so the declaration must name it.
+        let closed_logical = if logical_type == ScalarType::Boolean {
+            ClosedScalarType::Boolean
+        } else {
+            ClosedScalarType::Integer(*scalar_type)
+        };
+        if closed_logical.as_checking() != logical_type
+            || target_vocabulary::atomic_storage_integer_type_closed(*event, closed_logical)?
+                != *scalar_type
             || row
                 .result
-                .is_some_and(|result| result.scalar_type.as_checking() != logical_type)
+                .is_some_and(|result| result.scalar_type != closed_logical)
         {
             return None;
         }
@@ -91,7 +97,7 @@ pub(crate) mod atomic_access {
         (geometry.byte_offset == *field_byte_offset
             && geometry.byte_size == u32::from(form.width.bytes())
             && geometry.byte_offset % geometry.byte_size == 0)
-            .then_some((form, geometry, logical_type))
+            .then_some((form, geometry, closed_logical))
     }
 }
 pub(crate) mod block_order {
@@ -674,7 +680,6 @@ pub(crate) mod construction {
         environment: &register_environment::ValidatedTargetRegisterEnvironment,
     ) -> Result<SelectedInstructionPlan, SelectedInstructionError> {
         let target = legalized.plan();
-        let closed_types = &target.retained_integers;
         if target.target != environment.target() {
             return Err(SelectedInstructionError::custody());
         }
@@ -697,11 +702,8 @@ pub(crate) mod construction {
             }),
         )
         .map_err(|_| SelectedInstructionError::custody())?;
-        let backings = super::foreign_scalar_backings::ForeignScalarBackings::new(
-            target,
-            &native_geometry,
-            closed_types,
-        );
+        let backings =
+            super::foreign_scalar_backings::ForeignScalarBackings::new(target, &native_geometry);
         let mut functions = target
             .scalar_functions
             .iter()
@@ -710,7 +712,6 @@ pub(crate) mod construction {
                 scalar_graph::build_with_environment(
                     index,
                     source,
-                    closed_types,
                     native_geometry
                         .get(
                             source
@@ -1009,7 +1010,6 @@ pub(crate) mod foreign_scalar_backings {
 
     pub(crate) struct ForeignScalarBackings<'program> {
         program: &'program LegalizedOperationPlan,
-        closed_types: &'program legalized_operations::RetainedIntegerTypes,
         geometries: &'program crate::native_geometry::NativeGeometries<'program>,
         incoming: BTreeMap<MachineId, Vec<(usize, &'program LegalizedScalarCall)>>,
         opaque_ingress: BTreeSet<MachineId>,
@@ -1024,11 +1024,9 @@ pub(crate) mod foreign_scalar_backings {
         pub(crate) fn new(
             program: &'program LegalizedOperationPlan,
             geometries: &'program crate::native_geometry::NativeGeometries<'program>,
-            closed_types: &'program legalized_operations::RetainedIntegerTypes,
         ) -> Self {
             let mut context = Self {
                 program,
-                closed_types,
                 geometries,
                 incoming: BTreeMap::new(),
                 opaque_ingress: BTreeSet::from([program.entry]),
@@ -1109,11 +1107,7 @@ pub(crate) mod foreign_scalar_backings {
                             "foreign backing query lost its prepared native geometry",
                         )
                     })?;
-                let function = &crate::native_geometry::NativeInput::with_types(
-                    function,
-                    geometry,
-                    self.closed_types,
-                );
+                let function = &crate::native_geometry::NativeInput::new(function, geometry);
                 let Some(origins) = super::storage_origin_input::scalar_storage_origins(
                     function,
                     &coordinates[cursor].source,
