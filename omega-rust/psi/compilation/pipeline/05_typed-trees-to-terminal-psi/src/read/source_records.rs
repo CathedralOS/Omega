@@ -1133,8 +1133,7 @@ mod tests {
             IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
         ));
         let declaration = RecordType {
-            owns_linear_claim: false,
-            copyable: false,
+            multiplicity: terminal_psi::StructuralMultiplicity::Affine,
             cleanup: None,
             identity: "source-owned-storage".into(),
             shape: crate::StorageShape::Record(vec![

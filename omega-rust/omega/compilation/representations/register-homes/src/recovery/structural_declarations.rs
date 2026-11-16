@@ -3,8 +3,8 @@ We encode and decode structural type, parameter, argument, place, path, and
 qualification declarations inside the `FixedViewCopyPlan` selected payload.
 
 Each structural type declaration preserves its quotient carrier, declaration-
-owned linearity, no-code affine cleanup authority, descriptor cleanup, logical
-copyability, scalar refinement predicates, and record/array/sum/mixed/reference/
+owned linearity, no-code affine cleanup authority, descriptor cleanup, declared
+multiplicity, scalar refinement predicates, and record/array/sum/mixed/reference/
 element-view/byte-sequence/atomic-cell shapes. Parameter-rooted qualification
 paths (`decode_qualification_path`) admit `AllElements` wildcards as retained
 metadata while ordinary address paths (`decode_path`) and reference origin paths
@@ -77,7 +77,7 @@ pub(super) fn encode_type(
     bytes.push(u8::from(declaration.owns_linear_claim));
     bytes.push(u8::from(declaration.no_code_affine_cleanup));
     bytes.push(u8::from(declaration.descriptor_cleanup));
-    bytes.push(u8::from(declaration.copyable));
+    encode_multiplicity(bytes, declaration.multiplicity);
     bytes.push(u8::from(declaration.nominal_cleanup.is_some()));
     if let Some(selection) = &declaration.nominal_cleanup {
         bytes.extend_from_slice(&selection.declaration.identity().0.to_le_bytes());
@@ -193,7 +193,7 @@ pub(super) fn decode_type(
     let owns_linear_claim = decode_bool(cursor)?;
     let no_code_affine_cleanup = decode_bool(cursor)?;
     let descriptor_cleanup = decode_bool(cursor)?;
-    let copyable = decode_bool(cursor)?;
+    let multiplicity = decode_multiplicity(cursor)?;
     let nominal_cleanup = if decode_bool(cursor)? {
         Some(terminal_psi::NominalCleanupSelection {
             declaration: terminal_psi::NominalDeclarationIdentity::new(
@@ -309,7 +309,7 @@ pub(super) fn decode_type(
         quotient_carrier,
         owns_linear_claim,
         no_code_affine_cleanup,
-        copyable,
+        multiplicity,
         descriptor_cleanup,
         nominal_cleanup,
         scalar_restriction,
@@ -1045,7 +1045,7 @@ mod tests {
                         cleanup_machine: MachineId::new(machine).unwrap(),
                     }
                 }),
-                copyable: false,
+                multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                 scalar_restriction: None,
                 id: StructuralTypeId::new(1).unwrap(),
                 identity: TerminalIdentityIndex(1),
@@ -1066,9 +1066,13 @@ mod tests {
     }
 
     #[test]
-    fn logical_copy_permission_changes_encoded_identity() {
+    fn declared_multiplicity_changes_encoded_identity() {
         let mut encodings = Vec::new();
-        for copyable in [false, true] {
+        for multiplicity in [
+            StructuralMultiplicity::Unrestricted,
+            StructuralMultiplicity::Affine,
+            StructuralMultiplicity::Linear,
+        ] {
             let declaration = StructuralTypeDeclaration {
                 declaration_identity: Default::default(),
                 requires: Vec::new(),
@@ -1077,7 +1081,7 @@ mod tests {
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: true,
                 nominal_cleanup: None,
-                copyable,
+                multiplicity,
                 scalar_restriction: None,
                 id: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
                 identity: terminal_psi::TerminalIdentityIndex(1),
@@ -1106,7 +1110,7 @@ mod tests {
                 quotient_carrier: None,
                 owns_linear_claim,
                 no_code_affine_cleanup: false,
-                copyable: false,
+                multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                 descriptor_cleanup: false,
                 nominal_cleanup: None,
                 scalar_restriction: None,
@@ -1142,7 +1146,7 @@ mod tests {
                 quotient_carrier: None,
                 owns_linear_claim: false,
                 no_code_affine_cleanup: false,
-                copyable: false,
+                multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                 descriptor_cleanup: true,
                 nominal_cleanup: None,
                 scalar_restriction: None,
@@ -1177,7 +1181,7 @@ mod tests {
             quotient_carrier: None,
             owns_linear_claim: false,
             no_code_affine_cleanup: true,
-            copyable: false,
+            multiplicity: terminal_psi::StructuralMultiplicity::Affine,
             descriptor_cleanup: false,
             nominal_cleanup: None,
             scalar_restriction: None,
@@ -1224,7 +1228,7 @@ mod tests {
             quotient_carrier: None,
             owns_linear_claim: false,
             no_code_affine_cleanup: false,
-            copyable: false,
+            multiplicity: terminal_psi::StructuralMultiplicity::Affine,
             descriptor_cleanup: false,
             nominal_cleanup: None,
             scalar_restriction: None,
@@ -1295,7 +1299,7 @@ mod tests {
                 quotient_carrier: None,
                 owns_linear_claim: false,
                 no_code_affine_cleanup: false,
-                copyable: false,
+                multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                 descriptor_cleanup,
                 nominal_cleanup: None,
                 scalar_restriction: None,
@@ -1383,7 +1387,7 @@ mod tests {
                 quotient_carrier: None,
                 owns_linear_claim: false,
                 no_code_affine_cleanup: false,
-                copyable: false,
+                multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                 descriptor_cleanup: false,
                 nominal_cleanup: None,
                 scalar_restriction: None,

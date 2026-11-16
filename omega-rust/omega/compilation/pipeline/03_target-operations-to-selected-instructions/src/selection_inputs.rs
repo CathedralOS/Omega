@@ -4378,7 +4378,11 @@ pub(crate) mod reference_input {
                 identity: TerminalIdentityIndex(identity),
                 owns_linear_claim: identity == 1,
                 no_code_affine_cleanup: false,
-                copyable: false,
+                multiplicity: if identity == 1 {
+                    terminal_psi::StructuralMultiplicity::Linear
+                } else {
+                    terminal_psi::StructuralMultiplicity::Affine
+                },
                 descriptor_cleanup: false,
                 nominal_cleanup: None,
                 scalar_restriction: None,

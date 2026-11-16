@@ -294,7 +294,7 @@ impl Program<'_> {
         if byte_view
             && requested == StructuralAccess::SharedBorrow
             && self.observes_only(machine, base.result)?
-            && self.data_type(machine, backing)?.copyable
+            && self.data_type(machine, backing)?.is_copyable()
         {
             self.authorized(machine, backing_type, Access::Read)?;
             let value = self.byte_subslice(machine, slots, base, range, borrow.target, source)?;
@@ -588,7 +588,7 @@ impl Program<'_> {
                 Unserved::Typing("sequence index needs its current length and bounds judgment"),
             ));
         }
-        if stored_length && !self.data_type(machine, element)?.copyable {
+        if stored_length && !self.data_type(machine, element)?.is_copyable() {
             return Err(refuse(
                 machine,
                 Construct::Machine,
@@ -752,9 +752,9 @@ impl Program<'_> {
             return Ok(ValueType::Record(id, Qualification::NONE, regions));
         }
         let id = self.records.push(RecordType {
-            owns_linear_claim: false,
-            copyable: self.typed.stored_value_multiplicity(reference)
-                == language_semantics::Multiplicity::Unrestricted,
+            multiplicity: crate::body::source_multiplicity(
+                self.typed.stored_value_multiplicity(reference),
+            ),
             cleanup: None,
             identity,
             shape,
@@ -812,12 +812,11 @@ impl Program<'_> {
         if let Some((id, _)) = self.records.iter().find(|(_, row)| row.shape == shape) {
             return Ok(ValueType::Record(id, Qualification::NONE, value.regions()));
         }
-        let copyable = self.data_type(machine, element)?.copyable;
-        let owns_linear_claim = self.data_type(machine, element)?.owns_linear_claim;
+        let multiplicity =
+            crate::body::source_multiplicity(self.typed.stored_value_multiplicity(reference));
         let identity = self.storage_identity(machine, reference)?;
         let id = self.records.push(RecordType {
-            owns_linear_claim,
-            copyable,
+            multiplicity,
             cleanup: None,
             identity,
             shape,
@@ -896,8 +895,7 @@ impl Program<'_> {
         }
         let identity = self.storage_identity(machine, reference)?;
         let id = self.records.push(RecordType {
-            owns_linear_claim: false,
-            copyable: true,
+            multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
             cleanup: None,
             identity,
             shape: StorageShape::PrimitiveScalar {

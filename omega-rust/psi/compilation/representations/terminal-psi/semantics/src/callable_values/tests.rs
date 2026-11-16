@@ -423,7 +423,7 @@ fn saved_callee_uses_its_read_cut_after_an_overlapping_write() {
         quotient_carrier: None,
         owns_linear_claim: false,
         no_code_affine_cleanup: true,
-        copyable: true,
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         descriptor_cleanup: true,
         nominal_cleanup: None,
         shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Callable(contract_id())),

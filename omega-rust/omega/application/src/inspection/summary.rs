@@ -51,7 +51,7 @@ pub fn terminal_summary(selected_machine: &str, module: &TerminalModule) -> Stri
                 .text(declaration.identity)
                 .unwrap_or_default(),
             format_type_shape(&declaration.shape),
-            declaration.copyable
+            declaration.is_copyable()
         );
     }
     for declaration in &module.structural_domains {

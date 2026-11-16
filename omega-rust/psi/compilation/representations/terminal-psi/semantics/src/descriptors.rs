@@ -7195,7 +7195,7 @@ pub mod descriptor_results {
                         identity: TerminalIdentityIndex(1),
                         owns_linear_claim: false,
                         no_code_affine_cleanup: true,
-                        copyable: false,
+                        multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                         descriptor_cleanup: true,
                         nominal_cleanup: None,
                         shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
@@ -8214,7 +8214,7 @@ pub mod descriptor_results {
                     identity: TerminalIdentityIndex(id.get() as u32),
                     owns_linear_claim: false,
                     no_code_affine_cleanup: true,
-                    copyable: false,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                     descriptor_cleanup: true,
                     nominal_cleanup: None,
                     shape,
@@ -8316,7 +8316,7 @@ pub mod descriptor_results {
                     identity: TerminalIdentityIndex(1),
                     owns_linear_claim: false,
                     no_code_affine_cleanup: true,
-                    copyable: false,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                     descriptor_cleanup: true,
                     nominal_cleanup: None,
                     shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
@@ -9672,7 +9672,7 @@ pub mod descriptor_results {
                     identity: TerminalIdentityIndex(1),
                     owns_linear_claim: false,
                     no_code_affine_cleanup: true,
-                    copyable: false,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                     descriptor_cleanup: true,
                     nominal_cleanup: None,
                     shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
@@ -10914,7 +10914,7 @@ pub mod descriptor_results {
                     identity: TerminalIdentityIndex::ABSENT,
                     owns_linear_claim: false,
                     no_code_affine_cleanup: true,
-                    copyable: true,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                     descriptor_cleanup: true,
                     nominal_cleanup: None,
                     shape,
@@ -11051,7 +11051,11 @@ pub mod descriptor_results {
                     identity: TerminalIdentityIndex::ABSENT,
                     owns_linear_claim: false,
                     no_code_affine_cleanup: true,
-                    copyable,
+                    multiplicity: if copyable {
+                        terminal_psi::StructuralMultiplicity::Unrestricted
+                    } else {
+                        terminal_psi::StructuralMultiplicity::Affine
+                    },
                     descriptor_cleanup: true,
                     nominal_cleanup: None,
                     shape,
@@ -11140,7 +11144,8 @@ pub mod descriptor_results {
                     referent: reference,
                     access: StructuralAccess::SharedBorrow,
                 };
-                module.structural_types[2].copyable = true;
+                module.structural_types[2].multiplicity =
+                    terminal_psi::StructuralMultiplicity::Unrestricted;
                 let body = &mut module.machines[0];
                 let source = PlaceId::new(1).unwrap();
                 let child = PlaceId::new(2).unwrap();
@@ -11993,7 +11998,8 @@ pub mod descriptor_results {
                 // Moving the roster carries its own storage, while each
                 // ordinal must retain the distinct caller view it contains.
                 let mut moved = sequence_capture_module();
-                moved.structural_types[1].copyable = false;
+                moved.structural_types[1].multiplicity =
+                    terminal_psi::StructuralMultiplicity::Affine;
                 let body = &mut moved.machines[0];
                 body.blocks[0].operations.truncate(1);
                 body.structural_places.retain(|place| place.id.get() <= 3);
@@ -12137,7 +12143,7 @@ pub mod descriptor_results {
                 let outer = StructuralTypeId::new(4).unwrap();
                 let mut declaration = borrowed_leaf.structural_types[1].clone();
                 declaration.id = borrowed;
-                declaration.copyable = true;
+                declaration.multiplicity = terminal_psi::StructuralMultiplicity::Unrestricted;
                 declaration.shape = StructuralTypeShape::ElementView {
                     element: bytes,
                     access: Some(StructuralAccess::SharedBorrow),
@@ -12666,7 +12672,7 @@ pub mod descriptor_results {
                     declaration_identity: TerminalIdentityIndex(1),
                     owns_linear_claim: false,
                     no_code_affine_cleanup: false,
-                    copyable: false,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                     descriptor_cleanup: false,
                     nominal_cleanup: None,
                     shape,
@@ -12736,7 +12742,7 @@ pub mod descriptor_results {
                     identity: TerminalIdentityIndex::ABSENT,
                     owns_linear_claim: false,
                     no_code_affine_cleanup: true,
-                    copyable: true,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                     descriptor_cleanup: false,
                     nominal_cleanup: None,
                     shape,
@@ -13132,7 +13138,7 @@ pub mod descriptor_results {
                     identity: TerminalIdentityIndex(1),
                     owns_linear_claim: false,
                     no_code_affine_cleanup: true,
-                    copyable: true,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                     descriptor_cleanup: true,
                     nominal_cleanup: None,
                     shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),

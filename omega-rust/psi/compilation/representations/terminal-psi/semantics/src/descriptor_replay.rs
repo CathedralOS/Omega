@@ -2087,7 +2087,7 @@ pub(crate) mod case_flow {
                 self.case_types.contains(&source_type)
                     && location_type(replay, machine, destination) == Some(source_type)
                     && find_structural_type(replay.types, source_type)
-                        .is_some_and(|row| row.copyable)
+                        .is_some_and(|row| row.is_copyable())
             }
         }
 
@@ -2321,7 +2321,7 @@ pub(crate) mod case_flow {
                     quotient_carrier: None,
                     owns_linear_claim: false,
                     no_code_affine_cleanup: true,
-                    copyable: true,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                     descriptor_cleanup: false,
                     nominal_cleanup: None,
                     scalar_restriction: None,
@@ -6525,7 +6525,7 @@ pub(crate) mod engine {
         fn owns_roster_type(&self, ty: Option<StructuralTypeId>) -> bool {
             ty.and_then(|ty| find_structural_type(self.types, ty))
                 .is_some_and(|declaration| {
-                    !declaration.copyable
+                    !declaration.is_copyable()
                         && matches!(
                             declaration.shape,
                             StructuralTypeShape::ElementView { access: None, .. }
@@ -7327,7 +7327,7 @@ pub(crate) mod engine {
                 identity: TerminalIdentityIndex(1),
                 owns_linear_claim: false,
                 no_code_affine_cleanup: true,
-                copyable: true,
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                 descriptor_cleanup: false,
                 nominal_cleanup: None,
                 shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
@@ -7827,7 +7827,7 @@ pub(crate) mod engine {
                 identity: TerminalIdentityIndex(id as u32),
                 owns_linear_claim: false,
                 no_code_affine_cleanup: true,
-                copyable: true,
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                 descriptor_cleanup: false,
                 nominal_cleanup: None,
                 shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
@@ -8061,7 +8061,7 @@ pub(crate) mod engine {
                         element: scalar.id,
                         access: None,
                     },
-                    copyable: false,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                     ..scalar_type(2)
                 },
                 StructuralTypeDeclaration {

@@ -821,12 +821,10 @@ pub fn declared_multiplicity(
     access: StructuralAccess,
 ) -> terminal_psi::StructuralMultiplicity {
     use terminal_psi::StructuralMultiplicity;
-    if declaration.copyable || access != StructuralAccess::Owned {
+    if access != StructuralAccess::Owned {
         StructuralMultiplicity::Unrestricted
-    } else if declaration.owns_linear_claim {
-        StructuralMultiplicity::Linear
     } else {
-        StructuralMultiplicity::Affine
+        declaration.multiplicity
     }
 }
 
@@ -908,8 +906,9 @@ fn prepare_disposition(
     }
     visiting[raw] = true;
     let declaration = &types[raw];
-    let supported = if declaration.owns_linear_claim
-        || declaration.copyable && declaration.nominal_cleanup.is_some()
+    let supported = if declaration.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+        || declaration.owns_linear_claim
+        || declaration.is_copyable() && declaration.nominal_cleanup.is_some()
     {
         false
     } else if let Some(selection) = &declaration.nominal_cleanup {
@@ -1004,10 +1003,11 @@ fn analyze(
             let child = types
                 .get(index(child.get())?)
                 .ok_or(Error::malformed("nested type is outside the catalog"))?;
-            if declaration.copyable && !child.copyable
-                || declaration.no_code_affine_cleanup && !child.no_code_affine_cleanup
+            if declaration.is_copyable() && !child.is_copyable()
+                || declaration.no_code_affine_cleanup
+                    && (!child.no_code_affine_cleanup
+                        || child.multiplicity == terminal_psi::StructuralMultiplicity::Linear)
                 || declaration.descriptor_cleanup && !child.descriptor_cleanup
-                || !declaration.owns_linear_claim && child.owns_linear_claim
             {
                 return Err(Error::malformed(
                     "parent type permissions erase a nested ownership obligation",
@@ -1072,7 +1072,7 @@ fn analyze(
             && types
                 .get(index(parameter.structural_type.get())?)
                 .is_some_and(|declaration| {
-                    declaration.copyable
+                    declaration.is_copyable()
                         && matches!(
                             declaration.shape,
                             terminal_psi::StructuralTypeShape::Reference {
@@ -1131,7 +1131,7 @@ fn analyze(
                     || !declaration.is_some_and(|declaration| matches!(declaration.shape,
                         terminal_psi::StructuralTypeShape::Reference { access, .. }
                             if access != StructuralAccess::Owned
-                                && (!declaration.copyable || access == StructuralAccess::SharedBorrow)))
+                                && (!declaration.is_copyable() || access == StructuralAccess::SharedBorrow)))
                 {
                     return Err(Error::malformed(
                         "permission result has no exact reference producer declaration",
@@ -1248,7 +1248,7 @@ fn analyze(
             ))?;
         if matches!(place.kind, StructuralPlaceKind::ByteSequenceLiteral { .. })
             && (!declaration.shape.is_shared_readable_byte_view()
-                || !declaration.copyable
+                || !declaration.is_copyable()
                 || declaration.owns_linear_claim)
         {
             return Err(Error::malformed(
@@ -1278,7 +1278,7 @@ fn analyze(
         }
         // Fresh permission ownership also owes a disposition; copyability
         // only permits later copies, not forgetting this producing root.
-        let tracked = !declaration.copyable
+        let tracked = !declaration.is_copyable()
             || declaration.nominal_cleanup.is_some()
             || terminal_psi::structural_type_contains_reference_by(
                 |id| terminal_psi::find_structural_type(types, id),
@@ -1290,7 +1290,7 @@ fn analyze(
 
         if owned
             && !tracked
-            && declaration.copyable
+            && declaration.is_copyable()
             && declaration.no_code_affine_cleanup
             && declaration.descriptor_cleanup
         {
@@ -2388,7 +2388,7 @@ impl Analysis<'_> {
         if let Op::StructuralLeafCopy { source, path } = &operation.kind
             && let Some(root) = self.root(*source)?
             && crate::canonical_static_projection(self.types.iter(), root.structural_type, path)
-                .is_some_and(|(_, declaration)| !declaration.copyable)
+                .is_some_and(|(_, declaration)| !declaration.is_copyable())
         {
             return Err(Error::malformed("a leaf copy duplicates an affine region"));
         }
@@ -3591,7 +3591,12 @@ mod tests {
     fn transfer_only_types(linear: bool) -> [StructuralTypeDeclaration; 3] {
         let mut types = reconvergence_types();
         for declaration in &mut types {
-            declaration.owns_linear_claim = linear;
+            declaration.owns_linear_claim = linear && declaration.id == id(3);
+            declaration.multiplicity = if linear {
+                terminal_psi::StructuralMultiplicity::Linear
+            } else {
+                terminal_psi::StructuralMultiplicity::Affine
+            };
             declaration.no_code_affine_cleanup = false;
             declaration.descriptor_cleanup = false;
         }
@@ -3653,6 +3658,163 @@ mod tests {
             cleanup_actions: Vec::new(),
         };
         machine
+    }
+
+    #[test]
+    fn declared_multiplicity_does_not_infer_an_intrinsic_root_claim() {
+        use terminal_psi::StructuralMultiplicity as M;
+        let mut declaration = reconvergence_types()[2].clone();
+        for multiplicity in [M::Unrestricted, M::Affine, M::Linear] {
+            declaration.multiplicity = multiplicity;
+            declaration.owns_linear_claim = false;
+            assert_eq!(
+                declared_multiplicity(&declaration, StructuralAccess::Owned),
+                multiplicity
+            );
+            assert_eq!(declaration.is_copyable(), multiplicity == M::Unrestricted);
+            assert_eq!(
+                declared_multiplicity(&declaration, StructuralAccess::SharedBorrow),
+                M::Unrestricted
+            );
+        }
+        declaration.owns_linear_claim = true;
+        assert_eq!(
+            declared_multiplicity(&declaration, StructuralAccess::Owned),
+            M::Linear
+        );
+    }
+
+    #[test]
+    fn affine_parents_retain_exact_linear_siblings_and_active_case_claims() {
+        let mut types = transfer_only_types(false);
+        types[2].multiplicity = terminal_psi::StructuralMultiplicity::Linear;
+        types[2].owns_linear_claim = true;
+        let lookup = |id| types.iter().find(|row| row.id == id);
+        let siblings = [field_argument(3).path, field_argument(4).path];
+        crate::owned_structure::validate_intrinsic_claim_roots(&types).unwrap();
+        crate::owned_structure::validate_complete_claim_frontier(
+            lookup,
+            id(2),
+            &[],
+            siblings.iter().map(Vec::as_slice),
+            &|_, _| false,
+        )
+        .unwrap();
+        let bindings = siblings
+            .iter()
+            .enumerate()
+            .map(|(index, path)| terminal_psi::StructuralResultClaimBinding {
+                claim: id(index as u64 + 1),
+                path: path.clone(),
+            })
+            .collect::<Vec<_>>();
+        crate::validate_result_claim_catalog(types.iter(), id(2), &bindings, [bindings.as_slice()])
+            .unwrap();
+        crate::validate_result_claim_catalog(
+            types.iter().rev(),
+            id(2),
+            &bindings,
+            [bindings.as_slice()],
+        )
+        .unwrap();
+        assert_eq!(
+            crate::validate_result_claim_catalog(
+                types.iter().chain(std::iter::once(&types[0])),
+                id(2),
+                &bindings,
+                [bindings.as_slice()],
+            ),
+            Err(crate::ResultClaimCatalogError::NonStaticOwnedPath)
+        );
+        let collapsed = [terminal_psi::StructuralResultClaimBinding {
+            claim: id(9),
+            path: Vec::new(),
+        }];
+        assert_eq!(
+            crate::validate_result_claim_catalog(
+                types.iter(),
+                id(2),
+                &collapsed,
+                [collapsed.as_slice()]
+            ),
+            Err(crate::ResultClaimCatalogError::TypedFrontierMismatch)
+        );
+        assert!(
+            crate::owned_structure::validate_complete_claim_frontier(
+                lookup,
+                id(2),
+                &[],
+                [siblings[0].as_slice()],
+                &|_, _| false
+            )
+            .is_err()
+        );
+        let fields = types[1].shape.direct_fields().unwrap().to_vec();
+        types[1].shape = StructuralTypeShape::Sum {
+            cases: vec![
+                terminal_psi::StructuralCaseDeclaration {
+                    declaration_identity: Default::default(),
+                    id: id(1),
+                    identity: terminal_psi::TerminalIdentityIndex(8),
+                    fields: vec![fields[0].clone()],
+                },
+                terminal_psi::StructuralCaseDeclaration {
+                    declaration_identity: Default::default(),
+                    id: id(2),
+                    identity: terminal_psi::TerminalIdentityIndex(9),
+                    fields: Vec::new(),
+                },
+            ],
+        };
+        let lookup = |id| types.iter().find(|row| row.id == id);
+        let active = vec![StructuralPathSegment::Case(id(1)), siblings[0][0].clone()];
+        let guarded = [terminal_psi::StructuralResultClaimBinding {
+            claim: id(1),
+            path: active.clone(),
+        }];
+        crate::validate_result_claim_catalog(
+            types.iter(),
+            id(2),
+            &guarded,
+            [guarded.as_slice(), &[]],
+        )
+        .unwrap();
+        assert_eq!(
+            crate::validate_result_claim_catalog(types.iter(), id(2), &[], [&[][..]]),
+            Err(crate::ResultClaimCatalogError::TypedFrontierMismatch)
+        );
+        crate::owned_structure::validate_complete_claim_frontier(
+            lookup,
+            id(2),
+            &[],
+            [active.as_slice()],
+            &|_, case| case == id(1),
+        )
+        .unwrap();
+        crate::owned_structure::validate_complete_claim_frontier(
+            lookup,
+            id(2),
+            &[],
+            std::iter::empty(),
+            &|_, case| case == id(2),
+        )
+        .unwrap();
+        assert!(
+            crate::owned_structure::validate_complete_claim_frontier(
+                lookup,
+                id(2),
+                &[],
+                [active.as_slice()],
+                &|_, case| case == id(2)
+            )
+            .is_err()
+        );
+        types[1].multiplicity = terminal_psi::StructuralMultiplicity::Linear;
+        types[1].owns_linear_claim = true;
+        assert!(
+            crate::owned_structure::validate_intrinsic_claim_roots(&types).is_err(),
+            "an inactive payload cannot justify collapsing possible child claims into a root"
+        );
     }
 
     #[test]
@@ -3751,7 +3913,10 @@ mod tests {
     #[test]
     fn partial_moves_cannot_retire_an_intrinsic_linear_claim_even_after_all_fields_move() {
         use terminal_psi::{EntryClaim, StructuralMultiplicity};
-        let types = transfer_only_types(true);
+        let mut types = transfer_only_types(true);
+        types[1].owns_linear_claim = true;
+        types[2].owns_linear_claim = false;
+        types[2].multiplicity = StructuralMultiplicity::Affine;
         for fields in [
             vec![field_argument(3)],
             vec![field_argument(3), field_argument(4)],
@@ -3765,7 +3930,7 @@ mod tests {
                 path: Vec::new(),
             });
             for parameter in &mut machine.blocks[1].structural_parameters {
-                parameter.multiplicity = StructuralMultiplicity::Linear;
+                parameter.multiplicity = StructuralMultiplicity::Affine;
             }
             assert!(
                 matches!(
@@ -4134,7 +4299,11 @@ mod tests {
             let mut types = reconvergence_types();
             // Use one empty record so copy permission has no nested premise.
             for declaration in &mut types {
-                declaration.copyable = copyable;
+                declaration.multiplicity = if copyable {
+                    terminal_psi::StructuralMultiplicity::Unrestricted
+                } else {
+                    terminal_psi::StructuralMultiplicity::Affine
+                };
             }
             let original = borrowed_backedge(StructuralAccess::SharedBorrow);
             assert!(verify(&original, &types).unwrap().unavailable.is_empty());
@@ -4402,7 +4571,7 @@ mod tests {
             id: StructuralTypeId::new(raw).unwrap(),
             identity: TerminalIdentityIndex(raw as u32),
             owns_linear_claim: false,
-            copyable: false,
+            multiplicity: terminal_psi::StructuralMultiplicity::Affine,
             no_code_affine_cleanup: true,
             descriptor_cleanup: true,
             nominal_cleanup: None,

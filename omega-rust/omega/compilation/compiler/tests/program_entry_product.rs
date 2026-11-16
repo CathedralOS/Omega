@@ -389,8 +389,14 @@ fn selected_entry_receipt_keeps_the_accepted_artifact_and_rejects_other_owners()
                 .iter()
                 .find(|row| row.owns_linear_claim)
                 .expect("the semantic Extent descriptor retains its linear custody");
+            assert_eq!(
+                linear.multiplicity,
+                terminal_psi::StructuralMultiplicity::Linear
+            );
             assert!(
-                !linear.copyable && !linear.no_code_affine_cleanup && !linear.descriptor_cleanup
+                !linear.is_copyable()
+                    && !linear.no_code_affine_cleanup
+                    && !linear.descriptor_cleanup
             );
             assert_eq!(
                 native_code.artifact().manifest().semantic(),

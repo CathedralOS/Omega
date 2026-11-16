@@ -122,8 +122,11 @@ impl Program<'_> {
             return Ok(Some(ValueType::Record(id, qualification, regions)));
         }
         let id = self.records.push(RecordType {
-            owns_linear_claim: false,
-            copyable: access == StructuralAccess::SharedBorrow,
+            multiplicity: if access == StructuralAccess::SharedBorrow {
+                terminal_psi::StructuralMultiplicity::Unrestricted
+            } else {
+                terminal_psi::StructuralMultiplicity::Affine
+            },
             cleanup: None,
             identity,
             shape,

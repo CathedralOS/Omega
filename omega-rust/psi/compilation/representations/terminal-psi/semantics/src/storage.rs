@@ -3151,7 +3151,7 @@ pub(crate) mod calling_storage {
                 shape,
                 quotient_carrier: None,
                 owns_linear_claim: false,
-                copyable: true,
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                 no_code_affine_cleanup: true,
                 descriptor_cleanup: false,
                 nominal_cleanup: None,
@@ -4120,8 +4120,8 @@ pub mod run_custody {
                 let [left, right] = fields.as_slice() else {
                     return Err("run split changed its two-part result");
                 };
-                if !parts.owns_linear_claim
-                    || parts.copyable
+                if parts.owns_linear_claim
+                    || parts.multiplicity != StructuralMultiplicity::Linear
                     || parts.nominal_cleanup.is_some()
                     || !parts.requires.is_empty()
                     || left.relevance.is_erased()
@@ -4160,8 +4160,8 @@ pub mod run_custody {
         let [storage, count] = fields.as_slice() else {
             return Err("run custody changed its backing or count roles");
         };
-        if !run.owns_linear_claim
-            || run.copyable
+        if run.owns_linear_claim
+            || run.multiplicity != StructuralMultiplicity::Linear
             || run.nominal_cleanup.is_some()
             || !run.requires.is_empty()
             || storage.relevance.is_erased()
@@ -4182,7 +4182,7 @@ pub mod run_custody {
             return Err("run custody changed its backing geometry roles");
         };
         if !backing.owns_linear_claim
-            || backing.copyable
+            || backing.multiplicity != StructuralMultiplicity::Linear
             || backing.nominal_cleanup.is_some()
             || !backing.requires.is_empty()
             || base.relevance.is_erased()
@@ -4308,8 +4308,8 @@ pub mod run_custody {
                 quotient_carrier: None,
                 id: ty(id),
                 identity: TerminalIdentityIndex(id as u32),
-                owns_linear_claim: true,
-                copyable: false,
+                owns_linear_claim: id == 1,
+                multiplicity: StructuralMultiplicity::Linear,
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: false,
                 nominal_cleanup: None,
@@ -4520,7 +4520,7 @@ pub mod run_custody {
             for mutation in 0..5 {
                 let mut types = types.clone();
                 match mutation {
-                    0 => types[1].copyable = true,
+                    0 => types[1].multiplicity = terminal_psi::StructuralMultiplicity::Unrestricted,
                     1 => types[0].owns_linear_claim = false,
                     2 => {
                         let StructuralTypeShape::Record { fields, .. } = &mut types[1].shape else {

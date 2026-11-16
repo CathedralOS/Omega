@@ -135,21 +135,6 @@ pub(crate) fn publish(
     elaboration: &mut Elaboration,
 ) -> Checked<()> {
     let storage = &descriptions.signatures;
-    for property in &descriptions.properties {
-        if elaboration
-            .module
-            .structural_types
-            .iter()
-            .filter(|row| row.id == property.record)
-            .count()
-            != 1
-        {
-            return Err(services::unavailable(
-                context,
-                "calling storage properties have no exact canonical declaration",
-            ));
-        }
-    }
     if !elaboration.module.calling_policy_requests.is_empty()
         || !elaboration.module.service_schemas.is_empty()
         || !elaboration.module.program_entry_contracts.is_empty()
@@ -364,17 +349,6 @@ pub(crate) fn publish(
         &elaboration.module.calling_abi_signatures,
         &prepared?,
     )?;
-    for property in &descriptions.properties {
-        let row = elaboration
-            .module
-            .structural_types
-            .iter_mut()
-            .find(|row| row.id == property.record)
-            .expect("property declarations were authenticated above");
-        row.owns_linear_claim = property.owns_linear_claim;
-        row.no_code_affine_cleanup = property.no_code_affine_cleanup;
-        row.descriptor_cleanup = property.descriptor_cleanup;
-    }
     elaboration.module.calling_abi_signatures = declarations;
     elaboration.module.calling_policy_requests = requests;
     elaboration.module.service_schemas = schemas;

@@ -2286,8 +2286,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
     };
     let mut records = IdTable::default();
     records.push(RecordType {
-        owns_linear_claim: false,
-        copyable: true,
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         cleanup: None,
         identity: String::from("Point"),
         shape: crate::StorageShape::Record(vec![
@@ -2298,8 +2297,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
         authored_layout: false,
     });
     records.push(RecordType {
-        owns_linear_claim: false,
-        copyable: true,
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         cleanup: None,
         identity: String::from("Line"),
         shape: crate::StorageShape::Record(vec![
@@ -2828,7 +2826,7 @@ fn a_module_with_records_declares_them_and_encodes() {
         module
             .structural_types
             .iter()
-            .all(|declaration| declaration.copyable)
+            .all(|declaration| declaration.is_copyable())
     );
     terminal_codec::encode_module(module).unwrap();
     // A scalar module declares nothing.
@@ -2887,7 +2885,8 @@ fn declare(slot: usize, home: Option<&str>) -> Statement {
 fn a_moved_owned_field_is_refilled_before_its_whole_owner_is_transferred() {
     let mut records = records();
     for raw in 1..=2 {
-        records.get_mut(id(raw)).unwrap().copyable = false;
+        records.get_mut(id(raw)).unwrap().multiplicity =
+            terminal_psi::StructuralMultiplicity::Affine;
     }
     let mut bodies = IdTable::default();
     bodies.push(Body {
@@ -2969,11 +2968,11 @@ fn a_moved_owned_field_is_refilled_before_its_whole_owner_is_transferred() {
 fn a_subrecord_with_all_owned_fields_moved_out_can_be_filled_whole() {
     let mut records = records();
     for raw in 1..=2 {
-        records.get_mut(id(raw)).unwrap().copyable = false;
+        records.get_mut(id(raw)).unwrap().multiplicity =
+            terminal_psi::StructuralMultiplicity::Affine;
     }
     records.push(RecordType {
-        owns_linear_claim: false,
-        copyable: false,
+        multiplicity: terminal_psi::StructuralMultiplicity::Affine,
         cleanup: None,
         identity: "Envelope".into(),
         shape: crate::StorageShape::Record(vec![
@@ -3364,8 +3363,7 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
     let scalar = ValueType::Scalar(u32_type(), Qualification::NONE);
     let mut records = IdTable::default();
     records.push(RecordType {
-        owns_linear_claim: false,
-        copyable: true,
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         cleanup: None,
         identity: String::from("Point"),
         shape: crate::StorageShape::Record(vec![field(1, "x", scalar), field(2, "y", scalar)]),
@@ -3373,8 +3371,7 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
         authored_layout: false,
     });
     records.push(RecordType {
-        owns_linear_claim: false,
-        copyable: true,
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         cleanup: None,
         identity: String::from("Shape"),
         shape: crate::StorageShape::Sum(vec![

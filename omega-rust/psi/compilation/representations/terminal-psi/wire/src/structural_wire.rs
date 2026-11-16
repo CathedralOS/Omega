@@ -1998,7 +1998,7 @@ pub(crate) mod structural_type_wire {
         writer.boolean(declaration.owns_linear_claim);
         writer.boolean(declaration.no_code_affine_cleanup);
         writer.boolean(declaration.descriptor_cleanup);
-        writer.boolean(declaration.copyable);
+        super::structural_result_wire::encode_multiplicity(writer, declaration.multiplicity);
         writer.boolean(declaration.nominal_cleanup.is_some());
         if let Some(selection) = &declaration.nominal_cleanup {
             writer.u32(selection.declaration.identity().0);
@@ -2163,7 +2163,7 @@ pub(crate) mod structural_type_wire {
         let owns_linear_claim = reader.boolean()?;
         let no_code_affine_cleanup = reader.boolean()?;
         let descriptor_cleanup = reader.boolean()?;
-        let copyable = reader.boolean()?;
+        let multiplicity = super::structural_result_wire::decode_multiplicity(reader)?;
         let nominal_cleanup = if reader.boolean()? {
             Some(terminal_psi::NominalCleanupSelection {
                 declaration: terminal_psi::NominalDeclarationIdentity::new(TerminalIdentityIndex(
@@ -2308,7 +2308,7 @@ pub(crate) mod structural_type_wire {
             quotient_carrier,
             owns_linear_claim,
             no_code_affine_cleanup,
-            copyable,
+            multiplicity,
             descriptor_cleanup,
             nominal_cleanup,
             scalar_restriction,
@@ -2431,7 +2431,7 @@ pub(crate) mod structural_type_wire {
                 quotient_carrier: None,
                 owns_linear_claim: false,
                 no_code_affine_cleanup: true,
-                copyable: true,
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                 descriptor_cleanup: false,
                 nominal_cleanup: None,
                 scalar_restriction: None,
@@ -2450,9 +2450,11 @@ pub(crate) mod structural_type_wire {
             let _: StructuralTypeId = reader.id("StructuralTypeId").unwrap();
             reader.u32().unwrap();
             reader.u32().unwrap();
-            for _ in 0..5 {
+            for _ in 0..3 {
                 reader.boolean().unwrap();
             }
+            super::super::structural_result_wire::decode_multiplicity(&mut reader).unwrap();
+            reader.boolean().unwrap();
             bytes.len() - reader.remaining()
         }
 
@@ -2580,9 +2582,13 @@ pub(crate) mod structural_type_wire {
         }
 
         #[test]
-        fn logical_copy_permission_changes_encoded_identity() {
+        fn declared_multiplicity_round_trips_and_rejects_unknown_tags() {
             let mut encodings = Vec::new();
-            for copyable in [false, true] {
+            for multiplicity in [
+                terminal_psi::StructuralMultiplicity::Unrestricted,
+                terminal_psi::StructuralMultiplicity::Affine,
+                terminal_psi::StructuralMultiplicity::Linear,
+            ] {
                 let declaration = StructuralTypeDeclaration {
                     declaration_identity: Default::default(),
                     requires: Vec::new(),
@@ -2591,7 +2597,7 @@ pub(crate) mod structural_type_wire {
                     no_code_affine_cleanup: false,
                     descriptor_cleanup: true,
                     nominal_cleanup: None,
-                    copyable,
+                    multiplicity,
                     scalar_restriction: None,
                     id: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
                     identity: terminal_psi::TerminalIdentityIndex(1),
@@ -2607,6 +2613,13 @@ pub(crate) mod structural_type_wire {
                 assert_eq!(decode_structural_type(&mut reader).unwrap(), declaration);
                 assert_eq!(reader.remaining(), 0);
                 assert!(!encodings.contains(&bytes));
+                let position = shape_offset(&bytes) - 2;
+                for tag in [0, 4, 255] {
+                    let mut invalid = bytes.clone();
+                    invalid[position] = tag;
+                    assert!(matches!(decode_structural_type(&mut Reader::new(&invalid)),
+                        Err(CodecError::InvalidTag("StructuralMultiplicity", found)) if found==tag));
+                }
                 encodings.push(bytes);
             }
             let mut old = super::super::MAGIC.to_vec();
@@ -2627,7 +2640,7 @@ pub(crate) mod structural_type_wire {
                     quotient_carrier: None,
                     owns_linear_claim,
                     no_code_affine_cleanup: false,
-                    copyable: false,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Linear,
                     descriptor_cleanup: false,
                     nominal_cleanup: None,
                     scalar_restriction: None,
@@ -2669,7 +2682,7 @@ pub(crate) mod structural_type_wire {
                 quotient_carrier: None,
                 owns_linear_claim: false,
                 no_code_affine_cleanup: true,
-                copyable: false,
+                multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                 descriptor_cleanup: true,
                 nominal_cleanup: None,
                 scalar_restriction: None,

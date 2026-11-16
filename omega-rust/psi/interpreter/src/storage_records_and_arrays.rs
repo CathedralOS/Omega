@@ -207,6 +207,53 @@ pub(crate) mod record {
             }
         }
 
+        fn bind_constructor_claims(
+            origin: ResultClaimOrigin,
+            result: &StructuralOperationResult,
+            live: &BTreeMap<semantic_vocabulary::ClaimId, LiveClaim>,
+            mut remaining: BTreeMap<semantic_vocabulary::ClaimId, LiveClaim>,
+            mut transported: BTreeMap<semantic_vocabulary::ClaimId, Vec<StructuralPathSegment>>,
+            nominal_root: Option<semantic_vocabulary::ClaimId>,
+            active: impl Fn(&[StructuralPathSegment]) -> Result<bool, TerminalInterpretError>,
+        ) -> Result<BTreeMap<semantic_vocabulary::ClaimId, LiveClaim>, TerminalInterpretError>
+        {
+            let invalid = || TerminalInterpretError::ClaimTransferMismatch;
+            if origin == ResultClaimOrigin::Transfer && nominal_root.is_some() {
+                return Err(invalid());
+            }
+            for binding in &result.claims {
+                if !active(&binding.path)? {
+                    if transported.contains_key(&binding.claim) || live.contains_key(&binding.claim)
+                    {
+                        return Err(invalid());
+                    }
+                    continue;
+                }
+                match transported.remove(&binding.claim) {
+                    Some(path) if path == binding.path => {}
+                    None if nominal_root == Some(binding.claim) => {}
+                    _ => return Err(invalid()),
+                }
+                if remaining
+                    .insert(
+                        binding.claim,
+                        LiveClaim::at(
+                            result.place,
+                            binding.path.clone(),
+                            StructuralMultiplicity::Linear,
+                        ),
+                    )
+                    .is_some()
+                {
+                    return Err(invalid());
+                }
+            }
+            if !transported.is_empty() {
+                return Err(invalid());
+            }
+            Ok(remaining)
+        }
+
         impl TerminalExecution<'_> {
             pub(crate) fn validate_transferred_affine_complement(
                 &self,
@@ -351,17 +398,23 @@ pub(crate) mod record {
             ) -> Result<BTreeMap<semantic_vocabulary::ClaimId, LiveClaim>, TerminalInterpretError>
             {
                 let invalid = || TerminalInterpretError::ClaimTransferMismatch;
+                let types = self.structural_types();
                 let nominal_root = match result.claims.as_slice() {
                     [binding]
                         if origin == ResultClaimOrigin::Construction
                             && result.multiplicity == StructuralMultiplicity::Linear
                             && binding.path.is_empty()
                             && !self.live_claims.contains_key(&binding.claim)
-                            && self
-                                .structural_types()
+                            && types
                                 .get(&result.structural_type)
                                 .is_some_and(|declaration| {
-                                    matches!(
+                                    declaration.owns_linear_claim
+                                    && declaration.multiplicity == StructuralMultiplicity::Linear
+                                    && terminal_semantics::owned_structure::intrinsic_claim_root_by(
+                                        |identity| types.get(&identity),
+                                        declaration.id,
+                                    ) == Ok(true)
+                                    && matches!(
                                         declaration.shape,
                                         terminal_psi::StructuralTypeShape::Record { .. }
                                             | terminal_psi::StructuralTypeShape::Sum { .. }
@@ -392,43 +445,15 @@ pub(crate) mod record {
                         }
                     }
                 }
-                for binding in &result.claims {
-                    if !self.constructor_claim_is_active(result, &binding.path, case_membership)? {
-                        if transported.contains_key(&binding.claim)
-                            || self.live_claims.contains_key(&binding.claim)
-                        {
-                            return Err(invalid());
-                        }
-                        continue;
-                    }
-                    match transported.remove(&binding.claim) {
-                        Some(path) if path == binding.path => {}
-                        None if nominal_root == Some(binding.claim) => {}
-                        _ => return Err(invalid()),
-                    }
-                    if remaining
-                        .insert(
-                            binding.claim,
-                            LiveClaim::at(result.place, binding.path.clone(), result.multiplicity),
-                        )
-                        .is_some()
-                    {
-                        return Err(invalid());
-                    }
-                }
-                for path in transported.values() {
-                    if nominal_root.is_none()
-                        || resolve_structural_path_type(
-                            &self.structural_types(),
-                            result.structural_type,
-                            path,
-                        )
-                        .is_err()
-                        || !self.constructor_claim_is_active(result, path, case_membership)?
-                    {
-                        return Err(invalid());
-                    }
-                }
+                let remaining = bind_constructor_claims(
+                    origin,
+                    result,
+                    &self.live_claims,
+                    remaining,
+                    transported,
+                    nominal_root,
+                    |path| self.constructor_claim_is_active(result, path, case_membership),
+                )?;
                 self.stage_result_affine_frontier(result, frontier, case_membership)?;
                 Ok(remaining)
             }
@@ -520,6 +545,164 @@ pub(crate) mod record {
                     frontier,
                     claims,
                 })
+            }
+        }
+
+        #[cfg(test)]
+        mod claim_binding_tests {
+            use super::*;
+            use semantic_vocabulary::{ClaimId, PlaceId, StructuralTypeId};
+            use terminal_psi::{StructuralResultClaimBinding, TerminalIdentityIndex};
+
+            fn result(
+                multiplicity: StructuralMultiplicity,
+                paths: &[(u64, Vec<StructuralPathSegment>)],
+            ) -> StructuralOperationResult {
+                StructuralOperationResult {
+                    place: PlaceId::new(1).unwrap(),
+                    structural_type: StructuralTypeId::new(1).unwrap(),
+                    multiplicity,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    additional_input_qualifications: Vec::new(),
+                    qualification_establishments: Vec::new(),
+                    claims: paths
+                        .iter()
+                        .map(|(id, path)| StructuralResultClaimBinding {
+                            claim: ClaimId::new(*id).unwrap(),
+                            path: path.clone(),
+                        })
+                        .collect(),
+                }
+            }
+            fn field(id: u32) -> Vec<StructuralPathSegment> {
+                vec![StructuralPathSegment::Field(TerminalIdentityIndex(id))]
+            }
+
+            #[test]
+            fn transported_sibling_claims_stay_linear_in_an_affine_result() {
+                let paths = [(1, field(1)), (2, field(2))];
+                let result = result(StructuralMultiplicity::Affine, &paths);
+                let transported = paths
+                    .iter()
+                    .map(|(id, path)| (ClaimId::new(*id).unwrap(), path.clone()))
+                    .collect();
+                let bound = bind_constructor_claims(
+                    ResultClaimOrigin::Transfer,
+                    &result,
+                    &BTreeMap::new(),
+                    BTreeMap::new(),
+                    transported,
+                    None,
+                    |_| Ok(true),
+                )
+                .unwrap();
+                assert_eq!(bound.len(), 2);
+                for binding in &result.claims {
+                    let claim = &bound[&binding.claim];
+                    assert_eq!(claim.place, Some(result.place));
+                    assert_eq!(claim.path, binding.path);
+                    assert_eq!(claim.multiplicity, Some(StructuralMultiplicity::Linear));
+                }
+            }
+
+            #[test]
+            fn a_new_root_never_subsumes_transported_children_or_mints_during_transfer() {
+                let root = ClaimId::new(3).unwrap();
+                let result = result(StructuralMultiplicity::Linear, &[(3, Vec::new())]);
+                let fresh = bind_constructor_claims(
+                    ResultClaimOrigin::Construction,
+                    &result,
+                    &BTreeMap::new(),
+                    BTreeMap::new(),
+                    BTreeMap::new(),
+                    Some(root),
+                    |_| Ok(true),
+                )
+                .unwrap();
+                assert_eq!(fresh.len(), 1);
+                assert!(
+                    bind_constructor_claims(
+                        ResultClaimOrigin::Transfer,
+                        &result,
+                        &BTreeMap::new(),
+                        BTreeMap::new(),
+                        BTreeMap::new(),
+                        Some(root),
+                        |_| Ok(true)
+                    )
+                    .is_err()
+                );
+                let children = [
+                    (ClaimId::new(1).unwrap(), field(1)),
+                    (ClaimId::new(2).unwrap(), field(2)),
+                ]
+                .into_iter()
+                .collect();
+                assert!(
+                    bind_constructor_claims(
+                        ResultClaimOrigin::Construction,
+                        &result,
+                        &BTreeMap::new(),
+                        BTreeMap::new(),
+                        children,
+                        Some(root),
+                        |_| Ok(true)
+                    )
+                    .is_err()
+                );
+            }
+
+            #[test]
+            fn inactive_case_bindings_cannot_hide_a_transported_claim() {
+                let first = vec![
+                    StructuralPathSegment::Case(
+                        semantic_vocabulary::StructuralCaseId::new(1).unwrap(),
+                    ),
+                    StructuralPathSegment::Field(TerminalIdentityIndex(1)),
+                ];
+                let second = vec![
+                    StructuralPathSegment::Case(
+                        semantic_vocabulary::StructuralCaseId::new(2).unwrap(),
+                    ),
+                    StructuralPathSegment::Field(TerminalIdentityIndex(2)),
+                ];
+                let result = result(
+                    StructuralMultiplicity::Affine,
+                    &[(1, first.clone()), (2, second.clone())],
+                );
+                let transported = [(ClaimId::new(1).unwrap(), first.clone())]
+                    .into_iter()
+                    .collect();
+                let bound = bind_constructor_claims(
+                    ResultClaimOrigin::Transfer,
+                    &result,
+                    &BTreeMap::new(),
+                    BTreeMap::new(),
+                    transported,
+                    None,
+                    |path| Ok(path == first),
+                )
+                .unwrap();
+                assert_eq!(bound.len(), 1);
+                let transported = [
+                    (ClaimId::new(1).unwrap(), first.clone()),
+                    (ClaimId::new(2).unwrap(), second),
+                ]
+                .into_iter()
+                .collect();
+                assert!(
+                    bind_constructor_claims(
+                        ResultClaimOrigin::Transfer,
+                        &result,
+                        &BTreeMap::new(),
+                        BTreeMap::new(),
+                        transported,
+                        None,
+                        |path| Ok(path == first)
+                    )
+                    .is_err()
+                );
             }
         }
     }

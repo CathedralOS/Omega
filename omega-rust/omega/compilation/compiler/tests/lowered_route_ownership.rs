@@ -446,7 +446,7 @@ fn owned_call_results_and_locals_publish_and_execute_the_routes_module() {
             .module
             .structural_types
             .iter()
-            .any(|ty| !ty.copyable)
+            .any(|ty| !ty.is_copyable())
     );
     let publication = closure.publish().expect("owned-data publication");
     assert_eq!(
@@ -1096,8 +1096,7 @@ fn whole_owned_transfers_consume_their_homes_once() {
     let mut records = IdTable::default();
     records.push(RecordType {
         authored_layout: false,
-        owns_linear_claim: false,
-        copyable: false,
+        multiplicity: terminal_psi::StructuralMultiplicity::Affine,
         cleanup: None,
         identity: "Owned".into(),
         shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![RecordField {
@@ -1291,8 +1290,7 @@ mod transferred_on_one_path {
         let mut records = IdTable::default();
         records.push(RecordType {
             authored_layout: false,
-            owns_linear_claim: false,
-            copyable: false,
+            multiplicity: terminal_psi::StructuralMultiplicity::Affine,
             cleanup: None,
             identity: "Inner".into(),
             shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![field(
@@ -1304,8 +1302,7 @@ mod transferred_on_one_path {
         });
         records.push(RecordType {
             authored_layout: false,
-            owns_linear_claim: false,
-            copyable: false,
+            multiplicity: terminal_psi::StructuralMultiplicity::Affine,
             cleanup: None,
             identity: "Pair".into(),
             shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![

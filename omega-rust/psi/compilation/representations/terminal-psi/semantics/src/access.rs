@@ -810,7 +810,8 @@ pub(crate) mod access_lifecycles {
             let declaration = module
                 .structural_type(identity)
                 .ok_or("nonresident access View lost its exact content declaration")?;
-            if declaration.owns_linear_claim
+            if declaration.multiplicity == StructuralMultiplicity::Linear
+                || declaration.owns_linear_claim
                 || declaration.quotient_carrier.is_some()
                 || declaration.scalar_restriction.is_some()
             {
@@ -975,7 +976,8 @@ pub(crate) mod access_lifecycles {
                     .iter()
                     .find(|field| field.id == count)
                     .ok_or("typed run count field is absent")?;
-                if !owner.owns_linear_claim
+                if owner.owns_linear_claim
+                    || owner.multiplicity != StructuralMultiplicity::Linear
                     || backing.id == count.id
                     || backing.relevance.is_erased()
                     || count.relevance.is_erased()

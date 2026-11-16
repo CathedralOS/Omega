@@ -165,6 +165,8 @@ fn lowered(text: &str) -> terminal_check_tables::program::Elaboration {
             purpose: source::DependencyScope::Product,
             selected: &[],
             bindings: &[],
+            calling: None,
+            providers: None,
             supplies: &[],
         },
         terminal_codec::TerminalPublication::Invocation,

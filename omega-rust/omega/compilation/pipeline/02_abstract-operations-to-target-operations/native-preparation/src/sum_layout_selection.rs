@@ -1857,7 +1857,7 @@ fn retained_element_view_reads_use_the_exact_descriptor_index_and_leaf() {
         field.field_type = StructuralFieldType::Scalar(scalar);
         let path = vec![StructuralPathSegment::Field(field.identity)];
         let mut element = reference_type(1, names.intern("Element"), ty(1));
-        element.copyable = true;
+        element.multiplicity = terminal_psi::StructuralMultiplicity::Unrestricted;
         element.shape = StructuralTypeShape::Record {
             storage: StructuralRecordStorage::Packed,
             fields: vec![sibling, field],
@@ -3296,7 +3296,7 @@ fn sum_inside_record() -> String {
         id: ty(2),
         identity: names.intern("Outer"),
         owns_linear_claim: false,
-        copyable: true,
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         no_code_affine_cleanup: true,
         descriptor_cleanup: false,
         nominal_cleanup: None,
@@ -4179,7 +4179,7 @@ fn sum_type(
         id: ty(id),
         identity,
         owns_linear_claim: false,
-        copyable: true,
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         no_code_affine_cleanup: true,
         descriptor_cleanup: false,
         nominal_cleanup: None,
@@ -4215,7 +4215,7 @@ fn reference_type(
         id: ty(id),
         identity,
         owns_linear_claim: false,
-        copyable: true,
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         no_code_affine_cleanup: true,
         descriptor_cleanup: false,
         nominal_cleanup: None,
@@ -4534,7 +4534,7 @@ fn module_retaining(scalars: &[ScalarType]) -> terminal_codec::ClosedTerminalMod
             quotient_carrier: None,
             owns_linear_claim: false,
             no_code_affine_cleanup: false,
-            copyable: true,
+            multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
             descriptor_cleanup: false,
             nominal_cleanup: None,
             scalar_restriction: None,

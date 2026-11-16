@@ -11,7 +11,6 @@ use terminal_psi::{
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 use super::{Program, services};
-use crate::body::{StorageShape, ValueType};
 use crate::calling_publication::PreparedCallingStorage;
 use crate::read::calling::SourceCallingPolicies;
 
@@ -22,17 +21,8 @@ pub(super) enum TypePurpose {
     StorageDescription,
 }
 
-#[derive(Debug, Clone, Copy)]
-pub(crate) struct StorageDescriptionProperties {
-    pub(crate) record: StructuralTypeId,
-    pub(crate) owns_linear_claim: bool,
-    pub(crate) no_code_affine_cleanup: bool,
-    pub(crate) descriptor_cleanup: bool,
-}
-
 pub(crate) struct PreparedCallingDescriptions {
     pub(crate) signatures: Vec<PreparedCallingStorage>,
-    pub(crate) properties: Vec<StorageDescriptionProperties>,
 }
 
 impl Program<'_> {
@@ -54,7 +44,6 @@ impl Program<'_> {
         let signatures = source.signatures(typed, context)?;
         let previous_scope = std::mem::take(&mut self.scope);
         let previous_owner = self.lifetime_owner;
-        let first_new_record = self.records.len();
         let result = (|| {
             let mut descriptions = Vec::with_capacity(source.signatures.len());
             for signature in signatures {
@@ -245,79 +234,8 @@ impl Program<'_> {
                     physical_owner: *physical_owner,
                 });
             }
-            let mut properties: Vec<StorageDescriptionProperties> = Vec::new();
-            for (record, declaration) in self.records.iter() {
-                if record.get() <= first_new_record as u64 {
-                    continue;
-                }
-                let source = self.record_sources.get(record).ok_or_else(|| {
-                    services::unavailable(context, "storage description lost its source row")
-                })?;
-                let linear = if source.declaration.is_valid() {
-                    self.typed
-                        .unique_data_definition_by_symbol(source.declaration)
-                        .ok_or_else(|| {
-                            services::unavailable(
-                                context,
-                                "storage description has no unique data declaration",
-                            )
-                        })?
-                        .properties
-                        .multiplicity
-                        == language_semantics::Multiplicity::Linear
-                } else {
-                    false
-                };
-                let mut nested = Vec::new();
-                match &declaration.shape {
-                    StorageShape::Record(fields) => {
-                        nested.extend(fields.iter().filter_map(|field| match field.value_type {
-                            ValueType::Record(record, _, _) => Some(record),
-                            _ => None,
-                        }))
-                    }
-                    StorageShape::Sum(cases) => {
-                        nested.extend(cases.iter().flat_map(|case| &case.fields).filter_map(
-                            |field| match field.value_type {
-                                ValueType::Record(record, _, _) => Some(record),
-                                _ => None,
-                            },
-                        ))
-                    }
-                    StorageShape::FixedArray { element, .. } => nested.push(*element),
-                    StorageShape::ElementView { element, .. }
-                    | StorageShape::Reference {
-                        referent: element, ..
-                    } => {
-                        self.data_type(context, *element)?;
-                        // The descriptor does not own its backing storage.
-                        // The referent's linear claim therefore stays separate.
-                    }
-                    // Opaque and atomic carriers have no authored children.
-                    // Declared multiplicity still supplies the claim above.
-                    StorageShape::Opaque
-                    | StorageShape::AtomicCell(_)
-                    | StorageShape::ByteSequence(_)
-                    | StorageShape::PrimitiveScalar { .. } => {}
-                }
-                let inherited = nested.iter().any(|nested| {
-                    properties
-                        .iter()
-                        .any(|row| row.record == *nested && row.owns_linear_claim)
-                });
-                // Selected nominal cleanup and carry mechanisms remain refused
-                // by the shared record-schema reader, so there is no missing
-                // cleanup code disguised as a no-code metadata description.
-                properties.push(StorageDescriptionProperties {
-                    record,
-                    owns_linear_claim: linear || inherited,
-                    no_code_affine_cleanup: true,
-                    descriptor_cleanup: true,
-                });
-            }
             Ok(PreparedCallingDescriptions {
                 signatures: descriptions,
-                properties,
             })
         })();
         self.scope = previous_scope;

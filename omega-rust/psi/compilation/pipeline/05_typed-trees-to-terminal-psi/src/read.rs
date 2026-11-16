@@ -723,8 +723,7 @@ mod tests {
     /// through, not replaced), so the type must be a row of the program.
     fn plain_record() -> RecordType {
         RecordType {
-            owns_linear_claim: false,
-            copyable: false,
+            multiplicity: terminal_psi::StructuralMultiplicity::Affine,
             cleanup: None,
             identity: String::from("point"),
             shape: crate::StorageShape::Record(Vec::new()),

@@ -50,8 +50,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
     let mut records = IdTable::default();
     records.push(RecordType {
         authored_layout: false,
-        owns_linear_claim: false,
-        copyable: true,
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         cleanup: None,
         identity: String::from("Pair"),
         shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![
@@ -1092,7 +1091,7 @@ fn a_shared_reference_formation_owns_its_fresh_permission_carrier() {
             .iter()
             .find(|declaration| declaration.id == result.structural_type)
             .unwrap()
-            .copyable,
+            .is_copyable(),
         "the shared reference type retains copy permission"
     );
     assert_eq!(

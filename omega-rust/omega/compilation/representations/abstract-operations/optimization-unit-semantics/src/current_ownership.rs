@@ -2481,7 +2481,7 @@ mod block_parameters {
         frontier: &mut CurrentOwnership,
         bindings: &[AbstractStructuralBinding],
         target: &OptimizationBlock,
-        case_is_excluded: impl Fn(PlaceId, &[StructuralPathSegment], StructuralCaseId) -> bool,
+        membership: &super::cleanup::CaseMembership<'_>,
     ) -> Result<EdgeTransfer, OptimizationUnitValidationError> {
         let invalid = || OptimizationUnitValidationError::CurrentCleanupMismatch {
             machine: function.machine,
@@ -2532,7 +2532,13 @@ mod block_parameters {
             }
             if !binding.argument.path.is_empty() {
                 transferred.extend(consume_projected_source(
-                    function, types, block, frontier, binding, parameter,
+                    function,
+                    types,
+                    block,
+                    frontier,
+                    binding,
+                    parameter,
+                    &|place, path, case| membership(place, path, case, true),
                 )?);
                 continue;
             }
@@ -2624,7 +2630,7 @@ mod block_parameters {
                     let mut source_path = binding.argument.path.clone();
                     for segment in &claim.path {
                         if let StructuralPathSegment::Case(case) = segment
-                            && case_is_excluded(binding.argument.place, &source_path, *case)
+                            && membership(binding.argument.place, &source_path, *case, false)
                         {
                             return false;
                         }
@@ -2677,6 +2683,7 @@ mod block_parameters {
         frontier: &mut CurrentOwnership,
         binding: &AbstractStructuralBinding,
         parameter: &StructuralParameterDeclaration,
+        case_is_selected: &dyn Fn(PlaceId, &[StructuralPathSegment], StructuralCaseId) -> bool,
     ) -> Result<Vec<(ClaimId, LiveClaim)>, OptimizationUnitValidationError> {
         let invalid = || OptimizationUnitValidationError::CurrentCleanupMismatch {
             machine: function.machine,
@@ -2716,17 +2723,27 @@ mod block_parameters {
                 return Err(invalid());
             }
         }
-        if match parameter.multiplicity {
-            StructuralMultiplicity::Linear => {
-                !matches!(transferred.as_slice(), [(_, claim)] if claim.path.is_empty() && claim.multiplicity == Some(StructuralMultiplicity::Linear))
-            }
-            StructuralMultiplicity::Affine => {
-                transferred.iter().any(|(_, claim)| claim.path.is_empty())
-            }
-            StructuralMultiplicity::Unrestricted => true,
-        } {
+        if transferred
+            .iter()
+            .any(|(_, claim)| claim.multiplicity != Some(StructuralMultiplicity::Linear))
+        {
             return Err(invalid());
         }
+        // Declared Linear custody need not own an intrinsic root claim. A
+        // wrapper transfers its real descendant frontier, authenticated against
+        // the selected declaration and this edge's established payload case.
+        terminal_semantics::owned_structure::validate_owned_claim_frontier(
+            &|identity| types.get(&identity).copied(),
+            parameter.structural_type,
+            &argument.path,
+            transferred.iter().map(|(_, claim)| {
+                let mut path = argument.path.clone();
+                path.extend_from_slice(&claim.path);
+                path
+            }),
+            &|path, case| case_is_selected(argument.place, path, case),
+        )
+        .map_err(|_| invalid())?;
         if !frontier.live_references.is_empty() {
             let mut remaining = frontier.live_references.clone();
             super::references::discard_subtree(
@@ -2834,6 +2851,260 @@ mod block_parameters {
                 .flat_map(|block| &block.structural_parameters),
         );
         parameters
+    }
+
+    #[cfg(test)]
+    mod projected_transfer_tests {
+        use super::*;
+        use semantic_vocabulary::{PsiSemanticId, StructuralPlaceKind};
+        use terminal_psi::{ArrayExtent, StructuralPlaceDeclaration, StructuralTypeShape};
+
+        fn id<T: PsiSemanticId>(raw: u64) -> T {
+            T::new(raw).unwrap()
+        }
+
+        struct Fixture {
+            function: PsiOptimizationFunction,
+            types: Vec<StructuralTypeDeclaration>,
+            frontier: CurrentOwnership,
+            binding: AbstractStructuralBinding,
+            parameter: StructuralParameterDeclaration,
+        }
+
+        impl Fixture {
+            fn new() -> Self {
+                let parameter = StructuralParameterDeclaration {
+                    place: id(1),
+                    position: 0,
+                    structural_type: id(1),
+                    multiplicity: StructuralMultiplicity::Affine,
+                    access: StructuralAccess::Owned,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    additional_input_qualifications: Vec::new(),
+                };
+                let function = PsiOptimizationFunction {
+                    machine: id(1),
+                    attachment: None,
+                    entry: id(1),
+                    parameters: Vec::new(),
+                    structural_parameters: vec![parameter.clone()],
+                    structural_places: vec![StructuralPlaceDeclaration {
+                        id: id(1),
+                        kind: StructuralPlaceKind::Parameter { position: 0 },
+                    }],
+                    result: abstract_operations::AbstractFunctionResult::Unit,
+                    declared_places: BTreeSet::from([id(1)]),
+                    entry_claim_declarations: Vec::new(),
+                    block_entry_claims: Vec::new(),
+                    content_entry_claims: Vec::new(),
+                    verified_contract: None,
+                    evidence_contract_lanes: Vec::new(),
+                    entry_claims: BTreeSet::new(),
+                    published_service_ceiling: Vec::new(),
+                    declared_service_reach: Vec::new(),
+                    facts: Vec::new(),
+                    blocks: Vec::new(),
+                };
+                let types = (1..=3)
+                    .map(|raw| StructuralTypeDeclaration {
+                        declaration_identity: Default::default(),
+                        id: id(raw),
+                        identity: terminal_psi::TerminalIdentityIndex(raw as u32),
+                        quotient_carrier: None,
+                        owns_linear_claim: raw == 3,
+                        multiplicity: if raw == 1 {
+                            StructuralMultiplicity::Affine
+                        } else {
+                            StructuralMultiplicity::Linear
+                        },
+                        no_code_affine_cleanup: false,
+                        descriptor_cleanup: false,
+                        nominal_cleanup: None,
+                        scalar_restriction: None,
+                        requires: Vec::new(),
+                        shape: if raw == 3 {
+                            StructuralTypeShape::Opaque
+                        } else {
+                            StructuralTypeShape::FixedArray {
+                                element: id(raw + 1),
+                                length: ArrayExtent::Literal(2),
+                            }
+                        },
+                    })
+                    .collect();
+                let frontier = CurrentOwnership {
+                    claims: (0..4)
+                        .map(|raw| {
+                            (
+                                id(raw + 1),
+                                LiveClaim {
+                                    input: Some(id(1)),
+                                    path: vec![
+                                        StructuralPathSegment::FixedIndex(raw / 2),
+                                        StructuralPathSegment::FixedIndex(raw % 2),
+                                    ],
+                                    multiplicity: Some(StructuralMultiplicity::Linear),
+                                },
+                            )
+                        })
+                        .collect(),
+                    owned_places: BTreeMap::from([(id(1), StructuralMultiplicity::Affine)]),
+                    partial_custody_paths: BTreeMap::new(),
+                    nominal_partitions: BTreeSet::new(),
+                    live_references: Vec::new(),
+                };
+                let binding = AbstractStructuralBinding {
+                    parameter: id(2),
+                    argument: terminal_psi::StructuralArgument {
+                        place: id(1),
+                        path: vec![StructuralPathSegment::FixedIndex(0)],
+                        access: StructuralAccess::Owned,
+                    },
+                };
+                Self {
+                    function,
+                    types,
+                    frontier,
+                    binding,
+                    parameter: StructuralParameterDeclaration {
+                        place: id(2),
+                        structural_type: id(2),
+                        multiplicity: StructuralMultiplicity::Linear,
+                        ..parameter
+                    },
+                }
+            }
+
+            fn consume(
+                &mut self,
+                selected: &dyn Fn(PlaceId, &[StructuralPathSegment], StructuralCaseId) -> bool,
+            ) -> Result<Vec<(ClaimId, LiveClaim)>, OptimizationUnitValidationError> {
+                let types = self.types.iter().map(|row| (row.id, row)).collect();
+                consume_projected_source(
+                    &self.function,
+                    &types,
+                    id(1),
+                    &mut self.frontier,
+                    &self.binding,
+                    &self.parameter,
+                    selected,
+                )
+            }
+        }
+
+        #[test]
+        fn declared_linear_projection_transfers_exact_descendant_claims() {
+            let mut fixture = Fixture::new();
+            let transferred = fixture.consume(&|_, _, _| false).unwrap();
+            assert_eq!(transferred.len(), 2);
+            for (index, (identity, claim)) in transferred.iter().enumerate() {
+                assert_eq!(*identity, id(index as u64 + 1));
+                assert_eq!(claim.input, Some(id(2)));
+                assert_eq!(
+                    claim.path,
+                    [StructuralPathSegment::FixedIndex(index as u64)]
+                );
+            }
+            assert_eq!(fixture.frontier.claims.len(), 2, "sibling claims stay live");
+            assert!(fixture.frontier.claims.contains_key(&id(3)));
+            assert!(fixture.frontier.claims.contains_key(&id(4)));
+            assert!(
+                fixture.consume(&|_, _, _| false).is_err(),
+                "no repeated move"
+            );
+
+            let mut missing = Fixture::new();
+            missing.frontier.claims.remove(&id(1));
+            assert!(missing.consume(&|_, _, _| false).is_err());
+            let mut fake_root = Fixture::new();
+            fake_root.frontier.claims.get_mut(&id(1)).unwrap().path =
+                fake_root.binding.argument.path.clone();
+            assert!(fake_root.consume(&|_, _, _| false).is_err());
+            let mut wrong_multiplicity = Fixture::new();
+            wrong_multiplicity
+                .frontier
+                .claims
+                .get_mut(&id(1))
+                .unwrap()
+                .multiplicity = Some(StructuralMultiplicity::Affine);
+            assert!(wrong_multiplicity.consume(&|_, _, _| false).is_err());
+            let mut missing_intrinsic = Fixture::new();
+            missing_intrinsic.types[1].owns_linear_claim = true;
+            assert!(missing_intrinsic.consume(&|_, _, _| false).is_err());
+            let mut intrinsic = Fixture::new();
+            intrinsic.types[1].owns_linear_claim = true;
+            intrinsic.frontier.claims.get_mut(&id(1)).unwrap().path =
+                intrinsic.binding.argument.path.clone();
+            intrinsic.frontier.claims.remove(&id(2));
+            let transferred = intrinsic.consume(&|_, _, _| false).unwrap();
+            assert_eq!(transferred.len(), 1);
+            assert!(transferred[0].1.path.is_empty());
+            let mut linear_source = Fixture::new();
+            linear_source.function.structural_parameters[0].multiplicity =
+                StructuralMultiplicity::Linear;
+            linear_source
+                .frontier
+                .owned_places
+                .insert(id(1), StructuralMultiplicity::Linear);
+            assert!(linear_source.consume(&|_, _, _| false).is_err());
+        }
+
+        #[test]
+        fn declared_linear_projection_requires_positive_payload_membership() {
+            let make = || {
+                let mut fixture = Fixture::new();
+                let identity = terminal_psi::TerminalIdentityIndex(10);
+                fixture.types[1].shape = StructuralTypeShape::Sum {
+                    cases: [1, 2]
+                        .map(|raw| terminal_psi::StructuralCaseDeclaration {
+                            declaration_identity: Default::default(),
+                            id: id(raw),
+                            identity: terminal_psi::TerminalIdentityIndex(raw as u32),
+                            fields: vec![terminal_psi::StructuralFieldDeclaration {
+                                declaration_identity: Default::default(),
+                                inline_carrier: None,
+                                id: id(1),
+                                identity,
+                                relevance: terminal_psi::BindingRelevance::Relevant,
+                                field_type: terminal_psi::StructuralFieldType::Structural(id(3)),
+                                storage: None,
+                            }],
+                        })
+                        .to_vec(),
+                };
+                fixture
+                    .frontier
+                    .claims
+                    .retain(|claim, _| *claim == id(1) || *claim == id(3));
+                for claim in fixture.frontier.claims.values_mut() {
+                    claim.path.truncate(1);
+                    claim.path.extend([
+                        StructuralPathSegment::Case(id(1)),
+                        StructuralPathSegment::Field(identity),
+                    ]);
+                }
+                fixture
+            };
+            assert!(
+                make().consume(&|_, _, _| false).is_err(),
+                "unknown is not selected"
+            );
+            assert!(
+                make().consume(&|_, _, case| case == id(2)).is_err(),
+                "another payload cannot substitute"
+            );
+            let mut fixture = make();
+            let expected_path = fixture.binding.argument.path.clone();
+            let transferred = fixture
+                .consume(&|place, path, case| {
+                    place == id(1) && path == expected_path && case == id(1)
+                })
+                .unwrap();
+            assert_eq!(transferred.len(), 1);
+            assert_eq!(fixture.frontier.claims.len(), 1);
+            assert!(fixture.frontier.claims.contains_key(&id(3)));
+        }
     }
 }
 mod call_accesses {
@@ -3246,7 +3517,7 @@ mod cleanup {
                 && types
                     .declaration(structural_type)
                     .is_some_and(|declaration| {
-                        declaration.copyable
+                        declaration.is_copyable()
                             && !declaration.owns_linear_claim
                             && declaration.no_code_affine_cleanup
                             && declaration.descriptor_cleanup
@@ -9125,7 +9396,7 @@ mod replay {
                     &mut outgoing,
                     &edge.structural_bindings,
                     blocks[&edge.target],
-                    |source, path, case| membership(source, path, case, false),
+                    &membership,
                 )?;
                 super::continuation::apply_edge_cleanup_actions(
                     function,
@@ -9848,7 +10119,7 @@ mod value_custody {
             }
             let root = super::structural::partial_affine_root_type(function, *place)?;
             let declaration = types.iter().find(|declaration| declaration.id == root)?;
-            if declaration.copyable
+            if declaration.is_copyable()
                 || declaration.owns_linear_claim
                 || !declaration.no_code_affine_cleanup
                 || !declaration.descriptor_cleanup
@@ -10466,7 +10737,7 @@ mod value_custody {
                     identity: TerminalIdentityIndex(raw as u32),
                     quotient_carrier: None,
                     owns_linear_claim: false,
-                    copyable: false,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                     no_code_affine_cleanup: true,
                     descriptor_cleanup: true,
                     nominal_cleanup: None,
@@ -10548,7 +10819,7 @@ mod value_custody {
             let (mut function, mut types, _) = context();
             function.structural_parameters[0].multiplicity = StructuralMultiplicity::Unrestricted;
             for declaration in &mut types {
-                declaration.copyable = true;
+                declaration.multiplicity = terminal_psi::StructuralMultiplicity::Unrestricted;
             }
             let cleanup = |function: &PsiOptimizationFunction,
                            types: &[StructuralTypeDeclaration],
@@ -10622,7 +10893,7 @@ mod value_custody {
             for changed in 0..4 {
                 let mut declarations = types.clone();
                 match changed {
-                    0 => declarations[2].copyable = false,
+                    0 => declarations[2].multiplicity = StructuralMultiplicity::Affine,
                     1 => declarations[2].owns_linear_claim = true,
                     2 => declarations[2].no_code_affine_cleanup = false,
                     _ => declarations[2].descriptor_cleanup = false,

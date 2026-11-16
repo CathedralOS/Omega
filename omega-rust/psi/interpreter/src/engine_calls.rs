@@ -2028,7 +2028,7 @@ pub(crate) mod component_contents {
                             id: StructuralTypeId::new(offset + ordinal).unwrap(),
                             identity: identities.intern(identity),
                             owns_linear_claim: false,
-                            copyable: true,
+                            multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                             no_code_affine_cleanup: true,
                             descriptor_cleanup: false,
                             nominal_cleanup: None,

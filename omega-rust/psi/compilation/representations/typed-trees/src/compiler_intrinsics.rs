@@ -915,7 +915,14 @@ mod tests {
                     arguments.clone(),
                     semantic,
                 );
-                facts.extend_from_slice(program.proof_facts.span(contract.facts).unwrap());
+                facts.extend(
+                    program
+                        .proof_facts
+                        .span(contract.facts)
+                        .unwrap()
+                        .iter()
+                        .cloned(),
+                );
             }
             let facts = program.proof_facts.insert_many(facts);
             let state_contracts = program.machine_states.get(entry).contracts;
