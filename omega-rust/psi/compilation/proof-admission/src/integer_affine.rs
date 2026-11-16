@@ -436,8 +436,7 @@ mod bound_mapping {
             [CheckedIntegerEndpointStep::QuotientAtMostDividend { .. }] => {
                 BoundRoute::QuotientAtMostDividend
             }
-            [CheckedIntegerEndpointStep::CorrelatedAddLower]
-            | [CheckedIntegerEndpointStep::CorrelatedAddUpper] => BoundRoute::CorrelatedAdd,
+            [CheckedIntegerEndpointStep::CorrelatedAdd { .. }] => BoundRoute::CorrelatedAdd,
             [CheckedIntegerEndpointStep::CorrelatedSubtractLower]
             | [CheckedIntegerEndpointStep::CorrelatedSubtractUpper]
             | [CheckedIntegerEndpointStep::CorrelatedUnsignedSubtract] => {
@@ -599,8 +598,7 @@ mod bound_mapping {
                     }
                     mapped.checked_sub(*literal)
                 }
-                CheckedIntegerEndpointStep::CorrelatedAddLower
-                | CheckedIntegerEndpointStep::CorrelatedAddUpper
+                CheckedIntegerEndpointStep::CorrelatedAdd { .. }
                 | CheckedIntegerEndpointStep::CorrelatedSubtractLower
                 | CheckedIntegerEndpointStep::CorrelatedSubtractUpper
                 | CheckedIntegerEndpointStep::CorrelatedUnsignedSubtract
@@ -828,18 +826,20 @@ mod bound_mapping {
         let ScalarTerm::ExactIntegerAdd { left, right, .. } = form.target() else {
             return Err(IntegerAffineBoundConversionError::DirectAddEvidenceMismatch);
         };
-        let lower = matches!(
-            form.endpoint_steps.as_slice(),
-            [CheckedIntegerEndpointStep::CorrelatedAddLower]
-        );
-        let expected = if lower {
-            Proposition::LessOrEqual(form.root().clone(), left.as_ref().clone())
-        } else {
-            Proposition::LessOrEqual(left.as_ref().clone(), form.root().clone())
-        };
-        if evidence != &expected {
+        let [CheckedIntegerEndpointStep::CorrelatedAdd { endpoint }] =
+            form.endpoint_steps.as_slice()
+        else {
             return Err(IntegerAffineBoundConversionError::DirectAddEvidenceMismatch);
-        }
+        };
+        let lower = match evidence {
+            Proposition::LessOrEqual(low, high) if low == form.root() && high == left.as_ref() => {
+                true
+            }
+            Proposition::LessOrEqual(low, high) if high == form.root() && low == left.as_ref() => {
+                false
+            }
+            _ => return Err(IntegerAffineBoundConversionError::DirectAddEvidenceMismatch),
+        };
         let sum = directed_op_term(
             form,
             left,
@@ -847,7 +847,13 @@ mod bound_mapping {
             IntegerAffineBoundConversionError::DirectAddEvidenceMismatch,
             |left, right| IntegerMathTerm::Add(Box::new(left), Box::new(right)),
         )?;
-        carrier_endpoint_image(form, sum, lower)
+        let endpoint = direct_math_leaf(endpoint, form.integer_type())
+            .ok_or(IntegerAffineBoundConversionError::DirectAddEvidenceMismatch)?;
+        Ok(if lower {
+            Proposition::IntegerMathLessOrEqual(endpoint, sum)
+        } else {
+            Proposition::IntegerMathLessOrEqual(sum, endpoint)
+        })
     }
 
     fn map_correlated_subtract_bound(
@@ -2345,8 +2351,7 @@ mod truth_bounds {
                 }
                 CheckedIntegerEndpointStep::WrappingAdd { .. }
                 | CheckedIntegerEndpointStep::WrappingAddBackward { .. }
-                | CheckedIntegerEndpointStep::CorrelatedAddLower
-                | CheckedIntegerEndpointStep::CorrelatedAddUpper
+                | CheckedIntegerEndpointStep::CorrelatedAdd { .. }
                 | CheckedIntegerEndpointStep::CorrelatedSubtractLower
                 | CheckedIntegerEndpointStep::CorrelatedSubtractUpper
                 | CheckedIntegerEndpointStep::CorrelatedUnsignedSubtract
@@ -2391,8 +2396,7 @@ mod witness_checking {
             witness: &IntegerAffineWitness,
             outer: TermMatcher,
             inner: TermMatcher,
-            minimum_step: CheckedIntegerEndpointStep,
-            maximum_step: CheckedIntegerEndpointStep,
+            endpoint_step: impl FnOnce(ScalarTerm, IntegerType) -> Option<CheckedIntegerEndpointStep>,
         ) -> Result<Option<CheckedIntegerAffineForm>, IntegerAffineWitnessError> {
             let Some((scalar_type, left, right)) = outer(&witness.target) else {
                 return Ok(None);
@@ -2431,21 +2435,21 @@ mod witness_checking {
             if inner_type != scalar_type || inner_right != right {
                 return Ok(None);
             }
-            let endpoint_value = match (endpoint.integer_value(), landing) {
-                (Some((actual, value)), None | Some((_, None))) => {
-                    (actual == *scalar_type).then_some(value)
+            let endpoint = if let Some((index, Some(landing_index))) = landing {
+                if endpoint.integer_value().is_some() {
+                    return Ok(None);
                 }
-                (None, Some((index, Some(landing_index)))) => {
-                    let landed = landed_integer(context, semantic_axioms, index, landing_index)?;
-                    (landed.term == *endpoint && landed.integer_type == *scalar_type)
-                        .then_some(landed.value)
+                let landed = landed_integer(context, semantic_axioms, index, landing_index)?;
+                if landed.term != *endpoint || landed.integer_type != *scalar_type {
+                    return Ok(None);
                 }
-                _ => return Ok(None),
+                ScalarTerm::integer(*scalar_type, landed.value)
+                    .map_err(|_| IntegerAffineWitnessError::TargetTypeMismatch)?
+            } else {
+                endpoint.clone()
             };
-            let endpoint_step = match endpoint_value {
-                Some(value) if Some(value) == scalar_type.minimum_value() => minimum_step,
-                Some(value) if Some(value) == scalar_type.maximum_value() => maximum_step,
-                _ => return Ok(None),
+            let Some(endpoint_step) = endpoint_step(endpoint, *scalar_type) else {
+                return Ok(None);
             };
             Ok(Some(CheckedIntegerAffineForm {
                 root: witness.root.clone(),
@@ -2468,9 +2472,30 @@ mod witness_checking {
                 witness,
                 exact_integer_add,
                 exact_integer_subtract,
-                CheckedIntegerEndpointStep::CorrelatedAddLower,
-                CheckedIntegerEndpointStep::CorrelatedAddUpper,
+                |endpoint, integer| {
+                    direct_math_leaf(&endpoint, integer)?;
+                    Some(CheckedIntegerEndpointStep::CorrelatedAdd { endpoint })
+                },
             )
+        }
+
+        fn carrier_step(
+            endpoint: ScalarTerm,
+            integer: IntegerType,
+            minimum: CheckedIntegerEndpointStep,
+            maximum: CheckedIntegerEndpointStep,
+        ) -> Option<CheckedIntegerEndpointStep> {
+            let (actual, value) = endpoint.integer_value()?;
+            if actual != integer {
+                return None;
+            }
+            if Some(value) == integer.minimum_value() {
+                Some(minimum)
+            } else if Some(value) == integer.maximum_value() {
+                Some(maximum)
+            } else {
+                None
+            }
         }
 
         pub(super) fn check_correlated_subtract_witness(
@@ -2484,8 +2509,14 @@ mod witness_checking {
                 witness,
                 exact_integer_subtract,
                 exact_integer_add,
-                CheckedIntegerEndpointStep::CorrelatedSubtractLower,
-                CheckedIntegerEndpointStep::CorrelatedSubtractUpper,
+                |endpoint, integer| {
+                    carrier_step(
+                        endpoint,
+                        integer,
+                        CheckedIntegerEndpointStep::CorrelatedSubtractLower,
+                        CheckedIntegerEndpointStep::CorrelatedSubtractUpper,
+                    )
+                },
             )
         }
 
@@ -2500,8 +2531,14 @@ mod witness_checking {
                 witness,
                 exact_integer_multiply,
                 exact_integer_divide,
-                CheckedIntegerEndpointStep::CorrelatedMultiplyMinimum,
-                CheckedIntegerEndpointStep::CorrelatedMultiplyMaximum,
+                |endpoint, integer| {
+                    carrier_step(
+                        endpoint,
+                        integer,
+                        CheckedIntegerEndpointStep::CorrelatedMultiplyMinimum,
+                        CheckedIntegerEndpointStep::CorrelatedMultiplyMaximum,
+                    )
+                },
             )
         }
     }
@@ -3055,8 +3092,9 @@ mod witness_checking {
             operand: ScalarTerm,
             upper: i128,
         },
-        CorrelatedAddLower,
-        CorrelatedAddUpper,
+        CorrelatedAdd {
+            endpoint: ScalarTerm,
+        },
         CorrelatedSubtractLower,
         CorrelatedSubtractUpper,
         CorrelatedUnsignedSubtract,
@@ -3750,6 +3788,29 @@ mod tests {
                     )
                     .unwrap(),
                 );
+                let comparison = Proposition::LessOrEqual(left.clone(), correlated.clone());
+                let claimed = map_integer_affine_bound(&landed, &comparison).unwrap();
+                let symbolic_witness = IntegerAffineWitness {
+                    literal_axioms: vec![None],
+                    ..landed_witness.clone()
+                };
+                let symbolic = check_integer_affine_witness(
+                    &context,
+                    &[landing.clone(), complement.clone()],
+                    &symbolic_witness,
+                )
+                .expect("the exact complement also retains its symbolic endpoint");
+                let Proposition::IntegerMathLessOrEqual(sum, _) = &claimed else {
+                    unreachable!();
+                };
+                assert_eq!(
+                    map_integer_affine_bound(&symbolic, &comparison),
+                    Ok(Proposition::IntegerMathLessOrEqual(
+                        sum.clone(),
+                        math_value!(integer_type => ValueId::new(5).unwrap()),
+                    )),
+                );
+
                 for (mutation, (axioms, witness)) in [
                     (
                         vec![landing.clone(), complement.clone()],
@@ -3792,10 +3853,14 @@ mod tests {
                 .into_iter()
                 .enumerate()
                 {
-                    let result = check_integer_affine_witness(&context, &axioms, &witness);
                     assert!(
-                        result.is_err(),
-                        "reordered, omitted, or stale endpoint landing custody rejects: {mutation}: {result:?}",
+                        check_integer_affine_witness(&context, &axioms, &witness)
+                            .and_then(|form| {
+                                check_integer_affine_bound_conversion(&form, &comparison, &claimed)
+                                    .map_err(|_| IntegerAffineWitnessError::TargetMismatch)
+                            })
+                            .is_err(),
+                        "the original literal conclusion requires its exact landing: {mutation}",
                     );
                 }
             }
