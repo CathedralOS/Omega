@@ -163,12 +163,8 @@ fn check_published_plan(
 
     let environment =
         register_environment::baseline_target_register_environment(target.target()).unwrap();
-    let installations = BoundInstallations {
-        interrupts: target.lowering_facts().installed_interrupts(),
-        entry_execution: target.installed_entry_execution(),
-        stack_requirements: target.installed_stack_requirements(),
-    };
-    let selected = select_instructions_for_plan(published, installations, &environment)
+    let installations = crate::pipeline::bound_installations(target);
+    let selected = select_instructions_for_plan(published, &installations, &environment)
         .expect("selection needs only the plan, its installations and the registers");
     assert!(
         selected
@@ -278,19 +274,33 @@ fn check_published_plan(
     // Installations admitted for another program cannot be bound to this plan.
     let mut other_program = published.plan().psi;
     other_program.program_fingerprint = terminal_psi::SemanticFingerprint::from_bytes([9; 32]);
-    let foreign = terminal_psi_to_abstract_operations::provider_admission::AdmittedInstalledInterruptCohort::empty(other_program);
-    let error = select_instructions_for_plan(
-        published,
-        BoundInstallations {
-            interrupts: &foreign,
-            ..installations
-        },
-        &environment,
-    )
-    .expect_err("a foreign interrupt cohort is refused");
+    let foreign_cohort = terminal_psi_to_abstract_operations::provider_admission::AdmittedInstalledInterruptCohort::empty(other_program);
+    let foreign = terminal_psi_to_abstract_operations::provider_admission::bind_installations(
+        &foreign_cohort,
+        None,
+        &[],
+    );
+    let error = select_instructions_for_plan(published, &foreign, &environment)
+        .expect_err("a foreign interrupt cohort is refused");
     assert!(matches!(
         error,
         OptimizedSelectionPipelineError::Binding(InstallationBindingError::InterruptCohortProgram)
+    ));
+
+    // An installed entry admitted for another machine cannot be bound either.
+    let other_entry = BoundInstallations {
+        installed_entry: Some(bound_installations::BoundInstalledEntry {
+            psi: published.plan().psi,
+            target: published.plan().target,
+            machine: MachineId::new(entry.get() + 1).unwrap(),
+        }),
+        ..installations.clone()
+    };
+    let error = select_instructions_for_plan(published, &other_entry, &environment)
+        .expect_err("an installed entry for another machine is refused");
+    assert!(matches!(
+        error,
+        OptimizedSelectionPipelineError::Binding(InstallationBindingError::EntryExecution)
     ));
 }
 

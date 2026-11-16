@@ -144,7 +144,7 @@ pub(crate) mod input {
     #[derive(Debug)]
     pub struct SelectionInput<'input> {
         pub plan: &'input PreparedExecutionPlan,
-        pub installations: BoundInstallations<'input>,
+        pub installations: &'input BoundInstallations,
         pub optimization: OptimizationIdentityBundleIdentity,
         pub projection: OptimizedAbstractPlanProjectionIdentity,
         pub manifest: PrePhysicalOptimizationManifestIdentity,
@@ -152,17 +152,11 @@ pub(crate) mod input {
         pub budget_per_pass: OptimizationWorkBudget,
     }
 
-    /// Installation authority the driver resolved after preparation: the
-    /// admitted interrupt cohort, the installed entry, and the stack each
-    /// installed handler needs. It grants permission and deployment
-    /// resources; the plan alone says what the program does.
-    #[derive(Debug, Clone, Copy)]
-    pub struct BoundInstallations<'input> {
-        pub interrupts: &'input provider_admission::AdmittedInstalledInterruptCohort,
-        pub entry_execution: Option<&'input provider_admission::AdmittedInstalledEntryExecution>,
-        pub stack_requirements:
-            &'input [installation_evidence::InstalledInterruptStackRequirement],
-    }
+    /// Installation authority the driver projected from admission after
+    /// preparation: the interrupt installations, the installed entry, and
+    /// the stack each installed handler needs. It grants permission and
+    /// deployment resources; the plan alone says what the program does.
+    pub use bound_installations::BoundInstallations;
 
     /// Why a set of installations cannot be used with a plan.
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -176,7 +170,7 @@ pub(crate) mod input {
     #[derive(Debug, Clone, Copy)]
     pub(crate) struct BoundExecutionPlan<'input> {
         prepared: &'input PreparedExecutionPlan,
-        installations: BoundInstallations<'input>,
+        installations: &'input BoundInstallations,
     }
 
     impl<'input> BoundExecutionPlan<'input> {
@@ -184,17 +178,16 @@ pub(crate) mod input {
         /// admitted for. Refuse any that name another plan.
         pub(crate) fn bind(
             prepared: &'input PreparedExecutionPlan,
-            installations: BoundInstallations<'input>,
+            installations: &'input BoundInstallations,
         ) -> Result<Self, InstallationBindingError> {
             let plan = prepared.plan();
-            if installations.interrupts.psi() != plan.psi {
+            if installations.psi != plan.psi {
                 return Err(InstallationBindingError::InterruptCohortProgram);
             }
-            if let Some(execution) = installations.entry_execution {
-                let entry = execution.entry().entry();
-                if entry.psi() != plan.psi
-                    || entry.target() != plan.target
-                    || entry.machine() != plan.entry
+            if let Some(entry) = &installations.installed_entry {
+                if entry.psi != plan.psi
+                    || entry.target != plan.target
+                    || entry.machine != plan.entry
                 {
                     return Err(InstallationBindingError::EntryExecution);
                 }
@@ -220,22 +213,8 @@ pub(crate) mod input {
             self.prepared.receipt()
         }
 
-        pub(crate) fn installed_interrupts(
-            &self,
-        ) -> &'input provider_admission::AdmittedInstalledInterruptCohort {
-            self.installations.interrupts
-        }
-
-        pub(crate) fn installed_entry_execution(
-            &self,
-        ) -> Option<&'input provider_admission::AdmittedInstalledEntryExecution> {
-            self.installations.entry_execution
-        }
-
-        pub(crate) fn installed_stack_requirements(
-            &self,
-        ) -> &'input [installation_evidence::InstalledInterruptStackRequirement] {
-            self.installations.stack_requirements
+        pub(crate) fn installations(&self) -> &'input BoundInstallations {
+            self.installations
         }
     }
 }
@@ -354,7 +333,7 @@ use register_environment::ValidatedTargetRegisterEnvironment;
 /// source module, the abstract program and the optimization unit out of reach.
 pub fn select_instructions_for_plan(
     plan: &legalized_operations::PreparedExecutionPlan,
-    installations: BoundInstallations<'_>,
+    installations: &BoundInstallations,
     register_environment: &ValidatedTargetRegisterEnvironment,
 ) -> Result<crate::ValidatedSelectedInstructions, OptimizedSelectionPipelineError> {
     let bound = BoundExecutionPlan::bind(plan, installations)

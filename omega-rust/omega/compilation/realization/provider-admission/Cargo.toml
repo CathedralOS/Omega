@@ -22,6 +22,7 @@ symbols = { path = "../../../../psi/foundation/symbols" }
 diagnostics = { path = "../../../../psi/foundation/diagnostics" }
 abstract-operations = { path = "../../representations/abstract-operations" }
 installation-evidence = { path = "../../backend/runtime/installation-evidence" }
+bound-installations = { path = "../../backend/runtime/bound-installations" }
 semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
 terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }
 terminal-codec = { path = "../../../../psi/compilation/representations/terminal-psi/codec" }
