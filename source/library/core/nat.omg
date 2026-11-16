@@ -17,6 +17,9 @@
 
 machine Nat::Descending(value: u64) -> u64;
 
+// The distance is zero at or beyond the limit.
+machine Nat::BoundedDistance(lower: u64, upper: u64) -> u64;
+
 // The core algebraic conformance surface: Nat EARNS ring canonicalization
 // (rearrange-mode) by conforming `CommutativeSemiring` machine-by-machine
 // below -- ops via `satisfies CommutativeSemiring<Nat>::<op>`, laws via the lemma

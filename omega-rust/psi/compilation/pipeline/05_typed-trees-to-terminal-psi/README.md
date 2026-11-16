@@ -525,14 +525,15 @@ same through two or more machines.
 forever and owes no rank". [Call cycles as loops](#call-cycles-as-loops)
 gives the lowered form.
 
-A loop can name its decreasing measure with `terminates by remaining` or
-`terminates by bytes -> Slice::Length`. The reader uses the resolved typed
-expressions and the selected view declaration, and checks an explicit
-`Nat::Descending` against its sealed catalog header. Short forms use the
-carrier's canonical default; a user-written declaration that looks like a
-catalog view grants no ranking rules. Measures may use scalar formals,
-integer constants, exact subtraction and the length of a borrowed byte-view
-formal. In a ranked group of mutually recursive machines, every member keeps
+A loop can name its decreasing measure with `terminates by remaining`,
+`terminates by bytes -> Slice::Length` or `terminates by (cursor, limit) ->
+Nat::BoundedDistance`. The reader uses the resolved typed expressions and
+checks explicit natural views against their sealed catalog headers. Short
+forms use the carrier's canonical default. A user-written lookalike grants
+no ranking rules. Measures may use scalar formals, integer constants,
+exact subtraction and the length of a borrowed byte-view formal. Bounded
+distance uses ordinary unsigned saturating subtraction to keep zero at
+and beyond the limit. In a ranked group of mutually recursive machines, every member keeps
 a private measure. A recursive call group may declare
 its decreasing measure in one machine and pass the values it needs through
 helpers. The compiler follows each call's actual argument bindings to express
@@ -558,7 +559,7 @@ name until the slice that serves it:
 | a call of a member whose result the caller goes on to use, `1 + f(n)` | `call recursion outside a terminal position` |
 | a view with no admitted resolved selection, including an authored lookalike | `contract ranking view has no admitted resolved selection`, `contract selected ranking view is not an admitted compiler ranking declaration` |
 | view arguments or a rank range, `in lower..=upper` | `contract ranking view arguments and bounded ranges` |
-| several subjects under the served catalog views | `contract selected ranking view requires exactly one subject` |
+| several subjects under a single-subject view | `contract selected ranking view requires exactly one subject` |
 | a signed subject under `Nat::Descending` | `contract natural ranking needs an unsigned integer subject` |
 | an address or width-generic rank carrier | `contract ranking needs a closed finite integer carrier` |
 | a length measure whose base is not a formal | `contract length ranking subject is not a resolved formal` |
