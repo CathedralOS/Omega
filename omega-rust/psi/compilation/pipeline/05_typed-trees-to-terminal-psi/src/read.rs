@@ -200,10 +200,10 @@ pub(crate) struct Program<'t> {
     pub applications: Vec<MachineId>,
     /// The type arguments each of those was read at.
     applied: Vec<(MachineId, Vec<ValueType>)>,
-    /// The types a finite family's alternative fixes the entry's type
-    /// parameters to, in declaration order, when this program is that
-    /// alternative's check (`Reading::Alternative`).
-    pub alternative: Option<Vec<ValueType>>,
+    /// The source types a finite alternative fixes the entry's parameters to.
+    /// Materialize them under this reader's numbering before checking its body;
+    /// record IDs from the reader that discovered the family cannot cross here.
+    pub alternative: Option<Vec<typed_trees::types::TypeReferenceHandle>>,
     /// The locals of the body being read whose value is decided statically
     /// by closed type equations (`static_truth`), by the local's symbol.
     static_truths: Vec<(SymbolHandle, bool)>,

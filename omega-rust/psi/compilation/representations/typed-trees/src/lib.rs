@@ -1646,6 +1646,121 @@ pub fn canonical_const_declaration_value(
     ))
 }
 
+/// Read a represented static value without evaluating source or proving its
+/// carrier obligations. Anonymous integer landing remains the caller's work.
+pub fn canonical_const_argument_value(
+    program: &TypedTrees,
+    reference: types::TypeReferenceHandle,
+) -> Option<language_semantics::const_value::CanonicalConstValue> {
+    use language_semantics::const_value::{CanonicalConstValue, boolean_literal_spelling};
+    if !program
+        .type_reference_table
+        .contains_type_reference(reference)
+    {
+        return None;
+    }
+    let value = match program.type_reference_table.type_reference(reference) {
+        types::TypeReferenceNode::Named { symbol, .. } if symbol.is_valid() => {
+            if !program.symbols.symbols().nodes().is_valid(*symbol) {
+                return None;
+            }
+            canonical_const_declaration_value(program, *symbol)?
+        }
+        types::TypeReferenceNode::Named { name, .. } => {
+            CanonicalConstValue::from_atom(name.as_str()).or_else(|| {
+                boolean_literal_spelling(name.as_str()).map(CanonicalConstValue::boolean)
+            })?
+        }
+        types::TypeReferenceNode::ConstExpression(expression) => {
+            let expression::ExpressionNode::Boolean(value) =
+                program.expression_table.expression(*expression)
+            else {
+                return None;
+            };
+            CanonicalConstValue::boolean(*value)
+        }
+        _ => return None,
+    };
+    value.decode_encoding()?;
+    Some(value)
+}
+
+/// Whether this closed carrier has the copyable, address-free structural
+/// shape represented by canonical index values. This proves no value predicate.
+pub fn canonical_const_carrier_is_supported(
+    program: &TypedTrees,
+    reference: types::TypeReferenceHandle,
+) -> bool {
+    use data::DataMember;
+    use types::{FixedArrayLength, TypeReferenceNode};
+    let mut pending = vec![(reference, false)];
+    let mut active = Vec::new();
+    while let Some((reference, exiting)) = pending.pop() {
+        if exiting {
+            active.pop();
+            continue;
+        }
+        if !program
+            .type_reference_table
+            .contains_type_reference(reference)
+            || active.contains(&reference)
+        {
+            return false;
+        }
+        let node = program.type_reference_table.type_reference(reference);
+        if let TypeReferenceNode::Named { symbol, .. } = node
+            && program.symbols.symbols().nodes().is_valid(*symbol)
+            && matches!(
+                program.symbols.builtin_type_atom(*symbol),
+                Some(symbols::BuiltinTypeAtom::Integer(_) | symbols::BuiltinTypeAtom::Bool)
+            )
+        {
+            continue;
+        }
+        active.push(reference);
+        pending.push((reference, true));
+        if let TypeReferenceNode::FixedArray {
+            element_type,
+            length: FixedArrayLength::Literal(_),
+        } = node
+        {
+            pending.push((*element_type, false));
+            continue;
+        }
+        if !matches!(
+            node,
+            TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
+        ) {
+            return false;
+        }
+        let Some(data) = program.closed_data_definition(reference) else {
+            return false;
+        };
+        if !data.lifetime_parameters.is_empty()
+            || data.supply_mode != language_semantics::DataSupplyMode::CheckedShape
+            || data.properties.carry.is_some()
+            || data.cleanup_selection.is_some()
+            || data.quotient.is_some()
+            || program.stored_value_multiplicity(reference)
+                != language_semantics::Multiplicity::Unrestricted
+        {
+            return false;
+        }
+        for member in program.data_members(data) {
+            match member {
+                DataMember::Field(field) => pending.push((field.type_reference, false)),
+                DataMember::Variant(variant) => pending.extend(
+                    program
+                        .data_payload_fields(variant)
+                        .iter()
+                        .map(|field| (field.type_reference, false)),
+                ),
+            }
+        }
+    }
+    true
+}
+
 pub fn integer_const_declaration_extent(
     program: &TypedTrees,
     symbol: symbols::SymbolHandle,

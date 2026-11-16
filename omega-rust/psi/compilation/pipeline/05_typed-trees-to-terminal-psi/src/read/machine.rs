@@ -367,9 +367,19 @@ impl<'t> Program<'t> {
             }
         }
         let id = self.next_identity()?;
-        let reading = match (&self.alternative, self.symbols.is_empty()) {
-            (Some(arguments), true) => Reading::Alternative(arguments.clone()),
-            _ if self.rigid && self.symbols.is_empty() => Reading::GenericEntry,
+        let alternative = if self.symbols.is_empty() {
+            self.alternative.clone()
+        } else {
+            None
+        };
+        let reading = match alternative {
+            Some(arguments) => Reading::Alternative(
+                arguments
+                    .into_iter()
+                    .map(|argument| self.value_type(id, argument))
+                    .collect::<Checked<_>>()?,
+            ),
+            None if self.rigid && self.symbols.is_empty() => Reading::GenericEntry,
             _ => Reading::Closed,
         };
         self.read_machine(id, symbol, reading)?;
