@@ -206,7 +206,8 @@ machine build_entry() {
                 change(contract);
             }
         }
-        let refusal = crate::formation::module(&module, &[])
+        let mut activity = crate::ProofSearchActivity::default();
+        let refusal = crate::formation::module(&module, &[], &mut activity)
             .expect_err("a byte predicate cannot observe the helper's genuine u32 input");
         assert!(
             refusal.detail.contains("byte predicate"),
