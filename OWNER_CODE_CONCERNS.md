@@ -209,13 +209,6 @@ framework or a list of unimplemented features.
 - Cost: The coverage verdict has nothing behind it. Only an arm whose fields are all binders or `as _` should close its case.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/patterns.md
 
-### Omega-written typing re-scans integer literals from source bytes
-- Category: Re-deriving
-- Where: [literal_value](source/psi/pipeline/03_symbol-resolved-trees-to-typed-trees/literals.omg#L15), [suffix_carrier](source/psi/pipeline/03_symbol-resolved-trees-to-typed-trees/literals.omg#L180), [lexer](source/psi/pipeline/00_source_files_to_tokens.omg#L944), [token kind](source/psi/representations/tokens.omg#L109)
-- Saw: AGENTS.md says stages consume their declared input representation and must not bypass the pipeline with "source re-analysis". The lexer already records each integer literal's base, digit run and suffix presence in `TokenKind::Integer`; stage 03's `literal_value` reopens the source bytes at the span, detects the base again, re-scans digits and separators, and matches the suffix against eight spellings.
-- Cost: Two scanners must agree on literal grammar, so a change to one (such as the spec's `u13` suffixes) can split them silently. Decode value and carrier once in the lexer or parser and carry them forward.
-- Reported: 2026-11-16, Claude Code, while auditing code against omega-rust/pipeline.md
-
 ### The compiler has no `InternalFailure` outcome, so a defect it detects in itself exits as "source rejected"
 - Category: A verdict with nothing behind it
 - Where: [outcome enum](omega-rust/omega/compilation/products/src/compile_outcomes.rs#L109), [non-diagnostic errors become Reject](omega-rust/omega/build-system/orchestration/src/lib.rs#L233), [validator failure called a compiler defect](omega-rust/omega/build-system/orchestration/src/lib.rs#L215), [exit status](omega-rust/omega/application/src/commands/compile.rs#L244), [reserved-codes comment](omega-rust/omega/application/src/arguments/mod.rs#L33)
@@ -320,3 +313,10 @@ framework or a list of unimplemented features.
 - Saw: Replacing symbols on a shared typed tree can copy side records, normalized identities and owned containers even with no bodies selected. The [call and machine record repair](https://github.com/CathedralOS/Omega/pull/3747) measured empty activation and two nonempty batches on both Windows x86-64 routes. Empty activation requested 2,182,456 bytes in 12,456 allocations and cloned 36 arenas per route on fixed `570d707` with the repair and observer (opt-level 1). See the [data-child repair](https://github.com/CathedralOS/Omega/pull/3720) for the earlier baseline.
 - Cost: Share immutable storage where measurements still show copies. Limit writes to changed records or new batches. Preserve source application preparation, projection, authority checks, and signature and inferred-summary dependencies. Re-measure empty activation and nonempty completion on both [scalar and borrowed-root workloads](wiki/drafts/measurements/selected_body_copies.md#workloads-and-boundary), counting copied storage and new output separately. See the [body ownership design](wiki/drafts/designs/compiler_work_ownership.md#representation-and-execution-contract).
 - Reported: 2026-11-15, Codex, while measuring continuation construction and body completion.
+
+### Omega-written resolution compares integer type arguments by spelling
+- Category: Re-deriving
+- Where: [same-form literal rows](source/psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/resolver.omg#L2239), [same head](source/psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/domains.omg#L342)
+- Saw: both compare two `Literal` type rows (`[u8; 4]`, `Buffer<u8, 4>`) with `spans_equal` on their source bytes, so `4` and `0x4` differ there, while typing interns the same rows as one `StaticInteger` by decoded value. Each `Literal` row now names its lexer-decoded value in `SyntaxTrees::integer_literals`.
+- Cost: resolution and typing can disagree on whether two types are the same. Compare the decoded rows' values (and reject an invalid literal) instead of the spelling.
+- Reported: 2026-11-16, Claude Code, while moving integer literal decoding into the lexer

@@ -47,6 +47,7 @@ requires
     member_has_identity: bool;
     member_identity_start: u64 in Trapping;
     member_identity_end: u64 in Trapping;
+    member_identity_literal: u64 in Trapping;
     payload_field_start: u64 in Trapping;
     case_first_payload_field: u64 in Trapping;
     property_multiplicity: DataMultiplicity;
@@ -61,6 +62,7 @@ requires
     identity_present: bool;
     identity_start: u64 in Trapping;
     identity_end: u64 in Trapping;
+    identity_literal: u64 in Trapping;
     type_result: u64 in Trapping;
     type_end: u64 in Trapping;
     // Type stacks: open type constructors and the static arguments staged
