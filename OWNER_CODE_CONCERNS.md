@@ -75,6 +75,13 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Borrowed field guards lose their reaching value at a state call
+- Category: re-deriving
+- Where: [scalar observation](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places.rs#L5360), [tick_marquee](samples/cli/rendering/tick_marquee/main.omg), [bitset](samples/cli/collections/bitset/main.omg)
+- Saw: In the marquee, `draw` stores the position, tests `main.pos < 12` and passes the same mutable record to `put`. Giving `put` that exact entry contract reaches `the clause's observation has no reaching value identity`. A pure record program with the same store, guard and nested state call gives the same refusal. The bitset insertion reaches it after supplying its checked word-index guard as the callee contract.
+- Cost: The caller's existing field guard cannot establish the same field observation at the receiving state. Preserve the exact projected contents and loan across the checked call. Keep sibling writes independent and refuse a bound after a write overlapping its field.
+- Reported: 2026-11-15, Codex, while restoring the paced marquee and checking the bitset policy witness.
+
 
 ### Completing selected bodies copies the retained typed program
 - Category: re-deriving
