@@ -242,6 +242,30 @@ impl CanonicalConstValue {
         ))
     }
 
+    /// Scalar application arguments retain their checked carrier and value;
+    /// diagnostic display text does not supply either.
+    pub fn is_scalar(&self) -> bool {
+        matches!(
+            self.decode_encoding(),
+            Some(
+                DecodedCanonicalConstValue::Integer { .. } | DecodedCanonicalConstValue::Boolean(_)
+            )
+        )
+    }
+
+    pub fn scalar_index_identity(&self) -> Option<String> {
+        use crate::type_identity::{encoding::atom, vocabulary::IndexForm};
+        match self.decode_encoding()? {
+            DecodedCanonicalConstValue::Integer { value, .. } => {
+                Some(atom(IndexForm::Integer, &value.to_string()))
+            }
+            DecodedCanonicalConstValue::Boolean(value) => {
+                Some(atom(IndexForm::Boolean, &value.to_string()))
+            }
+            _ => None,
+        }
+    }
+
     pub fn from_decoded(
         value: &DecodedCanonicalConstValue,
         display: impl Into<String>,

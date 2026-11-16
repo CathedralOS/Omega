@@ -26,6 +26,7 @@ fn member(value: u32) -> Path {
 
 fn field(id: u32, field_type: StructuralFieldType) -> StructuralFieldDeclaration {
     StructuralFieldDeclaration {
+        declaration_identity: Default::default(),
         inline_carrier: None,
         id: field_id(id),
         identity: TerminalIdentityIndex(id),
@@ -37,6 +38,7 @@ fn field(id: u32, field_type: StructuralFieldType) -> StructuralFieldDeclaration
 
 fn record(id: u32, fields: Vec<StructuralFieldDeclaration>) -> StructuralTypeDeclaration {
     StructuralTypeDeclaration {
+        declaration_identity: Default::default(),
         requires: Vec::new(),
         quotient_carrier: None,
         id: type_id(id),

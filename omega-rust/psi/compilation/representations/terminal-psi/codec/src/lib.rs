@@ -179,8 +179,9 @@ pub use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity};
 
 pub use sections::semantic_module::{
     decode_canonical_proposition, decode_crash_route_buckets, decode_module,
-    encode_crash_route_buckets, encode_module, encode_structural_type_declaration,
-    module_decode_count, semantic_fingerprint, terminal_psi_identity,
+    encode_crash_route_buckets, encode_module, encode_structural_domain_declaration,
+    encode_structural_type_declaration, module_decode_count, semantic_fingerprint,
+    terminal_psi_identity,
 };
 
 pub use sections::semantic_module::module_wire::access_lifecycle_wire::{

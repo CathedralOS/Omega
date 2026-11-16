@@ -4242,14 +4242,17 @@ pub(crate) mod replay {
                     terminal_psi::StructuralTypeShape::Sum {
                         cases: vec![
                             terminal_psi::StructuralCaseDeclaration {
+                                declaration_identity: Default::default(),
                                 id: semantic_vocabulary::StructuralCaseId::new(1).unwrap(),
                                 identity: terminal_psi::TerminalIdentityIndex(2),
                                 fields: vec![],
                             },
                             terminal_psi::StructuralCaseDeclaration {
+                                declaration_identity: Default::default(),
                                 id: semantic_vocabulary::StructuralCaseId::new(2).unwrap(),
                                 identity: terminal_psi::TerminalIdentityIndex(3),
                                 fields: vec![terminal_psi::StructuralFieldDeclaration {
+                                    declaration_identity: Default::default(),
                                     inline_carrier: None,
                                     storage: None,
                                     id: semantic_vocabulary::StructuralFieldId::new(1).unwrap(),
@@ -4988,6 +4991,7 @@ pub(crate) mod replay {
                                 },
                             ),
                             fields: vec![StructuralFieldDeclaration {
+                                declaration_identity: Default::default(),
                                 inline_carrier: None,
                                 storage: Some(semantic_vocabulary::AuthoredFieldStorage::Scalar {
                                     byte_offset: 0,
@@ -5056,6 +5060,7 @@ pub(crate) mod replay {
                                     },
                                 ),
                                 fields: vec![StructuralFieldDeclaration {
+                                    declaration_identity: Default::default(),
                                     id: StructuralFieldId::new(1).unwrap(),
                                     identity: member,
                                     inline_carrier: None,
@@ -5219,6 +5224,7 @@ pub(crate) mod replay {
                     let present = StructuralCaseId::new(21).unwrap();
                     let absent = StructuralCaseId::new(22).unwrap();
                     let field = |raw, identity: &str, field_type| StructuralFieldDeclaration {
+                        declaration_identity: Default::default(),
                         inline_carrier: None,
                         storage: None,
                         id: StructuralFieldId::new(raw).unwrap(),
@@ -5237,6 +5243,7 @@ pub(crate) mod replay {
                     for (mixed, stride, payload_offset) in [(false, 16, 8), (true, 24, 16)] {
                         let cases = vec![
                             StructuralCaseDeclaration {
+                                declaration_identity: Default::default(),
                                 id: present,
                                 identity: terminal_psi::TerminalIdentityIndex(1),
                                 fields: vec![field(
@@ -5246,6 +5253,7 @@ pub(crate) mod replay {
                                 )],
                             },
                             StructuralCaseDeclaration {
+                                declaration_identity: Default::default(),
                                 id: absent,
                                 identity: terminal_psi::TerminalIdentityIndex(2),
                                 fields: Vec::new(),
@@ -5765,6 +5773,7 @@ pub(crate) mod test_support {
         shape: terminal_psi::StructuralTypeShape,
     ) -> terminal_psi::StructuralTypeDeclaration {
         terminal_psi::StructuralTypeDeclaration {
+            declaration_identity: Default::default(),
             requires: Vec::new(),
             quotient_carrier: None,
             owns_linear_claim: false,

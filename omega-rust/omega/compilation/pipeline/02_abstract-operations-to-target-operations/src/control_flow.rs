@@ -2062,6 +2062,7 @@ mod terminator {
             let kind = ExternalCompletionKind::ProcessExit;
             let completion = BoundaryCompletion::External(kind);
             let types = [empty, inhabited].map(|id| StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
                 id,
                 identity: terminal_psi::TerminalIdentityIndex::ABSENT,
                 quotient_carrier: None,

@@ -278,6 +278,7 @@ mod tests {
 
     fn types() -> [StructuralTypeDeclaration; 2] {
         [true, false].map(|empty| StructuralTypeDeclaration {
+            declaration_identity: Default::default(),
             id: id(if empty { 1 } else { 2 }),
             identity: TerminalIdentityIndex::ABSENT,
             quotient_carrier: None,

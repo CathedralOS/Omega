@@ -53,11 +53,11 @@ impl Program<'_> {
         use semantic_vocabulary::{IntegerValue, ScalarType};
         use symbols::SymbolKind;
         use typed_trees::expression::StaticMachineArgument;
+        use typed_trees::reflection::SchemaNode;
         use typed_trees::reflection::construction::{
             construct_semantic_schema_graph, construct_semantic_schema_graph_for_type,
             declaration_source_revision, exact_symbol_identity,
         };
-        use typed_trees::reflection::{SchemaNode, SchemaQueryAuthority};
         use typed_trees::type_identity::{IndexIdentityArgument, portable_applied_index_identity};
 
         let fail = |detail| invalid(machine, detail);
@@ -235,15 +235,10 @@ impl Program<'_> {
                 "a field query is outside its author's declaration scope",
             ));
         }
-        let requester_identity = self
-            .typed
-            .normalized_hermetic_symbol_identity(author)
-            .map_err(|reason| invalid(machine, reason))?;
-        let authority = if self.typed.symbols.same_symbol_source_package(author, owner) {
-            SchemaQueryAuthority::OwningScope { requester_identity }
-        } else {
-            SchemaQueryAuthority::ForeignScope { requester_identity }
-        };
+        let authority = typed_trees::reflection::construction::schema_query_authority(
+            self.typed, author, owner,
+        )
+        .map_err(|reason| invalid(machine, reason))?;
         let graph = match declaring_type {
             Some(reference) => {
                 construct_semantic_schema_graph_for_type(self.typed, reference, authority)
@@ -411,7 +406,6 @@ impl Program<'_> {
         expected: Option<ValueType>,
         source: SourceOrigin,
     ) -> Checked<Expression> {
-        use typed_trees::reflection::SchemaQueryAuthority;
         let fail = |detail| invalid(machine, detail);
         if !self
             .typed
@@ -471,19 +465,12 @@ impl Program<'_> {
                 "a schema query is outside its author's declaration scope",
             ));
         }
-        let requester_identity = self
-            .typed
-            .normalized_hermetic_symbol_identity(author)
-            .map_err(|reason| invalid(machine, reason))?;
-        let authority = if self
-            .typed
-            .symbols
-            .same_symbol_source_package(author, data.symbol)
-        {
-            SchemaQueryAuthority::OwningScope { requester_identity }
-        } else {
-            SchemaQueryAuthority::ForeignScope { requester_identity }
-        };
+        let authority = typed_trees::reflection::construction::schema_query_authority(
+            self.typed,
+            author,
+            data.symbol,
+        )
+        .map_err(|reason| invalid(machine, reason))?;
         let graph =
             typed_trees::reflection::construction::construct_semantic_schema_graph_for_type(
                 self.typed, reference, authority,

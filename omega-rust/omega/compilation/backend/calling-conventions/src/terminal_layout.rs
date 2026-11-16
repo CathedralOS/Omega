@@ -1017,6 +1017,7 @@ mod owned_sequence_tests {
 
     fn declaration(id: u64, shape: StructuralTypeShape) -> StructuralTypeDeclaration {
         StructuralTypeDeclaration {
+            declaration_identity: Default::default(),
             id: StructuralTypeId::new(id).unwrap(),
             identity: TerminalIdentityIndex(id as u32),
             shape,

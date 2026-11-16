@@ -4348,6 +4348,7 @@ pub(crate) mod reference_input {
 
         fn field(identity: u32, field_type: StructuralFieldType) -> StructuralFieldDeclaration {
             StructuralFieldDeclaration {
+                declaration_identity: Default::default(),
                 inline_carrier: None,
                 id: StructuralFieldId::new(u64::from(identity)).unwrap(),
                 identity: TerminalIdentityIndex(identity),
@@ -4359,6 +4360,7 @@ pub(crate) mod reference_input {
 
         fn declaration(identity: u32, shape: StructuralTypeShape) -> StructuralTypeDeclaration {
             StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
                 requires: Vec::new(),
                 quotient_carrier: None,
                 id: type_id(u64::from(identity)),

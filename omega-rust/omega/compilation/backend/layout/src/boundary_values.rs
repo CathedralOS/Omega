@@ -724,6 +724,7 @@ mod tests {
             ),
         ] {
             module.structural_types.push(StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
                 requires: Vec::new(),
                 quotient_carrier: None,
                 id,
@@ -833,6 +834,7 @@ mod tests {
             self.module
                 .structural_types
                 .push(StructuralTypeDeclaration {
+                    declaration_identity: Default::default(),
                     requires: Vec::new(),
                     quotient_carrier: None,
                     id,
@@ -857,6 +859,7 @@ mod tests {
                 .map(|(field_name, field_type)| {
                     self.field_count += 1;
                     StructuralFieldDeclaration {
+                        declaration_identity: Default::default(),
                         inline_carrier: None,
                         id: StructuralFieldId::new(self.field_count).expect("fixture field"),
                         identity: self.identities.intern(&format!("{name}::{field_name}")),

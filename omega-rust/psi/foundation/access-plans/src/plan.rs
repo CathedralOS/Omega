@@ -7,25 +7,22 @@ use layout_plans::LayoutPlanReport;
 
 /// Rules describe who may use a value. Layout and storage are checked
 /// separately; these descriptions alone grant no access permission.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AccessPlan {
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct AccessPlan<
+    Region = language_semantics::reflection::SchemaNodeHandle,
+    Caller = language_semantics::reflection::CallableDescription,
+> {
     pub schema: language_semantics::reflection::SemanticSchemaGraph,
     /// None adds no restriction; Some(empty) explicitly admits nobody.
-    pub issuance: Option<Vec<language_semantics::reflection::CallableDescription>>,
+    pub issuance: Option<Vec<Caller>>,
     /// Rows intersect and their coordinates belong to `schema`. An absent
     /// row adds no restriction; an empty caller list denies that region.
-    pub readers: Vec<(
-        language_semantics::reflection::SchemaNodeHandle,
-        Vec<language_semantics::reflection::CallableDescription>,
-    )>,
-    pub writers: Vec<(
-        language_semantics::reflection::SchemaNodeHandle,
-        Vec<language_semantics::reflection::CallableDescription>,
-    )>,
+    pub readers: Vec<(Region, Vec<Caller>)>,
+    pub writers: Vec<(Region, Vec<Caller>)>,
     /// Only authored demands appear here. Missing rows do not manufacture
     /// Inaccessible, Stable, External or Atomic supply.
     pub observations: Vec<(
-        language_semantics::reflection::SchemaNodeHandle,
+        Region,
         Option<(
             crate::ObservationModel,
             crate::AccessPermissions,
@@ -33,6 +30,76 @@ pub struct AccessPlan {
         )>,
     )>,
     pub reach: BoundaryReach,
+}
+
+impl<Region, Caller> AccessPlan<Region, Caller> {
+    /// Replace descriptions with the exact fields and functions they name.
+    /// Keep every rule: later rules must not override earlier restrictions or
+    /// discard the independent issuer, caller, observation and reach choices.
+    pub fn try_bind<BoundRegion, BoundCaller, Error>(
+        self,
+        mut region: impl FnMut(Region) -> Result<BoundRegion, Error>,
+        mut caller: impl FnMut(Caller) -> Result<BoundCaller, Error>,
+    ) -> Result<AccessPlan<BoundRegion, BoundCaller>, Error> {
+        let mut callers = |values: Vec<Caller>| {
+            values
+                .into_iter()
+                .map(&mut caller)
+                .collect::<Result<Vec<_>, Error>>()
+        };
+        let issuance = self.issuance.map(&mut callers).transpose()?;
+        let mut rules = |rows: Vec<(Region, Vec<Caller>)>| {
+            rows.into_iter()
+                .map(|(coordinate, allowed)| Ok((region(coordinate)?, callers(allowed)?)))
+                .collect::<Result<Vec<_>, Error>>()
+        };
+        let readers = rules(self.readers)?;
+        let writers = rules(self.writers)?;
+        let observations = self
+            .observations
+            .into_iter()
+            .map(|(coordinate, observation)| Ok((region(coordinate)?, observation)))
+            .collect::<Result<Vec<_>, Error>>()?;
+        Ok(AccessPlan {
+            schema: self.schema,
+            issuance,
+            readers,
+            writers,
+            observations,
+            reach: self.reach,
+        })
+    }
+}
+
+// A restored compiler snapshot crosses a byte-input boundary. Reapply the
+// existing normalization rules before any consumer relies on region handles
+// or sorted rows; this does not authenticate a caller or supply backing.
+impl compiler_storage::Record for AccessPlan {
+    fn write(
+        &self,
+        output: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        compiler_storage::Record::write(&self.schema, output)?;
+        compiler_storage::Record::write(&self.issuance, output)?;
+        compiler_storage::Record::write(&self.readers, output)?;
+        compiler_storage::Record::write(&self.writers, output)?;
+        compiler_storage::Record::write(&self.observations, output)?;
+        compiler_storage::Record::write(&self.reach, output)
+    }
+
+    fn read<Context>(
+        input: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        let plan = Self {
+            schema: compiler_storage::Record::read(input)?,
+            issuance: compiler_storage::Record::read(input)?,
+            readers: compiler_storage::Record::read(input)?,
+            writers: compiler_storage::Record::read(input)?,
+            observations: compiler_storage::Record::read(input)?,
+            reach: compiler_storage::Record::read(input)?,
+        };
+        normalize_access_plan(plan).map_err(|reason| input.error(reason.to_string()))
+    }
 }
 
 /// Canonicalize descriptive policy data before it is joined to an actual

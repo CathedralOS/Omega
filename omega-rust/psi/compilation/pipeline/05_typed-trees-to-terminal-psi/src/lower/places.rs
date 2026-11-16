@@ -218,6 +218,7 @@ pub(crate) fn declare<'a>(
                     }
                 };
                 fields.push(StructuralFieldDeclaration {
+                    declaration_identity: Default::default(),
                     inline_carrier,
                     id: field.id,
                     identity,
@@ -268,6 +269,7 @@ pub(crate) fn declare<'a>(
                 cases: cases
                     .into_iter()
                     .map(|(case, fields)| StructuralCaseDeclaration {
+                        declaration_identity: Default::default(),
                         id: case.id,
                         identity: identities.intern(&case.identity),
                         fields,
@@ -325,6 +327,7 @@ pub(crate) fn declare<'a>(
             }
         };
         structural_types.push(StructuralTypeDeclaration {
+            declaration_identity: Default::default(),
             requires: record.requires.clone(),
             quotient_carrier: None,
             id,
@@ -571,6 +574,7 @@ fn append_scalar_type(
         .ok_or("structural type identity overflow")?;
     let id = StructuralTypeId::new(ordinal).ok_or("structural type identity overflow")?;
     types.push(StructuralTypeDeclaration {
+        declaration_identity: Default::default(),
         requires: Vec::new(),
         quotient_carrier: None,
         id,
