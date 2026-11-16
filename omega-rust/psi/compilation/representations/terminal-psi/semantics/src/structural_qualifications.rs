@@ -2035,7 +2035,7 @@ mod operation_permissions {
                         .and_then(|block| block.operations.get(position.1 as usize));
                     let carrier = self.descriptor(machine)?.place_types.get(root).copied();
                     eprintln!(
-                        "[unavailable permission] machine={machine:?} position={position:?} input={input} access={operation:?} source={source:?} instruction={:?} carrier={carrier:?} declaration={:?}",
+                        "[unavailable permission] machine={machine:?} position={position:?} input={input} access={operation:?} root={root:?} instruction={:?} carrier={carrier:?} declaration={:?}",
                         instruction.map(|row| &row.kind),
                         carrier.and_then(|id| terminal_psi::find_structural_type(
                             &self.module.structural_types,
