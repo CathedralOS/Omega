@@ -4240,10 +4240,51 @@ pub(crate) mod engine {
             let Some(before) = states.get(&position) else {
                 return Ok(Some(Vec::new()));
             };
-            let Some(queries) = super::case_flow::written_queries(machine, position) else {
-                return Ok(None);
-            };
+            let before = before.clone();
             let mut writes = step.definitions.clone();
+            // Actual callees supply their checked frame at this exact cut.
+            // Keep local definitions as well: they retire moved occurrences
+            // even when no caller-visible backing is changed.
+            let queries = if let Some(call) = machine.known_invocation(&position) {
+                // A public requirement needs its own retained selection
+                // and checked correspondence. A possible implementation
+                // body is not that evidence, even for a write frame.
+                let DescriptorInvocationTarget::Machine(callee) = &call.target else {
+                    return Ok(None);
+                };
+                self.prepare_write_frame(*callee)?;
+                let Some(callee_frame) = self
+                    .summaries
+                    .get(callee)
+                    .and_then(Option::as_ref)
+                    .and_then(|summary| summary.storage_frame.writes.as_ref())
+                    .and_then(|writes| writes.as_ref().as_ref())
+                else {
+                    return Ok(None);
+                };
+                let callee = self
+                    .machine(*callee)
+                    .ok_or("write frame call has no callee")?;
+                for written in callee_frame {
+                    let Some((parameter, _, _)) = self.parameter(callee, written.root) else {
+                        return Err("published write does not name a callee formal");
+                    };
+                    let Some(actual) = self.actual_slot(call, parameter, &written.path) else {
+                        return Ok(None);
+                    };
+                    let Some(actual) = self.canonical_storage(machine, &before, &actual, None)
+                    else {
+                        return Ok(None);
+                    };
+                    writes.push(actual);
+                }
+                Vec::new()
+            } else {
+                let Some(queries) = super::case_flow::written_queries(machine, position) else {
+                    return Ok(None);
+                };
+                queries
+            };
             for query in queries {
                 let Some(root_type) = machine.place_types.get(&query.root) else {
                     return Err("storage write has no declared root type");
@@ -4279,7 +4320,7 @@ pub(crate) mod engine {
                 }
                 let Some(targets) = self.contents_targets(
                     machine,
-                    before,
+                    &before,
                     &DescriptorContentsQuery::from_location(&prefix),
                 ) else {
                     return Ok(None);
@@ -4300,7 +4341,7 @@ pub(crate) mod engine {
             }
             let mut located = Vec::with_capacity(writes.len());
             for write in writes {
-                let Some(write) = self.canonical_storage(machine, before, &write, None) else {
+                let Some(write) = self.canonical_storage(machine, &before, &write, None) else {
                     return Ok(None);
                 };
                 located.push(write);
@@ -4448,46 +4489,8 @@ pub(crate) mod engine {
                 let Some(before) = states.get(&position) else {
                     continue;
                 };
-                let writes = if let Some(call) = machine.known_invocation(&position) {
-                    // A public requirement needs its own retained selection
-                    // and checked correspondence. A possible implementation
-                    // body is not that evidence, even for a write frame.
-                    let DescriptorInvocationTarget::Machine(callee) = &call.target else {
-                        return Ok(None);
-                    };
-                    self.prepare_write_frame(*callee)?;
-                    let Some(callee_frame) = self
-                        .summaries
-                        .get(callee)
-                        .and_then(Option::as_ref)
-                        .and_then(|summary| summary.storage_frame.writes.as_ref())
-                        .and_then(|writes| writes.as_ref().as_ref())
-                    else {
-                        return Ok(None);
-                    };
-                    let callee = self
-                        .machine(*callee)
-                        .ok_or("write frame call has no callee")?;
-                    let mut writes = Vec::with_capacity(callee_frame.len());
-                    for written in callee_frame {
-                        let Some((parameter, _, _)) = self.parameter(callee, written.root) else {
-                            return Err("published write does not name a callee formal");
-                        };
-                        let Some(actual) = self.actual_slot(call, parameter, &written.path) else {
-                            return Ok(None);
-                        };
-                        let Some(actual) = self.canonical_storage(machine, before, &actual, None)
-                        else {
-                            return Ok(None);
-                        };
-                        writes.push(actual);
-                    }
-                    writes
-                } else {
-                    let Some(writes) = self.storage_writes(identity, position)? else {
-                        return Ok(None);
-                    };
-                    writes
+                let Some(writes) = self.storage_writes(identity, position)? else {
+                    return Ok(None);
                 };
                 for mut write in writes {
                     let Some(place) =

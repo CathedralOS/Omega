@@ -6099,7 +6099,25 @@ pub mod descriptor_results {
                         }
                     }
                     let mut after = before;
-                    if let Some(writes) = machine.payload_invalidations.get(&current) {
+                    if machine.known_invocation(&current).is_some() {
+                        failure = "call payload write frame is invalid";
+                        match analysis.storage_writes(identity, current).ok()? {
+                            Some(writes) => {
+                                for location in writes {
+                                    if let Some(contract) = after.values.get_mut(&location.root) {
+                                        failure = "call payload write has no typed coordinate";
+                                        let path = descriptor_path(
+                                            types,
+                                            contract.carrier,
+                                            &location.path,
+                                        )?;
+                                        retire(domains, contract, &path, &location.path);
+                                    }
+                                }
+                            }
+                            None => clear(&mut after.values),
+                        }
+                    } else if let Some(writes) = machine.payload_invalidations.get(&current) {
                         for query in writes {
                             let targets = query.as_ref().and_then(|query| {
                                 analysis.payload_targets(identity, current, query)
@@ -6121,7 +6139,12 @@ pub mod descriptor_results {
                                                         contract.carrier,
                                                         &location.path,
                                                     )?;
-                                                    retire(contract, &path, &location.path);
+                                                    retire(
+                                                        domains,
+                                                        contract,
+                                                        &path,
+                                                        &location.path,
+                                                    );
                                                 }
                                             }
                                             DescriptorPayloadTarget::Storage {
@@ -6183,7 +6206,7 @@ pub mod descriptor_results {
                         };
                         failure = "structural store path has no typed coordinate";
                         let path = descriptor_path(types, contract.carrier, &destination.path)?;
-                        retire(contract, &path, &destination.path);
+                        retire(domains, contract, &path, &destination.path);
                         if !strong {
                             continue;
                         }
@@ -6737,6 +6760,7 @@ pub mod descriptor_results {
         }
 
         fn retire(
+            domains: &[terminal_psi::StructuralDomainDeclaration],
             contract: &mut PayloadMembershipContract,
             path: &[StructuralPathSegment],
             scalar_path: &[crate::descriptors::descriptor_lifetimes::DescriptorPathSegment],
@@ -6745,10 +6769,29 @@ pub mod descriptor_results {
                 !observation.path.starts_with(scalar_path)
                     && !scalar_path.starts_with(&observation.path)
             });
-            contract.qualifications.clear();
+            let survives = |domain| {
+                let mut rows = domains.iter().filter(|row| row.id == domain);
+                let Some(row) = rows.next() else {
+                    return false;
+                };
+                rows.next().is_none() && row.membership_survives_content_write(domains)
+            };
+            // A write beneath an already installed restriction does not issue
+            // a new membership. Exact/ancestor replacement still retires it;
+            // only the incoming value's checked transfer can supply it again.
             contract
-                .projected_qualifications
-                .retain(|row| !crate::structural_paths_may_overlap(&row.path, path));
+                .qualifications
+                .retain(|domain| !path.is_empty() && survives(*domain));
+            contract.projected_qualifications.retain(|row| {
+                !crate::structural_paths_may_overlap(&row.path, path)
+                    || (path.len() > row.path.len()
+                        && terminal_psi::StructuralPathQualification::selected_suffix(
+                            &row.path,
+                            &path[..row.path.len()],
+                        )
+                        .is_some()
+                        && survives(row.domain))
+            });
         }
 
         fn observe_scalar(
@@ -7363,6 +7406,135 @@ pub mod descriptor_results {
                 );
             }
 
+            // Only contents strictly inside an existing subject may change
+            // without replacing that subject's issuer-bound membership.
+            #[test]
+            fn content_writes_keep_only_existing_content_independent_memberships() {
+                use semantic_vocabulary::{DomainSemanticId, StructuralDomainId};
+                use terminal_psi::{
+                    StructuralDomainDeclaration, StructuralDomainPredicate,
+                    StructuralPathQualification,
+                };
+                let id = |raw| StructuralDomainId::new(raw).unwrap();
+                let semantic = |raw| DomainSemanticId::new(raw).unwrap();
+                let carrier = StructuralTypeId::new(1).unwrap();
+                let domain = |raw| StructuralDomainDeclaration {
+                    required_memberships: Some(Vec::new()),
+                    complete_predicate_theory: true,
+                    predicate: None,
+                    id: id(raw),
+                    semantic_domain: semantic(raw),
+                    identity: Default::default(),
+                    subject_identity: Default::default(),
+                    carrier,
+                    content_projection: None,
+                    byte_predicate: None,
+                    establishment_routes: Some(Vec::new()),
+                    access_policy: None,
+                };
+                let mut predicate = domain(2);
+                predicate.predicate = Some(StructuralDomainPredicate {
+                    subject: PlaceId::new(1).unwrap(),
+                    proposition: Proposition::Falsehood,
+                });
+                let mut incomplete = domain(3);
+                incomplete.complete_predicate_theory = false;
+                let mut predicate_dependency = domain(4);
+                predicate_dependency.required_memberships = Some(vec![semantic(2)]);
+                let mut independent_dependency = domain(5);
+                independent_dependency.required_memberships = Some(vec![semantic(1)]);
+                let mut unknown = domain(6);
+                unknown.required_memberships = None;
+                let mut bytes = domain(7);
+                bytes.byte_predicate = Some(terminal_psi::ByteSequencePredicate::AsciiOnly);
+                let domains = [
+                    domain(1),
+                    predicate,
+                    incomplete,
+                    predicate_dependency,
+                    independent_dependency,
+                    unknown,
+                    bytes,
+                ];
+                let first = StructuralPathSegment::FixedIndex(0);
+                let second = StructuralPathSegment::FixedIndex(1);
+                let original = PayloadMembershipContract {
+                    carrier,
+                    scalar_observations: Vec::new(),
+                    scalar_requirements: Vec::new(),
+                    qualifications: (1..=7).map(id).collect(),
+                    projected_qualifications: (1..=7)
+                        .map(|raw| StructuralPathQualification {
+                            path: vec![first.clone()],
+                            domain: id(raw),
+                        })
+                        .chain([StructuralPathQualification {
+                            path: vec![second.clone()],
+                            domain: id(2),
+                        }])
+                        .collect(),
+                };
+                let mut changed = original.clone();
+                retire(
+                    &domains,
+                    &mut changed,
+                    std::slice::from_ref(&first),
+                    &[DescriptorPathSegment::FixedIndex(0)],
+                );
+                assert_eq!(changed.qualifications, [id(1), id(5)]);
+                assert_eq!(
+                    changed.projected_qualifications,
+                    [StructuralPathQualification {
+                        path: vec![second],
+                        domain: id(2)
+                    }],
+                    "an exact field replacement loses its tag; an unrelated sibling survives"
+                );
+                let mut nested = original.clone();
+                retire(
+                    &domains,
+                    &mut nested,
+                    &[first.clone(), StructuralPathSegment::FixedIndex(0)],
+                    &[
+                        DescriptorPathSegment::FixedIndex(0),
+                        DescriptorPathSegment::FixedIndex(0),
+                    ],
+                );
+                assert_eq!(nested.qualifications, [id(1), id(5)]);
+                assert_eq!(
+                    nested
+                        .projected_qualifications
+                        .iter()
+                        .map(|row| row.domain)
+                        .collect::<Vec<_>>(),
+                    [id(1), id(5), id(2)]
+                );
+                let mut replaced = original.clone();
+                retire(&domains, &mut replaced, &[], &[]);
+                assert!(
+                    replaced.qualifications.is_empty()
+                        && replaced.projected_qualifications.is_empty(),
+                    "whole replacement or moved-out slot reuse cannot reissue an old tag"
+                );
+                let root = PlaceId::new(1).unwrap();
+                let mut unknown_write = PayloadContracts::from([(root, original)]);
+                clear(&mut unknown_write);
+                assert!(
+                    unknown_write.get(&root).unwrap().qualifications.is_empty(),
+                    "unknown effects retain no content-independent membership shortcut"
+                );
+                retire(
+                    &domains,
+                    &mut replaced,
+                    &[first],
+                    &[DescriptorPathSegment::FixedIndex(0)],
+                );
+                assert!(
+                    replaced.qualifications.is_empty(),
+                    "an unqualified new producer gains nothing"
+                );
+            }
+
             #[test]
             fn retained_payload_snapshot_survives_later_writes_retirement_and_closure() {
                 use semantic_vocabulary::{PropositionId, StructuralDomainId};
@@ -7420,7 +7592,12 @@ pub mod descriptor_results {
                     match change {
                         Change::Store => {
                             let contract = later.values.get_mut(&root).unwrap();
-                            retire(contract, &[StructuralPathSegment::FixedIndex(0)], &path);
+                            retire(
+                                &[],
+                                contract,
+                                &[StructuralPathSegment::FixedIndex(0)],
+                                &path,
+                            );
                             assert_eq!(observe_scalar(contract, &path, &value(2)), None);
                             expected.scalar_observations[0].value = Some(value(2));
                             expected.qualifications.clear();
@@ -7527,6 +7704,7 @@ pub mod descriptor_results {
                     other_branch.scalar_observations
                 );
                 retire(
+                    &[],
                     &mut contract,
                     &[StructuralPathSegment::FixedIndex(0)],
                     &path,

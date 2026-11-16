@@ -333,6 +333,22 @@ pub mod types {
                     })
             }
 
+            /// An existing membership can survive changes strictly inside its
+            /// subject when its entire known theory is independent of contents.
+            /// This neither establishes it on a new value nor preserves it
+            /// when its own storage is replaced or vacated.
+            pub fn membership_survives_content_write(&self, domains: &[Self]) -> bool {
+                self.required_domain_closure(domains)
+                    .is_some_and(|closure| {
+                        closure.iter().all(|row| {
+                            row.complete_predicate_theory
+                                && row.predicate.is_none()
+                                && row.byte_predicate.is_none()
+                                && row.content_projection.is_none()
+                        })
+                    })
+            }
+
             /// Literal bytes can establish only the primitive predicate they
             /// were checked against. They cannot establish another theory,
             /// an issuer restriction or independent memory-access rules.
