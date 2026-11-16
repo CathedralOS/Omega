@@ -145,10 +145,13 @@ fn real_byte_observation_headers_publish_complete_terminating_schemas() {
             .expect("exact compiler custody");
         assert_eq!(operation, CompilerPrimitive::ByteObservation(predicate));
         assert_eq!(machine.lifetime_parameters.len(), 1);
-        assert!(matches!(machine.termination_plan.interface,
-            language_semantics::TerminationInterface::Published(
-                language_semantics::TerminationGuarantee::Terminates { ref premises }
-            ) if premises.is_empty()));
+        assert!(
+            machine
+                .termination_plan
+                .interface
+                .published()
+                .is_some_and(|guarantee| guarantee.promises_termination())
+        );
         assert!(program.type_identity_text(identity).is_some());
     }
 }
