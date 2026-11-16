@@ -82,13 +82,6 @@ framework or a list of unimplemented features.
 - Cost: The compiler accepts an equality the spec refuses, and `==` means different things depending on how the operand is spelled. Let Psi 05 read `==` as a case test only for payload-free sums, or have Psi 03 refuse a comparison it cannot type.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/conformances.md
 
-### The locator kind chooses a bound requirement's calling policy
-- Category: Re-deriving
-- Where: [native_calling_applications](omega-rust/omega/compilation/realization/provider-planning/src/calling_policy_plans/selected_application.rs#L270), [declared policy refused](omega-rust/omega/compilation/realization/provider-planning/src/calling_policy_plans/selected_application.rs#L257), [calling_plans.md](wiki/spec/build/calling_plans.md#L180)
-- Saw: [identity and selection](wiki/spec/build/calling_plans.md#L180) says a `Build::bind` row retains the requirement's calling-policy application and "A locator, syscall number, or target label cannot select calling policy". The code refuses any requirement with a declared policy, and gives every other requirement `CallingPolicy::native_for_target` for an import locator or `native_syscall_for_target` for a syscall locator. On linux_x86_64 the same four-argument requirement passes its fourth argument in rcx when bound to an import and in r10 when bound to a syscall.
-- Cost: The ABI stops belonging to the requirement, and a requirement that declares its policy, as the spec intends, cannot be bound. Let the requirement declare the syscall policy and have the binding check the locator against it, or change the spec.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/calling_plans.md
-
 ### The test runner cannot run, because Build admission refuses every test group
 - Category: Zombie machinery
 - Where: [registration refused](omega-rust/psi/compilation/build-time-evaluation/src/product/product_declarations.rs#L48), [groups always empty](omega-rust/psi/compilation/build-time-evaluation/src/product/product_declarations.rs#L65), [test discovery](omega-rust/omega/compilation/compiler/src/checked/test_roots.rs#L74), [native verdict](omega-rust/omega/build-system/orchestration/src/compile/test_execution.rs#L260), [std slot found by package name](omega-rust/omega/compilation/compiler/src/checked/test_roots.rs#L40)
