@@ -7774,10 +7774,16 @@ mod elaboration {
                     .map_err(|error| {
                         certificate!(ProofError::FloatMeaningNormalization(Box::new(error)))
                     })?;
-                    let evidence = premises.iter().map(|premise| operands.take(premise)).collect();
+                    let evidence = premises
+                        .iter()
+                        .map(|premise| operands.take(premise))
+                        .collect();
                     self.rule_instance(
                         AcceptedProofRule::FloatMeaningNormalization,
-                        premises.iter().map(|premise| premise.conclusion.clone()).collect(),
+                        premises
+                            .iter()
+                            .map(|premise| premise.conclusion.clone())
+                            .collect(),
                         evidence,
                         &proof.conclusion,
                     )
@@ -7788,10 +7794,16 @@ mod elaboration {
                         premises.iter().map(|premise| &premise.conclusion),
                     )
                     .map_err(|error| certificate!(error))?;
-                    let evidence = premises.iter().map(|premise| operands.take(premise)).collect();
+                    let evidence = premises
+                        .iter()
+                        .map(|premise| operands.take(premise))
+                        .collect();
                     self.rule_instance(
                         AcceptedProofRule::IeeeFloatOrderChain,
-                        premises.iter().map(|premise| premise.conclusion.clone()).collect(),
+                        premises
+                            .iter()
+                            .map(|premise| premise.conclusion.clone())
+                            .collect(),
                         evidence,
                         &proof.conclusion,
                     )
