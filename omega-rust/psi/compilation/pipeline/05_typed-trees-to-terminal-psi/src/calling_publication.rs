@@ -358,12 +358,38 @@ pub(crate) fn publish(
     // Restoring this table preserves every unrelated declaration even if a
     // selected source question refuses before either row roster publishes.
     elaboration.module.identities = identities.build();
+    let prepared = prepared?;
     let declarations = join_abi_declarations(
         context,
         &elaboration.module.identities,
         &elaboration.module.calling_abi_signatures,
-        &prepared?,
-    )?;
+        &prepared,
+    ).map_err(|error| {
+        for incoming in &prepared {
+            let Some(existing) = elaboration.module.calling_abi_signatures.iter()
+                .find(|existing| existing.id == incoming.id && *existing != incoming) else { continue; };
+            eprintln!("W2_ABI_STORAGE_DIAGNOSTIC id={} requirement={:?} application={:?} retained={existing:?} selected={incoming:?}", incoming.id.get(),
+                elaboration.module.identities.text(incoming.requirement_identity),
+                elaboration.module.identities.text(incoming.declaring_application));
+            let mut needed = Vec::new();
+            for row in [existing, incoming] {
+                if let Ok(storage) = &row.storage {
+                    for parameter in &storage.parameters {
+                        needed.push(parameter.structural_type);
+                        needed.extend(parameter.callback_backing);
+                    }
+                    needed.extend(storage.result);
+                }
+            }
+            needed.sort_unstable(); needed.dedup();
+            for id in needed {
+                let ty = elaboration.module.structural_type(id);
+                eprintln!("W2_ABI_STORAGE_TYPE id={id:?} identity={:?} declaration={ty:?}",
+                    ty.and_then(|ty| elaboration.module.identities.text(ty.identity)));
+            }
+        }
+        error
+    })?;
     for property in &descriptions.properties {
         let row = elaboration
             .module
