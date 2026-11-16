@@ -75,19 +75,11 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-### Borrowed field guards lose their reaching value at a state call
-- Category: re-deriving
-- Where: [scalar observation](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places.rs#L5360), [tick_marquee](samples/cli/rendering/tick_marquee/main.omg), [bitset](samples/cli/collections/bitset/main.omg)
-- Saw: In the marquee, `draw` stores the position, tests `main.pos < 12` and passes the same mutable record to `put`. Giving `put` that exact entry contract reaches `the clause's observation has no reaching value identity`. A pure record program with the same store, guard and nested state call gives the same refusal. The bitset insertion reaches it after supplying its checked word-index guard as the callee contract.
-- Cost: The caller's existing field guard cannot establish the same field observation at the receiving state. Preserve the exact projected contents and loan across the checked call. Keep sibling writes independent and refuse a bound after a write overlapping its field.
-- Reported: 2026-11-15, Codex, while restoring the paced marquee and checking the bitset policy witness.
-
-
-### Completing selected bodies copies the retained typed program
+### Selected-body activation copies retained typed storage
 - Category: re-deriving
 - Where: [body activation](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L553), [continuation storage clone](omega-rust/psi/compilation/representations/typed-trees/src/lib.rs#L1283), [retained pages](omega-rust/psi/foundation/arena/src/retained.rs)
-- Saw: Empty activation still copies declaration and side-record storage before projection. On the [scalar-contract and borrowed-root Build routes](wiki/drafts/measurements/selected_body_copies.md#workloads-and-boundary), continuation construction requested 4,136,141 bytes across 12,802 allocations and 58 arena clones. Matching-symbol preparation added 958,615 bytes across eight allocations and five clones. Both measurements used Windows x86-64 at opt-level 1. The [measurement in #3646](https://github.com/CathedralOS/Omega/pull/3646) also covers nonempty completion. Child-list rewrites still use completion-batch boundaries.
-- Cost: A zero-body selection pays to copy unrelated storage. Share the remaining immutable storage under its actual owner using the [body ownership design](wiki/drafts/designs/compiler_work_ownership.md#representation-and-execution-contract). Preserve source application preparation, projection, source authority checks, and signature and inferred-summary dependencies. Remeasure empty activation and nonempty completion on both routes.
+- Saw: With no selected bodies, continuation construction still clones declaration and side-record storage before projection. On both Build routes it requested 4,136,141 bytes across 12,802 allocations and 58 arena clones. Preparing matching symbols separately requested 958,615 bytes across eight allocations and five clones. These are allocation counts and requested bytes from Windows x86-64 at opt-level 1. The [later measurement](https://github.com/CathedralOS/Omega/pull/3646) also records nonempty completion, whose totals include new output and preparation. See the [two workloads](wiki/drafts/measurements/selected_body_copies.md#workloads-and-boundary).
+- Cost: Empty activation pays to copy unrelated storage. Share the remaining immutable storage under its owner and keep child-list updates at completion-batch boundaries. Preserve source application preparation, projection, source authority checks, and signature and inferred-summary dependencies. Measure copy work for empty activation and nonempty completion on both routes. The [body ownership design](wiki/drafts/designs/compiler_work_ownership.md#representation-and-execution-contract) gives the ownership boundary.
 - Reported: 2026-11-15, Codex, while measuring continuation construction and body completion.
 
 
