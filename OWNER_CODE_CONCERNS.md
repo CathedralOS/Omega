@@ -27,7 +27,9 @@ framework or a list of unimplemented features.
 - Name one category from the list below on its `Category` line.
 - Keep it to the lines of the template. Link the file and line.
 - Add it in the pull request you are already landing; never open one for it.
-- Merge overlapping reports into one entry for the defect that remains; do not keep duplicates.
+- Merge overlapping reports into one entry for the defect that remains. If an
+  active `TASKS.md` item already owns the repair and its acceptance checks,
+  add the structural evidence there.
 - Whoever fixes it removes the entry when the fix lands. Remove a stale report
   after checking that its code or premise is gone; keep no log of finished
   work, and do not mistake deleting a report for implementing its feature.
@@ -80,17 +82,10 @@ framework or a list of unimplemented features.
 - Cost: Check a named predicate under its own formal inputs through the same term formation as an inline contract. Pin the overflow refusal even when the predicate is unused, admit the wrapping control, and preserve the nonzero-divisor obligation. Replace the governance assertion's old `carrier arithmetic in a clause term` expectation with the actual totality refusal.
 - Reported: 2026-11-15, Claude Code and Codex, while testing refusal locations and comparing overflow controls.
 
-### Static arguments still judge selected predicates in syntax
-- Category: one idea, several implementations
-- Where: [index canonicalization](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_const_evaluation.rs#L5838), [receiving carrier refusal](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/type_reference.rs#L882)
-- Saw: Structural const arguments still reach `ProveSyntax`, which approximates selected operators from spellings and parameter carriers. At `20e51a433b772` on Windows x86-64, `omega --check` refuses [the receiving-application program](tests/fixtures/pass/constants/receiving_application/main.omg): "a record or case const argument is not typed against its declared data type".
-- Cost: Index encoding duplicates part of predicate judgment. Route these arguments through ordinary checked evaluation with their selected receiving declaration, carrier and substitutions before publishing their identity. [EARLY-TERMINAL-JOBS](TASKS.md#early-terminal-jobs) owns the remaining handoff and its acceptance checks.
-- Reported: 2026-11-15, Codex, while separating declaration initializer evaluation from static argument admission.
-
 ### Completing selected bodies copies the retained typed program
 - Category: re-deriving
-- Where: [body activation](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L554), [selected continuation](omega-rust/psi/compilation/source-compiler/src/source_compilation.rs), [retained pages](omega-rust/psi/foundation/arena/src/retained.rs)
-- Saw: Empty activation still copies declaration and side-record storage before projection. On both original Build routes, continuation construction requested 4,136,141 bytes across 12,802 allocations and 58 arena clones; matching-symbol preparation separately requested 958,615 bytes across eight allocations and five clones, on Windows x86-64 at opt-level 1. The [measurement in #3646](https://github.com/CathedralOS/Omega/pull/3646) also covers nonempty completion. Child-list rewrites still use completion-batch boundaries.
-- Cost: Share the remaining immutable storage under its actual owner using the [body ownership design](wiki/drafts/designs/compiler_work_ownership.md#representation-and-execution-contract). Preserve source application preparation, projection, source authority checks, and signature and inferred-summary dependencies. Remeasure empty activation and nonempty completion on both routes.
+- Where: [body activation](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L553), [continuation storage clone](omega-rust/psi/compilation/representations/typed-trees/src/lib.rs#L1283), [retained pages](omega-rust/psi/foundation/arena/src/retained.rs)
+- Saw: Empty activation still copies declaration and side-record storage before projection. On the [scalar-contract and borrowed-root Build routes](wiki/drafts/measurements/selected_body_copies.md#workloads-and-boundary), continuation construction requested 4,136,141 bytes across 12,802 allocations and 58 arena clones. Matching-symbol preparation added 958,615 bytes across eight allocations and five clones. Both measurements used Windows x86-64 at opt-level 1. The [measurement in #3646](https://github.com/CathedralOS/Omega/pull/3646) also covers nonempty completion. Child-list rewrites still use completion-batch boundaries.
+- Cost: A zero-body selection pays to copy unrelated storage. Share the remaining immutable storage under its actual owner using the [body ownership design](wiki/drafts/designs/compiler_work_ownership.md#representation-and-execution-contract). Preserve source application preparation, projection, source authority checks, and signature and inferred-summary dependencies. Remeasure empty activation and nonempty completion on both routes.
 - Reported: 2026-11-15, Codex, while measuring continuation construction and body completion.
 
