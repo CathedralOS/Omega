@@ -1795,6 +1795,17 @@ pub(crate) mod construction_destinations {
         arguments: &[ExpressionHandle],
         calls: &mut Vec<ConstructionCall>,
     ) {
+        // Compiler operations have their own operand rules, not a declared
+        // machine parameter list. Their typing and admission checks still
+        // validate the operands; asking here would reject embed(old(value))
+        // before those checks can interpret its nested call.
+        if program
+            .symbols
+            .builtin_function_for_symbol(target_symbol)
+            .is_some()
+        {
+            return;
+        }
         if !arguments
             .iter()
             .any(|argument| needs_destination(program, *argument))
@@ -2932,18 +2943,29 @@ pub(crate) mod construction_destinations {
             let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
             let declarations = symbols.insert_children(
                 root,
-                [
-                    (SymbolKind::Machine, SymbolNameRef::Static("caller")),
-                    (SymbolKind::Machine, SymbolNameRef::Static("callee")),
-                    (SymbolKind::Machine, SymbolNameRef::Static("bystander")),
-                    (
-                        SymbolKind::MathematicalDefinition,
-                        SymbolNameRef::Static("measure"),
-                    ),
-                ],
+                symbols::builtin_type_symbols()
+                    .into_iter()
+                    .chain(symbols::builtin_function_symbols())
+                    .chain([
+                        (SymbolKind::Machine, SymbolNameRef::Static("caller")),
+                        (SymbolKind::Machine, SymbolNameRef::Static("callee")),
+                        (SymbolKind::Machine, SymbolNameRef::Static("bystander")),
+                        (
+                            SymbolKind::MathematicalDefinition,
+                            SymbolNameRef::Static("measure"),
+                        ),
+                        (SymbolKind::Module, SymbolNameRef::Static("foreign")),
+                    ]),
             );
-            let [caller, callee, bystander, measure] =
-                [0, 1, 2, 3].map(|position| declarations.handle_at(position));
+            let offset = symbols::BUILTIN_TYPE_COUNT + symbols::BuiltinFunction::COUNT;
+            let [caller, callee, bystander, measure, foreign] = [0, 1, 2, 3, 4]
+                .map(|position| declarations.handle_at(u32::try_from(offset + position).unwrap()));
+            let same_spelling = symbols
+                .insert_children(
+                    foreign,
+                    [(SymbolKind::Machine, SymbolNameRef::Static("embed"))],
+                )
+                .start();
             let [run, entry, idle] =
                 [(caller, "run"), (callee, "entry"), (bystander, "idle")].map(|(machine, name)| {
                     symbols
@@ -3048,6 +3070,21 @@ pub(crate) mod construction_destinations {
                 program
             };
             let array = || ExpressionNode::ArrayLiteral(Default::default());
+            // This pass does not invent a machine signature for a compiler
+            // operation. Its own reader still decides operand type and arity;
+            // an ordinary callee without a state remains refused below.
+            let embed = base
+                .symbols
+                .builtin_function_symbol(symbols::BuiltinFunction::IntegerEmbed)
+                .unwrap();
+            assert!(build(embed, array(), false).deferred_refusals.is_empty());
+            assert_eq!(
+                build(same_spelling, array(), false)
+                    .deferred_refusal(caller)
+                    .map(|refusal| refusal.request),
+                Some(DeferredRequest::CallParameterSelection),
+                "a same-spelled ordinary declaration still needs its actual parameters",
+            );
 
             // The callee's entry state selects its parameters: nothing is
             // deferred. The twin's callee has no state to select them from,

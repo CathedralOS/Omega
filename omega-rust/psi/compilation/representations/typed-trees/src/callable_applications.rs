@@ -5618,8 +5618,7 @@ pub(crate) mod selected_operands {
             let copied = self.apply_callable_type(supplied, &[], &[], owner)?;
             let references = self
                 .type_reference_table
-                .references()
-                .filter(|(handle, _)| handle.arena_index() as usize >= start)
+                .type_reference_rows_from(start)
                 .map(|(handle, _)| handle)
                 .collect::<Vec<_>>();
             for reference in references {
