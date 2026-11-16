@@ -1,0 +1,19 @@
+// Expected exit: 0.
+data Point<const Index: u64> [copy] { x: i32; }
+PointEquality satisfies Equatable<Point<1>> { }
+OtherEquality satisfies Equatable<Point<2>> {
+    machine equals(left: &Point<2>, right: &Point<2>) -> bool { false }
+}
+data Player [copy] { point: Point<1>; }
+PlayerEquality satisfies Equatable<Player> { }
+machine main() crashes Trap {
+    let first: Point<1> = Point { x: 17 };
+    let other: Point<1> = Point { x: 19 };
+    let a: Player = Player { point: first };
+    let b: Player = Player { point: first };
+    let c: Player = Player { point: other };
+    let selected: bool = PlayerEquality::equals(&a, &b);
+    transition selected && a != c { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

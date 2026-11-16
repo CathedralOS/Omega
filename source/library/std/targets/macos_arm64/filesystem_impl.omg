@@ -8,7 +8,8 @@ use omega::language::core::narrow_i64_to_u64_exact;
 
 // Indexed byte recasts retain the enclosing 144-byte region; the target
 // footprint is checked against that complete backing, including padding.
-macos_arm64 machine posix_filesystem_decode_metadata(filesystem: &mut PosixFilesystem) -> MetadataResult {
+machine macos_arm64_posix_decode_metadata(filesystem: &mut PosixFilesystem) -> MetadataResult
+    satisfies PosixFilesystemTarget::decode_metadata {
     let stat: &DarwinStat = &filesystem.stat_buf[0] as &DarwinStat;
     let blocks: i64 = stat.blocks;
     let blksize: i64 = stat.blksize as i64;
@@ -39,12 +40,14 @@ macos_arm64 machine posix_filesystem_decode_metadata(filesystem: &mut PosixFiles
     }
 }
 
-macos_arm64 machine posix_filesystem_permission_bits(filesystem: &PosixFilesystem) -> u32 {
+machine macos_arm64_posix_permission_bits(filesystem: &PosixFilesystem) -> u32
+    satisfies PosixFilesystemTarget::permission_bits {
     let stat: &DarwinStat = &filesystem.stat_buf[0] as &DarwinStat;
     (stat.mode as u32) & 4095
 }
 
-macos_arm64 machine posix_filesystem_encode_open_options(filesystem: &mut PosixFilesystem) {
+machine macos_arm64_posix_encode_open_options(filesystem: &mut PosixFilesystem)
+    satisfies PosixFilesystemTarget::encode_open_options {
     filesystem.open_writable = (filesystem.open_options.write as i32) | (filesystem.open_options.append as i32);
     filesystem.open_readable = filesystem.open_options.read as i32;
     filesystem.open_creating = (filesystem.open_options.create as i32) | (filesystem.open_options.create_new as i32);
@@ -58,7 +61,8 @@ macos_arm64 machine posix_filesystem_encode_open_options(filesystem: &mut PosixF
 
 // Resolve an absent directory hint from the native mode without decoding
 // unrelated size/timestamp fields or following a final symlink.
-macos_arm64 machine posix_filesystem_decode_directory_kind(filesystem: &mut PosixFilesystem) -> PosixDirectoryKind {
+machine macos_arm64_posix_decode_directory_kind(filesystem: &mut PosixFilesystem) -> PosixDirectoryKind
+    satisfies PosixFilesystemTarget::decode_directory_kind {
     let stat: &DarwinStat = &filesystem.stat_buf[0] as &DarwinStat;
     let kind: u32 = (stat.mode as u32) & 61440;
     transition kind {
@@ -67,25 +71,27 @@ macos_arm64 machine posix_filesystem_decode_directory_kind(filesystem: &mut Posi
         _ -> PosixDirectoryKind::Other
     }
 }
-macos_arm64 machine posix_filesystem_metadata_no_follow_flag() -> i32 { 32 }
+machine macos_arm64_posix_metadata_no_follow_flag() -> i32
+    satisfies PosixFilesystemTarget::metadata_no_follow_flag { 32 }
 
-macos_arm64 machine posix_filesystem_directory_type_offset() -> u64
+machine macos_arm64_posix_directory_type_offset() -> u64
+    satisfies PosixFilesystemTarget::directory_type_offset
     ensures result >= 18 && result <= 20
 { 20 }
-macos_arm64 machine posix_filesystem_directory_name_offset() -> u64
+machine macos_arm64_posix_directory_name_offset() -> u64
+    satisfies PosixFilesystemTarget::directory_name_offset
     ensures result >= 19 && result <= 21
 { 21 }
-macos_arm64 machine posix_filesystem_remove_directory_flag() -> i32 { 128 }
-macos_arm64 machine posix_filesystem_directory_descent_flags() -> i32 { 1048832 }
-
-macos_arm64 machine FilesystemProviderDefaults::provider_defaults(defaults: &mut FilesystemProviderDefaults) {
-    FilesystemProviderDefaults::select_provider<FilesystemService, FilesystemPosixProvider>(defaults);
-}
+machine macos_arm64_posix_remove_directory_flag() -> i32
+    satisfies PosixFilesystemTarget::remove_directory_flag { 128 }
+machine macos_arm64_posix_directory_descent_flags() -> i32
+    satisfies PosixFilesystemTarget::directory_descent_flags { 1048832 }
 
 // The PosixCanonicalLibc requirements are bound in std's Build machine.
 
 // Error numbers belong to this OS, not to a synthetic shared POSIX catalog.
-macos_arm64 machine posix_filesystem_kind_of_stored_error_code(filesystem: &mut PosixFilesystem) -> ErrorKind {
+machine macos_arm64_posix_kind_of_stored_error_code(filesystem: &mut PosixFilesystem) -> ErrorKind
+    satisfies PosixFilesystemTarget::kind_of_stored_error_code {
     filesystem.err_kind = match filesystem.err_code {
         2 -> ErrorKind::NotFound,
         13 -> ErrorKind::PermissionDenied,
@@ -105,4 +111,20 @@ macos_arm64 machine posix_filesystem_kind_of_stored_error_code(filesystem: &mut 
     error_kind_reconstruct(&filesystem.err_kind)
 }
 
-macos_arm64 machine posix_filesystem_would_block_error() -> i32 { 35 }
+machine macos_arm64_posix_would_block_error() -> i32
+    satisfies PosixFilesystemTarget::would_block_error { 35 }
+
+// The macos_arm64 record layouts and constants. std's Build selects them for macos_arm64.
+MacosArm64PosixFilesystemTarget satisfies PosixFilesystemTarget {
+    PosixFilesystemTarget::decode_metadata = macos_arm64_posix_decode_metadata;
+    PosixFilesystemTarget::permission_bits = macos_arm64_posix_permission_bits;
+    PosixFilesystemTarget::encode_open_options = macos_arm64_posix_encode_open_options;
+    PosixFilesystemTarget::decode_directory_kind = macos_arm64_posix_decode_directory_kind;
+    PosixFilesystemTarget::metadata_no_follow_flag = macos_arm64_posix_metadata_no_follow_flag;
+    PosixFilesystemTarget::directory_type_offset = macos_arm64_posix_directory_type_offset;
+    PosixFilesystemTarget::directory_name_offset = macos_arm64_posix_directory_name_offset;
+    PosixFilesystemTarget::remove_directory_flag = macos_arm64_posix_remove_directory_flag;
+    PosixFilesystemTarget::directory_descent_flags = macos_arm64_posix_directory_descent_flags;
+    PosixFilesystemTarget::kind_of_stored_error_code = macos_arm64_posix_kind_of_stored_error_code;
+    PosixFilesystemTarget::would_block_error = macos_arm64_posix_would_block_error;
+}

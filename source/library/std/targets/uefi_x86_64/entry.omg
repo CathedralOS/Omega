@@ -29,14 +29,13 @@ public boundary trait UefiPhysicalEntry {
         crashes Trap crashes Abort;
 }
 
-data UefiX86_64 { }
 UefiX86_64CallingPolicy satisfies CallingPolicy {
     machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
-        UefiX86_64::plan(signature)
+        uefi_x86_64_plan(signature)
     }
 }
 
-machine UefiX86_64::plan(
+machine uefi_x86_64_plan(
     signature: BoundarySignature
 ) -> BoundaryPlanResult
     satisfies CallingPolicy::plan

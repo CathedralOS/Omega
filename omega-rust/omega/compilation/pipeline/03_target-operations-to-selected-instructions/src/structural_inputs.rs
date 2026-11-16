@@ -169,7 +169,11 @@ pub(crate) mod structural_reference_input {
         {
             return None;
         }
-        geometry.byte_offset = geometry.byte_offset.checked_add(8)?;
+        geometry.byte_offset = geometry.byte_offset.checked_add(
+            calling_conventions::terminal_layout::element_view_length_offset(
+                &find_structural_type(declarations, geometry.selected)?.shape,
+            )?,
+        )?;
         Some(geometry)
     }
 
@@ -380,7 +384,9 @@ pub(crate) mod structural_reference_input {
                     (
                         StructuralPathSegment::FixedIndex(_)
                         | StructuralPathSegment::RuntimeIndex { .. },
-                        StructuralTypeShape::ElementView { .. },
+                        StructuralTypeShape::ElementView {
+                            access: Some(_), ..
+                        },
                     ) => (carrier, position, false, 16),
                     (
                         StructuralPathSegment::FixedIndex(_)
@@ -736,8 +742,8 @@ pub(crate) mod structural_reference_input {
         structural_type: StructuralTypeId,
         declarations: &NativeGeometry<'_>,
     ) -> Option<ValueShape> {
-        // An owned element sequence moves as its stored-length descriptor; the roster it
-        // names is read-only image storage that no move copies or frees.
+        // Owned sequences carry inline elements through the same aggregate
+        // storage and transfer path as records and fixed arrays.
         find_structural_type(declarations, structural_type).filter(|declaration| {
             declaration.shape.is_composite_shape()
                 || declaration.shape.is_bounded_owned_byte_sequence()
@@ -1789,7 +1795,15 @@ pub(crate) mod structural_reference_input {
                             element,
                             length: terminal_psi::ArrayExtent::Literal(length),
                         } => (*element, Some(*length)),
-                        StructuralTypeShape::ElementView { element, .. } => (*element, None),
+                        StructuralTypeShape::ElementView { element, access } => {
+                            if access.is_none() {
+                                let layout = declarations.owned_sequence(carrier).ok()?;
+                                offset = offset.checked_add(layout.elements_offset)?;
+                                (*element, Some(layout.capacity))
+                            } else {
+                                (*element, None)
+                            }
+                        }
                         _ => return None,
                     };
                     let element_shape = shape(element, declarations)?;
@@ -2162,7 +2176,17 @@ pub(crate) mod structural_reference_input {
                             },
                         ) =>
                     {
-                        length_word = 8;
+                        length_word = match &find_structural_type(declarations, child)?.shape {
+                            view @ StructuralTypeShape::ElementView { .. } => {
+                                calling_conventions::terminal_layout::element_view_length_offset(
+                                    view,
+                                )?
+                            }
+                            StructuralTypeShape::ByteSequence(
+                                terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
+                            ) => 8,
+                            _ => return None,
+                        };
                         observes_byte_length
                             && matches!(scalar, ScalarType::Integer(integer)
                             if Ok(integer) == semantic_vocabulary::IntegerType::new(
@@ -2219,10 +2243,12 @@ pub(crate) mod structural_reference_input {
         let descriptor_frame = matches!(
             find_structural_type(declarations, root).map(|declaration| &declaration.shape),
             Some(
-                StructuralTypeShape::ElementView { .. }
-                    | StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
-                    )
+                StructuralTypeShape::ElementView {
+                    access: Some(_),
+                    ..
+                } | StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                )
             )
         );
         descriptor_frame
@@ -2255,7 +2281,9 @@ pub(crate) mod structural_reference_input {
         }
         let root_shape = &find_structural_type(declarations, structural_type)?.shape;
         let root = match root_shape {
-            StructuralTypeShape::ElementView { .. } => None,
+            StructuralTypeShape::ElementView {
+                access: Some(_), ..
+            } => None,
             _ => Some(shape(structural_type, declarations)?),
         };
         if let Some(read) =
@@ -2378,23 +2406,31 @@ pub(crate) mod structural_reference_input {
             path,
             field,
         )?;
-        let (capacity, length_word) = match selected.field_type.byte_sequence_carrier() {
+        let (capacity, length_word, descriptor) = match selected.field_type.byte_sequence_carrier()
+        {
             Some(terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity }) => {
-                (Some(capacity), 0)
+                (Some(capacity), 0, false)
             }
-            Some(terminal_psi::ByteSequenceCarrier::BorrowedView { .. }) => (None, 8),
+            Some(terminal_psi::ByteSequenceCarrier::BorrowedView { .. }) => (None, 8, true),
             _ => match selected
                 .field_type
                 .as_structural()
                 .and_then(|identity| find_structural_type(declarations, identity))
                 .map(|declaration| &declaration.shape)
             {
+                Some(view @ StructuralTypeShape::ElementView { access: None, .. }) => (
+                    None,
+                    calling_conventions::terminal_layout::element_view_length_offset(view)?,
+                    false,
+                ),
                 Some(
-                    StructuralTypeShape::ElementView { .. }
+                    StructuralTypeShape::ElementView {
+                        access: Some(_), ..
+                    }
                     | StructuralTypeShape::ByteSequence(
                         terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
                     ),
-                ) => (None, 8),
+                ) => (None, 8, true),
                 _ => return None,
             },
         };
@@ -2412,7 +2448,7 @@ pub(crate) mod structural_reference_input {
         elements.extend(leaf_elements);
         Some(ProjectedByteField {
             length_offset: offset.checked_add(length_word)?,
-            descriptor_offset: capacity.is_none().then_some(offset),
+            descriptor_offset: descriptor.then_some(offset),
             capacity,
             elements,
             pointer_slots: regions.pointer_slots,

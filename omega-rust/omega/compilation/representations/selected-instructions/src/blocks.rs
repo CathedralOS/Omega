@@ -67,11 +67,6 @@ impl BlockSlotSummary {
     }
 
     #[inline]
-    pub fn has_non_load_register(&self, register: VirtualRegisterId) -> bool {
-        test_register_bit(&self.non_load_register_bits, register)
-    }
-
-    #[inline]
     pub fn non_load_register_bits(&self) -> &[u64] {
         &self.non_load_register_bits
     }

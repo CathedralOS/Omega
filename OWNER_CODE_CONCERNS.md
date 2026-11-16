@@ -73,20 +73,6 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-### Structural equality refuses a field of a closed generic type
-- Category: knowledge crossing a boundary
-- Where: [field type preparation](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/equality_and_exhaustiveness.rs), [applied type references](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/type_reference.rs)
-- Saw: On clean `eca5c0b9d21` and candidate `c64a4d172f9` on macOS arm64, `Player.point: Point<1>` with `PointEquality satisfies Equatable<Point<1>>` refuses that the field is not Equatable before choosing its comparison row. `Point<const Index: u64> [copy]` has one `i32` field. The same nested comparison over non-generic `Point` runs in both engines.
-- Cost: Equality preparation has the resolved application and has no comparison over its instantiated fields. Use the existing applied type and member substitution owner so a comparison for `Point<1>` cannot be reused for a different argument or unresolved field.
-- Reported: 2026-11-15, Codex, while verifying exact structural equality through aliases.
-
-### A user trait named Equatable receives compiler synthesis
-- Category: the documents disagree
-- Where: [synthesis selection](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation.rs#L2601), [core equality acquisition](wiki/spec/language/conformances.md#core-equality-acquisition)
-- Saw: On clean `eca5c0b9d21` on macOS arm64, an authored root `trait Equatable<T>` with `equals(left: T, right: T) -> bool` gives an empty named implementation a compiler-generated row. The copied program with only that trait consistently renamed to `UserComparable` refuses the missing `equals` row. The working spelling runs in both engines and reopens. The specification reserves synthesis for a sealed core declaration.
-- Cost: A user root path grants synthesis privilege through spelling. Publish and select the existing equality protocol through an exact sealed owner. Migrate the legacy authored witnesses together with that change so a lookalike user declaration cannot acquire synthesis.
-- Reported: 2026-11-15, Codex, while auditing remaining equality-name selection.
-
 ### Named predicates skip declaration-time arithmetic totality
 - Category: a verdict with nothing behind it
 - Where: [unused partial predicate](tests/fixtures/fail/proofs/unused_partial_mathematical_predicate/main.omg), [governance assertion](omega-rust/omega/compilation/compiler/tests/lowered_route_governance.rs#L185), [operator lowering](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/expression_lowering.rs#L1155), [named mathematical definitions](wiki/spec/proofs/mathematical_bindings.md#named-mathematical-definitions), [proof arithmetic rules](wiki/spec/proofs/contracts.md#total-arithmetic)
@@ -97,15 +83,14 @@ framework or a list of unimplemented features.
 ### Literal declaration validation still judges selected predicates in syntax
 - Category: one idea, several implementations
 - Where: [literal predicate discharge](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_const_evaluation.rs#L3570), [checked destination handoff](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_generic_data.rs#L3704)
-- Saw: Record/case and nested constrained-member predicates still reach `ProveSyntax`, which approximates selected operators from spellings and parameter carriers. Computed initializers use checked evaluation. The indexed receiving case gained exact declaration identity in #3616. The record/case const-argument path still refuses before checked evaluation. The duplicate syntax judgment was identified by inspection.
-- Cost: The syntax path duplicates part of the ordinary predicate judgment. [EARLY-TERMINAL-JOBS](TASKS.md#early-terminal-jobs) tracks the remaining handoff and its acceptance checks.
+- Saw: Record/case and nested constrained-member predicates still reach `ProveSyntax`, which approximates selected operators from spellings and parameter carriers. Computed initializers use checked evaluation. The duplicate judgment was identified by inspection.
+- Cost: Literal and computed initializers use separate judgments for the same declaration-dependent obligations. The [EARLY-TERMINAL-JOBS handoff](TASKS.md#early-terminal-jobs) owns the repair and its acceptance checks.
 - Reported: 2026-11-15, Codex, while verifying the owner's upstream source-review handoff.
 
 ### Completing selected bodies copies the retained typed program
 - Category: re-deriving
-- Where: [activation](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs), [selected continuation](omega-rust/psi/compilation/source-compiler/src/source_compilation.rs), [retained pages](omega-rust/psi/foundation/arena/src/retained.rs), [source application preparation](omega-rust/psi/compilation/representations/typed-trees/src/references.rs)
-- Saw: Type, expression and statement tables share retained pages and append private rows. Primary expression and statement rewrites detach their declaration or body owner's rows, not an earlier completion batch. Empty selected activation still copies declaration and side-record storage before projection narrows its roots. Child-list rewrites retain their existing batch boundary.
-- Cost: Unrelated declaration storage is copied even for an empty body batch. Use the [body ownership design](wiki/drafts/designs/compiler_work_ownership.md#representation-and-execution-contract) to share the remaining immutable declaration and side-record storage under its actual owner. Do not skip source application preparation, projection, source authority checks, or signature and inferred-summary dependencies.
-- Measured: On Windows x86-64 at opt-level 1, the two original Build routes each selected 75 files and zero bodies. Activation requested 5,072,323 bytes across 13,043 allocations and cloned 63 arenas. Later full completions of 1,695 / 1,693 machines requested 311,597,594 / 311,407,992 bytes, including new output and required preparation. Primary payload copies were limited to 205 expression rows and two statement rows per route; shared-directory detachment copied 742,388 / 742,276 bytes of page headers and slot associations. These are operation counts, not a general runtime-speedup claim. The [historical macOS measurement](wiki/drafts/measurements/selected_body_copies.md) at `d66164cd0f5` recorded 32,333,303 activation bytes, 14,553 allocations and 101 cloned arenas; it did not measure repeated nonempty completion.
-- Reported: 2026-11-15, Codex, after measuring retained type and body storage on the original scalar-contract and borrowed-root Build routes
+- Where: [body activation](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L554), [selected continuation](omega-rust/psi/compilation/source-compiler/src/source_compilation.rs), [retained pages](omega-rust/psi/foundation/arena/src/retained.rs)
+- Saw: Empty activation still copies declaration and side-record storage before projection. On both original Build routes, continuation construction requested 4,136,141 bytes across 12,802 allocations and 58 arena clones; matching-symbol preparation separately requested 958,615 bytes across eight allocations and five clones, on Windows x86-64 at opt-level 1. The [measurement in #3646](https://github.com/CathedralOS/Omega/pull/3646) also covers nonempty completion. Child-list rewrites still use completion-batch boundaries.
+- Cost: Share the remaining immutable storage under its actual owner using the [body ownership design](wiki/drafts/designs/compiler_work_ownership.md#representation-and-execution-contract). Preserve source application preparation, projection, source authority checks, and signature and inferred-summary dependencies. Remeasure empty activation and nonempty completion on both routes.
+- Reported: 2026-11-15, Codex, while measuring continuation construction and body completion.
 

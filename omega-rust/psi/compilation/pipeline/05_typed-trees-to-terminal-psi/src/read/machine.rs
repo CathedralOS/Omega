@@ -2606,7 +2606,10 @@ impl<'t> Program<'t> {
 
     /// A slice formal carries its borrowed descriptor. A loan of a stored
     /// value uses the referent's carrier. The executable signature and calling
-    /// ABI use this same choice when they read the formal's type.
+    /// ABI use this same choice when they read the formal's type. A slice in
+    /// a domain (`&[u8] in Path`) is still a slice: the domain is displayed
+    /// on the referent, and a reference's domains are its referent's
+    /// (`source_byte_view`).
     pub(super) fn borrowed_formal_carrier(
         &self,
         reference: TypeReferenceHandle,
@@ -2615,7 +2618,7 @@ impl<'t> Program<'t> {
         let types = &self.typed.type_reference_table;
         if types.contains_type_reference(referee)
             && matches!(
-                types.type_reference(referee),
+                types.type_reference(types.unconstrained_type_reference(referee)),
                 TypeReferenceNode::Slice { .. }
             )
         {
@@ -2631,10 +2634,17 @@ impl<'t> Program<'t> {
         carrier: TypeReferenceHandle,
         referent: BorrowedReferent,
     ) -> Checked<ValueType> {
-        if referent == BorrowedReferent::Slice
-            && let Some(value) = self.view_type_with_formal_access(machine, carrier, true)?
-        {
-            return Ok(value);
+        // A byte view in a domain is served on a formal: the signature
+        // states the domain's predicate of the formal's bytes as an entry
+        // requirement (`signature_predicates`), so every call owes it of the
+        // view it passes and the body may rely on it.
+        if referent == BorrowedReferent::Slice {
+            let outer = std::mem::replace(&mut self.qualified_views, true);
+            let view = self.view_type_with_formal_access(machine, carrier, true);
+            self.qualified_views = outer;
+            if let Some(value) = view? {
+                return Ok(value);
+            }
         }
         self.value_type(machine, carrier)
     }
@@ -2752,6 +2762,39 @@ impl<'t> Program<'t> {
             }
         }
         let value_type = self.formal_value_type(id, carrier, referent)?;
+        if matches!(value_type, ValueType::Rigid(_))
+            && let Some(types) = &mut self.schema_types
+        {
+            // A bodyless generic schema has no caller storage to borrow. Its
+            // whole reference type is an opaque logical input, distinct from T
+            // and from other reference types. Rigid inputs grant no facts. The
+            // applied callable later checks its real referent and outer loan.
+            let identity = self
+                .typed
+                .package_qualified_type_identity(formal.type_reference);
+            if !identity.is_valid() {
+                return unserved("symbolic reference without its complete type identity");
+            }
+            let position = match types.iter().position(|candidate| *candidate == identity) {
+                Some(position) => position,
+                None => {
+                    types.push(identity);
+                    types.len() - 1
+                }
+            };
+            let position = u32::try_from(self.scope.len() + position).map_err(|_| {
+                refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Parameter("schema type count"),
+                )
+            })?;
+            return Ok((
+                ValueType::Rigid(terminal_check_tables::values::RigidType(position)),
+                false,
+                None,
+            ));
+        }
         // Incoming data is already established, whether lent shared or
         // exclusively. Stores through an exclusive loan owe the same data
         // clauses as owned stores; the existing storage windows require

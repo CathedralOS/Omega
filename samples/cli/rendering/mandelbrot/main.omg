@@ -11,22 +11,13 @@ use omega::language::core::ProcessExit;
 use omega::language::core::F64::from_i32;
 use omega_language_std::Console;
 
-domain [u8]::Utf8
-requires
-    valid_utf8(self);
-domain [u8; 64]::Utf8
-requires
-    valid_utf8(self);
-domain [u8; 8]::Utf8
-requires
-    valid_utf8(self);
 data Main
 requires self.x >= 0 && self.x <= 64,
     self.y >= 0 && self.y <= 28,
     self.k >= 0 && self.k <= 28
 {
-    row: [u8; 64] in Utf8;
-    palette: [u8; 8] in Utf8;
+    row: [u8; 64];
+    palette: [u8; 8];
     x: i32;
     y: i32;
     cr: f64;
@@ -42,7 +33,7 @@ requires self.x >= 0 && self.x <= 64,
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("mandelbrot: escape-time fractal rendered as 64x28 ASCII");
     main.palette = " .:-=+*#";
     main.row = "................................................................";
@@ -108,7 +99,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     // Re-guard so the increment's direct edge proves `y + 1` lands in
     // [1..=28] under the standing owner domain.
     machine emit_row(main: &mut Main) {
-        Console::write_line(main.row);
+        Console::write_line(&main.row[..]);
         transition main.y >= 0 && main.y < 28 { true -> block row_advance(main) _ -> block done(main) }
     }
     machine row_advance(main: &mut Main) {
@@ -118,13 +109,13 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     machine done(main: &mut Main) {
         Console::write_line("PASS: 28 rows rendered (exit 0)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(0);
     }
     machine bad(main: &mut Main) {
         Console::write_line("FAIL: internal bounds check failed (exit 1)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(1);
     }
 }
@@ -132,5 +123,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

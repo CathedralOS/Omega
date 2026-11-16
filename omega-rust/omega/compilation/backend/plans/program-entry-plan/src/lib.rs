@@ -37,9 +37,3 @@ pub use program_entry_physical::{
     exact_physical_contract_package_source_digest,
 };
 pub use selected_entry::{ProgramStorageEntryRootRole, SelectedProgramStorageEntryPlan};
-
-const EFI_STATUS_ERROR_BIT: u64 = 1_u64 << 63;
-
-pub const fn uefi_os_handoff_exhaustion_requires_error(exhaustion_status: u64) -> bool {
-    exhaustion_status & EFI_STATUS_ERROR_BIT != 0
-}

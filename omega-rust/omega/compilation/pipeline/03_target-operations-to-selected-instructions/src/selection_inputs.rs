@@ -3264,13 +3264,16 @@ pub(crate) mod primitive_local_input {
                 indices,
                 length_byte_offset,
             } => {
-                if *length_byte_offset != 8 {
-                    return None;
-                }
                 source.structural.as_ref()?;
                 let root = crate::selection::reference_input::root_type(source, argument.place)?;
                 let geometry =
                     element_view_length_geometry(root, &argument.path, source.geometry())?;
+                if calling_conventions::terminal_layout::element_view_length_offset(
+                    &source.geometry().declaration(geometry.selected).ok()?.shape,
+                ) != Some(*length_byte_offset)
+                {
+                    return None;
+                }
                 length_count_matches(scalar, indices, &geometry.elements)?;
                 Some((argument.place, geometry.byte_offset, geometry.pointer_slots))
             }
@@ -3696,13 +3699,18 @@ pub(crate) mod record_input {
             StructuralFieldType::Structural(child) => find_structural_type(declarations, *child)
                 .filter(|declaration| !declaration.owns_linear_claim)
                 .map(|declaration| declaration.shape.clone())
+                // Owned sequences carry aggregate storage, including when a
+                // local supplies a record field. Only physical descriptors use
+                // the view-origin and access checks above.
                 .filter(|shape| {
                     matches!(
                         shape,
-                        StructuralTypeShape::ElementView { .. }
-                            | StructuralTypeShape::ByteSequence(
-                                terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
-                            )
+                        StructuralTypeShape::ElementView {
+                            access: Some(_),
+                            ..
+                        } | StructuralTypeShape::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
+                        )
                     )
                 }),
             StructuralFieldType::ByteSequence(
@@ -5556,47 +5564,16 @@ pub(crate) mod structural_array_input {
     use legalized_operations::{LegalizedScalarInstruction, LegalizedScalarInstructionKind};
     use terminal_psi::{StructuralAccess, StructuralTypeShape};
 
-    /// Whether this construction builds an owned element sequence (whose 16-byte
-    /// stored-length descriptor points at its literal-pool roster) rather than an inline
-    /// fixed array. `None` when the row is not a structural array construction.
-    pub(crate) fn owned_sequence(
-        source: &crate::native_geometry::NativeFunction<'_>,
-        row: &LegalizedScalarInstruction,
-    ) -> Option<bool> {
-        let LegalizedScalarInstructionKind::EstablishStructuralArray {
-            result,
-            elements,
-            shape,
-        } = &row.kind
-        else {
-            return None;
-        };
-        let declaration = source
-            .geometry()
-            .iter()
-            .find(|entry| entry.id == result.structural_type)?;
-        let StructuralTypeShape::ElementView { access: None, .. } = declaration.shape else {
-            return Some(false);
-        };
-        let declared = crate::structural_inputs::structural_reference_input::shape(
-            result.structural_type,
-            source.geometry(),
-        )?;
-        (row.result.is_none()
-            && declared == *shape
-            && shape.byte_size == 16
-            && elements.iter().all(|argument| {
-                argument.access == StructuralAccess::Owned
-                    && argument.path.is_empty()
-                    && argument.place != result.place
-            }))
-        .then_some(true)
+    pub(crate) struct Elements {
+        pub element_shape: ValueShape,
+        pub offsets: Vec<u32>,
+        pub live_length: Option<u64>,
     }
 
     pub(crate) fn elements(
         source: &crate::native_geometry::NativeFunction<'_>,
         row: &LegalizedScalarInstruction,
-    ) -> Option<(ValueShape, Vec<u32>)> {
+    ) -> Option<Elements> {
         let LegalizedScalarInstructionKind::EstablishStructuralArray {
             result,
             elements,
@@ -5610,12 +5587,23 @@ pub(crate) mod structural_array_input {
         let declaration = types
             .iter()
             .find(|entry| entry.id == result.structural_type)?;
-        let StructuralTypeShape::FixedArray {
-            element,
-            length: terminal_psi::ArrayExtent::Literal(length),
-        } = declaration.shape
-        else {
-            return None;
+        let count = u64::try_from(elements.len()).ok()?;
+        let (element, length, base, live_length) = match declaration.shape {
+            StructuralTypeShape::FixedArray {
+                element,
+                length: terminal_psi::ArrayExtent::Literal(length),
+            } => (element, length, 0, None),
+            StructuralTypeShape::ElementView {
+                element,
+                access: None,
+            } => {
+                let layout = types.owned_sequence(result.structural_type).ok()?;
+                if count > layout.capacity {
+                    return None;
+                }
+                (element, count, layout.elements_offset, Some(count))
+            }
+            _ => return None,
         };
         let geometry = crate::structural_inputs::structural_reference_input::shape;
         if row.result.is_some()
@@ -5645,9 +5633,13 @@ pub(crate) mod structural_array_input {
             {
                 return None;
             }
-            offsets.push(u32::try_from(ordinal).ok()?.checked_mul(stride)?);
+            offsets.push(base.checked_add(u32::try_from(ordinal).ok()?.checked_mul(stride)?)?);
         }
-        Some((element_shape, offsets))
+        Some(Elements {
+            element_shape,
+            offsets,
+            live_length,
+        })
     }
 }
 

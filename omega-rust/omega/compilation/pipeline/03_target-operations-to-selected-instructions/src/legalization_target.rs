@@ -1486,6 +1486,7 @@ pub(crate) mod control_flow {
                         && match source {
                             target_operations::TargetStructuralReturnSource::SharedDescriptor { place } => {
                                 place == expected_source
+                                    && optimized.result.structural().is_some_and(|result| plan.geometry().declaration(result.structural_type).is_ok_and(|declaration| calling_conventions::terminal_layout::is_native_view_descriptor(&declaration.shape)))
                                     && crate::legalization::scalar_graph_input::byte_views::descriptor_return(
                                         optimized, *place, plan.geometry(),
                                     )
@@ -2746,9 +2747,9 @@ pub(crate) mod expressions {
                             && length == expected_length && obligation == expected_obligation && self.integer_source(index, *expected_index, aliases)))
                 }
                 Expression::ElementViewLength { psi_operation, source_value, source, indices, length_byte_offset } => {
-                    *length_byte_offset == 8 && *source_value == resolved
+                    *source_value == resolved
                         && crate::legalization::scalar_graph_input::element_views::length_geometry(self.optimized, source, self.types)
-                            .is_some_and(|geometry| super::unit::runtime_indices_rejoin(
+                            .is_some_and(|geometry| self.types.declaration(geometry.selected).ok().and_then(|declaration| calling_conventions::terminal_layout::element_view_length_offset(&declaration.shape)) == Some(*length_byte_offset) && super::unit::runtime_indices_rejoin(
                                 indices, &geometry.elements, self.available.unwrap_or(&crate::legalization_target::control_flow::sources::EMPTY)))
                         && self.optimized.block_nodes().any(|node| matches!(&node.operation,
                             AbstractOperation::ElementViewLength { psi_operation: operation, result, source: expected }
@@ -4099,24 +4100,20 @@ pub(crate) mod unit {
                             element,
                             length: terminal_psi::ArrayExtent::Literal(length),
                         } => (element, length),
-                        // An owned sequence is backed by its constant roster in the
-                        // read-only literal pool; target lowering admits no other form.
                         terminal_psi::StructuralTypeShape::ElementView {
                             element,
                             access: None,
                         } => {
-                            let roster = target_operations::constant_element_roster(
-                                optimized.blocks.iter().flat_map(|block| {
-                                    block.nodes.iter().map(|node| &node.operation)
-                                }),
-                                abstracted,
-                                unit.geometry(),
-                            )
-                            .ok_or(LegalizationError::custody())?;
-                            if roster.element != element {
+                            let layout = unit
+                                .geometry()
+                                .owned_sequence(result.structural_type)
+                                .map_err(|_| LegalizationError::custody())?;
+                            let count = u64::try_from(elements.len())
+                                .map_err(|_| LegalizationError::custody())?;
+                            if count > layout.capacity {
                                 return Err(LegalizationError::custody());
                             }
-                            (element, roster.count)
+                            (element, count)
                         }
                         _ => return Err(LegalizationError::custody()),
                     };

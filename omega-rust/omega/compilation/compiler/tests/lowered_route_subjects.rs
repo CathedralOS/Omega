@@ -920,6 +920,43 @@ fn judged_parts(name: &str, declaration: &str) -> Vec<Verdict> {
 }
 
 #[test]
+fn borrowed_generic_schemas_close_only_at_their_selected_callables() {
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let source = "trait Read<T> { machine read(value: &T) -> u32 ensures result == 1u32; } ReadInt satisfies Read<i32> { machine read(value: &i32) -> u32 { 1u32 } } machine invoke() -> u32 { let value: i32 = 7; ReadInt::read(&value) }";
+    let accepted = judged_parts("borrowed_schema_closed_call", source);
+    assert!(!accepted.is_empty(), "the source must produce check forms");
+    assert!(
+        matches!(accepted.first(), Some(Verdict::Accepted(count)) if *count >= 3),
+        "the main, invoke, and selected read bodies must be judged: {accepted:?}"
+    );
+    assert!(
+        accepted
+            .iter()
+            .all(|verdict| matches!(verdict, Verdict::Accepted(_))),
+        "{accepted:?}"
+    );
+
+    let invalid = source.replace("{ 1u32 }", "{ 0u32 }");
+    let refused = judged_parts("borrowed_schema_unproved_result", &invalid);
+    assert!(refused.contains(&Verdict::Rejected), "{refused:?}");
+
+    let mutation = source.replace("{ 1u32 }", "{ value = 8; 1u32 }");
+    let refused = judged_parts("borrowed_schema_shared_mutation", &mutation);
+    assert!(refused.contains(&Verdict::Rejected), "{refused:?}");
+
+    let unproved = "trait Read<T> { machine read(value: &T) -> u32 requires value > 0; }";
+    let refused = judged_parts("borrowed_schema_unproved_referent", unproved);
+    assert!(
+        refused
+            .iter()
+            .any(|verdict| !matches!(verdict, Verdict::Accepted(_))),
+        "{refused:?}"
+    );
+}
+
+#[test]
 fn boundary_conformer_subject_is_checked_without_a_direct_entry() {
     let _compilation = FIXTURE_COMPILATIONS
         .lock()

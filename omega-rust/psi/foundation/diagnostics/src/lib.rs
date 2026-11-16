@@ -16,8 +16,13 @@ infer file paths from source-unit order.
 */
 
 /*
-Bounded rendering (`write_bounded_diagnostics`) caps output at 16 diagnostics
-and 4,096 escaped message bytes per diagnostic before allocation so untrusted
+Bounded rendering (`write_bounded_diagnostics`) reports every diagnostic a
+failure carries, grouped by cause: the message with quoted names, numbers and
+its "while reading ..." chain left out. By default each cause prints its first
+diagnostic and how many more share it, so a compilation that refuses hundreds
+of machines for a few reasons reads as a few lines. `omega --verbose` turns on
+`list_every_diagnostic`, which prints all of them, still grouped. Each message
+is escaped and capped at 4,096 bytes before allocation, so untrusted
 identifier bytes or control characters cannot forge extra diagnostic lines.
 Retained `ExceededProvision` records decode strictly through `CoverageForm`'s
 finite resource vocabulary.
@@ -28,11 +33,22 @@ finite resource vocabulary.
 use std::borrow::Borrow;
 use std::fmt;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use source::SourceSpan;
 
-const MAXIMUM_DIAGNOSTICS: usize = 16;
 const MAXIMUM_MESSAGE_BYTES: usize = 4_096;
+
+/// Whether this process prints every diagnostic of a failure rather than
+/// one per cause. Set once from the command line (`omega --verbose`).
+static EVERY_DIAGNOSTIC: AtomicBool = AtomicBool::new(false);
+
+/// Print every diagnostic a failure reports, not only the first of each
+/// cause (`write_bounded_diagnostics`). The command line sets this once,
+/// before any command runs.
+pub fn list_every_diagnostic() {
+    EVERY_DIAGNOSTIC.store(true, Ordering::Relaxed);
+}
 
 #[macro_export]
 macro_rules! debug_display {
@@ -256,11 +272,94 @@ impl compiler_storage::Record for ExceededProvision {
     }
 }
 
+/// Every diagnostic of a failure, grouped by cause, the cause with the most
+/// diagnostics first (ties in the order they first appear). Each cause prints
+/// its first diagnostic and how many more share it; with
+/// `list_every_diagnostic` it prints all of them.
 pub fn write_bounded_diagnostics(
     formatter: &mut fmt::Formatter<'_>,
     diagnostics: &[Diagnostic],
 ) -> fmt::Result {
-    for diagnostic in diagnostics.iter().take(MAXIMUM_DIAGNOSTICS) {
+    write_grouped_diagnostics(
+        formatter,
+        diagnostics,
+        EVERY_DIAGNOSTIC.load(Ordering::Relaxed),
+    )
+}
+
+fn write_grouped_diagnostics(
+    formatter: &mut impl fmt::Write,
+    diagnostics: &[Diagnostic],
+    every: bool,
+) -> fmt::Result {
+    // Few causes, many diagnostics: a linear search over the causes seen so
+    // far keeps one small vector instead of a map.
+    let mut causes: Vec<(String, Vec<usize>)> = Vec::new();
+    for (position, diagnostic) in diagnostics.iter().enumerate() {
+        let cause = cause_of(&diagnostic.message);
+        match causes.iter_mut().find(|(seen, _)| *seen == cause) {
+            Some((_, members)) => members.push(position),
+            None => causes.push((cause, vec![position])),
+        }
+    }
+    causes.sort_by_key(|(_, members)| std::cmp::Reverse(members.len()));
+    for (_, members) in &causes {
+        let shown = if every { members.len() } else { 1 };
+        for &position in &members[..shown] {
+            write_one_diagnostic(formatter, &diagnostics[position])?;
+        }
+        if !every && members.len() > 1 {
+            write!(
+                formatter,
+                "\n    and {} more with this cause; --verbose lists every one",
+                members.len() - 1
+            )?;
+        }
+    }
+    Ok(())
+}
+
+/// What groups diagnostics of one cause: the message up to the "while
+/// reading ..." chain that says where the reader was or the "; ..." advice
+/// after it, without its quoted names or numbers. It only orders and counts
+/// the report; nothing decides on it.
+fn cause_of(message: &str) -> String {
+    let end = [" while reading ", "; "]
+        .iter()
+        .filter_map(|marker| message.find(marker))
+        .min()
+        .unwrap_or(message.len());
+    let message = &message[..end];
+    let mut cause = String::with_capacity(message.len());
+    let mut quoted = false;
+    let mut digits = false;
+    for character in message.chars() {
+        if character == '`' {
+            if !quoted {
+                cause.push('`');
+            }
+            quoted = !quoted;
+            digits = false;
+            continue;
+        }
+        if quoted {
+            continue;
+        }
+        if character.is_ascii_digit() {
+            if !digits {
+                cause.push('#');
+            }
+            digits = true;
+            continue;
+        }
+        digits = false;
+        cause.push(character);
+    }
+    cause
+}
+
+fn write_one_diagnostic(formatter: &mut impl fmt::Write, diagnostic: &Diagnostic) -> fmt::Result {
+    {
         let severity = match diagnostic.severity {
             DiagnosticSeverity::Error => "error",
             DiagnosticSeverity::Warning => "warning",
@@ -279,13 +378,6 @@ pub fn write_bounded_diagnostics(
             )?;
         }
         write_location(formatter, diagnostic)?;
-    }
-    if diagnostics.len() > MAXIMUM_DIAGNOSTICS {
-        write!(
-            formatter,
-            "\n  [truncated; {} additional diagnostics omitted]",
-            diagnostics.len() - MAXIMUM_DIAGNOSTICS
-        )?;
     }
     Ok(())
 }
@@ -429,6 +521,57 @@ mod tests {
              error: unresolved problem\n    source-unit 3, bytes 7..12\n\
              error: unlocated problem"
         );
+    }
+
+    fn grouped(diagnostics: &[Diagnostic], every: bool) -> String {
+        let mut text = String::new();
+        crate::write_grouped_diagnostics(&mut text, diagnostics, every)
+            .expect("a String target accepts every render");
+        text
+    }
+
+    /// Three machines refused for one reason and one for another: by default
+    /// each cause shows its first diagnostic and a count, the largest cause
+    /// first; nothing is dropped. The chain and the advice after `; ` do not
+    /// split a cause.
+    #[test]
+    fn each_cause_prints_once_with_how_many_share_it() {
+        let diagnostics = [
+            Diagnostic::error("target selection 12 while reading the signature of `B`"),
+            Diagnostic::error("cannot own a machine `A::one` while reading the body of `A`"),
+            Diagnostic::error("cannot own a machine `C::two`; the checker does not support it"),
+            Diagnostic::error("cannot own a machine `D::three`"),
+        ];
+        assert_eq!(
+            grouped(&diagnostics, false),
+            "\n  error: cannot own a machine `A::one` while reading the body of `A`\
+             \n    and 2 more with this cause; --verbose lists every one\
+             \n  error: target selection 12 while reading the signature of `B`"
+        );
+    }
+
+    /// With every diagnostic asked for, all four print, grouped by cause.
+    #[test]
+    fn every_diagnostic_prints_grouped_by_cause() {
+        let diagnostics = [
+            Diagnostic::error("cannot own a machine `A::one`"),
+            Diagnostic::error("target selection"),
+            Diagnostic::error("cannot own a machine `C::two`"),
+        ];
+        assert_eq!(
+            grouped(&diagnostics, true),
+            "\n  error: cannot own a machine `A::one`\
+             \n  error: cannot own a machine `C::two`\
+             \n  error: target selection"
+        );
+    }
+
+    /// A message cannot forge a line of its own: a newline in it is escaped
+    /// however many diagnostics are listed.
+    #[test]
+    fn a_message_cannot_add_a_line_of_its_own() {
+        let text = grouped(&[Diagnostic::error("bad\n  error: forged")], true);
+        assert_eq!(text.matches('\n').count(), 1, "{text}");
     }
 
     #[test]

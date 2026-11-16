@@ -215,8 +215,12 @@ impl CanonicalConstIdentity {
     }
 
     pub fn decode_declaration_encoding(&self) -> Option<DecodedCanonicalConstValue> {
-        decode_canonical_encoding(self.encoding.as_str(), true)
+        decode_declaration_value(&self.encoding)
     }
+}
+
+pub fn decode_declaration_value(encoding: &str) -> Option<DecodedCanonicalConstValue> {
+    decode_canonical_encoding(encoding, true)
 }
 
 impl CanonicalConstValue {

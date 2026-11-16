@@ -11,7 +11,6 @@ use omega::language::core::FilesystemMetadataMutation;
 use omega::language::core::DirectoryEnumeration;
 use omega::language::core::FilesystemNamespaceMutation;
 
-
 public data File [copy] {
     handle: u64;
 }
@@ -258,7 +257,6 @@ public data MetadataResult {
 
 // Default selection belongs to the portable slot. Each target contributes its
 // complete implementation without importing another OS family's adapter.
-data FilesystemProviderDefaults {}
 
 // Native filesystem operations may occupy the caller's worker. This ceiling
 // stays identical on every target; a nonblocking implementation may fit it but

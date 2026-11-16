@@ -5,8 +5,9 @@
 //! A declared domain on a leaf arrives as the `as +D` entry that
 //! materialization wrote, and is judged as any other such cast.
 
-use language_semantics::const_value::DecodedCanonicalConstValue;
-use semantic_vocabulary::{IntegerValue, MachineId, ScalarType};
+use language_semantics::const_value::{DecodedCanonicalConstValue, decode_declaration_value};
+use numerics::literals::FloatFormat;
+use semantic_vocabulary::{IeeeFloatValue, IntegerValue, MachineId, ScalarType};
 use terminal_check_tables::{Checked, Construct};
 use typed_trees::constant::ConstDeclaration;
 
@@ -216,8 +217,11 @@ impl Program<'_> {
             self.deferred_scalar_constant(id, constant)?;
             return Ok(());
         }
-        let value = typed_trees::canonical_const_declaration_value(self.typed, constant.symbol)
-            .and_then(|value| value.decode_encoding())
+        let value = constant
+            .evaluated_value
+            .as_ref()
+            .and_then(language_core::constant_value::EvaluatedConstant::encoding)
+            .and_then(decode_declaration_value)
             .ok_or_else(|| unserved("constant has no evaluated canonical value"))?;
         if !self
             .typed
@@ -346,6 +350,16 @@ impl Program<'_> {
             (DecodedCanonicalConstValue::Boolean(value), ExpressionKind::Boolean(current)) => {
                 *value == *current
             }
+            (
+                DecodedCanonicalConstValue::Float { format, bits },
+                ExpressionKind::Float(current),
+            ) => match (format, current) {
+                (FloatFormat::F32, IeeeFloatValue::Binary32(current)) => {
+                    u64::from(*current) == *bits
+                }
+                (FloatFormat::F64, IeeeFloatValue::Binary64(current)) => *current == *bits,
+                _ => false,
+            },
             (
                 DecodedCanonicalConstValue::Array { values, .. },
                 ExpressionKind::Array { elements },

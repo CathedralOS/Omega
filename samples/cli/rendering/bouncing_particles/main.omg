@@ -17,18 +17,6 @@ use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 use omega_language_std::Clock;
 
-domain [u8]::Utf8
-requires
-    valid_utf8(self);
-domain [u8; 20]::Utf8
-requires
-    valid_utf8(self);
-domain [u8; 3]::Utf8
-requires
-    valid_utf8(self);
-domain [u8; 2]::Utf8
-requires
-    valid_utf8(self);
 
 data Particle {
     x: i32 in Wrapping;
@@ -38,11 +26,11 @@ data Particle {
 }
 
 data Main {
-    ps: [Particle; 4] in Wrapping;
-    grid: [i32; 200] in Wrapping; // 20 x 10
-    line: [u8; 20] in Utf8;
-    chars: [u8; 2] in Utf8;       // " *"  empty / particle
-    home: [u8; 3] in Utf8;
+    ps: [Particle; 4];
+    grid: [i32 in Wrapping; 200]; // 20 x 10
+    line: [u8; 20];
+    chars: [u8; 2];       // " *"  empty / particle
+    home: [u8; 3];
     gen: i32 in Wrapping;
     pi: i32 in Wrapping;   // particle index
     k: i32 in Wrapping;    // grid clear index
@@ -55,19 +43,19 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Clock + Console {
+machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
     Console::write_line("bouncing_particles: 4 particles (array-of-structs) bouncing in a 20x10 box for 60 frames");
-    main.ps[0].x = 2;  main.ps[0].y = 2;  main.ps[0].vx = 1;  main.ps[0].vy = 1;
-    main.ps[1].x = 17; main.ps[1].y = 3;  main.ps[1].vx = 0 - 1; main.ps[1].vy = 1;
-    main.ps[2].x = 8;  main.ps[2].y = 8;  main.ps[2].vx = 1;  main.ps[2].vy = 0 - 1;
-    main.ps[3].x = 13; main.ps[3].y = 5;  main.ps[3].vx = 0 - 1; main.ps[3].vy = 0 - 1;
+    main.ps[0].x = 2 as +Wrapping;  main.ps[0].y = 2 as +Wrapping;  main.ps[0].vx = 1 as +Wrapping;  main.ps[0].vy = 1 as +Wrapping;
+    main.ps[1].x = 17 as +Wrapping; main.ps[1].y = 3 as +Wrapping;  main.ps[1].vx = (0i32 - 1) as +Wrapping; main.ps[1].vy = 1 as +Wrapping;
+    main.ps[2].x = 8 as +Wrapping;  main.ps[2].y = 8 as +Wrapping;  main.ps[2].vx = 1 as +Wrapping;  main.ps[2].vy = (0i32 - 1) as +Wrapping;
+    main.ps[3].x = 13 as +Wrapping; main.ps[3].y = 5 as +Wrapping;  main.ps[3].vx = (0i32 - 1) as +Wrapping; main.ps[3].vy = (0i32 - 1) as +Wrapping;
     main.chars = " *";
     main.home = "XXX";
     main.home[0] = 27;
     main.home[1] = 91;
     main.home[2] = 72;
     main.line = "                    ";
-    main.gen = 0;
+    main.gen = 0 as +Wrapping;
     transition { _ -> block frame_loop(main) }
 
     machine frame_loop(main: &mut Main) {
@@ -76,21 +64,21 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Clock + Console {
 
     // --- clear the grid ---
     machine clear_init(main: &mut Main) {
-        main.k = 0;
+        main.k = 0 as +Wrapping;
         transition { _ -> block clear_loop(main) }
     }
     machine clear_loop(main: &mut Main) {
         transition main.k >= 0 && main.k < 200 { true -> block clear_cell(main) _ -> block plot_init(main) }
     }
     machine clear_cell(main: &mut Main) {
-        main.grid[main.k] = 0;
+        main.grid[main.k] = 0 as +Wrapping;
         main.k = main.k + 1;
         transition { _ -> block clear_loop(main) }
     }
 
     // --- plot every particle ---
     machine plot_init(main: &mut Main) {
-        main.pi = 0;
+        main.pi = 0 as +Wrapping;
         transition { _ -> block plot_loop(main) }
     }
     machine plot_loop(main: &mut Main) {
@@ -102,112 +90,112 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Clock + Console {
         transition main.b * 20 + main.a >= 0 && main.b * 20 + main.a < 200 { true -> block plot_set(main) _ -> block bad(main) }
     }
     machine plot_set(main: &mut Main) {
-        main.grid[main.b * 20 + main.a] = 1;
+        main.grid[main.b * 20 + main.a] = 1 as +Wrapping;
         main.pi = main.pi + 1;
         transition { _ -> block plot_loop(main) }
     }
 
     // --- render the grid in place ---
     machine render_init(main: &mut Main) {
-        Console::write(main.home);
-        main.ry = 0;
+        Console::write(&main.home[..]);
+        main.ry = 0 as +Wrapping;
         transition { _ -> block render_row(main) }
     }
     machine render_row(main: &mut Main) {
         transition main.ry >= 0 && main.ry < 10 { true -> block render_col_init(main) _ -> block after_render(main) }
     }
     machine render_col_init(main: &mut Main) {
-        main.cx = 0;
-        transition { _ -> render_col(main) }
+        main.cx = 0 as +Wrapping;
+        transition { _ -> block render_col(main) }
     }
     machine render_col(main: &mut Main) {
-        transition main.cx >= 0 && main.cx < 20 { true -> render_cell(main) _ -> emit_row(main) }
+        transition main.cx >= 0 && main.cx < 20 { true -> block render_cell(main) _ -> block emit_row(main) }
     }
     machine render_cell(main: &mut Main) {
-        transition main.ry * 20 + main.cx >= 0 && main.ry * 20 + main.cx < 200 { true -> render_read(main) _ -> block bad(main) }
+        transition main.ry * 20 + main.cx >= 0 && main.ry * 20 + main.cx < 200 { true -> block render_read(main) _ -> block bad(main) }
     }
     machine render_read(main: &mut Main) {
         main.a = main.grid[main.ry * 20 + main.cx];
-        transition main.a >= 0 && main.a < 2 { true -> render_put(main) _ -> block bad(main) }
+        transition main.a >= 0 && main.a < 2 { true -> block render_put(main) _ -> block bad(main) }
     }
     machine render_put(main: &mut Main) {
         main.glyph = main.chars[main.a];
         main.line[main.cx] = main.glyph;
         main.cx = main.cx + 1;
-        transition { _ -> render_col(main) }
+        transition { _ -> block render_col(main) }
     }
     machine emit_row(main: &mut Main) {
-        Console::write_line(main.line);
+        Console::write_line(&main.line[..]);
         main.ry = main.ry + 1;
         transition { _ -> block render_row(main) }
     }
     machine after_render(main: &mut Main) {
         Clock::sleep(70);
-        transition { _ -> update_init(main) }
+        transition { _ -> block update_init(main) }
     }
 
     // --- integrate pos += vel for every particle, bouncing off the walls ---
     machine update_init(main: &mut Main) {
-        main.pi = 0;
-        transition { _ -> update_loop(main) }
+        main.pi = 0 as +Wrapping;
+        transition { _ -> block update_loop(main) }
     }
     machine update_loop(main: &mut Main) {
-        transition main.pi >= 0 && main.pi < 4 { true -> integ_x(main) _ -> frame_next(main) }
+        transition main.pi >= 0 && main.pi < 4 { true -> block integ_x(main) _ -> block frame_next(main) }
     }
     machine integ_x(main: &mut Main) {
         main.a = main.ps[main.pi].x;
         main.b = main.ps[main.pi].vx;
         main.n = main.a + main.b;
-        transition main.n < 0 { true -> x_lo(main) _ -> x_hi_check(main) }
+        transition main.n < 0 { true -> block x_lo(main) _ -> block x_hi_check(main) }
     }
     machine x_lo(main: &mut Main) {
-        main.n = 0;
+        main.n = 0 as +Wrapping;
         main.b = 0 - main.b;
-        transition { _ -> store_x(main) }
+        transition { _ -> block store_x(main) }
     }
     machine x_hi_check(main: &mut Main) {
-        transition main.n > 19 { true -> x_hi(main) _ -> store_x(main) }
+        transition main.n > 19 { true -> block x_hi(main) _ -> block store_x(main) }
     }
     machine x_hi(main: &mut Main) {
-        main.n = 19;
+        main.n = 19 as +Wrapping;
         main.b = 0 - main.b;
-        transition { _ -> store_x(main) }
+        transition { _ -> block store_x(main) }
     }
     machine store_x(main: &mut Main) {
-        transition main.pi >= 0 && main.pi < 4 { true -> do_store_x(main) _ -> block bad(main) }
+        transition main.pi >= 0 && main.pi < 4 { true -> block do_store_x(main) _ -> block bad(main) }
     }
     machine do_store_x(main: &mut Main) {
         main.ps[main.pi].x = main.n;
         main.ps[main.pi].vx = main.b;
-        transition { _ -> integ_y(main) }
+        transition { _ -> block integ_y(main) }
     }
     machine integ_y(main: &mut Main) {
         main.a = main.ps[main.pi].y;
         main.b = main.ps[main.pi].vy;
         main.n = main.a + main.b;
-        transition main.n < 0 { true -> y_lo(main) _ -> y_hi_check(main) }
+        transition main.n < 0 { true -> block y_lo(main) _ -> block y_hi_check(main) }
     }
     machine y_lo(main: &mut Main) {
-        main.n = 0;
+        main.n = 0 as +Wrapping;
         main.b = 0 - main.b;
-        transition { _ -> store_y(main) }
+        transition { _ -> block store_y(main) }
     }
     machine y_hi_check(main: &mut Main) {
-        transition main.n > 9 { true -> y_hi(main) _ -> store_y(main) }
+        transition main.n > 9 { true -> block y_hi(main) _ -> block store_y(main) }
     }
     machine y_hi(main: &mut Main) {
-        main.n = 9;
+        main.n = 9 as +Wrapping;
         main.b = 0 - main.b;
-        transition { _ -> store_y(main) }
+        transition { _ -> block store_y(main) }
     }
     machine store_y(main: &mut Main) {
-        transition main.pi >= 0 && main.pi < 4 { true -> do_store_y(main) _ -> block bad(main) }
+        transition main.pi >= 0 && main.pi < 4 { true -> block do_store_y(main) _ -> block bad(main) }
     }
     machine do_store_y(main: &mut Main) {
         main.ps[main.pi].y = main.n;
         main.ps[main.pi].vy = main.b;
         main.pi = main.pi + 1;
-        transition { _ -> update_loop(main) }
+        transition { _ -> block update_loop(main) }
     }
     machine frame_next(main: &mut Main) {
         main.gen = main.gen + 1;
@@ -217,13 +205,13 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Clock + Console {
     machine finish(main: &mut Main) {
         Console::write_line("done: 60 frames of the 4-particle entity system animated (exit 0)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(0);
     }
     machine bad(main: &mut Main) {
         Console::write_line("FAIL: a grid index or particle index left its guarded range (exit 1)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(1);
     }
 }
@@ -231,5 +219,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Clock + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Clock + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

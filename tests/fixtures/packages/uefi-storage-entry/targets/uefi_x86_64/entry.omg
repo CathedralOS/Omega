@@ -39,14 +39,13 @@ public boundary trait UefiPhysicalEntry {
         requires addr::Bound == 18446744073709551616 crashes none;
 }
 
-data UefiX86_64 { }
 UefiX86_64CallingPolicy satisfies CallingPolicy {
     machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
-        UefiX86_64::plan(signature)
+        uefi_x86_64_plan(signature)
     }
 }
 
-machine UefiX86_64::plan(
+machine uefi_x86_64_plan(
     signature: BoundarySignature
 ) -> BoundaryPlanResult
     satisfies CallingPolicy::plan

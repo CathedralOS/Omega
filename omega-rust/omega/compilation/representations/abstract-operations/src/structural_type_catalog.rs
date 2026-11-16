@@ -21,6 +21,7 @@ pub struct StructuralTypeCatalog(
     Arc<Vec<TerminalAccessViewInput>>,
     Option<Arc<RetainedQuotients>>,
     Option<Arc<RetainedAccessLifecycles>>,
+    Arc<Vec<(StructuralTypeId, u64)>>,
 );
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -47,6 +48,7 @@ impl StructuralTypeCatalog {
             && Arc::ptr_eq(&self.1, &other.1)
             && Arc::ptr_eq(&self.2, &other.2)
             && Arc::ptr_eq(&self.3, &other.3)
+            && Arc::ptr_eq(&self.6, &other.6)
             && match (&self.4, &other.4) {
                 (None, None) => true,
                 (Some(left), Some(right)) => Arc::ptr_eq(left, right),
@@ -113,7 +115,22 @@ impl StructuralTypeCatalog {
             Arc::default(),
             None,
             None,
+            Arc::default(),
         )
+    }
+
+    /// Native owned sequences keep their elements inside the transferred value.
+    /// A closed construction roster bounds each carrier without allocation or a
+    /// pointer into an expired producer frame. This bound is a storage choice;
+    /// every value still carries its own live length. No constructor means no
+    /// bound, rather than permission to invent one for an external input.
+    pub fn with_owned_sequence_bounds(mut self, bounds: Vec<(StructuralTypeId, u64)>) -> Self {
+        self.6 = Arc::new(bounds);
+        self
+    }
+
+    pub fn owned_sequence_bounds(&self) -> &[(StructuralTypeId, u64)] {
+        &self.6
     }
 
     pub fn with_access_views(mut self, plans: Vec<TerminalAccessViewPlan>) -> Self {
@@ -223,6 +240,7 @@ impl PartialEq<Vec<StructuralTypeDeclaration>> for StructuralTypeCatalog {
     fn eq(&self, other: &Vec<StructuralTypeDeclaration>) -> bool {
         self.4.is_none()
             && self.5.is_none()
+            && self.6.is_empty()
             && self.referents().is_empty()
             && self.access_views().is_empty()
             && self.access_view_inputs().is_empty()
@@ -234,6 +252,7 @@ impl PartialEq<StructuralTypeCatalog> for Vec<StructuralTypeDeclaration> {
     fn eq(&self, other: &StructuralTypeCatalog) -> bool {
         other.4.is_none()
             && other.5.is_none()
+            && other.6.is_empty()
             && other.referents().is_empty()
             && other.access_views().is_empty()
             && other.access_view_inputs().is_empty()
@@ -250,4 +269,60 @@ pub(super) fn unique_structural_type<'a>(
         (Some(declaration), None) => Some(declaration),
         _ => None,
     }
+}
+
+/// Infer storage bounds from the exact closed native machine selection. This
+/// query precedes target layout demand; the resulting roster travels unchanged
+/// into the native stages rather than being rediscovered by their consumers.
+pub fn closed_owned_sequence_bounds(
+    module: &terminal_psi::TerminalModule,
+    included: impl Fn(semantic_vocabulary::MachineId) -> bool,
+) -> Result<Vec<(StructuralTypeId, u64)>, &'static str> {
+    let mut bounds = semantic_vocabulary::IdTable::from_rows(
+        module
+            .structural_types
+            .iter()
+            .map(|ty| (ty.id, (ty, None::<u64>))),
+    )
+    .map_err(|_| "owned sequence bounds require exact structural identities")?;
+    for machine in module
+        .machines
+        .iter()
+        .filter(|machine| included(machine.id))
+    {
+        for operation in machine.blocks.iter().flat_map(|block| &block.operations) {
+            let terminal_psi::OperationKind::EstablishStructuralArray { elements } =
+                &operation.kind
+            else {
+                continue;
+            };
+            let result = operation
+                .result
+                .structural()
+                .ok_or("sequence construction has no structural result")?;
+            let (declaration, bound) = bounds
+                .get_mut(result.structural_type)
+                .ok_or("sequence construction has no structural declaration")?;
+            if matches!(
+                declaration.shape,
+                terminal_psi::StructuralTypeShape::ElementView { access: None, .. }
+            ) {
+                let count = u64::try_from(elements.len())
+                    .map_err(|_| "sequence roster does not fit its extent carrier")?;
+                *bound = Some(bound.map_or(count, |earlier| earlier.max(count)));
+            }
+        }
+    }
+    let mut rows = module
+        .structural_types
+        .iter()
+        .filter_map(|ty| {
+            bounds
+                .get(ty.id)
+                .and_then(|(_, bound)| *bound)
+                .map(|bound| (ty.id, bound))
+        })
+        .collect::<Vec<_>>();
+    rows.sort_unstable_by_key(|(identity, _)| *identity);
+    Ok(rows)
 }
