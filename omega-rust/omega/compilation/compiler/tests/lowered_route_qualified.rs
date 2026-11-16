@@ -80,3 +80,63 @@ fn module_qualification_does_not_attach_a_machine_to_data() {
     .expect("module qualification reaches a verdict");
     assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
 }
+
+#[test]
+fn type_scoped_constants_read_their_checked_initializers() {
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let verdict = route_verdict(
+        "tests/fixtures/pass/constants/attached_predicate_handoff",
+        "main",
+    );
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+
+    let negative = unbuilt_frontier::repository(
+        "tests/fixtures/fail/constants/attached_predicate_handoff/main.omg",
+    );
+    let Err(messages) = unbuilt_frontier::frontier(&negative, None, &[]) else {
+        panic!("the initializer must establish its record's predicate");
+    };
+    assert!(
+        messages.iter().any(|message| {
+            message.contains("constant `Index::SELECTED` evaluation")
+                && message.contains("cannot prove requires clause")
+        }),
+        "{messages:?}"
+    );
+}
+
+#[test]
+fn a_public_carrier_does_not_expose_its_private_constant() {
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let root = std::env::temp_dir().join(format!("omega-private-constant-{}", std::process::id()));
+    std::fs::create_dir_all(&root).unwrap();
+    let main = root.join("main.omg");
+    std::fs::write(
+        &main,
+        "use dependency::attached_values;\n\
+         machine main() -> u64 { dependency::attached_values::Index::SELECTED.value }",
+    )
+    .unwrap();
+    let result = unbuilt_frontier::frontier(
+        &main,
+        None,
+        &[(
+            "dependency",
+            "tests/fixtures/pass/constants/attached_predicate_handoff",
+        )],
+    );
+    std::fs::remove_dir_all(root).unwrap();
+    let Err(messages) = result else {
+        panic!("a public carrier exposes no private constant to its dependent");
+    };
+    assert!(
+        messages.iter().any(|message| {
+            message.contains("Index::SELECTED` is private to its declaring package")
+        }),
+        "{messages:?}"
+    );
+}

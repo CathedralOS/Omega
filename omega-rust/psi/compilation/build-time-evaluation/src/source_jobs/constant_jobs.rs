@@ -558,11 +558,11 @@ fn named_uses(program: &TypedTrees, constants: &[SymbolHandle]) -> Vec<Vec<Expre
     typed_trees::references::visit_program(program, &mut uses);
     let mut named = vec![Vec::new(); constants.len()];
     for expression in uses.0.expressions {
-        if let Some(symbol) = program
-            .expression_table
-            .name_path_node(expression)
-            .and_then(|path| path.resolved_symbol())
-            && let Some(index) = family_position(constants, symbol)
+        // An attached constant is the leaf of a value path. Its head
+        // names the qualifying carrier or module.
+        if let Some(path) = program.expression_table.name_path_node(expression)
+            && !path.static_application.is_valid()
+            && let Some(index) = family_position(constants, path.symbol)
         {
             named[index].push(expression);
         }
