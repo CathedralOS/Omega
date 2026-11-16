@@ -1,0 +1,55 @@
+// Expected rejection: signed32 does not exclude the conversion's Trap guard.
+// These crashes-none helpers must exclude their conversion's Trap guard.
+use omega::language::core::I32;
+use omega::language::core::U32;
+use omega::language::core::I32::from_f32;
+use omega::language::core::I32::from_f64;
+use omega::language::core::U32::from_f32;
+use omega::language::core::U32::from_f64;
+machine signed32(value: f32) -> i32
+requires true
+crashes none {
+    let converted: i32 in Trapping = I32::from_f32(value);
+    converted as -Trapping
+}
+machine signed64(value: f64) -> i32
+requires !(value != value || value <= -2147483649.0f64 || value >= 2147483648.0f64)
+crashes none {
+    let converted: i32 in Trapping = I32::from_f64(value);
+    converted as -Trapping
+}
+machine unsigned32(value: f32) -> u32
+requires !(value != value || value <= -1.0f32 || value >= 4294967296.0f32)
+crashes none {
+    let converted: u32 in Trapping = U32::from_f32(value);
+    converted as -Trapping
+}
+machine unsigned64(value: f64) -> u32
+requires !(value != value || value <= -1.0f64 || value >= 4294967296.0f64)
+crashes none {
+    let converted: u32 in Trapping = U32::from_f64(value);
+    converted as -Trapping
+}
+machine main() crashes Trap {
+    transition signed32(42.75f32) == 42i32
+        && signed32(-42.75f32) == -42i32
+        && signed64(42.75f64) == 42i32
+        && signed64(-42.75f64) == -42i32
+        && unsigned32(42.75f32) == 42u32
+        && unsigned64(42.75f64) == 42u32
+        && unsigned32(-0.75f32) == 0u32
+        && unsigned64(-0.75f64) == 0u32
+        && signed32(-2147483648.0f32) == -2147483648i32
+        && signed32(2147483520.0f32) == 2147483520i32
+        && signed64(-2147483648.75f64) == -2147483648i32
+        && signed64(2147483647.75f64) == 2147483647i32
+        && unsigned32(4294967040.0f32) == 4294967040u32
+        && unsigned64(4294967295.75f64) == 4294967295u32
+        && signed32(-0.0f32) == 0i32 && signed64(0.0f64) == 0i32
+        && unsigned32(0.0f32) == 0u32 && unsigned64(-0.0f64) == 0u32 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

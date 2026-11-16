@@ -2044,7 +2044,25 @@ impl<'t> Program<'t> {
             requires: terminal_semantics::numeric_primitives::requires(meaning)
                 .map_err(unavailable)?,
             ensures,
-            crashes: CrashCeiling::DeclaredNone,
+            crashes: {
+                let mut routes = terminal_semantics::numeric_primitives::crash_routes(meaning)
+                    .map_err(unavailable)?;
+                for route in &mut routes {
+                    for guard in &mut route.alternatives {
+                        if let CrashRouteGuard::Predicate(predicate) = guard {
+                            *predicate = CrashPredicateTerm::new(canonical::canonical_clause(
+                                predicate.proposition().clone(),
+                                id,
+                            )?);
+                        }
+                    }
+                }
+                if routes.is_empty() {
+                    CrashCeiling::DeclaredNone
+                } else {
+                    CrashCeiling::Authored(routes)
+                }
+            },
             reaches: crate::Ceiling::Authored(Vec::new()),
             invokes: crate::Ceiling::Authored(Vec::new()),
             termination: Termination::Promised,
