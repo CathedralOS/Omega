@@ -1492,6 +1492,15 @@ fn a_shared_collection_recast_keeps_payload_geometry_and_count_fit() {
         verdict(&mutable),
         "storage view outside reference formation"
     );
+    let gated = format!(
+        "data Positive requires value > 0 {{ value: i32; }}\n{}",
+        source.replace("[u8]", "[Positive]")
+    );
+    let refusal = verdict(&gated);
+    assert!(
+        refusal.contains("cannot establish target element predicates"),
+        "{refusal}"
+    );
     let restricted = source.replace("[u8]", "[bool]");
     let refusal = verdict(&restricted);
     assert!(

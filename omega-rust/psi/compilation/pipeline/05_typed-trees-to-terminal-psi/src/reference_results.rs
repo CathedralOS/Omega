@@ -590,6 +590,31 @@ fn publish_parents(
                 if let Some(call) = operation.declared_invocation() {
                     publish_payload_children(module, machine, tables, call, before, &mut children)?;
                 }
+                if let terminal_psi::OperationKind::EstablishElementView { source, .. }
+                | terminal_psi::OperationKind::EstablishMutableElementView { source, .. } =
+                    &operation.kind
+                {
+                    let root = machine.structural_place_type(source.place).ok_or_else(|| {
+                        unavailable(machine.id, "view formation has no source type")
+                    })?;
+                    let selected = terminal_semantics::runtime_structural_path_tip(
+                        module.structural_types.iter(),
+                        root,
+                        &source.path,
+                    )
+                    .ok_or_else(|| unavailable(machine.id, "view formation has no source path"))?;
+                    if selected.shape.is_view_descriptor() {
+                        publish_payload_child(
+                            module,
+                            machine,
+                            tables,
+                            source,
+                            before,
+                            &mut Vec::new(),
+                            &mut children,
+                        )?;
+                    }
+                }
                 before = ProgramPoint::AfterOperation(operation.id);
             }
             if let Some((_, call)) = block.terminator.declared_invocation() {
@@ -938,8 +963,6 @@ fn publish_payload_children(
         )>,
     >,
 ) -> Checked<()> {
-    use terminal_check_tables::obligations::ObligationKind;
-    use terminal_semantics::descriptor_lifetimes::descriptor_location;
     let unavailable = |reason| refuse(machine.id, Construct::Machine, Unserved::Call(reason));
     let formals = module
         .invocation_structural_parameters(call.callee, call.required_contract)
@@ -951,56 +974,86 @@ fn publish_payload_children(
     }
     let mut claimed = Vec::new();
     for (argument, formal) in call.structural_arguments.iter().zip(formals) {
-        let Some(access) = reference_access(argument.access) else {
+        if reference_access(argument.access).is_none() {
             continue;
-        };
+        }
         if !terminal_semantics::borrowed_view_payload_parameter(
             formal,
             module.structural_types.iter(),
         ) {
             continue;
         }
-        let ty = machine
-            .structural_place_type(argument.place)
-            .ok_or_else(|| unavailable("payload loan has no source type"))?;
-        let location = descriptor_location(
-            &module.structural_types,
-            argument.place,
-            ty,
-            &argument.path,
-            None,
-        )
-        .ok_or_else(|| unavailable("payload loan has no exact source descriptor"))?;
-        let mut found = None;
-        for (id, row) in tables.obligations.iter() {
-            let ObligationKind::Loan {
-                captured,
-                access: actual,
-                ..
-            } = row.kind
-            else {
-                continue;
-            };
-            if row.created_at != before || actual != access || claimed.contains(&id) {
-                continue;
-            }
-            let (root, path) = captured_path(tables, captured).map_err(unavailable)?;
-            if terminal_semantics::descriptor_lifetimes::DescriptorLocation::captured(root, &path)
-                .as_ref()
-                == Some(&location)
-            {
-                found = Some(id);
-                break;
-            }
-        }
-        let id =
-            found.ok_or_else(|| unavailable("payload call loan has no exact occurrence row"))?;
-        claimed.push(id);
-        *children
-            .get_mut(id)
-            .ok_or_else(|| unavailable("payload child row disappeared"))? =
-            Some((before, location));
+        publish_payload_child(
+            module,
+            machine,
+            tables,
+            argument,
+            before,
+            &mut claimed,
+            children,
+        )?;
     }
+    Ok(())
+}
+
+fn publish_payload_child(
+    module: &TerminalModule,
+    machine: &terminal_psi::TerminalMachine,
+    tables: &terminal_check_tables::MachineTables,
+    source: &terminal_psi::StructuralArgument,
+    before: terminal_check_tables::ProgramPoint,
+    claimed: &mut Vec<semantic_vocabulary::ObligationId>,
+    children: &mut semantic_vocabulary::IdTable<
+        semantic_vocabulary::ObligationId,
+        Option<(
+            terminal_check_tables::ProgramPoint,
+            terminal_semantics::descriptor_lifetimes::DescriptorLocation,
+        )>,
+    >,
+) -> Checked<()> {
+    use terminal_check_tables::obligations::ObligationKind;
+    use terminal_semantics::descriptor_lifetimes::descriptor_location;
+    let unavailable = |reason| refuse(machine.id, Construct::Machine, Unserved::Call(reason));
+    let access = reference_access(source.access)
+        .ok_or_else(|| unavailable("payload loan has no borrowed access"))?;
+    let ty = machine
+        .structural_place_type(source.place)
+        .ok_or_else(|| unavailable("payload loan has no source type"))?;
+    let location = descriptor_location(
+        &module.structural_types,
+        source.place,
+        ty,
+        &source.path,
+        None,
+    )
+    .ok_or_else(|| unavailable("payload loan has no exact source descriptor"))?;
+    let mut found = None;
+    for (id, row) in tables.obligations.iter() {
+        let ObligationKind::Loan {
+            captured,
+            access: actual,
+            ..
+        } = row.kind
+        else {
+            continue;
+        };
+        if row.created_at != before || actual != access || claimed.contains(&id) {
+            continue;
+        }
+        let (root, path) = captured_path(tables, captured).map_err(unavailable)?;
+        if terminal_semantics::descriptor_lifetimes::DescriptorLocation::captured(root, &path)
+            .as_ref()
+            == Some(&location)
+        {
+            found = Some(id);
+            break;
+        }
+    }
+    let id = found.ok_or_else(|| unavailable("payload loan has no exact occurrence row"))?;
+    claimed.push(id);
+    *children
+        .get_mut(id)
+        .ok_or_else(|| unavailable("payload child row disappeared"))? = Some((before, location));
     Ok(())
 }
 
