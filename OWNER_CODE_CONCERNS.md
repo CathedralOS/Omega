@@ -155,13 +155,6 @@ framework or a list of unimplemented features.
 - Cost: Psi gives the wrong answer on a well-formed program. Compute view-element addresses from the `OriginalByteArrayWindow` the view already carries. TASKS.md ADDRESS-EXPOSURE owns completing `address_of` and may absorb this; this is a wrong answer from the part already in use, not a refusal.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/counts_and_addresses.md
 
-### `Clock::sleep` promises it never blocks a worker, but every provider blocks for the whole wait
-- Category: A verdict with nothing behind it
-- Where: [Clock::sleep](source/library/std/clock.omg#L10), [LinuxClockWait::poll](source/library/std/targets/linux_x86_64/clock_impl.omg#L15), [LinuxX64TimeRead::poll](source/library/std/targets/linux_x86_64/time_host_impl.omg#L39), [Windows Clock binding](source/library/std/build.omg#L104), [WindowsTimeRead::sleep](source/library/std/targets/windows_x86_64/time_host_impl.omg#L51)
-- Saw: [implementation boundaries](wiki/spec/language/effects.md) says that on published surfaces "omitted `blocks` means never blocks a worker". `Clock::sleep` omits `blocks` although its comment says "Block the caller for `milliseconds`", and so do its raw waits `LinuxClockWait::poll`, `LinuxArmClockWait::nanosleep` and `DarwinClockWait::poll`. The same native calls are bound elsewhere with `blocks`: syscall 7 is also `LinuxX64TimeRead::poll` (entered as `block ...`), and kernel32 `Sleep` is also `WindowsTimeRead::sleep`.
-- Cost: The task runtime and synchronization checks read `blocks` to decide whether a call can hold a worker; `Clock::sleep(60000)` holds one for a minute with no evidence. Declare `blocks` on `Clock::sleep` and its three raw waits, as `TimeHost::sleep` does, and mark the call sites with `block`.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/effects.md
-
 ### On Windows, sleeping for `u32::MAX` milliseconds never returns
 - Category: One idea, several implementations
 - Where: [Windows Clock binding](source/library/std/build.omg#L104), [Windows TimeHost sleep](source/library/std/targets/windows_x86_64/time_host_impl.omg#L119), [POSIX split of large waits](source/library/std/targets/linux_x86_64/clock_impl.omg#L30), [sleep_for saturates](source/library/std/time.omg#L1065)
