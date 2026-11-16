@@ -230,13 +230,6 @@ framework or a list of unimplemented features.
 - Cost: The compiler accepts an equality the spec refuses, and `==` means different things depending on how the operand is spelled. Let Psi 05 read `==` as a case test only for payload-free sums, or have Psi 03 refuse a comparison it cannot type.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/conformances.md
 
-### The test runner cannot run, because Build admission refuses every test group
-- Category: Zombie machinery
-- Where: [registration refused](omega-rust/psi/compilation/build-time-evaluation/src/product/product_declarations.rs#L48), [groups always empty](omega-rust/psi/compilation/build-time-evaluation/src/product/product_declarations.rs#L65), [test discovery](omega-rust/omega/compilation/compiler/src/checked/test_roots.rs#L74), [native verdict](omega-rust/omega/build-system/orchestration/src/compile/test_execution.rs#L260), [std slot found by package name](omega-rust/omega/compilation/compiler/src/checked/test_roots.rs#L40)
-- Saw: `product_declarations::admit` refuses any Build that uses `TestGroupRegistration` or `TestGroupService`, and otherwise returns `test_groups: Vec::new()`. So `select_test_roots`, `test_execution::run_tests` and the private-filesystem runner that [TEST-GROUP-FILESYSTEM-TARGETS](TASKS.md#L308) describes as working cannot be reached; no fixture registers a test group. The unreachable code also departs from [testing.md](wiki/spec/build/testing.md): `execute_native` passes any test whose process exits 0, although the outcome table says a process exit instead of returning to the runner is "Not a pass"; and `group_filesystem` recognizes the std `FilesystemService` slot by the package name `omega_language_std`, although [declarations.md](wiki/spec/build/declarations.md#L151) says a package named `std` cannot confer compiler custody.
-- Cost: Readers of the runner and TASKS.md assume test groups run; admitting registration later makes both latent bugs live. Deliver group admission with both bugs fixed, or say on the TASKS item that registration is refused and own both bugs there.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/testing.md
-
 ### Default compilation re-checks the image it just wrote, which one spec page requires and two forbid
 - Category: The documents disagree
 - Where: [default image emission](omega-rust/omega/compilation/backend/images/image-emission/src/image.rs#L1851), [validate_terminal_image](omega-rust/omega/compilation/backend/images/image-emission/src/image.rs#L803), [machine-state evidence](wiki/spec/build/machine_state_evidence.md#L24), [verification placement](omega-rust/pipeline.md#L65), [optimizations](wiki/spec/build/optimizations.md#L59)
