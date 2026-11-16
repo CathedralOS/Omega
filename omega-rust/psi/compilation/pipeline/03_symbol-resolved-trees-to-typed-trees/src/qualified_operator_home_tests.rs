@@ -32,6 +32,31 @@ pub(crate) fn checked_with_equality(
     packages(&sources, &[], &[])
 }
 
+/* `packages` with the bundled `Equatable` declaration as an ambient toolchain
+   package ahead of `units`; import positions index `units`. */
+pub(crate) fn packages_with_equality(
+    units: &[(u8, &str, &str)],
+    dependencies: &[(u8, &str, u8)],
+    imports: &[(usize, usize, &str, usize)],
+) -> Result<typed_trees::TypedTrees, String> {
+    let mut sources = vec![(
+        0,
+        "equality.omg",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../../source/library/core/equality.omg"
+        )),
+    )];
+    sources.extend_from_slice(units);
+    let imports = imports
+        .iter()
+        .map(|(reference, declaration, path, prefix)| {
+            (reference + 1, declaration + 1, *path, *prefix)
+        })
+        .collect::<Vec<_>>();
+    packages(&sources, dependencies, &imports)
+}
+
 fn packages(
     units: &[(u8, &str, &str)],
     dependencies: &[(u8, &str, u8)],

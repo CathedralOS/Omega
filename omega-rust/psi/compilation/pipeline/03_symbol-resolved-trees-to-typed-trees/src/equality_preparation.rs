@@ -28,6 +28,7 @@ struct PreparedSelection {
     identity: NormalizedTypeIdentity,
     application: TypeReferenceHandle,
     ordinal: usize,
+    is_public: bool,
     selection: Selection,
 }
 
@@ -111,6 +112,7 @@ fn prepare_selections(
             identity,
             application,
             ordinal,
+            is_public: conformance.is_public,
             selection,
         });
     }
@@ -128,7 +130,7 @@ pub(crate) fn prepare(
     let synthesized = family
         .iter()
         .filter(|entry| entry.ordinal >= conformance_frontier && entry.selection.synthesized)
-        .map(|entry| entry.application)
+        .map(|entry| (entry.application, entry.selection.conformance))
         .collect::<Vec<_>>();
     let sites = program
         .expression_table
@@ -159,10 +161,12 @@ pub(crate) fn prepare(
         program,
         family: &family,
     };
-    for application in synthesized {
-        preparation.validate(application, &mut Vec::new())?;
+    for (application, conformance) in synthesized {
+        let site = preparation.declaration_site(conformance);
+        preparation.validate(application, site, &mut Vec::new())?;
     }
     for (handle, binary) in sites {
+        let mut site = preparation.program.expression_table.source_span(handle);
         let mut operands = None;
         let mut operand_identities = None;
         let mut own_synthesis = None;
@@ -213,6 +217,10 @@ pub(crate) fn prepare(
                 ));
             }
             own_synthesis = Some(own);
+            if site.span.start == site.span.end {
+                // A generated comparison selects from the package that owns it.
+                site = preparation.declaration_site(owner);
+            }
         }
         let Some((Some(left), Some(right))) = operands else {
             // Keep the original comparison for the lowered-form checker. An
@@ -282,7 +290,7 @@ pub(crate) fn prepare(
             continue;
         }
         let comparison =
-            preparation.compare(left_type, binary.left, binary.right, own_synthesis)?;
+            preparation.compare(left_type, binary.left, binary.right, site, own_synthesis)?;
         let comparison = if binary.operator == BinaryOperator::NotEqual {
             let false_value = preparation.insert(ExpressionNode::Boolean(false));
             preparation.binary(comparison, BinaryOperator::Equal, false_value)
@@ -313,26 +321,62 @@ impl Preparation<'_> {
         )
     }
 
-    fn selection(&self, reference: TypeReferenceHandle) -> Result<&Selection, Diagnostic> {
+    /*
+        The source position a declaration's own comparisons select from: a
+        synthesized body compares fields as its declaring package would.
+    */
+    fn declaration_site(&self, symbol: SymbolHandle) -> source::SourceSpan {
+        self.program
+            .symbols
+            .symbol_provenance_source_span(symbol)
+            .unwrap_or_default()
+    }
+
+    /*
+        A comparison at `site` may select only an implementation it could name:
+        one private to its own package, or a public one its file imports, under
+        the exposure rule authored operator selection applies
+        (conformances.md, "Declaration and selection"; "There is no ambient
+        search"). Another package's private or unimported implementation is
+        neither a candidate nor a rival.
+    */
+    fn is_visible(&self, entry: &PreparedSelection, site: source::SourceSpan) -> bool {
+        let symbols = &self.program.symbols;
+        let conformance = entry.selection.conformance;
+        (entry.is_public
+            || symbols
+                .symbol_provenance_source_span(conformance)
+                .is_none_or(|declaration| symbols.same_source_package(site, declaration)))
+            && symbols.source_reference_may_select_symbol(site, conformance)
+    }
+
+    fn selection(
+        &self,
+        reference: TypeReferenceHandle,
+        site: source::SourceSpan,
+    ) -> Result<&Selection, Diagnostic> {
         let identity = self.program.package_qualified_type_identity(reference);
         let first = self
             .family
             .partition_point(|entry| entry.identity < identity);
-        let Some(entry) = self
+        let last = self
             .family
-            .get(first)
-            .filter(|entry| entry.identity == identity)
-        else {
+            .partition_point(|entry| entry.identity <= identity);
+        let declared = &self.family[first..last];
+        let mut visible = declared.iter().filter(|entry| self.is_visible(entry, site));
+        let Some(entry) = visible.next() else {
+            if !declared.is_empty() {
+                return Err(Diagnostic::error(format!(
+                    "type `{}` is not Equatable here: its Equatable implementation is private to another package or not imported by this file",
+                    self.program.display_type_reference(reference)
+                )));
+            }
             return Err(Diagnostic::error(format!(
                 "type `{}` is not Equatable: structural equality requires an exact named core Equatable implementation",
                 self.program.display_type_reference(reference)
             )));
         };
-        if self
-            .family
-            .get(first + 1)
-            .is_some_and(|entry| entry.identity == identity)
-        {
+        if visible.next().is_some() {
             return Err(Diagnostic::error(format!(
                 "type `{}` has multiple Equatable implementations; the operator selects at most one",
                 self.program.display_type_reference(reference)
@@ -404,6 +448,7 @@ impl Preparation<'_> {
     fn validate(
         &mut self,
         application: TypeReferenceHandle,
+        site: source::SourceSpan,
         visiting: &mut Vec<NormalizedTypeIdentity>,
     ) -> Result<(), Diagnostic> {
         let identity = self.program.package_qualified_type_identity(application);
@@ -435,14 +480,15 @@ impl Preparation<'_> {
             {
                 continue;
             }
-            let selected = self.selection(field.type_reference).map_err(|error| {
+            let selected = self.selection(field.type_reference, site).map_err(|error| {
                 Diagnostic::error(format!(
                     "field `{}` of `{owner}` is not Equatable: {}",
                     field.name, error.message
                 ))
             })?;
             if selected.synthesized {
-                self.validate(field.type_reference, visiting)?;
+                let site = self.declaration_site(selected.conformance);
+                self.validate(field.type_reference, site, visiting)?;
             }
         }
         visiting.pop();
@@ -454,6 +500,7 @@ impl Preparation<'_> {
         application: TypeReferenceHandle,
         left: ExpressionHandle,
         right: ExpressionHandle,
+        mut site: source::SourceSpan,
         own_synthesis: Option<NormalizedTypeIdentity>,
     ) -> Result<ExpressionHandle, Diagnostic> {
         self.require_ordinary_equality(application)?;
@@ -465,11 +512,14 @@ impl Preparation<'_> {
         }
         let identity = self.program.package_qualified_type_identity(application);
         if own_synthesis != Some(identity) {
-            let selected = self.selection(application)?;
+            let selected = self.selection(application, site)?;
             if !selected.synthesized {
                 let selected = selected.clone();
                 return self.call(selected, left, right);
             }
+            // The inlined structural body selects its fields as its declaring
+            // package does, not as this comparison's package would.
+            site = self.declaration_site(selected.conformance);
         }
         let data = self
             .data(application)
@@ -489,7 +539,7 @@ impl Preparation<'_> {
                 "structural equality cannot compare a record whose every field is erased",
             ));
         }
-        let mut comparisons = self.fields(&fields, None, left, right)?;
+        let mut comparisons = self.fields(&fields, None, left, right, site)?;
         let variants = members
             .iter()
             .filter_map(|member| match member {
@@ -510,7 +560,7 @@ impl Preparation<'_> {
                 let left_tag = self.tag(symbol, &name, &variant, left);
                 let right_tag = self.tag(symbol, &name, &variant, right);
                 let mut same = vec![left_tag, right_tag];
-                same.extend(self.fields(&fields, Some(&variant), left, right)?);
+                same.extend(self.fields(&fields, Some(&variant), left, right, site)?);
                 alternatives.push(self.fold(same, BinaryOperator::And, true));
             }
             comparisons.push(self.fold(alternatives, BinaryOperator::Or, false));
@@ -539,6 +589,7 @@ impl Preparation<'_> {
         variant: Option<&DataVariant>,
         left: ExpressionHandle,
         right: ExpressionHandle,
+        site: source::SourceSpan,
     ) -> Result<Vec<ExpressionHandle>, Diagnostic> {
         let mut comparisons = Vec::with_capacity(fields.len());
         for field in fields {
@@ -547,7 +598,7 @@ impl Preparation<'_> {
             }
             let left = self.field(field, variant, left)?;
             let right = self.field(field, variant, right)?;
-            comparisons.push(self.compare(field.type_reference, left, right, None)?);
+            comparisons.push(self.compare(field.type_reference, left, right, site, None)?);
         }
         Ok(comparisons)
     }
@@ -781,12 +832,81 @@ mod tests {
         };
         let missing = typed_trees::expression::ExpressionHandle::invalid();
         let error = preparation
-            .compare(application, missing, missing, None)
+            .compare(application, missing, missing, Default::default(), None)
             .unwrap_err();
         assert!(
             error.message.contains("checked equivalence decision law"),
             "{error:?}"
         );
+    }
+
+    /*
+        `geo` declares `Point` and its comparison; `app` imports `geo` and
+        compares two points. The operator may select only what `app` could
+        name: `geo`'s comparison when it is public, never when it is private,
+        and never a rival declared by a package `app` does not import.
+    */
+    fn compare_points_across_packages(
+        comparison: &str,
+        rival: Option<&str>,
+    ) -> Result<typed_trees::TypedTrees, String> {
+        let geo = format!(
+            "module geo; public data Point [copy] {{ x: i32; }} {comparison} satisfies Equatable<Point> {{ machine equals(left: &Point, right: &Point) -> bool {{ left.x == right.x }} }}"
+        );
+        let app = "use dep::geo; machine same(left: geo::Point, right: geo::Point) -> bool { left == right }";
+        let mut units = vec![(31, "geo.omg", geo.as_str()), (32, "app.omg", app)];
+        let mut dependencies = vec![(32, "dep", 31)];
+        let mut imports = vec![(1, 0, "dep::geo", 1)];
+        if let Some(rival) = rival {
+            units.push((33, "rival.omg", rival));
+            dependencies.push((33, "dep", 31));
+            imports.push((2, 0, "dep::geo", 1));
+        }
+        crate::qualified_operator_home_tests::packages_with_equality(
+            &units,
+            &dependencies,
+            &imports,
+        )
+    }
+
+    fn selected_comparison(program: &typed_trees::TypedTrees) -> Option<&str> {
+        program
+            .expression_table
+            .iter_expressions()
+            .find_map(|(_, node)| match node {
+                typed_trees::expression::ExpressionNode::Call(call) => program
+                    .conformances()
+                    .iter()
+                    .find(|conformance| {
+                        program.symbols.get(call.target_symbol).parent == conformance.symbol
+                            || conformance
+                                .rows
+                                .iter()
+                                .any(|row| row.requirement == call.target_symbol)
+                    })
+                    .and_then(|conformance| conformance.alias.as_ref())
+                    .map(|alias| alias.as_str()),
+                _ => None,
+            })
+    }
+
+    #[test]
+    fn equality_selects_a_public_imported_comparison() {
+        let program = compare_points_across_packages("public PointEq", None).unwrap();
+        assert_eq!(selected_comparison(&program), Some("PointEq"));
+    }
+
+    #[test]
+    fn equality_refuses_another_packages_private_comparison() {
+        let error = compare_points_across_packages("PointEq", None).unwrap_err();
+        assert!(error.contains("is not Equatable here"), "{error}");
+    }
+
+    #[test]
+    fn an_unimported_packages_comparison_is_no_rival() {
+        let rival = "use dep::geo; public RivalEq satisfies Equatable<geo::Point> { machine equals(left: &geo::Point, right: &geo::Point) -> bool { false } }";
+        let program = compare_points_across_packages("public PointEq", Some(rival)).unwrap();
+        assert_eq!(selected_comparison(&program), Some("PointEq"));
     }
 
     #[test]
@@ -823,9 +943,10 @@ mod tests {
             program: &mut program,
             family: &family,
         };
+        let site = preparation.declaration_site(family[0].selection.conformance);
         assert_ne!(
-            preparation.selection(operand).unwrap().conformance,
-            preparation.selection(reference).unwrap().conformance
+            preparation.selection(operand, site).unwrap().conformance,
+            preparation.selection(reference, site).unwrap().conformance
         );
     }
 
@@ -861,9 +982,10 @@ mod tests {
             program: &mut program,
             family: &family,
         };
+        let site = preparation.declaration_site(family[0].selection.conformance);
         for row in &family {
             assert_eq!(
-                preparation.selection(row.application).unwrap().conformance,
+                preparation.selection(row.application, site).unwrap().conformance,
                 row.selection.conformance
             );
         }
@@ -872,7 +994,7 @@ mod tests {
             .type_reference_table
             .peeled_type_reference(family[0].application);
         assert!(
-            preparation.selection(plain).is_err(),
+            preparation.selection(plain, site).is_err(),
             "qualified evidence cannot select plain Point equality"
         );
     }
