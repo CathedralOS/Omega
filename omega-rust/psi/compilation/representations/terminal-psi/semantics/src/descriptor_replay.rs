@@ -4232,6 +4232,16 @@ pub(crate) mod engine {
             if machine.unresolved_contents_writes.contains(&position) {
                 return Ok(None);
             }
+            let prepared_call = if let Some(call) = machine.known_invocation(&position) {
+                // Only the checked target's frame can describe this invocation.
+                let DescriptorInvocationTarget::Machine(callee) = &call.target else {
+                    return Ok(None);
+                };
+                self.prepare_write_frame(*callee)?;
+                Some((call, *callee))
+            } else {
+                None
+            };
             let states = self
                 .snapshots
                 .get(&identity)
@@ -4240,22 +4250,14 @@ pub(crate) mod engine {
             let Some(before) = states.get(&position) else {
                 return Ok(Some(Vec::new()));
             };
-            let before = before.clone();
             let mut writes = step.definitions.clone();
             // Actual callees supply their checked frame at this exact cut.
             // Keep local definitions as well: they retire moved occurrences
             // even when no caller-visible backing is changed.
-            let queries = if let Some(call) = machine.known_invocation(&position) {
-                // A public requirement needs its own retained selection
-                // and checked correspondence. A possible implementation
-                // body is not that evidence, even for a write frame.
-                let DescriptorInvocationTarget::Machine(callee) = &call.target else {
-                    return Ok(None);
-                };
-                self.prepare_write_frame(*callee)?;
+            let queries = if let Some((call, callee)) = prepared_call {
                 let Some(callee_frame) = self
                     .summaries
-                    .get(callee)
+                    .get(&callee)
                     .and_then(Option::as_ref)
                     .and_then(|summary| summary.storage_frame.writes.as_ref())
                     .and_then(|writes| writes.as_ref().as_ref())
@@ -4263,7 +4265,7 @@ pub(crate) mod engine {
                     return Ok(None);
                 };
                 let callee = self
-                    .machine(*callee)
+                    .machine(callee)
                     .ok_or("write frame call has no callee")?;
                 for written in callee_frame {
                     let Some((parameter, _, _)) = self.parameter(callee, written.root) else {
@@ -4272,7 +4274,7 @@ pub(crate) mod engine {
                     let Some(actual) = self.actual_slot(call, parameter, &written.path) else {
                         return Ok(None);
                     };
-                    let Some(actual) = self.canonical_storage(machine, &before, &actual, None)
+                    let Some(actual) = self.canonical_storage(machine, before, &actual, None)
                     else {
                         return Ok(None);
                     };
@@ -4320,7 +4322,7 @@ pub(crate) mod engine {
                 }
                 let Some(targets) = self.contents_targets(
                     machine,
-                    &before,
+                    before,
                     &DescriptorContentsQuery::from_location(&prefix),
                 ) else {
                     return Ok(None);
@@ -4341,7 +4343,7 @@ pub(crate) mod engine {
             }
             let mut located = Vec::with_capacity(writes.len());
             for write in writes {
-                let Some(write) = self.canonical_storage(machine, &before, &write, None) else {
+                let Some(write) = self.canonical_storage(machine, before, &write, None) else {
                     return Ok(None);
                 };
                 located.push(write);

@@ -5571,6 +5571,8 @@ pub mod descriptor_results {
 
         #[derive(Default)]
         struct HistoryReplay {
+            // Immutable declaration classification shared by this history's cuts.
+            content_independent: Option<Vec<semantic_vocabulary::StructuralDomainId>>,
             premises: PremiseTable,
             cached: Option<CachedHistory>,
             inventory: Option<DescriptorSlotKind>,
@@ -5999,6 +6001,9 @@ pub mod descriptor_results {
             replay: &mut HistoryReplay,
             cut: PayloadMembershipCut,
         ) -> Result<PayloadMembershipContract, &'static str> {
+            let content_independent = replay.content_independent.get_or_insert_with(|| {
+                terminal_psi::StructuralDomainDeclaration::content_independent_memberships(domains)
+            });
             let mut failure = "descriptor machine is absent";
             let result = (|| {
                 let machine = descriptor?;
@@ -6107,6 +6112,15 @@ pub mod descriptor_results {
                                 return None;
                             }
                         };
+                        if domains.iter().any(|row| {
+                            row.access_policy.as_ref().is_some_and(|plan| {
+                                !plan.readers.is_empty() || !plan.writers.is_empty()
+                            })
+                        }) {
+                            eprintln!(
+                                "[call membership writes] machine={identity:?} cut={current:?} writes={writes:?}"
+                            );
+                        }
                         match writes {
                             Some(writes) => {
                                 for location in writes {
@@ -6117,7 +6131,12 @@ pub mod descriptor_results {
                                             contract.carrier,
                                             &location.path,
                                         )?;
-                                        retire(domains, contract, &path, &location.path);
+                                        retire(
+                                            content_independent,
+                                            contract,
+                                            &path,
+                                            &location.path,
+                                        );
                                     }
                                 }
                             }
@@ -6146,7 +6165,7 @@ pub mod descriptor_results {
                                                         &location.path,
                                                     )?;
                                                     retire(
-                                                        domains,
+                                                        content_independent,
                                                         contract,
                                                         &path,
                                                         &location.path,
@@ -6212,7 +6231,7 @@ pub mod descriptor_results {
                         };
                         failure = "structural store path has no typed coordinate";
                         let path = descriptor_path(types, contract.carrier, &destination.path)?;
-                        retire(domains, contract, &path, &destination.path);
+                        retire(content_independent, contract, &path, &destination.path);
                         if !strong {
                             continue;
                         }
@@ -6766,7 +6785,7 @@ pub mod descriptor_results {
         }
 
         fn retire(
-            domains: &[terminal_psi::StructuralDomainDeclaration],
+            content_independent: &[semantic_vocabulary::StructuralDomainId],
             contract: &mut PayloadMembershipContract,
             path: &[StructuralPathSegment],
             scalar_path: &[crate::descriptors::descriptor_lifetimes::DescriptorPathSegment],
@@ -6775,13 +6794,14 @@ pub mod descriptor_results {
                 !observation.path.starts_with(scalar_path)
                     && !scalar_path.starts_with(&observation.path)
             });
-            let survives = |domain| {
-                let mut rows = domains.iter().filter(|row| row.id == domain);
-                let Some(row) = rows.next() else {
-                    return false;
-                };
-                rows.next().is_none() && row.membership_survives_content_write(domains)
-            };
+            if !contract.qualifications.is_empty() || !contract.projected_qualifications.is_empty()
+            {
+                eprintln!(
+                    "[retire memberships] carrier={:?} write={path:?} whole={:?} projected={:?} independent={content_independent:?}",
+                    contract.carrier, contract.qualifications, contract.projected_qualifications
+                );
+            }
+            let survives = |domain| content_independent.binary_search(&domain).is_ok();
             // A write beneath an already installed restriction does not issue
             // a new membership. Exact/ancestor replacement still retires it;
             // only the incoming value's checked transfer can supply it again.
@@ -6848,6 +6868,16 @@ pub mod descriptor_results {
                     continue;
                 }
                 let contract = Arc::make_mut(contract);
+                if !contract.qualifications.is_empty()
+                    || !contract.projected_qualifications.is_empty()
+                {
+                    eprintln!(
+                        "[unknown membership write] carrier={:?} whole={:?} projected={:?}",
+                        contract.carrier,
+                        contract.qualifications,
+                        contract.projected_qualifications
+                    );
+                }
                 contract.qualifications.clear();
                 contract.projected_qualifications.clear();
                 contract.scalar_observations.clear();
@@ -7462,6 +7492,32 @@ pub mod descriptor_results {
                     unknown,
                     bytes,
                 ];
+                let content_independent =
+                    StructuralDomainDeclaration::content_independent_memberships(&domains);
+                assert_eq!(content_independent, [id(1), id(5)]);
+                let mut malformed = domains.to_vec();
+                let mut cycle = domain(8);
+                cycle.required_memberships = Some(vec![semantic(8)]);
+                let mut missing = domain(9);
+                missing.required_memberships = Some(vec![semantic(99)]);
+                malformed.extend([cycle, missing]);
+                assert_eq!(
+                    StructuralDomainDeclaration::content_independent_memberships(&malformed),
+                    content_independent
+                );
+                malformed.push(domain(1));
+                assert!(
+                    StructuralDomainDeclaration::content_independent_memberships(&malformed)
+                        .is_empty()
+                );
+                let mut ambiguous = domains.to_vec();
+                let mut duplicate_semantic = domain(10);
+                duplicate_semantic.semantic_domain = semantic(1);
+                ambiguous.push(duplicate_semantic);
+                assert!(
+                    StructuralDomainDeclaration::content_independent_memberships(&ambiguous)
+                        .is_empty()
+                );
                 let first = StructuralPathSegment::FixedIndex(0);
                 let second = StructuralPathSegment::FixedIndex(1);
                 let original = PayloadMembershipContract {
@@ -7482,7 +7538,7 @@ pub mod descriptor_results {
                 };
                 let mut changed = original.clone();
                 retire(
-                    &domains,
+                    &content_independent,
                     &mut changed,
                     std::slice::from_ref(&first),
                     &[DescriptorPathSegment::FixedIndex(0)],
@@ -7498,7 +7554,7 @@ pub mod descriptor_results {
                 );
                 let mut nested = original.clone();
                 retire(
-                    &domains,
+                    &content_independent,
                     &mut nested,
                     &[first.clone(), StructuralPathSegment::FixedIndex(0)],
                     &[
@@ -7516,7 +7572,7 @@ pub mod descriptor_results {
                     [id(1), id(5), id(2)]
                 );
                 let mut replaced = original.clone();
-                retire(&domains, &mut replaced, &[], &[]);
+                retire(&content_independent, &mut replaced, &[], &[]);
                 assert!(
                     replaced.qualifications.is_empty()
                         && replaced.projected_qualifications.is_empty(),
@@ -7530,7 +7586,7 @@ pub mod descriptor_results {
                     "unknown effects retain no content-independent membership shortcut"
                 );
                 retire(
-                    &domains,
+                    &content_independent,
                     &mut replaced,
                     &[first],
                     &[DescriptorPathSegment::FixedIndex(0)],

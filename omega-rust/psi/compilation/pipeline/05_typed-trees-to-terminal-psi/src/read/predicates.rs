@@ -290,6 +290,12 @@ impl Program<'_> {
                 policy: None,
                 domains,
             };
+            // Preserve the prepared declaration's known emptiness separately
+            // from absence of a translated predicate. Unknown theories must
+            // not become complete just because they produced no proposition.
+            self.declared_domains[slot].complete_predicate_theory = self
+                .domain_theory(id, instance)?
+                .has_complete_empty_theory();
             self.declared_domains[slot].predicate = match carrier {
                 ValueType::Scalar(scalar, _) => {
                     let (clauses, _) = self.cast_predicates(id, qualification, scalar)?;

@@ -934,6 +934,20 @@ pub mod domain {
     }
 
     impl DomainDefinition {
+        /// An empty theory has nothing about contents left to translate.
+        /// Retained but unread clauses and other semantic definitions are not
+        /// an empty theory merely because no predicate was produced for them.
+        pub fn has_complete_empty_theory(&self) -> bool {
+            self.predicate_presence == language_semantics::DomainPredicatePresence::Absent
+                && self.facts.is_empty()
+                && self.operators.is_empty()
+                && self.semantic_clause_token_count == 0
+                && self.alias.is_none()
+                && self.classification.is_none()
+                && self.semantic_roles.is_empty()
+                && self.cleanup_selection.is_none()
+        }
+
         /// Whether source lowering still lacks the complete selected plan.
         /// A checked plan permits forming operations; its retained rules are
         /// enforced by the canonical operation judgment before execution.
@@ -942,6 +956,23 @@ pub mod domain {
                 .as_ref()
                 .is_some_and(|policy| !matches!(policy.plan, AccessPlanJudgment::Checked(_)))
         }
+    }
+
+    #[cfg(test)]
+    #[test]
+    fn unread_domain_clauses_are_not_a_complete_empty_theory() {
+        let mut definition = DomainDefinition::default();
+        assert!(definition.has_complete_empty_theory());
+        definition.semantic_clause_token_count = 1;
+        assert!(!definition.has_complete_empty_theory());
+        definition.semantic_clause_token_count = 0;
+        definition.predicate_presence = language_semantics::DomainPredicatePresence::Present;
+        assert!(!definition.has_complete_empty_theory());
+        definition.predicate_presence = language_semantics::DomainPredicatePresence::Absent;
+        definition.alias = Some(DomainAliasDefinition {
+            constituents: Vec::new(),
+        });
+        assert!(!definition.has_complete_empty_theory());
     }
 
     impl Default for DomainDefinition {
