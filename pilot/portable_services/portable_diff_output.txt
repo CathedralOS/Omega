@@ -1,0 +1,347 @@
+
+=== FilesystemService ===
+  append
+    const create_file(..1048704..)                 only on: windows_x86_64
+    const writable(..2147483648..)                 only on: windows_x86_64
+    limit < out.len                                only on: linux_x86_64, linux_arm64, macos_arm64
+    limit < path.len                               only on: linux_x86_64, linux_arm64, macos_arm64
+    refuse InvalidInput                            only on: windows_x86_64
+  canonicalize
+    limit < 4096                                   only on: linux_x86_64, linux_arm64, macos_arm64
+    limit < out.len                                only on: linux_x86_64, linux_arm64, macos_arm64
+    limit < output.len                             only on: linux_x86_64, linux_arm64, macos_arm64
+    limit < path.len                               only on: linux_x86_64, linux_arm64, macos_arm64
+  close
+    limit <= 2147483648                            only on: linux_x86_64, linux_arm64, macos_arm64
+    refuse BadDescriptor                           only on: windows_x86_64
+  copy
+    clamp min_u64                                  only on: linux_x86_64, linux_arm64, macos_arm64
+    clamp narrow_i32_to_u16_wrapping               only on: macos_arm64
+    clamp narrow_i32_to_u32_wrapping               only on: macos_arm64
+    clamp narrow_u32_to_u16_wrapping               only on: macos_arm64
+    const create_file(..1048704..)                 only on: windows_x86_64
+    const create_file(..1073741952..)              only on: windows_x86_64
+    const open_create(..438..)                     only on: linux_x86_64, linux_arm64, macos_arm64
+    const writable(..2147483648..)                 only on: windows_x86_64
+    limit < out.len                                only on: linux_x86_64, linux_arm64, macos_arm64
+    limit < path.len                               only on: linux_x86_64, linux_arm64, macos_arm64
+    limit <= 4294967295                            only on: windows_x86_64
+    limit == -4                                    only on: linux_x86_64, linux_arm64, macos_arm64
+    limit > 4294967295                             only on: windows_x86_64
+    refuse BadDescriptor                           only on: windows_x86_64
+    refuse Unsupported                             only on: linux_x86_64, linux_arm64, windows_x86_64
+  create
+    clamp narrow_i32_to_u16_wrapping               only on: macos_arm64
+    const create_file(..1048704..)                 only on: windows_x86_64
+    const open_create(..438..)                     only on: linux_x86_64, linux_arm64, macos_arm64
+    const writable(..2147483648..)                 only on: windows_x86_64
+    limit < out.len                                only on: linux_x86_64, linux_arm64, macos_arm64
+    limit < path.len                               only on: linux_x86_64, linux_arm64, macos_arm64
+    refuse InvalidInput                            only on: windows_x86_64
+  create_dir
+    clamp narrow_i32_to_u16_wrapping               only on: macos_arm64
+    limit < out.len                                only on: linux_x86_64, linux_arm64, macos_arm64
+    limit < path.len                               only on: linux_x86_64, linux_arm64, macos_arm64
+  create_dir_all
+    clamp narrow_i32_to_u16_wrapping               only on: macos_arm64
+    clamp narrow_i32_to_u32_wrapping               only on: macos_arm64
+    limit < 255                                    only on: linux_x86_64, linux_arm64, macos_arm64
+    limit < out.len                                only on: linux_x86_64, linux_arm64, macos_arm64
+    limit == 17                                    only on: linux_x86_64, linux_arm64, macos_arm64
+    limit == 47                                    only on: linux_x86_64, linux_arm64, macos_arm64
+    limit == 58                                    only on: windows_x86_64
+    limit == 63                                    only on: windows_x86_64
+    limit >= 2                                     only on: windows_x86_64
+    limit >= 3                                     only on: windows_x86_64
+    limit >= 4                                     only on: windows_x86_64
+    limit >= 8                                     only on: windows_x86_64
+    refuse AlreadyExists                           only on: windows_x86_64
+    refuse InvalidInput                            only on: linux_x86_64, linux_arm64, macos_arm64
+    refuse Other                                   only on: windows_x86_64
+    refuse Unsupported                             only on: linux_x86_64, linux_arm64, windows_x86_64
+  create_new
+    clamp narrow_i32_to_u16_wrapping               only on: macos_arm64
+    const create_file(..1048704..)                 only on: windows_x86_64
+    const open_create(..438..)                     only on: linux_x86_64, linux_arm64, macos_arm64
+    const writable(..2147483648..)                 only on: windows_x86_64
+    limit < out.len                                only on: linux_x86_64, linux_arm64, macos_arm64
+    limit < path.len                               only on: linux_x86_64, linux_arm64, macos_arm64
+    refuse InvalidInput                            only on: windows_x86_64
+  exists
+    limit < out.len                                only on: linux_x86_64, linux_arm64, macos_arm64
+    limit < path.len                               only on: linux_x86_64, linux_arm64, macos_arm64
+    refuse Other                                   only on: windows_x86_64
+    refuse Unsupported                             only on: windows_x86_64
+  hard_link
+    limit < out.len                                only on: linux_x86_64, linux_arm64, macos_arm64
+    limit < path.len                               only on: linux_x86_64, linux_arm64, macos_arm64
+  lock
+    limit <= 2147483648                            only on: linux_x86_64, linux_arm64, macos_arm64
+  lock_shared
+    limit <= 2147483648                            only on: linux_x86_64, linux_arm64, macos_arm64
+  metadata
+    clamp narrow_i32_to_u32_wrapping               only on: macos_arm64
+    limit <= 2147483648                            only on: linux_x86_64, linux_arm64, macos_arm64
+    refuse BadDescriptor                           only on: windows_x86_64
+    refuse InvalidInput                            only on: linux_x86_64, linux_arm64, macos_arm64
+    refuse Other                                   only on: windows_x86_64
+    refuse Unsupported                             only on: linux_x86_64, linux_arm64, windows_x86_64
+  metadata_path
+    clamp narrow_i32_to_u32_wrapping               only on: macos_arm64
+    limit < out.len                                only on: linux_x86_64, linux_arm64, macos_arm64
+    limit < path.len                               only on: linux_x86_64, linux_arm64, macos_arm64
+    refuse InvalidInput                            only on: linux_x86_64, linux_arm64, macos_arm64
+    refuse Other                                   only on: windows_x86_64
+    refuse Unsupported                             only on: linux_x86_64, linux_arm64, windows_x86_64
+  open
+    const create_file(..1048704..)                 only on: windows_x86_64
+    const writable(..2147483648..)                 only on: windows_x86_64
+    limit < out.len                                only on: linux_x86_64, linux_arm64, macos_arm64
+    limit < path.len                               only on: linux_x86_64, linux_arm64, macos_arm64
+    refuse InvalidInput                            only on: windows_x86_64
+  open_with
+    clamp narrow_i32_to_u16_wrapping               only on: macos_arm64
+    const create_file(..1048704..)                 only on: windows_x86_64
+    const open_create(..438..)                     only on: linux_x86_64, linux_arm64, macos_arm64
+    const writable(..2147483648..)                 only on: windows_x86_64
+    limit < out.len                                only on: linux_x86_64, linux_arm64, macos_arm64
+    limit < path.len                               only on: linux_x86_64, linux_arm64, macos_arm64
+    refuse InvalidInput                            only on: windows_x86_64
+  read
+    clamp min_u64                                  only on: linux_x86_64, linux_arm64, macos_arm64
+    limit <= 2147483648                            only on: linux_x86_64, linux_arm64, macos_arm64
+    limit <= buffer.len                            only on: windows_x86_64
+    refuse BadDescriptor                           only on: windows_x86_64
+    refuse InvalidInput                            only on: windows_x86_64
+    refuse Other                                   only on: windows_x86_64
+  read_all
+    clamp min_u64                                  only on: linux_x86_64, linux_arm64, macos_arm64
+    const create_file(..1048704..)                 only on: windows_x86_64
+    const writable(..2147483648..)                 only on: windows_x86_64
+    limit < out.len                                only on: linux_x86_64, linux_arm64, macos_arm64
+    limit < path.len                               only on: linux_x86_64, linux_arm64, macos_arm64
+    limit <= buffer.len                            only on: windows_x86_64
+    refuse BadDescriptor                           only on: windows_x86_64
+    refuse InvalidInput                            only on: windows_x86_64
+    refuse Other                                   only on: windows_x86_64
+  read_at
+    clamp min_u64                                  only on: linux_x86_64, linux_arm64, macos_arm64
+    limit <= 2147483648                            only on: linux_x86_64, linux_arm64, macos_arm64
+    limit <= 4294967295                            only on: windows_x86_64
+    limit <= buffer.len                            only on: windows_x86_64
+    refuse BadDescriptor                           only on: windows_x86_64
+    refuse InvalidInput                            only on: windows_x86_64
+    refuse Other                                   only on: windows_x86_64
+  read_dir_count
+    clamp min_u64                                  only on: linux_x86_64, linux_arm64, macos_arm64
+    clamp narrow_i64_to_u64_wrapping               only on: linux_x86_64, linux_arm64, macos_arm64
+    const read_dir(..512..)                        only on: linux_x86_64, linux_arm64, macos_arm64
+    const windows_filesystem_transferred(..9223372036854775807..) only on: windows_x86_64
+    limit < 495                                    only on: linux_x86_64, linux_arm64, macos_arm64
+    limit < out.len                                only on: linux_x86_64, linux_arm64, macos_arm64
+    limit < path.len                               only on: linux_x86_64, linux_arm64, macos_arm64
+    limit > 2                                      only on: linux_x86_64, linux_arm64, macos_arm64
+    limit >= 1024                                  only on: macos_arm64
+  read_dir_is_empty
+    clamp min_u64                                  only on: linux_x86_64, linux_arm64, macos_arm64
+    clamp narrow_i64_to_i32_wrapping               only on: linux_x86_64, linux_arm64, macos_arm64
+    clamp narrow_i64_to_u64_wrapping               only on: linux_x86_64, linux_arm64, macos_arm64
+    const read_dir(..512..)                        only on: linux_x86_64, linux_arm64, macos_arm64
+    const windows_filesystem_transferred(..9223372036854775807..) only on: windows_x86_64
+    limit < 255                                    only on: linux_x86_64, linux_arm64, macos_arm64
+    limit < 256                                    only on: linux_x86_64, linux_arm64, macos_arm64
+    limit < 489                                    only on: linux_x86_64, linux_arm64, macos_arm64
+    limit < 510                                    only on: linux_x86_64, linux_arm64, macos_arm64
+    limit < 512                                    only on: linux_x86_64, linux_arm64, macos_arm64
+    limit < out.len                                only on: linux_x86_64, linux_arm64, macos_arm64
+    limit < path.len                               only on: linux_x86_64, linux_arm64, macos_arm64
+    limit <= 20                                    only on: linux_x86_64, linux_arm64, macos_arm64
+    limit <= 21                                    only on: linux_x86_64, linux_arm64, macos_arm64
+    limit <= 255                                   only on: linux_x86_64, linux_arm64, macos_arm64
+    limit == 4                                     only on: linux_x86_64, linux_arm64, macos_arm64
+    limit == 8                                     only on: linux_x86_64, linux_arm64, macos_arm64
+    limit >= 1024                                  only on: macos_arm64
+    limit >= 18                                    only on: linux_x86_64, linux_arm64, macos_arm64
+    limit >= 19                                    only on: linux_x86_64, linux_arm64, macos_arm64
+    limit >= 24                                    only on: linux_x86_64, linux_arm64, macos_arm64
+  read_dir_nth
+    clamp min_u64                                  only on: linux_x86_64, linux_arm64, macos_arm64
+    clamp narrow_i64_to_i32_wrapping               only on: linux_x86_64, linux_arm64, macos_arm64
+    clamp narrow_i64_to_u64_wrapping               only on: linux_x86_64, linux_arm64, macos_arm64
+    const read_dir(..512..)                        only on: linux_x86_64, linux_arm64, macos_arm64
+    limit < 255                                    only on: linux_x86_64, linux_arm64, macos_arm64
+    limit < 256                                    only on: linux_x86_64, linux_arm64, macos_arm64
+    limit < 489                                    only on: linux_x86_64, linux_arm64, macos_arm64
+    limit < 510                                    only on: linux_x86_64, linux_arm64, macos_arm64
+    limit < 512                                    only on: linux_x86_64, linux_arm64, macos_arm64
+    limit < out.len                                only on: linux_x86_64, linux_arm64, macos_arm64
+    limit < path.len                               only on: linux_x86_64, linux_arm64, macos_arm64
+    limit <= 20                                    only on: linux_x86_64, linux_arm64, macos_arm64
+    limit <= 21                                    only on: linux_x86_64, linux_arm64, macos_arm64
+    limit <= 255                                   only on: linux_x86_64, linux_arm64, macos_arm64
+    limit <= 256                                   only on: windows_x86_64
+    limit == 4                                     only on: linux_x86_64, linux_arm64, macos_arm64
+    limit == 8                                     only on: linux_x86_64, linux_arm64, macos_arm64
+    limit >= 1024                                  only on: macos_arm64
+    limit >= 18                                    only on: linux_x86_64, linux_arm64, macos_arm64
+    limit >= 19                                    only on: linux_x86_64, linux_arm64, macos_arm64
+    limit >= 24                                    only on: linux_x86_64, linux_arm64, macos_arm64
+  read_link
+    clamp min_u64                                  only on: linux_x86_64, linux_arm64, macos_arm64
+    limit < out.len                                only on: linux_x86_64, linux_arm64, macos_arm64
+    limit < path.len                               only on: linux_x86_64, linux_arm64, macos_arm64
+    refuse Other                                   only on: windows_x86_64
+  remove
+    limit < out.len                                only on: linux_x86_64, linux_arm64, macos_arm64
+    limit < path.len                               only on: linux_x86_64, linux_arm64, macos_arm64
+  remove_dir
+    const unlinkat(..512..)                        only on: linux_x86_64, linux_arm64
+    limit < out.len                                only on: linux_x86_64, linux_arm64, macos_arm64
+    limit < path.len                               only on: linux_x86_64, linux_arm64, macos_arm64
+  remove_dir_all
+    clamp min_u64                                  only on: linux_x86_64, linux_arm64, macos_arm64
+    clamp narrow_i64_to_i32_wrapping               only on: linux_x86_64, linux_arm64, macos_arm64
+    clamp narrow_i64_to_u64_wrapping               only on: linux_x86_64, linux_arm64, macos_arm64
+    const posix_filesystem_rda_drain(..4096..)     only on: linux_x86_64, linux_arm64, macos_arm64
+    const read_dir(..512..)                        only on: linux_x86_64, linux_arm64, macos_arm64
+    const unlinkat(..512..)                        only on: linux_x86_64, linux_arm64
+    limit < 16                                     only on: linux_x86_64, linux_arm64, macos_arm64
+    limit < 255                                    only on: linux_x86_64, linux_arm64, macos_arm64
+    limit < 256                                    only on: linux_x86_64, linux_arm64, macos_arm64
+    limit < 489                                    only on: linux_x86_64, linux_arm64, macos_arm64
+    limit < 510                                    only on: linux_x86_64, linux_arm64, macos_arm64
+    limit < 512                                    only on: linux_x86_64, linux_arm64, macos_arm64
+    limit < out.len                                only on: linux_x86_64, linux_arm64, macos_arm64
+    limit < path.len                               only on: linux_x86_64, linux_arm64, macos_arm64
+    limit <= 15                                    only on: linux_x86_64, linux_arm64, macos_arm64
+    limit <= 16                                    only on: linux_x86_64, linux_arm64, macos_arm64
+    limit <= 20                                    only on: linux_x86_64, linux_arm64, macos_arm64
+    limit <= 21                                    only on: linux_x86_64, linux_arm64, macos_arm64
+    limit <= 255                                   only on: linux_x86_64, linux_arm64, macos_arm64
+    limit == 4                                     only on: linux_x86_64, linux_arm64, macos_arm64
+    limit == 8                                     only on: linux_x86_64, linux_arm64, macos_arm64
+    limit >= 1024                                  only on: macos_arm64
+    limit >= 18                                    only on: linux_x86_64, linux_arm64, macos_arm64
+    limit >= 19                                    only on: linux_x86_64, linux_arm64, macos_arm64
+    limit >= 24                                    only on: linux_x86_64, linux_arm64, macos_arm64
+    refuse Other                                   only on: linux_x86_64, linux_arm64, macos_arm64
+  rename
+    limit < out.len                                only on: linux_x86_64, linux_arm64, macos_arm64
+    limit < path.len                               only on: linux_x86_64, linux_arm64, macos_arm64
+  set_file_owner
+    clamp narrow_i32_to_u32_wrapping               only on: macos_arm64
+    limit <= 2147483648                            only on: linux_x86_64, linux_arm64, macos_arm64
+    refuse Unsupported                             only on: windows_x86_64
+  set_file_permissions
+    clamp narrow_u32_to_u16_wrapping               only on: macos_arm64
+    const apply(..438..)                           only on: linux_x86_64, linux_arm64, macos_arm64
+    limit <= 2147483648                            only on: linux_x86_64, linux_arm64, macos_arm64
+    refuse BadDescriptor                           only on: windows_x86_64
+    refuse Unsupported                             only on: windows_x86_64
+  set_len
+    limit <= 2147483648                            only on: linux_x86_64, linux_arm64, macos_arm64
+    refuse BadDescriptor                           only on: windows_x86_64
+    refuse InvalidInput                            only on: windows_x86_64
+  set_owner
+    clamp narrow_i32_to_u32_wrapping               only on: macos_arm64
+    limit < out.len                                only on: linux_x86_64, linux_arm64, macos_arm64
+    limit < path.len                               only on: linux_x86_64, linux_arm64, macos_arm64
+    refuse Unsupported                             only on: windows_x86_64
+  set_owner_no_follow
+    clamp narrow_i32_to_u32_wrapping               only on: macos_arm64
+    const fchownat(..256..)                        only on: linux_x86_64, linux_arm64
+    limit < out.len                                only on: linux_x86_64, linux_arm64, macos_arm64
+    limit < path.len                               only on: linux_x86_64, linux_arm64, macos_arm64
+    refuse Unsupported                             only on: windows_x86_64
+  set_permissions
+    clamp narrow_u32_to_u16_wrapping               only on: macos_arm64
+    const apply(..438..)                           only on: linux_x86_64, linux_arm64, macos_arm64
+    limit < out.len                                only on: linux_x86_64, linux_arm64, macos_arm64
+    limit < path.len                               only on: linux_x86_64, linux_arm64, macos_arm64
+    refuse Unsupported                             only on: windows_x86_64
+  set_times
+    clamp narrow_i64_to_u8_wrapping                only on: linux_x86_64, linux_arm64, macos_arm64
+    clamp narrow_u64_to_i64_wrapping               only on: macos_arm64
+    limit <= 1833029933770                         only on: windows_x86_64
+    limit <= 2147483648                            only on: linux_x86_64, linux_arm64, macos_arm64
+    limit == -11644473600                          only on: windows_x86_64
+    limit == 8                                     only on: macos_arm64
+    limit > -11644473600                           only on: windows_x86_64
+    refuse BadDescriptor                           only on: windows_x86_64
+    refuse InvalidInput                            only on: windows_x86_64
+    refuse Unsupported                             only on: windows_x86_64
+  symlink
+    limit < out.len                                only on: linux_x86_64, linux_arm64, macos_arm64
+    limit < path.len                               only on: linux_x86_64, linux_arm64, macos_arm64
+    refuse Unsupported                             only on: windows_x86_64
+  symlink_metadata
+    clamp narrow_i32_to_u32_wrapping               only on: macos_arm64
+    const read_metadata_at(..256..)                only on: linux_x86_64, linux_arm64
+    limit < out.len                                only on: linux_x86_64, linux_arm64, macos_arm64
+    limit < path.len                               only on: linux_x86_64, linux_arm64, macos_arm64
+    refuse InvalidInput                            only on: linux_x86_64, linux_arm64, macos_arm64
+    refuse Other                                   only on: windows_x86_64
+    refuse Unsupported                             only on: linux_x86_64, linux_arm64, windows_x86_64
+  sync
+    limit <= 2147483648                            only on: linux_x86_64, linux_arm64, macos_arm64
+    refuse BadDescriptor                           only on: windows_x86_64
+  sync_data
+    limit <= 2147483648                            only on: linux_x86_64, linux_arm64, macos_arm64
+    refuse BadDescriptor                           only on: windows_x86_64
+  try_clone
+    limit <= 2147483648                            only on: linux_x86_64, linux_arm64, macos_arm64
+    refuse BadDescriptor                           only on: windows_x86_64
+  try_exists
+    limit < out.len                                only on: linux_x86_64, linux_arm64, macos_arm64
+    limit < path.len                               only on: linux_x86_64, linux_arm64, macos_arm64
+    limit == 2                                     only on: linux_x86_64, linux_arm64, macos_arm64
+    refuse Other                                   only on: windows_x86_64
+    refuse Unsupported                             only on: windows_x86_64
+  try_lock
+    limit <= 2147483648                            only on: linux_x86_64, linux_arm64, macos_arm64
+  try_lock_shared
+    limit <= 2147483648                            only on: linux_x86_64, linux_arm64, macos_arm64
+  unlock
+    limit <= 2147483648                            only on: linux_x86_64, linux_arm64, macos_arm64
+  write
+    limit <= 2147483648                            only on: linux_x86_64, linux_arm64, macos_arm64
+    refuse BadDescriptor                           only on: windows_x86_64
+    refuse Other                                   only on: windows_x86_64
+  write_all
+    clamp narrow_i32_to_u16_wrapping               only on: macos_arm64
+    const create_file(..1048704..)                 only on: windows_x86_64
+    const open_create(..438..)                     only on: linux_x86_64, linux_arm64, macos_arm64
+    const writable(..2147483648..)                 only on: windows_x86_64
+    limit < out.len                                only on: linux_x86_64, linux_arm64, macos_arm64
+    limit < path.len                               only on: linux_x86_64, linux_arm64, macos_arm64
+    limit == -4                                    only on: linux_x86_64, linux_arm64, macos_arm64
+    limit > 4294967295                             only on: windows_x86_64
+    refuse BadDescriptor                           only on: windows_x86_64
+    refuse InvalidInput                            only on: windows_x86_64
+  write_at
+    limit <= 2147483648                            only on: linux_x86_64, linux_arm64, macos_arm64
+    limit <= 4294967295                            only on: windows_x86_64
+    refuse BadDescriptor                           only on: windows_x86_64
+    refuse InvalidInput                            only on: windows_x86_64
+    refuse Other                                   only on: windows_x86_64
+
+=== TimeHost ===
+  monotonic_ticks
+    clamp narrow_i64_to_u64_saturating             only on: linux_x86_64, linux_arm64, windows_x86_64
+  monotonic_ticks_per_second
+    clamp narrow_i64_to_u64_saturating             only on: windows_x86_64
+  sleep
+    clamp narrow_u32_to_i32_wrapping               only on: linux_x86_64, macos_arm64
+    limit > 2147483647                             only on: linux_x86_64, macos_arm64
+  wall_clock_raw
+    clamp narrow_i64_to_u64_saturating             only on: linux_x86_64, linux_arm64
+
+=== Clock ===
+  sleep
+    binding kernel32!Sleep (no adapter)            only on: windows_x86_64
+    clamp narrow_u32_to_i32_wrapping               only on: linux_x86_64, macos_arm64
+    limit > 2147483647                             only on: linux_x86_64, macos_arm64
+
+=== Console ===
+
+51 portable members whose adapter facts differ across targets

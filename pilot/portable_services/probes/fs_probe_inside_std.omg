@@ -1,0 +1,95 @@
+use omega::language::core::ProcessExit;
+use omega::language::core::FilesystemContentRead;
+use omega::language::core::FilesystemContentWrite;
+use omega::language::core::FilesystemMetadataQuery;
+use omega::language::core::FilesystemMetadataMutation;
+use omega::language::core::DirectoryEnumeration;
+use omega::language::core::FilesystemNamespaceMutation;
+// Scratch-only portable-service probe.
+public data ProbeMain {
+    result: UnitResult;
+    opened: OpenResult;
+    transferred: IoResult;
+    metadata: MetadataResult;
+    code: i32 in Wrapping;
+    small: [u8; 4];
+}
+
+public machine fs_probe_main(main: &mut ProbeMain) reaches ProcessExit + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation + DirectoryEnumeration {
+    main.result = block FilesystemService::write_all("/tmp/opr_trunc" as +Path, "hello");
+    main.opened = block FilesystemService::open_with("/tmp/opr_trunc" as +Path, OpenOptions {
+        read: true, write: false, append: false, truncate: true, create: false, create_new: false
+    });
+    transition main.opened {
+        OpenResult::Ok { file } -> block a_opened(main, file)
+        OpenResult::Error { kind } -> block a_refused(main, kind)
+    }
+    machine a_refused(main: &mut ProbeMain, kind: ErrorKind) {
+        transition kind { ErrorKind::InvalidInput -> block a_done(main, 0) _ -> block a_done(main, 3) }
+    }
+    machine a_opened(main: &mut ProbeMain, file: File) {
+        main.result = block FilesystemService::close(file);
+        main.metadata = block FilesystemService::metadata_path("/tmp/opr_trunc" as +Path);
+        transition main.metadata {
+            MetadataResult::Ok { meta } -> block a_len(main, meta.len)
+            _ -> block a_done(main, 3)
+        }
+    }
+    machine a_len(main: &mut ProbeMain, len: i64) {
+        transition len == 0 { true -> block a_done(main, 1) false -> block a_kept(main, len) }
+    }
+    machine a_kept(main: &mut ProbeMain, len: i64) {
+        transition len == 5 { true -> block a_done(main, 2) false -> block a_done(main, 3) }
+    }
+    machine a_done(main: &mut ProbeMain, value: i32) {
+        main.code = main.code + value;
+        main.result = block FilesystemService::write_all("/tmp/opr_read" as +Path, "hello");
+        main.opened = block FilesystemService::open("/tmp/opr_read" as +Path);
+        transition main.opened {
+            OpenResult::Ok { file } -> block b_read(main, file)
+            _ -> block b_done(main, 3)
+        }
+    }
+    machine b_read(main: &mut ProbeMain, file: File) {
+        main.transferred = block FilesystemService::read(file, &mut main.small[..], 100);
+        main.result = block FilesystemService::close(file);
+        transition main.transferred {
+            IoResult::Ok { count } -> block b_count(main, count)
+            IoResult::Error { kind } -> block b_refused(main, kind)
+        }
+    }
+    machine b_count(main: &mut ProbeMain, count: u64) {
+        transition count == 4 { true -> block b_done(main, 4) false -> block b_done(main, 8) }
+    }
+    machine b_refused(main: &mut ProbeMain, kind: ErrorKind) {
+        transition kind { ErrorKind::InvalidInput -> block b_done(main, 0) _ -> block b_done(main, 12) }
+    }
+    machine b_done(main: &mut ProbeMain, value: i32) {
+        main.code = main.code + value;
+        main.result = block FilesystemService::create_dir_all("/tmp/opr_mk/d0000000/d0000001/d0000002/d0000003/d0000004/d0000005/d0000006/d0000007/d0000008/d0000009/d0000010/d0000011/d0000012/d0000013/d0000014/d0000015/d0000016/d0000017/d0000018/d0000019/d0000020/d0000021/d0000022/d0000023/d0000024/d0000025/d0000026/d0000027/d0000028/d0000029" as +Path);
+        transition main.result {
+            UnitResult::Ok -> block c_check(main)
+            _ -> block c_done(main, 16)
+        }
+    }
+    machine c_check(main: &mut ProbeMain) {
+        let present: bool = block FilesystemService::exists("/tmp/opr_mk/d0000000/d0000001/d0000002/d0000003/d0000004/d0000005/d0000006/d0000007/d0000008/d0000009/d0000010/d0000011/d0000012/d0000013/d0000014/d0000015/d0000016/d0000017/d0000018/d0000019/d0000020/d0000021/d0000022/d0000023/d0000024/d0000025/d0000026/d0000027/d0000028/d0000029" as +Path);
+        transition present { true -> block c_done(main, 0) false -> block c_done(main, 32) }
+    }
+    machine c_done(main: &mut ProbeMain, value: i32) {
+        main.code = main.code + value;
+        main.result = block FilesystemService::remove_dir_all("/tmp/opr_tree" as +Path);
+        transition main.result { UnitResult::Ok -> block d_done(main, 0) _ -> block d_done(main, 64) }
+    }
+    machine d_done(main: &mut ProbeMain, value: i32) {
+        main.code = main.code + value;
+        main.result = block FilesystemService::set_permissions("/tmp/opr_perm" as +Path, Permissions::Default);
+        transition main.result { UnitResult::Ok -> block f_done(main, 0) _ -> block f_done(main, 128) }
+    }
+    machine f_done(main: &mut ProbeMain, value: i32) {
+        main.code = main.code + value;
+        transition { _ -> done(main) }
+    }
+    machine done(main: &mut ProbeMain) { ProcessExit::exit_process(main.code as i32); }
+}
+

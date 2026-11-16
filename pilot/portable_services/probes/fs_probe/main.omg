@@ -1,0 +1,113 @@
+use omega::language::core::ProcessExit;
+// Each probe asks one portable FilesystemService question whose answer must be
+// identical on every target. The exit code packs the answers:
+//   a + 4*b + 16*c + 64*d + 128*f
+// a: open_with(read+truncate, no write) on a 5-byte file
+//    0 refused InvalidInput, 1 opened and file emptied, 2 opened and kept, 3 other
+// b: read(count 100) into a 4-byte buffer
+//    0 refused InvalidInput, 1 Ok(4), 2 Ok(other), 3 other error
+// c: create_dir_all(281-byte path) then exists(leaf)
+//    0 Ok and leaf exists, 1 Error, 2 Ok but leaf missing
+// d: remove_dir_all(/tmp/opr_tree) prepared by the harness: 0 Ok, 1 Error
+// f: set_permissions(/tmp/opr_perm, Default): 0 Ok, 1 Error (harness reads the mode)
+use omega_language_std::File;
+use omega_language_std::IoResult;
+use omega_language_std::MetadataResult;
+use omega_language_std::OpenOptions;
+use omega_language_std::OpenResult;
+use omega_language_std::UnitResult;
+use omega_language_std::ErrorKind;
+use omega_language_std::Permissions;
+use omega_language_std::FilesystemService;
+
+data Main {
+    result: UnitResult;
+    opened: OpenResult;
+    transferred: IoResult;
+    metadata: MetadataResult;
+    code: i32 in Wrapping;
+    small: [u8; 4];
+}
+
+machine main(main: &mut Main) reaches ProcessExit + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation + DirectoryEnumeration {
+    main.result = block FilesystemService::write_all("/tmp/opr_trunc" as +omega_language_std::Path, "hello");
+    main.opened = block FilesystemService::open_with("/tmp/opr_trunc" as +omega_language_std::Path, OpenOptions {
+        read: true, write: false, append: false, truncate: true, create: false, create_new: false
+    });
+    transition main.opened {
+        OpenResult::Ok { file } -> block a_opened(main, file)
+        OpenResult::Error { kind } -> block a_refused(main, kind)
+    }
+    machine a_refused(main: &mut Main, kind: ErrorKind) {
+        transition kind { ErrorKind::InvalidInput -> block a_done(main, 0) _ -> block a_done(main, 3) }
+    }
+    machine a_opened(main: &mut Main, file: File) {
+        main.result = block FilesystemService::close(file);
+        main.metadata = block FilesystemService::metadata_path("/tmp/opr_trunc" as +omega_language_std::Path);
+        transition main.metadata {
+            MetadataResult::Ok { meta } -> block a_len(main, meta.len)
+            _ -> block a_done(main, 3)
+        }
+    }
+    machine a_len(main: &mut Main, len: i64) {
+        transition len == 0 { true -> block a_done(main, 1) false -> block a_kept(main, len) }
+    }
+    machine a_kept(main: &mut Main, len: i64) {
+        transition len == 5 { true -> block a_done(main, 2) false -> block a_done(main, 3) }
+    }
+    machine a_done(main: &mut Main, value: i32) {
+        main.code = main.code + value;
+        main.result = block FilesystemService::write_all("/tmp/opr_read" as +omega_language_std::Path, "hello");
+        main.opened = block FilesystemService::open("/tmp/opr_read" as +omega_language_std::Path);
+        transition main.opened {
+            OpenResult::Ok { file } -> block b_read(main, file)
+            _ -> block b_done(main, 3)
+        }
+    }
+    machine b_read(main: &mut Main, file: File) {
+        main.transferred = block FilesystemService::read(file, &mut main.small[..], 100);
+        main.result = block FilesystemService::close(file);
+        transition main.transferred {
+            IoResult::Ok { count } -> block b_count(main, count)
+            IoResult::Error { kind } -> block b_refused(main, kind)
+        }
+    }
+    machine b_count(main: &mut Main, count: u64) {
+        transition count == 4 { true -> block b_done(main, 4) false -> block b_done(main, 8) }
+    }
+    machine b_refused(main: &mut Main, kind: ErrorKind) {
+        transition kind { ErrorKind::InvalidInput -> block b_done(main, 0) _ -> block b_done(main, 12) }
+    }
+    machine b_done(main: &mut Main, value: i32) {
+        main.code = main.code + value;
+        main.result = block FilesystemService::create_dir_all("/tmp/opr_mk/d0000000/d0000001/d0000002/d0000003/d0000004/d0000005/d0000006/d0000007/d0000008/d0000009/d0000010/d0000011/d0000012/d0000013/d0000014/d0000015/d0000016/d0000017/d0000018/d0000019/d0000020/d0000021/d0000022/d0000023/d0000024/d0000025/d0000026/d0000027/d0000028/d0000029" as +omega_language_std::Path);
+        transition main.result {
+            UnitResult::Ok -> block c_check(main)
+            _ -> block c_done(main, 16)
+        }
+    }
+    machine c_check(main: &mut Main) {
+        let present: bool = block FilesystemService::exists("/tmp/opr_mk/d0000000/d0000001/d0000002/d0000003/d0000004/d0000005/d0000006/d0000007/d0000008/d0000009/d0000010/d0000011/d0000012/d0000013/d0000014/d0000015/d0000016/d0000017/d0000018/d0000019/d0000020/d0000021/d0000022/d0000023/d0000024/d0000025/d0000026/d0000027/d0000028/d0000029" as +omega_language_std::Path);
+        transition present { true -> block c_done(main, 0) false -> block c_done(main, 32) }
+    }
+    machine c_done(main: &mut Main, value: i32) {
+        main.code = main.code + value;
+        main.result = block FilesystemService::remove_dir_all("/tmp/opr_tree" as +omega_language_std::Path);
+        transition main.result { UnitResult::Ok -> block d_done(main, 0) _ -> block d_done(main, 64) }
+    }
+    machine d_done(main: &mut Main, value: i32) {
+        main.code = main.code + value;
+        main.result = block FilesystemService::set_permissions("/tmp/opr_perm" as +omega_language_std::Path, Permissions::Default);
+        transition main.result { UnitResult::Ok -> block f_done(main, 0) _ -> block f_done(main, 128) }
+    }
+    machine f_done(main: &mut Main, value: i32) {
+        main.code = main.code + value;
+        transition { _ -> done(main) }
+    }
+    machine done(main: &mut Main) { ProcessExit::exit_process(main.code as i32); }
+}
+
+machine entry_start() reaches ProcessExit + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation + DirectoryEnumeration {
+    let mut entry_storage: Main;
+    block main(&mut entry_storage);
+}

@@ -1,0 +1,14 @@
+use omega::language::core::ProcessExit;
+use omega_language_std::Console;
+// ProcessExit takes an i32 status. A portable caller that exits with 256 means
+// "failure"; this probe shows what status each target's parent observes.
+data Main { }
+machine main(root: &mut Main) reaches ProcessExit + Console {
+    Console::write_byte(75);
+    Console::write_byte(10);
+    ProcessExit::exit_process(256);
+}
+machine entry_start() reaches ProcessExit + Console {
+    let mut entry_storage: Main;
+    main(&mut entry_storage);
+}
