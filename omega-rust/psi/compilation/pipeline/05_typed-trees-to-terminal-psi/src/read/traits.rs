@@ -289,6 +289,9 @@ impl Program<'_> {
                 "boundary parent contract has no boundary owner",
             ));
         }
+        // Ordinary parents keep their contract obligations. Boundary parents
+        // keep their own schemas; check each inherited signature in the
+        // application that declared it before publishing the complete interface.
         let scopes =
             typed_trees::service_declarations::projection::inherited_scopes(typed, scope.clone())
                 .map_err(|diagnostic| services::unavailable(context, diagnostic.message))?;

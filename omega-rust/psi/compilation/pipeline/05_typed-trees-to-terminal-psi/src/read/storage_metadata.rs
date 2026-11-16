@@ -158,10 +158,9 @@ impl Program<'_> {
                             typed_trees::type_system::source_projections::substituted_type_reference(
                                 typed, reference, &bindings,
                             );
-                        // Every complete carrier remains available for the
-                        // callback walk, even when it contains no callback.
-                        // Use the same formal/reference description as the
-                        // retained ABI rather than inferring absence here.
+                        // The shared ABI reader retains the complete direct
+                        // carrier and its callback backing, including a slice
+                        // descriptor rather than the unborrowed slice referent.
                         parameters.push(
                             self.calling_abi_parameter(context, reference)
                                 .map_err(|reason| services::unavailable(context, reason))?,
