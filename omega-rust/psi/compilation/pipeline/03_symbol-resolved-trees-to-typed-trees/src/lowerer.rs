@@ -1755,6 +1755,7 @@ pub(crate) fn close_typed_cohort(
         .prepare_data_application_views(cohort.typed_type_references)
         .map_err(Diagnostic::error)?;
     let cast_destinations = crate::expressions::construction_destinations::prepare(
+        lowerer.source_trees,
         &mut lowerer.typed_trees,
         cohort.typed_expressions,
         cohort.typed_machines,
@@ -1771,6 +1772,7 @@ pub(crate) fn close_typed_cohort(
     // domain cast on its reference has settled. Keep the ordinary landing
     // pass here as well; already prepared constructors retain their identity.
     crate::expressions::construction_destinations::prepare(
+        lowerer.source_trees,
         &mut lowerer.typed_trees,
         cohort.typed_expressions,
         cohort.typed_machines,

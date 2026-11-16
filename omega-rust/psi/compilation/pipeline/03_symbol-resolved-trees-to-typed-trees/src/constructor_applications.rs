@@ -34,32 +34,8 @@ pub(crate) fn prepare(
         if !needs_owner {
             continue;
         }
-        let mut callers = owners.expression_owners(expression);
-        let Some(first) = callers.next() else {
+        let Some(caller) = expression_owner(program, &owners, expression) else {
             continue;
-        };
-        let caller = if let Some(call) = program.expression_table.call_node(expression)
-            && call.target_symbol.is_valid()
-            && call.authored_machine_application.is_valid()
-            && let owner = program
-                .expression_table
-                .static_machine_application(call.authored_machine_application)
-                .lexical_owner
-            && owner.is_valid()
-            && (owner == first || callers.any(|other| other == owner))
-        {
-            // A constant and its generated entry may share an expression.
-            // Its already selected source application supplies the scope.
-            owner
-        } else {
-            if !first.is_valid()
-                || owners
-                    .expression_owners(expression)
-                    .any(|other| other != first)
-            {
-                continue;
-            }
-            first
         };
         if let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) {
             let collection = indexed.collection;
@@ -139,26 +115,11 @@ pub(crate) fn prepare(
             }
             continue;
         }
-        let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+        let Some(mut input) = CallInput::expression(program, expression, None) else {
             continue;
         };
-        let mut input = CallInput {
-            target: call.target_symbol,
-            name: call.target.clone(),
-            application: call.authored_machine_application,
-            explicit: !call.machine_arguments.is_empty(),
-            ordinary: call.is_ordinary_positional_call()
-                && call.authored_call_binding.is_none()
-                && !call.authored_machine_application.is_valid(),
-            selection: call.authored_call_selection,
-            source_span: program.expression_table.source_span(expression),
-            arguments: program
-                .expression_table
-                .expression_handles(call.arguments)
-                .to_vec(),
-        };
         let previous = (input.target, input.application);
-        let application = infer_call(source, program, &mut input, caller)?;
+        let application = infer_call(program, &mut input, caller)?;
         if input.target == previous.0 && application.is_none_or(|next| next == previous.1) {
             continue;
         }
@@ -189,10 +150,11 @@ pub(crate) fn prepare(
                                 && call.static_requirement_dispatch.is_none()
                                 && call.installed_interrupt_operation.is_none()
                                 && call.machine_arguments.is_empty()
-                                && call.evidence_arguments.is_empty()
-                                && !call.authored_machine_application.is_valid(),
+                                && call.evidence_arguments.is_empty(),
                             selection: call.authored_call_selection,
                             source_span: call.source_span,
+                            expected_result: None,
+                            binding: None,
                             arguments: program
                                 .statement_table
                                 .expression_handles(call.arguments)
@@ -205,7 +167,8 @@ pub(crate) fn prepare(
         .collect();
     for (caller, handle, mut input) in statements {
         let previous = (input.target, input.application);
-        let application = infer_call(source, program, &mut input, caller)?;
+        select_call(source, program, &mut input, caller)?;
+        let application = infer_call(program, &mut input, caller)?;
         if input.target == previous.0 && application.is_none_or(|next| next == previous.1) {
             continue;
         }
@@ -258,6 +221,11 @@ pub(crate) fn prepare(
                                         && evidence_arguments.is_empty(),
                                     selection: *authored_call_selection,
                                     source_span: *source_span,
+                                    expected_result: state
+                                        .return_type
+                                        .is_valid()
+                                        .then_some(state.return_type),
+                                    binding: None,
                                     arguments: program
                                         .statement_table
                                         .expression_handles(*arguments)
@@ -274,7 +242,8 @@ pub(crate) fn prepare(
         if original.is_valid() || !input.ordinary {
             continue;
         }
-        infer_call(source, program, &mut input, caller)?;
+        select_call(source, program, &mut input, caller)?;
+        infer_call(program, &mut input, caller)?;
         if input.target != original
             && let typed_trees::statement::TransitionTargetNode::Named { path, .. } =
                 program.statement_table.transition_target_mut(handle)
@@ -284,6 +253,41 @@ pub(crate) fn prepare(
         }
     }
     Ok(())
+}
+
+fn expression_owner(
+    program: &TypedTrees,
+    owners: &typed_trees::references::ProgramOperandOwners,
+    expression: ExpressionHandle,
+) -> Option<SymbolHandle> {
+    let mut callers = owners.expression_owners(expression);
+    let Some(first) = callers.next() else {
+        return None;
+    };
+    let caller = if let Some(call) = program.expression_table.call_node(expression)
+        && call.target_symbol.is_valid()
+        && call.authored_machine_application.is_valid()
+        && let owner = program
+            .expression_table
+            .static_machine_application(call.authored_machine_application)
+            .lexical_owner
+        && owner.is_valid()
+        && (owner == first || callers.any(|other| other == owner))
+    {
+        // A constant and its generated entry may share an expression.
+        // Its already selected source application supplies the scope.
+        owner
+    } else {
+        if !first.is_valid()
+            || owners
+                .expression_owners(expression)
+                .any(|other| other != first)
+        {
+            return None;
+        }
+        first
+    };
+    Some(caller)
 }
 
 /// Every call position asks the same application question; only its operand
@@ -297,14 +301,120 @@ struct CallInput {
     selection: Option<typed_trees::AuthoredDeclarationSelectionOccurrenceId>,
     source_span: source::SourceSpan,
     arguments: Vec<ExpressionHandle>,
+    expected_result: Option<TypeReferenceHandle>,
+    binding: Option<language_semantics::declaration_selection::ResolvedAuthoredCallBinding>,
 }
 
-fn infer_call(
+impl CallInput {
+    fn expression(
+        program: &TypedTrees,
+        expression: ExpressionHandle,
+        expected_result: Option<TypeReferenceHandle>,
+    ) -> Option<Self> {
+        let call = program.expression_table.call_node(expression)?;
+        Some(CallInput {
+            target: call.target_symbol,
+            name: call.target.clone(),
+            application: call.authored_machine_application,
+            explicit: !call.machine_arguments.is_empty(),
+            ordinary: call.is_ordinary_positional_call(),
+            selection: call.authored_call_selection,
+            source_span: program.expression_table.source_span(expression),
+            expected_result,
+            binding: call.authored_call_binding,
+            arguments: program
+                .expression_table
+                .expression_handles(call.arguments)
+                .to_vec(),
+        })
+    }
+}
+
+/// The existing destination walk owns this source-scoped selection context.
+/// It chooses a result-domain overload; it grants no domain membership.
+pub(crate) struct CallResultSelections<'a> {
+    source: &'a symbol_resolved_trees::SymbolResolvedTrees,
+    owners: typed_trees::references::ProgramOperandOwners,
+}
+
+impl<'a> CallResultSelections<'a> {
+    pub(crate) fn new(
+        source: &'a symbol_resolved_trees::SymbolResolvedTrees,
+        program: &TypedTrees,
+    ) -> Self {
+        Self {
+            source,
+            owners: typed_trees::references::collect_program_operand_owners(program),
+        }
+    }
+
+    pub(crate) fn source(&self) -> &'a symbol_resolved_trees::SymbolResolvedTrees {
+        self.source
+    }
+
+    pub(crate) fn select(
+        &self,
+        program: &mut TypedTrees,
+        expression: ExpressionHandle,
+        expected: Option<TypeReferenceHandle>,
+    ) -> Result<(), Diagnostic> {
+        let Some(caller) = expression_owner(program, &self.owners, expression) else {
+            return Ok(());
+        };
+        let Some(mut input) = CallInput::expression(program, expression, expected) else {
+            return Ok(());
+        };
+        select_call(self.source, program, &mut input, caller)?;
+        let application = infer_call(program, &mut input, caller)?;
+        if let ExpressionNode::Call(call) = program.expression_table.expression_mut(expression) {
+            call.target_symbol = input.target;
+            if let Some(application) = application {
+                call.authored_machine_application = application;
+            }
+        }
+        Ok(())
+    }
+}
+
+fn select_call(
     source: &symbol_resolved_trees::SymbolResolvedTrees,
     program: &mut TypedTrees,
     call: &mut CallInput,
     caller: SymbolHandle,
-) -> Result<Option<typed_trees::static_applications::StaticMachineApplicationHandle>, Diagnostic> {
+) -> Result<(), Diagnostic> {
+    if call.target.is_valid()
+        && call.ordinary
+        && let Some(machine) = program.machine_by_own_or_state_symbol(call.target)
+        && program.machine_type_parameters(machine).is_empty()
+        && machine.attached_data.is_none()
+        && !program
+            .symbols
+            .get(machine.symbol)
+            .declaration_owner
+            .is_valid()
+        && let Some(state) = program
+            .state_by_symbol(call.target)
+            .or_else(|| program.machine_states(machine).first())
+    {
+        let actual = program.normalized_result_dispatch_set(state.return_type);
+        let expected = program.normalized_result_dispatch_set(
+            call.expected_result
+                .unwrap_or_else(TypeReferenceHandle::invalid),
+        );
+        if actual != expected {
+            program.record_deferred_refusal_with_detail(
+                caller,
+                typed_trees::deferred_refusals::DeferredRequest::CallResultDomainMismatch,
+                call.source_span,
+                &format!(
+                    "declared result domains `{}`; expected `{}`",
+                    actual.identity(),
+                    expected.identity()
+                ),
+            );
+        }
+        return Ok(());
+    }
     let source_owner = if program.symbols.get(caller).kind == symbols::SymbolKind::State {
         program.symbols.get(caller).parent
     } else {
@@ -319,9 +429,11 @@ fn infer_call(
                 && !owner.trait_default_origin.declaring_trait.is_valid()
         });
     if !call.target.is_valid()
+        && !call.application.is_valid()
+        && call.binding.is_none()
         && call.ordinary
         && ordinary_scope
-        && let Some(target) = select_closed_call(program, call, caller)?
+        && let Some(target) = select_closed_call(program, call, caller, call.expected_result)?
     {
         if let Some(occurrence) = call.selection {
             crate::call_and_product_selections::bind_generated_call_selection(
@@ -330,6 +442,14 @@ fn infer_call(
         }
         call.target = target;
     }
+    Ok(())
+}
+
+fn infer_call(
+    program: &mut TypedTrees,
+    call: &mut CallInput,
+    caller: SymbolHandle,
+) -> Result<Option<typed_trees::static_applications::StaticMachineApplicationHandle>, Diagnostic> {
     let supplied = if call.application.is_valid() {
         program
             .expression_table
@@ -508,6 +628,7 @@ fn select_closed_call(
     program: &mut TypedTrees,
     call: &CallInput,
     caller: SymbolHandle,
+    expected_result: Option<TypeReferenceHandle>,
 ) -> Result<Option<SymbolHandle>, Diagnostic> {
     let Some(candidates) =
         source_call_candidates(program, caller, call.name.as_str(), call.source_span)
@@ -517,11 +638,20 @@ fn select_closed_call(
     if candidates.is_empty() {
         return Ok(None);
     }
+    let expected_dispatch = program.normalized_result_dispatch_set(
+        expected_result.unwrap_or_else(TypeReferenceHandle::invalid),
+    );
     let mut headers = Vec::with_capacity(candidates.len());
     for candidate in candidates {
         let Some(machine) = program.machine_by_symbol(candidate) else {
             return Ok(None);
         };
+        let Some(state) = program.machine_states(machine).first() else {
+            return Ok(None);
+        };
+        if program.normalized_result_dispatch_set(state.return_type) != expected_dispatch {
+            continue;
+        }
         // Lifetime names do not choose a carrier overload. The existing
         // carrier identity compares type, access and domains; ordinary call
         // formation must still instantiate and check the selected lifetimes.
@@ -532,16 +662,9 @@ fn select_closed_call(
             return Ok(None);
         }
         let identity = program.machine_callable_identity(machine);
-        if !identity.is_valid()
-            || !program.callable_result_dispatch_is_empty(
-                program.callable_identity_result_dispatch(identity),
-            )
-        {
+        if !identity.is_valid() {
             return Ok(None);
         }
-        let Some(state) = program.machine_states(machine).first() else {
-            return Ok(None);
-        };
         headers.push((
             candidate,
             program
@@ -1212,46 +1335,35 @@ mod tests {
             .iter()
             .find(|machine| machine.name.as_str() == owner)
             .expect("the actual caller declaration");
-        let mut calls = Vec::new();
+        let owners = typed_trees::references::collect_program_operand_owners(program);
+        let mut calls = program
+            .expression_table
+            .expression_entries()
+            .filter_map(|(value, node)| {
+                let ExpressionNode::Call(call) = node else {
+                    return None;
+                };
+                owners
+                    .expression_owners(value)
+                    .any(|owner| owner == machine.symbol)
+                    .then_some((call.target_symbol, call.authored_call_selection))
+            })
+            .collect::<Vec<_>>();
         for state in program.machine_states(machine) {
             for statement in program.statement_table.statements(state.statement_nodes) {
                 match statement {
-                    StatementNode::Expression(value) => {
-                        if let ExpressionNode::Call(call) =
-                            program.expression_table.expression(*value)
-                        {
-                            calls.push((call.target_symbol, call.authored_call_selection));
-                        }
-                    }
                     StatementNode::Call(call) => {
-                        calls.push((call.target_symbol, call.authored_call_selection));
-                    }
-                    StatementNode::LocalData(local) if local.initial_value.is_valid() => {
-                        if let ExpressionNode::Call(call) =
-                            program.expression_table.expression(local.initial_value)
-                        {
-                            calls.push((call.target_symbol, call.authored_call_selection));
-                        }
+                        calls.push((call.target_symbol, call.authored_call_selection))
                     }
                     StatementNode::Transition(transition) => {
                         for target in transition.targets() {
-                            match program.statement_table.transition_target(target) {
-                                TransitionTargetNode::Named {
-                                    path,
-                                    authored_call_selection,
-                                    ..
-                                } => calls.push((path.symbol, *authored_call_selection)),
-                                TransitionTargetNode::Value(value) => {
-                                    if let ExpressionNode::Call(call) =
-                                        program.expression_table.expression(*value)
-                                    {
-                                        calls.push((
-                                            call.target_symbol,
-                                            call.authored_call_selection,
-                                        ));
-                                    }
-                                }
-                                TransitionTargetNode::Terminal => {}
+                            if let TransitionTargetNode::Named {
+                                path,
+                                authored_call_selection,
+                                ..
+                            } = program.statement_table.transition_target(target)
+                            {
+                                calls.push((path.symbol, *authored_call_selection));
                             }
                         }
                     }
@@ -1468,6 +1580,93 @@ mod tests {
             program.symbols.get(target).parent,
             owner.symbol,
             "the nearest nested family cannot be replaced by a root helper"
+        );
+    }
+
+    #[test]
+    fn result_domain_families_use_the_complete_receiving_set_and_cast_input() {
+        let library = r#"
+            module kit;
+            public domain u32::Tagged;
+            public domain u32::OtherTagged;
+            public machine pick(value: u32) -> u32 { value }
+            public machine pick(value: u32) -> u32 in Saturating { value }
+            public machine pick(value: u32) -> u32 in Tagged { value }
+            public machine only() -> u32 in Tagged { 0u32 }
+        "#;
+        let client = r#"
+            machine policy(value: u32) { let selected: u32 in Saturating = pick(value); }
+            machine plain(value: u32) { pick(value); }
+            machine absent(value: u32) -> bool { pick(value) == value }
+            machine tagged(value: u32) -> u32 in Tagged { pick(value) }
+            machine added(value: u32) -> u32 in Tagged { pick(value) as +Tagged }
+            machine removed(value: u32) -> u32 { pick(value) as -Saturating }
+            machine unmatched(value: u32) -> u32 in OtherTagged { pick(value) }
+            machine unique_missing_context() { only(); }
+            machine unique_matching_context() -> u32 in Tagged { only() }
+        "#;
+        let unit = format!("{library}\n{client}");
+        let program = checked(&[("kit.omg", &unit)])
+            .expect("retain source selections without claiming their body proofs");
+        for (owner, expected) in [
+            ("policy", "arithmetic:Saturating"),
+            ("removed", "arithmetic:Saturating"),
+            ("plain", ""),
+            ("absent", ""),
+            ("added", ""),
+        ] {
+            let (target, occurrence) = owned_call(&program, owner);
+            let machine = program.machine_by_own_or_state_symbol(target).expect(owner);
+            let entry = &program.machine_states(machine)[0];
+            assert_eq!(
+                program
+                    .normalized_result_dispatch_set(entry.return_type)
+                    .identity(),
+                expected,
+                "{owner}"
+            );
+            assert_eq!(
+                program
+                    .authored_declaration_selections()
+                    .get(occurrence.unwrap())
+                    .unwrap()
+                    .target()
+                    .as_resolved()
+                    .unwrap()
+                    .selected_symbol(),
+                target
+            );
+        }
+        let (target, _) = owned_call(&program, "tagged");
+        let selected = program.machine_by_own_or_state_symbol(target).unwrap();
+        let caller = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "tagged")
+            .unwrap();
+        assert_eq!(
+            program.normalized_result_dispatch_set(program.machine_states(selected)[0].return_type),
+            program.normalized_result_dispatch_set(program.machine_states(caller)[0].return_type)
+        );
+        for (owner, rejects) in [
+            ("unique_missing_context", true),
+            ("unique_matching_context", false),
+        ] {
+            let machine = program
+                .machines()
+                .iter()
+                .find(|machine| machine.name.as_str() == owner)
+                .unwrap();
+            assert!(
+                owned_call(&program, owner).0.is_valid(),
+                "retain the resolved declaration"
+            );
+            assert_eq!(program.deferred_refusals.iter().any(|row| row.declaration == machine.symbol
+                && row.request == typed_trees::deferred_refusals::DeferredRequest::CallResultDomainMismatch), rejects, "{owner}");
+        }
+        assert!(
+            !owned_call(&program, "unmatched").0.is_valid(),
+            "another domain set cannot supply the result"
         );
     }
 
