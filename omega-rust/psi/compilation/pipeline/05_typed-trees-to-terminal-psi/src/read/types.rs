@@ -25,6 +25,23 @@ pub(super) enum TypeTruth {
     Open,
 }
 
+/// One operator the static evaluator decided in this source scope. Callee
+/// contract expressions never acquire the caller's occurrence ownership.
+pub(super) struct StaticOperatorRead {
+    expression: ExpressionHandle,
+    type_equation: bool,
+}
+
+impl StaticOperatorRead {
+    pub(super) fn expression(&self) -> ExpressionHandle {
+        self.expression
+    }
+
+    pub(super) fn is_type_equation(&self) -> bool {
+        self.type_equation
+    }
+}
+
 /// The refusal of a value its rigid type parameter's premises leave open:
 /// the body would need to be read once per carrier family, which no reading
 /// does yet.
@@ -588,6 +605,61 @@ impl Program<'_> {
         expression: ExpressionHandle,
         reading: Reading,
     ) -> Option<TypeTruth> {
+        self.observed_type_truth(scope, expression, reading, &mut |_| {})
+    }
+
+    pub(super) fn type_truth_operators(
+        &self,
+        expression: ExpressionHandle,
+        reading: Reading,
+    ) -> (Option<TypeTruth>, Vec<StaticOperatorRead>) {
+        let mut operators = Vec::new();
+        let truth = self.observed_type_truth(Scope::Own, expression, reading, &mut |operator| {
+            operators.push(operator);
+        });
+        (truth, operators)
+    }
+
+    fn observed_type_truth(
+        &self,
+        scope: Scope<'_>,
+        expression: ExpressionHandle,
+        reading: Reading,
+        observe: &mut impl FnMut(StaticOperatorRead),
+    ) -> Option<TypeTruth> {
+        let truth = self.evaluate_type_truth(scope, expression, reading, observe);
+        if matches!(scope, Scope::Own) && matches!(truth, Some(TypeTruth::Known(_))) {
+            let table = &self.typed.expression_table;
+            let type_equation = match table.expression(expression) {
+                ExpressionNode::Binary(binary) => {
+                    binary.operator == typed_trees::expression::BinaryOperator::Equal
+                        && matches!(
+                            table.expression(binary.left),
+                            ExpressionNode::TypeExpression(_)
+                        )
+                        && matches!(
+                            table.expression(binary.right),
+                            ExpressionNode::TypeExpression(_)
+                        )
+                }
+                ExpressionNode::Unary(_) => false,
+                _ => return truth,
+            };
+            observe(StaticOperatorRead {
+                expression,
+                type_equation,
+            });
+        }
+        truth
+    }
+
+    fn evaluate_type_truth(
+        &self,
+        scope: Scope<'_>,
+        expression: ExpressionHandle,
+        reading: Reading,
+        observe: &mut impl FnMut(StaticOperatorRead),
+    ) -> Option<TypeTruth> {
         use typed_trees::expression::{BinaryOperator, UnaryOperator};
         if !expression.is_valid() {
             return None;
@@ -617,14 +689,14 @@ impl Program<'_> {
             }
             ExpressionNode::Call(call) if reading != Reading::Value => {
                 let (bindings, value) = self.contract_value(scope, call)?;
-                self.type_truth(Scope::Callee(&bindings), value, Reading::Stated)
+                self.observed_type_truth(Scope::Callee(&bindings), value, Reading::Stated, observe)
             }
-            ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
-                Some(match self.type_truth(scope, unary.operand, reading)? {
+            ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => Some(
+                match self.observed_type_truth(scope, unary.operand, reading, observe)? {
                     TypeTruth::Known(truth) => TypeTruth::Known(!truth),
                     TypeTruth::Open => TypeTruth::Open,
-                })
-            }
+                },
+            ),
             ExpressionNode::Binary(binary) => {
                 let literal = |handle: ExpressionHandle| match handle
                     .is_valid()
@@ -657,8 +729,8 @@ impl Program<'_> {
                                 .map(TypeTruth::Known);
                         }
                         match (
-                            self.type_truth(scope, binary.left, reading),
-                            self.type_truth(scope, binary.right, reading),
+                            self.observed_type_truth(scope, binary.left, reading, observe),
+                            self.observed_type_truth(scope, binary.right, reading, observe),
                         ) {
                             (Some(TypeTruth::Known(left)), Some(right)) => {
                                 Some(compare(right, left))
@@ -677,8 +749,10 @@ impl Program<'_> {
                         }
                     }
                     BinaryOperator::And => {
-                        let left = self.type_truth(scope, binary.left, reading)?;
-                        let right = self.type_truth(scope, binary.right, reading)?;
+                        let left =
+                            self.observed_type_truth(scope, binary.left, reading, observe)?;
+                        let right =
+                            self.observed_type_truth(scope, binary.right, reading, observe)?;
                         Some(match (left, right) {
                             (TypeTruth::Known(false), _) | (_, TypeTruth::Known(false)) => {
                                 TypeTruth::Known(false)
@@ -690,8 +764,10 @@ impl Program<'_> {
                         })
                     }
                     BinaryOperator::Or => {
-                        let left = self.type_truth(scope, binary.left, reading)?;
-                        let right = self.type_truth(scope, binary.right, reading)?;
+                        let left =
+                            self.observed_type_truth(scope, binary.left, reading, observe)?;
+                        let right =
+                            self.observed_type_truth(scope, binary.right, reading, observe)?;
                         Some(match (left, right) {
                             (TypeTruth::Known(true), _) | (_, TypeTruth::Known(true)) => {
                                 TypeTruth::Known(true)

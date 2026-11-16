@@ -16,6 +16,33 @@ use super::Program;
 use crate::body::{Expression, ExpressionKind, Policy, Qualification, ValueType};
 
 impl Program<'_> {
+    /// Complete only the static proposition this reader actually evaluated.
+    /// Folding its result must retain the operator questions of its operands,
+    /// including a guard whose known-false branch is never read as a value.
+    pub(super) fn read_static_truth(
+        &mut self,
+        machine: MachineId,
+        owner: SymbolHandle,
+        expression: ExpressionHandle,
+        reading: super::types::Reading,
+    ) -> Checked<Option<super::types::TypeTruth>> {
+        let (truth, operators) = self.type_truth_operators(expression, reading);
+        if !matches!(truth, Some(super::types::TypeTruth::Known(_))) {
+            return Ok(truth);
+        }
+        let boolean = self.operator_operand_reference(ValueType::plain(ScalarType::Boolean));
+        for operator in operators {
+            self.complete_operator(
+                machine,
+                owner,
+                operator.expression(),
+                &[boolean; 2],
+                operator.is_type_equation(),
+            )?;
+        }
+        Ok(truth)
+    }
+
     pub(super) fn complete_anonymous_operators(
         &mut self,
         machine: MachineId,
@@ -162,6 +189,17 @@ impl Program<'_> {
         expression: ExpressionHandle,
         operands: &[Option<TypeReferenceHandle>],
     ) -> Checked<()> {
+        self.complete_operator(machine, source_owner, expression, operands, false)
+    }
+
+    fn complete_operator(
+        &mut self,
+        machine: MachineId,
+        source_owner: SymbolHandle,
+        expression: ExpressionHandle,
+        operands: &[Option<TypeReferenceHandle>],
+        type_equation: bool,
+    ) -> Checked<()> {
         let typed = self.typed;
         let refuse = |detail: String| Refusal {
             source_span: None,
@@ -255,7 +293,11 @@ impl Program<'_> {
                 return Ok(());
             }
         }
+        // Type-role equality is exact normalized identity (generics.md,
+        // "Static type equality"). Value-operator declarations do not select
+        // it. Only the existing static evaluator supplies that receipt.
         if !suffixed
+            && !type_equation
             && let Some(spelling) = spelling
             && !typed_trees::operator::has_builtin_spelled_expression_meaning(
                 typed, owner, expression, spelling, operands,

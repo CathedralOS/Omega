@@ -3606,7 +3606,9 @@ impl<'t> Program<'t> {
                     let (slot, statement) = self.local(id, &slots, local).map_err(|refusal| {
                         self.read_failure_at(refusal, local.symbol, "the local binding")
                     })?;
-                    if let Some(truth) = self.static_truth(local.initial_value) {
+                    if !local.is_mutable
+                        && let Some(truth) = self.static_truth(local.initial_value)
+                    {
                         self.static_truths.push((local.symbol, truth));
                     }
                     slots.push(slot);
@@ -3632,7 +3634,15 @@ impl<'t> Program<'t> {
                     // unread; a true one is taken unconditionally.
                     let decided = match transition.guard {
                         typed_trees::statement::TransitionGuardNode::When(guard) => {
-                            self.static_truth(guard)
+                            match self.read_static_truth(
+                                id,
+                                symbol,
+                                guard,
+                                super::types::Reading::Value,
+                            )? {
+                                Some(super::types::TypeTruth::Known(truth)) => Some(truth),
+                                _ => None,
+                            }
                         }
                         typed_trees::statement::TransitionGuardNode::Always => None,
                     };

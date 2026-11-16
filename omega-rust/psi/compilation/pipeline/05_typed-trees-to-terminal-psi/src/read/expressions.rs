@@ -288,6 +288,12 @@ impl<'t> Program<'t> {
         };
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
         let expected_scalar = expected.and_then(ValueType::scalar);
+        let type_truth = if matches!(node, ExpressionNode::Binary(_) | ExpressionNode::Member(_)) {
+            let owner = self.symbols.get(id).copied().unwrap_or_default();
+            self.read_static_truth(id, owner, handle, super::types::Reading::Value)?
+        } else {
+            None
+        };
         let (kind, result) = match node {
             ExpressionNode::MachineValue(value) => return self.machine_value(id, value, source),
             // At a parameter width no literal is a value of the carrier
@@ -418,18 +424,16 @@ impl<'t> Program<'t> {
             // closed type equations, and the fields of the integer carrier
             // query (`carriers`), whose own body is never run.
             ExpressionNode::Binary(_) | ExpressionNode::Member(_)
-                if self.type_truth(
-                    super::carriers::Scope::Own,
-                    handle,
-                    super::types::Reading::Value,
-                ) == Some(super::types::TypeTruth::Open) =>
+                if type_truth == Some(super::types::TypeTruth::Open) =>
             {
                 return unserved(super::types::OPEN_CARRIER_FAMILY);
             }
             ExpressionNode::Binary(_) | ExpressionNode::Member(_)
-                if self.static_truth(handle).is_some() =>
+                if matches!(type_truth, Some(super::types::TypeTruth::Known(_))) =>
             {
-                let truth = self.static_truth(handle).unwrap_or_default();
+                let Some(super::types::TypeTruth::Known(truth)) = type_truth else {
+                    unreachable!("the static evaluator supplied the known truth");
+                };
                 (ExpressionKind::Boolean(truth), ScalarType::Boolean)
             }
             ExpressionNode::Binary(_)

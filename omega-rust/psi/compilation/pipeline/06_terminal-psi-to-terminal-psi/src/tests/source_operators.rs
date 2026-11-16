@@ -4,9 +4,13 @@ use super::*;
 
 fn enum_operator(text: &str) -> Result<RouteVerdict, String> {
     let typed = super::boundary_calls::try_typed(text).map_err(|error| error.message)?;
-    let entry = super::boundary_calls::entry(&typed);
+    operator_program(&typed)
+}
+
+fn operator_program(typed: &typed_trees::TypedTrees) -> Result<RouteVerdict, String> {
+    let entry = super::boundary_calls::entry(typed);
     let elaboration = typed_trees_to_terminal_psi::elaborate_for(
-        &typed,
+        typed,
         typed_trees_to_terminal_psi::Compilation {
             calling: None,
             providers: None,
@@ -25,7 +29,11 @@ fn enum_operator(text: &str) -> Result<RouteVerdict, String> {
 }
 
 fn assert_enum_operator_value(source: &str, expected: bool) {
-    let verdict = enum_operator(source).unwrap();
+    assert_operator_value(enum_operator(source), expected);
+}
+
+fn assert_operator_value(verdict: Result<RouteVerdict, String>, expected: bool) {
+    let verdict = verdict.unwrap();
     let RouteVerdict::Accepted(accepted) = verdict else {
         panic!("enum operator was not accepted");
     };
@@ -137,4 +145,77 @@ machine entry(value: u32) -> u32 {contract} {{ value + 1u32 }}
             );
         }
     }
+}
+
+#[test]
+fn closed_type_disjunctions_complete_folded_operators_before_guard_pruning() {
+    for (kind, expected) in [
+        ("RoomHeader", true),
+        ("FixedVec<i32, 4>", true),
+        ("FixedVec<i32, 5>", false),
+        ("u32", false),
+    ] {
+        let typed = super::boundary_calls::typed(&format!(
+            r#"
+data RoomHeader {{ room_id: u32; }}
+data FixedVec<Element, const Capacity: u64> {{ items: [Element; Capacity]; length: u64; }}
+machine == header_values(left: RoomHeader, right: RoomHeader) -> bool {{ false }}
+machine policy_kind<Kind>() -> bool {{
+    transition {{
+        Kind == u32 || Kind == i32 || Kind == bool -> false
+        Kind == RoomHeader -> true
+        Kind == FixedVec<i32, 4> -> true
+        _ -> false
+    }}
+}}
+machine entry() -> bool {{ policy_kind<{kind}>() }}
+"#
+        ));
+        let (typed, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+            typed,
+            &typed_trees_to_typed_trees::PreparationRequest::settled(),
+        )
+        .expect("the actual closed application retains its complete nominal tuple");
+        assert_operator_value(operator_program(&typed), expected);
+    }
+}
+
+#[test]
+fn folded_type_truth_values_and_clauses_keep_nested_boolean_operator_selections() {
+    for source in [
+        "data RoomHeader { room_id: u32; }\n\
+         machine entry() -> bool { (RoomHeader == RoomHeader || RoomHeader == u32) == true }",
+        "data RoomHeader { room_id: u32; }\n\
+         machine entry() -> bool requires RoomHeader == RoomHeader || RoomHeader == u32 { true }",
+    ] {
+        assert_enum_operator_value(source, true);
+    }
+}
+
+#[test]
+fn declared_value_comparisons_under_disjunctive_guards_keep_their_selected_meaning() {
+    assert_enum_operator_value(
+        "data Kind [copy] { case On; case Off; }\n\
+         machine == same(left: Kind, right: Kind) -> bool { false }\n\
+         machine entry() -> bool {\n\
+             let kind: Kind = Kind::On;\n\
+             transition {\n\
+                 kind == Kind::On || kind == Kind::Off -> true\n\
+                 _ -> false\n\
+             }\n\
+         }",
+        false,
+    );
+}
+
+#[test]
+fn mutable_boolean_locals_do_not_reuse_their_initial_static_truth() {
+    assert_enum_operator_value(
+        "machine entry() -> bool { let mut flag: bool = u32 == u32; flag = false; flag || u32 == u64 }",
+        false,
+    );
+    assert_enum_operator_value(
+        "machine entry() -> bool { let flag: bool = u32 == u32; flag || u32 == u64 }",
+        true,
+    );
 }
