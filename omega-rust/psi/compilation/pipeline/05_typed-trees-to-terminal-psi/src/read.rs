@@ -50,6 +50,7 @@ mod predicates;
 mod provider_selections;
 mod providers;
 mod rankings;
+mod record_parameters;
 mod references;
 mod reflection;
 mod regions;

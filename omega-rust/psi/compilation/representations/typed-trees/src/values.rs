@@ -1529,6 +1529,8 @@ pub mod expression {
                 );
                 self.static_machine_application_mut(copy).lexical_owner = declaration.lexical_owner;
                 self.static_machine_application_mut(copy)
+                    .source_record_receiver = declaration.source_record_receiver;
+                self.static_machine_application_mut(copy)
                     .binding_declaration = declaration.binding_declaration;
                 self.static_machine_application_mut(copy)
                     .conformance_selection =
@@ -3593,6 +3595,7 @@ pub mod expression {
             self.static_machine_applications
                 .insert(StaticMachineApplication {
                     callable_contract_source: StaticMachineApplicationHandle::invalid(),
+                    source_record_receiver: None,
                     registration_operation,
                     lexical_owner: SymbolHandle::invalid(),
                     target,
