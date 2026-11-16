@@ -39,6 +39,13 @@ pub trait Record: Sized {
     fn read<Context>(input: &mut RecordReader<'_, Context>) -> Result<Self, RecordError>;
 }
 
+/// Bytes in one Arc allocation, including its reference counts and alignment
+/// padding before and after the value. None means the layout would overflow.
+pub fn shared_allocation_bytes(value: std::alloc::Layout) -> Option<usize> {
+    let (layout, _) = std::alloc::Layout::new::<[usize; 2]>().extend(value).ok()?;
+    Some(layout.pad_to_align().size())
+}
+
 pub fn encode<T: Record>(value: &T, limits: RecordLimits) -> Result<Vec<u8>, RecordError> {
     let mut output = RecordWriter::new(limits);
     value.write(&mut output)?;
@@ -721,6 +728,104 @@ mod tests {
         definition.push(1);
         definition.extend_from_slice(&4u64.to_le_bytes());
         assert!(decode::<Arc<u64>>(&definition, RecordLimits::default()).is_err());
+    }
+
+    #[test]
+    fn shared_allocation_budgets_include_alignment_and_zero_sized_values() {
+        #[derive(Debug, PartialEq, Eq, Record)]
+        struct Empty;
+        #[repr(align(4096))]
+        #[derive(Debug, PartialEq, Eq, Record)]
+        struct Aligned(u8);
+        #[repr(align(4096))]
+        #[derive(Debug, Clone, PartialEq, Eq, Record)]
+        struct AlignedEmpty;
+
+        fn check<Value: Record + std::fmt::Debug + PartialEq + 'static>(value: Value) {
+            check_arc(Arc::new(value), std::alloc::Layout::new::<Value>(), 0);
+        }
+        fn check_arc<Value: std::fmt::Debug + PartialEq + ?Sized + 'static>(
+            value: Arc<Value>,
+            layout: std::alloc::Layout,
+            value_allocation: usize,
+        ) where
+            Arc<Value>: Record,
+        {
+            let bytes = encode(&value, RecordLimits::default()).unwrap();
+            let allocation = std::mem::size_of::<Option<Box<dyn std::any::Any>>>()
+                + crate::shared_allocation_bytes(layout).unwrap()
+                + std::mem::size_of::<Arc<Value>>()
+                + value_allocation;
+            let limits = RecordLimits {
+                allocation,
+                ..RecordLimits::default()
+            };
+            assert_eq!(*decode::<Arc<Value>>(&bytes, limits).unwrap(), *value);
+            assert!(
+                decode::<Arc<Value>>(
+                    &bytes,
+                    RecordLimits {
+                        allocation: allocation - 1,
+                        ..limits
+                    }
+                )
+                .is_err()
+            );
+        }
+        check(7u32);
+        check(Empty);
+        check(Aligned(7));
+        check(AlignedEmpty);
+        check_arc(
+            Arc::<str>::from("abc"),
+            std::alloc::Layout::array::<u8>(3).unwrap(),
+            3,
+        );
+        check_arc(
+            Arc::<[u16]>::from([1, 2]),
+            std::alloc::Layout::array::<u16>(2).unwrap(),
+            4,
+        );
+        check_arc(
+            Arc::<[AlignedEmpty]>::from(vec![AlignedEmpty; 3]),
+            std::alloc::Layout::array::<AlignedEmpty>(3).unwrap(),
+            0,
+        );
+    }
+
+    #[test]
+    fn insufficient_shared_layout_budget_refuses_before_reading_the_value() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        static READS: AtomicUsize = AtomicUsize::new(0);
+        #[repr(align(4096))]
+        struct AlignedEmpty;
+        impl Record for AlignedEmpty {
+            fn write(&self, _: &mut crate::RecordWriter) -> Result<(), crate::RecordError> {
+                Ok(())
+            }
+            fn read<Context>(
+                _: &mut crate::RecordReader<'_, Context>,
+            ) -> Result<Self, crate::RecordError> {
+                READS.fetch_add(1, Ordering::Relaxed);
+                Ok(Self)
+            }
+        }
+        let value = Arc::new(AlignedEmpty);
+        let bytes = encode(&value, RecordLimits::default()).unwrap();
+        let allocation = std::mem::size_of::<Option<Box<dyn std::any::Any>>>()
+            + crate::shared_allocation_bytes(std::alloc::Layout::new::<AlignedEmpty>()).unwrap()
+            - 1;
+        assert!(
+            decode::<Arc<AlignedEmpty>>(
+                &bytes,
+                RecordLimits {
+                    allocation,
+                    ..RecordLimits::default()
+                }
+            )
+            .is_err()
+        );
+        assert_eq!(READS.load(Ordering::Relaxed), 0);
     }
 
     #[derive(Debug, Record)]

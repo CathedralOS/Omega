@@ -172,7 +172,7 @@ pub(crate) mod data_definitions {
                 program.tables.data_definitions.revision()
             );
             assert_eq!(incoming_handle, program.roots.data_definitions.start());
-            *program.tables.data_definitions = incoming;
+            *program.tables.data_definitions = incoming.into();
             assert_fresh_rows(&program, &symbols, &names);
 
             let mut source = TypedTrees::default();
@@ -209,7 +209,7 @@ pub(crate) mod data_definitions {
             self.by_name.get(name).map(Vec::as_slice).unwrap_or(&[])
         }
 
-        fn build(definitions: &[DataDefinition]) -> Self {
+        fn build(definitions: arena::RootRows<'_, DataDefinition>) -> Self {
             let mut by_symbol = Vec::with_capacity(definitions.len());
             let mut by_name: HashMap<Box<str>, Vec<u32>> = HashMap::default();
             for (position, definition) in definitions.iter().enumerate() {
@@ -231,14 +231,14 @@ pub(crate) mod data_definitions {
 
     #[derive(Clone, Default, PartialEq, Eq, compiler_storage::Record)]
     pub struct DataDefinitionTable {
-        arena: Arena<DataDefinition>,
+        arena: arena::RootedArena<DataDefinition>,
         index: OwnedIndex<DataDefinitionIndex, (HandleSpan<DataDefinition>, usize)>,
     }
 
     impl From<Arena<DataDefinition>> for DataDefinitionTable {
         fn from(arena: Arena<DataDefinition>) -> Self {
             Self {
-                arena,
+                arena: arena.into(),
                 index: OwnedIndex::default(),
             }
         }
@@ -251,7 +251,7 @@ pub(crate) mod data_definitions {
     }
 
     impl std::ops::Deref for DataDefinitionTable {
-        type Target = Arena<DataDefinition>;
+        type Target = arena::RootedArena<DataDefinition>;
 
         fn deref(&self) -> &Self::Target {
             &self.arena
@@ -868,7 +868,7 @@ pub mod declaration_index {
             replacement.append_to_span(&mut replacement_roster, trait_row(replaced));
             replacement.append_to_span(&mut replacement_roster, trait_row(second));
             assert_eq!(replacement_roster, roster);
-            program.tables.traits = replacement;
+            program.tables.traits = replacement.into();
             agrees(&program, &symbols);
             assert_eq!(
                 program.with_call_target_index(|index| index.trait_by_symbol.get(&first).copied()),
@@ -1488,7 +1488,7 @@ pub mod declaration_index {
 
         pub fn machine_by_symbol(&self, symbol: SymbolHandle) -> Option<&machine::Machine> {
             self.machine_position_by_symbol(symbol)
-                .map(|position| &self.machines()[position])
+                .map(|position| self.machines().at(position))
         }
 
         pub fn machine_declaration_for_lexical_scope(
@@ -1557,7 +1557,7 @@ pub mod declaration_index {
         ) -> impl Iterator<Item = &machine::Machine> + '_ {
             self.machine_positions_for_symbol(symbol)
                 .into_iter()
-                .map(|position| &self.machines()[position as usize])
+                .map(|position| self.machines().at(position as usize))
         }
 
         pub fn machine_by_own_or_state_symbol(
@@ -1574,7 +1574,7 @@ pub mod declaration_index {
                 (Some(direct), Some(containing)) => direct.min(containing),
                 (direct, containing) => direct.or(containing)?,
             };
-            Some(&self.machines()[position as usize])
+            Some(self.machines().at(position as usize))
         }
 
         pub fn machine_by_entry_state_symbol(
@@ -1588,7 +1588,7 @@ pub mod declaration_index {
                     .find(|(_, state_position)| *state_position == 0)
                     .map(|(machine_position, _)| *machine_position)
             })?;
-            let machine = &self.machines()[machine_position as usize];
+            let machine = self.machines().at(machine_position as usize);
             Some((machine, &self.machine_states(machine)[0]))
         }
 
@@ -1605,7 +1605,7 @@ pub mod declaration_index {
                 let first = entries.next()?;
                 entries.next().is_none().then_some(first)
             })?;
-            let machine = &self.machines()[machine_position as usize];
+            let machine = self.machines().at(machine_position as usize);
             Some((machine, &self.machine_states(machine)[0]))
         }
 
@@ -1687,7 +1687,7 @@ pub mod declaration_index {
             symbol: SymbolHandle,
         ) -> Option<&data::DataDefinition> {
             self.data_definition_position_by_symbol(symbol)
-                .map(|position| &self.data_definitions()[position])
+                .map(|position| self.data_definitions().at(position))
         }
 
         pub fn unique_data_definition_by_symbol(
@@ -2503,9 +2503,6 @@ pub(crate) mod declaration_tables {
                 [push_data_payload_field];
             domain_type_parameters(domain: domain::DomainDefinition)
                 -> &[data::TypeParameter] = data_type_parameters.type_parameters;
-            domain_operators(domain: domain::DomainDefinition)
-                -> &[crate::operator::OperatorDefinition] = operators.operators
-                [push_domain_operator];
             proposition_binders(proposition: proposition::PropositionDefinition)
                 -> &[proposition::PropositionBinder] = proposition_binders.binders
                 [push_proposition_binder];
@@ -2547,6 +2544,21 @@ pub(crate) mod declaration_tables {
                 data::DataMember::Field(field) => std::slice::from_ref(field),
                 data::DataMember::Variant(variant) => self.data_payload_fields(variant),
             })
+        }
+
+        pub fn domain_operators(
+            &self,
+            domain: &domain::DomainDefinition,
+        ) -> arena::RootRows<'_, crate::operator::OperatorDefinition> {
+            self.operators.span_or_empty(domain.operators)
+        }
+
+        pub fn push_domain_operator(
+            &mut self,
+            domain: &mut domain::DomainDefinition,
+            value: crate::operator::OperatorDefinition,
+        ) {
+            self.operators.append_to_span(&mut domain.operators, value);
         }
 
         pub fn data_field(
@@ -2614,7 +2626,7 @@ pub(crate) mod declaration_tables {
             symbol: symbols::SymbolHandle,
         ) -> Option<&domain::DomainDefinition> {
             self.domain_position_by_symbol(symbol)
-                .map(|position| &self.domain_definitions()[position])
+                .map(|position| self.domain_definitions().at(position))
         }
 
         pub fn proof_fact_source_span(
@@ -2688,7 +2700,9 @@ pub(crate) mod declaration_tables {
                 .append_to_span(&mut self.roots.machine_token_bindings, view);
         }
 
-        pub fn machine_token_bindings(&self) -> &[crate::operator::OperatorDefinition] {
+        pub fn machine_token_bindings(
+            &self,
+        ) -> arena::RootRows<'_, crate::operator::OperatorDefinition> {
             self.tables
                 .operators
                 .span_or_empty(self.roots.machine_token_bindings)
@@ -2875,7 +2889,7 @@ pub(crate) mod machine_declarations {
     }
 
     impl RetainedDeclarationIndex {
-        fn build(arena: &Arena<Machine>) -> Self {
+        fn build(arena: &arena::RootedArena<Machine>) -> Self {
             let mut declarations = arena
                 .iter()
                 .map(|(handle, machine)| (machine.symbol, handle))
@@ -2905,7 +2919,7 @@ pub(crate) mod machine_declarations {
 
     #[derive(Clone, Default, PartialEq, Eq, compiler_storage::Record)]
     pub struct MachineDeclarationTable {
-        arena: Arena<Machine>,
+        arena: arena::RootedArena<Machine>,
         roots: OwnedIndex<MachinePositionIndex, HandleSpan<Machine>>,
         retained: OwnedIndex<RetainedDeclarationIndex, ()>,
     }
@@ -2913,7 +2927,7 @@ pub(crate) mod machine_declarations {
     impl From<Arena<Machine>> for MachineDeclarationTable {
         fn from(arena: Arena<Machine>) -> Self {
             Self {
-                arena,
+                arena: arena.into(),
                 roots: OwnedIndex::default(),
                 retained: OwnedIndex::default(),
             }
@@ -2927,7 +2941,7 @@ pub(crate) mod machine_declarations {
     }
 
     impl std::ops::Deref for MachineDeclarationTable {
-        type Target = Arena<Machine>;
+        type Target = arena::RootedArena<Machine>;
 
         fn deref(&self) -> &Self::Target {
             &self.arena
@@ -3426,7 +3440,7 @@ pub(crate) mod spelled_declarations {
 
     #[derive(Clone)]
     pub struct SpelledDeclarationTable<T> {
-        arena: Arena<T>,
+        arena: arena::RootedArena<T>,
         identity: DeclarationStorageIdentity,
     }
 
@@ -3437,6 +3451,11 @@ pub(crate) mod spelled_declarations {
     }
     impl<T> From<Arena<T>> for SpelledDeclarationTable<T> {
         fn from(arena: Arena<T>) -> Self {
+            Self::from(arena::RootedArena::from(arena))
+        }
+    }
+    impl<T> From<arena::RootedArena<T>> for SpelledDeclarationTable<T> {
+        fn from(arena: arena::RootedArena<T>) -> Self {
             Self {
                 arena,
                 identity: DeclarationStorageIdentity::default(),
@@ -3444,7 +3463,7 @@ pub(crate) mod spelled_declarations {
         }
     }
     impl<T> Deref for SpelledDeclarationTable<T> {
-        type Target = Arena<T>;
+        type Target = arena::RootedArena<T>;
         fn deref(&self) -> &Self::Target {
             &self.arena
         }
@@ -3482,7 +3501,64 @@ pub(crate) mod spelled_declarations {
         fn read<Context>(
             input: &mut compiler_storage::RecordReader<'_, Context>,
         ) -> Result<Self, compiler_storage::RecordError> {
-            <Arena<T> as compiler_storage::Record>::read(input).map(Self::from)
+            let identity_allocation =
+                compiler_storage::shared_allocation_bytes(std::alloc::Layout::new::<()>())
+                    .ok_or_else(|| {
+                        input.error("declaration storage identity allocation overflow")
+                    })?;
+            input.allocate(identity_allocation)?;
+            <arena::RootedArena<T> as compiler_storage::Record>::read(input).map(Self::from)
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use compiler_storage::{RecordLimits, decode, encode, shared_allocation_bytes};
+        use std::alloc::Layout;
+
+        #[test]
+        fn record_recovery_charges_rooted_storage_and_its_fresh_identity() {
+            let original = SpelledDeclarationTable::<u32>::default();
+            let limits = RecordLimits::default();
+            let bytes = encode(&original, limits).unwrap();
+            assert_eq!(bytes, encode(&Arena::<u32>::new(), limits).unwrap());
+            let identity = shared_allocation_bytes(Layout::new::<()>()).unwrap();
+            let rooted = shared_allocation_bytes(Layout::new::<u32>()).unwrap()
+                + shared_allocation_bytes(Layout::new::<Vec<u32>>()).unwrap()
+                + std::mem::size_of::<Arc<Vec<u32>>>();
+            assert!(
+                decode::<arena::RootedArena<u32>>(
+                    &bytes,
+                    RecordLimits {
+                        allocation: rooted,
+                        ..limits
+                    }
+                )
+                .is_ok()
+            );
+            for allocation in [identity, rooted, rooted + identity - 1] {
+                assert!(
+                    decode::<SpelledDeclarationTable<u32>>(
+                        &bytes,
+                        RecordLimits {
+                            allocation,
+                            ..limits
+                        }
+                    )
+                    .is_err()
+                );
+            }
+            let recovered: SpelledDeclarationTable<u32> = decode(
+                &bytes,
+                RecordLimits {
+                    allocation: rooted + identity,
+                    ..limits
+                },
+            )
+            .unwrap();
+            assert_eq!(recovered, original);
+            assert!(recovered.storage_identity() != original.storage_identity());
         }
     }
 }
@@ -3569,7 +3645,7 @@ pub(crate) mod trait_and_machine_tables {
             symbol: symbols::SymbolHandle,
         ) -> Option<&trait_definition::TraitDefinition> {
             self.with_call_target_index(|index| index.trait_by_symbol.get(&symbol).copied())
-                .map(|position| &self.traits()[position as usize])
+                .map(|position| self.traits().at(position as usize))
         }
 
         pub fn conformance_by_symbol(
@@ -3901,7 +3977,7 @@ pub(crate) mod trait_and_machine_tables {
         ) -> impl Iterator<Item = (&machine::Machine, &crate::state::State)> + '_ {
             self.state_positions_for_symbol(symbol).into_iter().map(
                 |(machine_position, state_position)| {
-                    let machine = &self.machines()[machine_position as usize];
+                    let machine = self.machines().at(machine_position as usize);
                     (
                         machine,
                         &self.machine_states(machine)[state_position as usize],
@@ -3932,7 +4008,7 @@ pub(crate) mod trait_and_machine_tables {
             if let Some((trait_index, signature_index)) =
                 self.with_call_target_index(|index| index.trait_signature.get(&symbol).copied())
             {
-                let trait_definition = &self.traits()[trait_index as usize];
+                let trait_definition = self.traits().at(trait_index as usize);
                 let signature =
                     &self.trait_machine_signatures(trait_definition)[signature_index as usize];
                 return Some((trait_definition, signature));
@@ -3967,8 +4043,24 @@ pub(crate) mod trait_and_machine_tables {
         }
 
         #[inline]
-        pub fn machines_mut(&mut self) -> &mut [machine::Machine] {
-            self.tables.machines.span_mut_or_empty(self.roots.machines)
+        pub fn machine_mut(&mut self, position: usize) -> &mut machine::Machine {
+            assert!(
+                position < self.roots.machines.len(),
+                "machine position out of bounds"
+            );
+            self.tables
+                .machines
+                .get_mut(self.roots.machines.handle_at(position as u32))
+        }
+
+        pub fn set_machine(&mut self, position: usize, machine: machine::Machine) {
+            assert!(
+                position < self.roots.machines.len(),
+                "machine position out of bounds"
+            );
+            self.tables
+                .machines
+                .set(self.roots.machines.handle_at(position as u32), machine);
         }
 
         pub fn declaration_type_parameters(&self, symbol: SymbolHandle) -> &[data::TypeParameter] {
@@ -4139,12 +4231,12 @@ pub(crate) mod trait_and_machine_tables {
             }
             let symbol = self.symbols.get(state_symbol);
             let parent = symbol.parent;
-            let parent_machine = self.machine(parent);
+            let parent_machine_position = self.machine_position_by_symbol(parent);
             self.with_state_positions_for_symbol(state_symbol, |positions| {
                 let mut other = None;
                 for (machine_position, _) in positions {
-                    let machine = &self.machines()[*machine_position as usize];
-                    if parent_machine.is_some_and(|candidate| std::ptr::eq(candidate, machine)) {
+                    let machine = self.machines().at(*machine_position as usize);
+                    if parent_machine_position == Some(*machine_position as usize) {
                         return Some(machine);
                     }
                     if other.is_none() && machine.symbol != parent {
@@ -4290,6 +4382,55 @@ pub(crate) mod trait_and_machine_tables {
         }
 
         #[test]
+        fn projected_state_owner_prefers_the_first_logical_parent() {
+            use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+
+            let mut symbols = SymbolTableBuilder::default();
+            let parent = symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("parent"));
+            let other = symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("other"));
+            let entry = symbols
+                .insert_children(
+                    parent,
+                    [(SymbolKind::State, SymbolNameRef::Static("entry"))],
+                )
+                .start();
+            let mut program = TypedTrees {
+                symbols: symbols.finish(),
+                ..TypedTrees::default()
+            };
+            let mut machine = Machine {
+                symbol: other,
+                ..Machine::default()
+            };
+            program.push_machine_state(
+                &mut machine,
+                State {
+                    symbol: entry,
+                    ..State::default()
+                },
+            );
+            program.push_machine(machine.clone());
+            machine.symbol = parent;
+            program.push_machine(machine);
+            let original = program.roots.machines;
+            let projected = program.tables.machines.project(original, |_| true);
+            program.roots.machines = projected;
+            assert!(std::ptr::eq(
+                program.tables.machines.get(original.handle_at(1)),
+                program.tables.machines.get(projected.handle_at(1)),
+            ));
+            assert_eq!(program.machine_holding_state(entry).unwrap().symbol, parent);
+
+            // Both versions have the same symbol; root order, not the shared
+            // record address, chooses which logical parent the reader returns.
+            program.roots.machines = HandleSpan::from_parts(original.start(), 4);
+            program.machine_mut(1).is_public = true;
+            assert!(program.machine_holding_state(entry).unwrap().is_public);
+            program.roots.machines = projected;
+            assert!(!program.machine_holding_state(entry).unwrap().is_public);
+        }
+
+        #[test]
         fn state_lookup_preserves_roster_order_duplicates_and_mutation() {
             let first = SymbolHandle::from_parts(1, 1);
             let second = SymbolHandle::from_parts(2, 1);
@@ -4327,7 +4468,7 @@ pub(crate) mod trait_and_machine_tables {
             assert_state_lookups_match_roster(&snapshot, &symbols);
 
             let original = program.roots.machines;
-            program.machines_mut()[0].symbol = replaced;
+            program.machine_mut(0).symbol = replaced;
             program.roots.machines = HandleSpan::from_parts(original.start(), original.count() - 1);
             assert_state_lookups_match_roster(&program, &symbols);
             program.roots.machines = HandleSpan::from_parts(original.start(), 2);
@@ -4335,7 +4476,7 @@ pub(crate) mod trait_and_machine_tables {
             program.roots.machines = HandleSpan::from_parts(original.handle_at(1), 2);
             assert_state_lookups_match_roster(&program, &symbols);
             program.roots.machines = original;
-            program.machines_mut()[0].symbol = replaced;
+            program.machine_mut(0).symbol = replaced;
             assert_state_lookups_match_roster(&program, &symbols);
         }
 
@@ -4421,7 +4562,7 @@ pub(crate) mod trait_and_machine_tables {
             );
 
             let snapshot = program.clone();
-            program.machines_mut()[0].symbol = replacement;
+            program.machine_mut(0).symbol = replacement;
             assert_eq!(
                 program.machine(original).map(|machine| machine.is_public),
                 Some(true)

@@ -882,6 +882,6 @@ fn finish_invocation_probe(
     let [position] = positions.as_slice() else {
         return Err("source invocation lost its unique generated caller declaration".into());
     };
-    probe.machines_mut()[*position as usize] = machine;
+    probe.set_machine(*position as usize, machine);
     Ok(owner)
 }

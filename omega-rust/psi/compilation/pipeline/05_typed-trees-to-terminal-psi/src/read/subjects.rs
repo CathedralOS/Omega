@@ -993,6 +993,9 @@ fn judged_where_used(
             })
 }
 
-fn symbols_of<T>(rows: &[T], symbol: impl Fn(&T) -> SymbolHandle) -> Vec<SymbolHandle> {
+fn symbols_of<T>(
+    rows: arena::RootRows<'_, T>,
+    symbol: impl Fn(&T) -> SymbolHandle,
+) -> Vec<SymbolHandle> {
     rows.iter().map(symbol).collect()
 }
