@@ -527,6 +527,12 @@ fn specialize_application(
             },
         )?);
     }
+    // Explicit groups keep the original callable's formals and the caller's
+    // supplying scope. Authenticate that relation before copying; absent groups
+    // still leave ordinary invocation lifetime inference to the call checker.
+    program
+        .static_application_lifetimes_for_declaration(applied.application, callee)
+        .map_err(unserved)?;
     program
         .expression_table
         .static_machine_application_mut(application)
@@ -1567,9 +1573,12 @@ fn copied_parts(
         )));
     };
     let plan = &machine.termination_plan;
+    // Lifetimes remain binders of each copied declaration. The shared type
+    // copier preserves their supplying owners, and the specialization receipt
+    // identifies the original declaration; invocation regions do not select a
+    // separate executable body.
     let plain = machine.body_is_present
         && machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
-        && machine.lifetime_parameters.is_empty()
         && machine.declared_type_equations.is_empty()
         && machine.owned_data.is_empty()
         && machine.satisfies.is_empty()
@@ -2502,3 +2511,6 @@ mod tests;
 
 #[cfg(test)]
 mod implementation_tests;
+
+#[cfg(test)]
+mod lifetime_tests;
