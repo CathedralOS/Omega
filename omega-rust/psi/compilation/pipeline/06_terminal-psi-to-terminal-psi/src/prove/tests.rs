@@ -3,6 +3,89 @@ use semantic_vocabulary::{IntegerSign, OperationId};
 use terminal_check_tables::values::{ValueOrigin, ValueRow};
 
 #[test]
+fn false_ieee_assumptions_use_checked_contradiction_with_the_actual_equation() {
+    use semantic_vocabulary::{IeeeFloatComparisonKind, IeeeFloatFormat, IeeeFloatValue};
+    for format in [IeeeFloatFormat::Binary32, IeeeFloatFormat::Binary64] {
+        let scalar = ScalarType::IeeeFloat(format);
+        let mut values = IdTable::default();
+        let value = values.push(ValueRow {
+            scalar_type: scalar,
+            origin: ValueOrigin::Operation(OperationId::new(1).unwrap()),
+            rigid: None,
+        });
+        let value = ScalarTerm::value(value, scalar);
+        let [zero, quarter, nan] = match format {
+            IeeeFloatFormat::Binary32 => {
+                [0, 0x3e80_0000, 0x7fc0_0042].map(IeeeFloatValue::Binary32)
+            }
+            IeeeFloatFormat::Binary64 => {
+                [0, 0x3fd0_0000_0000_0000, 0x7ff8_0000_0000_0042].map(IeeeFloatValue::Binary64)
+            }
+        }
+        .map(ScalarTerm::IeeeFloatLiteral);
+        let comparison = |kind, left, right| Proposition::ScalarIeeeFloatComparison {
+            kind,
+            format,
+            left,
+            right,
+        };
+        let unordered = comparison(
+            IeeeFloatComparisonKind::NotEqual,
+            value.clone(),
+            value.clone(),
+        );
+        let invalid = Proposition::Disjunction(vec![
+            unordered.clone(),
+            comparison(IeeeFloatComparisonKind::LessThan, value.clone(), zero),
+        ]);
+        let excludes_invalid = Proposition::Implication {
+            premise: Box::new(invalid),
+            conclusion: Box::new(Proposition::Falsehood),
+        };
+        let context = PropositionContext::from_value_types(
+            values.iter().map(|(id, row)| (id, row.scalar_type)),
+        )
+        .unwrap();
+        for (literal, excludes) in [(quarter, true), (nan, false)] {
+            let axioms = [Proposition::Equal(value.clone(), literal)];
+            let result = Prover::new(&context, &[], &axioms, &values).prove(&excludes_invalid);
+            assert_eq!(result.is_ok(), excludes);
+            if let Ok(proof) = result {
+                let accepted = proof_admission::accept_certificate(
+                    &context,
+                    &excludes_invalid,
+                    &[],
+                    &axioms,
+                    &proof,
+                )
+                .unwrap();
+                assert!(accepted.assumptions.is_empty());
+                assert_eq!(accepted.semantic_axioms.len(), 1);
+                assert_eq!(accepted.semantic_axioms[0].index, 0);
+            }
+            let assumptions = [Proposition::Truth, unordered.clone()];
+            let result = Prover::new(&context, &assumptions, &axioms, &values)
+                .prove(&Proposition::Falsehood);
+            assert_eq!(result.is_ok(), excludes);
+            if let Ok(proof) = result {
+                let accepted = proof_admission::accept_certificate(
+                    &context,
+                    &Proposition::Falsehood,
+                    &assumptions,
+                    &axioms,
+                    &proof,
+                )
+                .unwrap();
+                assert_eq!(accepted.assumptions.len(), 1);
+                assert_eq!(accepted.assumptions[0].index, 1);
+                assert_eq!(accepted.semantic_axioms.len(), 1);
+                assert_eq!(accepted.semantic_axioms[0].index, 0);
+            }
+        }
+    }
+}
+
+#[test]
 fn a_later_named_result_can_bound_the_same_expression_more_tightly() {
     let integer = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
     let scalar_type = ScalarType::Integer(integer);
@@ -290,4 +373,264 @@ fn ieee_literal_and_copy_equations_reach_the_closed_kernel_judgment() {
             }
         }
     }
+}
+
+#[test]
+fn compound_exact_orders_prove_value_relations_and_reject_unsound_variants() {
+    use proof_admission::MathematicalCoreDecision;
+
+    let u64_type = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+    let u64_scalar = ScalarType::Integer(u64_type);
+    let mut values = IdTable::default();
+    let [index, offset, length] = [0, 1, 2].map(|position| {
+        let id = values.push(ValueRow {
+            scalar_type: u64_scalar,
+            origin: ValueOrigin::MachineParameter { position },
+            rigid: None,
+        });
+        ScalarTerm::value(id, u64_scalar)
+    });
+    let context =
+        PropositionContext::from_value_types(values.iter().map(|(id, row)| (id, row.scalar_type)))
+            .unwrap();
+    let lit = |n| ScalarTerm::integer(u64_type, IntegerValue::Unsigned(n)).unwrap();
+    let add = |a: &ScalarTerm, b: &ScalarTerm| {
+        ScalarTerm::exact_integer_add(u64_type, a.clone(), b.clone()).unwrap()
+    };
+    let sub = |a: &ScalarTerm, b: &ScalarTerm| {
+        ScalarTerm::exact_integer_subtract(u64_type, a.clone(), b.clone()).unwrap()
+    };
+
+    let index_below_length = Proposition::LessThan(index.clone(), length.clone());
+    let offset_below_length = Proposition::LessThan(offset.clone(), length.clone());
+    let one = lit(1);
+    for (assumption, goal) in [
+        (
+            Proposition::LessThan(add(&index, &one), length.clone()),
+            &index_below_length,
+        ),
+        (
+            Proposition::LessThan(add(&one, &index), length.clone()),
+            &index_below_length,
+        ),
+        (
+            Proposition::LessOrEqual(add(&add(&index, &one), &one), length.clone()),
+            &index_below_length,
+        ),
+        (
+            Proposition::LessThan(add(&index, &offset), length.clone()),
+            &index_below_length,
+        ),
+        (
+            Proposition::LessThan(add(&index, &offset), length.clone()),
+            &offset_below_length,
+        ),
+        (
+            Proposition::Equal(add(&index, &one), length.clone()),
+            &index_below_length,
+        ),
+        (
+            Proposition::LessOrEqual(index.clone(), sub(&length, &one)),
+            &index_below_length,
+        ),
+        (
+            Proposition::LessThan(index.clone(), sub(&length, &offset)),
+            &index_below_length,
+        ),
+        (
+            Proposition::LessOrEqual(add(&index, &one), sub(&length, &one)),
+            &index_below_length,
+        ),
+    ] {
+        let assumptions = [assumption];
+        let proof = Prover::new(&context, &assumptions, &[], &values)
+            .prove(goal)
+            .unwrap_or_else(|err| panic!("failed on {assumptions:?} |- {goal:?}: {err}"));
+        let accepted =
+            proof_admission::accept_certificate(&context, goal, &assumptions, &[], &proof).unwrap();
+        assert!(
+            matches!(
+                accepted.mathematical_core,
+                MathematicalCoreDecision::Judged(_)
+            ),
+            "{:?}",
+            accepted.mathematical_core
+        );
+    }
+
+    // Insufficient headroom, wrapping arithmetic, and saturating arithmetic must fail closed.
+    let wrapping_plus_one =
+        ScalarTerm::wrapping_integer_add(u64_type, index.clone(), one.clone()).unwrap();
+    let saturating_plus_one =
+        ScalarTerm::saturating_integer_add(u64_type, index.clone(), one.clone()).unwrap();
+    for (assumption, invalid_goal) in [
+        (
+            Proposition::LessThan(index.clone(), length.clone()),
+            Proposition::LessThan(add(&index, &one), length.clone()),
+        ),
+        (
+            Proposition::LessOrEqual(add(&index, &one), length.clone()),
+            Proposition::LessThan(add(&index, &one), length.clone()),
+        ),
+        (
+            Proposition::LessThan(wrapping_plus_one, length.clone()),
+            index_below_length.clone(),
+        ),
+        (
+            Proposition::LessThan(saturating_plus_one, length.clone()),
+            index_below_length,
+        ),
+    ] {
+        let assumptions = [assumption];
+        assert!(
+            Prover::new(&context, &assumptions, &[], &values)
+                .prove(&invalid_goal)
+                .is_err(),
+            "unexpectedly proved {assumptions:?} |- {invalid_goal:?}"
+        );
+    }
+
+    // Signed offsets may be negative unless proved `>= 0` or `> 0`.
+    let i64_type = IntegerType::new(IntegerSign::Signed, 64).unwrap();
+    let i64_scalar = ScalarType::Integer(i64_type);
+    let mut signed_values = IdTable::default();
+    let [a, d, b] = [0, 1, 2].map(|position| {
+        let id = signed_values.push(ValueRow {
+            scalar_type: i64_scalar,
+            origin: ValueOrigin::MachineParameter { position },
+            rigid: None,
+        });
+        ScalarTerm::value(id, i64_scalar)
+    });
+    let signed_context = PropositionContext::from_value_types(
+        signed_values.iter().map(|(id, row)| (id, row.scalar_type)),
+    )
+    .unwrap();
+    let signed_zero = ScalarTerm::integer(i64_type, IntegerValue::Signed(0)).unwrap();
+    let signed_sum = ScalarTerm::exact_integer_add(i64_type, a.clone(), d.clone()).unwrap();
+    let signed_diff = ScalarTerm::exact_integer_subtract(i64_type, b.clone(), d.clone()).unwrap();
+    let signed_goal = Proposition::LessOrEqual(a.clone(), b.clone());
+    let signed_strict_goal = Proposition::LessThan(a.clone(), b.clone());
+    for unguarded in [
+        Proposition::LessThan(signed_sum.clone(), b.clone()),
+        Proposition::LessOrEqual(a, signed_diff),
+    ] {
+        assert!(
+            Prover::new(&signed_context, &[unguarded], &[], &signed_values)
+                .prove(&signed_goal)
+                .is_err()
+        );
+    }
+    let guarded = [
+        Proposition::LessThan(signed_sum, b),
+        Proposition::LessOrEqual(signed_zero, d),
+    ];
+    let proof = Prover::new(&signed_context, &guarded, &[], &signed_values)
+        .prove(&signed_strict_goal)
+        .unwrap();
+    let accepted = proof_admission::accept_certificate(
+        &signed_context,
+        &signed_strict_goal,
+        &guarded,
+        &[],
+        &proof,
+    )
+    .unwrap();
+    assert!(matches!(
+        accepted.mathematical_core,
+        MathematicalCoreDecision::Judged(_)
+    ));
+}
+
+#[test]
+fn compound_constant_offsets_tighten_literal_and_chained_bounds_without_poisoning_ssa_results() {
+    let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+    let u8_scalar = ScalarType::Integer(u8_type);
+    let mut values = IdTable::default();
+    let [index_id, limit_id, count_id, next_id] = [
+        ValueOrigin::MachineParameter { position: 0 },
+        ValueOrigin::MachineParameter { position: 1 },
+        ValueOrigin::MachineParameter { position: 2 },
+        ValueOrigin::Operation(OperationId::new(1).unwrap()),
+    ]
+    .map(|origin| {
+        values.push(ValueRow {
+            scalar_type: u8_scalar,
+            origin,
+            rigid: None,
+        })
+    });
+    let [index, limit, count, next] =
+        [index_id, limit_id, count_id, next_id].map(|id| ScalarTerm::value(id, u8_scalar));
+    let context =
+        PropositionContext::from_value_types(values.iter().map(|(id, row)| (id, row.scalar_type)))
+            .unwrap();
+    let lit = |n| ScalarTerm::integer(u8_type, IntegerValue::Unsigned(n)).unwrap();
+    let add = |a: &ScalarTerm, b: &ScalarTerm| {
+        ScalarTerm::exact_integer_add(u8_type, a.clone(), b.clone()).unwrap()
+    };
+    let sub = |a: &ScalarTerm, b: &ScalarTerm| {
+        ScalarTerm::exact_integer_subtract(u8_type, a.clone(), b.clone()).unwrap()
+    };
+
+    // `index + 1 < 4` tightens `index` all the way to `<= 2`, not just `<= 3`.
+    let assumptions = [Proposition::LessThan(add(&index, &lit(1)), lit(4))];
+    let mut prover = Prover::new(&context, &assumptions, &[], &values);
+    assert_eq!(
+        prover.literal_bounds(index_id),
+        (None, Some(IntegerValue::Unsigned(2)))
+    );
+    let exact_goal = Proposition::LessOrEqual(index.clone(), lit(2));
+    let proof = prover.prove(&exact_goal).unwrap();
+    proof_admission::accept_certificate(&context, &exact_goal, &assumptions, &[], &proof).unwrap();
+    assert!(
+        prover
+            .prove(&Proposition::LessOrEqual(index.clone(), lit(1)))
+            .is_err()
+    );
+
+    // `index + 2 <= limit` with `limit <= 10` yields `index <= 8`, and
+    // `0 < count - 1` yields `2 <= count`.
+    let chained = [
+        Proposition::LessOrEqual(add(&index, &lit(2)), limit.clone()),
+        Proposition::LessOrEqual(limit, lit(10)),
+        Proposition::LessThan(lit(0), sub(&count, &lit(1))),
+    ];
+    let mut prover = Prover::new(&context, &chained, &[], &values);
+    for goal in [
+        Proposition::LessOrEqual(index.clone(), lit(8)),
+        Proposition::LessOrEqual(lit(2), count.clone()),
+    ] {
+        let proof = prover.prove(&goal).unwrap();
+        proof_admission::accept_certificate(&context, &goal, &chained, &[], &proof).unwrap();
+    }
+    assert!(
+        prover
+            .prove(&Proposition::LessOrEqual(index.clone(), lit(7)))
+            .is_err()
+    );
+    assert!(
+        prover
+            .prove(&Proposition::LessOrEqual(lit(3), count))
+            .is_err()
+    );
+
+    // Querying `index`'s upper bound first must not poison an SSA result `next = index + 1`.
+    let ssa_assumptions = [Proposition::LessOrEqual(index.clone(), lit(5))];
+    let ssa_axioms = [Proposition::Equal(next.clone(), add(&index, &lit(1)))];
+    let mut prover = Prover::new(&context, &ssa_assumptions, &ssa_axioms, &values);
+    assert_eq!(
+        prover.literal_bounds(index_id),
+        (None, Some(IntegerValue::Unsigned(5)))
+    );
+    let next_goal = Proposition::LessOrEqual(next, lit(6));
+    let proof = prover.prove(&next_goal).unwrap();
+    proof_admission::accept_certificate(
+        &context,
+        &next_goal,
+        &ssa_assumptions,
+        &ssa_axioms,
+        &proof,
+    )
+    .unwrap();
 }

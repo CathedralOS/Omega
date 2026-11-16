@@ -86,8 +86,10 @@ pub fn declaration_path(meaning: NumericIntrinsic) -> Result<String, &'static st
             target,
             domain,
         } if (domain == ArithmeticDomain::Exact && (source.is_float() || target.is_float()))
-            || (domain == ArithmeticDomain::Saturating
-                && source.is_float()
+            || (matches!(
+                domain,
+                ArithmeticDomain::Saturating | ArithmeticDomain::Trapping
+            ) && source.is_float()
                 && matches!(
                     target,
                     language_semantics::numeric_intrinsics::NumericType::Integer(_)
@@ -140,7 +142,8 @@ pub fn ensures(meaning: NumericIntrinsic) -> Result<Vec<Proposition>, &'static s
         let operation = FloatSemanticOperation::from_source_identity(
             "FloatSemantics",
             &match policy {
-                numerics::arithmetic::ArithmeticDomain::Exact => format!("to_{target}"),
+                numerics::arithmetic::ArithmeticDomain::Exact
+                | numerics::arithmetic::ArithmeticDomain::Trapping => format!("to_{target}"),
                 numerics::arithmetic::ArithmeticDomain::Saturating => {
                     format!("to_{target}_saturating")
                 }
@@ -282,7 +285,10 @@ fn integer_conversion(
         NumericIntrinsic::Conversion {
             source: NumericType::F32 | NumericType::F64,
             target: NumericType::Integer(target),
-            domain: policy @ (ArithmeticDomain::Exact | ArithmeticDomain::Saturating),
+            domain:
+                policy @ (ArithmeticDomain::Exact
+                | ArithmeticDomain::Saturating
+                | ArithmeticDomain::Trapping),
         } => Some((target, policy)),
         _ => None,
     }
@@ -294,7 +300,7 @@ pub fn requires(meaning: NumericIntrinsic) -> Result<Vec<Proposition>, &'static 
     let Some((target, policy)) = integer_conversion(meaning) else {
         return Ok(Vec::new());
     };
-    if policy == numerics::arithmetic::ArithmeticDomain::Saturating {
+    if policy != numerics::arithmetic::ArithmeticDomain::Exact {
         return Ok(Vec::new());
     }
     let (formals, _) = scalar_formals(meaning)?;
@@ -304,8 +310,33 @@ pub fn requires(meaning: NumericIntrinsic) -> Result<Vec<Proposition>, &'static 
     semantic_vocabulary::float_integer_preconditions(source.clone(), target)
 }
 
+/// Keep the selected converter's complete guarded failure route. Its result
+/// graph describes normal completion; Trapping has no input precondition and
+/// may instead leave through this exact entry guard.
+pub fn crash_routes(
+    meaning: NumericIntrinsic,
+) -> Result<Vec<terminal_psi::CrashRouteBucket>, &'static str> {
+    let Some((target, numerics::arithmetic::ArithmeticDomain::Trapping)) =
+        integer_conversion(meaning)
+    else {
+        return Ok(Vec::new());
+    };
+    declaration_path(meaning)?;
+    let (formals, _) = scalar_formals(meaning)?;
+    let [source] = formals.as_slice() else {
+        return Err("integer conversion needs exactly one argument");
+    };
+    let guard = semantic_vocabulary::float_integer_failure_condition(source.clone(), target)?;
+    Ok(vec![terminal_psi::CrashRouteBucket {
+        cause: semantic_vocabulary::CrashCause::Trap,
+        alternatives: vec![terminal_psi::CrashRouteGuard::Predicate(
+            terminal_psi::CrashPredicateTerm::new(guard),
+        )],
+    }])
+}
+
 /// The static result policy belongs to the selected declaration, separately
-/// from the converter's executable saturation semantics.
+/// from the converter's executable saturation or trapping semantics.
 pub fn result_policy(
     meaning: NumericIntrinsic,
 ) -> Result<Option<numerics::arithmetic::ArithmeticDomain>, &'static str> {
@@ -392,6 +423,7 @@ pub fn validate_boundary(
         .ok_or("numeric primitive has no closed meaning")?;
     let expected_ensures = ensures(meaning)?;
     let expected_requires = requires(meaning)?;
+    let expected_crashes = crash_routes(meaning)?;
     let declaration = declaration_path(meaning)?;
     let kind = declaration_kind(meaning)?;
     let signature = meaning
@@ -527,7 +559,8 @@ pub fn validate_boundary(
         "result lifetime declaration"
     );
     require!(
-        boundary.crash_routes.is_empty() && boundary.scalar_requires == expected_requires,
+        crash_routes_match(&boundary.crash_routes, &expected_crashes)
+            && boundary.scalar_requires == expected_requires,
         "formation and crash clauses"
     );
     require!(
@@ -553,6 +586,34 @@ pub fn validate_boundary(
         "service and entry ceilings"
     );
     Ok(())
+}
+
+/// Wire ingress owns canonical ordering. Compare the complete guarded
+/// contract semantically here, preserving causes, route shape and every leaf.
+fn crash_routes_match(
+    actual: &[terminal_psi::CrashRouteBucket],
+    expected: &[terminal_psi::CrashRouteBucket],
+) -> bool {
+    actual.len() == expected.len()
+        && actual.iter().zip(expected).all(|(actual, expected)| {
+            actual.cause == expected.cause
+                && actual.alternatives.len() == expected.alternatives.len()
+                && actual.alternatives.iter().zip(&expected.alternatives).all(
+                    |(actual, expected)| match (actual, expected) {
+                        (
+                            terminal_psi::CrashRouteGuard::Truth,
+                            terminal_psi::CrashRouteGuard::Truth,
+                        ) => true,
+                        (
+                            terminal_psi::CrashRouteGuard::Predicate(actual),
+                            terminal_psi::CrashRouteGuard::Predicate(expected),
+                        ) => actual
+                            .proposition()
+                            .same_commutative_predicate(expected.proposition()),
+                        _ => false,
+                    },
+                )
+        })
 }
 
 fn coordinates(

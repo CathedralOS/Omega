@@ -62,7 +62,7 @@ pub use source_review::{IntegerBinaryKind, SemanticDependencyKind};
 mod float_integer_conversions;
 pub use float_integer_conversions::{
     FloatIntegerConversion, FloatIntegerConversionError, fixed_integer_type,
-    float_integer_preconditions,
+    float_integer_failure_condition, float_integer_preconditions,
 };
 
 mod float_meaning_clauses;

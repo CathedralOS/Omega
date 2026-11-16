@@ -213,7 +213,7 @@ pub(crate) fn substitute_parameters(
 
 /// Substitution can reverse equality order or make conjuncts identical. Restore
 /// the artifact's canonical form without changing the retained clause's meaning.
-fn canonical_clause(proposition: Proposition, id: MachineId) -> Checked<Proposition> {
+pub(crate) fn canonical_clause(proposition: Proposition, id: MachineId) -> Checked<Proposition> {
     match proposition {
         Proposition::Equal(left, right) => equal(left, right, id),
         Proposition::IntegerMathEqual(left, right) if left > right => {
@@ -238,6 +238,13 @@ fn canonical_clause(proposition: Proposition, id: MachineId) -> Checked<Proposit
                 _ => Proposition::Disjunction(parts),
             })
         }
+        Proposition::Implication {
+            premise,
+            conclusion,
+        } => Ok(Proposition::Implication {
+            premise: Box::new(canonical_clause(*premise, id)?),
+            conclusion: Box::new(canonical_clause(*conclusion, id)?),
+        }),
         other => Ok(other),
     }
 }
