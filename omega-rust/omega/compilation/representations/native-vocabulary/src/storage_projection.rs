@@ -40,6 +40,7 @@ mod tests {
         field_type: StructuralFieldType,
     ) -> StructuralFieldDeclaration {
         StructuralFieldDeclaration {
+            declaration_identity: Default::default(),
             inline_carrier: None,
             id: StructuralFieldId::new(raw).unwrap(),
             identity,
@@ -51,6 +52,7 @@ mod tests {
 
     fn declaration(raw: u64, shape: StructuralTypeShape) -> StructuralTypeDeclaration {
         StructuralTypeDeclaration {
+            declaration_identity: Default::default(),
             requires: Vec::new(),
             quotient_carrier: None,
             owns_linear_claim: false,
@@ -91,11 +93,13 @@ mod tests {
                 StructuralTypeShape::Sum {
                     cases: vec![
                         StructuralCaseDeclaration {
+                            declaration_identity: Default::default(),
                             id: StructuralCaseId::new(1).unwrap(),
                             identity: idx("Empty"),
                             fields: Vec::new(),
                         },
                         StructuralCaseDeclaration {
+                            declaration_identity: Default::default(),
                             id: StructuralCaseId::new(2).unwrap(),
                             identity: idx("Full"),
                             fields: vec![field(
