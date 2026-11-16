@@ -9,7 +9,7 @@ pub mod evidence {
         use crate::TypedTrees;
         use crate::domain::DomainDefinition;
         use crate::expression::ExpressionHandle;
-        use crate::types::{TypeReferenceHandle, TypeReferenceNode};
+        use crate::types::TypeReferenceNode;
         use symbols::{BuiltinTypeAtom, SymbolHandle};
 
         pub use language_semantics::byte_predicates::ByteSequencePredicate;
@@ -356,7 +356,7 @@ pub mod evidence {
         use crate::TypedTrees;
 
         use crate::name::Identifier;
-        use crate::types::{TypeReferenceHandle, TypeReferenceNode};
+        use crate::types::TypeReferenceNode;
         use std::collections::HashMap;
         use symbols::SymbolHandle;
 
