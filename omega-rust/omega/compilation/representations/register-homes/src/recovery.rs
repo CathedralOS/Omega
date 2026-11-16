@@ -997,7 +997,7 @@ pub enum FixedViewCopyDecodeError {
     InvalidQuotientCatalog,
     InvalidAccessLifecycleCatalog {
         catalog: &'static str,
-        cause: terminal_codec::CodecError,
+        cause: terminal_wire::CodecError,
     },
     Truncated,
     WrongMagic,

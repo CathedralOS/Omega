@@ -1617,7 +1617,7 @@ fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator
             encode_len(bytes, site_guard.len());
             for predicate in site_guard {
                 let encoded =
-                    terminal_codec::canonical_proposition_order_key(predicate.proposition())
+                    terminal_wire::canonical_proposition_order_key(predicate.proposition())
                         .expect("validated crash predicate");
                 encode_len(bytes, encoded.len());
                 bytes.extend_from_slice(&encoded);

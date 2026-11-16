@@ -81,14 +81,14 @@ fn encode_access_view_catalog(
     bytes: &mut Vec<u8>,
     catalog: &native_vocabulary::structural_type_catalog::StructuralTypeCatalog,
 ) {
-    let views = terminal_codec::encode_access_view_catalog(catalog.access_views())
+    let views = terminal_wire::encode_access_view_catalog(catalog.access_views())
         .expect("canonical access-view plans");
     encode_len(bytes, views.len());
     bytes.extend_from_slice(&views);
     let lifecycles = catalog.access_lifecycle_identity_bytes();
     encode_len(bytes, lifecycles.len());
     bytes.extend_from_slice(lifecycles);
-    let inputs = terminal_codec::encode_access_view_input_catalog(catalog.access_view_inputs())
+    let inputs = terminal_wire::encode_access_view_input_catalog(catalog.access_view_inputs())
         .expect("canonical placed-formal demands");
     encode_len(bytes, inputs.len());
     bytes.extend_from_slice(&inputs);

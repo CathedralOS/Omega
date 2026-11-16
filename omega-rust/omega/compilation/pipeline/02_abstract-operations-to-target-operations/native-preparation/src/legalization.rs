@@ -478,7 +478,7 @@ pub(crate) fn legalize_target_operations(
     target: &TargetOperationPlan,
     _abstract_plan: &AbstractOperationPlan,
     unit: &optimization_unit::PsiOptimizationUnit,
-    origins: target_operations::BoundaryOriginFacts<'_>,
+    origins: crate::BoundaryOriginFacts<'_>,
     installed_interrupts: &provider_admission::AdmittedInstalledInterruptCohort,
     types: &crate::native_geometry::ModuleTypes,
 ) -> Result<legalized_operations::PreparedExecutionPlan, LegalizationError> {
@@ -521,7 +521,7 @@ fn surviving_installations(target: &TargetOperationPlan) -> Vec<semantic_vocabul
 pub fn prepare_execution_plan(
     target: &TargetOperationPlan,
     evidence: PreparationEvidence<'_>,
-    origins: target_operations::BoundaryOriginFacts<'_>,
+    origins: crate::BoundaryOriginFacts<'_>,
     installed_interrupts: &provider_admission::AdmittedInstalledInterruptCohort,
     types: &crate::native_geometry::ModuleTypes,
 ) -> Result<legalized_operations::PreparedExecutionPlan, LegalizationError> {
@@ -548,7 +548,7 @@ pub fn verify_target_operation_plan_with_closed_module(
     target: &TargetOperationPlan,
     abstract_plan: &AbstractOperationPlan,
     unit: &optimization_unit::PsiOptimizationUnit,
-    origins: target_operations::BoundaryOriginFacts<'_>,
+    origins: crate::BoundaryOriginFacts<'_>,
     installed_interrupts: &provider_admission::AdmittedInstalledInterruptCohort,
     closed_module: &terminal_codec::ClosedTerminalModule,
 ) -> Result<(), LegalizationError> {
@@ -569,7 +569,7 @@ fn verify_target_operation_plan_input(
     target: &TargetOperationPlan,
     abstract_plan: &AbstractOperationPlan,
     unit: &optimization_unit::PsiOptimizationUnit,
-    origins: target_operations::BoundaryOriginFacts<'_>,
+    origins: crate::BoundaryOriginFacts<'_>,
     installed_interrupts: &provider_admission::AdmittedInstalledInterruptCohort,
     closed_types: &crate::native_geometry::ModuleTypes,
 ) -> Result<(), LegalizationError> {
@@ -625,7 +625,7 @@ pub fn verify_execution_plan(
     target: &TargetOperationPlan,
     abstract_plan: &AbstractOperationPlan,
     unit: &optimization_unit::PsiOptimizationUnit,
-    origins: target_operations::BoundaryOriginFacts<'_>,
+    origins: crate::BoundaryOriginFacts<'_>,
     installed_interrupts: &provider_admission::AdmittedInstalledInterruptCohort,
     closed_module: &terminal_codec::ClosedTerminalModule,
 ) -> Result<(), LegalizationError> {

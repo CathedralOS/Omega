@@ -36,7 +36,7 @@ use super::structural_contracts::{
 pub(super) fn encode_block(
     bytes: &mut Vec<u8>,
     block: &SelectedBlock,
-) -> Result<(), terminal_codec::CodecError> {
+) -> Result<(), terminal_wire::CodecError> {
     crate::codec_bytes::push_encoded(bytes, block.id.0.to_le_bytes());
     match block.origin {
         SelectedBlockOrigin::Source(source) => {
@@ -119,9 +119,8 @@ pub(super) fn decode_block(
             };
             let site_guard = decode_list::<_, FixedViewCopyDecodeError>(cursor, |cursor| {
                 let length = cursor.length()?;
-                let proposition =
-                    terminal_codec::decode_canonical_proposition(cursor.take(length)?)
-                        .map_err(|_| FixedViewCopyDecodeError::InvalidCrashPredicate)?;
+                let proposition = terminal_wire::decode_canonical_proposition(cursor.take(length)?)
+                    .map_err(|_| FixedViewCopyDecodeError::InvalidCrashPredicate)?;
                 Ok(terminal_psi::CrashPredicateTerm::new(proposition))
             })?;
             let frontier_lower_bound = decode_list(cursor, |cursor| {
@@ -179,7 +178,7 @@ pub(super) fn decode_block(
 pub(super) fn encode_successor(
     bytes: &mut Vec<u8>,
     successor: &SelectedSuccessor,
-) -> Result<(), terminal_codec::CodecError> {
+) -> Result<(), terminal_wire::CodecError> {
     bytes.push(match successor.role {
         SelectedSuccessorRole::Semantic => 0,
         SelectedSuccessorRole::EdgeTransferContinuation => 1,
@@ -554,7 +553,7 @@ mod tests {
         );
         assert!(matches!(
             encode_successor(&mut Vec::new(), &successor),
-            Err(terminal_codec::CodecError::IntegerWidthClosure(
+            Err(terminal_wire::CodecError::IntegerWidthClosure(
                 semantic_vocabulary::IntegerWidthClosureError::Parameter(actual)
             )) if actual == parameter
         ));

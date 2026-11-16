@@ -102,7 +102,7 @@ impl CanonicalTerminalArtifact {
             })
             .transpose()?;
         let semantic = closed.identity();
-        let manifest = crate::sections::artifact_manifest::manifest_for_semantic(
+        let manifest = terminal_wire::sealing::manifest_for_semantic(
             semantic,
             &optimization,
             None,

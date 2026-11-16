@@ -190,11 +190,11 @@ Rust files:
 - `omega-rust/psi/compilation/proof/src/mathematical_declarations/mathematical_signature/source_families/construction.rs`
 - `omega-rust/psi/compilation/proof/src/mathematical_declarations/mathematical_signature/source_families/terms.rs`
 - `omega-rust/psi/compilation/representations/checked-trees/src/checked_trees/values/proof_terms.rs`
-- `omega-rust/psi/compilation/representations/terminal-psi/codec/src/mathematical_proof_actual.rs`
-- `omega-rust/psi/compilation/representations/terminal-psi/codec/src/mathematical_proof_actual/applications.rs`
-- `omega-rust/psi/compilation/representations/terminal-psi/codec/src/mathematical_proof_actual/slots.rs`
-- `omega-rust/psi/compilation/representations/terminal-psi/codec/src/sections/semantic_module.rs`
-- `omega-rust/psi/compilation/representations/terminal-psi/codec/src/sections/semantic_module/proof_term_wire.rs`
+- `omega-rust/psi/compilation/representations/terminal-psi/wire/src/mathematical_proof_actual.rs`
+- `omega-rust/psi/compilation/representations/terminal-psi/wire/src/mathematical_proof_actual/applications.rs`
+- `omega-rust/psi/compilation/representations/terminal-psi/wire/src/mathematical_proof_actual/slots.rs`
+- `omega-rust/psi/compilation/representations/terminal-psi/wire/src/sections/semantic_module.rs`
+- `omega-rust/psi/compilation/representations/terminal-psi/wire/src/sections/semantic_module/proof_term_wire.rs`
 - `omega-rust/psi/foundation/semantic-vocabulary/src/lib.rs`
 - `omega-rust/psi/foundation/semantic-vocabulary/src/proposition.rs`
 - `omega-rust/psi/foundation/semantic-vocabulary/src/proposition/proof_terms.rs`
