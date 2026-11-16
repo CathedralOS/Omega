@@ -33,6 +33,7 @@ pub struct PackagePolicyCallingPlan {
     pub(crate) target: PackageReviewRepresentationTarget,
     pub(crate) shape_graph: PackageReviewBoundaryShapeGraph,
     pub(crate) semantic_parameters: Vec<PackagePolicyCallingParameter>,
+    pub(crate) table_parameter: calling_conventions::TableParameter,
     pub(crate) semantic_result: Option<PackageReviewTypeIdentity>,
     pub(crate) native_parameters: Vec<PackagePolicyNativeParameter>,
     pub(crate) callbacks: PackagePolicyCallbacks,
@@ -83,6 +84,7 @@ impl PackagePolicyCallingPlan {
     field_projection_accessors!(copied requirement_lifetime_parameter_count: u32);
     field_projection_accessors!(borrowed target: &PackageReviewRepresentationTarget);
     field_projection_accessors!(borrowed shape_graph: &PackageReviewBoundaryShapeGraph);
+    field_projection_accessors!(copied table_parameter: calling_conventions::TableParameter);
     field_projection_accessors!(optional semantic_result: Option<&PackageReviewTypeIdentity>);
     field_projection_accessors!(sliced native_parameters: &[PackagePolicyNativeParameter]);
     field_projection_accessors!(borrowed callbacks: &PackagePolicyCallbacks);

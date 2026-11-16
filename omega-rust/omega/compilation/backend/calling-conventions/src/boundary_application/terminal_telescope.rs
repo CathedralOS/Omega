@@ -97,6 +97,7 @@ impl TerminalCallingTelescope {
             parameters,
             telescope.direct_callbacks.iter().cloned(),
             application.target,
+            application.plan.plan().call.table_parameter,
         )?
         .parameters;
         let proposed = application

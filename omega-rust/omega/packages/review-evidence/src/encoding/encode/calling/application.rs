@@ -84,6 +84,34 @@ pub(crate) fn encode_application(
             Ok(())
         })
     })?;
+    encoder.field("table_parameter", |encoder| {
+        match application.table_parameter {
+            calling_conventions::TableParameter::None => encoder.tag("none", 0),
+            calling_conventions::TableParameter::Passed {
+                formal,
+                formal_ordinal,
+            }
+            | calling_conventions::TableParameter::DispatchOnly {
+                formal,
+                formal_ordinal,
+            } => {
+                encoder.tag(
+                    "table",
+                    if matches!(
+                        application.table_parameter,
+                        calling_conventions::TableParameter::Passed { .. }
+                    ) {
+                        1
+                    } else {
+                        2
+                    },
+                );
+                encoder.u64_field("formal", formal.get())?;
+                encoder.u32_field("formal_ordinal", formal_ordinal)?;
+            }
+        }
+        Ok(())
+    })?;
     encoder.option_field(
         "semantic_result",
         application.semantic_result.as_ref(),

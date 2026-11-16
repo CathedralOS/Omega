@@ -63,6 +63,7 @@ fn a_target_that_is_not_selected_still_refuses_its_invalid_locator() {
             NativeBindingLocator::Syscall { number: 60 },
         ),
         REQUIREMENT,
+        None,
         &mut Default::default(),
     )
     .expect_err("every authored target's locator is checked under that target");
@@ -80,6 +81,7 @@ fn a_native_locator_receipt_retains_its_authored_target() {
             NativeBindingLocator::Syscall { number: 60 },
         ),
         REQUIREMENT,
+        None,
         &mut Default::default(),
     )
     .expect("an authored target's valid locator retains its evaluation receipt");

@@ -272,6 +272,12 @@ pub fn native_calling_applications(
             effects::provider_plan::EvaluatedNativeBinding::Import(_) => {
                 calling_conventions::CallingPolicy::native_for_target(profile.native_target())
             }
+            effects::provider_plan::EvaluatedNativeBinding::VtableField(_)
+            | effects::provider_plan::EvaluatedNativeBinding::TableFunction(_) => {
+                return Err(failure(
+                    "table binding needs its explicitly selected calling policy".into(),
+                ));
+            }
             effects::provider_plan::EvaluatedNativeBinding::Syscall(_) => {
                 calling_conventions::CallingPolicy::native_syscall_for_target(
                     profile.native_target(),

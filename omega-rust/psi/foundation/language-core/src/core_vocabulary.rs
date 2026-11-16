@@ -83,10 +83,11 @@ pub enum AssemblyEffect {
 }
 
 /// The native-binding vocabulary types in `external_binding.omg`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum ExternalBindingVocabulary {
     ForeignBinding,
     DllImport,
+    FunctionFieldBinding,
 }
 
 /// The domains `extent.omg` declares over `Extent`.
@@ -504,6 +505,12 @@ const ROWS: &[CoreVocabularyRow] = &[
         "DllImport",
         EXTERNAL_BINDING,
         CoreVocabulary::ExternalBinding(ExternalBindingVocabulary::DllImport),
+    ),
+    row(
+        "external_binding.omg",
+        "FunctionFieldBinding",
+        EXTERNAL_BINDING,
+        CoreVocabulary::ExternalBinding(ExternalBindingVocabulary::FunctionFieldBinding),
     ),
 ];
 

@@ -2,14 +2,24 @@
 // Stack arguments, narrow register scalars and callbacks require a richer policy.
 WindowsX64ScalarCalling satisfies CallingPolicy {
     machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
-        let mut plan: BoundaryEntryPlan = windows_x64_call_entry();
-        let accepted: bool = windows_x64_scalar_signature(&signature, &mut plan);
-        transition accepted {
-            true -> BoundaryPlanResult::Accepted { plan: plan }
-            _ -> BoundaryPlanResult::Rejected { reason: CallingPolicyRejection {
-                reason: "expected at most four 32/64-bit integer or sized-reference parameters, Unit or 32/64-bit integer result, and no callbacks" as +Utf8
-            } }
-        }
+        windows_x64_scalar_plan(signature, TableParameter::None)
+    }
+}
+
+// Table lookup changes the native roster before this existing scalar policy
+// assigns registers. The compiler independently authenticates the issued role.
+public machine windows_x64_scalar_plan(signature: BoundarySignature,
+    table_parameter: TableParameter) -> BoundaryPlanResult {
+    let mut normalized: BoundarySignature = signature;
+    let normalized_ok: bool = normalize_table_parameters(&mut normalized, table_parameter);
+    let mut plan: BoundaryEntryPlan = windows_x64_call_entry();
+    plan.call.table_parameter = table_parameter;
+    let accepted: bool = normalized_ok && windows_x64_scalar_signature(&normalized, &mut plan);
+    transition accepted {
+        true -> BoundaryPlanResult::Accepted { plan: plan }
+        _ -> BoundaryPlanResult::Rejected { reason: CallingPolicyRejection {
+            reason: "expected at most four native 32/64-bit integer or sized-reference parameters, an exact table role, Unit or integer result, and no callbacks" as +Utf8
+        } }
     }
 }
 

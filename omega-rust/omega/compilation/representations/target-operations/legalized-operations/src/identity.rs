@@ -26,7 +26,7 @@ pub use calling::{
     encode_placement, encode_shape,
 };
 pub use normalized_foreign::{
-    encode_call_binding, encode_locator, encode_machine_function_identity,
+    encode_call_binding, encode_call_mechanism, encode_locator, encode_machine_function_identity,
     encode_native_callback_argument,
 };
 pub use structural::{encode_external_execution, encode_provider_execution};

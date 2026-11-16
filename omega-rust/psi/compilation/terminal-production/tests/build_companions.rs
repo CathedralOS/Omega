@@ -6,6 +6,7 @@
 use language_semantics::declaration_selection::{BuildSelectionRequest, RootBindingOperand};
 use source::DependencyScope;
 use std::sync::Arc;
+use syntax_trees::identifier::JoinedSyntaxPath;
 use terminal_production::{
     AcceptedTerminalSource, BuildCallSite, ProducedTerminalProgram, TerminalBuildBindingOperation,
     TerminalBuildQueryOperation, TerminalBuildRequestOperation, TerminalProductionCustody,
@@ -68,7 +69,17 @@ fn typed_with_external_binding(
     prelude: &str,
     external_binding: Option<&str>,
 ) -> typed_trees::TypedTrees {
-    typed_with_core_sources(build, prelude, external_binding, &[])
+    // The actual binding module imports reflection descriptions. Capture its
+    // real Core dependencies so both the old locator and its lookalike twin
+    // reach carrier admission rather than failing import resolution.
+    let core = external_binding
+        .map(|_| captured_core_sources())
+        .unwrap_or_default();
+    let core = core
+        .iter()
+        .map(|(name, text)| (name.as_str(), text.as_str()))
+        .collect::<Vec<_>>();
+    typed_with_core_sources(build, prelude, external_binding, &core)
 }
 
 fn typed_with_core_sources(
@@ -158,13 +169,39 @@ fn typed_with_core_sources(
             }
         }
     }
-    let mut request =
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax.unwrap());
+    let syntax = syntax.unwrap();
+    // Core's real modules still need the loader's package anchor. Capturing
+    // their files alone does not resolve an authored omega::language::core
+    // import or expose that module's declarations as unqualified names.
+    let mut core_imports = Vec::new();
+    if external_binding.is_some() || !core.is_empty() {
+        for item in syntax.root_items() {
+            let syntax_trees::item::Item::Use(import) = item else {
+                continue;
+            };
+            let path = syntax.items.identifier_path_members(import.path);
+            if path.len() > 3
+                && path[..3]
+                    .iter()
+                    .zip(["omega", "language", "core"])
+                    .all(|(member, expected)| member.as_str(&syntax) == expected)
+            {
+                core_imports.push(symbols::SourceScopedTopLevelBinding::logical_module_import(
+                    path[0].source_span().source_id,
+                    ids[4],
+                    &path.joined_path_in(&syntax),
+                    3,
+                ));
+            }
+        }
+    }
+    let mut request = syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax);
     request.sources = Some(Arc::new(sources));
     // The Build script sees the prelude's `Build` as the compiler binds it.
     request.top_level_bindings = vec![symbols::SourceScopedTopLevelBinding::new(
         ids[0], ids[1], "Build",
     )];
+    request.top_level_bindings.extend(core_imports);
     for (namespace, module) in [("Build", ids[2]), ("BuildProduct", ids[3])] {
         request
             .top_level_bindings
@@ -777,7 +814,7 @@ machine build(builder: &mut Build) {
 "#;
     let program = native_binding_program(build);
     let locator = published_native_locator(&program);
-    assert_eq!(locator.widths, [0, 0, 0]);
+    assert_eq!(locator.widths, Some([0, 0, 0]));
     let formations = program
         .build_bindings()
         .native_formations_for(program.view())
@@ -940,7 +977,7 @@ machine build(builder: &mut Build) {
 "#,
     );
     let locator = published_native_locator(&program);
-    assert_eq!(locator.widths, [9, 10, 0]);
+    assert_eq!(locator.widths, Some([9, 10, 0]));
     let TerminalBuildValueShape::Sum { cases } = locator.shape.as_ref() else {
         panic!("the locator retains its checked sum")
     };
@@ -982,7 +1019,7 @@ machine build(builder: &mut Build) {
 }
 "#,
     );
-    assert_eq!(published_native_locator(&program).widths, [9, 10, 0]);
+    assert_eq!(published_native_locator(&program).widths, Some([9, 10, 0]));
 }
 
 #[test]
@@ -1464,4 +1501,199 @@ fn boundary_declaration_facts_do_not_admit_pure_execution() {
             "the same accepted artifact remains unavailable for pure invocation"
         );
     }
+}
+
+fn captured_core_sources() -> Vec<(String, String)> {
+    let root =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../source/library/core");
+    let mut pending = vec![root.clone()];
+    let mut files = Vec::new();
+    while let Some(directory) = pending.pop() {
+        for entry in std::fs::read_dir(directory).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                pending.push(path);
+            } else if path.extension().is_some_and(|extension| extension == "omg")
+                && path != root.join("external_binding.omg")
+            {
+                files.push(path);
+            }
+        }
+    }
+    files.sort();
+    files
+        .into_iter()
+        .map(|path| {
+            (
+                path.strip_prefix(&root)
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+                    .to_owned(),
+                std::fs::read_to_string(path).unwrap(),
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn a_native_binding_publishes_function_field_descriptions() {
+    use terminal_production::TerminalBuildValueShape;
+    // These ordinary descriptions intentionally claim no actual declarations.
+    // Publication authenticates their Core carrier and storage shape; the
+    // Product native-binding owner must still authenticate all coordinates.
+    let build = r#"
+use omega::language::core::FunctionFieldBinding;
+use omega::language::core::reflect::ParameterInfo;
+use omega::language::core::reflect::FieldInfo;
+machine build(builder: &mut Build) {
+    let table: ParameterInfo = ParameterInfo {
+        requirement_identity: "not a requirement",
+        requirement_application: "not an application",
+        parameter_identity: "not a formal",
+        qualified_type: "not a type",
+        declaration_position: 1,
+        source_revision: "not a source revision",
+    };
+    let field: FieldInfo = FieldInfo {
+        member_identity: "not a member",
+        case_identity: "",
+        owner_identity: "not an owner",
+        owner_application: "not an application",
+        name: "not a field",
+        qualified_type: "not a type",
+        declaration_position: 1,
+        has_stable_number: false,
+        is_erased: false,
+        stable_number: 0,
+        source_revision: "not a source revision",
+    };
+    Build::bind<Probe::poke>(builder, linux_x86_64, FunctionFieldBinding { table: table, field: field });
+}
+"#;
+    // Field descriptions depend on the real reflection and layout vocabulary.
+    // Capture the complete Core input once instead of supplying partial or
+    // lookalike declarations whose type arguments have no owner.
+    let core = captured_core_sources();
+    let core = core
+        .iter()
+        .map(|(name, text)| (name.as_str(), text.as_str()))
+        .collect::<Vec<_>>();
+    let typed = typed_with_core_sources(
+        build,
+        &native_binding_prelude(),
+        Some(include_str!(
+            "../../../../../source/library/core/external_binding.omg"
+        )),
+        &core,
+    );
+    let native_arguments = typed
+        .expression_table
+        .expression_entries()
+        .filter_map(|(_, expression)| {
+            let typed_trees::expression::ExpressionNode::Call(call) = expression else {
+                return None;
+            };
+            if !call.target_symbol.is_valid()
+                || typed.symbols.name(call.target_symbol) != "bind_native"
+            {
+                return None;
+            }
+            Some(
+                typed
+                    .expression_table
+                    .static_machine_application_arguments(call.authored_machine_application)
+                    .iter()
+                    .map(|argument| {
+                        let reference = argument.type_reference;
+                        (
+                            argument.clone(),
+                            typed
+                                .type_reference_table
+                                .contains_type_reference(reference)
+                                .then(|| {
+                                    (
+                                        typed
+                                            .type_reference_table
+                                            .type_reference(reference)
+                                            .clone(),
+                                        typed
+                                            .type_reference_table
+                                            .operand_lifetime_owner(reference),
+                                        typed
+                                            .type_reference_table
+                                            .operand_lifetimes(reference)
+                                            .to_vec(),
+                                    )
+                                }),
+                        )
+                    })
+                    .collect::<Vec<_>>(),
+            )
+        })
+        .collect::<Vec<_>>();
+    let program = accepted_frontier(typed, terminal_codec::TerminalPublication::Invocation)
+        .unwrap_or_else(|refused| panic!("descriptor preparation refused: {refused:?}; native type arguments: {native_arguments:#?}"))
+        .produce(
+            TerminalProductionCustody::default(),
+            &mut UnmeasuredProduction,
+        )
+        .unwrap();
+    let locator = published_native_locator(&program);
+    assert_eq!(
+        locator.vocabulary,
+        language_core::core_vocabulary::ExternalBindingVocabulary::FunctionFieldBinding
+    );
+    assert_eq!(locator.widths, None);
+    let TerminalBuildValueShape::Record { fields } = locator.shape.as_ref() else {
+        panic!("the locator retains its ordinary record")
+    };
+    assert_eq!(
+        fields
+            .iter()
+            .map(|field| field.name.as_str())
+            .collect::<Vec<_>>(),
+        ["table", "field"]
+    );
+    for (field, expected_count) in fields.iter().zip([6, 11]) {
+        let TerminalBuildValueShape::Record { fields } = field.shape.as_ref() else {
+            panic!("each selector retains its actual record")
+        };
+        assert_eq!(fields.len(), expected_count);
+        assert!(matches!(
+            fields.last().unwrap().shape.as_ref(),
+            TerminalBuildValueShape::Bytes
+        ));
+    }
+}
+
+#[test]
+fn copied_inferred_calls_keep_independent_argument_regions() {
+    // Both invocations instantiate the same generic wrapper and its copied
+    // relay call. Their inputs carry unrelated public lifetimes; sharing one
+    // invocation's substitution would make the untouched positive fail.
+    let source = r#"
+data View<'text> { bytes: &'text [u8]; }
+machine relay<T>(value: T) -> T { value }
+machine wrap<T>(value: T) -> T { relay<T>(value) }
+machine inspect<'left, 'right>(first: &'left [u8], second: &'right [u8]) -> View<'right> {
+    let original: View<'left> = wrap(View { bytes: first });
+    wrap(View { bytes: second })
+}
+machine build(builder: &mut Build) { let result: View = inspect("first", "second"); }
+"#;
+    let _program = produced(source).unwrap();
+    let negative = source.replace("-> View<'right>", "-> View<'left>");
+    let refused = match accepted(&negative) {
+        Err(refused) => refused,
+        Ok(_) => panic!("the second input cannot establish the unrelated first result lifetime"),
+    };
+    assert!(
+        refused.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("typing record literal field type while reading the body of `inspect`")
+        }),
+        "the changed result lifetime must reach its field-type check: {refused:?}"
+    );
 }

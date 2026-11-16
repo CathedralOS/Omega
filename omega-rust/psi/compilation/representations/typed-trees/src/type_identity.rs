@@ -3295,7 +3295,11 @@ pub(crate) mod lifetime_parameters {
     ) -> Option<String> {
         lifetime_parameter_name(program, region)?;
         let owner = region.declaration;
-        let (kind, declaration) = if let Some(machine) = program.machine_by_symbol(owner) {
+        let (kind, declaration) = if let Some((_, identity)) =
+            program.inferred_invocation_lifetime_scope(owner)
+        {
+            ("invocation", identity.to_owned())
+        } else if let Some(machine) = program.machine_by_symbol(owner) {
             ("machine", program.machine_callable_identity_text(machine)?)
         } else if let Some((declaration, requirement)) = program.trait_machine_signature(owner) {
             (
@@ -3452,6 +3456,9 @@ pub(crate) mod lifetime_parameters {
         program: &TypedTrees,
         owner: SymbolHandle,
     ) -> Option<&[crate::name::Identifier]> {
+        if let Some((parameters, _)) = program.inferred_invocation_lifetime_scope(owner) {
+            return Some(parameters);
+        }
         program
             .machine_by_symbol(owner)
             .map(|owner| owner.lifetime_parameters.as_slice())

@@ -105,6 +105,9 @@ public data NativeParameterShape [copy] {
     case TargetFunctionPointer(byte_size: u64, alignment: u64);
 }
 
+// Policies receive the complete declaration roster. The table role fixes
+// which semantic formals reach the callee before final native placement;
+// callbacks keep their authored destinations through that normalization.
 public data NativeParameterIdentity [copy] {
     identity: u64;
     native_ordinal: u64;
@@ -214,8 +217,17 @@ public data CallbackMaterialization {
     destination: NativePlace;
 }
 
+// The identity names an original semantic formal, before native positions.
+// The compiler checks the identity and ordinal together against that requirement.
+public data TableParameter [copy] {
+    case None;
+    case Passed(formal: u64, formal_ordinal: u64);
+    case DispatchOnly(formal: u64, formal_ordinal: u64);
+}
+
 public data CallPlan requires parameter_count <= 32, callback_materialization_count <= 64 {
     convention: CallingConvention;
+    table_parameter: TableParameter;
     parameters: [ValuePlacement; 32];
     parameter_count: u64;
     has_result: bool;
@@ -291,3 +303,115 @@ public trait CallingPolicy {
 // Data names and attached machines cannot select a policy implicitly.
 public trait Calling<Policy satisfies CallingPolicy>
 { }
+
+// Table roles name compiler-issued semantic formals, never native positions.
+// This helper searches the original declaration roster even when a table is
+// not the first formal. Unknown or callback-only coordinates remain unselected.
+public machine table_parameter_for_formal(signature: &BoundarySignature,
+    formal_ordinal: u64, dispatch_only: bool) -> TableParameter {
+    seek(signature, formal_ordinal, dispatch_only, 0, 32)
+    machine seek(signature: &BoundarySignature, formal_ordinal: u64,
+        dispatch_only: bool, index: u64, remaining: u64) -> TableParameter
+    terminates by remaining {
+        transition index < signature.native_parameter_count && index < 32 && remaining > 0 {
+            true -> inspect(signature, formal_ordinal, dispatch_only, index, remaining)
+            _ -> TableParameter::None
+        }
+    }
+    machine inspect(signature: &BoundarySignature, formal_ordinal: u64,
+        dispatch_only: bool, index: u64, remaining: u64) -> TableParameter
+    requires index < 32, remaining > 0 {
+        transition signature.native_parameters[index].origin {
+            NativeParameterOrigin::SemanticFormal { formal_ordinal: actual } ->
+                compare(signature, formal_ordinal, dispatch_only, index, remaining, actual)
+            _ -> seek(signature, formal_ordinal, dispatch_only, index + 1, remaining - 1)
+        }
+    }
+    machine compare(signature: &BoundarySignature, formal_ordinal: u64,
+        dispatch_only: bool, index: u64, remaining: u64, actual: u64) -> TableParameter
+    requires index < 32, remaining > 0 {
+        transition actual == formal_ordinal {
+            true -> selected(signature.native_parameters[index].identity, formal_ordinal, dispatch_only)
+            _ -> seek(signature, formal_ordinal, dispatch_only, index + 1, remaining - 1)
+        }
+    }
+    machine selected(formal: u64, formal_ordinal: u64, dispatch_only: bool) -> TableParameter {
+        transition dispatch_only {
+            true -> TableParameter::DispatchOnly { formal: formal, formal_ordinal: formal_ordinal }
+            _ -> TableParameter::Passed { formal: formal, formal_ordinal: formal_ordinal }
+        }
+    }
+}
+
+// Removing a dispatch formal affects only the roots used for native placement.
+// The immutable declaration identities remain available to the compiler's join.
+// Callback-bearing signatures need a policy that handles their declared slots.
+public machine normalize_table_parameters(signature: &mut BoundarySignature,
+    role: TableParameter) -> bool {
+    transition role {
+        TableParameter::None -> true
+        TableParameter::Passed { formal: formal, formal_ordinal: ordinal } ->
+            valid(signature, formal, ordinal, false)
+        TableParameter::DispatchOnly { formal: formal, formal_ordinal: ordinal } ->
+            valid(signature, formal, ordinal, true)
+    }
+    machine valid(signature: &mut BoundarySignature, formal: u64, ordinal: u64,
+        dispatch: bool) -> bool {
+        transition ordinal < signature.parameter_count && ordinal < 32
+            && signature.callback_binder_count == 0 && signature.callback_demand_count == 0
+            && signature.parameter_count == signature.native_parameter_count {
+            true -> identify(signature, formal, ordinal, dispatch)
+            _ -> false
+        }
+    }
+    machine identify(signature: &mut BoundarySignature, formal: u64, ordinal: u64,
+        dispatch: bool) -> bool
+    requires ordinal < signature.parameter_count, ordinal < 32,
+        signature.parameter_count == signature.native_parameter_count {
+        let selected: TableParameter = table_parameter_for_formal(signature, ordinal, dispatch);
+        identified(signature, formal, ordinal, dispatch, selected)
+    }
+    machine identified(signature: &mut BoundarySignature, formal: u64, ordinal: u64,
+        dispatch: bool, selected: TableParameter) -> bool
+    requires ordinal < signature.parameter_count, ordinal < 32,
+        signature.parameter_count == signature.native_parameter_count {
+        transition selected {
+            TableParameter::Passed { formal: actual, formal_ordinal: found } -> actual == formal && found == ordinal
+            TableParameter::DispatchOnly { formal: actual, formal_ordinal: found } ->
+                remove_if_exact(signature, formal, ordinal, actual, found)
+            _ -> false
+        }
+    }
+    machine remove_if_exact(signature: &mut BoundarySignature, formal: u64,
+        ordinal: u64, actual: u64, found: u64) -> bool
+    requires ordinal < signature.parameter_count, ordinal < 32,
+        signature.parameter_count == signature.native_parameter_count {
+        transition actual == formal && found == ordinal {
+            true -> shift(signature, ordinal, 32)
+            _ -> false
+        }
+    }
+    machine shift(signature: &mut BoundarySignature, index: u64, remaining: u64) -> bool
+    requires index < signature.parameter_count,
+        signature.parameter_count == signature.native_parameter_count
+    terminates by remaining {
+        transition index + 1 < signature.parameter_count && index + 1 < 32 && remaining > 0 {
+            true -> next(signature, index, remaining)
+            index + 1 >= signature.parameter_count -> finish(signature)
+            _ -> false
+        }
+    }
+    machine next(signature: &mut BoundarySignature, index: u64, remaining: u64) -> bool
+    requires index + 1 < signature.parameter_count, index + 1 < 32, remaining > 0,
+        signature.parameter_count == signature.native_parameter_count {
+        signature.parameters[index] = signature.parameters[index + 1];
+        shift(signature, index + 1, remaining - 1)
+    }
+    machine finish(signature: &mut BoundarySignature) -> bool
+    requires signature.parameter_count > 0,
+        signature.parameter_count == signature.native_parameter_count {
+        signature.parameter_count = signature.parameter_count - 1;
+        signature.native_parameter_count = signature.native_parameter_count - 1;
+        true
+    }
+}

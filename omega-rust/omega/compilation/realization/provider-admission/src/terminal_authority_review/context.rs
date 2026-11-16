@@ -384,6 +384,7 @@ impl<'a> ReviewContext<'a> {
                 TerminalMechanismIdentity::Table {
                     target,
                     dispatch_only: false,
+                    native_binding: None,
                     ..
                 },
             )
@@ -392,6 +393,7 @@ impl<'a> ReviewContext<'a> {
                 TerminalMechanismIdentity::Table {
                     target,
                     dispatch_only: true,
+                    native_binding: None,
                     ..
                 },
             ) => target == self.target_profile,

@@ -1,5 +1,5 @@
 /*
-  Compiler-private binary persistence (`OMGNTI36`) for retained native
+  Compiler-private binary persistence (`OMGNTI37`) for retained native
   derivation inputs (`retain_native_derivation_inputs`,
   `recover_native_derivation_inputs`) and installation environment assumptions.
 */
@@ -1486,7 +1486,7 @@ use entry::EntryRecord;
 use std::sync::Arc;
 use value::{RecordError, RecordLimits, RecordReader, RecordValue, RecordWriter, write_values};
 
-const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI36";
+const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI37";
 const RECORD_SCHEMA_FAMILY: &[u8; 6] = b"OMGNTI";
 const SUPERSEDED_RECORD_SCHEMA: &str = "retained native derivation inputs use a superseded record \
     schema; rebuild the component to retain them again";
@@ -1552,6 +1552,7 @@ mod tests {
             b"OMGNTI33",
             b"OMGNTI34",
             b"OMGNTI35",
+            b"OMGNTI36",
         ] {
             let mut input =
                 RecordReader::new(bytes, RecordLimits::default()).expect("bounded old schema");
@@ -1575,7 +1576,7 @@ mod tests {
     #[test]
     fn newer_record_schema_is_not_called_superseded() {
         let mut input =
-            RecordReader::new(b"OMGNTI37", RecordLimits::default()).expect("bounded new schema");
+            RecordReader::new(b"OMGNTI38", RecordLimits::default()).expect("bounded new schema");
         let Err(error) = DerivationInputs::read(&mut input) else {
             panic!("newer record schema accepted");
         };
@@ -1728,16 +1729,75 @@ impl RecordValue for effects::provider_plan::EvaluatedNativeBinding {
                 1u8.write(output)?;
                 value.write(output)
             }
+            Self::VtableField(value) => {
+                if value.dispatch_only() {
+                    return Err(output.error("passed table receipt has a dispatch-only role"));
+                }
+                2u8.write(output)?;
+                write_table_binding(value, output)
+            }
+            Self::TableFunction(value) => {
+                if !value.dispatch_only() {
+                    return Err(output.error("dispatch-only receipt has a passed table role"));
+                }
+                3u8.write(output)?;
+                write_table_binding(value, output)
+            }
         }
     }
     fn read(input: &mut RecordReader<'_>) -> Result<Self, RecordError> {
         match u8::read(input)? {
             0 => effects::provider_plan::EvaluatedForeignImport::read(input).map(Self::Import),
             1 => effects::provider_plan::EvaluatedForeignSyscall::read(input).map(Self::Syscall),
+            2 => read_table_binding(input, false).map(Self::VtableField),
+            3 => read_table_binding(input, true).map(Self::TableFunction),
             _ => Err(input.error("unknown native binding kind")),
         }
     }
 }
+fn write_table_binding(
+    value: &effects::provider_plan::EvaluatedTableField,
+    output: &mut RecordWriter,
+) -> Result<(), RecordError> {
+    value.target().write(output)?;
+    compiler_storage::encode(value.table(), compiler_storage::RecordLimits::default())
+        .map_err(|error| output.error(error.to_string()))?
+        .write(output)?;
+    compiler_storage::encode(value.field(), compiler_storage::RecordLimits::default())
+        .map_err(|error| output.error(error.to_string()))?
+        .write(output)?;
+    value.storage().write(output)?;
+    value.receipt().write(output)
+}
+
+fn read_table_binding(
+    input: &mut RecordReader<'_>,
+    dispatch_only: bool,
+) -> Result<effects::provider_plan::EvaluatedTableField, RecordError> {
+    input.record(|input| {
+        let target = RecordValue::read(input)?;
+        let table = compiler_storage::decode(
+            &Vec::<u8>::read(input)?,
+            compiler_storage::RecordLimits::default(),
+        )
+        .map_err(|error| input.error(error.to_string()))?;
+        let field = compiler_storage::decode(
+            &Vec::<u8>::read(input)?,
+            compiler_storage::RecordLimits::default(),
+        )
+        .map_err(|error| input.error(error.to_string()))?;
+        effects::provider_plan::EvaluatedTableField::from_retained_evidence(
+            target,
+            table,
+            field,
+            RecordValue::read(input)?,
+            dispatch_only,
+            RecordValue::read(input)?,
+        )
+        .map_err(|reason| input.error(reason))
+    })
+}
+
 impl RecordValue for provider_admission::RetainedNativeBindings {
     fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
         self.identities.write(output)?;

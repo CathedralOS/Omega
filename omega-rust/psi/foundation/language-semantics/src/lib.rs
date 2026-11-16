@@ -2417,7 +2417,10 @@ pub mod native_bindings {
 
     pub trait NativeLocatorValue: Clone {
         fn case(&self) -> Result<NativeLocatorCase<'_, Self>, String>;
+        fn record(&self) -> Result<Vec<(&str, Self)>, String>;
         fn integer(&self) -> Result<i128, String>;
+        fn boolean(&self) -> Result<bool, String>;
+        fn text(&self) -> Result<Vec<u8>, String>;
         fn bytes(&self, width: u64, label: &str) -> Result<Vec<u8>, String>;
     }
 
@@ -2427,6 +2430,99 @@ pub mod native_bindings {
     }
 
     pub fn decode_native_locator<Value: NativeLocatorValue>(
+        value: Value,
+        vocabulary: language_core::core_vocabulary::ExternalBindingVocabulary,
+        widths: Option<[u64; 3]>,
+    ) -> Result<NativeBindingLocator, String> {
+        use language_core::core_vocabulary::ExternalBindingVocabulary;
+        match (vocabulary, widths) {
+            (ExternalBindingVocabulary::ForeignBinding, Some(widths)) => {
+                decode_foreign_locator(value, widths)
+            }
+            (ExternalBindingVocabulary::FunctionFieldBinding, None) => decode_function_field(value),
+            _ => Err("native locator vocabulary and coordinate widths disagree".into()),
+        }
+    }
+
+    fn decode_function_field<Value: NativeLocatorValue>(
+        value: Value,
+    ) -> Result<NativeBindingLocator, String> {
+        let [table, field] = exact_named_fields(value.record()?, ["table", "field"])?;
+        let [
+            requirement_identity,
+            requirement_application,
+            parameter_identity,
+            qualified_type,
+            declaration_position,
+            source_revision,
+        ] = exact_named_fields(
+            table.record()?,
+            [
+                "requirement_identity",
+                "requirement_application",
+                "parameter_identity",
+                "qualified_type",
+                "declaration_position",
+                "source_revision",
+            ],
+        )?;
+        let table = semantic_vocabulary::ParameterDescription {
+            requirement_identity: requirement_identity.text()?,
+            requirement_application: requirement_application.text()?,
+            parameter_identity: parameter_identity.text()?,
+            qualified_type: qualified_type.text()?,
+            declaration_position: unsigned(&declaration_position, "formal position")?,
+            source_revision: source_revision.text()?,
+        };
+        let [
+            member_identity,
+            case_identity,
+            owner_identity,
+            owner_application,
+            name,
+            qualified_type,
+            declaration_position,
+            has_stable_number,
+            is_erased,
+            stable_number,
+            source_revision,
+        ] = exact_named_fields(
+            field.record()?,
+            [
+                "member_identity",
+                "case_identity",
+                "owner_identity",
+                "owner_application",
+                "name",
+                "qualified_type",
+                "declaration_position",
+                "has_stable_number",
+                "is_erased",
+                "stable_number",
+                "source_revision",
+            ],
+        )?;
+        let field = semantic_vocabulary::FieldInfoDescription {
+            member_identity: member_identity.text()?,
+            case_identity: case_identity.text()?,
+            owner_identity: owner_identity.text()?,
+            owner_application: owner_application.text()?,
+            name: name.text()?,
+            qualified_type: qualified_type.text()?,
+            declaration_position: unsigned(&declaration_position, "field position")?,
+            has_stable_number: has_stable_number.boolean()?,
+            is_erased: is_erased.boolean()?,
+            stable_number: unsigned(&stable_number, "field stable number")?,
+            source_revision: source_revision.text()?,
+        };
+        Ok(NativeBindingLocator::FunctionField { table, field })
+    }
+
+    fn unsigned<Value: NativeLocatorValue>(value: &Value, label: &str) -> Result<u64, String> {
+        u64::try_from(value.integer()?).map_err(|_| format!("native locator {label} must fit u64"))
+    }
+
+    fn decode_foreign_locator<Value: NativeLocatorValue>(
         value: Value,
         widths: [u64; 3],
     ) -> Result<NativeBindingLocator, String> {
@@ -2494,19 +2590,25 @@ pub mod native_bindings {
         case: NativeLocatorCase<'_, Value>,
         names: [&str; N],
     ) -> Result<[Value; N], String> {
-        if case.fields.len() != N
-            || case
-                .fields
+        exact_named_fields(case.fields, names)
+    }
+
+    fn exact_named_fields<Value: NativeLocatorValue, const N: usize>(
+        fields: Vec<(&str, Value)>,
+        names: [&str; N],
+    ) -> Result<[Value; N], String> {
+        if fields.len() != N
+            || fields
                 .iter()
                 .zip(names)
                 .any(|((actual, _), expected)| *actual != expected)
         {
             return Err(
-                "evaluated foreign locator payload fields drifted from the compiler-owned declaration"
-                    .to_owned(),
+                "evaluated native locator fields drifted from the compiler-owned declaration"
+                    .into(),
             );
         }
-        Ok(std::array::from_fn(|index| case.fields[index].1.clone()))
+        Ok(std::array::from_fn(|index| fields[index].1.clone()))
     }
 
     impl NativeLocatorValue for &BuildTimeValue {
@@ -2521,6 +2623,27 @@ pub mod native_bindings {
                     .map(|(name, value)| (name.as_str(), value))
                     .collect(),
             })
+        }
+        fn record(&self) -> Result<Vec<(&str, Self)>, String> {
+            let BuildTimeValue::Struct { fields, .. } = *self else {
+                return Err("native locator description must be an ordinary record".into());
+            };
+            Ok(fields
+                .iter()
+                .map(|(name, value)| (name.as_str(), value))
+                .collect())
+        }
+        fn boolean(&self) -> Result<bool, String> {
+            match self {
+                BuildTimeValue::Bool(value) => Ok(*value),
+                _ => Err("native locator field must evaluate as Boolean".into()),
+            }
+        }
+        fn text(&self) -> Result<Vec<u8>, String> {
+            match self {
+                BuildTimeValue::Text(value) => Ok(value.clone()),
+                _ => Err("native locator description must retain actual immutable text".into()),
+            }
         }
         fn integer(&self) -> Result<i128, String> {
             match self {

@@ -2334,6 +2334,7 @@ pub(crate) mod resource_profile {
 
             pub(crate) fn call_plan() -> CallPlan {
                 CallPlan {
+                    table_parameter: calling_conventions::TableParameter::None,
                     policy: CallingPolicy::MicrosoftX64,
                     parameters: vec![],
                     result: None,

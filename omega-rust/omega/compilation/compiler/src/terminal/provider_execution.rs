@@ -111,16 +111,6 @@ pub fn prepare_provider_execution_inputs(
                 "native binding changes its source declaration owner".into(),
             ));
         }
-        let requirement = module
-            .identities
-            .text(declaration.identity)
-            .ok_or_else(|| refuse("native binding lost its canonical requirement".into()))?;
-        let evaluated = provider_planning::native_bindings::normalize_native_binding(
-            supply,
-            requirement,
-            &mut binding_identities,
-        )
-        .map_err(refuse)?;
         if native_bindings
             .iter()
             .any(|(previous, _)| *previous == boundary)
@@ -129,7 +119,7 @@ pub fn prepare_provider_execution_inputs(
                 "native requirement has competing completed Build supplies".into(),
             ));
         }
-        native_bindings.push((boundary, evaluated));
+        native_bindings.push((boundary, supply));
     }
     let calling = CallingProgram {
         artifact: Arc::clone(program.artifact()),
@@ -213,8 +203,10 @@ pub fn prepare_provider_execution_inputs(
                     let (signature, plan) = calling
                         .evaluate(instance, profile, signature, &[], requester, authority)
                         .map_err(refuse)?;
+                    let dispatch_only_formal =
+                        plan.plan().call.table_parameter.dispatch_only_formal();
                     let application = signature
-                        .native_application_with_owner(&plan, None, owner)
+                        .native_application_with_owner(&plan, dispatch_only_formal, owner)
                         .map_err(refuse)?;
                     if let Some(previous) = calling_applications.iter().find(
                         |previous: &&calling_conventions::BoundaryCallingApplication| {
@@ -235,7 +227,8 @@ pub fn prepare_provider_execution_inputs(
     }
     let mut external_bindings = Vec::with_capacity(native_bindings.len());
     let mut evaluated_native_bindings = Vec::with_capacity(native_bindings.len());
-    for (boundary, evaluated) in native_bindings {
+    for (boundary, supply) in native_bindings {
+        let boundary_id = boundary;
         let schema =
             backend_plan::DirectBoundaryLeaf::declared_schema(module, boundary).map_err(refuse)?;
         let boundary = module
@@ -263,10 +256,42 @@ pub fn prepare_provider_execution_inputs(
                 "native binding has no actual evaluated Calling application".into(),
             ));
         }
+        let abi = module.calling_abi_identity(boundary_id).map_err(refuse)?;
+        let mut matching = applications
+            .iter()
+            .filter(|application| application.abi == abi);
+        let (Some(application), None) = (matching.next(), matching.next()) else {
+            return Err(refuse(
+                "native binding needs its one exact declaration ABI application".into(),
+            ));
+        };
+        let evaluated = provider_planning::native_bindings::normalize_native_binding(
+            supply,
+            requirement,
+            Some((program.artifact().closed_module(), boundary_id, application)),
+            &mut binding_identities,
+        )
+        .map_err(refuse)?;
         let binding = match &evaluated {
             effects::provider_plan::EvaluatedNativeBinding::Import(import) => {
                 calling_conventions::ExternalBindingKind::Import {
                     locator: import.locator().clone(),
+                }
+            }
+            effects::provider_plan::EvaluatedNativeBinding::VtableField(field) => {
+                calling_conventions::ExternalBindingKind::VtableField {
+                    field: field.storage().field_declaration.clone(),
+                    byte_offset: field.storage().byte_offset,
+                    table_formal: field.storage().formal_ordinal,
+                    table_operand: field.storage().table_operand,
+                }
+            }
+            effects::provider_plan::EvaluatedNativeBinding::TableFunction(field) => {
+                calling_conventions::ExternalBindingKind::TableFunction {
+                    field: field.storage().field_declaration.clone(),
+                    byte_offset: field.storage().byte_offset,
+                    table_formal: field.storage().formal_ordinal,
+                    table_operand: field.storage().table_operand,
                 }
             }
             effects::provider_plan::EvaluatedNativeBinding::Syscall(syscall) => {

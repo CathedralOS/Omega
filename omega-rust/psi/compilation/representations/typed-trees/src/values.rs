@@ -1528,6 +1528,14 @@ pub mod expression {
                     &arguments,
                 );
                 self.static_machine_application_mut(copy).lexical_owner = declaration.lexical_owner;
+                {
+                    let copied = self.static_machine_application_mut(copy);
+                    copied.inferred_lifetime_owner = declaration.inferred_lifetime_owner;
+                    copied.inferred_lifetime_parameters = declaration.inferred_lifetime_parameters;
+                    copied.inferred_lifetime_source = declaration.inferred_lifetime_source;
+                    copied.inferred_lifetime_identity = declaration.inferred_lifetime_identity;
+                }
+                self.retain_inferred_lifetime_application(copy);
                 self.static_machine_application_mut(copy)
                     .binding_declaration = declaration.binding_declaration;
                 self.static_machine_application_mut(copy)
@@ -3295,6 +3303,12 @@ pub mod expression {
         completed_values: Arena<CompletedValueCapture>,
         match_proof_selectors: Arena<crate::statement::OutcomeProofSelector>,
         static_machine_applications: Arena<StaticMachineApplication>,
+        // Minting an invocation scope retains its application directly by
+        // symbol slot and generation. Type queries never rescan all calls.
+        inferred_lifetime_applications: Vec<(
+            u32,
+            crate::static_applications::StaticMachineApplicationHandle,
+        )>,
         static_machine_arguments: Arena<StaticMachineArgument>,
         static_machine_bindings: Arena<StaticMachineBinding>,
         static_machine_lifetime_bindings: Arena<StaticMachineLifetimeBinding>,
@@ -3537,6 +3551,7 @@ pub mod expression {
                 completed_values: Arena::with_capacity(capacity.completed_values),
                 match_proof_selectors: Arena::with_capacity(capacity.match_proof_selectors),
                 static_machine_applications: Arena::default(),
+                inferred_lifetime_applications: Vec::new(),
                 static_machine_arguments: Arena::default(),
                 static_machine_bindings: Arena::default(),
                 static_machine_lifetime_bindings: Arena::default(),
@@ -3573,6 +3588,7 @@ pub mod expression {
             self.match_proof_selectors.retire_all_retain_capacity();
             self.static_machine_applications
                 .retire_all_retain_capacity();
+            self.inferred_lifetime_applications.clear();
             self.static_machine_arguments.retire_all_retain_capacity();
             self.static_machine_bindings.retire_all_retain_capacity();
             self.static_machine_lifetime_bindings
@@ -3593,6 +3609,10 @@ pub mod expression {
                     callable_contract_source: StaticMachineApplicationHandle::invalid(),
                     registration_operation,
                     lexical_owner: SymbolHandle::invalid(),
+                    inferred_lifetime_owner: SymbolHandle::invalid(),
+                    inferred_lifetime_parameters: Vec::new(),
+                    inferred_lifetime_source: None,
+                    inferred_lifetime_identity: String::new(),
                     target,
                     arguments,
                     input_selections: HandleSpan::empty(),
@@ -3625,6 +3645,59 @@ pub mod expression {
         ) -> impl Iterator<Item = (StaticMachineApplicationHandle, &StaticMachineApplication)>
         {
             self.static_machine_applications.iter()
+        }
+
+        pub(crate) fn retain_inferred_lifetime_application(
+            &mut self,
+            application: crate::static_applications::StaticMachineApplicationHandle,
+        ) {
+            let retained = self.static_machine_application(application);
+            let owner = retained.inferred_lifetime_owner;
+            if !owner.is_valid() {
+                return;
+            }
+            let slot = owner.arena_index() as usize;
+            if self.inferred_lifetime_applications.len() <= slot {
+                self.inferred_lifetime_applications
+                    .resize(slot + 1, (0, arena::Handle::invalid()));
+            }
+            let (generation, previous) = self.inferred_lifetime_applications[slot];
+            let selected = if generation != owner.generation() {
+                application
+            } else if self.static_machine_applications.is_valid(previous) {
+                let previous_row = self.static_machine_application(previous);
+                let next = self.static_machine_application(application);
+                if previous_row.inferred_lifetime_owner == owner
+                    && previous_row.inferred_lifetime_source == next.inferred_lifetime_source
+                    && previous_row.inferred_lifetime_parameters
+                        == next.inferred_lifetime_parameters
+                    && previous_row.inferred_lifetime_identity == next.inferred_lifetime_identity
+                {
+                    previous
+                } else {
+                    arena::Handle::invalid()
+                }
+            } else {
+                arena::Handle::invalid()
+            };
+            self.inferred_lifetime_applications[slot] = (owner.generation(), selected);
+        }
+
+        pub(crate) fn inferred_lifetime_application(
+            &self,
+            owner: SymbolHandle,
+        ) -> Option<crate::static_applications::StaticMachineApplicationHandle> {
+            let (generation, application) = *self
+                .inferred_lifetime_applications
+                .get(owner.arena_index() as usize)?;
+            (owner.is_valid()
+                && generation == owner.generation()
+                && self.static_machine_applications.is_valid(application)
+                && self
+                    .static_machine_application(application)
+                    .inferred_lifetime_owner
+                    == owner)
+                .then_some(application)
         }
 
         pub fn static_machine_application_is_valid(
@@ -4568,10 +4641,16 @@ pub mod expression {
                         build_selection_inputs: _,
                         constructed_value_type_count: _,
                         construction_required_type_count: _,
+                        inferred_lifetime_applications: _,
                         $($arena: _,)*
                     } = self;
                     if self.build_selection_inputs.0.get(..source.build_selection_inputs.0.len())
                         != Some(source.build_selection_inputs.0.as_slice())
+                    {
+                        return false;
+                    }
+                    if self.inferred_lifetime_applications.get(..source.inferred_lifetime_applications.len())
+                        != Some(source.inferred_lifetime_applications.as_slice())
                     {
                         return false;
                     }

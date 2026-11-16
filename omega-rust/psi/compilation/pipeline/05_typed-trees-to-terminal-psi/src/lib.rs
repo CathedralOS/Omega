@@ -911,6 +911,7 @@ fn finish_logical_witness<'source>(
         }
     }
     program.prepare_domain_predicates(entry)?;
+    program.prepare_envelope_policies()?;
     let source_selection_questions = capture_source_questions(&mut program, entry)?;
     let services = program.service_map(entry)?;
     let components = prepare_call_components(&bodies, &mut program.signatures)?;
@@ -1384,10 +1385,34 @@ fn lower_program<'source>(
                 ),
             ));
         }
-        signatures.machines.map(|_, signature| RequirementCeilings {
-            reaches: signature.reaches.clone(),
-            invokes: signature.invokes.clone(),
-        })
+        if let Some(source) = declarations {
+            source.abstract_requirement_ceilings(services)?
+        } else {
+            signatures.machines.map(|_, signature| RequirementCeilings {
+                reaches: signature.reaches.clone(),
+                invokes: match &signature.invokes {
+                    crate::Ceiling::Authored(row) => Some(
+                        row.iter()
+                            .copied()
+                            .map(terminal_psi::TerminalCallableInvocation::Service)
+                            .collect(),
+                    ),
+                    crate::Ceiling::Inferred => None,
+                },
+                suspension: signature.operational.suspension,
+                blocking: signature.operational.blocking,
+                termination: match signature.termination {
+                    crate::body::Termination::Silent => {
+                        terminal_psi::TerminalCallableTermination::NotGuaranteed
+                    }
+                    crate::body::Termination::Promised => {
+                        terminal_psi::TerminalCallableTermination::Terminates {
+                            premises: Vec::new(),
+                        }
+                    }
+                },
+            })
+        }
     };
     // One source owner fixes the local inference boundary. Result clauses
     // retain their private publication restriction; local non-return does not
@@ -1635,6 +1660,7 @@ fn lower_program<'source>(
     callables.publish(
         diagnostic,
         signatures.machines,
+        &required_ids,
         &outcomes,
         &declared.records,
         boundaries,

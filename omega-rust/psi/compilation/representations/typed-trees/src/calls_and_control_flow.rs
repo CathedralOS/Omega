@@ -224,6 +224,13 @@ pub mod calls {
             pub callable_contract_source: StaticMachineApplicationHandle,
             pub registration_operation: SymbolHandle,
             pub lexical_owner: SymbolHandle,
+            /// Inferred nominal arguments may carry elided regions. These
+            /// belong to this source invocation, not its caller's public
+            /// lifetime parameters or the selected declaration's contract.
+            pub inferred_lifetime_owner: SymbolHandle,
+            pub inferred_lifetime_parameters: Vec<Identifier>,
+            pub inferred_lifetime_source: Option<source::SourceSpan>,
+            pub inferred_lifetime_identity: String,
             pub target: Identifier,
             pub arguments: HandleSpan<StaticMachineArgument>,
             pub input_selections: HandleSpan<crate::product_operand::ProductInputSelection>,

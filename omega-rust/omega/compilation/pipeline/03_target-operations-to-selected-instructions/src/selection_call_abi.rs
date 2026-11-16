@@ -895,9 +895,7 @@ pub(crate) mod normalized_foreign {
                     calling_conventions::NativePlace::Parameter(_)
                 )
             })
-            .map(|callback| {
-                callback.application.native_ordinal as usize + call.binding.dispatch_operand_count()
-            })
+            .map(|callback| callback.application.native_ordinal as usize)
             .collect();
         ordinals.sort_unstable();
         ordinals
@@ -905,15 +903,25 @@ pub(crate) mod normalized_foreign {
 
     pub(crate) fn structural_parameter_positions(
         call: &LegalizedNormalizedForeignCall,
-    ) -> impl Iterator<Item = usize> + '_ {
+    ) -> Option<Vec<usize>> {
         let private_ordinals = private_callback_ordinals(call);
-        (0..call.binding.operand_placements().len()).filter(move |position| {
-            !private_ordinals.contains(position)
-                && !call
-                    .scalar_arguments
-                    .iter()
-                    .any(|argument| argument.parameter_index as usize == *position)
-        })
+        let positions = call.binding.semantic_operand_positions(
+            call.scalar_arguments
+                .len()
+                .checked_add(call.structural_arguments.len())?,
+            &private_ordinals,
+        )?;
+        Some(
+            positions
+                .into_iter()
+                .filter(|position| {
+                    !call
+                        .scalar_arguments
+                        .iter()
+                        .any(|argument| argument.parameter_index as usize == *position)
+                })
+                .collect(),
+        )
     }
 
     fn borrowed_block_argument_root<'source>(
@@ -1098,6 +1106,8 @@ pub(crate) mod normalized_foreign {
         }
         let mut structural_shapes = Vec::new();
         for ((index, argument), indices) in structural_parameter_positions(call)
+            .ok_or_else(|| invalid!())?
+            .into_iter()
             .zip(&call.structural_arguments)
             .zip(&call.structural_indices)
         {

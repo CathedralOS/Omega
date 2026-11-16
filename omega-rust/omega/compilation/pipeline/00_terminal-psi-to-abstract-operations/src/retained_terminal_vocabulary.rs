@@ -111,6 +111,7 @@ mod calling {
     });
 
     record_fields!(calling_conventions::CallPlan {
+        table_parameter,
         policy,
         parameters,
         result,
@@ -170,6 +171,12 @@ mod calling {
         4 => LinuxSyscallAarch64,
     });
 
+    record_variants!(calling_conventions::TableParameter {
+        0 => None,
+        1 => Passed { formal, formal_ordinal },
+        2 => DispatchOnly { formal, formal_ordinal },
+    });
+
     record_variants!(calling_conventions::EntryControl {
         0 => CallReturn,
         1 => SupervisorCall { number_register, immediate },
@@ -187,8 +194,8 @@ mod calling {
         1 => Import { locator },
         2 => CompilerIntrinsic { machine },
         3 => VtableSlot { index },
-        4 => VtableField { field, byte_offset },
-        5 => TableFunction { field, byte_offset },
+        4 => VtableField { field, byte_offset, table_formal, table_operand },
+        5 => TableFunction { field, byte_offset, table_formal, table_operand },
     });
 
     record_fields!(calling_conventions::ExternalBindingRow {
@@ -472,7 +479,11 @@ mod providers {
 
     record_fields!(effects::provider_plan::TableFieldStorage {
         table_application,
-        field_declaration
+        field_declaration,
+        formal,
+        formal_ordinal,
+        table_operand,
+        byte_offset
     });
 
     record_variants!(effects::provider_plan::ProviderBinding {

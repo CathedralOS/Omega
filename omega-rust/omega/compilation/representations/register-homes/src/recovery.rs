@@ -1037,6 +1037,7 @@ pub enum FixedViewCopyDecodeError {
     UnknownMachineRegister(u8),
     InvalidMachineRegisterPayload(u8),
     UnknownCallingPolicy(u8),
+    UnknownTableParameter(u8),
     UnknownEntryControl(u8),
     UnknownNativePlace(u8),
     UnknownValueClass(u8),

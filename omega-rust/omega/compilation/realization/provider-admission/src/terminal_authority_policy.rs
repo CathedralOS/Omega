@@ -190,9 +190,17 @@ pub fn terminal_authority_policy_with_rows(
             }
             TerminalMechanismIdentity::NormalizedForeign(_) => {}
             TerminalMechanismIdentity::Table {
-                calling, provider, ..
+                calling,
+                provider,
+                native_binding,
+                ..
             } => {
-                if calling.is_zero() || provider.as_bytes() == &[0; 32] {
+                let complete = match (provider, native_binding) {
+                    (Some(provider), None) => provider.as_bytes() != &[0; 32],
+                    (None, Some(receipt)) => receipt != [0; 32],
+                    _ => false,
+                };
+                if calling.is_zero() || !complete {
                     return Err(
                         TerminalAuthorityPolicyBuildError::EmptyImplementationContract(
                             row.mechanism,

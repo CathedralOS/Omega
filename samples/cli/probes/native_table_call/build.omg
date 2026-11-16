@@ -1,4 +1,29 @@
+use omega::language::core::DllImport;
+use omega::language::core::ForeignBinding;
+use omega::language::core::FunctionFieldBinding;
+use omega::language::core::reflect;
+
 machine build(builder: &mut Build) {
     Build::application(builder, "native_table_call");
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::bind<ModuleSymbols::module>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "kernel32.dll", export: "GetModuleHandleA"
+        } });
+    Build::bind<ModuleSymbols::symbol>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "kernel32.dll", export: "GetProcAddress"
+        } });
+    Build::bind<Counter::query>(builder, windows_x86_64, FunctionFieldBinding {
+        table: reflect::parameter(Counter::query::table), field: reflect::field(CounterTable::query)
+    });
+    Build::bind<CounterFunction::query>(builder, windows_x86_64, FunctionFieldBinding {
+        table: reflect::parameter(CounterFunction::query::table), field: reflect::field(CounterFunctions::query)
+    });
+    Build::bind<ProcessIdentity::current>(builder, windows_x86_64, FunctionFieldBinding {
+        table: reflect::parameter(ProcessIdentity::current::table), field: reflect::field(ProcessFunctions::current)
+    });
+    Build::bind<Arithmetic::multiply_divide>(builder, windows_x86_64, FunctionFieldBinding {
+        table: reflect::parameter(Arithmetic::multiply_divide::table), field: reflect::field(ArithmeticFunctions::multiply_divide)
+    });
 }

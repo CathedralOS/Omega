@@ -13408,7 +13408,13 @@ mod normalized_foreign_call {
                         target: target::TargetProfile::LinuxArm64,
                         byte_offset,
                         dispatch_only: false,
-                        same_stack_contribution: contribution,
+                        table_operand: 0,
+                        execution: target_operations::NormalizedForeignExecution::ProviderPlan {
+                            report: contribution.provider_plan_report_identity(),
+                            commitment: contribution.provider_plan_commitment().as_bytes(),
+                        },
+                        requirement_identity: None,
+                        same_stack_contribution: Some(contribution),
                     };
                 let encoded = encode_aarch64_selected_table_call_form(
                     &record,
@@ -13457,7 +13463,13 @@ mod normalized_foreign_call {
                     target: target::TargetProfile::MacosArm64,
                     byte_offset: 8,
                     dispatch_only: true,
-                    same_stack_contribution: contribution,
+                    table_operand: 0,
+                    execution: target_operations::NormalizedForeignExecution::ProviderPlan {
+                        report: contribution.provider_plan_report_identity(),
+                        commitment: contribution.provider_plan_commitment().as_bytes(),
+                    },
+                    requirement_identity: None,
+                    same_stack_contribution: Some(contribution),
                 };
             let constraint =
                 crate::machine_effects::normalized_foreign_constraint(&record).unwrap();
@@ -16006,7 +16018,7 @@ pub(crate) mod table_call {
 
     pub(crate) fn table_address(record: &SelectedNormalizedForeignCall) -> Option<(u8, u32)> {
         use calling_conventions::{MachineRegister, ValueLocation};
-        let (byte_offset, dispatch_only) = record.call.binding.table_dispatch()?;
+        let (byte_offset, dispatch_only, table_operand) = record.call.binding.table_dispatch()?;
         if !record.call.callbacks.is_empty() {
             return None;
         }
@@ -16032,7 +16044,7 @@ pub(crate) mod table_call {
             return None;
         }
         let operands = record.call.binding.operand_placements();
-        let parameter = operands.get(0)?;
+        let parameter = operands.get(table_operand as usize)?;
         let [
             ValueLocation::Register {
                 register: MachineRegister::Aarch64X(register),

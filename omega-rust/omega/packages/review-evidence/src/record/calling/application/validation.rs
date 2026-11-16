@@ -164,10 +164,34 @@ impl PackagePolicyCallingPlan {
                 return Err("calling native origin differs from its physical placement");
             }
         }
+        let dispatch_only = match self.table_parameter {
+            calling_conventions::TableParameter::None => None,
+            calling_conventions::TableParameter::Passed {
+                formal,
+                formal_ordinal,
+            }
+            | calling_conventions::TableParameter::DispatchOnly {
+                formal,
+                formal_ordinal,
+            } => {
+                let selected = self
+                    .semantic_parameters
+                    .get(formal_ordinal as usize)
+                    .ok_or("table role names no reviewed semantic formal")?;
+                if calling_conventions::nominal_callback_native_parameter_id(
+                    &self.abi.requirement_identity,
+                    &selected.name,
+                ) != formal
+                {
+                    return Err("table role changes its exact requirement formal identity");
+                }
+                self.table_parameter.dispatch_only_formal()
+            }
+        };
         for (ordinal, formal) in self.semantic_parameters.iter().enumerate() {
             if self.shape_graph.parameters[ordinal] != formal.shape_root
                 || self.native_parameters.iter().filter(|native| matches!(native.origin,
-                    PackagePolicyNativeParameterOrigin::SemanticFormal { formal_ordinal, .. } if formal_ordinal as usize == ordinal)).count() != 1
+                    PackagePolicyNativeParameterOrigin::SemanticFormal { formal_ordinal, .. } if formal_ordinal as usize == ordinal)).count() != usize::from(dispatch_only != Some(ordinal as u32))
             {
                 return Err("calling semantic formal has no unique native placement");
             }

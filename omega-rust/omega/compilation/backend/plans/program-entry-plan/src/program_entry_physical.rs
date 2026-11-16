@@ -385,6 +385,7 @@ fn linux_x86_64_arrival(
 ) -> ValidatedBoundaryEntryPlan {
     let plan = BoundaryEntryPlan {
         call: CallPlan {
+            table_parameter: calling_conventions::TableParameter::None,
             policy,
             parameters: vec![ValuePlacement {
                 shape: ADDRESS,
@@ -423,6 +424,7 @@ fn linux_arm64_arrival(
 ) -> ValidatedBoundaryEntryPlan {
     let plan = BoundaryEntryPlan {
         call: CallPlan {
+            table_parameter: calling_conventions::TableParameter::None,
             policy,
             parameters: vec![ValuePlacement {
                 shape: ADDRESS,

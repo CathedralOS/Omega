@@ -12,6 +12,10 @@ fn table_field_storage(
         0 => Ok(effects::provider_plan::TableFieldStorage {
             table_application: reader.string()?,
             field_declaration: reader.string()?,
+            formal: semantic_vocabulary::NativeParameterId::new(reader.u64()?).ok_or(Error::InvalidIdentity)?,
+            formal_ordinal: reader.u32()?,
+            table_operand: reader.u32()?,
+            byte_offset: reader.u32()?,
         }),
         1 => Err(reader.string()?),
     }))

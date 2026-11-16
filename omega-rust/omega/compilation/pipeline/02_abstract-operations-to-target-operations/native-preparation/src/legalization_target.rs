@@ -3374,12 +3374,14 @@ pub(crate) mod normalized_foreign {
             ) {
                 private_ordinals.push(
                     usize::try_from(callback.application.native_ordinal)
-                        .map_err(|_| LegalizationError::custody())?
-                        + binding.dispatch_operand_count(),
+                        .map_err(|_| LegalizationError::custody())?,
                 );
             }
         }
         private_ordinals.sort_unstable();
+        let semantic_positions = binding
+            .semantic_operand_positions(declaration.parameter_order.len(), &private_ordinals)
+            .ok_or(LegalizationError::custody())?;
         let structural = expected_structural
             .iter()
             .zip(&declaration.structural_parameters)
@@ -3387,11 +3389,7 @@ pub(crate) mod normalized_foreign {
             .zip(declaration.parameter_positions(terminal_psi::BoundaryParameterKind::Structural))
             .map(
                 |((index, (semantic, declaration_parameter)), semantic_position)| {
-                    let native_position = semantic_position
-                        + private_ordinals
-                            .iter()
-                            .filter(|ordinal| **ordinal <= semantic_position)
-                            .count();
+                    let native_position = semantic_positions[semantic_position];
                     structural_argument_at(
                         semantic,
                         index,
@@ -3419,7 +3417,7 @@ pub(crate) mod normalized_foreign {
         )?;
         let mut scalars = scalar_shapes.iter().copied();
         let mut structures = structural.iter().map(|argument| argument.destination.shape);
-        let mut parameters = declaration
+        let parameters = declaration
             .parameter_order
             .iter()
             .map(|kind| {
@@ -3430,20 +3428,26 @@ pub(crate) mod normalized_foreign {
                 .ok_or(LegalizationError::custody())
             })
             .collect::<Result<Vec<_>, _>>()?;
-        for (callback, ordinal) in callbacks
-            .iter()
-            .filter(|callback| {
-                matches!(
-                    callback.destination,
-                    calling_conventions::NativePlace::Parameter(_)
-                )
-            })
-            .zip(&private_ordinals)
-        {
-            if *ordinal > parameters.len() {
+        let mut native_shapes = vec![None; operands.len()];
+        for (position, shape) in semantic_positions.into_iter().zip(parameters) {
+            native_shapes[position] = Some(shape);
+        }
+        for callback in callbacks.iter().filter(|callback| {
+            matches!(
+                callback.destination,
+                calling_conventions::NativePlace::Parameter(_)
+            )
+        }) {
+            let position =
+                callback.application.native_ordinal as usize + binding.dispatch_operand_count();
+            if native_shapes
+                .get_mut(position)
+                .ok_or(LegalizationError::custody())?
+                .replace(callback.application.shape)
+                .is_some()
+            {
                 return Err(LegalizationError::custody());
             }
-            parameters.insert(*ordinal, callback.application.shape);
         }
         if callbacks
             .iter()
@@ -3452,10 +3456,11 @@ pub(crate) mod normalized_foreign {
             return Err(LegalizationError::custody());
         }
         let signature = CallSignature {
-            parameters: parameters
+            parameters: native_shapes
                 .into_iter()
                 .skip(binding.dispatch_operand_count())
-                .collect(),
+                .collect::<Option<Vec<_>>>()
+                .ok_or(LegalizationError::custody())?,
             result: result_shape,
         };
         let validated = match callbacks.first() {

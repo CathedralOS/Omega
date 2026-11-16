@@ -35,6 +35,30 @@ pub fn encode_call_plan(bytes: &mut Vec<u8>, plan: &CallPlan) {
         CallingPolicy::LinuxSyscallX86_64 => 4,
         CallingPolicy::LinuxSyscallAarch64 => 5,
     });
+    match plan.table_parameter {
+        calling_conventions::TableParameter::None => bytes.push(0),
+        calling_conventions::TableParameter::Passed {
+            formal,
+            formal_ordinal,
+        }
+        | calling_conventions::TableParameter::DispatchOnly {
+            formal,
+            formal_ordinal,
+        } => {
+            bytes.push(
+                if matches!(
+                    plan.table_parameter,
+                    calling_conventions::TableParameter::Passed { .. }
+                ) {
+                    1
+                } else {
+                    2
+                },
+            );
+            crate::codec_bytes::push_encoded(bytes, formal.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, formal_ordinal.to_le_bytes());
+        }
+    }
     encode_len(bytes, plan.parameters.len());
     for placement in &plan.parameters {
         encode_placement(bytes, placement);

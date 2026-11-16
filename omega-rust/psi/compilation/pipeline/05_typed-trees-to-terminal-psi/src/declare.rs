@@ -1070,6 +1070,7 @@ fn const_argument(
 /// judges. Type and const applications preserve the generated body's fixed
 /// service and operational rows.
 pub(crate) fn close_specializations(
+    typed: &TypedTrees,
     generic: &[terminal_check_tables::compilation::GenericForms],
     applications: Vec<(MachineId, PreparedApplication)>,
     closure: &mut Elaboration,
@@ -1079,7 +1080,7 @@ pub(crate) fn close_specializations(
     }
     let bases: symbols::SymbolMap<_> = generic
         .iter()
-        .map(|generic| (generic.template, template_commitment(generic)))
+        .map(|generic| (generic.template, template_commitment(typed, generic)))
         .collect();
     let mut chosen = applications
         .iter()
@@ -1329,6 +1330,7 @@ impl PreparedParameter {
 /// Rigid and finite check forms share the same template owner. Commit the
 /// complete ordered contract roster so no representative can hide a form.
 fn template_commitment(
+    typed: &TypedTrees,
     generic: &terminal_check_tables::compilation::GenericForms,
 ) -> Result<Option<[u8; 32]>, &'static str> {
     use terminal_psi::TargetMachineCallable;
@@ -1340,7 +1342,7 @@ fn template_commitment(
         return Err("a specialization's template has no check form");
     }
     let mut digest =
-        DomainDigestEncoder::new(b"omega.lowered-machine-template-contract-forms.v1\0");
+        DomainDigestEncoder::new(b"omega.lowered-machine-template-contract-forms.v2\0");
     digest.len(forms.len());
     for form in forms {
         let Some(TargetMachineCallable::Machine(entry)) = form.module.entry else {
@@ -1349,12 +1351,80 @@ fn template_commitment(
         if form.machines.get(entry) != Some(&generic.template) {
             return Err("a specialization's template check form belongs to another declaration");
         }
-        let declaration = form
+        let machine = form
             .module
             .machine(entry)
-            .and_then(|machine| machine.declaration.as_ref())
-            .ok_or("a specialization's template check form has no exact contract")?;
-        digest.raw(&declaration.contract);
+            .ok_or("a specialization's template check form lost its entry")?;
+        let contract = if let Some(declaration) = &machine.declaration {
+            declaration.contract
+        } else {
+            // An open generic call has a checked header but no executable
+            // effect envelope. Commit its actual bounds, including unknown
+            // axes, without manufacturing a runtime declaration for it.
+            // Lowering has already checked each abstract requirement's
+            // signature and empty body. Reuse that issued roster; this entry
+            // must still belong to the exact original source declaration.
+            if form.requirements.is_empty()
+                || form.requirements.contains(&entry)
+                || form.requirement_ceilings.len() != form.module.machines.len()
+                || form.module.callables.machine_envelope(entry).is_some()
+            {
+                return Err("a specialization's template check form has no exact contract");
+            }
+            let bounds = form
+                .requirement_ceilings
+                .get(entry)
+                .ok_or("a template check form lost its exact abstract bounds")?;
+            let declared = typed
+                .machine_by_symbol(generic.template)
+                .ok_or("a template check form lost its retained declaration")?;
+            let Some([state]) = typed.machine_states(declared).as_array() else {
+                return Err("a template check form needs one exact entry state");
+            };
+            let formals = typed
+                .state_parameters
+                .span(state.parameters)
+                .ok_or("a template check form lost its complete parameter list")?;
+            let callable = typed
+                .machine_callable_identity_text(declared)
+                .filter(|text| !text.is_empty())
+                .ok_or("a template check form has no complete callable identity")?;
+            let (parameter_types, result_type) = typed
+                .machine_definition_types(declared)
+                .ok_or("a template check form has no complete declared signature identity")?;
+            if formals.len() != parameter_types.len() {
+                return Err("a template check form's declared types do not cover its parameters");
+            }
+            let mut contract = contract_contents_commitment(
+                &callable,
+                formals,
+                &parameter_types,
+                &result_type,
+                &machine.contract.requires,
+                machine
+                    .contract
+                    .ensures
+                    .iter()
+                    .map(|clause| &clause.proposition),
+                &machine.contract.crash_routes,
+            );
+            // These are the source header's promises, not an inferred private
+            // ranking or the effects of a particular specialization.
+            match machine.contract.termination {
+                semantic_vocabulary::Termination::Terminates => crate::body::Termination::Promised,
+                semantic_vocabulary::Termination::NoGuarantee => crate::body::Termination::Silent,
+            }
+            .hash(&mut contract);
+            (
+                machine.declared_service_reach.is_some(),
+                machine.declared_synchronous_entries.is_some(),
+                machine.declared_crash_routes.is_some(),
+            )
+                .hash(&mut contract);
+            abstract_contract_bounds(&form.module, bounds, &mut contract)?;
+            contract.0.finish()
+        };
+        digest.raw(&contract);
     }
     Ok(Some(digest.finish()))
 }
@@ -1894,23 +1964,15 @@ fn declaration_contract_commitment<'a>(
     signature: &Signature,
     published: Published<'_>,
 ) -> [u8; 32] {
-    let mut commitment = Commitment(DomainDigestEncoder::new(COMMITMENT_DOMAIN));
-    callable.hash(&mut commitment);
-    for (formal, type_text) in formals.iter().zip(parameter_types) {
-        (
-            formal.is_mutable,
-            formal.is_const,
-            formal.relevance,
-            type_text,
-        )
-            .hash(&mut commitment);
-    }
-    result_type.hash(&mut commitment);
-    requires.hash(&mut commitment);
-    for proposition in ensures {
-        proposition.hash(&mut commitment);
-    }
-    crash_routes.hash(&mut commitment);
+    let mut commitment = contract_contents_commitment(
+        callable,
+        formals,
+        parameter_types,
+        result_type,
+        requires,
+        ensures,
+        crash_routes,
+    );
     // A caller relies on the promise, never on how it is discharged:
     // termination.md, "Ranking subjects, view, rank range, cyclic-component
     // mapping, and proof certificate remain private. Changing a valid
@@ -1937,6 +1999,105 @@ fn declaration_contract_commitment<'a>(
     }
     published.operational.hash(&mut commitment);
     commitment.0.finish()
+}
+
+// Both executable declarations and proof-only forms bind the same complete
+// signature and propositions. Only their operational bounds differ: a proof
+// form may retain an open question that cannot be encoded as a runtime promise.
+#[allow(clippy::too_many_arguments)]
+fn contract_contents_commitment<'a>(
+    callable: &str,
+    formals: arena::RootRows<'_, typed_trees::signature::StateParameter>,
+    parameter_types: &[String],
+    result_type: &str,
+    requires: &[semantic_vocabulary::Proposition],
+    ensures: impl IntoIterator<Item = &'a semantic_vocabulary::Proposition>,
+    crash_routes: &[terminal_psi::CrashRouteBucket],
+) -> Commitment {
+    let mut commitment = Commitment(DomainDigestEncoder::new(COMMITMENT_DOMAIN));
+    callable.hash(&mut commitment);
+    for (formal, type_text) in formals.iter().zip(parameter_types) {
+        (
+            formal.is_mutable,
+            formal.is_const,
+            formal.relevance,
+            type_text,
+        )
+            .hash(&mut commitment);
+    }
+    result_type.hash(&mut commitment);
+    requires.hash(&mut commitment);
+    for proposition in ensures {
+        proposition.hash(&mut commitment);
+    }
+    crash_routes.hash(&mut commitment);
+    commitment
+}
+
+fn abstract_contract_bounds(
+    module: &terminal_psi::TerminalModule,
+    bounds: &terminal_check_tables::contracts::RequirementCeilings,
+    commitment: &mut Commitment,
+) -> Result<(), &'static str> {
+    use terminal_check_tables::contracts::Ceiling;
+    use terminal_psi::{TerminalCallableInvocation, TerminalCallableTermination};
+
+    let mut services = module
+        .services
+        .iter()
+        .map(|row| (row.id, row.identity))
+        .collect::<Vec<_>>();
+    services.sort_unstable_by_key(|(id, _)| *id);
+    if services.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+        return Err("a template check form repeats a service identity");
+    }
+    let service = |id| {
+        services
+            .binary_search_by_key(&id, |(id, _)| *id)
+            .ok()
+            .and_then(|position| module.identities.text(services[position].1))
+            .filter(|text| !text.is_empty())
+            .ok_or("a template check form bound has no exact service identity")
+    };
+    "abstract operational bounds".hash(commitment);
+    match &bounds.reaches {
+        Ceiling::Inferred => false.hash(commitment),
+        Ceiling::Authored(row) => {
+            true.hash(commitment);
+            row.len().hash(commitment);
+            for id in row {
+                service(*id)?.hash(commitment);
+            }
+        }
+    }
+    bounds.invokes.is_some().hash(commitment);
+    if let Some(row) = &bounds.invokes {
+        row.len().hash(commitment);
+        for entry in row {
+            match entry {
+                TerminalCallableInvocation::Service(id) => {
+                    0u8.hash(commitment);
+                    service(*id)?.hash(commitment);
+                }
+                TerminalCallableInvocation::Parameter(position) => {
+                    1u8.hash(commitment);
+                    position.hash(commitment);
+                }
+            }
+        }
+    }
+    bounds.suspension.hash(commitment);
+    bounds.blocking.hash(commitment);
+    match &bounds.termination {
+        TerminalCallableTermination::NotGuaranteed => false.hash(commitment),
+        TerminalCallableTermination::Terminates { premises } if premises.is_empty() => {
+            true.hash(commitment);
+        }
+        TerminalCallableTermination::Terminates { .. } => {
+            return Err("a template contract needs its conditional progress identities");
+        }
+    }
+    Ok(())
 }
 
 /// The identities of the rows a declaration publishes on the two ceiling

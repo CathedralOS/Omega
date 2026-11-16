@@ -133,8 +133,20 @@ pub fn encode_machine_function_identity(
 }
 
 pub fn encode_call_binding(bytes: &mut Vec<u8>, binding: &NormalizedForeignCallBinding) {
-    let contribution = match &binding.mechanism {
-        target_vocabulary::NormalizedForeignCallMechanism::HostedImport {
+    encode_call_mechanism(bytes, &binding.mechanism);
+    encode_call_plan(bytes, &binding.boundary_entry_plan.call);
+    encode_state_plan_identity(bytes, &binding.boundary_entry_plan.state);
+}
+
+// Every artifact commitment uses this same mechanism encoding. Table lookup
+// keeps both its selected operand and the independently admitted call origin.
+pub fn encode_call_mechanism(
+    bytes: &mut Vec<u8>,
+    mechanism: &target_vocabulary::NormalizedForeignCallMechanism,
+) {
+    use target_vocabulary::NormalizedForeignCallMechanism;
+    let contribution = match mechanism {
+        NormalizedForeignCallMechanism::HostedImport {
             locator,
             receipt,
             requirement_identity,
@@ -143,18 +155,16 @@ pub fn encode_call_binding(bytes: &mut Vec<u8>, binding: &NormalizedForeignCallB
             encode_locator(bytes, locator);
             bytes.extend_from_slice(receipt);
             encode_string(bytes, requirement_identity);
-            encode_call_plan(bytes, &binding.boundary_entry_plan.call);
-            encode_state_plan_identity(bytes, &binding.boundary_entry_plan.state);
-            return;
+            None
         }
-        target_vocabulary::NormalizedForeignCallMechanism::Import {
+        NormalizedForeignCallMechanism::Import {
             locator,
             same_stack_contribution,
         } => {
             encode_locator(bytes, locator);
-            same_stack_contribution
+            Some(same_stack_contribution)
         }
-        target_vocabulary::NormalizedForeignCallMechanism::Component {
+        NormalizedForeignCallMechanism::Component {
             locator,
             provider,
             candidate,
@@ -169,33 +179,42 @@ pub fn encode_call_binding(bytes: &mut Vec<u8>, binding: &NormalizedForeignCallB
             bytes.extend_from_slice(application_commitment);
             bytes.extend_from_slice(locator.image_digest());
             bytes.extend_from_slice(locator.slot_commitment());
-            same_stack_contribution
+            Some(same_stack_contribution)
         }
-        target_vocabulary::NormalizedForeignCallMechanism::Table {
+        NormalizedForeignCallMechanism::Table {
             target,
             byte_offset,
             dispatch_only,
+            table_operand,
+            execution,
+            requirement_identity,
             same_stack_contribution,
         } => {
             encode_string(bytes, "@table");
             encode_string(bytes, target.target_name());
             bytes.extend_from_slice(&byte_offset.to_le_bytes());
             bytes.push(u8::from(*dispatch_only));
-            same_stack_contribution
+            bytes.extend_from_slice(&table_operand.to_le_bytes());
+            encode_foreign_execution(bytes, *execution);
+            bytes.push(u8::from(requirement_identity.is_some()));
+            if let Some(requirement) = requirement_identity {
+                encode_string(bytes, requirement);
+            }
+            same_stack_contribution.as_ref()
         }
-        target_vocabulary::NormalizedForeignCallMechanism::SystemCall(kernel) => {
+        NormalizedForeignCallMechanism::SystemCall(kernel) => {
             encode_string(bytes, "");
             encode_string(bytes, kernel.target.target_name());
-            crate::codec_bytes::push_encoded(bytes, kernel.number.to_le_bytes());
+            bytes.extend_from_slice(&kernel.number.to_le_bytes());
             encode_foreign_execution(bytes, kernel.execution);
             encode_string(bytes, &kernel.requirement_identity);
-            encode_call_plan(bytes, &binding.boundary_entry_plan.call);
-            encode_state_plan_identity(bytes, &binding.boundary_entry_plan.state);
-            return;
+            None
         }
     };
-    encode_call_plan(bytes, &binding.boundary_entry_plan.call);
-    encode_state_plan_identity(bytes, &binding.boundary_entry_plan.state);
+    bytes.push(u8::from(contribution.is_some()));
+    let Some(contribution) = contribution else {
+        return;
+    };
     bytes.extend_from_slice(
         &contribution
             .report_identity()

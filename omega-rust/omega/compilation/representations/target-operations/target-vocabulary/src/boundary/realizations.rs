@@ -113,7 +113,10 @@ pub enum NormalizedForeignCallMechanism {
         target: target::TargetProfile,
         byte_offset: u32,
         dispatch_only: bool,
-        same_stack_contribution: task_plans::AdmittedSameStackContribution,
+        table_operand: u32,
+        execution: NormalizedForeignExecution,
+        requirement_identity: Option<String>,
+        same_stack_contribution: Option<task_plans::AdmittedSameStackContribution>,
     },
 }
 
@@ -127,11 +130,11 @@ impl NormalizedForeignCallMechanism {
             | Self::Component {
                 same_stack_contribution,
                 ..
-            }
-            | Self::Table {
+            } => Some(same_stack_contribution),
+            Self::Table {
                 same_stack_contribution,
                 ..
-            } => Some(same_stack_contribution),
+            } => same_stack_contribution.as_ref(),
             Self::SystemCall(_) | Self::HostedImport { .. } => None,
         }
     }
@@ -172,6 +175,10 @@ impl NormalizedForeignCallBinding {
     pub fn native_binding_receipt(&self) -> Option<[u8; 32]> {
         match &self.mechanism {
             NormalizedForeignCallMechanism::HostedImport { receipt, .. } => Some(*receipt),
+            NormalizedForeignCallMechanism::Table { execution, .. } => match execution {
+                NormalizedForeignExecution::NativeBinding(receipt) => Some(*receipt),
+                NormalizedForeignExecution::ProviderPlan { .. } => None,
+            },
             NormalizedForeignCallMechanism::SystemCall(binding) => match binding.execution {
                 NormalizedForeignExecution::NativeBinding(receipt) => Some(receipt),
                 _ => None,
@@ -221,7 +228,56 @@ impl NormalizedForeignCallBinding {
     }
 
     pub fn dispatch_operand_count(&self) -> usize {
-        usize::from(matches!(self.table_dispatch(), Some((_, true))))
+        usize::from(matches!(self.table_dispatch(), Some((_, true, _))))
+    }
+
+    /// Keep each semantic argument attached to its original formal. The lookup
+    /// pointer occupies a private operand, while callbacks keep their native
+    /// destinations; neither changes which source argument supplies a formal.
+    pub fn semantic_operand_positions(
+        &self,
+        semantic_count: usize,
+        callback_ordinals: &[usize],
+    ) -> Option<Vec<usize>> {
+        use calling_conventions::TableParameter;
+        let native_count = self.boundary_entry_plan.call.parameters.len();
+        let dispatch_count = self.dispatch_operand_count();
+        let dispatch_formal = match self.boundary_entry_plan.call.table_parameter {
+            TableParameter::DispatchOnly { formal_ordinal, .. } if dispatch_count == 1 => {
+                let formal = usize::try_from(formal_ordinal).ok()?;
+                if formal >= semantic_count {
+                    return None;
+                }
+                Some(formal)
+            }
+            TableParameter::None | TableParameter::Passed { .. } if dispatch_count == 0 => None,
+            _ => return None,
+        };
+        if native_count.checked_add(dispatch_count)?
+            != semantic_count.checked_add(callback_ordinals.len())?
+            || callback_ordinals
+                .iter()
+                .enumerate()
+                .any(|(index, ordinal)| {
+                    *ordinal >= native_count || callback_ordinals[..index].contains(ordinal)
+                })
+        {
+            return None;
+        }
+        let mut native = (0..native_count).filter(|ordinal| !callback_ordinals.contains(ordinal));
+        let positions = (0..semantic_count)
+            .map(|formal| {
+                if Some(formal) == dispatch_formal {
+                    Some(0)
+                } else {
+                    native.next()?.checked_add(dispatch_count)
+                }
+            })
+            .collect::<Option<Vec<_>>>()?;
+        if native.next().is_some() {
+            return None;
+        }
+        Some(positions)
     }
 
     pub fn native_target(&self) -> Option<target::NativeTarget> {
@@ -253,6 +309,15 @@ impl NormalizedForeignCallBinding {
         } = &self.mechanism
         {
             return Some(requirement_identity);
+        }
+        if let NormalizedForeignCallMechanism::Table {
+            requirement_identity,
+            ..
+        } = &self.mechanism
+        {
+            if let Some(requirement) = requirement_identity {
+                return Some(requirement);
+            }
         }
         match self.mechanism.same_stack_contribution() {
             Some(contribution) => identities.text(contribution.requirement_identity()),
@@ -306,9 +371,42 @@ impl NormalizedForeignCallBinding {
                     && call.policy == CallingPolicy::native_for_target(target)
                     && call.entry_control == EntryControl::CallReturn
             }
-            NormalizedForeignCallMechanism::Import { .. }
-            | NormalizedForeignCallMechanism::Table { .. } => {
+            NormalizedForeignCallMechanism::Import { .. } => {
                 call.policy == CallingPolicy::native_for_target(target)
+                    && call.entry_control == EntryControl::CallReturn
+            }
+            NormalizedForeignCallMechanism::Table {
+                target: profile,
+                execution,
+                requirement_identity,
+                same_stack_contribution,
+                table_operand,
+                dispatch_only,
+                ..
+            } => {
+                let origin_matches = match (execution, same_stack_contribution) {
+                    (NormalizedForeignExecution::NativeBinding(receipt), None) => {
+                        *receipt != [0; 32]
+                            && requirement_identity
+                                .as_ref()
+                                .is_some_and(|requirement| !requirement.is_empty())
+                            && profile.program_entry_slot().schema
+                                == target::ProgramEntrySchema::HostedApplication
+                    }
+                    (
+                        NormalizedForeignExecution::ProviderPlan { report, commitment },
+                        Some(contribution),
+                    ) => {
+                        requirement_identity.is_none()
+                            && *report == contribution.provider_plan_report_identity()
+                            && *commitment == contribution.provider_plan_commitment().as_bytes()
+                    }
+                    _ => false,
+                };
+                origin_matches
+                    && (*dispatch_only && *table_operand == 0
+                        || !*dispatch_only && (*table_operand as usize) < call.parameters.len())
+                    && call.policy == CallingPolicy::native_for_target(target)
                     && call.entry_control == EntryControl::CallReturn
             }
             NormalizedForeignCallMechanism::SystemCall(binding) => {
@@ -404,13 +502,14 @@ impl NormalizedForeignCallBinding {
         }
     }
 
-    pub fn table_dispatch(&self) -> Option<(u32, bool)> {
+    pub fn table_dispatch(&self) -> Option<(u32, bool, u32)> {
         match self.mechanism {
             NormalizedForeignCallMechanism::Table {
                 byte_offset,
                 dispatch_only,
+                table_operand,
                 ..
-            } => Some((byte_offset, dispatch_only)),
+            } => Some((byte_offset, dispatch_only, table_operand)),
             _ => None,
         }
     }
@@ -515,3 +614,77 @@ boundary_realization_conversion!(HostedWriteByteI32, HostedWriteByteI32Realizati
 boundary_realization_conversion!(LinuxWriteLine, LinuxWriteLineRealization);
 boundary_realization_conversion!(ClaimCompletionOnly, ClaimCompletionOnlyRealization);
 boundary_realization_conversion!(AccessorScalarAccess, AccessorScalarAccessRealization);
+
+#[cfg(test)]
+mod argument_mapping_tests {
+    use super::*;
+    use calling_conventions::{
+        CallSignature, CallingPolicy, EntryStack, MachineRegime, MachineStateSet,
+        NativeParameterId, Preemption, StatePlan, TableParameter, ValueShape, evaluate_call_plan,
+    };
+
+    fn table_binding(dispatch_only: bool) -> NormalizedForeignCallBinding {
+        let mut call = evaluate_call_plan(
+            CallingPolicy::MicrosoftX64,
+            &CallSignature {
+                parameters: vec![ValueShape::integer(8, 8); if dispatch_only { 3 } else { 4 }],
+                result: None,
+            },
+        )
+        .unwrap();
+        let formal = NativeParameterId::new(22).unwrap();
+        call.table_parameter = if dispatch_only {
+            TableParameter::DispatchOnly {
+                formal,
+                formal_ordinal: 1,
+            }
+        } else {
+            TableParameter::Passed {
+                formal,
+                formal_ordinal: 1,
+            }
+        };
+        NormalizedForeignCallBinding {
+            boundary_entry_plan: BoundaryEntryPlan {
+                call,
+                state: StatePlan {
+                    initial_regime: MachineRegime::X86Long64,
+                    interrupted_state: MachineStateSet::empty(),
+                    saved_state: MachineStateSet::empty(),
+                    restored_state: MachineStateSet::empty(),
+                    permitted_transitive_use: MachineStateSet::empty(),
+                    stack: EntryStack::ProviderSelected,
+                    preemption: Preemption::NotApplicable,
+                },
+            },
+            mechanism: NormalizedForeignCallMechanism::Table {
+                target: target::TargetProfile::WindowsX64,
+                byte_offset: 8,
+                dispatch_only,
+                table_operand: if dispatch_only { 0 } else { 2 },
+                execution: NormalizedForeignExecution::NativeBinding([7; 32]),
+                requirement_identity: Some("checked-requirement".into()),
+                same_stack_contribution: None,
+            },
+        }
+    }
+
+    #[test]
+    fn non_prefix_table_keeps_semantic_arguments_and_callback_destination() {
+        let mut binding = table_binding(true);
+        assert_eq!(
+            binding.semantic_operand_positions(3, &[1]),
+            Some(vec![1, 0, 3])
+        );
+        assert!(binding.semantic_operand_positions(3, &[3]).is_none());
+        assert!(binding.semantic_operand_positions(2, &[1]).is_none());
+        assert!(binding.semantic_operand_positions(4, &[1, 1]).is_none());
+        binding.boundary_entry_plan.call.table_parameter = TableParameter::None;
+        assert!(binding.semantic_operand_positions(3, &[1]).is_none());
+        let passed = table_binding(false);
+        assert_eq!(
+            passed.semantic_operand_positions(3, &[1]),
+            Some(vec![0, 2, 3])
+        );
+    }
+}

@@ -68,7 +68,7 @@ pub struct TerminalCallingPolicyInvocation<'input> {
     pub artifact: &'input CanonicalTerminalArtifact,
     pub entry: TargetMachineCallable,
     pub target: target::TargetProfile,
-    pub signature: &'input CallingPolicySignature,
+    pub signature: &'input mut CallingPolicySignature,
     pub account: EvaluationInvocationAccount,
     pub admission: TerminalCallingPolicyAdmission,
 }

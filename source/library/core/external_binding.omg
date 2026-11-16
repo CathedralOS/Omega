@@ -1,10 +1,10 @@
-// Compiler-owned vocabulary for irreducible foreign import coordinates.
-//
-// A target-scoped ordinary machine returns one closed `ForeignBinding` locator. The
-// compiler evaluates that machine at build time, validates the exact nominal
-// result and const widths, then normalizes the atomic locator into provider
-// identity. Raw object-format bytes remain data; they are never Omega symbol
-// names or ambient lookup strings.
+// Native binding descriptions identify coordinates, not calling authority.
+// Build supplies these ordinary values to the checked binding owner. Import
+// bytes retain their declared widths; a table selection retains its exact
+// formal and field descriptions. Neither supplies an independent calling plan.
+
+use omega::language::core::reflect::ParameterInfo;
+use omega::language::core::reflect::FieldInfo;
 
 public data DllImport<
     const ObjectLength: u64,
@@ -30,9 +30,8 @@ public data DllImport<
     );
 }
 
-// Syscall numbers are ordinary target-scoped values. `VtableField` remains on
-// its explicit legacy carrier until NativeFieldIdentity has an ordinary typed
-// source form; it must not be smuggled into this sum as a magic integer.
+// Syscall numbers are ordinary target-scoped values. Table bindings use typed
+// selectors rather than an integer slot or an import-coordinate string.
 public data ForeignBinding<
     const ObjectLength: u64,
     const SymbolLength: u64,
@@ -42,4 +41,9 @@ public data ForeignBinding<
         import: DllImport<ObjectLength, SymbolLength, VersionLength>
     );
     case Syscall(number: u64);
+}
+
+public data FunctionFieldBinding<'text> {
+    table: ParameterInfo<'text>;
+    field: FieldInfo<'text>;
 }

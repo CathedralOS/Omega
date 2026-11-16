@@ -458,9 +458,13 @@ impl SettledTargetSupply {
                 .ok_or_else(|| {
                     refuse("the accepted requirement has no complete callable identity".to_owned())
                 })?;
-            let binding =
-                crate::native_bindings::normalize_native_binding(supply, callable, &mut identities)
-                    .map_err(refuse)?;
+            let binding = crate::native_bindings::normalize_native_binding(
+                supply,
+                callable,
+                None,
+                &mut identities,
+            )
+            .map_err(refuse)?;
             if Some(binding.target().target_name()) != self.target() {
                 return Err(vec![Diagnostic::error(
                     "normalized native binding changed its settled deployment",

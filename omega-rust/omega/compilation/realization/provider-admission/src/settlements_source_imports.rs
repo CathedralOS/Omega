@@ -102,13 +102,17 @@ pub(super) fn derive_source_evaluated_mechanisms(
                             "table binding has no exact retained layout",
                         )]
                     })?;
-                let (byte_offset, dispatch_only) = match external.binding {
+                let (byte_offset, dispatch_only, table_operand) = match external.binding {
                     calling_conventions::ExternalBindingKind::VtableField {
-                        byte_offset, ..
-                    } => (byte_offset, false),
+                        byte_offset,
+                        table_operand,
+                        ..
+                    } => (byte_offset, false, table_operand),
                     calling_conventions::ExternalBindingKind::TableFunction {
-                        byte_offset, ..
-                    } => (byte_offset, true),
+                        byte_offset,
+                        table_operand,
+                        ..
+                    } => (byte_offset, true, table_operand),
                     _ => {
                         return Err(vec![Diagnostic::error(
                             "table binding changed its mechanism",
@@ -130,12 +134,14 @@ pub(super) fn derive_source_evaluated_mechanisms(
                         &provider_plan.target,
                     )
                     .map_err(|error| vec![error])?,
-                    provider: provider_plan.identity_digest(),
+                    provider: Some(provider_plan.identity_digest()),
+                    native_binding: None,
                     calling: effects::provider_plan::BoundaryCallingPlanCommitment::from_digest(
                         validated.contract_commitment_digest(),
                     ),
                     byte_offset,
                     dispatch_only,
+                    table_operand,
                 }
             }
             ProviderBinding::Syscall { number } => {

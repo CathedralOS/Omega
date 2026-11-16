@@ -2331,7 +2331,7 @@ impl<'t> Program<'t> {
         source: SourceOrigin,
         expected: Option<ValueType>,
     ) -> Checked<Expression> {
-        let free = if let Some(required) = required_contract {
+        let mut free = if let Some(required) = required_contract {
             let signature = self
                 .declaration_sources
                 .get(required)
@@ -2397,6 +2397,30 @@ impl<'t> Program<'t> {
             })
             .collect();
         let declared_result = signature.result;
+        // Inferred type arguments can carry private invocation regions. They
+        // are chosen by this call's ordinary argument/result unification, not
+        // universally bound by the callee or fixed by the caller's signature.
+        // Keep the same substitution and its existing loan ceilings for both.
+        for regions in formals
+            .iter()
+            .flat_map(|(formal, _, borrowed)| {
+                std::iter::once(formal.regions())
+                    .chain(borrowed.as_ref().map(|borrowed| borrowed.regions))
+            })
+            .chain(declared_result.map(ValueType::regions))
+        {
+            for region in self.region_tuple(regions) {
+                if let super::regions::Region::Parameter(parameter) = region
+                    && self
+                        .typed
+                        .inferred_invocation_lifetime_scope(parameter.declaration)
+                        .is_some()
+                    && !free.contains(parameter)
+                {
+                    free.push(*parameter);
+                }
+            }
+        }
         if formals.len() != arguments.len() {
             return Err(refuse(
                 id,

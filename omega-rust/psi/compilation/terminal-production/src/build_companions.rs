@@ -651,14 +651,13 @@ fn native_locator(
             "native locator needs its concrete source type application to establish byte widths",
         )
     })?;
-    let widths = typed_trees::native_locators::application_widths(
-        source.source().as_ref(),
-        application.reference,
-    )
-    .map_err(|diagnostics| refused(diagnostics::join_messages(&diagnostics)))?;
+    let (vocabulary, widths) =
+        typed_trees::native_locators::application(source.source().as_ref(), application.reference)
+            .map_err(|diagnostics| refused(diagnostics::join_messages(&diagnostics)))?;
     let shape = collect_shape(module, parameter.structural_type, shapes)?;
     Ok(TerminalBuildNativeLocator {
         structural_type: parameter.structural_type,
+        vocabulary,
         widths,
         shape,
     })

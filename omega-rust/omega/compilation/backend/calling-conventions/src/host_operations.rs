@@ -364,12 +364,30 @@ impl ExternalBindingRow {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExternalBindingKind {
-    Syscall { number: i64 },
-    Import { locator: NormalizedForeignLocator },
-    CompilerIntrinsic { machine: String },
-    VtableSlot { index: i64 },
-    VtableField { field: String, byte_offset: u32 },
-    TableFunction { field: String, byte_offset: u32 },
+    Syscall {
+        number: i64,
+    },
+    Import {
+        locator: NormalizedForeignLocator,
+    },
+    CompilerIntrinsic {
+        machine: String,
+    },
+    VtableSlot {
+        index: i64,
+    },
+    VtableField {
+        field: String,
+        byte_offset: u32,
+        table_formal: u32,
+        table_operand: u32,
+    },
+    TableFunction {
+        field: String,
+        byte_offset: u32,
+        table_formal: u32,
+        table_operand: u32,
+    },
 }
 
 const DARWIN_LIBSYSTEM_PATH: &str = "/usr/lib/libSystem.B.dylib";

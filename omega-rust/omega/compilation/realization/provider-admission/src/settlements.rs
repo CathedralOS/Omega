@@ -279,11 +279,12 @@ fn external_calling_application<'row>(
             "external binding lost its exact declaration ABI application",
         )]
     })?;
-    let dispatch_only = matches!(
-        row.binding,
-        calling_conventions::ExternalBindingKind::TableFunction { .. }
-    )
-    .then_some(0);
+    let dispatch_only = match row.binding {
+        calling_conventions::ExternalBindingKind::TableFunction { table_formal, .. } => {
+            Some(table_formal)
+        }
+        _ => None,
+    };
     if application.dispatch_only_formal != dispatch_only {
         return Err(vec![Diagnostic::error(
             "external calling application has another dispatch projection",
@@ -433,22 +434,58 @@ fn rejoin_normalized_foreign_call(
     ) {
         let table = match (selected, retained) {
             (
-                effects::provider_plan::ProviderBinding::VtableField { field, .. },
+                effects::provider_plan::ProviderBinding::VtableField {
+                    field,
+                    storage: Ok(storage),
+                    ..
+                },
                 calling_conventions::ExternalBindingKind::VtableField {
                     field: retained,
                     byte_offset,
+                    table_formal,
+                    table_operand,
                 },
-            ) if field == retained => Some((*byte_offset, false)),
+            ) if field == retained
+                && storage.field_declaration == *retained
+                && storage.byte_offset == *byte_offset
+                && storage.formal_ordinal == *table_formal
+                && storage.table_operand == *table_operand
+                && boundary_entry_plan.call.table_parameter
+                    == calling_conventions::TableParameter::Passed {
+                        formal: storage.formal,
+                        formal_ordinal: *table_formal,
+                    } =>
+            {
+                Some((*byte_offset, false, *table_operand))
+            }
             (
-                effects::provider_plan::ProviderBinding::TableFunction { field, .. },
+                effects::provider_plan::ProviderBinding::TableFunction {
+                    field,
+                    storage: Ok(storage),
+                    ..
+                },
                 calling_conventions::ExternalBindingKind::TableFunction {
                     field: retained,
                     byte_offset,
+                    table_formal,
+                    table_operand,
                 },
-            ) if field == retained => Some((*byte_offset, true)),
+            ) if field == retained
+                && storage.field_declaration == *retained
+                && storage.byte_offset == *byte_offset
+                && storage.formal_ordinal == *table_formal
+                && storage.table_operand == *table_operand
+                && boundary_entry_plan.call.table_parameter
+                    == calling_conventions::TableParameter::DispatchOnly {
+                        formal: storage.formal,
+                        formal_ordinal: *table_formal,
+                    } =>
+            {
+                Some((*byte_offset, true, *table_operand))
+            }
             _ => None,
         };
-        if let Some((byte_offset, dispatch_only)) = table {
+        if let Some((byte_offset, dispatch_only, table_operand)) = table {
             let profile = target::TargetProfile::from_canonical_target_name(&selected_plan.target)
                 .map_err(|error| vec![error])?;
             if profile.native_target() != target {
@@ -462,7 +499,13 @@ fn rejoin_normalized_foreign_call(
                     target: profile,
                     byte_offset,
                     dispatch_only,
-                    same_stack_contribution: same_stack.clone(),
+                    table_operand,
+                    execution: target_operations::NormalizedForeignExecution::ProviderPlan {
+                        report: same_stack.provider_plan_report_identity(),
+                        commitment: same_stack.provider_plan_commitment().as_bytes(),
+                    },
+                    requirement_identity: None,
+                    same_stack_contribution: Some(same_stack.clone()),
                 },
             });
         }

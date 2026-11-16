@@ -467,10 +467,12 @@ pub enum TerminalMechanismIdentity {
     Syscall(SyscallTerminalMechanismIdentity),
     Table {
         target: target::TargetProfile,
-        provider: crate::provider_plan::ProviderPlanDigest,
+        provider: Option<crate::provider_plan::ProviderPlanDigest>,
+        native_binding: Option<[u8; 32]>,
         calling: crate::provider_plan::BoundaryCallingPlanCommitment,
         byte_offset: u32,
         dispatch_only: bool,
+        table_operand: u32,
     },
 }
 
@@ -503,18 +505,28 @@ pub fn terminal_mechanism_identity_bytes(identity: TerminalMechanismIdentity) ->
         TerminalMechanismIdentity::Table {
             target,
             provider,
+            native_binding,
             calling,
             byte_offset,
             dispatch_only,
+            table_operand,
         } => {
             let target = target.identity().as_str().as_bytes();
             let mut bytes = vec![4];
             bytes.extend_from_slice(&(target.len() as u32).to_be_bytes());
             bytes.extend_from_slice(target);
-            bytes.extend_from_slice(provider.as_bytes());
+            bytes.push(u8::from(provider.is_some()));
+            if let Some(provider) = provider {
+                bytes.extend_from_slice(provider.as_bytes());
+            }
+            bytes.push(u8::from(native_binding.is_some()));
+            if let Some(receipt) = native_binding {
+                bytes.extend_from_slice(&receipt);
+            }
             bytes.extend_from_slice(&calling.as_bytes());
             bytes.extend_from_slice(&byte_offset.to_be_bytes());
             bytes.push(u8::from(dispatch_only));
+            bytes.extend_from_slice(&table_operand.to_be_bytes());
             bytes
         }
         TerminalMechanismIdentity::CompilerIntrinsic(intrinsic) => {

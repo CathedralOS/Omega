@@ -5,7 +5,7 @@ use effects::provider_plan::{
     BuildNativeBindingOrigin, EvaluatedBindingEvaluationDigest,
     EvaluatedBindingMaterializationDigest, EvaluatedBindingProducerClosureDigest,
     EvaluatedBindingReceipt, EvaluatedBindingUsage, EvaluatedForeignImport,
-    EvaluatedForeignSyscall,
+    EvaluatedForeignSyscall, EvaluatedTableField, evaluated_table_field_identity_digest,
 };
 use semantic_vocabulary::NativeBindingLocator;
 
@@ -24,30 +24,69 @@ pub struct NativeBuildRowOrigin {
 pub fn normalize_native_binding(
     supply: &NativeBuildSupply,
     requirement: &str,
+    calling: Option<(
+        &terminal_codec::ClosedTerminalModule,
+        semantic_vocabulary::BoundaryMachineId,
+        &calling_conventions::BoundaryCallingApplication,
+    )>,
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
 ) -> Result<crate::evaluated_via_bindings::EvaluatedNativeBinding, String> {
     let target =
         target::TargetProfile::from_canonical_target_name(supply.selection.target.canonical_name())
             .map_err(|error| error.to_string())?;
-    evaluate(supply, requirement, target, identities)
+    evaluate(supply, requirement, target, calling, identities)
 }
 
 fn evaluate(
     supply: &NativeBuildSupply,
     requirement: &str,
     target: target::TargetProfile,
+    calling: Option<(
+        &terminal_codec::ClosedTerminalModule,
+        semantic_vocabulary::BoundaryMachineId,
+        &calling_conventions::BoundaryCallingApplication,
+    )>,
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
 ) -> Result<crate::evaluated_via_bindings::EvaluatedNativeBinding, String> {
     use crate::evaluated_via_bindings::EvaluatedNativeBinding;
     let selection = &supply.selection;
     let author_identity = &selection.producer.callable_identity;
     let source_occurrence_digest = selection.source_occurrence_digest;
-    let (locator, binding_digest) = match &selection.locator {
+    if !matches!(
+        selection.locator,
+        NativeBindingLocator::FunctionField { .. }
+    ) && calling.is_some_and(|(_, _, application)| {
+        application.plan.plan().call.table_parameter != calling_conventions::TableParameter::None
+    }) {
+        return Err("native binding without table lookup has a table parameter role".into());
+    }
+    let (locator, binding_digest, table_binding) = match &selection.locator {
         NativeBindingLocator::Import(raw) => {
             let locator = target::normalize_foreign_locator(raw.clone(), target)
                 .map_err(|reason| format!("native Build locator: {reason}"))?;
             let digest = locator.identity_digest();
-            (Some(locator), digest)
+            (Some(locator), digest, None)
+        }
+        NativeBindingLocator::FunctionField { table, field } => {
+            let (closed, boundary, application) =
+                calling.ok_or("native table binding needs its checked calling application")?;
+            let storage = backend_plan::table_field_storage(
+                closed,
+                boundary,
+                application,
+                target,
+                table,
+                field,
+            )?;
+            let dispatch_only = application.dispatch_only_formal.is_some();
+            let digest = evaluated_table_field_identity_digest(
+                target,
+                table,
+                field,
+                &storage,
+                dispatch_only,
+            )?;
+            (None, digest, Some((storage, dispatch_only)))
         }
         NativeBindingLocator::Syscall { number } => {
             if !matches!(
@@ -61,6 +100,7 @@ fn evaluate(
             (
                 None,
                 effects::provider_plan::evaluated_syscall_identity_digest(target, number),
+                None,
             )
         }
     };
@@ -132,13 +172,32 @@ fn evaluate(
         },
         identities.as_table(),
     )?;
-    Ok(match (locator, &selection.locator) {
-        (Some(locator), _) => EvaluatedNativeBinding::Import(
+    Ok(match (locator, &selection.locator, table_binding) {
+        (Some(locator), NativeBindingLocator::Import(_), None) => EvaluatedNativeBinding::Import(
             EvaluatedForeignImport::from_retained_evidence(locator, receipt)?,
         ),
-        (None, NativeBindingLocator::Syscall { number }) => EvaluatedNativeBinding::Syscall(
+        (None, NativeBindingLocator::Syscall { number }, None) => EvaluatedNativeBinding::Syscall(
             EvaluatedForeignSyscall::from_retained_evidence(target, *number, receipt)?,
         ),
+        (
+            None,
+            NativeBindingLocator::FunctionField { table, field },
+            Some((storage, dispatch_only)),
+        ) => {
+            let evaluated = EvaluatedTableField::from_retained_evidence(
+                target,
+                table.clone(),
+                field.clone(),
+                storage,
+                dispatch_only,
+                receipt,
+            )?;
+            if dispatch_only {
+                EvaluatedNativeBinding::TableFunction(evaluated)
+            } else {
+                EvaluatedNativeBinding::VtableField(evaluated)
+            }
+        }
         _ => return Err("native Build materialization changed locator mechanism".into()),
     })
 }

@@ -7841,8 +7841,7 @@ pub(crate) struct CallableApplication {
     lifetimes: Vec<CallableLifetimeBinding>,
     elided_lifetimes: Vec<crate::name::Identifier>,
     invocation_elision: Option<(
-        SymbolHandle,
-        usize,
+        InvocationElisionOwner,
         crate::type_identity::identity_context::SignatureElision,
     )>,
     types: Vec<(SymbolHandle, types::TypeReferenceHandle)>,
@@ -7860,6 +7859,18 @@ pub(crate) struct CallableApplication {
         crate::callable_values::RuntimeCallableContractHandle,
         crate::callable_values::RuntimeCallableContractHandle,
     )>,
+}
+
+enum InvocationElisionOwner {
+    GeneratedCaller {
+        symbol: SymbolHandle,
+        position: usize,
+    },
+    SourceApplication {
+        application: crate::static_applications::StaticMachineApplicationHandle,
+        caller: SymbolHandle,
+        source: source::SourceSpan,
+    },
 }
 
 struct CallableLifetimeBinding {
@@ -7977,36 +7988,56 @@ impl CallableApplication {
         &self,
         program: &mut TypedTrees,
     ) -> Result<ScopedCallableLifetime, &'static str> {
-        let (owner, position, elision) = self
+        let (scope, elision) = self
             .invocation_elision
             .as_ref()
             .ok_or("invocation has no elision scope")?;
         let ordinal = elision
             .region()
             .ok_or("invocation result has ambiguous lifetime elision")?;
-        if !program
-            .machines()
-            .get(*position)
-            .is_some_and(|machine| machine.symbol == *owner)
-        {
-            return Err("invocation lost its unique lifetime declaration");
+        let (owner, parameters) = match scope {
+            InvocationElisionOwner::GeneratedCaller { symbol, position } => {
+                if !program
+                    .machines()
+                    .get(*position)
+                    .is_some_and(|machine| machine.symbol == *symbol)
+                {
+                    return Err("invocation lost its unique lifetime declaration");
+                }
+                (
+                    *symbol,
+                    &mut program.machine_mut(*position).lifetime_parameters,
+                )
+            }
+            InvocationElisionOwner::SourceApplication {
+                application,
+                caller,
+                source,
+            } => {
+                let owner =
+                    program.retain_inferred_lifetime_owner(*application, *caller, *source)?;
+                (
+                    owner,
+                    &mut program
+                        .expression_table
+                        .static_machine_application_mut(*application)
+                        .inferred_lifetime_parameters,
+                )
+            }
+        };
+        if parameters.len() == ordinal {
+            parameters.push(crate::name::Identifier::generated(format!(
+                "@invocation-region-{ordinal}"
+            )));
         }
-        if program.machines().at(*position).lifetime_parameters.len() == ordinal {
-            program.machine_mut(*position).lifetime_parameters.push(
-                crate::name::Identifier::generated(format!("@invocation-region-{ordinal}")),
-            );
-        }
-        let name = program
-            .machines()
-            .at(*position)
-            .lifetime_parameters
+        let name = parameters
             .get(ordinal)
             .cloned()
             .ok_or("invocation elision skipped a declaration ordinal")?;
         Ok(ScopedCallableLifetime {
             name,
             region: crate::type_identity::LifetimeParameterIdentity {
-                declaration: *owner,
+                declaration: owner,
                 ordinal,
             },
             origin: CallableLifetimeOrigin::Lexical,
@@ -8232,6 +8263,175 @@ impl CallableApplication {
 }
 
 impl TypedTrees {
+    /// Keep inferred argument regions on the actual call. They are not new
+    /// public binders of either the caller or the selected declaration.
+    pub fn complete_inferred_call_argument_regions(
+        &mut self,
+        arguments: &[types::TypeReferenceHandle],
+        application: crate::static_applications::StaticMachineApplicationHandle,
+        caller: SymbolHandle,
+        source: source::SourceSpan,
+    ) -> Result<Vec<types::TypeReferenceHandle>, &'static str> {
+        if !self
+            .expression_table
+            .static_machine_application_is_valid(application)
+            || !self.symbols.symbols().nodes().is_valid(caller)
+        {
+            return Err("inferred argument regions lost their source invocation");
+        }
+        let occurrence = self
+            .expression_table
+            .static_machine_application(application);
+        if occurrence.lexical_owner != caller
+            || !self
+                .symbols
+                .symbols()
+                .nodes()
+                .is_valid(occurrence.registration_operation)
+        {
+            return Err("inferred argument regions changed their exact source call frame");
+        }
+        let mut substitution = CallableApplication {
+            region_scope: caller,
+            static_argument_owner: caller,
+            invocation_elision: Some((
+                InvocationElisionOwner::SourceApplication {
+                    application,
+                    caller,
+                    source,
+                },
+                crate::type_identity::identity_context::SignatureElision::inputs(0),
+            )),
+            ..Default::default()
+        };
+        arguments
+            .iter()
+            .map(|argument| substitution.type_reference(self, *argument))
+            .collect()
+    }
+
+    fn retain_inferred_lifetime_owner(
+        &mut self,
+        application: crate::static_applications::StaticMachineApplicationHandle,
+        caller: SymbolHandle,
+        source: source::SourceSpan,
+    ) -> Result<SymbolHandle, &'static str> {
+        let retained = self
+            .expression_table
+            .static_machine_application(application);
+        if retained.inferred_lifetime_owner.is_valid() {
+            if retained.inferred_lifetime_source != Some(source)
+                || self
+                    .inferred_invocation_lifetime_scope(retained.inferred_lifetime_owner)
+                    .is_none()
+            {
+                return Err("inferred regions changed their retained source invocation");
+            }
+            return Ok(retained.inferred_lifetime_owner);
+        }
+        let authored = self
+            .symbols
+            .symbol_provenance_source_span(caller)
+            .ok_or("inferred regions need their captured requesting source")?;
+        let file = self
+            .symbols
+            .source_file(source)
+            .ok_or("inferred regions lost their captured source occurrence")?;
+        if source.source_id != authored.source_id
+            || source.span.start >= source.span.end
+            || file
+                .source
+                .get(source.span.start..source.span.end)
+                .is_none()
+        {
+            return Err("inferred regions do not belong to their actual caller source");
+        }
+        // Commit the original source and selected declaration once. Arena
+        // numbers and presentation paths cannot identify this private scope
+        // when the same declaration is captured into another typed program.
+        use sha2::{Digest, Sha256};
+        let mut identity = Sha256::new();
+        identity.update(b"omega.inferred-call-regions.v1\0");
+        let caller_identity = self
+            .normalized_hermetic_symbol_identity(caller)
+            .map_err(|_| "inferred regions lost their canonical caller identity")?;
+        let target_identity = self
+            .normalized_hermetic_symbol_identity(retained.registration_operation)
+            .map_err(|_| "inferred regions lost their canonical selected declaration")?;
+        for part in [caller_identity.as_bytes(), target_identity.as_bytes()] {
+            identity.update((part.len() as u64).to_le_bytes());
+            identity.update(part);
+        }
+        let source_identity = source::source_identity::canonical_source_entry(file)
+            .map_err(|_| "inferred regions lost their captured source identity")?;
+        identity.update(Sha256::digest(source_identity));
+        identity.update((source.span.start as u64).to_le_bytes());
+        identity.update((source.span.end as u64).to_le_bytes());
+        let identity = format!("@inferred-call-regions-{:x}", identity.finalize());
+        let name = format!(
+            "@invocation-regions-{}-{}",
+            source.span.start, source.span.end
+        );
+        let owner = self
+            .symbols
+            .append_generated_children_from(
+                caller,
+                [(caller, symbols::SymbolKind::CallableContract, name.as_str())],
+            )
+            .start();
+        let retained = self
+            .expression_table
+            .static_machine_application_mut(application);
+        retained.inferred_lifetime_owner = owner;
+        retained.inferred_lifetime_source = Some(source);
+        retained.inferred_lifetime_identity = identity;
+        self.expression_table
+            .retain_inferred_lifetime_application(application);
+        Ok(owner)
+    }
+
+    /// Copies keep the original source invocation. An exchanged roster or
+    /// source occurrence cannot make a generated name into a region owner.
+    pub fn inferred_invocation_lifetime_scope(
+        &self,
+        owner: SymbolHandle,
+    ) -> Option<(&[crate::name::Identifier], &str)> {
+        if !self.symbols.symbols().nodes().is_valid(owner) {
+            return None;
+        }
+        let symbol = self.symbols.get(owner);
+        if symbol.kind != symbols::SymbolKind::CallableContract
+            || symbol.generated_from != symbol.parent
+            || !self.symbols.symbols().nodes().is_valid(symbol.parent)
+        {
+            return None;
+        }
+        let application = self.expression_table.inferred_lifetime_application(owner)?;
+        let retained = self
+            .expression_table
+            .static_machine_application(application);
+        let source = retained.inferred_lifetime_source?;
+        let authored = self.symbols.symbol_provenance_source_span(symbol.parent)?;
+        let file = self.symbols.source_file(source)?;
+        (retained.inferred_lifetime_owner == owner
+            && source.source_id == authored.source_id
+            && self.symbols.name(owner)
+                == format!(
+                    "@invocation-regions-{}-{}",
+                    source.span.start, source.span.end
+                )
+            && !retained.inferred_lifetime_identity.is_empty()
+            && source.span.start < source.span.end
+            && file
+                .source
+                .get(source.span.start..source.span.end)
+                .is_some())
+        .then_some((
+            retained.inferred_lifetime_parameters.as_slice(),
+            retained.inferred_lifetime_identity.as_str(),
+        ))
+    }
+
     pub(crate) fn apply_refinement_postconditions(
         &mut self,
         receiving: &mut signature::StateSignature,
@@ -8430,8 +8630,10 @@ impl TypedTrees {
                 })
                 .collect(),
             invocation_elision: Some((
-                caller.symbol,
-                *position as usize,
+                InvocationElisionOwner::GeneratedCaller {
+                    symbol: caller.symbol,
+                    position: *position as usize,
+                },
                 crate::type_identity::identity_context::SignatureElision::inputs(declared.len()),
             )),
             ..Default::default()
@@ -8444,7 +8646,7 @@ impl TypedTrees {
             .invocation_elision
             .as_ref()
             .unwrap()
-            .2
+            .1
             .enter_result(declared.len(), 0);
         let result = application.type_reference(self, result)?;
         caller.lifetime_parameters = self

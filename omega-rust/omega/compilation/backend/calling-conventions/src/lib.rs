@@ -76,7 +76,7 @@ pub use plans::{
     CallingPolicyRejection, EntryControl, EntryStack, GeneratedEntryControl,
     GeneratedEntryEvidence, GeneratedEntryInstruction, IndirectPointerLocation, MachineRegime,
     MachineRegister, MachineState, MachineStateSet, PlanDiagnostic, Preemption, RegisterSet,
-    StateEffectsEvidence, StateFootprintEvidence, StatePlan, SystemVEightbyteClass,
+    StateEffectsEvidence, StateFootprintEvidence, StatePlan, SystemVEightbyteClass, TableParameter,
     ValidatedBoundaryEntryPlan, ValueClass, ValueLocation, ValuePlacement, ValueShape,
     byte_size_at_offset_zero, encode_state_plan_identity, evaluate_call_plan,
     evaluate_ordinary_boundary_entry_plan, gpr_code, validate_boundary_entry_plan,

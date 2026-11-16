@@ -1854,8 +1854,8 @@ pub(crate) mod call_arguments {
                 legalized_operations::LegalizedScalarInstructionKind::NormalizedForeignCall(
                     call,
                 ) => {
-                    let mut arguments = crate::selection::scalar_call_abi::normalized_foreign::structural_parameter_positions(call)
-                        .zip(&call.structural_arguments).filter(|(ordinal,_)| *ordinal == position);
+                    let mut arguments = crate::selection::scalar_call_abi::normalized_foreign::structural_parameter_positions(call)?
+                        .into_iter().zip(&call.structural_arguments).filter(|(ordinal,_)| *ordinal == position);
                     let (_, argument) = arguments.next()?;
                     arguments.next().is_none().then_some(argument.place)
                 }
@@ -5207,6 +5207,8 @@ pub(crate) mod normalized_foreign {
             crate::selection::scalar_call_abi::normalized_foreign::structural_parameter_positions(
                 call,
             )
+            .ok_or(SelectedInstructionError::custody())?
+            .into_iter()
             .zip(&call.structural_arguments)
             .zip(&call.structural_indices)
         {

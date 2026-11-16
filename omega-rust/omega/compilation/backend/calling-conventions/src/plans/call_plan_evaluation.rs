@@ -496,6 +496,7 @@ fn evaluate_microsoft_x64(signature: &CallSignature) -> Result<CallPlan, PlanDia
     let copy_stack_offset = 32 + (stack_parameter_slots * 8) as u32;
     reserve_indirect_copies(&mut parameters, copy_stack_offset, |_| 16, 16)?;
     Ok(CallPlan {
+        table_parameter: crate::TableParameter::None,
         policy: CallingPolicy::MicrosoftX64,
         parameters,
         result: if indirect_result {
@@ -765,6 +766,7 @@ fn evaluate_split_bank_call(
         stack_alignment,
     )?;
     Ok(CallPlan {
+        table_parameter: crate::TableParameter::None,
         policy,
         parameters,
         result: result_placement(signature.result, integer_results, float_register)?,
@@ -947,6 +949,7 @@ fn evaluate_syscall(
         None => None,
     };
     Ok(CallPlan {
+        table_parameter: crate::TableParameter::None,
         policy,
         parameters,
         result,

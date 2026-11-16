@@ -377,16 +377,10 @@ pub(crate) fn derive_normalized_foreign_child(
         .len()
         .checked_add(dispatch_count)
         .ok_or("normalized foreign D41 operand count overflow")?;
-    let semantic_positions: Vec<_> = (0..operand_count)
-        .filter(|position| {
-            position
-                .checked_sub(dispatch_count)
-                .is_none_or(|ordinal| callback_ordinals.binary_search(&ordinal).is_err())
-        })
-        .collect();
-    if semantic_positions.len() != declaration.parameter_order.len() {
-        return Err("normalized foreign D41 child changed its complete native signature");
-    }
+    let semantic_positions = foreign
+        .binding
+        .semantic_operand_positions(declaration.parameter_order.len(), &callback_ordinals)
+        .ok_or("normalized foreign D41 child changed its complete native signature")?;
     for (physical, semantic_position) in foreign
         .scalar_arguments
         .iter()

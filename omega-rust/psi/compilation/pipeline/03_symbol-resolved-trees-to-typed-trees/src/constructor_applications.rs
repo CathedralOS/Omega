@@ -532,6 +532,7 @@ fn infer_call(
     {
         return Ok(None);
     }
+    let supplied_count = supplied.len();
     let mut arguments = supplied.to_vec();
     let mut inferred = vec![None; omitted.len()];
     for (formal, argument) in formals.iter().zip(call.arguments.iter().copied()) {
@@ -574,6 +575,22 @@ fn infer_call(
             .lexical_owner = caller;
         application
     };
+    let inferred = arguments[supplied_count..]
+        .iter()
+        .map(|argument| argument.type_reference)
+        .collect::<Vec<_>>();
+    let inferred = program
+        .complete_inferred_call_argument_regions(&inferred, application, caller, call.source_span)
+        .map_err(|reason| Diagnostic::error(reason).with_source_span(call.source_span))?;
+    for (argument, reference) in arguments[supplied_count..].iter_mut().zip(inferred) {
+        argument.type_reference = reference;
+    }
+    program
+        .expression_table
+        .set_static_machine_application_arguments(application, &arguments);
+    program
+        .retain_inferred_static_argument_context(application, caller)
+        .map_err(|reason| Diagnostic::error(reason).with_source_span(call.source_span))?;
     Ok(Some(application))
 }
 
@@ -1331,6 +1348,162 @@ mod tests {
             completed += 1;
         }
         assert!(completed >= 3, "constant and runtime applications");
+    }
+
+    #[test]
+    fn inferred_nominal_regions_belong_to_the_call_without_changing_public_binders() {
+        let mut program = checked(&[(
+            "main.omg",
+            r#"
+public data View<'text> { bytes: &'text [u8]; }
+public boundary trait Sink {
+    machine send<A, B>(first: A, second: B) reaches none crashes none;
+}
+machine main() {
+    Sink::send(View { bytes: "one" }, View { bytes: "two" });
+    Sink::send(View { bytes: "red" }, View { bytes: "blue" });
+}
+"#,
+        )])
+        .expect("ordinary inferred record arguments retain their complete region applications");
+        let caller = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "main")
+            .unwrap();
+        let caller_symbol = caller.symbol;
+        assert!(caller.lifetime_parameters.is_empty());
+        let identity = program.machine_callable_identity_text(caller).unwrap();
+        let owner = program
+            .traits()
+            .iter()
+            .find(|owner| owner.name.as_str() == "Sink")
+            .unwrap();
+        let signature = &program.trait_machine_signatures(owner)[0];
+        let target = signature.symbol;
+        assert!(signature.lifetime_parameters.is_empty());
+        let application = program
+            .expression_table
+            .static_machine_applications()
+            .find(|(_, application)| {
+                application.registration_operation == signature.symbol
+                    && application.inferred_lifetime_owner.is_valid()
+            })
+            .map(|(handle, _)| handle)
+            .unwrap();
+        let scope = program
+            .expression_table
+            .static_machine_application(application)
+            .inferred_lifetime_owner;
+        let (parameters, _) = program.inferred_invocation_lifetime_scope(scope).unwrap();
+        assert_eq!(
+            parameters.len(),
+            2,
+            "independent inferred type arguments have independent regions"
+        );
+        for (ordinal, argument) in program
+            .expression_table
+            .static_machine_application_arguments(application)
+            .iter()
+            .enumerate()
+        {
+            assert!(
+                matches!(program.type_reference_table.type_reference(argument.type_reference), TypeReferenceNode::Generic { lifetime_arguments, .. } if lifetime_arguments.len() == 1)
+            );
+            let [region] = program
+                .type_reference_table
+                .operand_lifetimes(argument.type_reference)
+            else {
+                panic!("one complete nominal region")
+            };
+            assert_eq!(region.declaration, scope);
+            assert_eq!(region.ordinal, ordinal);
+            assert!(
+                typed_trees::type_identity::portable_lifetime_parameter_identity(&program, *region)
+                    .is_some()
+            );
+        }
+        let caller = program.machine_by_symbol(caller_symbol).unwrap();
+        assert!(caller.lifetime_parameters.is_empty());
+        assert_eq!(
+            program.machine_callable_identity_text(caller).as_deref(),
+            Some(identity.as_str())
+        );
+        let original = program
+            .expression_table
+            .static_machine_application(application)
+            .inferred_lifetime_source
+            .unwrap();
+        let other_scope = program
+            .expression_table
+            .static_machine_applications()
+            .find(|(handle, other)| {
+                *handle != application && other.inferred_lifetime_owner.is_valid()
+            })
+            .map(|(_, other)| other.inferred_lifetime_owner)
+            .unwrap();
+        assert_ne!(scope, other_scope);
+        let actual_arguments = program
+            .expression_table
+            .static_machine_application_arguments(application)
+            .iter()
+            .map(|argument| argument.type_reference)
+            .collect::<Vec<_>>();
+        program
+            .require_owned_application_operands(&actual_arguments, caller_symbol)
+            .unwrap();
+        program
+            .expression_table
+            .static_machine_application_mut(application)
+            .inferred_lifetime_owner = other_scope;
+        assert!(program.inferred_invocation_lifetime_scope(scope).is_none());
+        assert!(
+            program
+                .require_owned_application_operands(&actual_arguments, caller_symbol)
+                .is_err(),
+            "exchanging the private owner/application must refuse at the actual closed-operand check"
+        );
+        program
+            .expression_table
+            .static_machine_application_mut(application)
+            .inferred_lifetime_owner = scope;
+        program
+            .require_owned_application_operands(&actual_arguments, caller_symbol)
+            .unwrap();
+        assert!(
+            program
+                .complete_inferred_call_argument_regions(&[], application, target, original)
+                .is_err(),
+            "another declaration cannot replace the actual source caller"
+        );
+        assert!(
+            program
+                .complete_inferred_call_argument_regions(
+                    &[],
+                    Default::default(),
+                    caller_symbol,
+                    original
+                )
+                .is_err(),
+            "an unknown application cannot acquire an inferred region scope"
+        );
+        program
+            .expression_table
+            .static_machine_application_mut(application)
+            .inferred_lifetime_source
+            .as_mut()
+            .unwrap()
+            .span
+            .start += 1;
+        assert!(
+            program.inferred_invocation_lifetime_scope(scope).is_none(),
+            "the retained source occurrence cannot be exchanged"
+        );
+        program
+            .expression_table
+            .static_machine_application_mut(application)
+            .inferred_lifetime_source = Some(original);
+        assert!(program.inferred_invocation_lifetime_scope(scope).is_some());
     }
 
     #[test]

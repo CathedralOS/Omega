@@ -352,6 +352,35 @@ pub(crate) mod source_occurrences {
                 Ok(())
             }
 
+            /// Inference can add a static tuple after the initial context pass.
+            /// Use the same source-retention owner before another pass copies
+            /// those arguments. This records existing scope; it does not close
+            /// an omitted nominal or lifetime application.
+            pub fn retain_inferred_static_argument_context(
+                &mut self,
+                application: crate::static_applications::StaticMachineApplicationHandle,
+                owner: SymbolHandle,
+            ) -> Result<(), &'static str> {
+                if !owner.is_valid()
+                    || !self.symbols.symbols().nodes().is_valid(owner)
+                    || !self
+                        .expression_table
+                        .static_machine_application_is_valid(application)
+                {
+                    return Err(
+                        "inferred static arguments lost their actual source application or owner",
+                    );
+                }
+                self.begin_declaration_output();
+                let original = self
+                    .static_machine_application_arguments(application)
+                    .to_vec();
+                let mut supplied = original.clone();
+                self.retain_static_operand_sources(&mut supplied, owner)?;
+                self.retain_application_source_context(application, owner, None);
+                self.retain_application_operand_sources(application, &original, &supplied)
+            }
+
             fn retain_application_source_context(
                 &mut self,
                 application: crate::static_applications::StaticMachineApplicationHandle,

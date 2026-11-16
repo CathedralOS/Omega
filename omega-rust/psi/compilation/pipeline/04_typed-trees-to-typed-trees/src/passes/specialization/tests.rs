@@ -1656,3 +1656,237 @@ fn the_application_index_finds_each_generated_machine_by_its_complete_key() {
         assert!(generated.search(template, &key).is_err());
     }
 }
+
+#[test]
+fn retained_type_arguments_require_the_exact_lifetime_scope() {
+    let mut builder = SymbolTableBuilder::default();
+    let data = builder.insert_root(SymbolKind::Data, SymbolNameRef::Static("Message"));
+    let caller = builder.insert_root(SymbolKind::Machine, SymbolNameRef::Static("caller"));
+    let foreign = builder.insert_root(SymbolKind::Machine, SymbolNameRef::Static("foreign"));
+    let mut program = TypedTrees {
+        symbols: builder.finish(),
+        ..Default::default()
+    };
+    program.push_data_definition(typed_trees::data::DataDefinition {
+        symbol: data,
+        name: Identifier::generated("Message"),
+        lifetime_parameters: vec![Identifier::generated("text")],
+        ..Default::default()
+    });
+    for (symbol, name, region) in [(caller, "caller", "bytes"), (foreign, "foreign", "bytes")] {
+        let state = program.machine_states.insert_many([State::default()]);
+        program.push_machine(Machine {
+            symbol,
+            name: Identifier::generated(name),
+            lifetime_parameters: vec![Identifier::generated(region)],
+            states: state,
+            ..Default::default()
+        });
+    }
+    let original = program.machine_by_symbol(caller).unwrap().clone();
+    let identity = program.machine_callable_identity_text(&original);
+    assert!(
+        identity.is_some(),
+        "the unchanged caller has a published identity"
+    );
+    // The selected source application and its retained type must agree even
+    // when both scopes declare the same spelling. Only its original resolved
+    // declaration/ordinal can supply that region after an application is copied.
+    let mut selected = StaticMachineArgument {
+        symbol: data,
+        path: vec![Identifier::generated("Message")].into_boxed_slice(),
+        application: Some(Box::new(typed_trees::expression::StaticSymbolApplication {
+            lifetime_arguments: vec![Identifier::generated("bytes")].into_boxed_slice(),
+            member: arena::Handle::invalid(),
+            arguments: Box::new([]),
+        })),
+        ..Default::default()
+    };
+    selected.type_reference = program
+        .static_operand_type_reference_in_scope(&selected, caller)
+        .unwrap();
+    selected.type_reference = program
+        .apply_callable_type_in_scope(
+            selected.type_reference,
+            &[],
+            &[(
+                Identifier::generated("bytes"),
+                Identifier::generated("bytes"),
+            )],
+            caller,
+            caller,
+            &[],
+        )
+        .unwrap();
+    assert!(super::named_type(&mut program, &selected).is_ok());
+    let selected_identity = typed_trees::type_identity::applied_type_identity(
+        &program,
+        selected.type_reference,
+        caller,
+        &[],
+    )
+    .unwrap();
+    let mut legitimate_foreign = selected.clone();
+    legitimate_foreign.type_reference = TypeReferenceHandle::invalid();
+    legitimate_foreign.type_reference = program
+        .static_operand_type_reference_in_scope(&legitimate_foreign, foreign)
+        .unwrap();
+    legitimate_foreign.type_reference = program
+        .apply_callable_type_in_scope(
+            legitimate_foreign.type_reference,
+            &[],
+            &[(
+                Identifier::generated("bytes"),
+                Identifier::generated("bytes"),
+            )],
+            foreign,
+            foreign,
+            &[],
+        )
+        .unwrap();
+    assert!(super::named_type(&mut program, &legitimate_foreign).is_ok());
+    assert_ne!(
+        selected_identity,
+        typed_trees::type_identity::applied_type_identity(
+            &program,
+            legitimate_foreign.type_reference,
+            foreign,
+            &[]
+        )
+        .unwrap(),
+        "same-spelled lifetimes retain distinct exact supplying scopes"
+    );
+    let retained = program
+        .type_reference_table
+        .operand_lifetimes(selected.type_reference)
+        .to_vec();
+    assert_eq!(
+        retained,
+        vec![typed_trees::type_identity::LifetimeParameterIdentity {
+            declaration: caller,
+            ordinal: 0
+        }]
+    );
+    let mut exchanged = selected.clone();
+    exchanged.application.as_mut().unwrap().lifetime_arguments[0] = Identifier::generated("other");
+    assert!(super::named_type(&mut program, &exchanged).is_err());
+    assert_eq!(
+        program
+            .type_reference_table
+            .operand_lifetimes(selected.type_reference),
+        retained
+    );
+    let original_type = program
+        .type_reference_table
+        .type_reference(selected.type_reference)
+        .clone();
+    let contradictory = program.type_reference_table.insert(original_type);
+    program
+        .type_reference_table
+        .retain_operand_lifetime_owner(contradictory, foreign)
+        .unwrap();
+    program
+        .type_reference_table
+        .retain_operand_lifetimes(contradictory, retained.iter().copied())
+        .unwrap();
+    let mut exchanged = selected.clone();
+    exchanged.type_reference = contradictory;
+    assert!(
+        super::named_type(&mut program, &exchanged).is_err(),
+        "a same-spelled foreign binder cannot replace the actual retained region"
+    );
+    for (owner, lifetime, accepted) in [
+        (caller, "bytes", true),
+        (foreign, "other", false),
+        (SymbolHandle::invalid(), "bytes", false),
+        (caller, "missing", false),
+    ] {
+        let reference = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Generic {
+                base_symbol: data,
+                base_name: Identifier::generated("Message"),
+                lifetime_arguments: vec![Identifier::generated(lifetime)],
+                arguments: HandleSpan::empty(),
+            });
+        program
+            .type_reference_table
+            .retain_operand_lifetime_owner(reference, owner)
+            .unwrap();
+        let argument = StaticMachineArgument {
+            type_reference: reference,
+            ..Default::default()
+        };
+        assert_eq!(super::named_type(&mut program, &argument).is_ok(), accepted);
+        assert_eq!(
+            program
+                .machine_by_symbol(caller)
+                .unwrap()
+                .lifetime_parameters,
+            original.lifetime_parameters
+        );
+        assert_eq!(
+            program.machine_callable_identity_text(program.machine_by_symbol(caller).unwrap()),
+            identity
+        );
+    }
+}
+
+#[test]
+fn a_retained_type_parameter_stays_open_and_keeps_its_selected_declaration() {
+    let Source {
+        mut program,
+        forward,
+        relay,
+        boolean,
+        ..
+    } = source();
+    let mut selected = argument(relay.parameter, "T");
+    selected.type_reference = program
+        .static_operand_type_reference_in_scope(&selected, relay.machine)
+        .expect("the authored type argument retains its original scope");
+    assert!(
+        !program
+            .prepare_data_application_view(selected.type_reference)
+            .unwrap(),
+        "an open parameter is not a closed data application"
+    );
+    let operand = super::Operand::read(
+        &mut program,
+        forward.parameter,
+        &TypeParameterKind::Type,
+        &selected,
+    )
+    .unwrap_or_else(|_| panic!("an open type parameter can be passed to another generic body"));
+    assert!(operand.is_open(&program));
+    assert_eq!(operand.declaration(), Some(relay.parameter));
+    assert_eq!(
+        operand.value,
+        StaticMachineBindingValue::Type(selected.type_reference)
+    );
+    assert_eq!(
+        program
+            .type_reference_table
+            .operand_lifetime_owner(selected.type_reference),
+        relay.machine
+    );
+
+    let mut changed = selected.clone();
+    changed.symbol = boolean;
+    assert!(super::named_type(&mut program, &changed).is_err());
+    let parameters = program
+        .machine_by_symbol(relay.machine)
+        .unwrap()
+        .type_parameters;
+    let carrier = named(&mut program, boolean, "bool");
+    program
+        .data_type_parameters
+        .get_mut(parameters.start())
+        .kind = TypeParameterKind::Const {
+        type_reference: carrier,
+    };
+    assert!(
+        super::named_type(&mut program, &selected).is_err(),
+        "a const parameter cannot be passed as a type"
+    );
+}

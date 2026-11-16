@@ -315,17 +315,12 @@ pub(super) fn foreign_call_custody_digest(calls: &[image_emission::ObjectForeign
                 digest.raw(application_commitment);
                 same_stack_contribution
             }
-            target_operations::NormalizedForeignCallMechanism::Table {
-                target,
-                byte_offset,
-                dispatch_only,
-                same_stack_contribution,
-            } => {
+            target_operations::NormalizedForeignCallMechanism::Table { .. } => {
                 digest.raw(&[3]);
-                hash_bytes(&mut digest, target.target_name().as_bytes());
-                digest.raw(&byte_offset.to_le_bytes());
-                digest.raw(&[u8::from(*dispatch_only)]);
-                same_stack_contribution
+                let mut encoded = Vec::new();
+                legalized_operations::encode_call_mechanism(&mut encoded, &call.binding.mechanism);
+                hash_bytes(&mut digest, &encoded);
+                continue;
             }
             target_operations::NormalizedForeignCallMechanism::SystemCall(_) => continue,
         };

@@ -376,3 +376,427 @@ fn captured_toolchain_binding_keeps_complete_source_and_signature_custody() {
         );
     }
 }
+
+fn table_selector(typed: &TypedTrees) -> (SymbolHandle, semantic_vocabulary::NativeBindingLocator) {
+    table_selector_with_query(typed, None)
+}
+
+fn table_selector_with_query(
+    typed: &TypedTrees,
+    field_query: Option<&typed_trees::expression::StaticMachineArgument>,
+) -> (SymbolHandle, semantic_vocabulary::NativeBindingLocator) {
+    let owner = typed
+        .traits()
+        .iter()
+        .find(|owner| owner.name.as_str() == "Raw")
+        .unwrap();
+    let signature = &typed.trait_machine_signatures(owner)[0];
+    let formal = &typed.state_signature_parameters(signature)[1];
+    let reference = typed
+        .type_reference_table
+        .unconstrained_type_reference(formal.type_reference);
+    let table_type = match typed.type_reference_table.type_reference(reference) {
+        typed_trees::types::TypeReferenceNode::Reference { referee, .. } => *referee,
+        _ => reference,
+    };
+    let data = typed.closed_data_definition(table_type).unwrap();
+    let field = typed.data_members(data)[1].as_field().unwrap().symbol;
+    let plain_field = typed_trees::expression::StaticMachineArgument {
+        symbol: field,
+        ..Default::default()
+    };
+    let from_query = typed_trees::reflection::construction::field_description_identity(
+        typed,
+        field_query.unwrap_or(&plain_field),
+        signature.symbol,
+    )
+    .unwrap();
+    let from_type = typed_trees::reflection::construction::field_description_for_type(
+        typed,
+        table_type,
+        field,
+        signature.symbol,
+    )
+    .unwrap();
+    assert_eq!(
+        from_query, from_type,
+        "the typed borrowed table must describe the existing field selector's exact owner application"
+    );
+    (
+        signature.symbol,
+        semantic_vocabulary::NativeBindingLocator::FunctionField {
+            table: typed_trees::reflection::construction::parameter_description_identity(
+                typed,
+                formal.symbol,
+                signature.symbol,
+            )
+            .unwrap(),
+            field: typed_trees::reflection::construction::field_description_for_type(
+                typed,
+                table_type,
+                field,
+                signature.symbol,
+            )
+            .unwrap(),
+        },
+    )
+}
+
+const TABLE_REQUIREMENT: &str = "public data Table { marker: u64; function: addr; }\npublic boundary trait Raw { machine read(value: u64, table: &Table) -> u64 reaches none crashes none; }";
+
+#[test]
+fn a_table_selector_uses_the_exact_nonprefix_formal_and_field() {
+    let make = |source: &str| {
+        typed_requirement(
+            source,
+            SourceOrigin::User,
+            Some(package(7)),
+            SourceResolutionStratum::Base,
+            false,
+        )
+    };
+    let typed = make(TABLE_REQUIREMENT);
+    let (requirement, locator) = table_selector(&typed);
+    authenticate_locator(
+        &typed,
+        requirement,
+        &locator,
+        package(7),
+        SourceResolutionStratum::Base,
+    )
+    .unwrap();
+    let semantic_vocabulary::NativeBindingLocator::FunctionField { table, field } = &locator else {
+        unreachable!()
+    };
+    assert_eq!(table.declaration_position, 1);
+    assert_eq!(field.declaration_position, 1);
+    for (mutated, reason) in [
+        (
+            {
+                let mut x = table.clone();
+                x.declaration_position = 0;
+                semantic_vocabulary::NativeBindingLocator::FunctionField {
+                    table: x,
+                    field: field.clone(),
+                }
+            },
+            "exact formal",
+        ),
+        (
+            {
+                let mut x = table.clone();
+                x.qualified_type.push(0);
+                semantic_vocabulary::NativeBindingLocator::FunctionField {
+                    table: x,
+                    field: field.clone(),
+                }
+            },
+            "exact formal",
+        ),
+        (
+            {
+                let mut x = field.clone();
+                x.declaration_position = 0;
+                semantic_vocabulary::NativeBindingLocator::FunctionField {
+                    table: table.clone(),
+                    field: x,
+                }
+            },
+            "live non-atomic addr",
+        ),
+        (
+            {
+                let mut x = field.clone();
+                x.source_revision.push(0);
+                semantic_vocabulary::NativeBindingLocator::FunctionField {
+                    table: table.clone(),
+                    field: x,
+                }
+            },
+            "exact field",
+        ),
+        (
+            {
+                let mut x = field.clone();
+                x.owner_application.push(0);
+                semantic_vocabulary::NativeBindingLocator::FunctionField {
+                    table: table.clone(),
+                    field: x,
+                }
+            },
+            "exact field",
+        ),
+    ] {
+        assert!(
+            authenticate_locator(
+                &typed,
+                requirement,
+                &mutated,
+                package(7),
+                SourceResolutionStratum::Base
+            )
+            .unwrap_err()
+            .contains(reason)
+        );
+    }
+    for source in [
+        TABLE_REQUIREMENT.to_owned(),
+        TABLE_REQUIREMENT.replace("table: &Table", "table: &mut Table"),
+    ] {
+        let readable = make(&source);
+        let (requirement, locator) = table_selector(&readable);
+        authenticate_locator(
+            &readable,
+            requirement,
+            &locator,
+            package(7),
+            SourceResolutionStratum::Base,
+        )
+        .unwrap();
+    }
+    let write_only = make(&TABLE_REQUIREMENT.replace("table: &Table", "table: &write Table"));
+    let (requirement, locator) = table_selector(&write_only);
+    assert!(
+        authenticate_locator(
+            &write_only,
+            requirement,
+            &locator,
+            package(7),
+            SourceResolutionStratum::Base
+        )
+        .unwrap_err()
+        .contains("permits reading the dispatch field")
+    );
+    let owned = make(&TABLE_REQUIREMENT.replace("table: &Table", "table: Table"));
+    let (requirement, locator) = table_selector(&owned);
+    assert!(
+        authenticate_locator(
+            &owned,
+            requirement,
+            &locator,
+            package(7),
+            SourceResolutionStratum::Base
+        )
+        .unwrap_err()
+        .contains("explicitly borrowed")
+    );
+    let non_address = make(&TABLE_REQUIREMENT.replace("function: addr", "function: u64"));
+    let (requirement, locator) = table_selector(&non_address);
+    assert!(
+        authenticate_locator(
+            &non_address,
+            requirement,
+            &locator,
+            package(7),
+            SourceResolutionStratum::Base
+        )
+        .unwrap_err()
+        .contains("live non-atomic addr")
+    );
+}
+
+#[test]
+fn an_applied_table_uses_the_original_field_query_description() {
+    use typed_trees::expression::{StaticMachineArgument, StaticSymbolApplication};
+    use typed_trees::types::TypeReferenceNode;
+    let source = TABLE_REQUIREMENT
+        .replace("Table { marker: u64", "Table<T> { marker: T")
+        .replace("table: &Table", "table: &Table<u64>");
+    let mut typed = typed_requirement(
+        &source,
+        SourceOrigin::User,
+        Some(package(7)),
+        SourceResolutionStratum::Base,
+        false,
+    );
+    let owner = typed
+        .traits()
+        .iter()
+        .find(|owner| owner.name.as_str() == "Raw")
+        .unwrap();
+    let signature = &typed.trait_machine_signatures(owner)[0];
+    let author = signature.symbol;
+    let formal = &typed.state_signature_parameters(signature)[1];
+    let TypeReferenceNode::Reference { referee, .. } = typed
+        .type_reference_table
+        .type_reference(formal.type_reference)
+    else {
+        panic!("the authored borrowed table")
+    };
+    let table = *referee;
+    let data = typed.closed_data_definition(table).unwrap();
+    let field = typed.data_members(data)[1].as_field().unwrap().symbol;
+    let TypeReferenceNode::Generic {
+        base_symbol,
+        base_name,
+        arguments,
+        lifetime_arguments,
+    } = typed.type_reference_table.type_reference(table).clone()
+    else {
+        panic!("the authored Table<u64> application")
+    };
+    let arguments = typed
+        .type_reference_table
+        .type_reference_handles(arguments)
+        .iter()
+        .map(|reference| {
+            typed
+                .static_operand_from_type_reference(*reference)
+                .unwrap()
+        })
+        .collect::<Vec<_>>();
+    // The original field query takes the complete selected type and its
+    // member path. Form that selection from the actual source application,
+    // using its ordinary operand preparation rather than a bare field symbol.
+    let mut selected = StaticMachineArgument {
+        symbol: base_symbol,
+        path: vec![base_name].into_boxed_slice(),
+        application: Some(Box::new(StaticSymbolApplication {
+            arguments: arguments.into_boxed_slice(),
+            lifetime_arguments: lifetime_arguments.into_boxed_slice(),
+            member: arena::Handle::invalid(),
+        })),
+        ..Default::default()
+    };
+    selected.type_reference = typed
+        .static_operand_type_reference_in_scope(&selected, author)
+        .unwrap();
+    assert!(
+        typed
+            .prepare_data_application_view(selected.type_reference)
+            .unwrap()
+    );
+    let member = typed
+        .expression_table
+        .insert_static_member(StaticMachineArgument {
+            symbol: field,
+            ..Default::default()
+        });
+    selected.application.as_mut().unwrap().member = member;
+    let (requirement, locator) = table_selector_with_query(&typed, Some(&selected));
+    authenticate_locator(
+        &typed,
+        requirement,
+        &locator,
+        package(7),
+        SourceResolutionStratum::Base,
+    )
+    .unwrap();
+    let semantic_vocabulary::NativeBindingLocator::FunctionField { field, .. } = locator else {
+        unreachable!()
+    };
+    assert!(!field.owner_application.is_empty());
+}
+
+#[test]
+fn constructed_table_descriptions_keep_product_privacy_and_temporal_scope() {
+    for (source, stratum, allowed) in [
+        (
+            TABLE_REQUIREMENT.to_owned(),
+            SourceResolutionStratum::Base,
+            true,
+        ),
+        (
+            TABLE_REQUIREMENT.replacen("public data Table", "data Table", 1),
+            SourceResolutionStratum::Base,
+            false,
+        ),
+        (
+            TABLE_REQUIREMENT.to_owned(),
+            SourceResolutionStratum::CurrentActivationExtension,
+            false,
+        ),
+    ] {
+        let typed = typed_requirement(&source, SourceOrigin::User, Some(package(8)), stratum, true);
+        let (requirement, locator) = table_selector(&typed);
+        let result = authenticate_locator(
+            &typed,
+            requirement,
+            &locator,
+            package(7),
+            SourceResolutionStratum::Base,
+        );
+        assert_eq!(result.is_ok(), allowed, "{result:?}");
+        if !allowed {
+            assert!(
+                result
+                    .unwrap_err()
+                    .contains("original Product visibility or temporal scope")
+            );
+        }
+        assert!(
+            authenticate_locator(
+                &typed,
+                requirement,
+                &locator,
+                package(9),
+                SourceResolutionStratum::Base
+            )
+            .unwrap_err()
+            .contains("original Product visibility or temporal scope")
+        );
+    }
+}
+
+#[test]
+fn captured_table_selectors_keep_the_original_supplier_and_exact_fields() {
+    let mut typed = typed_requirement(
+        TABLE_REQUIREMENT,
+        SourceOrigin::User,
+        Some(package(8)),
+        SourceResolutionStratum::Base,
+        true,
+    );
+    let (_, locator) = table_selector(&typed);
+    // These admission controls supply a completed host event, as the other
+    // capture tests do; they do not claim to execute Build or native code.
+    let (declarations, mut intents) = capture(&typed);
+    intents[0].locator = locator.clone();
+    let selections = collect_captured(&mut typed, &declarations, &intents).unwrap();
+    assert_eq!(selections.len(), 1);
+    assert_eq!(selections[0].locator, locator);
+    assert_eq!(selections[0].supplier_package, package(7));
+    let semantic_vocabulary::NativeBindingLocator::FunctionField { table, field } = locator else {
+        unreachable!()
+    };
+    for changed in [
+        {
+            let mut changed = field.clone();
+            changed.owner_application.push(0);
+            changed
+        },
+        {
+            let mut changed = field;
+            changed.member_identity.push(0);
+            changed
+        },
+    ] {
+        intents[0].locator = semantic_vocabulary::NativeBindingLocator::FunctionField {
+            table: table.clone(),
+            field: changed,
+        };
+        assert_refusal(
+            &mut typed,
+            &declarations,
+            &intents,
+            "changes the exact field",
+        );
+    }
+    let source = TABLE_REQUIREMENT.replacen("public data Table", "data Table", 1);
+    let mut private = typed_requirement(
+        &source,
+        SourceOrigin::User,
+        Some(package(8)),
+        SourceResolutionStratum::Base,
+        true,
+    );
+    let (_, locator) = table_selector(&private);
+    let (declarations, mut intents) = capture(&private);
+    intents[0].locator = locator;
+    assert_refusal(
+        &mut private,
+        &declarations,
+        &intents,
+        "original Product visibility or temporal scope",
+    );
+}

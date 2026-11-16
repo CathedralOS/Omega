@@ -104,11 +104,30 @@ impl TerminalBuildBindingAdapter {
         let selecting_machine = call
             .selecting_machine
             .ok_or_else(|| refuse("native Build call lost its selecting machine"))?;
-        let bytes = schema
-            .widths
-            .into_iter()
-            .try_fold(0u64, |total, width| total.checked_add(width))
-            .ok_or_else(|| refuse("native locator retained-byte count overflowed"))?;
+        let bytes = match (schema.vocabulary, schema.widths) {
+            (
+                language_core::core_vocabulary::ExternalBindingVocabulary::ForeignBinding,
+                Some(widths),
+            ) => widths
+                .into_iter()
+                .try_fold(0u64, |total, width| total.checked_add(width)),
+            (
+                language_core::core_vocabulary::ExternalBindingVocabulary::FunctionFieldBinding,
+                None,
+            ) => buffer.values().iter().try_fold(0u64, |total, value| {
+                let bytes = match &value.contents {
+                    TerminalStorageContents::Bytes(bytes) => u64::try_from(bytes.len()).ok()?,
+                    _ => 0,
+                };
+                total.checked_add(bytes)
+            }),
+            _ => {
+                return Err(refuse(
+                    "native locator vocabulary and coordinate widths disagree",
+                ));
+            }
+        }
+        .ok_or_else(|| refuse("native locator retained-byte count overflowed"))?;
         let storage = self
             .host
             .account
@@ -124,6 +143,7 @@ impl TerminalBuildBindingAdapter {
                 values: buffer.values(),
                 path: Vec::new(),
             },
+            schema.vocabulary,
             schema.widths,
         )
         .map_err(TerminalEffectRejection::new)?;
@@ -205,6 +225,58 @@ impl NativeLocatorValue for ValueRef<'_> {
                 })
                 .collect(),
         })
+    }
+    fn record(&self) -> Result<Vec<(&str, Self)>, String> {
+        let TerminalBuildValueShape::Record { fields } = self.shape else {
+            return Err("native locator expected its checked record shape".into());
+        };
+        Ok(fields
+            .iter()
+            .map(|field| {
+                let mut path = self.path.clone();
+                path.push(Path::Field(field.id));
+                (
+                    field.name.as_str(),
+                    Self {
+                        shape: &field.shape,
+                        values: self.values,
+                        path,
+                    },
+                )
+            })
+            .collect())
+    }
+    fn boolean(&self) -> Result<bool, String> {
+        if !matches!(
+            self.shape,
+            TerminalBuildValueShape::Scalar(semantic_vocabulary::ScalarType::Boolean)
+        ) {
+            return Err("native locator expected its checked Boolean carrier".into());
+        }
+        match self.observation()? {
+            TerminalStorageContents::Scalar {
+                value: TerminalScalarValue::Boolean(value),
+                stored_scalar: semantic_vocabulary::ScalarType::Boolean,
+            } => Ok(value),
+            _ => Err("native locator field did not observe its checked Boolean".into()),
+        }
+    }
+    fn text(&self) -> Result<Vec<u8>, String> {
+        if !matches!(self.shape, TerminalBuildValueShape::Bytes) {
+            return Err("native locator description has no checked immutable byte view".into());
+        }
+        // The snapshot owner has resolved the real backing and checked its
+        // borrow and lifetime before publishing Bytes. Copy only that admitted
+        // content; an unresolved reference can never become owned text here.
+        let TerminalStorageContents::Bytes(bytes) = self.observation()? else {
+            return Err("native locator description omitted its actual byte backing".into());
+        };
+        let mut retained = Vec::new();
+        retained
+            .try_reserve_exact(bytes.len())
+            .map_err(|_| "native locator description allocation was refused")?;
+        retained.extend_from_slice(&bytes);
+        Ok(retained)
     }
     fn integer(&self) -> Result<i128, String> {
         let TerminalBuildValueShape::Scalar(expected) = self.shape else {

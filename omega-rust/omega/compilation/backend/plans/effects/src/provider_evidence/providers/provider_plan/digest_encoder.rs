@@ -49,7 +49,7 @@ pub(crate) trait DigestFeed {
     }
 }
 
-pub(super) const PROVIDER_PLAN_DOMAIN: &[u8] = b"omega.provider-plan.sha256.v8\0";
+pub(super) const PROVIDER_PLAN_DOMAIN: &[u8] = b"omega.provider-plan.sha256.v9\0";
 
 pub(crate) struct ProviderPlanDigestEncoder(Sha256, Option<Vec<u8>>);
 
@@ -222,6 +222,10 @@ impl ProviderPlanDigestEncoder {
             Ok(storage) => {
                 self.string(&storage.table_application);
                 self.string(&storage.field_declaration);
+                self.u64(storage.formal.get());
+                self.u64(u64::from(storage.formal_ordinal));
+                self.u64(u64::from(storage.table_operand));
+                self.u64(u64::from(storage.byte_offset));
             }
             Err(reason) => self.string(reason),
         }

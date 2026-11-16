@@ -123,6 +123,7 @@ impl PackageReviewInput<'_> {
             let binding = provider_planning::native_bindings::normalize_native_binding(
                 supply,
                 &canonical,
+                None,
                 &mut identities,
             )
             .map_err(|reason| unavailable(&reason))?;
@@ -134,7 +135,8 @@ impl PackageReviewInput<'_> {
                 package: Some(package),
                 callable_identity: selection.producer.callable_identity.clone(),
             };
-            let policy_binding = binding_policy(&binding, producer);
+            let policy_binding =
+                binding_policy(&binding, producer).map_err(|reason| unavailable(&reason))?;
             let schema_index = schemas
                 .binary_search_by_key(&symbol_key(declaration.slot), |(slot, _, _)| {
                     symbol_key(*slot)
@@ -254,8 +256,8 @@ impl PackageReviewInput<'_> {
 fn binding_policy(
     binding: &EvaluatedNativeBinding,
     producer: PackagePolicyEvaluatedBindingProducer,
-) -> PackagePolicyProviderBinding {
-    match binding {
+) -> Result<PackagePolicyProviderBinding, String> {
+    Ok(match binding {
         EvaluatedNativeBinding::Import(import) => {
             let locator = import.locator();
             PackagePolicyProviderBinding::Import {
@@ -293,6 +295,9 @@ fn binding_policy(
                 producer,
             }
         }
+        EvaluatedNativeBinding::VtableField(_) | EvaluatedNativeBinding::TableFunction(_) => {
+            return Err("the table binding's explicitly selected calling policy for review".into());
+        }
         EvaluatedNativeBinding::Syscall(syscall) => PackagePolicyProviderBinding::Syscall {
             number: syscall.number(),
             evaluated: Some(PackagePolicyProviderEvaluatedSyscall {
@@ -300,5 +305,5 @@ fn binding_policy(
                 producer,
             }),
         },
-    }
+    })
 }

@@ -605,8 +605,34 @@ pub enum EntryControl {
     InterruptReturn,
 }
 
+// A table formal is named by its issued declaration identity, before native
+// positions exist. The calling policy must state whether lookup also passes it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
+pub enum TableParameter {
+    #[default]
+    None,
+    Passed {
+        formal: crate::NativeParameterId,
+        formal_ordinal: u32,
+    },
+    DispatchOnly {
+        formal: crate::NativeParameterId,
+        formal_ordinal: u32,
+    },
+}
+
+impl TableParameter {
+    pub const fn dispatch_only_formal(self) -> Option<u32> {
+        match self {
+            Self::DispatchOnly { formal_ordinal, .. } => Some(formal_ordinal),
+            Self::None | Self::Passed { .. } => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CallPlan {
+    pub table_parameter: TableParameter,
     pub policy: CallingPolicy,
     pub parameters: Vec<ValuePlacement>,
     pub result: Option<ValuePlacement>,

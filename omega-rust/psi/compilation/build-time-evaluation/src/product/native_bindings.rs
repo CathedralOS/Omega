@@ -90,6 +90,129 @@ fn requirement(
     requirement_owner(typed, symbol).map_err(Diagnostic::error)
 }
 
+/// A description is ordinary data. Match it to the selected requirement and
+/// its actual borrowed table before it can become a native binding. The
+/// supplier's retained Product edges, privacy and temporal scope still apply
+/// when someone constructs the record instead of using a declaration query.
+fn authenticate_locator(
+    typed: &TypedTrees,
+    requirement: SymbolHandle,
+    locator: &semantic_vocabulary::NativeBindingLocator,
+    supplier: PackageKeyIdentity,
+    stratum: source::SourceResolutionStratum,
+) -> Result<(), String> {
+    use semantic_vocabulary::NativeBindingLocator;
+    use typed_trees::data::{DataDefinition, DataShapeKind};
+    use typed_trees::types::{PrimitiveType, TypeReferenceNode};
+    let NativeBindingLocator::FunctionField { table, field } = locator else {
+        return Ok(());
+    };
+    let (_, signature) = typed
+        .trait_machine_signature(requirement)
+        .ok_or("table binding lost its exact requirement signature")?;
+    let index = usize::try_from(table.declaration_position)
+        .map_err(|_| "table binding formal position does not fit the compiler host")?;
+    let formal = typed
+        .state_signature_parameters(signature)
+        .get(index)
+        .ok_or("table binding names no formal of the selected requirement")?;
+    let expected = typed_trees::reflection::construction::parameter_description_identity(
+        typed,
+        formal.symbol,
+        requirement,
+    )?;
+    if &expected != table {
+        return Err("table binding changes the exact formal, requirement application, type or source revision".into());
+    }
+    // Removing qualifiers here only locates the storage declaration. The full
+    // qualified type and all lifetime relationships were compared above, and
+    // the actual dispatch read still needs the call's ordinary access proof.
+    let reference = typed
+        .type_reference_table
+        .unconstrained_type_reference(formal.type_reference);
+    let TypeReferenceNode::Reference {
+        referee, access, ..
+    } = typed.type_reference_table.type_reference(reference)
+    else {
+        return Err("table binding requires an explicitly borrowed table formal".into());
+    };
+    if !access.is_readable() {
+        return Err(
+            "table binding requires a formal that permits reading the dispatch field".into(),
+        );
+    }
+    let table_type = typed
+        .type_reference_table
+        .unconstrained_type_reference(*referee);
+    let data = typed
+        .closed_data_definition(table_type)
+        .ok_or("table binding lost the borrowed table's exact closed application")?;
+    if data.supply_mode != language_semantics::DataSupplyMode::CheckedShape
+        || DataDefinition::shape_kind_from_members(typed.data_members(data))
+            != DataShapeKind::Record
+    {
+        return Err(
+            "table binding needs a checked record table, not an opaque or sum representation"
+                .into(),
+        );
+    }
+    let position = usize::try_from(field.declaration_position)
+        .map_err(|_| "table binding field position does not fit the compiler host")?;
+    let selected = typed
+        .data_members(data)
+        .get(position)
+        .and_then(|member| member.as_field())
+        .ok_or("table binding names no field of the exact borrowed table")?;
+    if selected.relevance.is_erased()
+        || typed.primitive_type_reference(selected.type_reference) != Some(PrimitiveType::Addr)
+    {
+        return Err("table binding requires a live non-atomic addr field".into());
+    }
+    let span = typed
+        .symbols
+        .symbol_provenance_source_span(selected.symbol)
+        .ok_or("table binding field lost its source custody")?;
+    let sources = typed
+        .symbols
+        .source_map()
+        .ok_or("table binding field has no admitted Product source graph")?;
+    let source = sources
+        .get(span.source_id)
+        .ok_or("table binding field has no retained source revision")?;
+    let visible_package = match typed
+        .symbols
+        .symbol_product_package_identity(selected.symbol)
+    {
+        Some(owner) => {
+            owner == supplier || data.is_public && sources.has_product_dependency(supplier, owner)
+        }
+        None => {
+            data.is_public
+                && source.origin == source::SourceOrigin::Toolchain
+                && source.dependency_scope == source::DependencyScope::Product
+        }
+    };
+    if !visible_package
+        || !typed.symbols.symbol_source_is_selected(selected.symbol)
+        || !source::SourceMap::captured_reference_can_see_stratum(supplier, stratum, source)
+    {
+        return Err("table binding field is outside its supplier's original Product visibility or temporal scope".into());
+    }
+    let expected = typed_trees::reflection::construction::field_description_for_type(
+        typed,
+        table_type,
+        selected.symbol,
+        requirement,
+    )?;
+    if &expected != field {
+        return Err(
+            "table binding changes the exact field, table application, type or source revision"
+                .into(),
+        );
+    }
+    Ok(())
+}
+
 /// The bindings the Build of the package being compiled made, in the order
 /// it made them. Every request it authored must name a requirement,
 /// executed or not. Two bindings of one requirement for one target from one
@@ -157,6 +280,14 @@ pub fn collect(
         let scope = native_binding_formation(typed, author, Some(root), event.request.clone())
             .and_then(|formation| formation.seal(supplier_package))
             .map_err(|reason| refuse(&reason))?;
+        authenticate_locator(
+            typed.product_declarations(),
+            selected,
+            &event.locator,
+            supplier_package,
+            scope.resolution_stratum,
+        )
+        .map_err(|reason| refuse(&reason))?;
         selections.push(NativeBindingSelection {
             application: None,
             subject,
@@ -248,6 +379,19 @@ pub fn capture_package_intents(
                         "native effect lost its exact captured source formation and author",
                     )]
                 })?;
+            let (_, selected) = requirement(program, &lookup, &formations[index].request)
+                .map_err(|error| vec![error])?;
+            let source = &declarations[index].source;
+            authenticate_locator(
+                program,
+                selected,
+                &event.locator,
+                package,
+                source.resolution_stratum,
+            )
+            .map_err(|reason| {
+                vec![Diagnostic::error(reason).with_source_span(formations[index].author)]
+            })?;
             Ok(CapturedNativeIntent {
                 declaration: u32::try_from(index).map_err(|_| {
                     vec![Diagnostic::error(
@@ -391,6 +535,14 @@ pub fn collect_captured(
                     "captured native requirement lost its checked Product source",
                 )]
             })?;
+        authenticate_locator(
+            program,
+            requirement,
+            &intent.locator,
+            declaration.source.producer.package,
+            declaration.source.resolution_stratum,
+        )
+        .map_err(|reason| vec![Diagnostic::error(reason).with_source_span(span)])?;
         selections.push(NativeBindingSelection {
             application: None,
             subject,

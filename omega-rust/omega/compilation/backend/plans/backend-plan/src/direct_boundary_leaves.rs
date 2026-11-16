@@ -111,6 +111,27 @@ impl DirectBoundaryLeaf {
                 effects::provider_plan::EvaluatedNativeBinding::Syscall(syscall),
                 calling_conventions::ExternalBindingKind::Syscall { number },
             ) if syscall.number() == *number => {}
+            (
+                effects::provider_plan::EvaluatedNativeBinding::VtableField(evaluated),
+                calling_conventions::ExternalBindingKind::VtableField {
+                    field,
+                    byte_offset,
+                    table_formal,
+                    table_operand,
+                },
+            )
+            | (
+                effects::provider_plan::EvaluatedNativeBinding::TableFunction(evaluated),
+                calling_conventions::ExternalBindingKind::TableFunction {
+                    field,
+                    byte_offset,
+                    table_formal,
+                    table_operand,
+                },
+            ) if evaluated.storage().field_declaration == *field
+                && evaluated.storage().byte_offset == *byte_offset
+                && evaluated.storage().formal_ordinal == *table_formal
+                && evaluated.storage().table_operand == *table_operand => {}
             _ => return Err("plain binding changes its normalized execution mechanism".into()),
         }
         Ok(())

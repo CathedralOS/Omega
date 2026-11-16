@@ -81,6 +81,17 @@ fn decode_call_plan(value: &BuildTimeValue) -> Result<CallPlan, String> {
         decode_callback_materialization,
     )?;
     Ok(CallPlan {
+        table_parameter: {
+            // Ordinary policies already pass every semantic formal. Retaining
+            // that meaning permits their existing vocabulary; a table binding
+            // still requires an explicit Passed or DispatchOnly role below.
+            let mut roles = fields.iter().filter(|(name, _)| name == "table_parameter");
+            match (roles.next(), roles.next()) {
+                (None, None) => calling_conventions::TableParameter::None,
+                (Some((_, value)), None) => decode_table_parameter(value)?,
+                _ => return Err("CallPlan repeats its table parameter account".into()),
+            }
+        },
         policy: decode_calling_convention(field(fields, "convention", "CallPlan")?)?,
         parameters,
         result: has_result
@@ -95,6 +106,37 @@ fn decode_call_plan(value: &BuildTimeValue) -> Result<CallPlan, String> {
         shadow_bytes: u16_value(field(fields, "shadow_bytes", "CallPlan")?, "shadow_bytes")?,
         entry_control: decode_entry_control(field(fields, "entry_control", "CallPlan")?)?,
     })
+}
+
+fn decode_table_parameter(
+    value: &BuildTimeValue,
+) -> Result<calling_conventions::TableParameter, String> {
+    use calling_conventions::{NativeParameterId, TableParameter};
+    let (variant, payload) = case_parts(value, "TableParameter")?;
+    if variant == "None" {
+        if !payload.is_empty() {
+            return Err("TableParameter::None carries no formal".into());
+        }
+        return Ok(TableParameter::None);
+    }
+    let formal =
+        NativeParameterId::new(uint(field(payload, "formal", "TableParameter")?, "formal")?)
+            .ok_or("table parameter has no issued formal identity")?;
+    let formal_ordinal = u32_value(
+        field(payload, "formal_ordinal", "TableParameter")?,
+        "formal_ordinal",
+    )?;
+    match variant {
+        "Passed" => Ok(TableParameter::Passed {
+            formal,
+            formal_ordinal,
+        }),
+        "DispatchOnly" => Ok(TableParameter::DispatchOnly {
+            formal,
+            formal_ordinal,
+        }),
+        _ => Err("TableParameter case is outside the compiler-owned vocabulary".into()),
+    }
 }
 
 fn decode_callback_materialization(

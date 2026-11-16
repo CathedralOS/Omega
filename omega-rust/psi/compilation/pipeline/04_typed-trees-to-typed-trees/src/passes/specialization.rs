@@ -826,7 +826,7 @@ fn apply_requirement(
     table.set_static_machine_application_lifetimes(applied.application, applied.target, &[]);
     let closed = program
         .instantiate_requirement_application(&environment, applied.target, &[], applied.application)
-        .map_err(|_| Stop::Unserved(None))?;
+        .map_err(|reason| Stop::Unserved(Some(reason)))?;
     site.enter(program, closed);
     Ok(())
 }
@@ -1331,8 +1331,8 @@ fn selections(program: &TypedTrees, operands: &[Operand]) -> Served<Vec<Selectio
 }
 
 /// A type retained by typing is used with its complete applied data view.
-/// Region-bearing applications remain refused until specialization retains
-/// their supplying scope. A plain authored name still admits a builtin type,
+/// A region-bearing occurrence uses its retained supplying scope; an
+/// unscoped occurrence must be region-free. A plain authored name admits a builtin type,
 /// an open type parameter, or data with no parameters of its own.
 fn named_type(
     program: &mut TypedTrees,
@@ -1340,26 +1340,69 @@ fn named_type(
 ) -> Served<TypeReferenceHandle> {
     if argument.type_reference.is_valid() {
         let reference = argument.type_reference;
-        if program
+        if !program
             .type_reference_table
             .contains_type_reference(reference)
-            && program
-                .region_free_scoped_type_identity(
-                    typed_trees::type_identity::TypeIdentityRequest::ordinary(reference),
-                    &[],
-                )
-                .is_some()
-            && !matches!(
-                program.type_reference_table.type_reference(reference),
-                TypeReferenceNode::ConstExpression(_)
+        {
+            return Err(Stop::Unserved(Some(
+                "type argument lost its retained occurrence",
+            )));
+        }
+        let owner = program
+            .type_reference_table
+            .operand_lifetime_owner(reference);
+        if owner.is_valid() && !program.symbols.symbols().nodes().is_valid(owner) {
+            return Err(Stop::Unserved(Some(
+                "type argument has a stale supplying region owner",
+            )));
+        }
+        if owner.is_valid()
+            && (argument.symbol.is_valid()
+                || !argument.path.is_empty()
+                || argument.application.is_some())
+        {
+            program
+                .static_operand_region_supplier(argument, owner)
+                .map_err(|reason| Stop::Unserved(Some(reason)))?;
+        }
+        // Inferred and authored arguments keep the owner that supplied their
+        // regions. Reading them as region-free discards that existing scope;
+        // accepting a missing scope would invent the same relation instead.
+        let identity = if owner.is_valid() {
+            typed_trees::type_identity::applied_type_identity(program, reference, owner, &[])
+        } else {
+            program.region_free_scoped_type_identity(
+                typed_trees::type_identity::TypeIdentityRequest::ordinary(reference),
+                &[],
             )
-            && program
-                .prepare_data_application_view(reference)
-                .map_err(|_| Stop::Unserved(None))?
+        };
+        if identity.is_none() {
+            return Err(Stop::Unserved(Some(
+                "type argument has no complete retained region application",
+            )));
+        }
+        if matches!(
+            program.type_reference_table.type_reference(reference),
+            TypeReferenceNode::ConstExpression(_)
+        ) {
+            return Err(Stop::Unserved(Some("a type argument cannot be a value")));
+        }
+        if matches!(
+            program.type_reference_table.type_reference(reference),
+            TypeReferenceNode::Named { symbol, .. }
+                if *symbol == argument.symbol
+                    && program.data_type_parameter_by_symbol(*symbol).is_some_and(
+                        |parameter| parameter.kind == TypeParameterKind::Type
+                    )
+        ) || program
+            .prepare_data_application_view(reference)
+            .map_err(|_| Stop::Unserved(Some("type argument has no complete data application")))?
         {
             return Ok(reference);
         }
-        return Err(Stop::Unserved(None));
+        return Err(Stop::Unserved(Some(
+            "type argument has no served data application",
+        )));
     }
     let only_a_name = only_a_name(program, argument) && argument.const_literal.is_none();
     let symbol = argument.symbol;

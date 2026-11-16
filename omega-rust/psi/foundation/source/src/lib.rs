@@ -1176,6 +1176,19 @@ impl SourceMap {
             .copied()
     }
 
+    /// An already named supplier may select a public declaration only through
+    /// an admitted Product edge. Build-only aliases and anonymous query scopes
+    /// do not add an edge to this identity-based check.
+    pub fn has_product_dependency(
+        &self,
+        requester: PackageKeyIdentity,
+        target: PackageKeyIdentity,
+    ) -> bool {
+        self.product_dependencies
+            .get(&requester)
+            .is_some_and(|dependencies| dependencies.values().any(|package| *package == target))
+    }
+
     pub fn retain_query_dependencies(
         &mut self,
         root: PathBuf,
