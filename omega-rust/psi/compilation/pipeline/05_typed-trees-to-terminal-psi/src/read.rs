@@ -54,7 +54,6 @@ mod references;
 mod reflection;
 mod regions;
 mod rejections;
-mod run_custody;
 pub(crate) mod services;
 mod source_operators;
 mod source_records;
@@ -426,7 +425,7 @@ impl<'t> Program<'t> {
             signatures: IdTable::default(),
             declared_envelope_policies: IdTable::default(),
             callables: crate::callables::CallableNamespace::default(),
-            boundaries: crate::boundaries::BoundaryNamespace::new(typed),
+            boundaries: crate::boundaries::BoundaryNamespace::default(),
             external_providers: crate::external_providers::ExternalProviderNamespace::default(),
             static_contracts: crate::static_contracts::StaticContracts::default(),
             declaration_signatures: IdTable::default(),
@@ -1642,7 +1641,7 @@ mod tests {
                 relevance: language_core::BindingRelevance::Relevant,
                 ty: parameter_type,
             }],
-            logical::AddressInterpretation::BoundCallable(None),
+            None,
         )
         .unwrap();
         let same_input =
@@ -1974,11 +1973,7 @@ mod tests {
         // A projected invocation keeps the same source input at normal
         // completion. Its guarantee is still an obligation of the ordinary
         // call/return body, rather than an entry premise or executable snapshot.
-        let logical = logical_inputs.scope(
-            machine(),
-            logical::AddressInterpretation::BoundCallable(None),
-            &[],
-        );
+        let logical = logical_inputs.scope(machine(), None, &[]);
         let completion_scope = ClauseScope {
             logical: Some(logical.normal_return()),
             slots: &[],

@@ -4,12 +4,10 @@
 
 use crate::TypedTrees;
 use crate::data::TypeParameterKind;
-use crate::domain::{ProofFact, ProofMembershipFact};
+use crate::domain::ProofFact;
 use crate::machine::Machine;
 use crate::signature::{SignatureContract, SignatureContractKind};
-use crate::type_identity::constraint_identity::{
-    atom, compound, normalized_compiler_domain_identity,
-};
+use crate::type_identity::constraint_identity::{atom, compound};
 use crate::type_identity::identity_context::{
     TypeIdentityContext, TypeIdentityQualification, normalize_index_expression,
     normalize_type_reference,
@@ -29,14 +27,6 @@ impl TypedTrees {
         &self,
         symbol: SymbolHandle,
     ) -> Result<Option<(CompilerPrimitive, NormalizedTypeIdentity)>, Diagnostic> {
-        self.compiler_primitive_schema_checked(symbol)
-            .map_err(Diagnostic::error)
-    }
-
-    pub(crate) fn compiler_primitive_schema_checked(
-        &self,
-        symbol: SymbolHandle,
-    ) -> Result<Option<(CompilerPrimitive, NormalizedTypeIdentity)>, &'static str> {
         let Some(machine) = self.machine_by_symbol(symbol) else {
             return Ok(None);
         };
@@ -46,7 +36,9 @@ impl TypedTrees {
         let Some(SealedIntrinsic::CompilerPrimitive(operation)) = custody else {
             return if machine.supply_mode == language_semantics::MachineSupplyMode::CompilerProvided
             {
-                Err("compiler primitive has no exact sealed declaration custody")
+                Err(Diagnostic::error(
+                    "compiler primitive has no exact sealed declaration custody",
+                ))
             } else {
                 Ok(None)
             };
@@ -54,11 +46,17 @@ impl TypedTrees {
         if machine.supply_mode != language_semantics::MachineSupplyMode::CompilerProvided
             || machine.body_is_present
         {
-            return Err(
+            return Err(Diagnostic::error(
                 "sealed compiler primitive has a different supply mode or an authored body",
-            );
+            ));
         }
-        normalized_schema_checked(self, machine).map(|schema| Some((operation, schema)))
+        normalized_schema(self, machine)
+            .map(|schema| Some((operation, schema)))
+            .ok_or_else(|| {
+                Diagnostic::error(
+                    "no product route yet: complete compiler primitive signature schema",
+                )
+            })
     }
 }
 
@@ -83,17 +81,6 @@ enum Tag {
     Ensures,
     Crash,
     Envelope,
-    Termination,
-    Premises,
-    Premise,
-    Profile,
-    Subject,
-    Projection,
-    Attachment,
-    Owner,
-    Membership,
-    Value,
-    Domain,
 }
 
 impl Spelled for Tag {
@@ -116,17 +103,6 @@ impl Spelled for Tag {
             Self::Ensures => "ensures",
             Self::Crash => "crash",
             Self::Envelope => "envelope",
-            Self::Termination => "termination",
-            Self::Premises => "premises",
-            Self::Premise => "progress-premise",
-            Self::Profile => "progress-profile",
-            Self::Subject => "progress-subject",
-            Self::Projection => "progress-projection",
-            Self::Attachment => "attachment",
-            Self::Owner => "owner",
-            Self::Membership => "membership",
-            Self::Value => "value",
-            Self::Domain => "domain",
         }
     }
 }
@@ -144,13 +120,9 @@ fn schema_span<T, Rows>(
     read(span)
 }
 
-fn normalized_schema_checked(
-    program: &TypedTrees,
-    machine: &Machine,
-) -> Result<NormalizedTypeIdentity, &'static str> {
-    // Attribute the first refused phase before another normalization can set
-    // the shared invalid-context bit. The complete schema owner and every
-    // admission guard remain the same for diagnostics and prepared calls.
+fn normalized_schema(program: &TypedTrees, machine: &Machine) -> Option<NormalizedTypeIdentity> {
+    // Exhaust the header so a new Machine field requires a deliberate schema
+    // decision. Source coordinates and body storage do not change a signature.
     let Machine {
         lexical_region_origin,
         assembly_target_requirement,
@@ -191,6 +163,9 @@ fn normalized_schema_checked(
         states: _,
     } = machine;
     if lexical_region_origin.is_some()
+        || attached_data.is_some()
+        || attached_data_symbol.is_valid()
+        || attached_data_application.is_valid()
         || generic_data_template.is_valid()
         || target.is_some()
         || authored_target.is_some()
@@ -206,30 +181,34 @@ fn normalized_schema_checked(
         || termination_plan.implementation_witness.is_some()
         || termination_plan.checked_summary != language_semantics::TerminationGuarantee::NoGuarantee
     {
-        return Err("compiler primitive schema: unsupported header");
+        return None;
     }
     let reach = if *service_reach_row == language_semantics::ServiceReachRowId::NULL {
         "inferred"
     } else if *service_reach_row == language_semantics::ServiceReachRowTable::EMPTY_ROW {
         "none"
     } else {
-        return Err("compiler primitive schema: unsupported reach row");
+        // Nonempty/abstract service rows need their complete declaration-owned
+        // normalization before this query can describe them.
+        return None;
     };
-    let entry_rows = schema_span(|span| program.machine_states.span(span), machine.states)
-        .ok_or("compiler primitive schema: stale entry roster")?;
-    let [entry] = entry_rows
-        .as_array()
-        .ok_or("compiler primitive schema: requires one exact entry")?;
+    let termination = match &termination_plan.interface {
+        language_semantics::TerminationInterface::InternalDerived => "inferred",
+        language_semantics::TerminationInterface::Published(
+            language_semantics::TerminationGuarantee::NoGuarantee,
+        ) => "no-guarantee",
+        _ => return None,
+    };
+    let [entry] =
+        schema_span(|span| program.machine_states.span(span), machine.states)?.as_array()?;
     if !entry.symbol.is_valid() {
-        return Err("compiler primitive schema: unresolved entry declaration");
+        return None;
     }
     let types = schema_span(
         |span| program.data_type_parameters.span(span),
         machine.type_parameters,
-    )
-    .ok_or("compiler primitive schema: stale static binder roster")?;
-    let parameters = schema_span(|span| program.state_parameters.span(span), entry.parameters)
-        .ok_or("compiler primitive schema: stale parameter roster")?;
+    )?;
+    let parameters = schema_span(|span| program.state_parameters.span(span), entry.parameters)?;
     let binders = types
         .iter()
         .enumerate()
@@ -242,7 +221,7 @@ fn normalized_schema_checked(
         )
         .collect::<Vec<_>>();
     if binders.iter().any(|(symbol, _)| !symbol.is_valid()) {
-        return Err("compiler primitive schema: unresolved static or value binder");
+        return None;
     }
     let lifetimes = lifetime_parameters
         .iter()
@@ -270,79 +249,10 @@ fn normalized_schema_checked(
         encountered_elided_regions: Some(&invalid),
         ..Default::default()
     };
-    let termination = termination_schema(program, &termination_plan.interface, &context)
-        .ok_or("compiler primitive schema: unsupported termination premises")?;
-    if invalid.get() {
-        return Err("compiler primitive schema: open termination identity");
-    }
-    let type_identity = |reference, refusal| {
-        if !program.contains_type_reference(reference) {
-            return Err(refusal);
-        }
-        let identity = normalize_type_reference(program, reference, &context);
-        if invalid.get() {
-            return Err(refusal);
-        }
-        Ok(identity)
-    };
-    // Preserve the actual nominal owner and its application exactly as before.
-    let attachment = match attached_data {
-        None => {
-            if attached_data_symbol.is_valid() || attached_data_application.is_valid() {
-                return Err("compiler primitive schema: attachment metadata without an owner");
-            }
-            None
-        }
-        Some(_) => {
-            if !program
-                .symbols
-                .symbols()
-                .nodes()
-                .is_valid(*attached_data_symbol)
-                || program.symbols.get(*attached_data_symbol).kind != symbols::SymbolKind::Data
-            {
-                return Err("compiler primitive schema: unresolved attachment owner");
-            }
-            let declaration = program
-                .unique_data_definition_by_symbol(*attached_data_symbol)
-                .ok_or("compiler primitive schema: attachment has no unique data declaration")?;
-            let application = if attached_data_application.is_valid() {
-                if !program.contains_type_reference(*attached_data_application)
-                    || program
-                        .type_reference_table
-                        .type_head_symbol(*attached_data_application)
-                        != Some(*attached_data_symbol)
-                {
-                    return Err(
-                        "compiler primitive schema: attachment application selects another owner",
-                    );
-                }
-                compound(
-                    Tag::Type,
-                    [type_identity(
-                        *attached_data_application,
-                        "compiler primitive schema: attachment type is missing or open",
-                    )?],
-                )
-            } else {
-                if !declaration.type_parameters.is_empty() {
-                    return Err("compiler primitive schema: generic attachment has no application");
-                }
-                compound(Tag::Type, [])
-            };
-            let owner = context.name(
-                program,
-                *attached_data_symbol,
-                program.symbols.name(*attached_data_symbol),
-            );
-            if invalid.get() {
-                return Err("compiler primitive schema: open attachment owner identity");
-            }
-            Some(compound(
-                Tag::Attachment,
-                [atom(Tag::Owner, &owner), application],
-            ))
-        }
+    let type_identity = |reference| {
+        program
+            .contains_type_reference(reference)
+            .then(|| normalize_type_reference(program, reference, &context))
     };
     let mut telescope = Vec::with_capacity(types.len());
     for parameter in types {
@@ -350,15 +260,10 @@ fn normalized_schema_checked(
             TypeParameterKind::Type => atom(Tag::Kind, "type"),
             TypeParameterKind::Const { type_reference } => compound(
                 Tag::Kind,
-                [
-                    atom(Tag::Kind, "const"),
-                    type_identity(
-                        type_reference,
-                        "compiler primitive schema: static binder type is missing or open",
-                    )?,
-                ],
+                [atom(Tag::Kind, "const"), type_identity(type_reference)?],
             ),
-            _ => return Err("compiler primitive schema: unsupported static binder kind"),
+            // Refuse actual unserved binders; none is silently a type binder.
+            _ => return None,
         };
         telescope.push(compound(
             Tag::Binder,
@@ -368,7 +273,7 @@ fn normalized_schema_checked(
     let parameters = parameters
         .iter()
         .map(|parameter| {
-            Ok(compound(
+            Some(compound(
                 Tag::Parameter,
                 [
                     atom(
@@ -378,247 +283,75 @@ fn normalized_schema_checked(
                             parameter.is_const, parameter.is_mutable, parameter.relevance
                         ),
                     ),
-                    compound(
-                        Tag::Type,
-                        [type_identity(
-                            parameter.type_reference,
-                            "compiler primitive schema: parameter type is missing or open",
-                        )?],
-                    ),
+                    compound(Tag::Type, [type_identity(parameter.type_reference)?]),
                 ],
             ))
         })
-        .collect::<Result<Vec<_>, &'static str>>()?;
-    let result = type_identity(
-        entry.return_type,
-        "compiler primitive schema: result type is missing or open",
-    )?;
+        .collect::<Option<Vec<_>>>()?;
     let contracts = contracts(
         program,
         schema_span(
             |span| program.signature_contracts.span(span),
             machine.contracts,
-        )
-        .ok_or("compiler primitive schema: stale machine contract roster")?
+        )?
         .iter()
-        .chain(
-            schema_span(
-                |span| program.signature_contracts.span(span),
-                entry.contracts,
-            )
-            .ok_or("compiler primitive schema: stale entry contract roster")?,
-        ),
+        .chain(schema_span(
+            |span| program.signature_contracts.span(span),
+            entry.contracts,
+        )?),
         &context,
     )?;
-    let identity = compound(Tag::Schema, [
-        compound(Tag::Binders, telescope), atom(Tag::Lifetimes, &lifetimes.len().to_string()),
-        compound(Tag::Parameters, parameters), compound(Tag::Result, [result]),
-        compound(Tag::Contracts, contracts),
-        atom(Tag::Envelope, &format!(
-            "public={is_public};exposure={interface_exposure:?};purpose={purpose:?};token={spelling:?};assembly={assembly_target_requirement:?};reach={reach};suspends={suspends};suspends-written={};blocks={blocks};blocks-written={};crashes-none={declares_no_crash_route};termination={termination};stack={admitted_same_stack_bytes}",
-            !suspends_keyword_source_spans.is_empty(), !blocks_keyword_source_spans.is_empty()
-        )),
-    ].into_iter().chain(attachment));
-    Ok(program.type_identities.intern(&identity))
-}
-
-#[cfg(test)]
-fn normalized_schema(program: &TypedTrees, machine: &Machine) -> Option<NormalizedTypeIdentity> {
-    normalized_schema_checked(program, machine).ok()
+    let identity = compound(
+        Tag::Schema,
+        [
+            compound(Tag::Binders, telescope),
+            atom(Tag::Lifetimes, &lifetimes.len().to_string()),
+            compound(Tag::Parameters, parameters),
+            compound(Tag::Result, [type_identity(entry.return_type)?]),
+            compound(Tag::Contracts, contracts),
+            atom(
+                Tag::Envelope,
+                &format!(
+                    "public={is_public};exposure={interface_exposure:?};purpose={purpose:?};token={spelling:?};assembly={assembly_target_requirement:?};reach={reach};suspends={suspends};suspends-written={};blocks={blocks};blocks-written={};crashes-none={declares_no_crash_route};termination={termination};stack={admitted_same_stack_bytes}",
+                    !suspends_keyword_source_spans.is_empty(),
+                    !blocks_keyword_source_spans.is_empty()
+                ),
+            ),
+        ],
+    );
+    (!invalid.get()).then(|| program.type_identities.intern(&identity))
 }
 
 fn contracts<'a>(
     program: &TypedTrees,
     contracts: impl Iterator<Item = &'a SignatureContract>,
     context: &TypeIdentityContext<'_>,
-) -> Result<Vec<String>, &'static str> {
+) -> Option<Vec<String>> {
     contracts
         .map(|contract| {
             if contract.binding.is_some() {
-                return Err("compiler primitive schema: unsupported bound contract premise");
+                return None;
             }
             let kind = match contract.kind {
                 SignatureContractKind::Requires => atom(Tag::Requires, ""),
                 SignatureContractKind::Ensures => atom(Tag::Ensures, ""),
                 SignatureContractKind::Crashes { cause } => atom(Tag::Crash, &format!("{cause:?}")),
-                SignatureContractKind::EnsuresForResultCase { .. } => {
-                    return Err("compiler primitive schema: unsupported result-case contract");
-                }
+                SignatureContractKind::EnsuresForResultCase { .. } => return None,
             };
-            let facts = schema_span(|span| program.proof_facts.span(span), contract.facts)
-                .ok_or("compiler primitive schema: stale contract fact roster")?
+            let facts = schema_span(|span| program.proof_facts.span(span), contract.facts)?
                 .iter()
                 .map(|fact| {
-                    let expression = match fact {
-                        ProofFact::Expression(expression) => {
-                            if !expression.is_valid() {
-                                return Err("compiler primitive schema: missing contract expression");
-                            }
-                            normalize_index_expression(program, *expression, context)
-                        }
-                        ProofFact::Membership(membership) => membership_schema(program, membership, context)?,
-                        ProofFact::Proposition(_) => return Err("compiler primitive schema: unsupported proposition contract proof form"),
-                    };
-                    if context.invalid_application.is_some_and(Cell::get) {
-                        return Err(
-                            "compiler primitive schema: open or unserved contract expression",
-                        );
-                    }
-                    Ok(expression)
-                })
-                .collect::<Result<Vec<_>, &'static str>>()?;
-            Ok(compound(Tag::Contract, std::iter::once(kind).chain(facts)))
-        })
-        .collect()
-}
-
-// Qualified formals retain ordinary membership requirements on the entry.
-// Describe their actual subject and domain application with the same owners
-// used by expression and qualified-type normalization, without granting the
-// membership, selecting an issuer, or treating its authored path as identity.
-fn membership_schema(
-    program: &TypedTrees,
-    membership: &ProofMembershipFact,
-    context: &TypeIdentityContext<'_>,
-) -> Result<String, &'static str> {
-    if !program
-        .expression_table
-        .expression_is_valid(membership.value)
-    {
-        return Err("compiler primitive schema: stale membership subject");
-    }
-    if !program
-        .symbols
-        .symbols()
-        .nodes()
-        .is_valid(membership.domain_symbol)
-        || program.symbols.get(membership.domain_symbol).kind != symbols::SymbolKind::Domain
-        || program
-            .domain_definition(membership.domain_symbol)
-            .is_none()
-    {
-        return Err("compiler primitive schema: unresolved membership domain declaration");
-    }
-    schema_span(
-        |span| program.domain_path_members.span(span),
-        membership.domain,
-    )
-    .ok_or("compiler primitive schema: stale membership spelling roster")?;
-    let arguments = program
-        .type_reference_table
-        .type_reference_handles(membership.domain_arguments);
-    if arguments.len() != membership.domain_arguments.len()
-        || (membership.domain_arguments.is_empty()
-            && membership.domain_arguments != arena::HandleSpan::empty())
-    {
-        return Err("compiler primitive schema: stale membership argument roster");
-    }
-    let retained = program
-        .domain_arguments_for_instance(membership.domain_symbol, membership.semantic_domain)
-        .ok_or("compiler primitive schema: membership lost its retained domain application")?;
-    if retained.len() != arguments.len() {
-        return Err("compiler primitive schema: membership changed its domain argument roster");
-    }
-    for (actual, retained) in arguments.iter().zip(retained) {
-        if !program.contains_type_reference(*actual) || !program.contains_type_reference(*retained)
-        {
-            return Err("compiler primitive schema: stale membership argument type");
-        }
-        if normalize_type_reference(program, *actual, context)
-            != normalize_type_reference(program, *retained, context)
-        {
-            return Err(
-                "compiler primitive schema: membership changed its retained domain arguments",
-            );
-        }
-    }
-    let subject = normalize_index_expression(program, membership.value, context);
-    let domain = normalized_compiler_domain_identity(
-        program,
-        &crate::types::DomainConstraint {
-            // The resolved declaration and retained application supply meaning;
-            // the spelling and authored-selection coordinates stay source metadata.
-            name: crate::name::Identifier::from(program.symbols.name(membership.domain_symbol)),
-            symbol: membership.domain_symbol,
-            arguments: arguments.to_vec(),
-            semantic_id: membership.semantic_domain,
-            ..Default::default()
-        },
-        context,
-    );
-    if context.invalid_application.is_some_and(Cell::get) {
-        return Err("compiler primitive schema: open membership subject or domain application");
-    }
-    Ok(compound(
-        Tag::Membership,
-        [
-            compound(Tag::Value, [subject]),
-            compound(Tag::Domain, [domain]),
-        ],
-    ))
-}
-
-// This is an interface description, never termination evidence. The caller
-// still refuses implementation witnesses and checked body summaries; neither
-// may disappear from a source-only compiler primitive schema.
-fn termination_schema(
-    program: &TypedTrees,
-    interface: &language_semantics::TerminationInterface,
-    context: &TypeIdentityContext<'_>,
-) -> Option<String> {
-    use language_semantics::{TerminationGuarantee, TerminationInterface};
-    match interface {
-        TerminationInterface::InternalDerived => Some("inferred".to_owned()),
-        TerminationInterface::Published(TerminationGuarantee::NoGuarantee) => {
-            Some("no-guarantee".to_owned())
-        }
-        TerminationInterface::Published(TerminationGuarantee::Terminates { premises }) => {
-            let premises = premises
-                .iter()
-                .map(|premise| {
-                    let language_semantics::ProgressPremise { profile, subject } = premise;
-                    let language_semantics::ProgressSubject { root, projections } = subject;
-                    let profile = program.semantic_domains.name(*profile)?;
-                    let mut roots = context.binders.iter().filter(|(symbol, _)| symbol == root);
-                    let (_, root) = roots.next()?;
-                    if roots.next().is_some() {
+                    let ProofFact::Expression(expression) = fact else {
                         return None;
-                    }
-                    let projections = projections
-                        .iter()
-                        .map(|symbol| {
-                            if !program.symbols.symbols().nodes().is_valid(*symbol)
-                                || program.symbols.get(*symbol).kind != symbols::SymbolKind::Field
-                            {
-                                return None;
-                            }
-                            Some(atom(
-                                Tag::Projection,
-                                &context.name(program, *symbol, program.symbols.name(*symbol)),
-                            ))
-                        })
-                        .collect::<Option<Vec<_>>>()?;
-                    Some(compound(
-                        Tag::Premise,
-                        [
-                            atom(Tag::Profile, profile),
-                            compound(
-                                Tag::Subject,
-                                std::iter::once(atom(Tag::Subject, root)).chain(projections),
-                            ),
-                        ],
-                    ))
+                    };
+                    expression
+                        .is_valid()
+                        .then(|| normalize_index_expression(program, *expression, context))
                 })
                 .collect::<Option<Vec<_>>>()?;
-            Some(compound(
-                Tag::Termination,
-                [
-                    atom(Tag::Termination, "terminates"),
-                    compound(Tag::Premises, premises),
-                ],
-            ))
-        }
-    }
+            Some(compound(Tag::Contract, std::iter::once(kind).chain(facts)))
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -637,9 +370,6 @@ mod tests {
 
     struct Fixture {
         program: TypedTrees,
-        owner: SymbolHandle,
-        other_owner: SymbolHandle,
-        domains: [SymbolHandle; 2],
         element: arena::Handle<TypeParameter>,
         extent: arena::Handle<TypeParameter>,
         result: ExpressionHandle,
@@ -655,37 +385,12 @@ mod tests {
             let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
             let roots = builder.insert_children(
                 root,
-                symbols::builtin_type_symbols().into_iter().chain([
-                    (SymbolKind::Machine, SymbolNameRef::Static("view")),
-                    (SymbolKind::Data, SymbolNameRef::Static("Owner")),
-                    (SymbolKind::Data, SymbolNameRef::Static("OtherOwner")),
-                    (
-                        SymbolKind::Domain,
-                        SymbolNameRef::Static("MembershipDomain"),
-                    ),
-                    (
-                        SymbolKind::Domain,
-                        SymbolNameRef::Static("OtherMembershipDomain"),
-                    ),
-                ]),
+                symbols::builtin_type_symbols()
+                    .into_iter()
+                    .chain([(SymbolKind::Machine, SymbolNameRef::Static("view"))]),
             );
             let u64_symbol = roots.handle_at(BuiltinTypeAtom::U64.ordinal() as u32);
             let machine = roots.handle_at(BuiltinTypeAtom::ALL.len() as u32);
-            let owner = roots.handle_at(BuiltinTypeAtom::ALL.len() as u32 + 1);
-            let other_owner = roots.handle_at(BuiltinTypeAtom::ALL.len() as u32 + 2);
-            let domains = [
-                roots.handle_at(BuiltinTypeAtom::ALL.len() as u32 + 3),
-                roots.handle_at(BuiltinTypeAtom::ALL.len() as u32 + 4),
-            ];
-            let domain_parameters = domains.map(|domain| {
-                builder.insert_children(
-                    domain,
-                    [
-                        (SymbolKind::TypeParameter, SymbolNameRef::Static("Left")),
-                        (SymbolKind::TypeParameter, SymbolNameRef::Static("Right")),
-                    ],
-                )
-            });
             let children = builder.insert_children(
                 machine,
                 [
@@ -715,36 +420,6 @@ mod tests {
                 symbols: builder.finish(),
                 ..Default::default()
             };
-            for (symbol, name) in [(owner, "Owner"), (other_owner, "OtherOwner")] {
-                program.push_data_definition(crate::data::DataDefinition {
-                    symbol,
-                    name: Identifier::generated(name),
-                    ..Default::default()
-                });
-            }
-            let unit = program.type_reference_table.insert(TypeReferenceNode::Unit);
-            for (domain, parameters) in domains.into_iter().zip(domain_parameters) {
-                let name = Identifier::from(program.symbols.name(domain));
-                let semantic_id = program.semantic_domains.intern(name.as_str());
-                let parameters = parameters
-                    .handles()
-                    .map(|symbol| TypeParameter {
-                        symbol,
-                        name: Identifier::from(program.symbols.name(symbol)),
-                        kind: TypeParameterKind::Type,
-                        ..Default::default()
-                    })
-                    .collect::<Vec<_>>();
-                let type_parameters = program.data_type_parameters.insert_many(parameters);
-                program.push_domain_definition(crate::domain::DomainDefinition {
-                    symbol: domain,
-                    name,
-                    type_parameters,
-                    target_type: unit,
-                    semantic_id,
-                    ..Default::default()
-                });
-            }
             let u64_type = program
                 .type_reference_table
                 .insert(TypeReferenceNode::Named {
@@ -869,9 +544,6 @@ mod tests {
             });
             Self {
                 program,
-                owner,
-                other_owner,
-                domains,
                 element: type_parameters.handle_at(0),
                 extent: type_parameters.handle_at(1),
                 result,
@@ -883,202 +555,10 @@ mod tests {
             Self::new(["Element", "Count", "backing", "other", "items"])
         }
 
-        fn memberships(names: [&'static str; 5]) -> (Self, arena::HandleSpan<ProofFact>) {
-            let mut fixture = Self::new(names);
-            let program = &mut fixture.program;
-            let entry = program.machines()[0].states.start();
-            let formal = program.state_parameters(program.machine_states.get(entry))[0].clone();
-            let parameter = program.data_type_parameters.get(fixture.element).clone();
-            let element = program
-                .type_reference_table
-                .insert(TypeReferenceNode::Named {
-                    symbol: parameter.symbol,
-                    name: parameter.name.clone(),
-                });
-            let TypeParameterKind::Const {
-                type_reference: u64_type,
-            } = program.data_type_parameters.get(fixture.extent).kind
-            else {
-                unreachable!()
-            };
-            let arguments = vec![element, u64_type];
-            let mut facts = Vec::new();
-            for domain in fixture.domains {
-                let semantic = program
-                    .retain_domain_application(domain, formal.type_reference, &arguments)
-                    .unwrap();
-                let contract = program.parameter_domain_membership_contract(
-                    formal.symbol,
-                    formal.name.clone(),
-                    domain,
-                    "DiagnosticAlias",
-                    arguments.clone(),
-                    semantic,
-                );
-                facts.extend(
-                    program
-                        .proof_facts
-                        .span(contract.facts)
-                        .unwrap()
-                        .iter()
-                        .cloned(),
-                );
-            }
-            let facts = program.proof_facts.insert_many(facts);
-            let state_contracts = program.machine_states.get(entry).contracts;
-            let mut contracts = program
-                .signature_contracts
-                .span(state_contracts)
-                .unwrap()
-                .to_vec();
-            contracts.push(SignatureContract {
-                kind: SignatureContractKind::Requires,
-                facts,
-                ..Default::default()
-            });
-            program.machine_states.get_mut(entry).contracts =
-                program.signature_contracts.insert_many(contracts);
-            (fixture, facts)
-        }
-
         fn text(&self) -> Option<String> {
             let schema = normalized_schema(&self.program, &self.program.machines()[0])?;
             self.program.type_identity_text(schema)
         }
-    }
-
-    #[test]
-    fn membership_schemas_keep_the_subject_owner_arguments_and_fact_order() {
-        let names = ["Element", "Count", "backing", "other", "items"];
-        let (fixture, _) = Fixture::memberships(names);
-        let original = fixture
-            .text()
-            .expect("implicit qualified-formal memberships normalize");
-        assert_eq!(
-            Some(original.clone()),
-            Fixture::memberships(["T", "N", "scope", "spare", "values"])
-                .0
-                .text()
-        );
-        for fault in 0..5 {
-            let (mut changed, facts) = Fixture::memberships(names);
-            let ProofFact::Membership(mut first) =
-                changed.program.proof_facts.get(facts.handle_at(0)).clone()
-            else {
-                unreachable!()
-            };
-            let ProofFact::Membership(second) =
-                changed.program.proof_facts.get(facts.handle_at(1)).clone()
-            else {
-                unreachable!()
-            };
-            match fault {
-                0 => {
-                    first.domain_symbol = second.domain_symbol;
-                    first.semantic_domain = second.semantic_domain;
-                }
-                1 => first.value = changed.result,
-                2 => {
-                    let mut arguments = changed
-                        .program
-                        .type_reference_table
-                        .type_reference_handles(first.domain_arguments)
-                        .to_vec();
-                    arguments.reverse();
-                    let entry = changed
-                        .program
-                        .machine_states(&changed.program.machines()[0])[0]
-                        .clone();
-                    let carrier = changed.program.state_parameters(&entry)[0].type_reference;
-                    first.semantic_domain = changed
-                        .program
-                        .retain_domain_application(first.domain_symbol, carrier, &arguments)
-                        .unwrap();
-                    first.domain_arguments = changed
-                        .program
-                        .type_reference_table
-                        .insert_type_reference_handles(arguments);
-                }
-                3 => {
-                    *changed.program.proof_facts.get_mut(facts.handle_at(0)) =
-                        ProofFact::Membership(second);
-                    *changed.program.proof_facts.get_mut(facts.handle_at(1)) =
-                        ProofFact::Membership(first);
-                    assert_ne!(
-                        Some(&original),
-                        changed.text().as_ref(),
-                        "membership fact order"
-                    );
-                    continue;
-                }
-                4 => {
-                    let mut arguments = changed
-                        .program
-                        .type_reference_table
-                        .type_reference_handles(first.domain_arguments)
-                        .to_vec();
-                    arguments.reverse();
-                    first.domain_arguments = changed
-                        .program
-                        .type_reference_table
-                        .insert_type_reference_handles(arguments);
-                }
-                _ => unreachable!(),
-            }
-            *changed.program.proof_facts.get_mut(facts.handle_at(0)) = ProofFact::Membership(first);
-            if fault == 4 {
-                assert!(
-                    changed.text().is_none(),
-                    "changed explicit arguments cannot borrow a retained application"
-                );
-            } else {
-                assert_ne!(
-                    Some(&original),
-                    changed.text().as_ref(),
-                    "membership mutation {fault}"
-                );
-            }
-        }
-    }
-
-    #[test]
-    fn complete_schema_keeps_the_nominal_attachment_and_refuses_a_substituted_application() {
-        let mut fixture = Fixture::ordinary();
-        let plain = fixture.text().unwrap();
-        let mut attach = |owner, name| {
-            fixture
-                .program
-                .type_reference_table
-                .insert(TypeReferenceNode::Named {
-                    symbol: owner,
-                    name: Identifier::generated(name),
-                })
-        };
-        let application = attach(fixture.owner, "Owner");
-        let other_application = attach(fixture.other_owner, "OtherOwner");
-        let machine = fixture.program.machine_mut(0);
-        machine.attached_data = Some(Identifier::generated("Owner"));
-        machine.attached_data_symbol = fixture.owner;
-        machine.attached_data_application = application;
-        let original = fixture
-            .text()
-            .expect("a complete nominal attachment normalizes");
-        assert_ne!(plain, original);
-        fixture.program.machine_mut(0).attached_data_application = other_application;
-        assert!(
-            fixture.text().is_none(),
-            "the application must belong to its declared owner"
-        );
-        fixture.program.machine_mut(0).attached_data_symbol = fixture.other_owner;
-        let other = fixture
-            .text()
-            .expect("the other complete owner also normalizes");
-        assert_ne!(original, other);
-        fixture.program.machine_mut(0).attached_data = None;
-        assert!(
-            fixture.text().is_none(),
-            "an attachment cannot disappear while retaining its application"
-        );
     }
 
     #[test]
@@ -1132,93 +612,6 @@ mod tests {
         let mut ceiling = Fixture::ordinary();
         ceiling.program.machine_mut(0).declares_no_crash_route = true;
         assert_ne!(Some(&original), ceiling.text().as_ref());
-    }
-
-    #[test]
-    fn published_termination_keeps_its_complete_conditional_subjects() {
-        use language_semantics::{
-            ProgressPremise, ProgressSubject, TerminationGuarantee, TerminationInterface,
-        };
-        let original = Fixture::ordinary().text().unwrap();
-        let mut unconditional = Fixture::ordinary();
-        unconditional
-            .program
-            .machine_mut(0)
-            .termination_plan
-            .interface =
-            TerminationInterface::Published(TerminationGuarantee::Terminates { premises: vec![] });
-        let terminates = unconditional
-            .text()
-            .expect("published unconditional promise normalizes");
-        assert_ne!(original, terminates);
-        let conditional = |names, profile_name: &str| {
-            let mut fixture = Fixture::new(names);
-            let machine = &fixture.program.machines()[0];
-            let entry = &fixture.program.machine_states(machine)[0];
-            let subject = fixture.program.state_parameters(entry)[0].symbol;
-            let profile = fixture.program.semantic_domains.intern(profile_name);
-            fixture.program.machine_mut(0).termination_plan.interface =
-                TerminationInterface::Published(TerminationGuarantee::Terminates {
-                    premises: vec![ProgressPremise {
-                        profile,
-                        subject: ProgressSubject {
-                            root: subject,
-                            projections: vec![],
-                        },
-                    }],
-                });
-            fixture
-        };
-        let mut first = conditional(
-            ["Element", "Count", "backing", "other", "items"],
-            "package::Ready",
-        );
-        let first_text = first.text().unwrap();
-        assert_ne!(terminates, first_text);
-        assert_eq!(
-            Some(first_text.clone()),
-            conditional(["T", "N", "scope", "spare", "bytes"], "package::Ready").text()
-        );
-        assert_ne!(
-            Some(first_text),
-            conditional(
-                ["Element", "Count", "backing", "other", "items"],
-                "other::Ready"
-            )
-            .text()
-        );
-        let TerminationInterface::Published(TerminationGuarantee::Terminates { premises }) =
-            &mut first.program.machine_mut(0).termination_plan.interface
-        else {
-            unreachable!()
-        };
-        premises[0]
-            .subject
-            .projections
-            .push(SymbolHandle::invalid());
-        assert!(
-            first.text().is_none(),
-            "unknown projections cannot disappear"
-        );
-    }
-
-    #[test]
-    fn implementation_rankings_and_checked_summaries_are_not_silently_erased() {
-        let mut ranking = Fixture::ordinary();
-        ranking
-            .program
-            .machine_mut(0)
-            .termination_plan
-            .implementation_witness = Some(language_semantics::RankingWitness::default());
-        assert!(ranking.text().is_none());
-        let mut checked = Fixture::ordinary();
-        checked
-            .program
-            .machine_mut(0)
-            .termination_plan
-            .checked_summary =
-            language_semantics::TerminationGuarantee::Terminates { premises: vec![] };
-        assert!(checked.text().is_none());
     }
 
     #[test]

@@ -51,8 +51,7 @@ pub(crate) use external_mechanisms::{
 };
 pub use host_cohorts::{filesystem_host_permission_rows, time_host_permission_rows};
 
-// The closed inventory commits three distinct run custody operations.
-pub(crate) const TERMINAL_AUTHORITY_POLICY_VERSION: u32 = 12;
+pub(crate) const TERMINAL_AUTHORITY_POLICY_VERSION: u32 = 11;
 const POLICY_COMMITMENT_DOMAIN: &[u8] = b"omega.terminal-authority.policy.v3\0";
 const PARAMETERIZED_POLICY_FAMILY_COUNT: u32 = 3;
 const ACCESS_CALLER_RAM_SCALAR_POLICY_V1: &[u8] =

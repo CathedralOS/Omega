@@ -10042,7 +10042,6 @@ mod structural {
 }
 mod value_custody {
     use super::{CurrentOwnership, LiveClaim};
-    use crate::StructuralTypes;
     use crate::unit_validation::operation_contracts::structural_source_contract;
     use crate::{OperationSite, OptimizationUnitValidationError};
     use abstract_operations::AbstractOperation as O;

@@ -29,7 +29,7 @@ pub fn legalized_operation_plan_identity(
         function_abi::encode_function_abi(&mut bytes, abi);
     }
     bytes.extend_from_slice(&plan.borrowed_storage_layouts.identity_bytes());
-    bytes.extend_from_slice(b"ordinary-scalar-graph.v48\0");
+    bytes.extend_from_slice(b"ordinary-scalar-graph.v46\0");
     encode_len(&mut bytes, plan.scalar_functions.len());
     let mut cached_catalog = None;
     for function in &plan.scalar_functions {

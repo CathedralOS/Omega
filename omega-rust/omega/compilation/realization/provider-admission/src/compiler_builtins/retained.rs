@@ -293,7 +293,7 @@ pub fn derive_selected_intrinsic_settlement_proposals<'a>(
             None => TerminalCompilerBuiltinSettlement::NoClosedCatalogIdentity,
             Some(
                 CompilerIntrinsicExecutionIdentity::AccessLifecycle(_)
-                | CompilerIntrinsicExecutionIdentity::RunCustody(_)
+                | CompilerIntrinsicExecutionIdentity::EmptyRunRelease
                 | CompilerIntrinsicExecutionIdentity::StaticInterrupt(_),
             ) => TerminalCompilerBuiltinSettlement::NoNativeBoundaryRealization,
             Some(identity) => {

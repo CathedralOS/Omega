@@ -971,9 +971,7 @@ pub(crate) mod empty_run {
 pub(crate) mod extraction {
     use super::ProviderStorageBinding;
     use crate::boundary::errors::{TerminalInterpretError, malformed};
-    use crate::boundary::values::{
-        StructuralRuntimePlace, StructuralScalarRuntimeField, TerminalScalarValue,
-    };
+    use crate::boundary::values::StructuralRuntimePlace;
     use crate::engine::custody::bind_result_claim;
     use crate::engine::execution::{TerminalExecution, operation_kind};
     use crate::storage::record::storage::{ConstructorStorage, ConstructorValue};
@@ -1087,28 +1085,6 @@ pub(crate) mod extraction {
                 return Err(TerminalInterpretError::ContentTransformationMismatch(
                     "extraction has no live resident custody",
                 ));
-            }
-            if let terminal_psi::TerminalAccessOwner::Run { count, .. } = plan.storage.owner {
-                let owner =
-                    self.resolve_live_projection(source.place, &source.path, source.access)?;
-                let field = StructuralScalarRuntimeField::member(
-                    StructuralRuntimePlace::from(&owner),
-                    count,
-                );
-                let count = self
-                    .structural_scalar_fields
-                    .get(&field)
-                    .ok_or(malformed())?
-                    .read()?;
-                let TerminalScalarValue::Integer {
-                    value: semantic_vocabulary::IntegerValue::Unsigned(count),
-                    ..
-                } = count
-                else {
-                    return Err(malformed());
-                };
-                self.provider_storage
-                    .require_run_custody(binding, u64::try_from(count).map_err(|_| malformed())?)?;
             }
             let (initialized, custody, compatibility) =
                 self.live_resident_custody(binding.resident)?;
@@ -2127,11 +2103,9 @@ pub(crate) mod lifecycle {
                 .provider_storage
                 .residents
                 .insert(ResidentStorageSlot::Live {
-                    payload: super::ResidentStoragePayload {
-                        window: prepared.binding,
-                        custody,
-                    },
+                    window: prepared.binding,
                     initialized_by: plan.boundary,
+                    custody,
                     compatibility: prepared.compatibility,
                     _lease: lease,
                 });
@@ -2993,8 +2967,6 @@ pub(crate) mod relocation {
                 self.lifecycle_profile(plan, 0, source_extent, &source_observation)?;
             let (destination_binding, destination_supply) =
                 self.lifecycle_profile(plan, 1, destination_extent, &destination_observation)?;
-            self.provider_storage
-                .require_run_custody(source_binding, count)?;
             if (count == 0) != (source_binding.resident == arena::Handle::default()) {
                 return Err(TerminalInterpretError::ContentTransformationMismatch(
                     "run relocation count disagrees with retained cell custody",
@@ -3286,7 +3258,7 @@ pub(crate) mod relocation {
             let resident = match compatibility {
                 Some(compatibility) => {
                     let ResidentStorageSlot::Live {
-                        payload,
+                        window,
                         compatibility: current,
                         ..
                     } = self
@@ -3296,7 +3268,7 @@ pub(crate) mod relocation {
                     else {
                         return Err(malformed());
                     };
-                    Some((&mut payload.window, current, compatibility))
+                    Some((window, current, compatibility))
                 }
                 None => None,
             };
@@ -4266,52 +4238,14 @@ pub(crate) struct ProviderStorageBinding {
     pub(crate) resident: arena::Handle<ResidentStorageSlot>,
 }
 
-// The current owner retains one actual value, including its erased claims,
-// affine regions and carried references. It is not an ordered cell sequence.
-pub(crate) struct ResidentStoragePayload {
-    window: ProviderStorageBinding,
-    custody: StagedOwnedValue,
-}
-
-impl ResidentStoragePayload {
-    pub(crate) fn custody(&self) -> &StagedOwnedValue {
-        &self.custody
-    }
-
-    fn owns_whole_window(&self, binding: ProviderStorageBinding) -> bool {
-        self.window
-            == ProviderStorageBinding {
-                resident: arena::Handle::default(),
-                ..binding
-            }
-    }
-
-    fn require_run_count(
-        &self,
-        binding: ProviderStorageBinding,
-        count: u64,
-    ) -> Result<(), TerminalInterpretError> {
-        if !self.owns_whole_window(binding) {
-            return Err(TerminalInterpretError::ContentTransformationMismatch(
-                "run descriptor partition does not retain its actual resident payload window",
-            ));
-        }
-        if count != 1 {
-            return Err(TerminalInterpretError::ContentTransformationMismatch(
-                "resident payload owns one actual cell, not an ordered run range",
-            ));
-        }
-        Ok(())
-    }
-}
-
 #[derive(Default)]
 pub(crate) enum ResidentStorageSlot {
     #[default]
     Empty,
     Live {
-        payload: ResidentStoragePayload,
+        window: ProviderStorageBinding,
         initialized_by: semantic_vocabulary::BoundaryMachineId,
+        custody: crate::storage::record::owned_value::StagedOwnedValue,
         compatibility: access_plans::InitializationResourceCompatibility,
         _lease: Option<EvaluationStorageLease>,
     },
@@ -4362,35 +4296,20 @@ impl RuntimeProviderStorage {
             return false;
         }
         if binding.resident != arena::Handle::default() {
-            let ResidentStorageSlot::Live { payload, .. } = self.residents.get(binding.resident)
+            let ResidentStorageSlot::Live { window, .. } = self.residents.get(binding.resident)
             else {
                 return false;
             };
-            if !payload.owns_whole_window(binding) {
+            if *window
+                != (ProviderStorageBinding {
+                    resident: arena::Handle::default(),
+                    ..binding
+                })
+            {
                 return false;
             }
         }
         true
-    }
-
-    fn require_run_custody(
-        &self,
-        binding: ProviderStorageBinding,
-        count: u64,
-    ) -> Result<(), TerminalInterpretError> {
-        if binding.resident == arena::Handle::default() {
-            return if count == 0 {
-                Ok(())
-            } else {
-                Err(TerminalInterpretError::ContentTransformationMismatch(
-                    "occupied run has no actual resident payload",
-                ))
-            };
-        }
-        let ResidentStorageSlot::Live { payload, .. } = self.residents.get(binding.resident) else {
-            return Err(malformed());
-        };
-        payload.require_run_count(binding, count)
     }
 
     pub(crate) fn live_provider_allocation(
@@ -4429,7 +4348,7 @@ impl TerminalExecution<'_> {
     > {
         let ResidentStorageSlot::Live {
             initialized_by,
-            payload,
+            custody,
             compatibility,
             ..
         } = self.provider_storage.residents.get(resident)
@@ -4442,7 +4361,7 @@ impl TerminalExecution<'_> {
             .iter()
             .find(|plan| plan.boundary == *initialized_by)
             .ok_or(malformed())?;
-        Ok((initialized, &payload.custody, compatibility))
+        Ok((initialized, custody, compatibility))
     }
 }
 
@@ -4455,125 +4374,5 @@ pub(crate) struct ProviderByteAllocation {
 impl ProviderByteAllocation {
     pub(crate) fn extent(&self) -> &Extent {
         &self.extent
-    }
-}
-
-#[cfg(test)]
-mod resident_payload_tests {
-    use super::{ProviderStorageBinding, ResidentStoragePayload};
-    use crate::boundary::values::{StructuralRuntimePlace, TerminalStructuralValue};
-    use crate::storage::record::owned_value::{OwnedAffineRegion, StagedOwnedValue};
-    use crate::storage::record::storage::ConstructorStorage;
-    use crate::storage::reference::ReferenceReferent;
-    use semantic_vocabulary::{StructuralDomainId, StructuralTypeId};
-    use terminal_psi::StructuralPathSegment;
-
-    fn payload(identity: u64, length: u64) -> ResidentStoragePayload {
-        let structural_type = StructuralTypeId::new(1).unwrap();
-        ResidentStoragePayload {
-            window: ProviderStorageBinding {
-                allocation: Default::default(),
-                offset: 16,
-                length,
-                resident: Default::default(),
-            },
-            custody: StagedOwnedValue {
-                value: TerminalStructuralValue::minted(
-                    identity,
-                    structural_type,
-                    vec![StructuralDomainId::new(1).unwrap()],
-                ),
-                storage: ConstructorStorage::new(None),
-                claim_paths: vec![Vec::new()],
-                affine_regions: vec![OwnedAffineRegion {
-                    path: Vec::new(),
-                    structural_type,
-                }],
-            },
-        }
-    }
-
-    #[test]
-    fn singleton_resident_payload_refuses_count_only_run_growth() {
-        let payload = payload(101, 8);
-        let value = payload.custody.value.clone();
-        assert!(payload.require_run_count(payload.window, 1).is_ok());
-        for count in [0, 2, u64::MAX] {
-            assert!(payload.require_run_count(payload.window, count).is_err());
-        }
-        assert_eq!(payload.custody.value, value);
-        assert_eq!(
-            payload.custody.claim_paths,
-            vec![Vec::<StructuralPathSegment>::new()]
-        );
-        assert_eq!(payload.custody.affine_regions.len(), 1);
-        assert_eq!(
-            payload.custody.affine_regions[0].structural_type,
-            value.structural_type
-        );
-        assert!(payload.custody.affine_regions[0].path.is_empty());
-    }
-
-    #[test]
-    fn zero_byte_resident_cells_keep_distinct_logical_custody() {
-        let first = payload(101, 0);
-        let second = payload(102, 0);
-        assert_eq!(first.window, second.window);
-        assert_ne!(
-            first.custody.value.opaque_identity,
-            second.custody.value.opaque_identity
-        );
-        for payload in [&first, &second] {
-            assert!(payload.require_run_count(payload.window, 1).is_ok());
-            assert!(payload.require_run_count(payload.window, 0).is_err());
-            assert!(payload.require_run_count(payload.window, 2).is_err());
-            assert_eq!(payload.custody.value.qualifications.len(), 1);
-            assert_eq!(payload.custody.claim_paths.len(), 1);
-        }
-    }
-
-    #[test]
-    fn resident_payload_rejects_partial_windows_without_dropping_references() {
-        let mut payload = payload(101, 16);
-        let referent =
-            TerminalStructuralValue::minted(900, StructuralTypeId::new(2).unwrap(), Vec::new());
-        payload
-            .custody
-            .storage
-            .stage_reference(
-                StructuralRuntimePlace::from(&payload.custody.value),
-                ReferenceReferent {
-                    placed: None,
-                    view: referent,
-                    primitive_loan: None,
-                    collection_loan: None,
-                    byte_owner: None,
-                    byte_region: None,
-                    aggregate_view: None,
-                },
-            )
-            .unwrap();
-        let value = payload.custody.value.clone();
-        assert!(payload.require_run_count(payload.window, 1).is_ok());
-        for window in [
-            ProviderStorageBinding {
-                offset: 17,
-                ..payload.window
-            },
-            ProviderStorageBinding {
-                length: 8,
-                ..payload.window
-            },
-            ProviderStorageBinding {
-                length: 0,
-                ..payload.window
-            },
-        ] {
-            assert!(payload.require_run_count(window, 1).is_err());
-            assert!(payload.custody.storage.retains_references());
-            assert_eq!(payload.custody.value, value);
-            assert_eq!(payload.custody.claim_paths.len(), 1);
-            assert_eq!(payload.custody.affine_regions.len(), 1);
-        }
     }
 }

@@ -10,8 +10,8 @@ use super::{
     element_operation_retained, empty_run_release_retained, fixed_byte_length_is_static, fragments,
     ieee_float_builtin_retained, ieee_literal_retained, installed_calls, installed_interrupts,
     parameter_abi, placed_reference, placed_scalar_retained, primitive_accesses,
-    privileged_termination, program_image_retained, run_custody_retained, static_interrupts,
-    structural_case, structural_fields,
+    privileged_termination, program_image_retained, static_interrupts, structural_case,
+    structural_fields,
 };
 use target_operations::TargetUnitOperation;
 
@@ -583,7 +583,6 @@ pub(in crate::function_fragments) fn admit(
                     || program_image_retained(psi_operation, boundary, targeted, selected)
                     || ieee_float_builtin_retained(psi_operation, boundary, targeted, selected)
                     || access_lifecycle_retained(operation, targeted)
-                    || run_custody_retained(operation, matched.instruction, abstract_plan, &mut addresses)
                     || empty_run_release_retained(operation, targeted, abstract_plan)
                     || static_interrupts::retained(operation, &interrupt_helpers, &interrupt_replay)?
                     || placed_scalar_retained(operation, targeted, selected)

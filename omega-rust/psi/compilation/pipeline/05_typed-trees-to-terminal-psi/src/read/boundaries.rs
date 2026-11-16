@@ -151,7 +151,7 @@ impl Program<'_> {
             .boundaries
             .rows
             .iter()
-            .find(|(_, source)| source.run.is_none() && source.source == target)
+            .find(|(_, source)| source.source == target)
         {
             return Ok(Some((id, source.signature.clone())));
         }
@@ -173,7 +173,6 @@ impl Program<'_> {
                 typed_trees::declarations::intrinsic_requirements::IntrinsicRequirementKind::TopLevelRequirement => semantic_vocabulary::BoundaryRequirementKind::Machine,
             };
             let id = self.boundaries.rows.push(BoundarySource {
-                run: None,
                 source: target,
                 kind,
                 owner: target,
@@ -321,7 +320,6 @@ impl Program<'_> {
         self.admitted_declarations.include(owner.symbol);
         self.admitted_declarations.include(target);
         let id = self.boundaries.rows.push(BoundarySource {
-            run: None,
             source: target,
             kind: semantic_vocabulary::BoundaryRequirementKind::Trait,
             owner: owner.symbol,

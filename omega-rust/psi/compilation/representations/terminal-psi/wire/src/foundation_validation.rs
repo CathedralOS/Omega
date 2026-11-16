@@ -11845,8 +11845,6 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
     }
     validate_access_view_plans(module).map_err(CodecError::AccessViewPlan)?;
     validate_access_lifecycle_plans(module).map_err(CodecError::MalformedStructuralFoundation)?;
-    terminal_semantics::validate_run_custody_declarations(module)
-        .map_err(CodecError::MalformedStructuralFoundation)?;
     validate_portable_entry(module)?;
     validate_boundary_application_operations(module)?;
     validate_callback_registrars(module)?;

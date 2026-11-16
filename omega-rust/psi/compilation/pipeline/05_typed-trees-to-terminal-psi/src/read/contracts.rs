@@ -64,15 +64,6 @@ pub(super) struct ClauseScope<'s> {
     pub(super) logical: Option<super::logical::LogicalScope<'s>>,
 }
 
-impl<'scope> ClauseScope<'scope> {
-    pub(super) fn address_interpretation(self) -> super::logical::AddressInterpretation<'scope> {
-        self.logical.map_or(
-            super::logical::AddressInterpretation::OrdinaryTerminal,
-            |logical| logical.address,
-        )
-    }
-}
-
 /// Whether a clause may compare mathematical integers. A machine's
 /// `requires`, `ensures` and crash guards may: elaboration and the checker
 /// restate them using the same checked semantic substitution. A data
@@ -1594,7 +1585,14 @@ impl Program<'_> {
             ExpressionNode::Name(_) | ExpressionNode::Member(_)
                 if self.address_bound(expression) =>
             {
-                scope.address_interpretation().bound(id)
+                let address =
+                    semantic_vocabulary::ClosedIntegerType::supported_address_representation();
+                match 1_u128.checked_shl(u32::from(address.bits())) {
+                    Some(bound) => Ok(IntegerMathTerm::literal(
+                        semantic_vocabulary::IntegerValue::Unsigned(bound),
+                    )),
+                    None => unserved("address bound outside mathematical literal support"),
+                }
             }
             ExpressionNode::Name(_) | ExpressionNode::Member(_) => {
                 unserved("runtime value in a mathematical term without embed")

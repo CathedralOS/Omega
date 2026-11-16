@@ -1486,9 +1486,8 @@ use entry::EntryRecord;
 use std::sync::Arc;
 use value::{RecordError, RecordLimits, RecordReader, RecordValue, RecordWriter, write_values};
 
-// Both predecessor records used 36: Run custody adds its operation byte,
-// while stored machine selections and public call contracts add source rows.
-// Their combined schema rejects either predecessor before decoding its payload.
+// Structural type rows now retain their declared three-way multiplicity.
+// The previous schema carried only the copy bit.
 const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI37";
 const RECORD_SCHEMA_FAMILY: &[u8; 6] = b"OMGNTI";
 const SUPERSEDED_RECORD_SCHEMA: &str = "retained native derivation inputs use a superseded record \

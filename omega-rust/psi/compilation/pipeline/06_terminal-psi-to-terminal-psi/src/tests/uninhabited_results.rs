@@ -134,6 +134,29 @@ fn a_false_default_domain_preserves_the_actual_call_and_sibling_value() {
 }
 
 #[test]
+fn an_uninhabited_transition_result_can_end_a_unit_machine() {
+    let source = r#"
+public data Empty requires false {}
+public machine halt() -> Empty crashes Trap { crash Trap; }
+machine main(fatal: bool) crashes Trap {
+    transition fatal { true -> halt() false -> done() }
+    machine done() {}
+}
+"#;
+    check_no_normal(&accepted(source));
+
+    // Change only the declared type's empty-domain fact. The same private
+    // crash body cannot make an inhabited result compatible with Unit.
+    let verdicts = program(&source.replacen("requires false", "requires true", 1));
+    let detail = match &verdicts[0] {
+        Ok(RouteVerdict::FallBack(refusal)) => &refusal.detail,
+        Err(crate::CompilationRefusal::Elaboration(refusal)) => &refusal.detail,
+        other => panic!("an inhabited transition result cannot become Unit: {other:?}"),
+    };
+    assert!(detail.contains("arm value type"), "{detail}");
+}
+
+#[test]
 fn reachable_value_body_falloff_is_a_language_violation() {
     for (declarations, result) in [
         ("", "u32"),

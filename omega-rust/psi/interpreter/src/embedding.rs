@@ -2733,12 +2733,12 @@ pub(crate) mod program {
             let execution = declaration
                 .declaration
                 .as_ref()
-                .map(|callable| &callable.execution);
+                .map(|callable| callable.execution);
             // Numeric declarations remain compiler owned, but their admitted
             // scalar adapter executes through a host-import slot. A component
             // or checked provider may not replace that declaration.
             if execution.is_some_and(|execution| execution.compiler_owned())
-                && !(execution == Some(&terminal_psi::CheckedBoundaryExecution::NumericPrimitive)
+                && !(execution == Some(terminal_psi::CheckedBoundaryExecution::NumericPrimitive)
                     && supply == AdmittedBoundarySupply::HostImport)
             {
                 return Err(rejected(

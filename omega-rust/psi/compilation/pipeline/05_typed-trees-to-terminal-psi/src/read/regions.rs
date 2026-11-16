@@ -550,18 +550,24 @@ impl Program<'_> {
         region
     }
 
-    /// Whether `actual` is a value of `expected`: the same carrier and
-    /// domains, and regions that are equal or can be made so by deciding
-    /// region variables, which are then decided. Every typing rule that
-    /// asks whether a value fits a place asks this, so a local whose type
-    /// elides a lifetime takes the region of the first value that meets it.
-    pub(crate) fn agrees(&mut self, actual: Option<ValueType>, expected: ValueType) -> bool {
+    /// An empty result fits any destination, including Unit (`None`), because
+    /// evaluation produces no value. Otherwise carriers and domains must match;
+    /// deciding region variables can make their lifetimes agree. An annotated
+    /// local with an elided lifetime thus retains its initializer's region.
+    pub(crate) fn agrees(
+        &mut self,
+        actual: Option<ValueType>,
+        expected: Option<ValueType>,
+    ) -> bool {
         if let Some(actual) = actual
             && self.type_excludes_values(actual)
         {
             return true;
         }
-        self.same_type(actual, expected)
+        match expected {
+            Some(expected) => self.same_type(actual, expected),
+            None => actual.is_none(),
+        }
     }
 
     /// Storage correspondence still requires the exact carrier, domains

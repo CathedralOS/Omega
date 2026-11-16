@@ -7550,7 +7550,6 @@ pub(crate) fn select_function(
                     | LegalizedScalarInstructionKind::MergeActivationClaim { .. }
                     | LegalizedScalarInstructionKind::StaticInterrupt { .. }
                     | LegalizedScalarInstructionKind::AccessLifecycle { .. }
-                    | LegalizedScalarInstructionKind::RunCustody { .. }
                     | LegalizedScalarInstructionKind::ReleaseActivationClaim { .. }
                     | LegalizedScalarInstructionKind::EstablishNativeCodeLayout { .. }
                     | LegalizedScalarInstructionKind::EstablishRecord { .. }

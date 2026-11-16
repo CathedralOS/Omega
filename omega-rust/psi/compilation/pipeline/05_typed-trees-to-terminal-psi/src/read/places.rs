@@ -1217,7 +1217,7 @@ impl Program<'_> {
             }
             let field_type = declared[position];
             let operand = self.expression(id, slots, field.value, Some(field_type))?;
-            if !self.agrees(operand.result, field_type) {
+            if !self.agrees(operand.result, Some(field_type)) {
                 return Err(self.mistyped(
                     id,
                     operand.source,

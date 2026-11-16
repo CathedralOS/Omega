@@ -22,14 +22,7 @@ fn recover(bytes: &[u8]) -> Result<Execution, Error> {
 }
 
 fn affected_executions() -> Vec<(Execution, Vec<u8>)> {
-    let mut cases = [
-        language_core::sealed_intrinsics::RunCustodyOperation::ReleaseEmpty,
-        language_core::sealed_intrinsics::RunCustodyOperation::Split,
-        language_core::sealed_intrinsics::RunCustodyOperation::Merge,
-    ]
-    .into_iter()
-    .map(|operation| (Execution::RunCustody(operation), vec![18, operation.tag()]))
-    .collect::<Vec<_>>();
+    let mut cases = vec![(Execution::EmptyRunRelease, vec![16])];
     for operation in StaticInterruptOperation::ALL {
         cases.push((
             Execution::StaticInterrupt(operation),
@@ -196,8 +189,7 @@ fn intrinsic_recovery_rejects_truncation_trailing_bytes_and_unknown_operations()
             assert_eq!(recover(&malformed), Err(Error::InvalidTag));
         }
     }
-    assert_eq!(recover(&[16]), Err(Error::InvalidTag));
-    for tag in 19..=u8::MAX {
+    for tag in 18..=u8::MAX {
         assert_eq!(recover(&[tag]), Err(Error::InvalidTag));
     }
 }

@@ -99,12 +99,13 @@ impl<'a> Reviewer<'a> {
             .map(|plan| {
                 effects::CompilerIntrinsicExecutionIdentity::AccessLifecycle(plan.operation)
             });
-        let intrinsic = declaration
-            .declaration
-            .as_ref()
-            .and_then(|row| row.execution.run_custody_operation())
-            .map(effects::CompilerIntrinsicExecutionIdentity::RunCustody)
-            .or(lifecycle);
+        let intrinsic = if declaration.declaration.as_ref().map(|row| row.execution)
+            == Some(terminal_psi::CheckedBoundaryExecution::EmptyRunRelease)
+        {
+            Some(effects::CompilerIntrinsicExecutionIdentity::EmptyRunRelease)
+        } else {
+            lifecycle
+        };
         if let Some(intrinsic) = intrinsic {
             let expected = TerminalMechanismIdentity::CompilerIntrinsic(intrinsic);
             if self.context.mechanism(boundary) != Some(&expected) {

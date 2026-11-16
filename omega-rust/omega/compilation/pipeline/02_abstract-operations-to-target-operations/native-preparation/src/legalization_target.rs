@@ -3964,7 +3964,7 @@ pub(crate) mod unit {
         use crate::legalization::scalar_graph_input;
         use crate::legalization::{accepted_fact, references_obligation};
 
-        pub(super) fn same_result_home(
+        fn same_result_home(
             result_home: &target_operations::TargetStructuralHomeRequirement,
             optimized: &PsiOptimizationFunction,
             place: semantic_vocabulary::PlaceId,
@@ -5706,99 +5706,6 @@ pub(crate) mod unit {
                 }
             }
 
-            (
-                TargetUnitOperation::RunCustody {
-                    psi_operation,
-                    boundary,
-                    operation: custody,
-                    arguments: actuals,
-                    cut,
-                    carrier,
-                    fields,
-                    parts,
-                    result_home,
-                    ..
-                },
-                AbstractOperation::BoundaryCall {
-                    psi_operation: expected_operation,
-                    boundary: expected_boundary,
-                    arguments,
-                    structural_arguments,
-                    result: abstract_operations::AbstractBoundaryResult::Structural(result),
-                    ..
-                },
-            ) => {
-                let declaration = plan
-                    .boundary_machines
-                    .binary_search_by_key(boundary, |row| row.id)
-                    .ok()
-                    .and_then(|index| plan.boundary_machines.get(index))
-                    .ok_or(LegalizationError::custody())?;
-                let projected = terminal_semantics::run_custody_contract_by(
-                    |id| plan.geometry().declaration(id).ok(),
-                    declaration,
-                )
-                .map_err(|_| LegalizationError::custody())?;
-                let (run, expected_parts, expected_result, expected_custody, arity) =
-                    match projected {
-                        terminal_semantics::RunCustodyContract::Split {
-                            run,
-                            left,
-                            right,
-                            result,
-                        } => (
-                            run,
-                            Some([left.id, right.id]),
-                            result,
-                            language_core::sealed_intrinsics::RunCustodyOperation::Split,
-                            1,
-                        ),
-                        terminal_semantics::RunCustodyContract::Merge { run, result } => (
-                            run,
-                            None,
-                            result,
-                            language_core::sealed_intrinsics::RunCustodyOperation::Merge,
-                            2,
-                        ),
-                        terminal_semantics::RunCustodyContract::ReleaseEmpty(_) => {
-                            return Err(LegalizationError::custody());
-                        }
-                    };
-                let expected_fields = [run.storage.id, run.count.id, run.base.id, run.length.id];
-                if psi_operation != expected_operation
-                    || boundary != expected_boundary
-                    || *custody != expected_custody
-                    || *carrier != run.carrier
-                    || *fields != expected_fields
-                    || *parts != expected_parts
-                    || actuals != structural_arguments
-                    || actuals.len() != arity
-                    || actuals
-                        .iter()
-                        .any(|actual| actual.access != terminal_psi::StructuralAccess::Owned)
-                    || arguments.len() != usize::from(expected_parts.is_some())
-                    || match (arguments.as_slice(), cut) {
-                        ([], None) => false,
-                        ([value], Some(cut)) => !sources
-                            .matching(*value)
-                            .any(|(actual, source)| actual == value && source == cut),
-                        _ => true,
-                    }
-                    || result.structural_type != expected_result.structural_type
-                    || result.multiplicity != expected_result.multiplicity
-                    || result.qualifications != expected_result.qualifications
-                    || result.projected_qualifications != expected_result.projected_qualifications
-                    || result_home.operation_result() != Some((*expected_operation, result))
-                    || !aggregate_results::same_result_home(
-                        result_home,
-                        optimized,
-                        result.place,
-                        plan,
-                    )?
-                {
-                    return Err(LegalizationError::custody());
-                }
-            }
             (
                 TargetUnitOperation::AccessLifecycle {
                     psi_operation,

@@ -4027,7 +4027,6 @@ mod declaration_invocations {
             StaticMachineApplicationHandle, StaticMachineBinding, StaticMachineBindingValue,
         },
     };
-    use language_core::sealed_intrinsics::{CompilerPrimitive, SealedIntrinsic};
     use symbols::SymbolHandle;
 
     impl TypedTrees {
@@ -4440,51 +4439,6 @@ mod declaration_invocations {
             Ok(Some(&prepared.signature))
         }
 
-        /// Compiler metadata identifies the declaration; the same retained
-        /// bodyless occurrence still authenticates its complete application.
-        /// No unprepared template or another compiler-provided family serves
-        /// as a substitute for this source call's closed contract.
-        pub fn compiler_primitive_callable_signature(
-            &self,
-            application: StaticMachineApplicationHandle,
-            target: SymbolHandle,
-        ) -> Result<Option<(CompilerPrimitive, &StateSignature)>, &'static str> {
-            if !self.symbols.symbols().nodes().is_valid(target) {
-                return Err("compiler primitive target has no live declaration");
-            }
-            let Some(machine) = self
-                .machine_by_symbol(target)
-                .or_else(|| self.machine_holding_state(target))
-            else {
-                return Ok(None);
-            };
-            let Some(operation) = self.run_custody_primitive(machine)? else {
-                return Ok(None);
-            };
-            Ok(self
-                .bodyless_callable_signature(application, target)?
-                .map(|signature| (operation, signature)))
-        }
-
-        fn run_custody_primitive(
-            &self,
-            machine: &crate::machine::Machine,
-        ) -> Result<Option<CompilerPrimitive>, &'static str> {
-            if !matches!(
-                self.symbols
-                    .sealed_declaration(machine.symbol, machine.name.as_str()),
-                Some(SealedIntrinsic::CompilerPrimitive(
-                    CompilerPrimitive::RunCustody(_)
-                ))
-            ) {
-                return Ok(None);
-            }
-            match self.compiler_primitive_schema_checked(machine.symbol)? {
-                Some((operation @ CompilerPrimitive::RunCustody(_), _)) => Ok(Some(operation)),
-                _ => Err("run custody changed its exact compiler primitive declaration"),
-            }
-        }
-
         /// Look up this occurrence, not another call with equal rendered
         /// arguments. Mutated source bindings cannot reuse an earlier header.
         pub fn bodyless_callable_signature(
@@ -4612,15 +4566,9 @@ mod declaration_invocations {
             else {
                 return Ok(None);
             };
-            // Only this exact sealed compiler family joins the existing
-            // preparation path. Other compiler-provided declarations do not
-            // acquire bodyless-call authority from their supply mode alone.
             if machine.supply_mode != language_semantics::MachineSupplyMode::Boundary
-                && self.run_custody_primitive(machine)?.is_none()
+                || !machine.has_bodyless_signature()
             {
-                return Ok(None);
-            }
-            if !machine.has_bodyless_signature() {
                 return Ok(None);
             }
             self.bodyless_machine_signature_for(machine, target)
@@ -4715,213 +4663,6 @@ mod declaration_invocations {
                     ..Default::default()
                 },
             ))
-        }
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-        use crate::{
-            data::{TypeParameter, TypeParameterKind},
-            machine::Machine,
-            name::Identifier,
-            signature::StateParameter,
-            state::State,
-            types::TypeReferenceNode,
-        };
-        use symbols::{BuiltinTypeAtom, SymbolKind, SymbolNameRef, SymbolTableBuilder};
-
-        #[test]
-        fn bodyless_occurrences_keep_both_closed_type_arguments_and_source_bindings() {
-            let mut symbols = SymbolTableBuilder::default();
-            let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
-            let roots = symbols.insert_children(
-                root,
-                symbols::builtin_type_symbols().into_iter().chain([
-                    (SymbolKind::Machine, SymbolNameRef::Static("transfer")),
-                    (SymbolKind::Machine, SymbolNameRef::Static("caller")),
-                ]),
-            );
-            let target = roots.handle_at(BuiltinTypeAtom::ALL.len() as u32);
-            let caller = roots.handle_at(BuiltinTypeAtom::ALL.len() as u32 + 1);
-            let children = symbols.insert_children(
-                target,
-                [
-                    (SymbolKind::TypeParameter, SymbolNameRef::Static("P")),
-                    (SymbolKind::TypeParameter, SymbolNameRef::Static("T")),
-                    (SymbolKind::State, SymbolNameRef::Static("entry")),
-                ],
-            );
-            let mut program = TypedTrees {
-                symbols: symbols.finish(),
-                ..Default::default()
-            };
-            let mut named = |symbol, name| {
-                program
-                    .type_reference_table
-                    .insert(TypeReferenceNode::Named {
-                        symbol,
-                        name: Identifier::generated(name),
-                    })
-            };
-            let p = named(children.handle_at(0), "P");
-            let t = named(children.handle_at(1), "T");
-            let u32_type = named(
-                roots.handle_at(
-                    BuiltinTypeAtom::Integer(numerics::integer_carrier::FixedInteger::unsigned(32))
-                        .ordinal() as u32,
-                ),
-                "u32",
-            );
-            let u64_type = named(
-                roots.handle_at(BuiltinTypeAtom::U64.ordinal() as u32),
-                "u64",
-            );
-            let type_parameters = program.data_type_parameters.insert_many([
-                TypeParameter {
-                    symbol: children.handle_at(0),
-                    name: Identifier::generated("P"),
-                    kind: TypeParameterKind::Type,
-                    ..Default::default()
-                },
-                TypeParameter {
-                    symbol: children.handle_at(1),
-                    name: Identifier::generated("T"),
-                    kind: TypeParameterKind::Type,
-                    ..Default::default()
-                },
-            ]);
-            let parameters = program.state_parameters.insert_many([
-                StateParameter {
-                    type_reference: p,
-                    ..Default::default()
-                },
-                StateParameter {
-                    type_reference: t,
-                    ..Default::default()
-                },
-            ]);
-            let states = program.machine_states.insert_many([State {
-                symbol: children.handle_at(2),
-                name: Identifier::generated("entry"),
-                parameters,
-                return_type: t,
-                ..Default::default()
-            }]);
-            program.push_machine(Machine {
-                symbol: target,
-                name: Identifier::generated("transfer"),
-                type_parameters,
-                states,
-                supply_mode: language_semantics::MachineSupplyMode::Boundary,
-                body_is_present: false,
-                ..Default::default()
-            });
-            let application = |program: &mut TypedTrees, types: [_; 2]| {
-                let arguments =
-                    types.map(|ty| program.static_operand_from_type_reference(ty).unwrap());
-                let application = program.expression_table.retain_static_machine_application(
-                    target,
-                    Identifier::generated("transfer"),
-                    &arguments,
-                );
-                let occurrence = program
-                    .expression_table
-                    .static_machine_application_mut(application);
-                occurrence.lexical_owner = caller;
-                occurrence.binding_declaration = target;
-                application
-            };
-            let first = application(&mut program, [u32_type, u64_type]);
-            let second = application(&mut program, [u64_type, u32_type]);
-            let unprepared = application(&mut program, [u32_type, u64_type]);
-            assert!(
-                program
-                    .prepare_bodyless_callable_application(first, target)
-                    .unwrap()
-            );
-            assert!(
-                program
-                    .prepare_bodyless_callable_application(second, target)
-                    .unwrap()
-            );
-            for (application, expected) in [
-                (first, [u32_type, u64_type]),
-                (second, [u64_type, u32_type]),
-            ] {
-                let signature = program
-                    .bodyless_callable_signature(application, target)
-                    .unwrap()
-                    .unwrap();
-                assert!(signature.type_parameters.is_empty());
-                assert_eq!(signature.parameters.len(), 2);
-                for (formal, expected) in program
-                    .state_parameters
-                    .span(signature.parameters)
-                    .unwrap()
-                    .iter()
-                    .zip(expected)
-                {
-                    assert_eq!(
-                        program
-                            .type_reference_table
-                            .type_reference(formal.type_reference),
-                        program.type_reference_table.type_reference(expected)
-                    );
-                }
-                assert_eq!(
-                    program
-                        .type_reference_table
-                        .type_reference(signature.return_type),
-                    program.type_reference_table.type_reference(expected[1])
-                );
-            }
-            assert!(
-                program
-                    .bodyless_callable_signature(unprepared, target)
-                    .unwrap()
-                    .is_none()
-            );
-            let replacement = [u64_type, u64_type]
-                .map(|ty| program.static_operand_from_type_reference(ty).unwrap());
-            program
-                .expression_table
-                .set_static_machine_application_arguments(first, &replacement);
-            assert_eq!(
-                program
-                    .bodyless_callable_signature(first, target)
-                    .unwrap_err(),
-                "bodyless call source or bindings changed after contract preparation"
-            );
-            let duplicate = program
-                .applied_callable_signatures
-                .declaration_rows(second, caller)
-                .next()
-                .unwrap()
-                .1
-                .clone();
-            program.applied_callable_signatures.insert(duplicate);
-            assert_eq!(
-                program
-                    .bodyless_callable_signature(second, target)
-                    .unwrap_err(),
-                "bodyless call has ambiguous prepared declaration contracts"
-            );
-            // Supply mode by itself cannot promote an ordinary declaration,
-            // even one with a previously prepared complete application.
-            program.machine_mut(0).supply_mode =
-                language_semantics::MachineSupplyMode::CompilerProvided;
-            assert!(
-                program
-                    .compiler_primitive_callable_signature(second, target)
-                    .unwrap()
-                    .is_none()
-            );
-            assert!(
-                !program
-                    .prepare_bodyless_callable_application(second, target)
-                    .unwrap()
-            );
         }
     }
 }

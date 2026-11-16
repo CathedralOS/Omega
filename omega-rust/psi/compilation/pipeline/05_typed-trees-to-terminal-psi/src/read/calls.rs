@@ -753,11 +753,6 @@ impl<'t> Program<'t> {
         }
         self.bound_target(id, call.target_symbol)?;
         if let Some(read) =
-            self.run_custody_call(id, slots, StaticArgumentCall::Statement(call), source, None)?
-        {
-            return Ok(read);
-        }
-        if let Some(read) =
             self.rigid_call(id, slots, StaticArgumentCall::Statement(call), source)?
         {
             return Ok(read);
@@ -888,15 +883,6 @@ impl<'t> Program<'t> {
             return self.runtime_call(id, slots, runtime, arguments, source, expected);
         }
         self.bound_target(id, call.target_symbol)?;
-        if let Some(read) = self.run_custody_call(
-            id,
-            slots,
-            StaticArgumentCall::Expression(handle, call),
-            source,
-            expected,
-        )? {
-            return Ok(read);
-        }
         // The integer carrier query is answered only through its fields in a
         // static condition (`carriers`); its own body is no answer to run.
         if self.is_carrier_query(call) {
@@ -2433,11 +2419,7 @@ impl<'t> Program<'t> {
     /// Resolve the same exact entry identity for direct and selected calls.
     /// Selection decides which contract is exposed; it does not change which
     /// source machine owns this entry state.
-    pub(super) fn call_target_symbol(
-        &self,
-        id: MachineId,
-        target: SymbolHandle,
-    ) -> Checked<SymbolHandle> {
+    fn call_target_symbol(&self, id: MachineId, target: SymbolHandle) -> Checked<SymbolHandle> {
         Ok(match self.typed.symbols.get(target).kind {
             SymbolKind::Machine => target,
             SymbolKind::State => {
@@ -2570,7 +2552,7 @@ impl<'t> Program<'t> {
     /// must be its formal at the bound regions, and the result is the
     /// callee's at them. A result lifetime no input carries is chosen by
     /// the caller: by the expected type, or else by the result's first use.
-    pub(super) fn call_of(
+    fn call_of(
         &mut self,
         id: MachineId,
         slots: &[Slot],
@@ -2929,7 +2911,7 @@ impl<'t> Program<'t> {
             let agrees = if borrowed.is_some() {
                 self.same_type(actual.result, formal)
             } else {
-                self.agrees(actual.result, formal)
+                self.agrees(actual.result, Some(formal))
             };
             let agrees = agrees
                 || self.const_array_argument_agrees(

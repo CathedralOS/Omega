@@ -4917,14 +4917,8 @@ pub(crate) use wire::{Reader, Writer, decode_canonical, decode_counted};
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
 // Marker 286 replaces the structural type copy bit with its declared three-way
-// multiplicity. A 285 payload cannot supply Linear and must reject before decoding.
-// Marker 285 combines the independently published 284 grammars. Main adds
-// callable/source/installation identities, Machine/Boundary namespace owners
-// and sealed-intrinsic provenance. The other predecessor replaces operand-free
-// empty-run release with RunCustody(operation, policy, actual element). Neither
-// 284 layout supplies this union, so both reject before payload interpretation.
-// Existing callable operation tags and owned-cleanup/decomposition meanings stay
-// unchanged; no old release byte may acquire RunCustody operand meaning.
+// multiplicity. Earlier payloads cannot supply Linear and reject before decoding.
+// The source and callable identity schema from main remains unchanged.
 pub(crate) const FORMAT_MARKER: u16 = 286;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";

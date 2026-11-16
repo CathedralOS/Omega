@@ -1079,17 +1079,14 @@ pub(crate) mod result_custody {
             }
             if binding.resident != Handle::default() && !self.residents.contains(&binding.resident)
             {
-                let ResidentStorageSlot::Live { payload, .. } =
+                let ResidentStorageSlot::Live { custody, .. } =
                     execution.provider_storage.residents.get(binding.resident)
                 else {
                     return Err(malformed());
                 };
                 self.residents.push(binding.resident);
                 self.add_cells(1)?;
-                payload
-                    .custody()
-                    .storage
-                    .measure_result_custody(execution, self)?;
+                custody.storage.measure_result_custody(execution, self)?;
             }
             Ok(())
         }

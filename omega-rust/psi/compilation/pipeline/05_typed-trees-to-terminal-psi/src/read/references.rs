@@ -736,11 +736,11 @@ mod tests {
         assert_ne!(d_first.qualification(), e_first.qualification());
         assert_ne!(d_first.regions(), d_second.regions());
         assert!(
-            !program.agrees(Some(d_first), e_first),
+            !program.agrees(Some(d_first), Some(e_first)),
             "a domain is not erased with the row"
         );
         assert!(
-            !program.agrees(Some(d_first), d_second),
+            !program.agrees(Some(d_first), Some(d_second)),
             "same spelling is not the same owner"
         );
         for (value, domain) in [
@@ -767,7 +767,7 @@ mod tests {
             .unwrap()
             .unwrap();
         assert!(
-            !program.agrees(Some(d_second), mutable),
+            !program.agrees(Some(d_second), Some(mutable)),
             "shared access cannot become mutable with the same referent"
         );
         assert!(program.source_record_correspondence(id).unwrap().is_empty());

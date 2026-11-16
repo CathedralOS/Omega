@@ -458,12 +458,7 @@ impl Program<'_> {
         for (definition_index, definition) in typed.mathematical_definitions().iter().enumerate() {
             let read = (|| -> Checked<()> {
                 if self.owner(entry, definition.symbol, subjects, purpose)? == Owner::Subject {
-                    self.mathematical_predicate_definition(
-                        entry,
-                        definition_index,
-                        super::logical::AddressInterpretation::OrdinaryTerminal,
-                        &[],
-                    )?;
+                    self.mathematical_predicate_definition(entry, definition_index, None, &[])?;
                 }
                 Ok(())
             })();

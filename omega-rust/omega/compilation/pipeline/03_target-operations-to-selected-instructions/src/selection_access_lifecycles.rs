@@ -20,9 +20,6 @@ use terminal_psi::{
     StructuralTypeShape, TerminalAccessLifecyclePlan,
 };
 
-#[path = "selection_run_custody.rs"]
-pub(crate) mod run_custody;
-
 pub(crate) mod initialization {
     use super::{
         Builder, ImageDirection, ImageHome, LegalizedScalarInstruction, PlaceId,

@@ -2209,21 +2209,6 @@ pub(crate) mod scalar_graph {
                     indices,
                     result,
                 }
-            } else if let target_operations::TargetUnitOperation::RunCustody {
-                boundary, operation: custody, arguments, result_home, cut, carrier, fields, parts, ..
-            } = targeted {
-                let (_, result) = result_home.operation_result().ok_or(Error::custody())?;
-                let mut indices = Vec::new();
-                for argument in arguments {
-                    let root = scalar_graph_input::primitive_locals::read_root_type(function_inputs, argument.place)
-                        .ok_or(Error::custody())?;
-                    indices.extend(projection(optimized, unit, operation, root, &argument.path, unit.geometry())?);
-                }
-                LegalizedScalarInstructionKind::RunCustody {
-                    boundary: *boundary, operation: *custody, arguments: arguments.clone(), indices,
-                    cut: cut.as_ref().map(|cut| cut.source_value()), carrier: *carrier,
-                    fields: *fields, parts: *parts, result: result.clone(),
-                }
             } else if let target_operations::TargetUnitOperation::AccessLifecycle {
                 boundary,
                 operands,

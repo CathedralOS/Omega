@@ -8,8 +8,7 @@ public data Run<P, T> [linear] {
 }
 
 public domain<P, T> Run<P, T>::Live<P, T>
-established by Run::empty, Run::initialize_from_profile, Run::relocate_from_profiles,
-    Run::split, Run::merge;
+established by Run::empty, Run::initialize_from_profile, Run::relocate_from_profiles;
 
 // An empty authorized partition contains no cells to initialize. The checked
 // route retains its existing backing claim and establishes no element authority.
@@ -34,59 +33,10 @@ ensures result.base == run.storage.base, result.length == run.storage.length
     Run::retire_empty<P, T>(run)
 }
 
-machine Run::retire_empty<P, T>(run: Run<P, T> in Live<P, T>)
+boundary machine Run::retire_empty<P, T>(run: Run<P, T> in Live<P, T>)
     -> Extent in Granted & Vacant
-reaches none
-crashes none
-terminates
 requires run.count == 0, run.storage.length == 0
 ensures result.base == run.storage.base, result.length == run.storage.length;
-
-// The two live subsequences retain their actual cells, placement and backing
-// obligations. This product does not issue new cells from counts or geometry.
-public data RunParts<P, T> [linear] {
-    left: Run<P, T> in Live<P, T>;
-    right: Run<P, T> in Live<P, T>;
-}
-
-// Split and merge are exact compiler-supplied custody transfers. They access no
-// payload and select no provider. Geometry is necessary alongside the checked
-// cell, placement, carry and outstanding-loan correspondence.
-public machine Run::split<P, T>(run: Run<P, T> in Live<P, T>, cut: u64)
-    -> RunParts<P, T>
-reaches none
-crashes none
-terminates
-requires cut <= run.count
-ensures
-    result.left.count == cut,
-    result.right.count == run.count - cut,
-    result.left.storage.base == run.storage.base,
-    embed(result.left.storage.length) + embed(result.right.storage.length) == embed(run.storage.length),
-    embed(result.left.storage.length) * embed(run.count) == embed(run.storage.length) * embed(cut),
-    cut != 0 || result.left.storage.length == 0,
-    cut != run.count || result.right.storage.length == 0,
-    result.left.storage.length != 0 || result.right.storage.base == run.storage.base,
-    result.right.storage.length == 0 || embed(result.right.storage.base) == embed(run.storage.base) + embed(result.left.storage.length),
-    result.right.storage.length != 0 || result.right.storage.base == run.storage.base;
-
-// Empty byte ranges keep a representable base, including when an occupied
-// zero-footprint run still owns cells. The custody rule preserves their logical
-// order and obligations independently of these byte equations.
-public machine Run::merge<P, T>(left: Run<P, T> in Live<P, T>, right: Run<P, T> in Live<P, T>)
-    -> Run<P, T> in Live<P, T>
-reaches none
-crashes none
-terminates
-requires
-    embed(left.count) + embed(right.count) <= 18446744073709551615,
-    embed(left.storage.length) + embed(right.storage.length) <= 18446744073709551615,
-    left.storage.length == 0 || right.storage.length == 0 || embed(right.storage.base) == embed(left.storage.base) + embed(left.storage.length)
-ensures
-    embed(result.count) == embed(left.count) + embed(right.count),
-    embed(result.storage.length) == embed(left.storage.length) + embed(right.storage.length),
-    left.storage.length == 0 || result.storage.base == left.storage.base,
-    left.storage.length != 0 || result.storage.base == right.storage.base;
 
 // This ordinary predicate publishes the count promised by cell initialization.
 // It grants no storage or custody and is not an alternative to Live.

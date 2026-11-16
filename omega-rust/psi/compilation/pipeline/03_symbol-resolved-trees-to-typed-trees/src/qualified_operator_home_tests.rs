@@ -32,7 +32,7 @@ pub(crate) fn checked_with_equality(
     packages(&sources, &[], &[])
 }
 
-pub(crate) fn packages(
+fn packages(
     units: &[(u8, &str, &str)],
     dependencies: &[(u8, &str, u8)],
     imports: &[(usize, usize, &str, usize)],

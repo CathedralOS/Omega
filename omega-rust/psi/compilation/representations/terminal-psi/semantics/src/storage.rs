@@ -4017,265 +4017,12 @@ pub(crate) mod representation_regions {
 }
 pub mod run_custody {
 
-    use language_core::sealed_intrinsics::RunCustodyOperation;
-    use semantic_vocabulary::{IntegerSign, ScalarType, StructuralFieldId, StructuralTypeId};
+    use semantic_vocabulary::{IntegerSign, StructuralFieldId};
     use terminal_psi::{
-        BoundaryDeclarationRole, BoundaryMachineDeclaration, BoundaryMachineResult,
-        BoundaryParameterKind, BoundaryStructuralResultDeclaration, StructuralAccess,
-        StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
+        BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryStructuralResultDeclaration,
+        CheckedBoundaryExecution, StructuralAccess, StructuralFieldType, StructuralMultiplicity,
         StructuralTypeDeclaration, StructuralTypeShape, TerminalIdentityIndex,
     };
-
-    /// Borrowed descriptor roles, not another owner or a claim about live cells.
-    /// The caller's formed declaration catalog owns lookup; actual ordered cell
-    /// custody must still be transferred through the operation's ownership flow.
-    #[derive(Clone, Copy)]
-    pub struct RunDescriptorRoles<'module> {
-        pub carrier: StructuralTypeId,
-        pub extent: StructuralTypeId,
-        pub storage: &'module StructuralFieldDeclaration,
-        pub count: &'module StructuralFieldDeclaration,
-        pub base: &'module StructuralFieldDeclaration,
-        pub length: &'module StructuralFieldDeclaration,
-    }
-
-    pub enum RunCustodyContract<'module> {
-        ReleaseEmpty(EmptyRunReleaseContract<'module>),
-        Split {
-            run: RunDescriptorRoles<'module>,
-            left: &'module StructuralFieldDeclaration,
-            right: &'module StructuralFieldDeclaration,
-            result: &'module BoundaryStructuralResultDeclaration,
-        },
-        Merge {
-            run: RunDescriptorRoles<'module>,
-            result: &'module BoundaryStructuralResultDeclaration,
-        },
-    }
-
-    /// Project a source-authenticated run contract using the caller's existing
-    /// prepared type lookup. No range, layout or content authority is minted by
-    /// recognizing these fields; geometry alone does not establish live cells.
-    pub fn run_custody_contract_by<'module>(
-        mut lookup: impl FnMut(StructuralTypeId) -> Option<&'module StructuralTypeDeclaration>,
-        boundary: &'module BoundaryMachineDeclaration,
-    ) -> Result<RunCustodyContract<'module>, &'static str> {
-        let Some(terminal_psi::CheckedBoundaryCallable {
-            execution:
-                terminal_psi::CheckedBoundaryExecution::RunCustody {
-                    operation,
-                    policy: _,
-                    element,
-                },
-            ..
-        }) = &boundary.declaration
-        else {
-            return Err("run custody has no authenticated compiler execution");
-        };
-        let operation = *operation;
-        if let StructuralFieldType::Structural(element) = element {
-            lookup(*element).ok_or("run custody lost its actual element declaration")?;
-        }
-        let expected_order: &[BoundaryParameterKind] = match operation {
-            RunCustodyOperation::ReleaseEmpty => &[BoundaryParameterKind::Structural],
-            RunCustodyOperation::Split => &[
-                BoundaryParameterKind::Structural,
-                BoundaryParameterKind::Scalar,
-            ],
-            RunCustodyOperation::Merge => &[
-                BoundaryParameterKind::Structural,
-                BoundaryParameterKind::Structural,
-            ],
-        };
-        if boundary.role != BoundaryDeclarationRole::Callable
-            || boundary.kind != semantic_vocabulary::BoundaryRequirementKind::Machine
-            || boundary.parameter_order.as_slice() != expected_order
-            || boundary.completion != semantic_vocabulary::BoundaryCompletion::NormalReturn
-            || !boundary.unconditional_termination
-            || !boundary.crash_routes.is_empty()
-            || boundary.owning_service.is_some()
-            || boundary.service_reach_is_installation_bound
-            || !boundary.fixed_service_reach.is_empty()
-            || !boundary.published_service_ceiling.is_empty()
-            || !boundary.published_synchronous_entries.is_empty()
-            || boundary.declaration.as_ref().is_some_and(|row| {
-                row.source.published_may_suspend || row.source.published_may_block
-            })
-        {
-            return Err("run custody changed its total provider-free call contract");
-        }
-        let BoundaryMachineResult::Structural(result) = &boundary.result else {
-            return Err("run custody requires an owned structural result");
-        };
-        if result.multiplicity != StructuralMultiplicity::Linear
-            || boundary.structural_parameters.iter().any(|parameter| {
-                parameter.access != StructuralAccess::Owned
-                    || parameter.multiplicity != StructuralMultiplicity::Linear
-            })
-        {
-            return Err("run custody changed its linear ownership telescope");
-        }
-        let run = match (operation, boundary.structural_parameters.as_slice()) {
-            (RunCustodyOperation::ReleaseEmpty | RunCustodyOperation::Split, [run]) => run,
-            (RunCustodyOperation::Merge, [left, right])
-                if left.structural_type == right.structural_type =>
-            {
-                left
-            }
-            _ => return Err("run custody lost its exact owned argument roles"),
-        };
-        let run = descriptor_roles(&mut lookup, run.structural_type)?;
-        match operation {
-            RunCustodyOperation::ReleaseEmpty => {
-                if !boundary.scalar_parameters.is_empty() || result.structural_type != run.extent {
-                    return Err("empty-run release changed its result or scalar arguments");
-                }
-                Ok(RunCustodyContract::ReleaseEmpty(EmptyRunReleaseContract {
-                    storage: run.storage.identity,
-                    count: run.count.id,
-                    length: run.length.id,
-                    result,
-                }))
-            }
-            RunCustodyOperation::Split => {
-                let [ScalarType::Integer(cut)] = boundary.scalar_parameters.as_slice() else {
-                    return Err("run split requires exactly one unsigned cut");
-                };
-                if cut.sign() != IntegerSign::Unsigned || cut.bits() != Some(64) || cut.is_address()
-                {
-                    return Err("run split changed its u64 cut");
-                }
-                let parts = lookup(result.structural_type)
-                    .ok_or("run split lost its parts result declaration")?;
-                let StructuralTypeShape::Record { fields, .. } = &parts.shape else {
-                    return Err("run split requires its two-part record result");
-                };
-                let [left, right] = fields.as_slice() else {
-                    return Err("run split changed its two-part result");
-                };
-                if parts.owns_linear_claim
-                    || parts.multiplicity != StructuralMultiplicity::Linear
-                    || parts.nominal_cleanup.is_some()
-                    || !parts.requires.is_empty()
-                    || left.relevance.is_erased()
-                    || right.relevance.is_erased()
-                    || left.id == right.id
-                    || left.identity == right.identity
-                    || left.field_type.as_structural() != Some(run.carrier)
-                    || right.field_type.as_structural() != Some(run.carrier)
-                {
-                    return Err("run split changed its exact owned prefix or suffix carrier");
-                }
-                Ok(RunCustodyContract::Split {
-                    run,
-                    left,
-                    right,
-                    result,
-                })
-            }
-            RunCustodyOperation::Merge => {
-                if !boundary.scalar_parameters.is_empty() || result.structural_type != run.carrier {
-                    return Err("run merge changed its result or scalar arguments");
-                }
-                Ok(RunCustodyContract::Merge { run, result })
-            }
-        }
-    }
-
-    fn descriptor_roles<'module>(
-        lookup: &mut impl FnMut(StructuralTypeId) -> Option<&'module StructuralTypeDeclaration>,
-        carrier: StructuralTypeId,
-    ) -> Result<RunDescriptorRoles<'module>, &'static str> {
-        let run = lookup(carrier).ok_or("run custody lost its carrier declaration")?;
-        let StructuralTypeShape::Record { fields, .. } = &run.shape else {
-            return Err("run custody has no record descriptor");
-        };
-        let [storage, count] = fields.as_slice() else {
-            return Err("run custody changed its backing or count roles");
-        };
-        if run.owns_linear_claim
-            || run.multiplicity != StructuralMultiplicity::Linear
-            || run.nominal_cleanup.is_some()
-            || !run.requires.is_empty()
-            || storage.relevance.is_erased()
-            || count.relevance.is_erased()
-            || !unsigned_count(&count.field_type)
-        {
-            return Err("run custody changed its linear backing or u64 count");
-        }
-        let extent = storage
-            .field_type
-            .as_structural()
-            .ok_or("run custody backing is not structural")?;
-        let backing = lookup(extent).ok_or("run custody lost its backing declaration")?;
-        let StructuralTypeShape::Record { fields, .. } = &backing.shape else {
-            return Err("run custody has no extent descriptor");
-        };
-        let [base, length] = fields.as_slice() else {
-            return Err("run custody changed its backing geometry roles");
-        };
-        if !backing.owns_linear_claim
-            || backing.multiplicity != StructuralMultiplicity::Linear
-            || backing.nominal_cleanup.is_some()
-            || !backing.requires.is_empty()
-            || base.relevance.is_erased()
-            || length.relevance.is_erased()
-            || !base
-                .field_type
-                .scalar_type()
-                .and_then(|scalar| scalar.as_integer())
-                .is_some_and(|integer| integer.is_address())
-            || !unsigned_count(&length.field_type)
-        {
-            return Err("run custody changed its owned extent address or length");
-        }
-        Ok(RunDescriptorRoles {
-            carrier,
-            extent,
-            storage,
-            count,
-            base,
-            length,
-        })
-    }
-
-    pub fn validate_run_custody_declarations(
-        module: &terminal_psi::TerminalModule,
-    ) -> Result<(), &'static str> {
-        if !module.boundary_machines.iter().any(|boundary| {
-            boundary
-                .declaration
-                .as_ref()
-                .is_some_and(|row| row.execution.run_custody_operation().is_some())
-        }) {
-            return Ok(());
-        }
-        // Prepare once for this receiving pass. The per-boundary projection
-        // borrows these declarations instead of repeatedly scanning all types.
-        let mut types = module.structural_types.iter().collect::<Vec<_>>();
-        types.sort_unstable_by_key(|declaration| declaration.id);
-        if types.windows(2).any(|pair| pair[0].id == pair[1].id) {
-            return Err("run custody has ambiguous structural declaration identities");
-        }
-        for boundary in &module.boundary_machines {
-            if boundary
-                .declaration
-                .as_ref()
-                .is_some_and(|row| row.execution.run_custody_operation().is_some())
-            {
-                run_custody_contract_by(
-                    |id| {
-                        let position = types
-                            .binary_search_by_key(&id, |declaration| declaration.id)
-                            .ok()?;
-                        Some(types[position])
-                    },
-                    boundary,
-                )?;
-            }
-        }
-        Ok(())
-    }
 
     pub struct EmptyRunReleaseContract<'module> {
         pub storage: TerminalIdentityIndex,
@@ -4288,13 +4035,56 @@ pub mod run_custody {
         types: &'module [StructuralTypeDeclaration],
         boundary: &'module BoundaryMachineDeclaration,
     ) -> Result<EmptyRunReleaseContract<'module>, &'static str> {
-        match run_custody_contract_by(|id| terminal_psi::find_structural_type(types, id), boundary)?
+        if boundary.declaration.as_ref().map(|row| row.execution)
+            != Some(CheckedBoundaryExecution::EmptyRunRelease)
+            || !boundary.scalar_parameters.is_empty()
         {
-            RunCustodyContract::ReleaseEmpty(contract) => Ok(contract),
-            RunCustodyContract::Split { .. } | RunCustodyContract::Merge { .. } => {
-                Err("empty-run release has no authenticated core execution")
-            }
+            return Err("empty-run release has no authenticated core execution");
         }
+        let [parameter] = boundary.structural_parameters.as_slice() else {
+            return Err("empty-run release requires one owned run");
+        };
+        let BoundaryMachineResult::Structural(result) = &boundary.result else {
+            return Err("empty-run release must return the existing extent");
+        };
+        if parameter.access != StructuralAccess::Owned
+            || parameter.multiplicity != StructuralMultiplicity::Linear
+            || result.multiplicity != StructuralMultiplicity::Linear
+        {
+            return Err("empty-run release changed its linear custody contract");
+        }
+        let run = terminal_psi::find_structural_type(types, parameter.structural_type)
+            .ok_or("empty-run release lost its run carrier")?;
+        let StructuralTypeShape::Record { fields, .. } = &run.shape else {
+            return Err("empty-run release has no record descriptor");
+        };
+        let [storage, count] = fields.as_slice() else {
+            return Err("empty-run release changed its descriptor fields");
+        };
+        if storage.field_type.as_structural() != Some(result.structural_type)
+            || storage.relevance.is_erased()
+            || count.relevance.is_erased()
+            || !unsigned_count(&count.field_type)
+        {
+            return Err("empty-run release changed its backing or count carrier");
+        }
+        let extent = terminal_psi::find_structural_type(types, result.structural_type)
+            .ok_or("empty-run release lost its extent carrier")?;
+        let StructuralTypeShape::Record { fields, .. } = &extent.shape else {
+            return Err("empty-run release has no extent descriptor");
+        };
+        let [_base, length] = fields.as_slice() else {
+            return Err("empty-run release changed its extent fields");
+        };
+        if length.relevance.is_erased() || !unsigned_count(&length.field_type) {
+            return Err("empty-run release changed its extent length carrier");
+        }
+        Ok(EmptyRunReleaseContract {
+            storage: storage.identity,
+            count: count.id,
+            length: length.id,
+            result,
+        })
     }
 
     fn unsigned_count(field: &StructuralFieldType) -> bool {
@@ -4302,287 +4092,8 @@ pub mod run_custody {
             .scalar_type()
             .and_then(|scalar| scalar.as_integer())
             .is_some_and(|integer| {
-                integer.sign() == IntegerSign::Unsigned
-                    && integer.bits() == Some(64)
-                    && !integer.is_address()
+                integer.sign() == IntegerSign::Unsigned && integer.bits() == Some(64)
             })
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-        use semantic_vocabulary::{IntegerType, PlaceId};
-        use terminal_psi::{
-            BindingRelevance, CheckedBoundaryCallable, CheckedBoundaryExecution,
-            CheckedMachineDeclaration, NominalDeclarationIdentity, StructuralParameterDeclaration,
-            StructuralRecordStorage,
-        };
-
-        fn ty(value: u64) -> StructuralTypeId {
-            StructuralTypeId::new(value).unwrap()
-        }
-        fn count() -> ScalarType {
-            ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap())
-        }
-        fn field(id: u64, field_type: StructuralFieldType) -> StructuralFieldDeclaration {
-            StructuralFieldDeclaration {
-                declaration_identity: TerminalIdentityIndex(id as u32),
-                inline_carrier: None,
-                id: StructuralFieldId::new(id).unwrap(),
-                identity: TerminalIdentityIndex(id as u32),
-                relevance: BindingRelevance::Relevant,
-                field_type,
-                storage: None,
-            }
-        }
-        fn record(id: u64, fields: Vec<StructuralFieldDeclaration>) -> StructuralTypeDeclaration {
-            StructuralTypeDeclaration {
-                declaration_identity: TerminalIdentityIndex(id as u32),
-                quotient_carrier: None,
-                id: ty(id),
-                identity: TerminalIdentityIndex(id as u32),
-                owns_linear_claim: id == 1,
-                multiplicity: StructuralMultiplicity::Linear,
-                no_code_affine_cleanup: false,
-                descriptor_cleanup: false,
-                nominal_cleanup: None,
-                shape: StructuralTypeShape::Record {
-                    fields,
-                    storage: StructuralRecordStorage::Packed,
-                },
-                scalar_restriction: None,
-                requires: Vec::new(),
-            }
-        }
-        fn types() -> Vec<StructuralTypeDeclaration> {
-            vec![
-                record(
-                    1,
-                    vec![
-                        field(
-                            1,
-                            StructuralFieldType::Scalar(ScalarType::Integer(
-                                IntegerType::address(64).unwrap(),
-                            )),
-                        ),
-                        field(2, StructuralFieldType::Scalar(count())),
-                    ],
-                ),
-                record(
-                    2,
-                    vec![
-                        field(3, StructuralFieldType::Structural(ty(1))),
-                        field(4, StructuralFieldType::Scalar(count())),
-                    ],
-                ),
-                record(
-                    3,
-                    vec![
-                        field(5, StructuralFieldType::Structural(ty(2))),
-                        field(6, StructuralFieldType::Structural(ty(2))),
-                    ],
-                ),
-            ]
-        }
-        fn boundary(operation: RunCustodyOperation) -> BoundaryMachineDeclaration {
-            let identity = TerminalIdentityIndex(20);
-            let source = CheckedMachineDeclaration {
-                machine: NominalDeclarationIdentity::new(identity),
-                state: NominalDeclarationIdentity::new(identity),
-                semantic_declaration: identity,
-                parameter_types: Vec::new(),
-                callable: identity,
-                result_type: identity,
-                contract: [0; 32],
-                published_may_suspend: false,
-                published_may_block: false,
-                specialization: None,
-            };
-            let mut row = BoundaryMachineDeclaration {
-                id: semantic_vocabulary::BoundaryMachineId::new(1).unwrap(),
-                declaration: Some(CheckedBoundaryCallable {
-                    service_declaration: [0; 32],
-                    source,
-                    execution: CheckedBoundaryExecution::RunCustody {
-                        operation,
-                        policy: identity,
-                        element: StructuralFieldType::Scalar(ScalarType::Boolean),
-                    },
-                    method_arguments: Vec::new(),
-                }),
-                numeric_intrinsic: None,
-                role: BoundaryDeclarationRole::Callable,
-                kind: semantic_vocabulary::BoundaryRequirementKind::Machine,
-                completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
-                unconditional_termination: true,
-                identity,
-                owner: NominalDeclarationIdentity::new(identity),
-                attachment: None,
-                parameter_order: vec![BoundaryParameterKind::Structural],
-                scalar_parameters: Vec::new(),
-                crash_routes: Vec::new(),
-                structural_parameters: vec![StructuralParameterDeclaration {
-                    place: PlaceId::new(1).unwrap(),
-                    position: 0,
-                    structural_type: ty(2),
-                    multiplicity: StructuralMultiplicity::Linear,
-                    access: StructuralAccess::Owned,
-                    qualifications: Vec::new(),
-                    projected_qualifications: Vec::new(),
-                    additional_input_qualifications: Vec::new(),
-                }],
-                result: BoundaryMachineResult::Structural(BoundaryStructuralResultDeclaration {
-                    structural_type: ty(1),
-                    multiplicity: StructuralMultiplicity::Linear,
-                    qualifications: Vec::new(),
-                    projected_qualifications: Vec::new(),
-                }),
-                result_reference_regions: Vec::new(),
-                result_lifetimes: None,
-                requires: Vec::new(),
-                normal_qualifications: Vec::new(),
-                scalar_domain_requirements: Vec::new(),
-                scalar_requires: Vec::new(),
-                scalar_ensures: Vec::new(),
-                reference_outputs: Vec::new(),
-                program_local_root_introductions: Vec::new(),
-                content_guarantees: Vec::new(),
-                fixed_service_reach: Vec::new(),
-                service_reach_is_installation_bound: false,
-                owning_service: None,
-                published_service_ceiling: Vec::new(),
-                published_synchronous_entries: Vec::new(),
-            };
-            match operation {
-                RunCustodyOperation::ReleaseEmpty => {}
-                RunCustodyOperation::Split => {
-                    row.parameter_order.push(BoundaryParameterKind::Scalar);
-                    row.scalar_parameters.push(count());
-                    let BoundaryMachineResult::Structural(result) = &mut row.result else {
-                        unreachable!()
-                    };
-                    result.structural_type = ty(3);
-                }
-                RunCustodyOperation::Merge => {
-                    row.parameter_order.push(BoundaryParameterKind::Structural);
-                    let mut right = row.structural_parameters[0].clone();
-                    right.place = PlaceId::new(2).unwrap();
-                    right.position = 1;
-                    row.structural_parameters.push(right);
-                    let BoundaryMachineResult::Structural(result) = &mut row.result else {
-                        unreachable!()
-                    };
-                    result.structural_type = ty(2);
-                }
-            }
-            row
-        }
-        fn project<'a>(
-            types: &'a [StructuralTypeDeclaration],
-            boundary: &'a BoundaryMachineDeclaration,
-        ) -> Result<RunCustodyContract<'a>, &'static str> {
-            run_custody_contract_by(|id| terminal_psi::find_structural_type(types, id), boundary)
-        }
-
-        #[test]
-        fn borrowed_run_roles_preserve_operation_and_exact_fields() {
-            let types = types();
-            for operation in [
-                RunCustodyOperation::ReleaseEmpty,
-                RunCustodyOperation::Split,
-                RunCustodyOperation::Merge,
-            ] {
-                let boundary = boundary(operation);
-                match project(&types, &boundary).unwrap() {
-                    RunCustodyContract::ReleaseEmpty(contract) => {
-                        assert_eq!(contract.storage, TerminalIdentityIndex(3));
-                        assert_eq!(contract.count, StructuralFieldId::new(4).unwrap());
-                    }
-                    RunCustodyContract::Split {
-                        run, left, right, ..
-                    } => {
-                        assert_eq!(run.carrier, ty(2));
-                        assert_eq!(run.extent, ty(1));
-                        assert!(std::ptr::eq(
-                            left,
-                            &types[2].shape.direct_fields().unwrap()[0]
-                        ));
-                        assert_eq!(right.id, StructuralFieldId::new(6).unwrap());
-                    }
-                    RunCustodyContract::Merge { run, .. } => {
-                        assert_eq!(run.base.id, StructuralFieldId::new(1).unwrap())
-                    }
-                }
-            }
-        }
-        #[test]
-        fn run_roles_refuse_substituted_custody_and_call_contracts() {
-            let types = types();
-            let original = boundary(RunCustodyOperation::Split);
-            for mutation in 0..8 {
-                let mut row = original.clone();
-                match mutation {
-                    0 => row.declaration = None,
-                    1 => row.unconditional_termination = false,
-                    2 => row.structural_parameters[0].access = StructuralAccess::SharedBorrow,
-                    3 => {
-                        row.scalar_parameters[0] =
-                            ScalarType::Integer(IntegerType::address(64).unwrap())
-                    }
-                    4 => row.parameter_order.reverse(),
-                    5 => row.owning_service = Some(semantic_vocabulary::ServiceId::new(1).unwrap()),
-                    6 => {
-                        row.declaration
-                            .as_mut()
-                            .unwrap()
-                            .source
-                            .published_may_suspend = true
-                    }
-                    7 => {
-                        let CheckedBoundaryExecution::RunCustody { element, .. } =
-                            &mut row.declaration.as_mut().unwrap().execution
-                        else {
-                            unreachable!()
-                        };
-                        *element = StructuralFieldType::Structural(ty(99));
-                    }
-                    _ => unreachable!(),
-                }
-                assert!(project(&types, &row).is_err(), "mutation {mutation}");
-            }
-            for mutation in 0..5 {
-                let mut types = types.clone();
-                match mutation {
-                    0 => types[1].multiplicity = terminal_psi::StructuralMultiplicity::Unrestricted,
-                    1 => types[0].owns_linear_claim = false,
-                    2 => {
-                        let StructuralTypeShape::Record { fields, .. } = &mut types[1].shape else {
-                            unreachable!()
-                        };
-                        fields[1].field_type = StructuralFieldType::Scalar(ScalarType::Integer(
-                            IntegerType::address(64).unwrap(),
-                        ));
-                    }
-                    3 => {
-                        let StructuralTypeShape::Record { fields, .. } = &mut types[2].shape else {
-                            unreachable!()
-                        };
-                        fields[1].field_type = StructuralFieldType::Structural(ty(1));
-                    }
-                    4 => {
-                        let StructuralTypeShape::Record { fields, .. } = &mut types[0].shape else {
-                            unreachable!()
-                        };
-                        fields[0].relevance = BindingRelevance::Erased;
-                    }
-                    _ => unreachable!(),
-                }
-                assert!(
-                    project(&types, &original).is_err(),
-                    "type mutation {mutation}"
-                );
-            }
-        }
     }
 }
 pub(crate) mod storage_dependencies {

@@ -371,14 +371,17 @@ fn serve(program: &mut TypedTrees, site: Site, generated: &mut GeneratedMachines
         .expression_table
         .static_machine_application_arguments(applied.application)
         .to_vec();
-    // Bodyless applications retain their complete header through the same
-    // declaration owner. It authenticates the sealed compiler families too;
-    // they have no body for the ordinary declaration copier to specialize.
-    if entered_machine(program, applied.target).is_some()
+    if let Some((declaration, _)) = entered_machine(program, applied.target)
         && program
-            .prepare_bodyless_callable_application(applied.application, applied.target)
-            .map_err(|reason| Stop::Unserved(Some(reason)))?
+            .machine_by_symbol(declaration)
+            .is_some_and(|machine| {
+                machine.supply_mode == language_semantics::MachineSupplyMode::Boundary
+                    && machine.has_bodyless_signature()
+            })
     {
+        program
+            .prepare_bodyless_callable_application(applied.application, applied.target)
+            .map_err(|reason| Stop::Unserved(Some(reason)))?;
         return Ok(());
     }
     if arguments.is_empty() {

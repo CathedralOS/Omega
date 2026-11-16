@@ -191,8 +191,8 @@ fn compiler_builtin_execution(
                 operation,
             });
         }
-        CompilerIntrinsicExecutionIdentity::RunCustody(operation) => {
-            return Some(CompilerBuiltinExecution::RunCustody(operation));
+        CompilerIntrinsicExecutionIdentity::EmptyRunRelease => {
+            return Some(CompilerBuiltinExecution::EmptyRunRelease);
         }
         CompilerIntrinsicExecutionIdentity::ProgramImageRetainedSuffixStart => {
             return Some(CompilerBuiltinExecution::ProgramImageRetainedSuffixStart);

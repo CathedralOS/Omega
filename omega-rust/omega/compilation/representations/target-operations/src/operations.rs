@@ -63,19 +63,6 @@ pub enum TargetUnitOperation {
         indices: Vec<TargetStructuralRuntimeIndex>,
         result_home: Option<TargetStructuralHomeRequirement>,
     },
-    RunCustody {
-        psi_operation: OperationId,
-        boundary: BoundaryMachineId,
-        operation: language_core::sealed_intrinsics::RunCustodyOperation,
-        arguments: Vec<StructuralArgument>,
-        indices: Vec<TargetStructuralRuntimeIndex>,
-        cut: Option<TargetUnitScalarArgumentSource>,
-        carrier: semantic_vocabulary::StructuralTypeId,
-        // Authenticated field operands: storage, count, base, length.
-        fields: [StructuralFieldId; 4],
-        parts: Option<[StructuralFieldId; 2]>,
-        result_home: TargetStructuralHomeRequirement,
-    },
     AccessLifecycle {
         psi_operation: OperationId,
         boundary: BoundaryMachineId,
@@ -703,11 +690,6 @@ impl TargetUnitOperation {
                 ..
             }
             | Self::AccessLifecycle {
-                psi_operation,
-                result_home,
-                ..
-            }
-            | Self::RunCustody {
                 psi_operation,
                 result_home,
                 ..

@@ -346,8 +346,8 @@ mod providers {
         13 => TaskRegisterRead,
         14 => SegmentReload(value0),
         15 => SegmentRead(value0),
+        16 => EmptyRunRelease,
         17 => StaticInterrupt(value0),
-        18 => RunCustody(value0),
     });
 
     #[cfg(test)]
@@ -389,24 +389,7 @@ mod providers {
         #[test]
         fn release_and_interrupt_execution_records_do_not_alias() {
             let cases = [
-                (
-                    Execution::RunCustody(
-                        language_core::sealed_intrinsics::RunCustodyOperation::ReleaseEmpty,
-                    ),
-                    18_u16,
-                ),
-                (
-                    Execution::RunCustody(
-                        language_core::sealed_intrinsics::RunCustodyOperation::Split,
-                    ),
-                    18,
-                ),
-                (
-                    Execution::RunCustody(
-                        language_core::sealed_intrinsics::RunCustodyOperation::Merge,
-                    ),
-                    18,
-                ),
+                (Execution::EmptyRunRelease, 16_u16),
                 (Execution::StaticInterrupt(Interrupt::Install), 17),
                 (Execution::StaticInterrupt(Interrupt::Context), 17),
                 (Execution::StaticInterrupt(Interrupt::BeginCompletion), 17),
@@ -428,12 +411,7 @@ mod providers {
                 }
                 assert!(distinct.insert(bytes));
             }
-            for bytes in [
-                [255, 255, 0, 0],
-                [17, 0, 255, 255],
-                [16, 0, 0, 0],
-                [18, 0, 255, 0],
-            ] {
+            for bytes in [[255, 255, 0, 0], [17, 0, 255, 255]] {
                 let mut reader = RecordReader::new(&bytes, RecordLimits::default()).unwrap();
                 assert!(Execution::read(&mut reader).is_err());
             }
@@ -1692,21 +1670,6 @@ mod semantic {
         2 => View,
         3 => Relocate,
     });
-
-    impl super::value::RecordValue for language_core::sealed_intrinsics::RunCustodyOperation {
-        fn write(
-            &self,
-            output: &mut super::value::RecordWriter,
-        ) -> Result<(), super::value::RecordError> {
-            super::value::RecordValue::write(&self.tag(), output)
-        }
-        fn read(
-            input: &mut super::value::RecordReader<'_>,
-        ) -> Result<Self, super::value::RecordError> {
-            let tag = <u8 as super::value::RecordValue>::read(input)?;
-            Self::from_tag(tag).ok_or_else(|| input.error("unknown run custody operation"))
-        }
-    }
 
     record_variants!(language_core::static_interrupts::StaticInterruptOperation {
         0 => Install,

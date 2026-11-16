@@ -162,7 +162,6 @@ pub(crate) fn hash_boundary_settlement_record(
                 CompilerBuiltinExecution::AccessorScalarAccess { .. }
                     | CompilerBuiltinExecution::AccessLifecycle { .. }
                     | CompilerBuiltinExecution::StaticInterrupt { .. }
-                    | CompilerBuiltinExecution::RunCustody(_)
             ) {
                 let mut bytes = Vec::new();
                 legalized_operations::legalized_operations::identity::encode_boundary_execution_identity(&mut bytes, target_operations::BoundaryExecutionBinding::CompilerBuiltin(execution));
@@ -244,7 +243,7 @@ const fn compiler_builtin_execution_tag(execution: CompilerBuiltinExecution) -> 
     match execution {
         CompilerBuiltinExecution::StaticInterrupt { .. } => 254,
         CompilerBuiltinExecution::AccessLifecycle { .. } => 253,
-        CompilerBuiltinExecution::RunCustody(_) => 255,
+        CompilerBuiltinExecution::EmptyRunRelease => 254,
         CompilerBuiltinExecution::AccessorScalarAccess { .. } => 250,
         CompilerBuiltinExecution::ProgramImageRetainedSuffixStart => 251,
         CompilerBuiltinExecution::ProgramStorageEntry => 252,
@@ -285,10 +284,7 @@ fn hash_boundary_realization(
             digest.byte(11);
             digest.raw(&boundary.get().to_le_bytes());
         }
-        BoundaryRealization::RunCustody(operation) => {
-            digest.byte(14);
-            digest.byte(operation.tag());
-        }
+        BoundaryRealization::EmptyRunRelease => digest.byte(12),
         BoundaryRealization::ProgramImageRetainedSuffixStart => digest.byte(10),
         BoundaryRealization::AccessorScalarAccess(access) => {
             digest.byte(9);

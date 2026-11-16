@@ -533,7 +533,7 @@ impl Program<'_> {
         let mut elements = Vec::with_capacity(supplied.len());
         for handle in supplied {
             let element = self.expression(machine, slots, *handle, Some(declared))?;
-            if !self.agrees(element.result, declared) {
+            if !self.agrees(element.result, Some(declared)) {
                 return Err(refuse(
                     machine,
                     Construct::Machine,

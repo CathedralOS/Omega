@@ -4,10 +4,9 @@
   Owns the byte-stable encoding over which `SelectedInstructionPlanIdentity` is
   derived (`omega.terminal-selected-instructions.v58\0`). The identity is
   hierarchical: `Sha256` over the plan's roots and the ordered digests of its
-  functions, each function digest (`omega.terminal-selected-instruction-function.v5\0`)
+  functions, each function digest (`omega.terminal-selected-instruction-function.v4\0`)
   retaining its static metadata, 64-register pages, local frame storage slots,
   boundary settlements, and ordered block digests (`omega.terminal-selected-instruction-block.v2\0`).
-  Run custody execution frames include their canonical operation byte.
   Every field of every function reaches the identity, while `SelectedFunctions`
   and `SelectedBlocks` retain pre-encoded prefix pages beside their shared
   entries so register-pressure recovery re-hashes only touched metadata,
@@ -175,7 +174,7 @@ fn encode_function_header(
     function: &crate::SelectedFunctionContracts,
     entry_block: crate::SelectedBlockId,
 ) {
-    bytes.extend_from_slice(b"omega.terminal-selected-instruction-function.v5\0");
+    bytes.extend_from_slice(b"omega.terminal-selected-instruction-function.v4\0");
     push_encoded(bytes, function.machine.get().to_le_bytes());
     optimization_core::encode_option_u64(
         bytes,

@@ -82,24 +82,3 @@ machine build_entry(base: addr, limit: addr) {{ let seen: bool = probe(base, lim
         "expression cast to or from an address while reading the body of `probe`"
     );
 }
-
-/// Transparent declarations use the same address carrier and exclusive bound
-/// as an ordinary clause. Removing the caller's geometry does not establish it.
-#[test]
-fn a_transparent_predicate_keeps_ordinary_address_geometry() {
-    let source = |input_contract: &str| {
-        format!(
-            "public let no_wrap(base: addr, length: u64): core::Strict<0> =
-    embed(base) + embed(length) <= addr::Bound;
-machine consume(base: addr, length: u64) requires no_wrap(base, length) {{ }}
-machine build_entry(base: addr, length: u64) {input_contract} {{ consume(base, length); }}"
-        )
-    };
-    assert_eq!(
-        verdict(&source(
-            "requires embed(base) + embed(length) <= addr::Bound"
-        )),
-        "accepted"
-    );
-    assert_eq!(verdict(&source("")), "rejected");
-}

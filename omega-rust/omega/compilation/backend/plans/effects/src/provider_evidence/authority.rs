@@ -77,7 +77,7 @@ pub enum CompilerIntrinsicExecutionIdentity {
     ProgramImageRetainedSuffixStart,
     ProgramStorageEntry,
     AccessLifecycle(terminal_psi::TerminalAccessLifecycleOperation),
-    RunCustody(language_core::sealed_intrinsics::RunCustodyOperation),
+    EmptyRunRelease,
     AccessorScalarAccess {
         contract: [u8; 32],
         placement_commitment: [u8; 32],
@@ -264,10 +264,7 @@ pub fn compiler_intrinsic_execution_identity_bytes(
         CompilerIntrinsicExecutionIdentity::HostedReadByte => bytes[0] = 6,
         CompilerIntrinsicExecutionIdentity::ProgramImageRetainedSuffixStart => bytes[0] = 9,
         CompilerIntrinsicExecutionIdentity::ProgramStorageEntry => bytes[0] = 10,
-        CompilerIntrinsicExecutionIdentity::RunCustody(operation) => {
-            bytes[0] = 18;
-            bytes[1] = operation.tag();
-        }
+        CompilerIntrinsicExecutionIdentity::EmptyRunRelease => bytes[0] = 16,
         CompilerIntrinsicExecutionIdentity::AccessLifecycle(operation) => {
             bytes[0] = 11;
             bytes[1] = match operation {
@@ -1224,7 +1221,7 @@ fn terminal_authority_closure_review_identity(
     identities: &terminal_psi::TerminalIdentityTable,
 ) -> [u8; 32] {
     let mut digest = crate::provider_evidence::digest_encoder::DomainDigestEncoder::new(
-        b"omega.terminal-authority.closure-review.v7\0",
+        b"omega.terminal-authority.closure-review.v6\0",
     );
     digest.raw(&terminal_artifact_identity);
     digest.byte(match target.architecture {

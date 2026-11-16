@@ -1035,10 +1035,19 @@ fn analyze(
 ) -> Result<Plan, Error> {
     use semantic_vocabulary::StructuralPlaceKind;
     use terminal_psi::TerminalMachineResult;
-    // A generic requirement is a check-form signature, not an executable
-    // activation. Its caller still transfers each argument normally.
+    // A requirement has no activation to walk, but its signature still owns
+    // exact claim rows. Prepare or verify those without inventing a body.
     if machine.blocks.is_empty() {
-        return Ok(Plan::default());
+        let claims = claim_mode
+            .map(|mode| {
+                let (flow, _) = claims::Flow::new(machine, types, mode)?;
+                flow.finish(machine)
+            })
+            .transpose()?;
+        return Ok(Plan {
+            claims,
+            ..Plan::default()
+        });
     }
     // A parent's permission cannot erase the custody of its represented
     // children. Check direct dependencies once; no recursive rescanning is
@@ -4127,8 +4136,14 @@ mod tests {
             analysis.dispose(id(1), &region, 0).unwrap(),
             vec![TerminalAffineCleanupAction::RetireHome(id(1))]
         );
-        let intrinsic_types = transfer_only_types(true);
+        let mut intrinsic_types = transfer_only_types(false);
+        intrinsic_types[0].multiplicity = terminal_psi::StructuralMultiplicity::Linear;
+        intrinsic_types[0].owns_linear_claim = true;
+        crate::owned_structure::validate_intrinsic_claim_roots(&intrinsic_types)
+            .expect("the outer value owns a claim independently of its affine fields");
         let mut intrinsic = owned_analysis(&intrinsic_types);
+        intrinsic.roots[0].as_mut().unwrap().multiplicity =
+            terminal_psi::StructuralMultiplicity::Linear;
         intrinsic.dispositions.fill(Some(false));
         assert!(intrinsic.dispose(id(1), &region, 0).is_err());
     }
@@ -4249,6 +4264,58 @@ mod tests {
             cleanup_actions: Vec::new(),
         };
         machine
+    }
+
+    #[test]
+    fn bodyless_requirements_keep_their_exact_parameter_claims() {
+        let types = transfer_only_types(true);
+        let mut machine = transferring(
+            &[id(3)],
+            &[id(3)],
+            vec![StructuralArgument::whole(id(1), StructuralAccess::Owned)],
+        );
+        machine.blocks.clear();
+        machine.block_entry_claims.clear();
+        machine.structural_places.truncate(1);
+        machine.contract.structural_parameters[0].multiplicity =
+            terminal_psi::StructuralMultiplicity::Linear;
+        let plan = analyze(
+            &machine,
+            &types,
+            false,
+            None,
+            None,
+            Some(claims::Mode::Publish),
+        )
+        .unwrap()
+        .claims
+        .expect("a bodyless signature still has a claim plan");
+        assert_eq!(plan.entry_claims.len(), 1);
+        plan.install(&mut machine).unwrap();
+        let verified = analyze(
+            &machine,
+            &types,
+            true,
+            None,
+            None,
+            Some(claims::Mode::Verify),
+        )
+        .unwrap();
+        assert!(verified.claims.is_some());
+        assert!(machine.blocks.is_empty());
+
+        machine.contract.entry_claims.clear();
+        assert!(
+            analyze(
+                &machine,
+                &types,
+                true,
+                None,
+                None,
+                Some(claims::Mode::Verify)
+            )
+            .is_err()
+        );
     }
 
     #[test]
