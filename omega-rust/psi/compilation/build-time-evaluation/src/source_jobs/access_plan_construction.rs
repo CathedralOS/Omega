@@ -613,7 +613,9 @@ machine write_number(ticket: &mut Ticket in Stamped) { ticket.number = 41; }
             terminal_codec::TerminalPublication::Portable,
         );
         if let Some(axis) = denied {
-            let error = judged.err().expect("an empty route list denies that axis");
+            let Err(error) = judged else {
+                panic!("an empty route list denies that axis");
+            };
             assert!(format!("{error:?}").contains(axis), "{error:?}");
             continue;
         }
