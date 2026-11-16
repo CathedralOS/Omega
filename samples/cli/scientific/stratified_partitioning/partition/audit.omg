@@ -1,7 +1,11 @@
+module partition::audit;
 // Materialize row assignments, then check conservation and every same-group
 // pair. Reporting consumes these audited assignments rather than recomputing.
 use data::dataset;
+use data::dataset::Dataset;
 use partition::allocation;
+use partition::allocation::Allocation;
+use partition::allocation::selected;
 public data Audit {
     assignments: [i32; 16] in Saturating;
     counts: [i32; 3] in Saturating;

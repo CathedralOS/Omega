@@ -1,3 +1,4 @@
+module domain::model;
 // Declared sample model: E(T) = a + b*T + c*T*T in mV and Celsius.
 // Strict derivative signs at both endpoints certify each quadratic segment
 // monotone. Global monotonicity is deliberately not assumed: enumerate roots.

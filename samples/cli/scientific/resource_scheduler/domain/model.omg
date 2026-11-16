@@ -1,6 +1,7 @@
+module domain::model;
 // Private bounded scheduling data. All arithmetic is integral; the admitted
 // bounds keep it far inside i32 even though the carrier uses Wrapping.
-data Problem {
+public data Problem {
     count: i32 in Wrapping;
     capacity_a: i32 in Wrapping;
     capacity_b: i32 in Wrapping;
@@ -9,20 +10,20 @@ data Problem {
     demand_b: [i32 in Wrapping; 4];
     predecessors: [i32 in Wrapping; 4];
 }
-data Schedule {
+public data Schedule {
     starts: [i32 in Wrapping; 4];
     ends: [i32 in Wrapping; 4];
     makespan: i32 in Wrapping;
     feasible: bool;
 }
-machine reset_schedule(schedule: &mut Schedule) {
+public machine reset_schedule(schedule: &mut Schedule) {
     schedule.starts = [0 - 1, 0 - 1, 0 - 1, 0 - 1];
     schedule.ends = [0, 0, 0, 0];
     schedule.makespan = 0;
     schedule.feasible = false;
 }
 // Integer division decodes one predecessor bit without an imported bitset.
-machine predecessor(mask: i32 in Wrapping, task: i32 in Wrapping) -> bool {
+public machine predecessor(mask: i32 in Wrapping, task: i32 in Wrapping) -> bool {
     transition task {
         0 -> (mask % 2 == 1)
         1 -> ((mask / 2) % 2 == 1)

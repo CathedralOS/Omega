@@ -1,6 +1,9 @@
+module output::report;
 use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 use domain::balance;
+use domain::balance::Frame;
+use domain::balance::Balance;
 // Collect decimal digits privately, then emit them in reverse order. Ten
 // digits cover every bounded application result; division precedes all I/O.
 data Decimal { digits: [i32; 10]; }

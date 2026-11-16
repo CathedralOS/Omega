@@ -5122,9 +5122,37 @@ mod substitution {
                     "resolved constant selection has no retained declaration",
                 ));
             };
+            if !declaration.is_public
+                && !program
+                    .symbols
+                    .symbol_source_span(selected)
+                    .is_some_and(|source| program.symbols.same_source_package(reference, source))
+            {
+                return Err(Diagnostic::error(format!(
+                    "constant `{}` is private to its declaring package",
+                    program.symbols.display_path(selected, "::"),
+                ))
+                .with_source_span(reference));
+            }
             if mode == crate::resolution::lowerer::ConstResolutionMode::ArgumentSelection
                 || declaration.evaluated_value.is_none()
             {
+                // Evaluation replaces this retained name by its resolved leaf.
+                // Carry the constant already selected for this use, including
+                // when earlier name binding stopped at its qualifying carrier.
+                let expressions = &mut program.tables.bodies.expressions;
+                let ExpressionNode::Name(path) = expressions.expression_mut(occurrence.expression)
+                else {
+                    unreachable!("selected_expression_constant only selects name paths");
+                };
+                path.symbol = selected;
+                let member_symbols = path.member_symbols;
+                expressions.set_name_path_member_symbol_at_offset(
+                    member_symbols,
+                    member_symbols.count() - 1,
+                    selected,
+                );
+                expressions.set_unresolved_name(occurrence.expression, Default::default());
                 selections.push(crate::resolution::lowerer::PendingConstSelection {
                     expression: occurrence.expression,
                     source_span: reference,

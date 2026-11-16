@@ -1,8 +1,12 @@
+module design::certificate;
 use design::model;
+use design::model::Request;
+use design::model::Allocation;
+use design::model::edge_code;
 
 // Recount cells, not sequence identifiers. Enforce each subject's permutation,
 // period balance, the directed edge cap, and the declared forbidden edge.
-machine certify(request: &Request, allocation: &mut Allocation) -> bool {
+public machine certify(request: &Request, allocation: &mut Allocation) -> bool {
     allocation.periods = [0, 0, 0, 0, 0, 0, 0, 0, 0];
     allocation.carryover = [0, 0, 0, 0, 0, 0, 0, 0, 0];
     transition { _ -> scan_subject(request, allocation, 0) }

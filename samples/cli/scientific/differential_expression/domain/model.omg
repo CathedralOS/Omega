@@ -1,6 +1,11 @@
+module domain::model;
 use domain::math;
+use domain::math::logarithm;
+use domain::math::exponential;
+use domain::math::log_one_plus;
+use domain::math::log_gamma;
 
-data Study {
+public data Study {
     groups: [i32; 6]; counts: [f64; 48]; factors: [f64; 6];
     ratios: [f64; 8]; eligible: i32 in Wrapping;
     dispersion: [f64; 8]; mean_a: [f64; 8]; mean_b: [f64; 8];
@@ -9,7 +14,7 @@ data Study {
 }
 
 // Arrays use explicit guards at each dynamic access. Gene-major storage.
-machine count(study: &Study, gene: i32 in Wrapping, sample: i32 in Wrapping) -> f64 {
+public machine count(study: &Study, gene: i32 in Wrapping, sample: i32 in Wrapping) -> f64 {
     let position: i32 in Wrapping = gene * 6 + sample;
     transition position >= 0 && position < 48 {
  true -> read(study, position)
@@ -22,7 +27,7 @@ machine group(study: &Study, sample: i32 in Wrapping) -> i32 {
  false -> 0 }
     machine read(study: &Study, sample: i32 in Wrapping) -> i32 requires sample >= 0 && sample < 6 { study.groups[sample] }
 }
-machine factor(study: &Study, sample: i32 in Wrapping) -> f64 {
+public machine factor(study: &Study, sample: i32 in Wrapping) -> f64 {
     transition sample >= 0 && sample < 6 {
  true -> read(study, sample)
  false -> 1.0 }
@@ -42,7 +47,7 @@ machine geometric(study: &Study, gene: i32 in Wrapping) -> f64 {
  false -> 0.0 }
     }
 }
-machine normalize(study: &mut Study) -> bool {
+public machine normalize(study: &mut Study) -> bool {
     transition { _ -> sample(study, 0) }
     machine sample(study: &mut Study, index: i32 in Wrapping) -> bool {
         transition index >= 0 && index < 6 {
@@ -105,7 +110,7 @@ machine normalize(study: &mut Study) -> bool {
     }
 }
 
-machine average(study: &Study, gene: i32 in Wrapping, selected: i32) -> f64 {
+public machine average(study: &Study, gene: i32 in Wrapping, selected: i32) -> f64 {
     transition { _ -> scan(study, gene, selected, 0, 0.0, 0.0) }
     machine scan(study: &Study, gene: i32 in Wrapping, selected: i32, sample: i32 in Wrapping, total: f64, size: f64) -> f64 {
         transition sample < 6 {
@@ -123,7 +128,7 @@ machine average(study: &Study, gene: i32 in Wrapping, selected: i32) -> f64 {
 }
 // Residual moment estimator: sum((y/s - groupMean)^2 - groupMean/s)
 // divided by residual degrees of freedom times average squared group mean.
-machine dispersion(study: &Study, gene: i32 in Wrapping, a: f64, b: f64) -> f64 {
+public machine dispersion(study: &Study, gene: i32 in Wrapping, a: f64, b: f64) -> f64 {
     transition { _ -> scan(study, gene, a, b, 0, 0.0, 0.0) }
     machine scan(study: &Study, gene: i32 in Wrapping, a: f64, b: f64, sample: i32 in Wrapping, numerator: f64, denominator: f64) -> f64 {
         transition sample < 6 {
@@ -162,7 +167,7 @@ machine score(study: &Study, gene: i32 in Wrapping, selected: i32, mean: f64, al
  false -> scan(study, gene, selected, mean, alpha, sample + 1, total) }
     }
 }
-machine fit(study: &Study, gene: i32 in Wrapping, selected: i32, alpha: f64) -> f64 {
+public machine fit(study: &Study, gene: i32 in Wrapping, selected: i32, alpha: f64) -> f64 {
     transition { _ -> bisect(study, gene, selected, alpha, 0.0, 1000000.0, 0) }
     machine bisect(study: &Study, gene: i32 in Wrapping, selected: i32, alpha: f64, lower: f64, upper: f64, iteration: i32 in Wrapping) -> f64 {
         let middle: f64 = (lower + upper) / 2.0;
@@ -176,7 +181,7 @@ machine fit(study: &Study, gene: i32 in Wrapping, selected: i32, alpha: f64) -> 
  false -> bisect(study, gene, selected, alpha, lower, middle, iteration + 1) }
     }
 }
-machine information(study: &Study, gene: i32 in Wrapping, selected: i32, mean: f64, alpha: f64) -> f64 {
+public machine information(study: &Study, gene: i32 in Wrapping, selected: i32, mean: f64, alpha: f64) -> f64 {
     transition { _ -> scan(study, selected, mean, alpha, 0, 0.0) }
     machine scan(study: &Study, selected: i32, mean: f64, alpha: f64, sample: i32 in Wrapping, total: f64) -> f64 {
         transition sample < 6 {
@@ -197,7 +202,7 @@ machine log_probability(y: f64, mu: f64, alpha: f64) -> f64 {
     let combination: f64 = log_gamma(y + r) - log_gamma(r) - log_gamma(y + 1.0);
     combination - r * log_one_plus(alpha * mu) + y * logarithm(mu / (r + mu))
 }
-machine log_likelihood(study: &Study, gene: i32 in Wrapping, a: f64, b: f64, alpha: f64) -> f64 {
+public machine log_likelihood(study: &Study, gene: i32 in Wrapping, a: f64, b: f64, alpha: f64) -> f64 {
     transition { _ -> scan(study, gene, a, b, alpha, 0, 0.0) }
     machine scan(study: &Study, gene: i32 in Wrapping, a: f64, b: f64, alpha: f64, sample: i32 in Wrapping, total: f64) -> f64 {
         transition sample < 6 {

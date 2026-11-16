@@ -433,7 +433,7 @@ byte limit. Any tag value absent from a closed-sum table rejects.
 | successor edge | edge id + target block id + counted value ids + scalar term list + proof term list + counted structural arguments + counted trivial discards |
 | trivial discard | place id; appears only inside a counted roster |
 | residual discard | place id + structural path + structural type id |
-| affine cleanup action | `u8`: 1 + place id; 2 + residual discard; 3 + place id + structural path + structural type id + machine id + counted claim ids + optional identity + obligation id list; 4 + place id |
+| affine cleanup action | `u8`: 1 + place id; 2 + residual discard; 4 + place id; 6 + structural argument + structural type id + machine id + counted claim transfers + obligation id list; retired tags 3 and 5 reject |
 | evidence interface | trait string + counted argument strings + counted requirements (declaring-trait string + counted argument strings + requirement string) |
 
 Additional input qualifications distinguish facts supplied for a call from
@@ -880,6 +880,7 @@ crossing id binding the call-side suspension demand; 0 records none).
 | 130 | MergeActivationClaim | lower structural argument + upper structural argument + lower claim id + upper claim id + covered case id + rejected case id |
 | 131 | AtomicAccess | resident obligation id, then tag 93's fields; restricted-resident form |
 | 132 | ReadScalarApplication | scalar application id |
+| 138 | DecomposeStructuralValue | structural argument naming the owned subject; unit result |
 
 An element descriptor source in tags 81 and 92 is encoded as the existing
 nonzero place ID when selecting a whole descriptor. A zero `u64` introduces
@@ -982,8 +983,12 @@ The affine cleanup actions a terminator carries are a closed `u8` space:
 | --- | --- | --- |
 | 1 | DiscardRoot | place id |
 | 2 | DiscardResidual | residual discard |
-| 3 | InvokeNominal | place id + structural path + structural type id + machine id + counted claim ids + optional identity + obligation id list |
 | 4 | RetireHome | place id |
+| 6 | InvokeOwned | structural argument + structural type id + machine id + counted claim transfers + obligation id list |
+
+Retired borrowed-cleanup tags 3 and 5 reject. The owned subject keeps its exact
+access and path; receiving checks its selected machine, claim transfers and
+requirements at the cleanup edge and action ordinal.
 
 ## Machine rows
 
@@ -1489,6 +1494,30 @@ including the integer carrier. Vocabulary marker 137 and native input record
 `OMGNTI32` distinguish these contracts; their earlier formats reject. This adds
 no arithmetic proof rule or execution authority.
 
+Semantic format marker 279 retains complete domain access rules and the exact
+declaration identities of their subjects, cases and fields. It also retains
+the initial-state identity of a closed callable's specialization template.
+
+Semantic format marker 280 retains transparent scalar predicate definitions
+beside the proposition-declaration table. Each row carries its exact declaration
+identity-table index, an ordered counted list of scalar input declarations, and
+the body proposition. Rows strictly increase by declaration identity; inputs
+strictly increase by value identity. Receiving rejects missing or duplicate
+declarations, duplicate inputs, unsupported qualified inputs and bodies that
+refer outside their own formal scope. The lowered-form checker forms the body
+under those arbitrary inputs without assuming the proposition or its conjuncts;
+it discharges arithmetic through the ordinary scalar-operation proof rules.
+These rows are definitions, not callable machines or evidence of their bodies.
+Earlier semantic formats reject before table decoding.
+
+Semantic format marker 281 combines those predicate definitions with by-value
+nominal cleanup. A structural declaration retains its optional exact cleanup
+selection; action tag 6 carries the owned invocation and operation tag 138 ends
+the wrapper by consuming decomposition. Cleanup invocation sites retain both
+the edge identity and action ordinal. The independent preceding layouts both
+used marker 280; neither supplies this combined schema, and both reject before
+payload interpretation.
+
 A checked-machine declaration encodes `u32` identity-table indices for the
 exact-owner machine, initial state and semantic declaration; counted `u32`
 parameter-type identity indices; `u32` callable and result-type identity indices;
@@ -1735,7 +1764,8 @@ roster, and its counted telescope.
 Dependency positions traverse capture slots before method-local invocation slots;
 method invocation tuple comparisons use only the latter. A call row is an
 invocation site (`u8` namespace: 0 operation, 1 external completion, 2 no-normal
-invocation; followed by its nonzero `u64` identity), a `u32` binder, and a `bool`
+invocation, 3 cleanup; followed by its nonzero `u64` identity, then a `u32`
+action ordinal for cleanup only), a `u32` binder, and a `bool`
 application presence flag followed,
 when present, by the call application.
 
@@ -1852,7 +1882,7 @@ producer state and rederives every ordering rule.
 
 | Row | Fields |
 | --- | --- |
-| structural type declaration | `bool` quotient-carrier presence + optional quotient carrier id + structural type id + `u32` interned identity + `bool` owns linear claim + `bool` no-code affine cleanup authority + `bool` descriptor cleanup + `bool` logical copy permission + structural type shape, then the declaration's counted `requires` clauses for wrappers `17` (ordinary record shape tag + payload) or `18` (sum payload) |
+| structural type declaration | `bool` quotient-carrier presence + optional quotient carrier id + structural type id + `u32` interned identity + `u32` declaration identity + `bool` owns linear claim + `bool` no-code affine cleanup authority + `bool` descriptor cleanup + `bool` logical copy permission + `bool` nominal cleanup presence + optional selected declaration identity (`u32`) and cleanup machine id + structural type shape, then the declaration's counted `requires` clauses for wrappers `17` (ordinary record shape tag + payload) or `18` (sum payload) |
 | structural referent identity | structural type id + canonical closed-type identity string + `bool` foreign-reference descriptor role + `bool` boundary-opaque declaration role; no storage shape |
 | structural field | structural field id + identity string + binding relevance + structural field type |
 | structural case | structural case id + identity string + counted payload structural fields |
@@ -2815,7 +2845,7 @@ outside this codec.
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 278 | yes |
+| semantic module | `PSITERM\0` | 281 | yes |
 | canonical artifact | `PSIART\0\0` | 3 | no |
 | debug map | `PSIDBG\0\0` | 1 | yes |
 | optimization execution | `PSIOEXE\0` | 2 | no |

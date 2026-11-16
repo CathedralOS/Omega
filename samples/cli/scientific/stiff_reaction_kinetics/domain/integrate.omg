@@ -1,10 +1,20 @@
+module domain::integrate;
 // A trial owns six Newton stage solves: one full and two half SDIRK2 steps.
 // Only accepted two-half-step values update committed state. Rejection halves
 // h without changing time/y. The order-two local error estimate divides the
 // full versus fine difference by three; stage positivity is checked, never clipped.
 use domain::model;
+use domain::model::Vector;
+use domain::model::Problem;
+use domain::model::problem;
 use domain::rates;
+use domain::rates::magnitude;
+use domain::rates::maximum;
+use domain::rates::physical;
+use domain::rates::norm;
 use domain::newton;
+use domain::newton::Newton;
+use domain::newton::implicit;
 // Stiffly accurate, L-stable SDIRK2: gamma=1-1/sqrt(2),
 // A=[[gamma,0],[1-gamma,gamma]], b=[1-gamma,gamma].
 // Each stage reuses the backward-Euler residual/Jacobian owner.

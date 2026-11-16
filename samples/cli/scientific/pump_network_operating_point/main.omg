@@ -1,7 +1,13 @@
 use omega::language::core::ProcessExit;
 use platform::input;
+use platform::input::Input;
+use platform::input::read;
 use domain::network;
+use domain::network::Network;
+use domain::network::valid;
 use domain::solver;
+use domain::solver::Solver;
+use domain::solver::solve;
 use omega_language_std::Console;
 
 // Explicit build entry; EOF is a valid record terminator. No pause prompt.

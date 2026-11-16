@@ -3,8 +3,23 @@ use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 use omega::language::core::F64::square_root;
 use io::protocol;
+use io::protocol::Protocol;
+use io::protocol::protocol_read;
+use io::protocol::integer;
+use io::protocol::number;
 use domain::model;
+use domain::model::Study;
+use domain::model::count;
+use domain::model::factor;
+use domain::model::normalize;
+use domain::model::average;
+use domain::model::dispersion;
+use domain::model::fit;
+use domain::model::information;
+use domain::model::log_likelihood;
 use domain::math;
+use domain::math::logarithm;
+use domain::math::probability;
 
 data Main { protocol: Protocol; study: Study; }
 machine main(main: &mut Main) reaches ProcessExit + Console {

@@ -500,16 +500,21 @@ impl Program<'_> {
         };
         let ValueType::Record(row, _, _) = value_type else {
             return Err(unserved(
-                "byte predicate of something that is not a byte view",
+                "byte predicate of something that is not a byte view or a byte array",
             ));
         };
-        if !matches!(
-            self.data_type(id, row)?.shape,
-            StorageShape::ByteSequence(_)
-        ) {
-            return Err(unserved(
-                "byte predicate of something that is not a byte view",
-            ));
+        match self.data_type(id, row)?.shape {
+            StorageShape::ByteSequence(_) => {}
+            // A fixed array's length is in its type, so the predicate is a
+            // statement about its bytes (`fixed_bytes`).
+            StorageShape::FixedArray { .. } => {
+                return self.fixed_byte_predicate_clause(id, root, path, value_type, predicate);
+            }
+            _ => {
+                return Err(unserved(
+                    "byte predicate of something that is not a byte view or a byte array",
+                ));
+            }
         }
         canonical::equal(
             ScalarTerm::byte_sequence_predicate(predicate, root, path),

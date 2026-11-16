@@ -448,7 +448,7 @@ impl Program<'_> {
         .then_some(hint)
         .flatten();
         let base = self.place(machine, slots, indexed.collection, hint, access)?;
-        let Some(array) = self.opened(machine, base.result, access)? else {
+        let Some(array) = self.opened_place(machine, &base, access)? else {
             return Err(refuse(
                 machine,
                 Construct::Machine,

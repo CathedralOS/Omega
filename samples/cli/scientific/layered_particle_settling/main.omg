@@ -6,7 +6,18 @@ use omega_language_std::Console;
 use omega_language_std::LineReadResult;
 use omega::language::core::F64::from_i32;
 use physics::model;
+use physics::model::Layer;
+use physics::model::Particle;
+use physics::model::Step;
+use physics::model::layer_at;
+use physics::model::layer;
+use physics::model::absolute;
+use physics::model::force;
+use physics::model::terminal_velocity;
+use physics::model::advance;
 use reporting::numbers;
+use reporting::numbers::number;
+use reporting::numbers::micro;
 
 data Main {
     input: [u8; 16];

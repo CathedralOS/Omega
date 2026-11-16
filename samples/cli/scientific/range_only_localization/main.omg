@@ -4,8 +4,15 @@ use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 use omega_language_std::LineReadResult;
 use geometry::model;
+use geometry::model::Problem;
+use geometry::model::distance_squared;
+use geometry::model::feasible;
+use geometry::model::degenerate;
 use input::parser;
+use input::parser::parse;
+use input::parser::valid;
 use output::report;
+use output::report::number;
 
 // Search every integer point in the supplied closed window. Each candidate
 // includes three signed squared-range residuals relative to the lower bound.

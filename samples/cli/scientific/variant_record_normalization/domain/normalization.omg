@@ -1,4 +1,9 @@
+module domain::normalization;
 use domain::sequence;
+use domain::sequence::Sequence;
+use domain::sequence::sequence_base;
+use domain::sequence::copy_range;
+use domain::sequence::equal;
 
 public data Variant [copy] {
     contig: u64 in Wrapping;

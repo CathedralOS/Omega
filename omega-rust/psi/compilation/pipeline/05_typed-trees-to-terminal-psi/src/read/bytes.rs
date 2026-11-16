@@ -389,14 +389,6 @@ impl Program<'_> {
         let Some(ValueType::Record(row, _, _)) = base.result else {
             return Err(unavailable("range without its byte descriptor"));
         };
-        if base
-            .result
-            .is_some_and(|value| !value.qualification().domains.is_empty())
-        {
-            return Err(unavailable(
-                "range of qualified bytes without its selected operand type",
-            ));
-        }
         if !matches!(self.data_type(machine, row)?.shape,
             StorageShape::ByteSequence(carrier) if carrier.is_shared_readable_view())
         {
@@ -404,7 +396,41 @@ impl Program<'_> {
                 "range of mutable backing without its persistent shared loan",
             ));
         }
-        self.collection_range_selection(machine, handle, row)?;
+        let selected = self
+            .typed
+            .expression_table
+            .constructed_value_type_reference(handle);
+        if self
+            .typed
+            .type_reference_table
+            .contains_type_reference(selected)
+        {
+            // Typing retains the shared view only after selecting the builtin
+            // range with the collection's exact source type. Its shape does
+            // not carry the operand's domain onto the new window.
+            let Some(ValueType::Record(view, Qualification::NONE, _)) =
+                self.view_type(machine, selected)?
+            else {
+                return Err(unavailable(
+                    "byte range with a different selected result type",
+                ));
+            };
+            if !self.is_readable_byte_view(machine, view)? {
+                return Err(unavailable(
+                    "byte range with a different selected result type",
+                ));
+            }
+        } else {
+            if base
+                .result
+                .is_some_and(|value| !value.qualification().domains.is_empty())
+            {
+                return Err(unavailable(
+                    "range of qualified bytes without its selected operand type",
+                ));
+            }
+            self.collection_range_selection(machine, handle, row)?;
+        }
         self.collection_window(machine, slots, base, range, source)
     }
 

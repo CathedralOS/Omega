@@ -1,9 +1,11 @@
 use omega::language::core::ProcessExit;
 // Complete intended-invalid application: the unguarded dynamic index has
-// no bound. Even a benign supplied value cannot establish the general rule.
+// no bound. `requires true` makes the helper's input contract complete, so
+// it must accept every `u64` position; the benign value its one caller
+// supplies cannot narrow that by private entry inference.
 use omega_language_std::Console;
 data Main { }
-machine select(records: &[u64; 3], position: u64) -> u64 {
+machine select(records: &[u64; 3], position: u64) -> u64 requires true {
     records[position]
 }
 machine main(main: &mut Main) reaches ProcessExit + Console {

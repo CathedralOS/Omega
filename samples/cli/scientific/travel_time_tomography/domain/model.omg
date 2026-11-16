@@ -1,3 +1,4 @@
+module domain::model;
 // Synthetic two-cell straight-ray model. All lengths and times come from stdin.
 // No geophysical claims: uniform cells, no refraction, equal observation weights.
 

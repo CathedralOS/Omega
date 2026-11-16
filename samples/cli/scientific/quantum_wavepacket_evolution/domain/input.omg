@@ -1,3 +1,4 @@
+module domain::input;
 // Bounded ASCII signed decimals (no exponent), at most 24 digits, magnitude <= 1e6.
 // The byte budget includes separators and trailing whitespace. EOF is accepted
 // only after a complete token; malformed, truncated and over-budget input reject.

@@ -1,6 +1,7 @@
+module controller::model;
 // Storage is invocation-local. Accepted costs are at most 3501; the unused
 // plan-cost sentinel is 10000. All arithmetic fits its explicit i32 carrier.
-data Problem {
+public data Problem {
     horizon: i32 in Wrapping;
     initial: i32 in Wrapping;
     target: i32 in Wrapping;
@@ -14,7 +15,7 @@ data Problem {
     drift: i32 in Wrapping;
     exact_terminal: bool;
 }
-data Plan {
+public data Plan {
     candidates: i32 in Wrapping;
     feasible: i32 in Wrapping;
     boundary_rejected: i32 in Wrapping;
@@ -22,7 +23,7 @@ data Plan {
     code: i32 in Wrapping;
     cost: i32 in Wrapping;
 }
-machine valid_problem(problem: &Problem) -> bool {
+public machine valid_problem(problem: &Problem) -> bool {
     problem.horizon >= 1 && problem.horizon <= 5
         && problem.lower >= 0 - 4 && problem.upper <= 4 && problem.lower <= problem.upper
         && problem.initial >= problem.lower && problem.initial <= problem.upper
@@ -34,7 +35,7 @@ machine valid_problem(problem: &Problem) -> bool {
         && problem.action_weight >= 0 && problem.action_weight <= 9
         && problem.terminal_weight >= 0 && problem.terminal_weight <= 9
 }
-machine power_three(exponent: i32 in Wrapping) -> i32 in Wrapping {
+public machine power_three(exponent: i32 in Wrapping) -> i32 in Wrapping {
     transition { _ -> multiply(exponent, 1) }
     machine multiply(exponent: i32 in Wrapping, value: i32 in Wrapping) -> i32 in Wrapping {
         transition exponent > 0 {

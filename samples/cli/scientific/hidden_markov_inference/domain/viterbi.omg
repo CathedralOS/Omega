@@ -1,10 +1,13 @@
+module domain::viterbi;
 use domain::inference;
+use domain::inference::Model;
+use domain::inference::Inference;
 // Inputs are integer millionths. Every length-n path has the same denominator
 // 10^(12n), so 33 base-million limbs compare its numerator exactly (n <= 16).
 // This avoids both underflow and floating-point false ties. Carry never exceeds
 // 999999; the bounded product fits u64 without wrapping.
 data Weight [copy] { digits: [u64; 33]; }
-data Paths { zero: Weight; one: Weight; first: Weight; second: Weight; next_zero: Weight; next_one: Weight; zero_path: u64; one_path: u64; next_zero_path: u64; next_one_path: u64; }
+public data Paths { zero: Weight; one: Weight; first: Weight; second: Weight; next_zero: Weight; next_one: Weight; zero_path: u64; one_path: u64; next_zero_path: u64; next_one_path: u64; }
 machine multiply(source: &Weight, destination: &mut Weight, factor: u64) requires factor <= 1000000 {
     transition { _ -> limb(source, destination, factor, 0, 0) }
     machine limb(source: &Weight, destination: &mut Weight, factor: u64, index: u64, carry: u64)
@@ -31,7 +34,7 @@ machine prefer(first: &Weight, second: &Weight, first_path: u64, second_path: u6
         transition index > 0 { true -> limb(first, second, first_path, second_path, index - 1) false -> (first_path < second_path) }
     }
 }
-machine viterbi(model: &Model, paths: &mut Paths, result: &mut Inference)
+public machine viterbi(model: &Model, paths: &mut Paths, result: &mut Inference)
 requires model.count >= 1 requires model.count <= 16 {
     transition { _ -> clear(model, paths, result, 0) }
     machine clear(model: &Model, paths: &mut Paths, result: &mut Inference, index: u64)

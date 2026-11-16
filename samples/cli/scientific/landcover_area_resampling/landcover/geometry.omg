@@ -1,3 +1,4 @@
+module landcover::geometry;
 // Scientific model: axis-aligned cells in a planar equal-area coordinate system.
 // One tick is one metre. Half-open rectangles have integer boundaries; overlap
 // areas are exact square-metre integers. Fractions retain numerator/denominator.

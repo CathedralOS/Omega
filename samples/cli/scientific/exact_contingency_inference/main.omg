@@ -2,9 +2,15 @@ use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 use omega_language_std::LineReadResult;
 use domain::tables;
+use domain::tables::Table;
+use domain::tables::Model;
+use domain::tables::Inference;
 use domain::inference;
+use domain::inference::analyze;
 use io::report;
+use io::report::report;
 use controls::runtime_oracle;
+use controls::runtime_oracle::frozen_numerical_control;
 
 data Main { input: [u8; 19]; digits: [u64 in Wrapping; 17]; }
 // One bounded record: 17 ASCII digits followed by LF, or exact-length EOF.

@@ -37,6 +37,7 @@ mod clause_calls;
 mod constant_values;
 mod contracts;
 mod expressions;
+mod fixed_bytes;
 pub(crate) mod logical;
 mod machine;
 mod mathematics;
@@ -86,10 +87,20 @@ pub(crate) struct DeclaredDomain {
     pub predicate: Option<semantic_vocabulary::Proposition>,
 }
 
+pub(crate) struct PredicateDefinition {
+    pub symbol: SymbolHandle,
+    pub diagnostic: MachineId,
+    pub parameters: Vec<terminal_psi::ValueDeclaration>,
+    pub body: semantic_vocabulary::Proposition,
+}
+
 pub(crate) struct Program<'t> {
     pub publication: terminal_codec::TerminalPublication,
     pub purpose: source::DependencyScope,
     pub declaration_metadata: Vec<SymbolHandle>,
+    /// One output slot per source mathematical declaration, not per call.
+    /// Publication assigns portable identities to the prepared definitions.
+    pub predicate_definitions: Vec<Option<PredicateDefinition>>,
     typed: &'t TypedTrees,
     named_captures: crate::NamedCaptures,
     /// Irreversible storage-description phase, entered after the body closure.
@@ -366,6 +377,9 @@ impl<'t> Program<'t> {
             publication: terminal_codec::TerminalPublication::Portable,
             purpose,
             declaration_metadata: Vec::new(),
+            predicate_definitions: std::iter::repeat_with(|| None)
+                .take(typed.mathematical_definitions().len())
+                .collect(),
             typed,
             named_captures: captures,
             descriptor_storage: false,

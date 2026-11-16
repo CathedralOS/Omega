@@ -1,3 +1,4 @@
+module chronology::model;
 // Private finite scientific model: three quantized timestamps, inclusive bounds,
 // and destination >= source + lag. No continuous-time inference is claimed.
 public data Chronology {

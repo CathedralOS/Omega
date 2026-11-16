@@ -1,3 +1,4 @@
+module domain::balance;
 // All arithmetic is private to ADD01. Input magnitudes are capped at 1,000,000;
 // loads at 1000 N. These bounds keep every product below 2^63, so Wrapping
 // operations agree with mathematical integers. CoP remains an exact ratio.

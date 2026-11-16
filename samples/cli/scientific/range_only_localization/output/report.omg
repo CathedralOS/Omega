@@ -1,3 +1,4 @@
+module output::report;
 use omega_language_std::Console;
 use omega::language::core::narrow_i32_to_u8_wrapping;
 

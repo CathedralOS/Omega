@@ -1,3 +1,4 @@
+module io::output;
 use omega_language_std::Console;
 use omega::language::core::narrow_i64_to_i32_trapping;
 // Every emitted quantity is below 10^12 in magnitude by the input envelope.

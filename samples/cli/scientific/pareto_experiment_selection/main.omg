@@ -1,9 +1,16 @@
 use omega::language::core::ProcessExit;
 // IND11: complete runtime research-experiment admission, Pareto selection and report.
 use domain::model;
+use domain::model::Experiment;
+use domain::model::Application;
 use domain::selection;
+use domain::selection::duplicate;
 use input::numbers;
+use input::numbers::Parsed;
+use input::numbers::read_number;
+use input::numbers::only_whitespace;
 use report::render;
+use report::render::report;
 use omega_language_std::Console;
 
 machine main(application: &mut Application) reaches ProcessExit + Console {

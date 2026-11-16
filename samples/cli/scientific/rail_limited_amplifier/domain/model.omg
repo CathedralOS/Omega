@@ -1,3 +1,4 @@
+module domain::model;
 // Explicit sample model: a projected discrete first-order amplifier, not a
 // transistor model. Feedback is sampled from the previous output. Projection
 // occurs AFTER the Euler update, so numerical instability remains observable.

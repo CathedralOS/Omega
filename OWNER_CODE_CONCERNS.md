@@ -82,12 +82,13 @@ framework or a list of unimplemented features.
 - Cost: The private catalog advertises incomplete access summaries that cannot support preservation claims. Retire the unused analysis or derive its results from the existing owner-aware descriptor effect solver; appending recursive call paths would introduce an unbounded path fixed point.
 - Reported: 2026-11-15, Codex, while reviewing ordinary owned cleanup call composition.
 
-### Named predicates skip declaration-time arithmetic totality
-- Category: a verdict with nothing behind it
-- Where: [unused partial predicate](tests/fixtures/fail/proofs/unused_partial_mathematical_predicate/main.omg), [governance assertion](omega-rust/omega/compilation/compiler/tests/lowered_route_governance.rs#L185), [operator lowering](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/expression_lowering.rs#L1155), [named mathematical definitions](wiki/spec/proofs/mathematical_bindings.md#named-mathematical-definitions), [proof arithmetic rules](wiki/spec/proofs/contracts.md#total-arithmetic)
-- Saw: At `dc83fcb65264`, `omega --check --target linux_x86_64` accepts the unused predicate `value + 1u32 == 1u32` over arbitrary `u32`, so the governance test panics. At `16c9a2cd0431` on macOS arm64 targeting Linux x86-64, changing only the unused predicate's addition to `+%` is refused during typing. A machine precondition with the same wrapping expression and input type compiles.
-- Cost: Check a named predicate under its own formal inputs through the same term formation as an inline contract. Pin the overflow refusal even when the predicate is unused, admit the wrapping control, and preserve the nonzero-divisor obligation. Replace the governance assertion's old `carrier arithmetic in a clause term` expectation with the actual totality refusal.
-- Reported: 2026-11-15, Claude Code and Codex, while testing refusal locations and comparing overflow controls.
+### Borrowed field guards lose their reaching value at a state call
+- Category: re-deriving
+- Where: [scalar observation](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places.rs#L5360), [tick_marquee](samples/cli/rendering/tick_marquee/main.omg), [bitset](samples/cli/collections/bitset/main.omg)
+- Saw: In the marquee, `draw` stores the position, tests `main.pos < 12` and passes the same mutable record to `put`. Giving `put` that exact entry contract reaches `the clause's observation has no reaching value identity`. A pure record program with the same store, guard and nested state call gives the same refusal. The bitset insertion reaches it after supplying its checked word-index guard as the callee contract.
+- Cost: The caller's existing field guard cannot establish the same field observation at the receiving state. Preserve the exact projected contents and loan across the checked call. Keep sibling writes independent and refuse a bound after a write overlapping its field.
+- Reported: 2026-11-15, Codex, while restoring the paced marquee and checking the bitset policy witness.
+
 
 ### Completing selected bodies copies the retained typed program
 - Category: re-deriving
@@ -95,3 +96,4 @@ framework or a list of unimplemented features.
 - Saw: Empty activation still copies declaration and side-record storage before projection. On the [scalar-contract and borrowed-root Build routes](wiki/drafts/measurements/selected_body_copies.md#workloads-and-boundary), continuation construction requested 4,136,141 bytes across 12,802 allocations and 58 arena clones. Matching-symbol preparation added 958,615 bytes across eight allocations and five clones. Both measurements used Windows x86-64 at opt-level 1. The [measurement in #3646](https://github.com/CathedralOS/Omega/pull/3646) also covers nonempty completion. Child-list rewrites still use completion-batch boundaries.
 - Cost: A zero-body selection pays to copy unrelated storage. Share the remaining immutable storage under its actual owner using the [body ownership design](wiki/drafts/designs/compiler_work_ownership.md#representation-and-execution-contract). Preserve source application preparation, projection, source authority checks, and signature and inferred-summary dependencies. Remeasure empty activation and nonempty completion on both routes.
 - Reported: 2026-11-15, Codex, while measuring continuation construction and body completion.
+

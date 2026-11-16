@@ -1,4 +1,6 @@
+module input::frames;
 use domain::balance;
+use domain::balance::Frame;
 use omega::language::core::widen_u8_to_i32;
 // Seven signed decimal integers per line, separated by spaces. No commas,
 // exponent syntax or silent partial parses. Bounded magnitude prevents overflow.

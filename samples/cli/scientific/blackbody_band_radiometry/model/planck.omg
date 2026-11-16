@@ -1,3 +1,4 @@
+module model::planck;
 
 // h=6.62607015e-34 J s, c=299792458 m/s, k=1.380649e-23 J/K
 // are exact SI definitions. With x=hc/(lambda k T), exitance is

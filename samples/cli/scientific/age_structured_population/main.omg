@@ -1,9 +1,21 @@
 use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 use demography::model;
+use demography::model::Census;
+use demography::model::Schedule;
+use demography::model::Balance;
+use demography::model::valid_census;
+use demography::model::valid_schedule;
+use demography::model::total;
+use demography::model::advance;
 use demography::input;
+use demography::input::Parsed;
+use demography::input::read_number;
+use demography::input::input_complete;
 use demography::report;
+use demography::report::row;
 use demography::oracles;
+use demography::oracles::reference_checks;
 // The ordinary sample harness supplies empty stdin; reject that input honestly.
 // Expected exit: 2.
 // Expected output contains: ERROR invalid input

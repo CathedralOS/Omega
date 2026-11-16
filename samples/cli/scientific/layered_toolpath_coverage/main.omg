@@ -3,9 +3,13 @@ use omega::language::core::ProcessExit;
 // Expected exit: 64.
 // Expected output contains: ERROR input
 use domain::model;
+use domain::model::Job;
 use domain::input;
+use domain::input::load;
 use domain::paths;
+use domain::paths::paths;
 use domain::report;
+use domain::report::audit;
 use omega_language_std::Console;
 data Main { }
 machine main(main: &mut Main) reaches ProcessExit + Console {

@@ -1,8 +1,13 @@
+module report::render;
 use omega::language::core::ProcessExit;
 // Numeric output is computed at runtime through the settled byte console provider.
 // Fixed three-digit fields make reports exact byte oracles without floating tolerance.
 use domain::model;
+use domain::model::Experiment;
+use domain::model::Application;
 use domain::selection;
+use domain::selection::violations;
+use domain::selection::witness;
 use omega_language_std::Console;
 public machine number(application: &mut Application, value: u64) reaches Console
 invokes Console

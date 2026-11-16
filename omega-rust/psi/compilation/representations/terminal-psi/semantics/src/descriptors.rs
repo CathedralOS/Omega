@@ -2027,6 +2027,19 @@ pub(crate) mod primitive_store_memberships {
                 scalar::refinement(types.clone(), domain)?;
                 continue;
             }
+            // A domain stated only by clauses, `[u8; 3]::Low requires
+            // self[0] < 128`, governs no single write: a write inside it opens
+            // the owning data type's invariant window, and the checker proves
+            // the clauses again before the value is used (dependent_values.md,
+            // "Invariant windows").
+            let declared = exact_domain(domains.clone(), carrier_id, domain)?;
+            if declared.byte_predicate.is_none()
+                && declared.content_projection.is_none()
+                && declared.establishment_routes.is_none()
+                && declared.has_no_required_memberships()
+            {
+                continue;
+            }
             if !matches!(
                 suffix,
                 [

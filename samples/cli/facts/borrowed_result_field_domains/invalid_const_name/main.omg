@@ -12,8 +12,8 @@ requires index < 2 {
 public machine relay(table: &mut Table, index: u64) -> &mut Cell
 requires index < 2 { choose(table, index) }
 machine inspect(cell: &Cell) -> u8 { cell.storage[0] }
-const FIRST: Cell = Cell { storage: [65u8, 0u8, 0u8, 0u8] };
-const SECOND: Cell = Cell { storage: [66u8, 0u8, 0u8, 0u8] };
+const FIRST: Cell = Cell { storage: [65u8, 0u8, 0u8, 0u8] as +Ascii };
+const SECOND: Cell = Cell { storage: [66u8, 0u8, 0u8, 0u8] as +Ascii };
 machine observe(table: &mut Table, index: u64) -> u8
 requires index < 2 {
     inspect(relay(table, index))

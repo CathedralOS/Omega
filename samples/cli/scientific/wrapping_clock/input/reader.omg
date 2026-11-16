@@ -1,7 +1,9 @@
+module input::reader;
 use omega_language_std::ByteRead;
 use omega_language_std::Console;
 use omega::language::core::widen_i32_to_i64;
 use clock::model;
+use clock::model::Acquisition;
 
 data Token {
     case End;
@@ -55,7 +57,7 @@ crashes Trap
     }
 }
 
-machine read_acquisition(acquisition: &mut Acquisition) reaches Console
+public machine read_acquisition(acquisition: &mut Acquisition) reaches Console
 blocks
 crashes Trap
 {

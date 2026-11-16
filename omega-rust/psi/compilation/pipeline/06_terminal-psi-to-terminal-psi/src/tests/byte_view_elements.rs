@@ -359,6 +359,37 @@ fn shared_subslices_compose_with_literals_calls_and_stored_views() {
 }
 
 #[test]
+fn a_qualified_byte_range_keeps_its_typed_builtin_formation() {
+    let program = r#"
+        domain [u8]::Path requires no_nul(self);
+        machine prefix_length(path: &[u8] in Path, position: u64) -> u64
+        requires position <= path.len {
+            let prefix: &[u8] = &path[0..position];
+            prefix.len
+        }
+        machine build_entry() {
+            let length: u64 = prefix_length("foo/bar" as +Path, 3);
+        }
+    "#;
+    assert_eq!(verdict(program), "accepted");
+
+    let outside = program.replace(r#""foo/bar" as +Path, 3"#, r#""foo/bar" as +Path, 8"#);
+    assert_eq!(verdict(&outside), "rejected");
+
+    let authored = format!(
+        r#"machine [..] alternative(path: &[u8] in Path, start: u64, end: u64) -> &[u8] {{
+               "alternative"
+           }}
+           {program}"#
+    );
+    let actual = verdict(&authored);
+    assert!(
+        actual.contains("range of qualified bytes without its selected operand type"),
+        "{actual}"
+    );
+}
+
+#[test]
 fn subslice_bounds_must_belong_to_the_same_view_and_be_ordered() {
     for program in [
         "machine build_entry(path: &[u8]) requires path.len > 2 { let selected: &[u8] = path[2..1]; }",

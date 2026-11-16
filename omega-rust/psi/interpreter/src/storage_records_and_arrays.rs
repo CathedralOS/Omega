@@ -865,8 +865,11 @@ pub(crate) mod record {
                     |selectors, scalar_type, value| {
                         let mut path = destination_path.to_vec();
                         path.extend_from_slice(selectors);
-                        let (storage, actual, _) =
-                            execution.primitive_access(destination, true, &path)?;
+                        let (storage, actual, _) = execution.primitive_replacement_access(
+                            destination,
+                            destination_path,
+                            &path,
+                        )?;
                         if actual != scalar_type {
                             return Err(malformed());
                         }

@@ -1,7 +1,10 @@
+module domain::selection;
 // Strict Pareto dominance: minimize cost/days, maximize gain. Risk is a constraint.
 // Equal objective vectors never dominate each other. Certificate witnesses are the
 // lowest feasible dominating identifier, independent of input order or front membership.
 use domain::model;
+use domain::model::Experiment;
+use domain::model::Application;
 
 public machine violations(row: &Experiment, budget: u64, deadline: u64, risk_limit: u64) -> u64 {
     transition row.cost > budget { true -> days(row, deadline, risk_limit, 1) false -> days(row, deadline, risk_limit, 0) }

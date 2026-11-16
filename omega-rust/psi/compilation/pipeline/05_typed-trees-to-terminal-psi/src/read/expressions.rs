@@ -1230,10 +1230,6 @@ pub(super) fn binary_selection(
     // `counter + 1` needs no cast", and "its result carries the same
     // domain"). Two different policies select no operator ("incompatible
     // policies do not mix implicitly").
-    //
-    // The reader currently serves a plain partner only when it is a literal.
-    // Policy-domain signatures also permit a plain binding of the same
-    // carrier; that implementation gap is tracked by OPERATION-ARITHMETIC-POLICY.
     let carried = |value_type| match value_type {
         // domains.md, "Operands": builtin operators take unqualified
         // operands only. An arithmetic policy is the one qualification that
@@ -1267,18 +1263,21 @@ pub(super) fn binary_selection(
         operator,
         BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight
     );
-    let plain_binding = match (left_policy, right_policy) {
-        (Some(_), None) => !anonymous.1 && !shift,
-        (None, Some(_)) => !anonymous.0,
-        (Some(_), Some(_)) | (None, None) => false,
-    };
-    if plain_binding {
-        return Err(refuse(
+    // numeric_values.md, "Policy domains": core declares each policy
+    // operator for `(T in D, T)` and `(T, T in D)` on one fixed carrier `T`,
+    // whatever expression form the plain operand has (a literal, local,
+    // parameter, field or call result). A plain operand of another carrier
+    // matches none of those declarations, and nothing converts it.
+    let mixed = matches!(
+        (left_policy, right_policy),
+        (Some(_), None) | (None, Some(_))
+    );
+    if mixed && !shift && left_type != right_type {
+        return Err(reject(
             id,
-            Construct::Machine,
-            Unserved::Expression(
-                "operator between a policy-qualified operand and a plain operand that is not a literal",
-            ),
+            right_source,
+            "no arithmetic-policy operator takes a policy-qualified operand and a plain \
+             operand of another carrier; cast one operand so both have the same carrier",
         ));
     }
     let (operation, operands) = match operator {
@@ -1697,12 +1696,12 @@ mod tests {
 
     /// An arithmetic operator over a policy-qualified operand is that
     /// policy's and its result carries the policy; a comparison yields
-    /// `bool`. The partner is an operand of the same policy or a literal.
-    /// Two policies, a plain binding, a bitwise operator, a
+    /// `bool`. The partner is an operand of the same policy or a plain
+    /// operand of the same carrier. Two policies, a bitwise operator, a
     /// policy-qualified shift count and two carriers are each refused by
     /// name, and two plain operands are untouched.
     #[test]
-    fn an_operator_takes_its_policy_from_its_operands_and_never_from_a_plain_binding() {
+    fn an_operator_takes_its_policy_from_its_operands_and_a_plain_partner_of_its_carrier() {
         let plain = ValueType::Scalar(carrier(), Qualification::NONE);
         let wrapping = ValueType::Scalar(carrier(), Qualification::of_policy(Policy::Wrapping));
         let saturating = ValueType::Scalar(carrier(), Qualification::of_policy(Policy::Saturating));
@@ -1730,12 +1729,9 @@ mod tests {
                 typed(operator, plain, wrapping, (true, false)),
                 Ok(wrapping)
             );
-            for (left, right) in [(wrapping, plain), (plain, wrapping)] {
-                assert_eq!(
-                    typed(operator, left, right, neither).unwrap_err(),
-                    "expression operator between a policy-qualified operand and a plain operand that is not a literal"
-                );
-            }
+            // `w + n` and `n + w` with a plain binding `n` of the same carrier.
+            assert_eq!(typed(operator, wrapping, plain, neither), Ok(wrapping));
+            assert_eq!(typed(operator, plain, wrapping, neither), Ok(wrapping));
             assert_eq!(
                 typed(operator, wrapping, saturating, neither).unwrap_err(),
                 "typing operands under two arithmetic policies"
@@ -1744,10 +1740,7 @@ mod tests {
         for operator in [BinaryOperator::Less, BinaryOperator::Equal] {
             assert_eq!(typed(operator, wrapping, wrapping, neither), Ok(boolean));
             assert_eq!(typed(operator, wrapping, plain, (false, true)), Ok(boolean));
-            assert_eq!(
-                typed(operator, wrapping, plain, neither).unwrap_err(),
-                "expression operator between a policy-qualified operand and a plain operand that is not a literal"
-            );
+            assert_eq!(typed(operator, wrapping, plain, neither), Ok(boolean));
         }
         // A shift's count keeps its own plain type, literal or binding.
         assert_eq!(
@@ -1775,5 +1768,17 @@ mod tests {
             typed(BinaryOperator::Add, wrapping, wider, neither).unwrap_err(),
             "typing operand types"
         );
+        // A plain operand of another carrier matches no policy operator.
+        let plain_wider = ValueType::Scalar(
+            ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
+            Qualification::NONE,
+        );
+        for (left, right) in [(wrapping, plain_wider), (plain_wider, wrapping)] {
+            assert!(
+                typed(BinaryOperator::Add, left, right, neither)
+                    .unwrap_err()
+                    .starts_with("no arithmetic-policy operator takes a policy-qualified operand"),
+            );
+        }
     }
 }

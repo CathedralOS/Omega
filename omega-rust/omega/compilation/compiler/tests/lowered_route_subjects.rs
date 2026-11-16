@@ -1678,6 +1678,16 @@ const POLICY_INTEGERS: &[(&str, &str)] = &[
         "machine spare(left: u32 in Wrapping, right: u32) -> u32 in Wrapping { left + right }",
     ),
     (
+        "wrapping_compared_with_plain_field",
+        "data Clock [copy] { at: u64; }\n\
+         machine spare(sum: u64 in Wrapping, clock: Clock) -> u32 {\n    \
+         transition sum < clock.at { true -> 1 false -> 0 }\n}",
+    ),
+    (
+        "wrapping_and_plain_binding_of_another_carrier",
+        "machine spare(left: u32 in Wrapping, right: u64) -> u32 in Wrapping { left + right }",
+    ),
+    (
         "two_policies",
         "machine spare(left: u8 in Wrapping, right: u8 in Saturating) -> u8 in Wrapping {\n    \
          left + right\n}",
@@ -1727,10 +1737,11 @@ fn a_policy_qualified_integer_is_judged_with_its_policys_operations() {
         Verdict::Accepted(2),
         Verdict::Rejected,
         Verdict::Accepted(2),
-        falls_back(
-            "expression operator between a policy-qualified operand and a plain operand that is not a literal \
-             while reading the body of `spare`",
-        ),
+        // `left + right` with a plain `right` of the same carrier selects
+        // core's `(T in Wrapping, T)` operator; another carrier selects none.
+        Verdict::Accepted(2),
+        Verdict::Accepted(2),
+        Verdict::Rejected,
         falls_back(
             "typing operands under two arithmetic policies while reading the body of `spare`",
         ),

@@ -1,10 +1,20 @@
 use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 use input::parser;
+use input::parser::Tokens;
+use input::parser::tokens_read;
 use data::dataset;
+use data::dataset::Dataset;
+use data::dataset::load;
 use partition::allocation;
+use partition::allocation::Allocation;
+use partition::allocation::allocation_solve;
 use partition::audit;
+use partition::audit::Audit;
+use partition::audit::check;
 use report::output;
+use report::output::number;
+use report::output::report;
 
 data Main {
     tokens: Tokens;

@@ -1,9 +1,11 @@
+module clock::fit;
 use clock::model;
+use clock::model::Acquisition;
 
 // Anchor-constrained least squares: host = host[0] + elapsed * numerator / denominator.
 // At most 16 rows, elapsed and host <=100000: sums <=1.6e11, scaled drift
 // <=1.6e17 and residual products <=3.2e16, all strictly below i64::MAX.
-machine fit_clock(acquisition: &mut Acquisition) {
+public machine fit_clock(acquisition: &mut Acquisition) {
     acquisition.numerator = 0;
     acquisition.denominator = 0;
     acquisition.residual = 0;

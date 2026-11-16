@@ -2,10 +2,16 @@ use omega::language::core::ProcessExit;
 // IND17: independent acquisition counter reconstruction and clock fitting.
 use omega_language_std::Console;
 use clock::model;
+use clock::model::Acquisition;
 use clock::reconstruct;
+use clock::reconstruct::reconstruct;
 use clock::fit;
+use clock::fit::fit_clock;
 use input::reader;
+use input::reader::read_acquisition;
 use report::output;
+use report::output::number;
+use report::output::report;
 
 machine main() reaches ProcessExit + Console {
     let mut acquisition: Acquisition;

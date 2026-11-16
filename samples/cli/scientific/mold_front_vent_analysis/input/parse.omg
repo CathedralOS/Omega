@@ -1,5 +1,8 @@
+module input::parse;
 use omega::language::core::widen_u8_to_i32;
 use model::fill;
+use model::fill::Cavity;
+use model::fill::valid;
 
 // Fixed grammar: WWWW GGGG VVVV BB, with hex masks and decimal cell budget.
 // The input reader passes only its initialized prefix. No number accepts a

@@ -44,6 +44,54 @@ fn assert_psi_runs(name: &str, source: &str) {
     assert!(report.lines().any(|line| line == "Psi exit 0"), "{report}");
 }
 
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn both_engines_replay_eof_for_the_darwin_console_descriptor() {
+    let library = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../source/library");
+    let project = stage_project(
+        "darwin-descriptor-input",
+        r#"
+use omega::language::core::ProcessExit;
+use omega_language_std::ByteRead;
+use omega_language_std::Console;
+machine main() reaches ProcessExit + Console {
+    let read: ByteRead = block Console::read_byte();
+    transition read { ByteRead::Eof -> done() _ -> unexpected() }
+    machine done() { ProcessExit::exit_process(0); }
+    machine unexpected() { ProcessExit::exit_process(1); }
+}
+"#,
+        &format!(
+            r#"
+machine build(builder: &mut Build) {{
+    Build::application(builder, "console_descriptor_eof");
+    let registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path {{ location: "{}" }}));
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+}}
+"#,
+            library.join("std").display()
+        ),
+    );
+    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
+        .args(["run", "--both", "main.omg"])
+        .current_dir(&project)
+        .env("OMEGA_LIBRARY_ROOT", library)
+        .stdin(Stdio::null())
+        .output()
+        .expect("run the same finite input in both engines");
+    std::fs::remove_dir_all(&project).expect("clean staged project");
+
+    let report = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
+    assert!(output.status.success(), "{report}");
+    for receipt in ["native exit 0", "interp exit: 0"] {
+        assert!(report.lines().any(|line| line == receipt), "{report}");
+    }
+}
+
 #[test]
 fn psi_runs_an_owned_record_sequence_literal() {
     assert_psi_runs(

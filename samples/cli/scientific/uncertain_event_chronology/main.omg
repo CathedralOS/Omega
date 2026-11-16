@@ -5,8 +5,13 @@ use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 use omega_language_std::LineReadResult;
 use chronology::model;
+use chronology::model::Chronology;
+use chronology::model::Reconciliation;
 use chronology::solver;
+use chronology::solver::reconcile;
+use chronology::solver::contradiction;
 use chronology::input;
+use chronology::input::parse;
 
 // The application owns the input backing across the blocking provider call.
 data Main { bytes: [u8; 32]; }

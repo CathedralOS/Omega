@@ -1,3 +1,4 @@
+module data::expected;
 // Independently frozen cmath reference values; used only after real array evaluation.
 public data Expected { }
 public machine expected_power(selection: i32, sample: i32) -> f64 {
