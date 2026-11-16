@@ -261,7 +261,7 @@ pub(crate) mod contracts {
                             if !membership.domain_symbol.is_valid()
                                 && membership.authored_domain_selection.is_some() =>
                         {
-                            Some((handle, membership.clone()))
+                            Some((handle, *membership))
                         }
                         _ => None,
                     })
