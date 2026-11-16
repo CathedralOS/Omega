@@ -1899,17 +1899,11 @@ machine entry() -> u32 crashes none {{
                 .expression_table
                 .static_machine_application_mut(application)
                 .lexical_owner = owner;
-            let refusal = match accept_formation_program(program.into()) {
-                Err(errors) => format!("{errors:?}"),
-                Ok(source) => match prepare(&source, source.module(), None) {
-                    Err(error) => format!("{error:?}"),
-                    Ok(_) => panic!("a malformed formation owner must refuse"),
-                },
-            };
+            let refusal = accept_formation_program(program.into()).err().unwrap();
             assert!(
-                refusal.contains("closed requirement identity")
-                    || refusal.contains("static application formation owner"),
-                "{refusal}"
+                format!("{refusal:?}")
+                    .contains("closed requirement call lost its supplying declaration"),
+                "{refusal:?}"
             );
         }
     }
