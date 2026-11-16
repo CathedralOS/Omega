@@ -87,6 +87,8 @@ enum Tag {
     Profile,
     Subject,
     Projection,
+    Attachment,
+    Owner,
 }
 
 impl Spelled for Tag {
@@ -115,6 +117,8 @@ impl Spelled for Tag {
             Self::Profile => "progress-profile",
             Self::Subject => "progress-subject",
             Self::Projection => "progress-projection",
+            Self::Attachment => "attachment",
+            Self::Owner => "owner",
         }
     }
 }
@@ -175,9 +179,6 @@ fn normalized_schema(program: &TypedTrees, machine: &Machine) -> Option<Normaliz
         states: _,
     } = machine;
     if lexical_region_origin.is_some()
-        || attached_data.is_some()
-        || attached_data_symbol.is_valid()
-        || attached_data_application.is_valid()
         || generic_data_template.is_valid()
         || target.is_some()
         || authored_target.is_some()
@@ -261,6 +262,59 @@ fn normalized_schema(program: &TypedTrees, machine: &Machine) -> Option<Normaliz
             .contains_type_reference(reference)
             .then(|| normalize_type_reference(program, reference, &context))
     };
+    // A static member retains its actual nominal owner and application. Its
+    // prefix is neither a runtime receiver nor permission to omit the owner's
+    // generic arguments from the complete declaration schema.
+    let attachment = match attached_data {
+        None => {
+            if attached_data_symbol.is_valid() || attached_data_application.is_valid() {
+                return None;
+            }
+            None
+        }
+        Some(_) => {
+            if !program
+                .symbols
+                .symbols()
+                .nodes()
+                .is_valid(*attached_data_symbol)
+                || program.symbols.get(*attached_data_symbol).kind != symbols::SymbolKind::Data
+            {
+                return None;
+            }
+            let declaration = program.unique_data_definition_by_symbol(*attached_data_symbol)?;
+            let application = if attached_data_application.is_valid() {
+                if !program.contains_type_reference(*attached_data_application)
+                    || program
+                        .type_reference_table
+                        .type_head_symbol(*attached_data_application)
+                        != Some(*attached_data_symbol)
+                {
+                    return None;
+                }
+                compound(Tag::Type, [type_identity(*attached_data_application)?])
+            } else {
+                if !declaration.type_parameters.is_empty() {
+                    return None;
+                }
+                compound(Tag::Type, [])
+            };
+            Some(compound(
+                Tag::Attachment,
+                [
+                    atom(
+                        Tag::Owner,
+                        &context.name(
+                            program,
+                            *attached_data_symbol,
+                            program.symbols.name(*attached_data_symbol),
+                        ),
+                    ),
+                    application,
+                ],
+            ))
+        }
+    };
     let mut telescope = Vec::with_capacity(types.len());
     for parameter in types {
         let kind = match parameter.kind {
@@ -324,7 +378,7 @@ fn normalized_schema(program: &TypedTrees, machine: &Machine) -> Option<Normaliz
                     !blocks_keyword_source_spans.is_empty()
                 ),
             ),
-        ],
+        ].into_iter().chain(attachment),
     );
     (!invalid.get()).then(|| program.type_identities.intern(&identity))
 }
@@ -440,6 +494,8 @@ mod tests {
 
     struct Fixture {
         program: TypedTrees,
+        owner: SymbolHandle,
+        other_owner: SymbolHandle,
         element: arena::Handle<TypeParameter>,
         extent: arena::Handle<TypeParameter>,
         result: ExpressionHandle,
@@ -455,12 +511,16 @@ mod tests {
             let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
             let roots = builder.insert_children(
                 root,
-                symbols::builtin_type_symbols()
-                    .into_iter()
-                    .chain([(SymbolKind::Machine, SymbolNameRef::Static("view"))]),
+                symbols::builtin_type_symbols().into_iter().chain([
+                    (SymbolKind::Machine, SymbolNameRef::Static("view")),
+                    (SymbolKind::Data, SymbolNameRef::Static("Owner")),
+                    (SymbolKind::Data, SymbolNameRef::Static("OtherOwner")),
+                ]),
             );
             let u64_symbol = roots.handle_at(BuiltinTypeAtom::U64.ordinal() as u32);
             let machine = roots.handle_at(BuiltinTypeAtom::ALL.len() as u32);
+            let owner = roots.handle_at(BuiltinTypeAtom::ALL.len() as u32 + 1);
+            let other_owner = roots.handle_at(BuiltinTypeAtom::ALL.len() as u32 + 2);
             let children = builder.insert_children(
                 machine,
                 [
@@ -490,6 +550,13 @@ mod tests {
                 symbols: builder.finish(),
                 ..Default::default()
             };
+            for (symbol, name) in [(owner, "Owner"), (other_owner, "OtherOwner")] {
+                program.push_data_definition(crate::data::DataDefinition {
+                    symbol,
+                    name: Identifier::generated(name),
+                    ..Default::default()
+                });
+            }
             let u64_type = program
                 .type_reference_table
                 .insert(TypeReferenceNode::Named {
@@ -614,6 +681,8 @@ mod tests {
             });
             Self {
                 program,
+                owner,
+                other_owner,
                 element: type_parameters.handle_at(0),
                 extent: type_parameters.handle_at(1),
                 result,
@@ -629,6 +698,46 @@ mod tests {
             let schema = normalized_schema(&self.program, &self.program.machines()[0])?;
             self.program.type_identity_text(schema)
         }
+    }
+
+    #[test]
+    fn complete_schema_keeps_the_nominal_attachment_and_refuses_a_substituted_application() {
+        let mut fixture = Fixture::ordinary();
+        let plain = fixture.text().unwrap();
+        let mut attach = |owner, name| {
+            fixture
+                .program
+                .type_reference_table
+                .insert(TypeReferenceNode::Named {
+                    symbol: owner,
+                    name: Identifier::generated(name),
+                })
+        };
+        let application = attach(fixture.owner, "Owner");
+        let other_application = attach(fixture.other_owner, "OtherOwner");
+        let machine = fixture.program.machine_mut(0);
+        machine.attached_data = Some(Identifier::generated("Owner"));
+        machine.attached_data_symbol = fixture.owner;
+        machine.attached_data_application = application;
+        let original = fixture
+            .text()
+            .expect("a complete nominal attachment normalizes");
+        assert_ne!(plain, original);
+        fixture.program.machine_mut(0).attached_data_application = other_application;
+        assert!(
+            fixture.text().is_none(),
+            "the application must belong to its declared owner"
+        );
+        fixture.program.machine_mut(0).attached_data_symbol = fixture.other_owner;
+        let other = fixture
+            .text()
+            .expect("the other complete owner also normalizes");
+        assert_ne!(original, other);
+        fixture.program.machine_mut(0).attached_data = None;
+        assert!(
+            fixture.text().is_none(),
+            "an attachment cannot disappear while retaining its application"
+        );
     }
 
     #[test]
