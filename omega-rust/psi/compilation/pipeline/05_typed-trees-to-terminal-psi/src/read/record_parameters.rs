@@ -408,6 +408,10 @@ impl Program<'_> {
                 .machine_by_own_or_state_symbol(source.lexical_owner)
                 .map(|machine| machine.symbol)
                 != Some(caller)
+                || typed
+                    .machine_by_own_or_state_symbol(source.registration_operation)
+                    .map(|machine| machine.symbol)
+                    != Some(target)
                 || !source.selected_machine_arguments.is_empty()
                 || !source.input_selections.is_empty()
                 || !source.lifetime_bindings.is_empty()
@@ -415,7 +419,7 @@ impl Program<'_> {
                 || source.callable_contract_source.is_valid()
             {
                 return Err(unavailable(
-                    "Const application changed its caller or has another static feature",
+                    "Const application changed its caller or target, or has another static feature",
                 ));
             }
             Some(source)
@@ -437,15 +441,53 @@ impl Program<'_> {
                 "Const actuals differ from their retained source tuple",
             ));
         }
-        let inherited = arguments.is_empty()
-            && bindings.is_empty()
+        let inherited = bindings.is_empty()
             && parameters.iter().all(|parameter| {
-                typed.symbols.get(parameter.symbol).parent != target
+                typed.symbols.symbols().nodes().is_valid(parameter.symbol)
+                    && typed.symbols.get(parameter.symbol).parent != target
                     && typed
                         .declaration_type_parameters(caller)
                         .iter()
                         .any(|actual| actual == parameter)
-            });
+            })
+            && match source {
+                // Named transitions have no separate static application. Their
+                // inherited binders are the same original caller inputs.
+                None => arguments.is_empty(),
+                Some(source) => {
+                    // Source preparation retains captured arguments before it
+                    // can prepare bindings. Each capture must still name this
+                    // exact original binder in its original position.
+                    source.binding_declaration == target
+                        && arguments.len() == parameters.len()
+                        && parameters
+                            .iter()
+                            .zip(arguments)
+                            .all(|(parameter, argument)| {
+                                argument.symbol == parameter.symbol
+                                    && argument.application.is_none()
+                                    && argument.evidence_projection.is_none()
+                                    && argument.const_literal.is_none()
+                                    && (!argument.type_reference.is_valid()
+                                        || typed
+                                            .static_operand_from_type_reference(
+                                                argument.type_reference,
+                                            )
+                                            .is_ok_and(|retained| {
+                                                retained.symbol == parameter.symbol
+                                                    && retained.application.is_none()
+                                                    && retained.evidence_projection.is_none()
+                                                    && retained.const_literal.is_none()
+                                            }))
+                                    && typed
+                                        .static_operand_region_supplier(
+                                            argument,
+                                            source.lexical_owner,
+                                        )
+                                        .is_ok()
+                            })
+                }
+            };
         if !inherited
             && (source.is_none_or(|source| source.binding_declaration != target)
                 || arguments.len() != parameters.len()
@@ -959,6 +1001,74 @@ mod tests {
         assert_ne!(
             instances[0], instances[1],
             "the originating requirement does not identify its supplier binder"
+        );
+    }
+
+    #[test]
+    fn inherited_const_tuples_preserve_original_binder_positions_before_preparation() {
+        let fixture = fixture();
+        let captured = fixture.parameters.map(|symbol| StaticMachineArgument {
+            symbol,
+            path: Box::from([Identifier::generated(fixture.typed.symbols.name(symbol))]),
+            ..Default::default()
+        });
+        for (arguments, valid) in [
+            (captured.to_vec(), true),
+            (vec![captured[1].clone(), captured[0].clone()], false),
+            (vec![captured[0].clone()], false),
+            (Vec::new(), false),
+        ] {
+            let mut typed = fixture.typed.clone();
+            let application = typed.expression_table.retain_static_machine_application(
+                fixture.nested,
+                Identifier::generated("nested"),
+                &arguments,
+            );
+            let source = typed
+                .expression_table
+                .static_machine_application_mut(application);
+            source.lexical_owner = fixture.caller;
+            source.binding_declaration = fixture.nested;
+            assert!(
+                typed
+                    .expression_table
+                    .static_machine_application_bindings(application)
+                    .is_empty()
+            );
+            let mut program = Program::new(&typed, true);
+            let caller = program.machine(fixture.caller).unwrap();
+            let values = program.const_call_values(caller, fixture.nested, application, &arguments);
+            if valid {
+                assert!(
+                    values.unwrap().is_empty(),
+                    "record captures are not scalar actuals"
+                );
+            } else {
+                assert_eq!(
+                    values.unwrap_err().detail,
+                    "Const application has no complete exact binder tuple"
+                );
+            }
+        }
+        let mut typed = fixture.typed.clone();
+        let application = typed.expression_table.retain_static_machine_application(
+            fixture.outsider,
+            Identifier::generated("outsider"),
+            &captured,
+        );
+        let source = typed
+            .expression_table
+            .static_machine_application_mut(application);
+        source.lexical_owner = fixture.caller;
+        source.binding_declaration = fixture.nested;
+        let mut program = Program::new(&typed, true);
+        let caller = program.machine(fixture.caller).unwrap();
+        let refused = program
+            .const_call_values(caller, fixture.nested, application, &captured)
+            .unwrap_err();
+        assert_eq!(
+            refused.detail,
+            "Const application changed its caller or target, or has another static feature"
         );
     }
 

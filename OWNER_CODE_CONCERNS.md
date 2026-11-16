@@ -75,6 +75,13 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Each provider row rehashes every toolchain source
+- Category: Verifying costs more than writing
+- Where: [provider publication](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/static_contracts.rs#L303), [shared program inputs](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/lib.rs#L84)
+- Saw: On `d0906b179f95`, `StaticContracts::publish` rebuilds the complete source-identity list inside each provider row, again for each generic form and witness reading the same immutable program. A one-second sample of the unchanged Console test caught 27 of 58 compiler-thread observations in that operation. The test took 519.245s; the sample does not establish its share of total time. Evidence remains in claim `18e85a23de177c780000000018e83683`, under `post-effect-policies-landed/original58-test.sample.txt`.
+- Cost: Hashing repeats with the source bytes, provider rows and check forms. Let the existing `SharedProgram` retain the exact list once and lend it to publication; preserve missing-identity refusals and source authentication. Count derivations and time the unchanged Console run before claiming a speedup. The separate boundary-declaration projection still needs its own equivalence check.
+- Reported: 2026-11-16, Codex, while carrying the original Console and stored-machine programs through checking and execution
+
 ### A callee's write through a `&mut` held inside a lent record leaves the caller's facts about the referent standing
 - Category: One idea, several implementations
 - Where: [call logs only argument places](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places/log.rs#L582), [Referent frame falls back to the argument](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/storage.rs#L2248), [cleanup follows carried references](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/owned_cleanup.rs#L393), [same-machine test only](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/stored_references.rs#L296)
