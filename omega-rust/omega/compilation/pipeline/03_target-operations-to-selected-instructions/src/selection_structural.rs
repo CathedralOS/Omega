@@ -5484,6 +5484,11 @@ pub(crate) fn operation(
     );
     dispatch_kind!(
         row,
+        Kind::RunCustody { .. },
+        access_lifecycles::run_custody::emit(source, row, builder)
+    );
+    dispatch_kind!(
+        row,
         Kind::AccessLifecycle { .. },
         access_lifecycles::emit(source, row, builder)
     );

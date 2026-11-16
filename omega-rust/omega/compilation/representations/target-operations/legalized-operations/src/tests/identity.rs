@@ -945,3 +945,66 @@ fn borrowed_storage_and_function_abis_bind_identity() {
     });
     assert_identity_drift(described_identity, &scalar);
 }
+
+#[test]
+fn run_descriptor_identity_binds_ordered_inputs_cut_and_field_operands() {
+    use language_core::sealed_intrinsics::RunCustodyOperation;
+    let mut plan = scalar_call_unit_plan();
+    let row = &mut plan.scalar_functions[0].blocks[0].instructions[0];
+    row.result = None;
+    row.kind = LegalizedScalarInstructionKind::RunCustody {
+        boundary: id(701),
+        operation: RunCustodyOperation::Split,
+        arguments: vec![terminal_psi::StructuralArgument {
+            place: id(702),
+            path: vec![],
+            access: StructuralAccess::Owned,
+        }],
+        indices: vec![],
+        cut: Some(id(703)),
+        carrier: id(704),
+        fields: [id(705), id(706), id(707), id(708)],
+        parts: Some([id(709), id(710)]),
+        result: terminal_psi::StructuralOperationResult {
+            place: id(711),
+            structural_type: id(712),
+            multiplicity: terminal_psi::StructuralMultiplicity::Linear,
+            qualifications: vec![],
+            projected_qualifications: vec![],
+            additional_input_qualifications: vec![],
+            qualification_establishments: vec![],
+            claims: vec![],
+        },
+    };
+    let identity = legalized_operation_plan_identity(&plan);
+    for mutation in 0..9 {
+        let mut changed = plan.clone();
+        let LegalizedScalarInstructionKind::RunCustody {
+            boundary,
+            operation,
+            arguments,
+            cut,
+            carrier,
+            fields,
+            parts,
+            result,
+            ..
+        } = &mut changed.scalar_functions[0].blocks[0].instructions[0].kind
+        else {
+            unreachable!()
+        };
+        match mutation {
+            0 => *boundary = id(713),
+            1 => *operation = RunCustodyOperation::Merge,
+            2 => arguments[0].place = id(714),
+            3 => *cut = Some(id(715)),
+            4 => *carrier = id(716),
+            5 => fields.swap(0, 1),
+            6 => parts.as_mut().unwrap().swap(0, 1),
+            7 => *cut = None,
+            8 => result.place = id(717),
+            _ => unreachable!(),
+        }
+        assert_identity_drift(identity, &changed);
+    }
+}

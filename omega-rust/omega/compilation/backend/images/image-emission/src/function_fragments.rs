@@ -10699,6 +10699,7 @@ mod source {
         ) -> Option<semantic_vocabulary::OperationId> {
             match row {
                 TargetUnitOperation::DecomposeStructuralValue { psi_operation, .. }
+                | TargetUnitOperation::RunCustody { psi_operation, .. }
                 | TargetUnitOperation::EstablishActivationClaim { psi_operation, .. }
                 | TargetUnitOperation::EstablishCase { psi_operation, .. }
                 | TargetUnitOperation::EstablishNativeCodeLayout { psi_operation, .. }
@@ -20960,6 +20961,7 @@ mod source {
                         || program_image_retained(psi_operation, boundary, targeted, selected)
                         || ieee_float_builtin_retained(psi_operation, boundary, targeted, selected)
                         || access_lifecycle_retained(operation, targeted)
+                        || run_custody_retained(operation, matched.instruction, abstract_plan, &mut addresses)
                         || empty_run_release_retained(operation, targeted, abstract_plan)
                         || static_interrupts::retained(operation, &interrupt_helpers, &interrupt_replay)?
                         || placed_scalar_retained(operation, targeted, selected)
@@ -21557,6 +21559,104 @@ mod source {
             }
             _ => false,
         }
+    }
+
+    fn run_custody_retained(
+        source: &AbstractOperation,
+        lhs: Option<&target_operations::TargetInstruction>,
+        plan: &abstract_operations::AbstractOperationPlan,
+        addresses: &mut placed_reference::AddressReplay<'_>,
+    ) -> bool {
+        let AbstractOperation::BoundaryCall {
+            psi_operation,
+            boundary,
+            arguments,
+            structural_arguments,
+            result: abstract_operations::AbstractBoundaryResult::Structural(result),
+            ..
+        } = source
+        else {
+            return false;
+        };
+        let Some(target_operations::TargetInstruction {
+            kind:
+                target_operations::TargetUnitOperation::RunCustody {
+                    psi_operation: actual,
+                    boundary: actual_boundary,
+                    operation,
+                    arguments: actuals,
+                    cut,
+                    carrier,
+                    fields,
+                    result_home,
+                    parts,
+                    ..
+                },
+            ..
+        }) = lhs
+        else {
+            return false;
+        };
+        let Some(declaration) = plan
+            .boundary_machines
+            .binary_search_by_key(boundary, |row| row.id)
+            .ok()
+            .and_then(|index| plan.boundary_machines.get(index))
+        else {
+            return false;
+        };
+        let Some(geometry) = addresses.geometry() else {
+            return false;
+        };
+        let Ok(projected) = terminal_semantics::run_custody_contract_by(
+            |id| geometry.declaration(id).ok(),
+            declaration,
+        ) else {
+            return false;
+        };
+        let (run, expected_parts, expected_result, expected_operation) = match projected {
+            terminal_semantics::RunCustodyContract::Split {
+                run,
+                left,
+                right,
+                result,
+            } => (
+                run,
+                Some([left.id, right.id]),
+                result,
+                language_core::sealed_intrinsics::RunCustodyOperation::Split,
+            ),
+            terminal_semantics::RunCustodyContract::Merge { run, result } => (
+                run,
+                None,
+                result,
+                language_core::sealed_intrinsics::RunCustodyOperation::Merge,
+            ),
+            terminal_semantics::RunCustodyContract::ReleaseEmpty(_) => return false,
+        };
+        *carrier == run.carrier
+            && *fields == [run.storage.id, run.count.id, run.base.id, run.length.id]
+            && *parts == expected_parts
+            && *operation == expected_operation
+            && result.structural_type == expected_result.structural_type
+            && result.multiplicity == expected_result.multiplicity
+            && result.qualifications == expected_result.qualifications
+            && result.projected_qualifications == expected_result.projected_qualifications
+            && actual == psi_operation
+            && actual_boundary == boundary
+            && actuals == structural_arguments
+            && result_home.operation_result() == Some((*psi_operation, result))
+            && match operation {
+                language_core::sealed_intrinsics::RunCustodyOperation::Split => {
+                    structural_arguments.len() == 1
+                        && arguments.as_slice()
+                            == cut.as_ref().map(|cut| cut.source_value()).as_slice()
+                }
+                language_core::sealed_intrinsics::RunCustodyOperation::Merge => {
+                    structural_arguments.len() == 2 && arguments.is_empty() && cut.is_none()
+                }
+                language_core::sealed_intrinsics::RunCustodyOperation::ReleaseEmpty => false,
+            }
     }
 
     fn empty_run_release_retained(

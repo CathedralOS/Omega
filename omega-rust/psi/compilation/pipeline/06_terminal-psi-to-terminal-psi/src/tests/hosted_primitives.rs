@@ -67,7 +67,7 @@ fn hosted_primitive_retains_distinct_source_and_public_completion() {
         .iter()
         .find(|boundary| {
             matches!(
-                boundary.declaration.as_ref().map(|d| d.execution),
+                boundary.declaration.as_ref().map(|d| &d.execution),
                 Some(terminal_psi::CheckedBoundaryExecution::HostedPrimitive { .. })
             )
         })

@@ -662,20 +662,129 @@ mod run_custody {
             boundary: *boundary,
             reason,
         };
-        let contract = terminal_semantics::empty_run_release_contract(
-            site.types.catalog().as_slice(),
+        let custody = declaration
+            .declaration
+            .as_ref()
+            .and_then(|row| row.execution.run_custody_operation())
+            .ok_or_else(|| invalid("run descriptor lost its authenticated operation"))?;
+        if settlement.execution
+            != BoundaryExecutionBinding::CompilerBuiltin(CompilerBuiltinExecution::RunCustody(
+                custody,
+            ))
+        {
+            return Err(invalid("run descriptor changed its admitted execution"));
+        }
+        let projected = terminal_semantics::run_custody_contract_by(
+            |id| site.types.get(id).copied(),
             declaration,
         )
         .map_err(invalid)?;
+        let contract = match projected {
+            terminal_semantics::RunCustodyContract::ReleaseEmpty(contract) => contract,
+            projected => {
+                let (run, parts, expected, arity) = match projected {
+                    terminal_semantics::RunCustodyContract::Split {
+                        run,
+                        left,
+                        right,
+                        result,
+                    } => (run, Some([left.id, right.id]), result, 1),
+                    terminal_semantics::RunCustodyContract::Merge { run, result } => {
+                        (run, None, result, 2)
+                    }
+                    terminal_semantics::RunCustodyContract::ReleaseEmpty(_) => unreachable!(),
+                };
+                if structural_arguments.len() != arity
+                    || arguments.len() != usize::from(parts.is_some())
+                    || result.structural_type != expected.structural_type
+                    || result.multiplicity != expected.multiplicity
+                    || result.qualifications != expected.qualifications
+                    || result.projected_qualifications != expected.projected_qualifications
+                {
+                    return Err(invalid(
+                        "run descriptor result or argument roster differs from its source contract",
+                    ));
+                }
+                for source in structural_arguments {
+                    if source.access != StructuralAccess::Owned
+                        || super::aggregate_results::value_input(
+                            site.function,
+                            site.types,
+                            site.live,
+                            source,
+                        )?
+                        .0 != run.carrier
+                    {
+                        return Err(invalid(
+                            "run descriptor requires its exact owned run inputs",
+                        ));
+                    }
+                }
+                let cut = arguments
+                    .first()
+                    .map(|value| super::scalar_sources::source(*value, site.function, site.live))
+                    .transpose()?;
+                if cut.is_some_and(|cut| {
+                    cut.scalar_type()
+                        != semantic_vocabulary::ScalarType::Integer(
+                            semantic_vocabulary::IntegerType::new(
+                                semantic_vocabulary::IntegerSign::Unsigned,
+                                64,
+                            )
+                            .unwrap(),
+                        )
+                }) {
+                    return Err(invalid("run cut must retain its u64 source value"));
+                }
+                let indices = structural_arguments
+                    .iter()
+                    .map(|source| {
+                        super::scalar_sources::projection_indices(
+                            site.function,
+                            site.types,
+                            site.live,
+                            source,
+                        )
+                    })
+                    .collect::<Result<Vec<_>, _>>()?
+                    .into_iter()
+                    .flatten()
+                    .collect();
+                let fields = [run.storage.id, run.count.id, run.base.id, run.length.id];
+                let carrier = run.carrier;
+                let result_home = super::aggregate_results::publish_home(
+                    site.live,
+                    *psi_operation,
+                    result,
+                    site.types,
+                )?
+                .ok_or_else(|| invalid("run descriptor result replaces an existing home"))?;
+                site.operations
+                    .push(target_operations::TargetUnitOperation::RunCustody {
+                        psi_operation: *psi_operation,
+                        boundary: *boundary,
+                        operation: custody,
+                        arguments: structural_arguments.clone(),
+                        indices,
+                        cut,
+                        carrier,
+                        fields,
+                        parts,
+                        result_home,
+                    });
+                site.provenance.operations.push(*psi_operation);
+                return Ok(());
+            }
+        };
         let [source] = structural_arguments.as_slice() else {
             return Err(invalid("empty-run release requires one owned source"));
         };
         if !arguments.is_empty()
             || source.access != StructuralAccess::Owned
             || settlement.execution
-                != BoundaryExecutionBinding::CompilerBuiltin(
-                    CompilerBuiltinExecution::EmptyRunRelease,
-                )
+                != BoundaryExecutionBinding::CompilerBuiltin(CompilerBuiltinExecution::RunCustody(
+                    language_core::sealed_intrinsics::RunCustodyOperation::ReleaseEmpty,
+                ))
             || result.structural_type != contract.result.structural_type
             || result.multiplicity != contract.result.multiplicity
         {

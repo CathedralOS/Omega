@@ -190,6 +190,12 @@ impl LegalizedScalarInstruction {
                     visit(operand.operand.value);
                 }
             }
+            LegalizedScalarInstructionKind::RunCustody { indices, cut, .. } => {
+                indices.iter().for_each(|index| visit(index.operand.value));
+                if let Some(cut) = cut {
+                    visit(*cut);
+                }
+            }
             LegalizedScalarInstructionKind::StaticInterrupt { indices, .. }
             | LegalizedScalarInstructionKind::AccessLifecycle { indices, .. } => {
                 indices.iter().for_each(|index| visit(index.operand.value));
@@ -486,6 +492,17 @@ pub enum LegalizedScalarInstructionKind {
         token: terminal_psi::StructuralArgument,
         indices: Vec<LegalizedRuntimeIndexOperand>,
         result: Option<terminal_psi::StructuralOperationResult>,
+    },
+    RunCustody {
+        boundary: BoundaryMachineId,
+        operation: language_core::sealed_intrinsics::RunCustodyOperation,
+        arguments: Vec<terminal_psi::StructuralArgument>,
+        indices: Vec<LegalizedRuntimeIndexOperand>,
+        cut: Option<ValueId>,
+        carrier: StructuralTypeId,
+        fields: [semantic_vocabulary::StructuralFieldId; 4],
+        parts: Option<[semantic_vocabulary::StructuralFieldId; 2]>,
+        result: terminal_psi::StructuralOperationResult,
     },
     AccessLifecycle {
         boundary: BoundaryMachineId,
@@ -1037,6 +1054,7 @@ impl LegalizedScalarInstructionKind {
             | Self::SplitActivationClaim { result, .. }
             | Self::MergeActivationClaim { result, .. }
             | Self::AccessLifecycle { result, .. }
+            | Self::RunCustody { result, .. }
             | Self::EstablishNativeCodeLayout { result, .. }
             | Self::EstablishRecord { result, .. }
             | Self::EstablishZeroedStructural { result, .. }

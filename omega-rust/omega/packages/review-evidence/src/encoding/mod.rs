@@ -19,10 +19,9 @@ pub use encode::restricted_build_request_acceptance_text;
 pub use recovery::PackagePolicyRecoveryLimits;
 pub(crate) use recovery::{PackagePolicyRecoveryError, PackagePolicyRecoveryUsage};
 
-// Contract targets and selected intrinsic executions can carry the newly
-// declared source-query builtin ordinals. Their enclosing formats must identify
-// that expanded vocabulary even though existing ordinal bytes are unchanged.
-pub(crate) const PACKAGE_POLICY_BASELINE_VERSION: u16 = 33;
+// Baseline and selected-provider evidence encode the RunCustody family with
+// an explicit operation byte; retired standalone empty-release rows are rejected.
+pub(crate) const PACKAGE_POLICY_BASELINE_VERSION: u16 = 34;
 pub(crate) const PACKAGE_POLICY_BASELINE_MAGIC: &[u8] = b"OMEGA-PACKAGE-POLICY\0";
 
 pub(crate) const PACKAGE_EXTERNAL_SUPPLY_POLICY_VERSION: u16 = 10;
@@ -34,7 +33,7 @@ pub(crate) const CALLING_POLICY_MAGIC: &[u8] = b"OMEGA-CALLING-POLICY\0";
 pub(crate) const PACKAGE_REPRESENTATION_POLICY_VERSION: u16 = 14;
 pub(crate) const REPRESENTATION_POLICY_MAGIC: &[u8] = b"OMEGA-REPRESENTATION-POLICY\0";
 
-pub(crate) const PACKAGE_SELECTED_PROVIDER_POLICY_VERSION: u16 = 24;
+pub(crate) const PACKAGE_SELECTED_PROVIDER_POLICY_VERSION: u16 = 25;
 pub(crate) const SELECTED_PROVIDER_POLICY_MAGIC: &[u8] = b"OMEGA-SELECTED-PROVIDER-POLICY\0";
 
 pub(crate) const PACKAGE_TERMINAL_PERMISSION_POLICY_VERSION: u16 = 13;

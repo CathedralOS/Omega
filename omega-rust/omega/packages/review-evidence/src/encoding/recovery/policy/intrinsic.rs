@@ -42,7 +42,10 @@ pub(in crate::encoding::recovery) fn execution(
         IntrinsicTag::SegmentRead => Execution::SegmentRead(
             terminal_psi::SegmentRegister::from_code(reader.byte()?).ok_or(Error::InvalidTag)?,
         ),
-        IntrinsicTag::EmptyRunRelease => Execution::EmptyRunRelease,
+        IntrinsicTag::RunCustody => Execution::RunCustody(
+            language_core::sealed_intrinsics::RunCustodyOperation::from_tag(reader.byte()?)
+                .ok_or(Error::InvalidTag)?,
+        ),
         IntrinsicTag::StaticInterrupt => {
             use language_core::static_interrupts::StaticInterruptOperation;
             let operation_code = reader.byte()?;

@@ -48,6 +48,7 @@ mod references;
 mod reflection;
 mod regions;
 mod rejections;
+mod run_custody;
 mod services;
 mod source_records;
 mod statements;
@@ -55,6 +56,16 @@ mod storage_path;
 mod subjects;
 mod transitions;
 mod types;
+
+/// One published boundary owns either its declaration or one exact prepared
+/// source application. The latter must never reuse a template-only header.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct BoundarySource {
+    pub symbol: SymbolHandle,
+    pub application: Option<typed_trees::static_applications::StaticMachineApplicationHandle>,
+    /// The actual unused T still needs an ordinary published type row.
+    pub element: Option<crate::body::ValueType>,
+}
 
 use semantic_vocabulary::{
     BoundaryMachineId, CrashCause, IdTable, MachineId, PackageKeyIdentity, StructuralTypeId,
@@ -138,7 +149,7 @@ pub(crate) struct Program<'t> {
     implementation_body: Option<MachineId>,
     /// Exact requirement declarations use their own canonical namespace and
     /// the same formal/contract reader as body-backed machine declarations.
-    pub boundary_symbols: IdTable<BoundaryMachineId, SymbolHandle>,
+    pub boundary_symbols: run_custody::BoundarySources,
     pub boundary_signatures: IdTable<BoundaryMachineId, Signature>,
     boundary_services: IdTable<BoundaryMachineId, Option<semantic_vocabulary::ServiceId>>,
     /// How each requirement's invocation ends, as the typed trees state it
@@ -392,7 +403,7 @@ impl<'t> Program<'t> {
             declaration_aliases: IdTable::default(),
             declaration_representatives: IdTable::default(),
             implementation_body: None,
-            boundary_symbols: IdTable::default(),
+            boundary_symbols: run_custody::BoundarySources::new(typed),
             boundary_signatures: IdTable::default(),
             boundary_completions: IdTable::default(),
             boundary_services: IdTable::default(),

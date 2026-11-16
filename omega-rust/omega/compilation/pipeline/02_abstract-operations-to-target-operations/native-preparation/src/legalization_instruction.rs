@@ -148,6 +148,28 @@ pub(crate) fn project(
             indices: indices(selectors)?,
             result: result_home.as_ref().map(result).transpose()?,
         },
+        Operation::RunCustody {
+            boundary,
+            operation,
+            arguments,
+            indices: selectors,
+            cut,
+            carrier,
+            fields,
+            parts,
+            result_home,
+            ..
+        } => Kind::RunCustody {
+            boundary: *boundary,
+            operation: *operation,
+            arguments: arguments.clone(),
+            indices: indices(selectors)?,
+            cut: cut.as_ref().map(|cut| cut.source_value()),
+            carrier: *carrier,
+            fields: *fields,
+            parts: *parts,
+            result: result(result_home)?,
+        },
         Operation::AccessLifecycle {
             boundary,
             operands,

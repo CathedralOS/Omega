@@ -928,7 +928,7 @@ fn finish_reading_into<'source>(
         declare::provider_candidates(
             program.typed(),
             &program.symbols,
-            &program.boundary_symbols,
+            &program.boundary_symbols.symbols(),
             &program.supplied,
             &mut elaboration.module,
         )?;
@@ -967,7 +967,7 @@ fn finish_reading_into<'source>(
     reference_results::publish(&mut elaboration, &program.selections)?;
     finish_storage(diagnostic, &mut elaboration, further)?;
     elaboration.machines = program.symbols;
-    elaboration.boundaries = program.boundary_symbols;
+    elaboration.boundaries = program.boundary_symbols.symbols();
     elaboration.private_inputs = private_inputs;
     elaboration.names = program.names;
     elaboration.selections = program.selections;

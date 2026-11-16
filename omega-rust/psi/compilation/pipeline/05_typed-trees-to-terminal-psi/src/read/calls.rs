@@ -55,7 +55,7 @@ impl<'t> Program<'t> {
         if let Some((boundary, _)) = self
             .boundary_symbols
             .iter()
-            .find(|(_, symbol)| **symbol == target)
+            .find(|(_, owner)| owner.application.is_none() && owner.symbol == target)
         {
             return Ok(boundary);
         }
@@ -759,6 +759,15 @@ impl<'t> Program<'t> {
         call: &TableCall,
     ) -> Checked<Expression> {
         self.bound_target(id, call.target_symbol)?;
+        if let Some(read) = self.run_custody_call(
+            id,
+            slots,
+            StaticArgumentCall::Statement(call),
+            SourceOrigin::of(call.source_span),
+            None,
+        )? {
+            return Ok(read);
+        }
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
         if let Some(read) = self.rigid_call(
             id,
@@ -865,6 +874,15 @@ impl<'t> Program<'t> {
             return self.layout_query(id, call, query, source);
         }
         self.bound_target(id, call.target_symbol)?;
+        if let Some(read) = self.run_custody_call(
+            id,
+            slots,
+            StaticArgumentCall::Expression(handle, call),
+            source,
+            expected,
+        )? {
+            return Ok(read);
+        }
         // The integer carrier query is answered only through its fields in a
         // static condition (`carriers`); its own body is no answer to run.
         if self.is_carrier_query(call) {
@@ -1241,7 +1259,7 @@ impl<'t> Program<'t> {
         let protocol = self
             .boundary_symbols
             .get(*boundary)
-            .and_then(|requirement| self.typed.trait_machine_signature(*requirement))
+            .and_then(|owner| self.typed.trait_machine_signature(owner.symbol))
             .is_some_and(|(owner, _)| {
                 language_semantics::build_requests::is_build_protocol(
                     &self.typed.symbols,
@@ -2177,7 +2195,11 @@ impl<'t> Program<'t> {
     /// Resolve the same exact entry identity for direct and selected calls.
     /// Selection decides which contract is exposed; it does not change which
     /// source machine owns this entry state.
-    fn call_target_symbol(&self, id: MachineId, target: SymbolHandle) -> Checked<SymbolHandle> {
+    pub(super) fn call_target_symbol(
+        &self,
+        id: MachineId,
+        target: SymbolHandle,
+    ) -> Checked<SymbolHandle> {
         Ok(match self.typed.symbols.get(target).kind {
             SymbolKind::Machine => target,
             SymbolKind::State => {
@@ -2281,7 +2303,7 @@ impl<'t> Program<'t> {
     /// must be its formal at the bound regions, and the result is the
     /// callee's at them. A result lifetime no input carries is chosen by
     /// the caller: by the expected type, or else by the result's first use.
-    fn call_of(
+    pub(super) fn call_of(
         &mut self,
         id: MachineId,
         slots: &[Slot],
@@ -2320,7 +2342,7 @@ impl<'t> Program<'t> {
                     let symbol = self
                         .boundary_symbols
                         .get(boundary)
-                        .copied()
+                        .map(|owner| owner.symbol)
                         .unwrap_or_else(SymbolHandle::invalid);
                     self.machine_lifetimes(symbol)
                 }

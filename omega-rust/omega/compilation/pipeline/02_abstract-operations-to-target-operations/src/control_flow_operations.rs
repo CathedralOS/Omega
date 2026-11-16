@@ -980,9 +980,7 @@ pub(crate) mod operations {
                     return Err(LoweringError::unsupported_control_flow(function.machine));
                 };
                 match &settlement.realization {
-                    BoundarySettlementRealization::Builtin(
-                        BoundaryRealization::EmptyRunRelease,
-                    ) => {
+                    BoundarySettlementRealization::Builtin(BoundaryRealization::RunCustody(_)) => {
                         let declaration = boundary_machines
                             .get(boundary)
                             .ok_or(LoweringError::unsupported_control_flow(function.machine))?;

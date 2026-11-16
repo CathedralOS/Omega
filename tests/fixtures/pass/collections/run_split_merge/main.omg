@@ -1,0 +1,31 @@
+// Incoming Live is a caller obligation; these functions allocate no cells.
+use omega::language::core::Run;
+use omega::language::core::RunParts;
+use omega::language::core::Live;
+
+data WidePolicy {}
+data NarrowPolicy {}
+
+public machine split_merge_wide(run: Run<WidePolicy, u64> in Live<WidePolicy, u64>, cut: u64)
+    -> Run<WidePolicy, u64> in Live<WidePolicy, u64>
+reaches none
+crashes none
+terminates
+requires cut <= run.count
+ensures result.count == run.count
+{
+    let parts: RunParts<WidePolicy, u64> = Run::split<WidePolicy, u64>(move run, cut);
+    Run::merge<WidePolicy, u64>(move parts.left, move parts.right)
+}
+
+public machine split_merge_narrow(run: Run<NarrowPolicy, u32> in Live<NarrowPolicy, u32>, cut: u64)
+    -> Run<NarrowPolicy, u32> in Live<NarrowPolicy, u32>
+reaches none
+crashes none
+terminates
+requires cut <= run.count
+ensures result.count == run.count
+{
+    let parts: RunParts<NarrowPolicy, u32> = Run::split<NarrowPolicy, u32>(move run, cut);
+    Run::merge<NarrowPolicy, u32>(move parts.left, move parts.right)
+}

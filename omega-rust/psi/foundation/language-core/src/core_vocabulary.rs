@@ -53,6 +53,8 @@ pub enum CoreVocabulary {
     ExtentDomain(ExtentDomain),
     /// The `ProgramStorageEntry` arrival trait in `extent.omg`.
     ProgramStorageEntry,
+    /// Typed-run nominal data and its live-cell predicate; recognition grants no custody.
+    Run(RunDeclaration),
     /// Core `fixed_vec.omg`'s `FixedVec<T, N>` data.
     FixedVec,
     /// A primitive instruction-effect proposition in core `assembly_model.omg`.
@@ -61,6 +63,14 @@ pub enum CoreVocabulary {
     ExternalBinding(ExternalBindingVocabulary),
     /// Core `integer.omg`'s carrier metadata query or its result type.
     IntegerCarrier(IntegerCarrierDeclaration),
+}
+
+/// The exact declarations used by the compiler-supplied run custody family.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum RunDeclaration {
+    Run,
+    Parts,
+    Live,
 }
 
 /// The `integer.omg` declarations the carrier-family classification is read
@@ -191,6 +201,7 @@ const REFLECT: &[u8] = core_source!("reflect.omg");
 const LAYOUT: &[u8] = core_source!("layout.omg");
 const EXTENT: &[u8] = core_source!("extent.omg");
 const FIXED_VEC: &[u8] = core_source!("fixed_vec.omg");
+const RUN: &[u8] = core_source!("run.omg");
 const ASSEMBLY_MODEL: &[u8] = core_source!("assembly_model.omg");
 const EXTERNAL_BINDING: &[u8] = core_source!("external_binding.omg");
 const INTEGER: &[u8] = core_source!("integer.omg");
@@ -442,6 +453,25 @@ const ROWS: &[CoreVocabularyRow] = &[
         REFLECT,
         CoreVocabulary::Reflection(ReflectionDeclaration::VisitActiveFieldsMut),
     ),
+    row(
+        "run.omg",
+        "Run",
+        RUN,
+        CoreVocabulary::Run(RunDeclaration::Run),
+    ),
+    row(
+        "run.omg",
+        "RunParts",
+        RUN,
+        CoreVocabulary::Run(RunDeclaration::Parts),
+    ),
+    // Generic domains retain their own namespace, as Extent's Resident does.
+    row(
+        "run.omg",
+        "Live",
+        RUN,
+        CoreVocabulary::Run(RunDeclaration::Live),
+    ),
     row("extent.omg", "Extent", EXTENT, CoreVocabulary::Extent),
     row(
         "extent.omg",
@@ -619,6 +649,32 @@ mod tests {
             file: Path::new(file),
             declaration,
             source,
+        }
+    }
+
+    #[test]
+    fn run_roles_require_the_exact_bundled_nominal_declarations() {
+        for (name, role) in [
+            ("Run", RunDeclaration::Run),
+            ("RunParts", RunDeclaration::Parts),
+            ("Live", RunDeclaration::Live),
+        ] {
+            assert_eq!(
+                CoreVocabularyCatalog::classify(site("run.omg", name, RUN)),
+                Some(CoreVocabulary::Run(role))
+            );
+            assert_eq!(
+                CoreVocabularyCatalog::classify(site("run.omg", name, b"edited")),
+                None
+            );
+            assert_eq!(
+                CoreVocabularyCatalog::classify(site("user.omg", name, RUN)),
+                None
+            );
+            assert_eq!(
+                CoreVocabularyCatalog::classify(site("run.omg", &format!("{name}Lookalike"), RUN)),
+                None
+            );
         }
     }
 

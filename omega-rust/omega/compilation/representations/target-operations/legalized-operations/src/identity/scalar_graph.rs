@@ -8,6 +8,7 @@
 //   (`TAG_CASE_PAYLOAD_FIELD_READ`), and inline nearest-even IEEE float arithmetic takes tag `169`
 //   (`TAG_NEAREST_IEEE_FLOAT_ARITHMETIC`, appending the optional x86 FMA provider identity).
 // - Custody-only decomposition takes tag `174` and binds the complete owned subject.
+// - Ordered run descriptor transfers take tag `175`, binding their actual operands and fields.
 // - Saturating forms (`saturating_tag`) preserve legacy tags for `U64` and `I32` (35, 36, 40, 41,
 //   42) and assign dense per-operation carrier offsets for all other carriers.
 // - Root-window `StoreStructuralField` instructions and whole-slot `StructuralByteViewFieldStore`
@@ -130,6 +131,39 @@ pub(super) fn encode(
                     encode_option(bytes, result.as_ref(), |bytes, result| {
                         super::structural::encode_operation_result(bytes, result);
                     });
+                }
+                LegalizedScalarInstructionKind::RunCustody {
+                    boundary,
+                    operation,
+                    arguments,
+                    indices,
+                    cut,
+                    carrier,
+                    fields,
+                    parts,
+                    result,
+                } => {
+                    bytes.push(175);
+                    bytes.extend_from_slice(&boundary.get().to_le_bytes());
+                    bytes.push(operation.tag());
+                    encode_len(bytes, arguments.len());
+                    for argument in arguments {
+                        super::structural_types::encode_structural_argument(bytes, argument);
+                    }
+                    encode_runtime_indices(bytes, indices);
+                    encode_option(bytes, *cut, |bytes, cut| {
+                        bytes.extend_from_slice(&cut.get().to_le_bytes())
+                    });
+                    bytes.extend_from_slice(&carrier.get().to_le_bytes());
+                    for field in fields {
+                        bytes.extend_from_slice(&field.get().to_le_bytes());
+                    }
+                    encode_option(bytes, *parts, |bytes, parts| {
+                        for field in parts {
+                            bytes.extend_from_slice(&field.get().to_le_bytes());
+                        }
+                    });
+                    super::structural::encode_operation_result(bytes, result);
                 }
                 LegalizedScalarInstructionKind::AccessLifecycle {
                     boundary,

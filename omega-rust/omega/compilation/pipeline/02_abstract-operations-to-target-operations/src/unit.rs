@@ -1255,7 +1255,7 @@ pub(crate) mod boundary_call {
                     BoundaryRealization::ProgramImageRetainedSuffixStart
                     | BoundaryRealization::NearestIeeeFloatArithmetic(_)
                     | BoundaryRealization::AccessorScalarAccess(_)
-                    | BoundaryRealization::EmptyRunRelease
+                    | BoundaryRealization::RunCustody(_)
                     | BoundaryRealization::StaticInterrupt { .. }
                     | BoundaryRealization::AccessLifecycle { .. } => {
                         return Err(LoweringError::BoundaryRealizationMismatch(*boundary));

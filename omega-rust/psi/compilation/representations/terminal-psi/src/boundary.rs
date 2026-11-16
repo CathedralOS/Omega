@@ -847,7 +847,7 @@ pub(crate) mod declarations {
         pub method_arguments: Vec<crate::ClosedReachArgument>,
     }
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub enum CheckedBoundaryExecution {
         Provider,
         /// Exact sealed numeric declaration, realized by the selected target table.
@@ -861,7 +861,14 @@ pub(crate) mod declarations {
         AccessMoveOut,
         AccessRelocate,
         AccessView,
-        EmptyRunRelease,
+        /// The exact closed element remains available even though the run's
+        /// physical descriptor contains only backing and count. This is type
+        /// metadata, not evidence that any cells or placement were established.
+        RunCustody {
+            operation: language_core::sealed_intrinsics::RunCustodyOperation,
+            policy: TerminalIdentityIndex,
+            element: crate::StructuralFieldType,
+        },
         StaticInterruptInstall,
         StaticInterruptContext,
         StaticInterruptBeginCompletion,
@@ -870,7 +877,7 @@ pub(crate) mod declarations {
 
     impl CheckedBoundaryExecution {
         pub const fn static_interrupt_operation(
-            self,
+            &self,
         ) -> Option<language_core::static_interrupts::StaticInterruptOperation> {
             use language_core::static_interrupts::StaticInterruptOperation;
             match self {
@@ -885,7 +892,7 @@ pub(crate) mod declarations {
                 Self::Provider
                 | Self::NumericPrimitive
                 | Self::HostedPrimitive { .. }
-                | Self::EmptyRunRelease
+                | Self::RunCustody { .. }
                 | Self::AccessInitialize
                 | Self::AccessMoveOut
                 | Self::AccessRelocate
@@ -893,16 +900,25 @@ pub(crate) mod declarations {
             }
         }
 
-        pub const fn compiler_owned(self) -> bool {
+        pub const fn compiler_owned(&self) -> bool {
             !matches!(self, Self::Provider)
         }
 
-        pub const fn placement_operation(self) -> Option<crate::TerminalAccessLifecycleOperation> {
+        pub const fn run_custody_operation(
+            &self,
+        ) -> Option<language_core::sealed_intrinsics::RunCustodyOperation> {
+            match self {
+                Self::RunCustody { operation, .. } => Some(*operation),
+                _ => None,
+            }
+        }
+
+        pub const fn placement_operation(&self) -> Option<crate::TerminalAccessLifecycleOperation> {
             match self {
                 Self::Provider
                 | Self::NumericPrimitive
                 | Self::HostedPrimitive { .. }
-                | Self::EmptyRunRelease
+                | Self::RunCustody { .. }
                 | Self::StaticInterruptInstall
                 | Self::StaticInterruptContext
                 | Self::StaticInterruptBeginCompletion
@@ -924,7 +940,7 @@ pub(crate) mod declarations {
         ) -> bool {
             let identities = &module.identities;
             let other_identities = &other_module.identities;
-            let same_execution = match (self.execution, other.execution) {
+            let same_execution = match (&self.execution, &other.execution) {
                 (
                     CheckedBoundaryExecution::HostedPrimitive {
                         operation,
@@ -937,8 +953,8 @@ pub(crate) mod declarations {
                 ) => {
                     operation == other_operation
                         && module
-                            .boundary_machine(requirement)
-                            .zip(other_module.boundary_machine(other_requirement))
+                            .boundary_machine(*requirement)
+                            .zip(other_module.boundary_machine(*other_requirement))
                             .is_some_and(|(left, right)| {
                                 left.kind == crate::BoundaryRequirementKind::Trait
                                     && right.kind == crate::BoundaryRequirementKind::Trait
@@ -958,6 +974,57 @@ pub(crate) mod declarations {
                                         })
                             })
                 }
+                (
+                    CheckedBoundaryExecution::RunCustody {
+                        operation,
+                        policy,
+                        element,
+                    },
+                    CheckedBoundaryExecution::RunCustody {
+                        operation: other_operation,
+                        policy: other_policy,
+                        element: other_element,
+                    },
+                ) => {
+                    let same_element = match (element, other_element) {
+                        (
+                            crate::StructuralFieldType::Structural(left),
+                            crate::StructuralFieldType::Structural(right),
+                        ) => module
+                            .structural_type(*left)
+                            .zip(other_module.structural_type(*right))
+                            .is_some_and(|(left, right)| {
+                                crate::NominalDeclarationIdentity::new(left.identity)
+                                    .same_identity_as(
+                                        identities,
+                                        &crate::NominalDeclarationIdentity::new(right.identity),
+                                        other_identities,
+                                    )
+                            }),
+                        (
+                            crate::StructuralFieldType::Erased {
+                                type_identity: left,
+                            },
+                            crate::StructuralFieldType::Erased {
+                                type_identity: right,
+                            },
+                        ) => crate::NominalDeclarationIdentity::new(*left).same_identity_as(
+                            identities,
+                            &crate::NominalDeclarationIdentity::new(*right),
+                            other_identities,
+                        ),
+                        (left, right) => left == right,
+                    };
+                    operation == other_operation
+                        && same_element
+                        && crate::NominalDeclarationIdentity::new(*policy).same_identity_as(
+                            identities,
+                            &crate::NominalDeclarationIdentity::new(*other_policy),
+                            other_identities,
+                        )
+                }
+                (CheckedBoundaryExecution::RunCustody { .. }, _)
+                | (_, CheckedBoundaryExecution::RunCustody { .. }) => false,
                 (CheckedBoundaryExecution::HostedPrimitive { .. }, _)
                 | (_, CheckedBoundaryExecution::HostedPrimitive { .. }) => false,
                 (left, right) => left == right,
@@ -982,9 +1049,9 @@ pub(crate) mod declarations {
             match self
                 .declaration
                 .as_ref()
-                .map(|declaration| declaration.execution)
+                .map(|declaration| &declaration.execution)
             {
-                Some(CheckedBoundaryExecution::HostedPrimitive { requirement, .. }) => requirement,
+                Some(CheckedBoundaryExecution::HostedPrimitive { requirement, .. }) => *requirement,
                 _ => self.id,
             }
         }

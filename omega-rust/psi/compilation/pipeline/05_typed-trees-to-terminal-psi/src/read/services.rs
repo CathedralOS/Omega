@@ -309,7 +309,8 @@ impl<'t> Program<'t> {
         module: &mut TerminalModule,
     ) -> Checked<()> {
         let mut boundaries = Vec::with_capacity(self.boundary_symbols.len());
-        for (boundary, symbol) in self.boundary_symbols.iter() {
+        for (boundary, owner) in self.boundary_symbols.iter() {
+            let symbol = &owner.symbol;
             let signature = signatures.get(
                 semantic_vocabulary::TargetMachineCallable::Boundary(boundary),
                 caller,
@@ -344,7 +345,58 @@ impl<'t> Program<'t> {
             let [reach, entries] = rows
                 .each_ref()
                 .map(|row: &Vec<String>| row.iter().map(String::as_str).collect::<Vec<&str>>());
-            let execution = if let Some(
+            let execution = if let Some(application) = owner.application {
+                let (operation, _) = self
+                    .typed
+                    .compiler_primitive_callable_signature(application, *symbol)
+                    .map_err(unavailable)?
+                    .ok_or_else(|| {
+                        unavailable("compiler boundary lost its exact prepared source contract")
+                    })?;
+                let language_core::sealed_intrinsics::CompilerPrimitive::RunCustody(operation) =
+                    operation
+                else {
+                    return Err(unavailable(
+                        "compiler boundary has another operation family",
+                    ));
+                };
+                let bindings = self
+                    .typed
+                    .expression_table
+                    .static_machine_application_bindings(application);
+                let Some(typed_trees::static_applications::StaticMachineBinding {
+                    value: typed_trees::static_applications::StaticMachineBindingValue::Type(policy),
+                    ..
+                }) = bindings.first()
+                else {
+                    return Err(unavailable(
+                        "run custody publisher lost its actual policy operand",
+                    ));
+                };
+                let policy = self
+                    .typed
+                    .type_identity_text(self.typed.package_qualified_type_identity(*policy))
+                    .filter(|text| !text.is_empty())
+                    .ok_or_else(|| unavailable("run custody policy has no actual type identity"))?;
+                let element = match owner.element {
+                    Some(crate::body::ValueType::Scalar(scalar, _)) => {
+                        terminal_psi::StructuralFieldType::Scalar(scalar)
+                    }
+                    Some(crate::body::ValueType::Record(record, _, _)) => {
+                        terminal_psi::StructuralFieldType::Structural(record)
+                    }
+                    _ => {
+                        return Err(unavailable(
+                            "run custody publisher lost its actual element type coordinate",
+                        ));
+                    }
+                };
+                terminal_psi::CheckedBoundaryExecution::RunCustody {
+                    operation,
+                    policy: qualifications.identities.intern(&policy),
+                    element,
+                }
+            } else if let Some(
                 language_core::sealed_intrinsics::SealedIntrinsic::HostedPrimitive(operation),
             ) = self.typed.symbols.sealed_intrinsic(*symbol)
             {
@@ -371,7 +423,9 @@ impl<'t> Program<'t> {
                 let requirement = self
                     .boundary_symbols
                     .iter()
-                    .find_map(|(id, symbol)| (*symbol == requirement).then_some(id))
+                    .find_map(|(id, owner)| {
+                        (owner.application.is_none() && owner.symbol == requirement).then_some(id)
+                    })
                     .ok_or_else(|| unavailable("hosted primitive requirement was not published"))?;
                 terminal_psi::CheckedBoundaryExecution::HostedPrimitive {
                     operation,
@@ -389,7 +443,8 @@ impl<'t> Program<'t> {
             let metadata = crate::declare::boundary(
                 self.typed,
                 *symbol,
-                execution,
+                owner.application,
+                execution.clone(),
                 signature,
                 crate::declare::Published {
                     operational: signature.operational.published([false; 2]),

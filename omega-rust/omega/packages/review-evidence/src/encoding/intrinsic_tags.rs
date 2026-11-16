@@ -51,6 +51,6 @@ intrinsic_tags! {
     TaskRegisterRead(Execution::TaskRegisterRead) = 13 => "task_register_read",
     SegmentReload(Execution::SegmentReload(_)) = 14 => "segment_reload",
     SegmentRead(Execution::SegmentRead(_)) = 15 => "segment_read",
-    EmptyRunRelease(Execution::EmptyRunRelease) = 16 => "empty_run_release",
+    RunCustody(Execution::RunCustody(_)) = 18 => "run_custody",
     StaticInterrupt(Execution::StaticInterrupt(_)) = 17 => "static_interrupt",
 }

@@ -2918,13 +2918,22 @@ impl<'artifact> TerminalExecution<'artifact> {
         });
         let program = std::sync::Arc::clone(&self.program);
         let boundary_declaration = program.verified_boundary_machine(&boundary)?;
-        if boundary_declaration
+        if let Some(custody) = boundary_declaration
             .declaration
             .as_ref()
-            .map(|row| row.execution)
-            == Some(terminal_psi::CheckedBoundaryExecution::EmptyRunRelease)
+            .and_then(|row| row.execution.run_custody_operation())
         {
-            self.release_empty_run(operation, boundary_declaration)?;
+            match custody {
+                language_core::sealed_intrinsics::RunCustodyOperation::ReleaseEmpty => {
+                    self.release_empty_run(operation, boundary_declaration)?;
+                }
+                language_core::sealed_intrinsics::RunCustodyOperation::Split
+                | language_core::sealed_intrinsics::RunCustodyOperation::Merge => {
+                    return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                        "ordered run split/merge descriptor custody is not implemented",
+                    ));
+                }
+            }
             return Ok(OperationFlow::Advance);
         }
         if boundary_declaration

@@ -471,7 +471,7 @@ mod tests {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CompilerBuiltinExecution {
-    EmptyRunRelease,
+    RunCustody(language_core::sealed_intrinsics::RunCustodyOperation),
     StaticInterrupt {
         boundary: semantic_vocabulary::BoundaryMachineId,
         operation: language_core::static_interrupts::StaticInterruptOperation,

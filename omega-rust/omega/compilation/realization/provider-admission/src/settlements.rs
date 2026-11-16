@@ -232,7 +232,7 @@ fn settle_boundary<'request>(
                     )]);
                 }
                 target_operations::BoundaryRealization::AccessLifecycle { .. }
-                | target_operations::BoundaryRealization::EmptyRunRelease => {
+                | target_operations::BoundaryRealization::RunCustody(_) => {
                     return Err(vec![Diagnostic::error(
                         "provider execution cannot replace a private access lifecycle",
                     )]);

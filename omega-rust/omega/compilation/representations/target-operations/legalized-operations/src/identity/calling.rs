@@ -286,8 +286,11 @@ pub fn encode_boundary_execution_identity(
     execution: BoundaryExecutionBinding,
 ) {
     match execution {
-        BoundaryExecutionBinding::CompilerBuiltin(CompilerBuiltinExecution::EmptyRunRelease) => {
-            bytes.push(9)
+        BoundaryExecutionBinding::CompilerBuiltin(CompilerBuiltinExecution::RunCustody(
+            operation,
+        )) => {
+            bytes.push(9);
+            bytes.push(operation.tag());
         }
         BoundaryExecutionBinding::CompilerBuiltin(CompilerBuiltinExecution::StaticInterrupt {
             boundary,
@@ -369,7 +372,10 @@ pub(super) fn encode_binding(bytes: &mut Vec<u8>, binding: &BoundarySettlementBi
             super::normalized_foreign::encode_call_binding(bytes, call);
         }
         BoundarySettlementRealization::Builtin(realization) => match realization {
-            BoundaryRealization::EmptyRunRelease => bytes.push(12),
+            BoundaryRealization::RunCustody(operation) => {
+                bytes.push(12);
+                bytes.push(operation.tag());
+            }
             BoundaryRealization::StaticInterrupt {
                 boundary,
                 operation,

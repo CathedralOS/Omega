@@ -1304,6 +1304,7 @@ fn service_declaration_commitment(
 pub(crate) fn boundary(
     typed: &TypedTrees,
     symbol: SymbolHandle,
+    application: Option<typed_trees::static_applications::StaticMachineApplicationHandle>,
     execution: terminal_psi::CheckedBoundaryExecution,
     signature: &Signature,
     published: Published<'_>,
@@ -1315,6 +1316,37 @@ pub(crate) fn boundary(
     ),
     Diagnostic,
 > {
+    if let terminal_psi::CheckedBoundaryExecution::RunCustody { operation, .. } = &execution {
+        let application = application.ok_or_else(|| {
+            Diagnostic::error("run custody publisher lost its exact source application")
+        })?;
+        let (actual, prepared) = typed
+            .compiler_primitive_callable_signature(application, symbol)
+            .map_err(Diagnostic::error)?
+            .ok_or_else(|| {
+                Diagnostic::error("run custody publisher has no prepared compiler contract")
+            })?;
+        if actual != language_core::sealed_intrinsics::CompilerPrimitive::RunCustody(*operation) {
+            return Err(Diagnostic::error(
+                "run custody publisher changed its exact compiler operation",
+            ));
+        }
+        return top_level_boundary(
+            typed,
+            symbol,
+            execution,
+            signature,
+            published,
+            None,
+            Some((application, prepared)),
+            identities,
+        );
+    }
+    if application.is_some() {
+        return Err(Diagnostic::error(
+            "ordinary boundary unexpectedly carries a compiler application",
+        ));
+    }
     if execution == terminal_psi::CheckedBoundaryExecution::NumericPrimitive {
         if typed.symbols.sealed_intrinsic(symbol)
             != Some(language_core::sealed_intrinsics::SealedIntrinsic::FloatOperationRequirement)
@@ -1324,7 +1356,7 @@ pub(crate) fn boundary(
             ));
         }
         return top_level_boundary(
-            typed, symbol, execution, signature, published, None, identities,
+            typed, symbol, execution, signature, published, None, None, identities,
         );
     }
     if matches!(
@@ -1442,6 +1474,7 @@ fn primitive_boundary(
         signature,
         published,
         Some(service_declaration),
+        None,
         identities,
     )
 }
@@ -1454,6 +1487,10 @@ fn top_level_boundary(
     signature: &Signature,
     published: Published<'_>,
     service_declaration: Option<[u8; 32]>,
+    prepared: Option<(
+        typed_trees::static_applications::StaticMachineApplicationHandle,
+        &typed_trees::signature::StateSignature,
+    )>,
     identities: &mut TerminalIdentityTableBuilder,
 ) -> Result<
     (
@@ -1474,10 +1511,22 @@ fn top_level_boundary(
             .machine_callable_identity_text(machine)
             .filter(|text| !text.is_empty())
             .ok_or_else(|| Diagnostic::error("primitive has no callable identity"))?;
+        let (formals, return_type) = match prepared {
+            Some((_, declared)) => (
+                typed
+                    .state_parameters
+                    .span(declared.parameters)
+                    .ok_or_else(|| {
+                        Diagnostic::error("run custody publisher has a stale closed formal roster")
+                    })?,
+                declared.return_type,
+            ),
+            None => (typed.state_parameters(state), state.return_type),
+        };
         (
             state.symbol,
-            typed.state_parameters(state),
-            state.return_type,
+            formals,
+            return_type,
             callable,
             [machine.suspends, machine.blocks],
         )
@@ -1499,6 +1548,54 @@ fn top_level_boundary(
     let sources =
         source::source_identity::toolchain_source_identities(typed.symbols.source_files())
             .map_err(|_| Diagnostic::error("primitive source has no exact identity"))?;
+    let mut method_arguments = Vec::new();
+    let (callable, specialization) = if let Some((application, _)) = prepared {
+        let occurrence = typed
+            .expression_table
+            .static_machine_application(application);
+        if occurrence.binding_declaration != symbol {
+            return Err(Diagnostic::error(
+                "run custody publisher belongs to another template",
+            ));
+        }
+        let bindings = typed
+            .expression_table
+            .static_machine_application_bindings(application);
+        let commitment =
+            application_bindings_commitment(typed, &callable, bindings, &[], identities, &mut None)
+                .map_err(Diagnostic::error)?;
+        for binding in bindings {
+            let typed_trees::static_applications::StaticMachineBindingValue::Type(reference) =
+                binding.value
+            else {
+                return Err(Diagnostic::error(
+                    "run custody publisher has a non-type static operand",
+                ));
+            };
+            method_arguments.push(terminal_psi::ClosedReachArgument::Type(
+                identities.intern(&type_argument(typed, reference).map_err(Diagnostic::error)?),
+            ));
+        }
+        let specialization = terminal_psi::CheckedMachineSpecialization {
+            capture: None,
+            template: NominalDeclarationIdentity::new(
+                nominal(typed, &sources, symbol, identities).map_err(Diagnostic::error)?,
+            ),
+            template_entry: NominalDeclarationIdentity::new(
+                nominal(typed, &sources, entry, identities).map_err(Diagnostic::error)?,
+            ),
+            template_callable: identities.intern(&callable),
+            template_semantic_declaration: semantic_identity(typed, symbol, identities)
+                .map_err(Diagnostic::error)?,
+            commitment,
+        };
+        (
+            CheckedMachineDeclaration::callable_evidence_identity(&callable, Some(&commitment)),
+            Some(specialization),
+        )
+    } else {
+        (callable, None)
+    };
     let owner = NominalDeclarationIdentity::new(
         nominal(typed, &sources, symbol, identities).map_err(Diagnostic::error)?,
     );
@@ -1542,7 +1639,7 @@ fn top_level_boundary(
         contract,
         published_may_suspend: operational[0],
         published_may_block: operational[1],
-        specialization: None,
+        specialization,
     };
     Ok((
         owner,
@@ -1550,7 +1647,7 @@ fn top_level_boundary(
             service_declaration: service_declaration.unwrap_or(contract),
             source,
             execution,
-            method_arguments: Vec::new(),
+            method_arguments,
         },
     ))
 }

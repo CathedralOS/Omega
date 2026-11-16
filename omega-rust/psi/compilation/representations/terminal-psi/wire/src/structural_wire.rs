@@ -1487,13 +1487,45 @@ pub(crate) mod structural_signature_wire {
         }
     }
 
+    struct RunElementWire;
+    impl Field<terminal_psi::StructuralFieldType> for RunElementWire {
+        fn write(
+            writer: &mut Writer,
+            element: &terminal_psi::StructuralFieldType,
+        ) -> Result<(), CodecError> {
+            super::structural_field_wire::encode_structural_field_type(writer, element)
+        }
+        fn read(reader: &mut Reader<'_>) -> Result<terminal_psi::StructuralFieldType, CodecError> {
+            super::structural_field_wire::decode_structural_field_type(reader)
+        }
+    }
+
+    struct RunCustodyWire;
+    impl Field<language_core::sealed_intrinsics::RunCustodyOperation> for RunCustodyWire {
+        fn write(
+            writer: &mut Writer,
+            value: &language_core::sealed_intrinsics::RunCustodyOperation,
+        ) -> Result<(), CodecError> {
+            writer.u8(value.tag());
+            Ok(())
+        }
+
+        fn read(
+            reader: &mut Reader<'_>,
+        ) -> Result<language_core::sealed_intrinsics::RunCustodyOperation, CodecError> {
+            let tag = reader.u8()?;
+            language_core::sealed_intrinsics::RunCustodyOperation::from_tag(tag)
+                .ok_or(CodecError::InvalidTag("run custody operation", tag))
+        }
+    }
+
     wire_enum! {
         Execution: CheckedBoundaryExecution, "checked boundary execution" {
             0 => Provider,
             1 => AccessInitialize,
             2 => AccessMoveOut,
             3 => AccessView,
-            4 => EmptyRunRelease,
+            4 => RunCustody { operation: RunCustodyWire, policy: Index, element: RunElementWire },
             5 => AccessRelocate,
             6 => StaticInterruptInstall,
             7 => StaticInterruptContext,
@@ -1851,24 +1883,77 @@ pub(crate) mod structural_signature_wire {
         use super::*;
 
         #[test]
+        fn run_execution_retains_actual_policy_and_element() {
+            use language_core::sealed_intrinsics::RunCustodyOperation;
+            for operation in [
+                RunCustodyOperation::ReleaseEmpty,
+                RunCustodyOperation::Split,
+                RunCustodyOperation::Merge,
+            ] {
+                let value = CheckedBoundaryExecution::RunCustody {
+                    operation,
+                    policy: terminal_psi::TerminalIdentityIndex(7),
+                    element: terminal_psi::StructuralFieldType::Structural(
+                        semantic_vocabulary::StructuralTypeId::new(11).unwrap(),
+                    ),
+                };
+                let mut writer = Writer::default();
+                Execution::write(&mut writer, &value).unwrap();
+                let bytes = writer.finish();
+                assert_eq!(&bytes[..2], &[4, operation.tag()]);
+                assert_eq!(Execution::read(&mut Reader::new(&bytes)).unwrap(), value);
+                for length in 0..bytes.len() {
+                    assert!(Execution::read(&mut Reader::new(&bytes[..length])).is_err());
+                }
+                for changed in [
+                    CheckedBoundaryExecution::RunCustody {
+                        operation,
+                        policy: terminal_psi::TerminalIdentityIndex(8),
+                        element: terminal_psi::StructuralFieldType::Structural(
+                            semantic_vocabulary::StructuralTypeId::new(11).unwrap(),
+                        ),
+                    },
+                    CheckedBoundaryExecution::RunCustody {
+                        operation,
+                        policy: terminal_psi::TerminalIdentityIndex(7),
+                        element: terminal_psi::StructuralFieldType::Scalar(
+                            semantic_vocabulary::ScalarType::Boolean,
+                        ),
+                    },
+                ] {
+                    let mut writer = Writer::default();
+                    Execution::write(&mut writer, &changed).unwrap();
+                    assert_ne!(bytes, writer.finish());
+                }
+            }
+        }
+
+        #[test]
         fn release_relocation_and_interrupt_terminal_tags_do_not_alias() {
-            for (value, tag) in [
-                (CheckedBoundaryExecution::EmptyRunRelease, 4),
-                (CheckedBoundaryExecution::AccessRelocate, 5),
-                (CheckedBoundaryExecution::StaticInterruptInstall, 6),
-                (CheckedBoundaryExecution::StaticInterruptContext, 7),
-                (CheckedBoundaryExecution::StaticInterruptBeginCompletion, 8),
-                (CheckedBoundaryExecution::StaticInterruptFinishCompletion, 9),
+            for (value, expected) in [
+                (CheckedBoundaryExecution::AccessRelocate, &[5][..]),
+                (CheckedBoundaryExecution::StaticInterruptInstall, &[6][..]),
+                (CheckedBoundaryExecution::StaticInterruptContext, &[7][..]),
+                (
+                    CheckedBoundaryExecution::StaticInterruptBeginCompletion,
+                    &[8][..],
+                ),
+                (
+                    CheckedBoundaryExecution::StaticInterruptFinishCompletion,
+                    &[9][..],
+                ),
             ] {
                 let mut writer = Writer::default();
                 Execution::write(&mut writer, &value).unwrap();
                 let bytes = writer.finish();
-                assert_eq!(bytes, [tag]);
+                assert_eq!(bytes, expected);
                 let mut reader = Reader::new(&bytes);
                 assert_eq!(Execution::read(&mut reader).unwrap(), value);
                 assert_eq!(reader.remaining(), 0);
             }
             assert!(Execution::read(&mut Reader::new(&[])).is_err());
+            assert!(Execution::read(&mut Reader::new(&[4])).is_err());
+            assert!(Execution::read(&mut Reader::new(&[4, 255])).is_err());
             assert!(Execution::read(&mut Reader::new(&[255])).is_err());
         }
     }

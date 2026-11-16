@@ -79,7 +79,7 @@ impl Program<'_> {
             let wanted = self.declaration_metadata.contains(&request.boundary)
                 || self.boundary_symbols.iter().any(|(_, requirement)| {
                     typed
-                        .trait_machine_signature(*requirement)
+                        .trait_machine_signature(requirement.symbol)
                         .is_some_and(|(owner, _)| owner.symbol == request.boundary)
                 });
             if !wanted {
@@ -197,7 +197,7 @@ impl Program<'_> {
         // keeps its reason for lacking a physical application; reading its
         // declaration does not choose static arguments for it.
         for (_, symbol) in self.boundary_symbols.iter() {
-            if let Some(Ok(application)) = signatures.abi_for_boundary(*symbol) {
+            if let Some(Ok(application)) = signatures.abi_for_boundary(symbol.symbol) {
                 add(*application);
             }
         }
@@ -262,7 +262,7 @@ impl Program<'_> {
                 |(boundary, symbol)| terminal_psi::CallingSignatureDeclaration {
                     boundary,
                     application: signatures
-                        .abi_for_boundary(*symbol)
+                        .abi_for_boundary(symbol.symbol)
                         .cloned()
                         .unwrap_or_else(|| {
                             Err("boundary declaration has no retained ABI application".into())

@@ -26,7 +26,7 @@ use symbols::BuiltinFunction;
 use super::UnclassifiedTerminalMechanism;
 
 pub(super) const CLOSED_POLICY_ROW_COUNT: u32 = {
-    let mut count = 46;
+    let mut count = 48;
     let mut ordinal = 0;
     while ordinal < BuiltinFunction::COUNT {
         if !BuiltinFunction::ALL[ordinal].0.is_source_special_form() {
@@ -54,7 +54,14 @@ pub(super) fn closed_policy_mechanisms() -> Vec<CompilerIntrinsicExecutionIdenti
     mechanisms.push(CompilerIntrinsicExecutionIdentity::HostedReadByte);
     mechanisms.push(CompilerIntrinsicExecutionIdentity::ProgramImageRetainedSuffixStart);
     mechanisms.push(CompilerIntrinsicExecutionIdentity::ProgramStorageEntry);
-    mechanisms.push(CompilerIntrinsicExecutionIdentity::EmptyRunRelease);
+    mechanisms.extend(
+        [
+            language_core::sealed_intrinsics::RunCustodyOperation::ReleaseEmpty,
+            language_core::sealed_intrinsics::RunCustodyOperation::Split,
+            language_core::sealed_intrinsics::RunCustodyOperation::Merge,
+        ]
+        .map(CompilerIntrinsicExecutionIdentity::RunCustody),
+    );
     mechanisms.push(CompilerIntrinsicExecutionIdentity::TaskRegisterActivate);
     mechanisms.push(CompilerIntrinsicExecutionIdentity::TaskRegisterRead);
     mechanisms.extend(
@@ -121,7 +128,7 @@ pub(super) fn classify_compiler_intrinsic(
             }
         }
         CompilerIntrinsicExecutionIdentity::ProgramStorageEntry
-        | CompilerIntrinsicExecutionIdentity::EmptyRunRelease
+        | CompilerIntrinsicExecutionIdentity::RunCustody(_)
         | CompilerIntrinsicExecutionIdentity::AccessLifecycle(_)
         | CompilerIntrinsicExecutionIdentity::ProgramImageRetainedSuffixStart
         | CompilerIntrinsicExecutionIdentity::AccessorScalarAccess { .. } => empty_disposition(),

@@ -18,7 +18,7 @@ use crate::record::accessors::field_projection_accessors;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PackageReviewCompilerIntrinsicExecution {
     AccessLifecycle(terminal_psi::TerminalAccessLifecycleOperation),
-    EmptyRunRelease,
+    RunCustody(language_core::sealed_intrinsics::RunCustodyOperation),
     StaticInterrupt(language_core::static_interrupts::StaticInterruptOperation),
     HostedExitProcessI32,
     HostedWriteByteI32,

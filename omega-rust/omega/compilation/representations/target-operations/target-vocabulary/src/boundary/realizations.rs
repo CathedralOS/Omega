@@ -477,7 +477,7 @@ macro_rules! boundary_realization_conversion {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BoundaryRealization {
-    EmptyRunRelease,
+    RunCustody(language_core::sealed_intrinsics::RunCustodyOperation),
     StaticInterrupt {
         boundary: semantic_vocabulary::BoundaryMachineId,
         operation: language_core::static_interrupts::StaticInterruptOperation,

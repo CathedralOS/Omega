@@ -198,7 +198,8 @@ pub(crate) fn admitted_provider_settlement_identity(
     settlement: &machine_code::BoundarySettlementRecord,
     port_effect: Option<&PortEffectRecord>,
 ) -> Result<[u8; 32], &'static str> {
-    let mut digest = DomainDigestEncoder::new(b"omega.d41-boundary-trait-settlement.sha256.v4\0");
+    // Boundary records now bind the run custody operation in execution and realization.
+    let mut digest = DomainDigestEncoder::new(b"omega.d41-boundary-trait-settlement.sha256.v5\0");
     digest.raw(&occurrence.identity().bytes());
     hash_bytes(&mut digest, requirement_identity.as_bytes());
     digest.raw(selected_plan_digest.as_bytes());

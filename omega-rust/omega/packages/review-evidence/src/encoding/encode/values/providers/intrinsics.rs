@@ -13,8 +13,20 @@ pub(crate) fn encode_compiler_intrinsic_execution(
     let tag = IntrinsicTag::of(execution);
     encoder.tag(tag.label(), tag as u8);
     match execution {
-        PackageReviewCompilerIntrinsicExecution::EmptyRunRelease
-        | PackageReviewCompilerIntrinsicExecution::TaskRegisterActivate
+        PackageReviewCompilerIntrinsicExecution::RunCustody(operation) => {
+            encoder.field("operation", |encoder| {
+                let label = match operation {
+                    language_core::sealed_intrinsics::RunCustodyOperation::ReleaseEmpty => {
+                        "release_empty"
+                    }
+                    language_core::sealed_intrinsics::RunCustodyOperation::Split => "split",
+                    language_core::sealed_intrinsics::RunCustodyOperation::Merge => "merge",
+                };
+                encoder.tag(label, operation.tag());
+                Ok(())
+            })?;
+        }
+        PackageReviewCompilerIntrinsicExecution::TaskRegisterActivate
         | PackageReviewCompilerIntrinsicExecution::TaskRegisterRead
         | PackageReviewCompilerIntrinsicExecution::ProgramStorageEntry
         | PackageReviewCompilerIntrinsicExecution::ProgramImageRetainedSuffixStart

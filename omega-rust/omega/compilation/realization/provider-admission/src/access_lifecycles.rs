@@ -7,7 +7,7 @@
 // codec contract (non-erased runtime fields, acyclic inline storage, and full
 // integer storage widths on initialization).
 //
-// `settle_empty_releases` settles the source-authenticated `EmptyRunRelease`
+// `settle_empty_releases` settles the source-authenticated `RunCustody(ReleaseEmpty)`
 // operation, whose checked precondition proves zero cells so the native
 // operation transports the original storage descriptor unchanged without
 // calling a provider.
@@ -22,9 +22,9 @@ use effects::CompilerIntrinsicExecutionIdentity;
 use layout_plans::LayoutPlacementReport;
 use semantic_vocabulary::{InvocationSite, MachineId, OperationId, StructuralTypeId};
 use terminal_psi::{
-    CheckedBoundaryExecution, OperationKind, StructuralAccess, StructuralArgument,
-    StructuralFieldDeclaration, StructuralTypeShape, TerminalAccessLifecycleExecution,
-    TerminalAccessLifecycleOperation, TerminalAccessLifecyclePlan, TerminalModule,
+    OperationKind, StructuralAccess, StructuralArgument, StructuralFieldDeclaration,
+    StructuralTypeShape, TerminalAccessLifecycleExecution, TerminalAccessLifecycleOperation,
+    TerminalAccessLifecyclePlan, TerminalModule,
 };
 use terminal_semantics::descriptor_lifetimes::DescriptorPosition;
 use terminal_semantics::descriptor_results::{
@@ -198,10 +198,17 @@ pub(super) fn settle_empty_releases<'execution>(
                 "reached boundary has no Terminal declaration",
             )]);
         };
-        if boundary.declaration.as_ref().map(|row| row.execution)
-            != Some(CheckedBoundaryExecution::EmptyRunRelease)
-        {
+        let Some(custody) = boundary
+            .declaration
+            .as_ref()
+            .and_then(|row| row.execution.run_custody_operation())
+        else {
             continue;
+        };
+        if custody != language_core::sealed_intrinsics::RunCustodyOperation::ReleaseEmpty {
+            return Err(vec![Diagnostic::error(
+                "ordered run split/merge descriptor custody is not implemented by native realization",
+            )]);
         }
         let fail = |reason: &str| {
             vec![Diagnostic::error(format!(
@@ -211,7 +218,7 @@ pub(super) fn settle_empty_releases<'execution>(
         };
         terminal_semantics::empty_run_release_contract(&module.structural_types, boundary)
             .map_err(fail)?;
-        let mechanism = CompilerIntrinsicExecutionIdentity::EmptyRunRelease;
+        let mechanism = CompilerIntrinsicExecutionIdentity::RunCustody(custody);
         policy.classify(mechanism).map_err(|error| {
             fail(&format!(
                 "missing execution classification for {:?}",
@@ -224,7 +231,7 @@ pub(super) fn settle_empty_releases<'execution>(
             boundary: boundary.id,
             execution: AdmittedBoundaryExecution::CompilerBuiltin(settled),
             realization: target_operations::BoundarySettlementRealization::Builtin(
-                target_operations::BoundaryRealization::EmptyRunRelease,
+                target_operations::BoundaryRealization::RunCustody(custody),
             ),
         });
         mechanisms.push(AdmittedTerminalMechanism {

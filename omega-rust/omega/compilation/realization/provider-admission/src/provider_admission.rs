@@ -494,7 +494,7 @@ fn require_reached_providers(
                 .iter()
                 .find(|declaration| declaration.id == *boundary)?;
             if declaration.declaration.as_ref().is_some_and(|row| {
-                row.execution == terminal_psi::CheckedBoundaryExecution::EmptyRunRelease
+                row.execution.run_custody_operation().is_some()
             }) {
                 return None;
             }
