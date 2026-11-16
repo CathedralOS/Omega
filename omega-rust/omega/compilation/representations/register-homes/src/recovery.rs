@@ -15,6 +15,7 @@ before admitting any transformation.
 #[cfg(test)]
 mod codec_tests;
 mod fixed_view_copy_codec;
+mod program_contracts;
 mod selected_blocks;
 mod selected_instructions;
 mod structural_calls;
@@ -998,6 +999,7 @@ pub struct FixedViewCopyDestination {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FixedViewCopyDecodeError {
+    InvalidProgramContracts(&'static str),
     InvalidBorrowedStorage(runtime_abi::BorrowedStorageEncodingError),
     InvalidQuotientCatalog,
     InvalidAccessLifecycleCatalog {
