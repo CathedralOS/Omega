@@ -356,7 +356,7 @@ pub mod evidence {
         use crate::TypedTrees;
 
         use crate::name::Identifier;
-        use crate::types::TypeReferenceNode;
+        use crate::types::{TypeReferenceHandle, TypeReferenceNode};
         use std::collections::HashMap;
         use symbols::SymbolHandle;
 
