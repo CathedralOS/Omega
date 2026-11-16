@@ -82,13 +82,6 @@ framework or a list of unimplemented features.
 - Cost: The checker accepts a call whose precondition is false at run time. Log a write row for each referent backing a call can reach through lent or moved values carrying `&mut`, reusing the cleanup walk, and pin it with the in-callee twin of `a_store_through_a_stored_reference_ends_facts_about_the_original_cell`.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/dependent_values.md
 
-### Matching on storage lent to a live `&mut` is not checked against the loan, though copying it is refused
-- Category: One idea, several implementations
-- Where: [loan check walks operations](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places/loans.rs#L1076), [then cleanup only](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places/loans.rs#L1195), [match subject checked for availability only](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/plain_affine.rs#L1919)
-- Saw: [borrows and aliases](wiki/spec/language/ownership.md) says exclusive children "suspend the corresponding parent branch". `uses_retained_loan` visits operations and cleanup actions but no block-ending instruction (`StructuralCase` dispatch, `EliminateEmpty`, `ReturnStructural`, owned `Jump`/`InvokeNoNormal` arguments). With `holder` holding `&mut engine`, `let moved: Mode = engine.mode;` is refused with `ObserveWhileExclusive`, but `transition engine.mode { ... }` reading the same storage while `holder` is still used is not judged. Whether lowering keeps the loan live at the dispatch was not confirmed.
-- Cost: The same observation is refused as a copy and passes as a `match`. Visit each block-ending instruction in `uses_retained_loan`, counting a dispatch subject as a shared read and owned edge or return arguments as changes.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/ownership.md
-
 ### A read through a runtime index gets a field equation the spec says it never supplies
 - Category: The documents disagree
 - Where: [read leaf](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places.rs#L2251), [read_equation](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places.rs#L3514), [runtime-indexed store logged as value](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places/log.rs#L479)
