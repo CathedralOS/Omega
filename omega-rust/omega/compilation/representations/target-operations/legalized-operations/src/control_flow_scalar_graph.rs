@@ -788,6 +788,9 @@ pub enum LegalizedScalarInstructionKind {
     },
     HostedWriteByteI32 {
         boundary: semantic_vocabulary::BoundaryMachineId,
+        /// Who performs the write: the admitted provider or the compiler's
+        /// built-in host byte output. Emission publishes it with the settlement.
+        execution: target_vocabulary::BoundaryExecutionBinding,
         source: ValueId,
     },
     StructuralScalarFieldStore {

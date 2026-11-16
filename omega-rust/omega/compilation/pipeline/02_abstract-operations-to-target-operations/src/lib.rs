@@ -371,9 +371,6 @@ pub(crate) mod optimized {
             &self.installed_stack_requirements
         }
 
-        pub fn borrowed_storage_layouts(&self) -> &[runtime_abi::NativeBorrowedStorageLayout] {
-            &self.current_program.borrowed_storage_layouts
-        }
         pub const fn optimized(&self) -> &OptimizedAbstractProgram {
             &self.optimized
         }
@@ -395,12 +392,14 @@ pub(crate) mod optimized {
             &self.prepared
         }
 
-        pub fn target_operations(&self) -> &TargetOperationPlan {
+        /// Stage 02's working program, for explicit validators only.
+        ///
+        /// Ordinary compilation reads what this stage publishes, the execution
+        /// plan. A validator that checks the plan, or checks a later stage
+        /// against what this stage lowered, needs the working program too;
+        /// `mbx xtask check-boundary` keeps every other caller out.
+        pub fn working_program_for_validation(&self) -> &TargetOperationPlan {
             &self.current_program
-        }
-
-        pub fn shared_program(&self) -> Arc<TargetOperationPlan> {
-            Arc::clone(&self.current_program)
         }
 
         pub fn provider_installation(&self) -> Option<&AdmittedProviderInstallation> {
