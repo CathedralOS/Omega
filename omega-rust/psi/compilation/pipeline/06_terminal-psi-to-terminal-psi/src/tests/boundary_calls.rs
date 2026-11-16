@@ -605,6 +605,91 @@ fn a_closed_boundary_application_does_not_authorize_an_unrelated_selection() {
     );
 }
 
+// The two applications have identical runtime carriers. Their different
+// constant limits still select different contracts, so shape checking cannot
+// substitute for the source application's own binding relation.
+#[test]
+fn a_closed_boundary_call_keeps_its_source_application() {
+    use typed_trees::expression::ExpressionNode;
+
+    let program = typed(
+        r#"
+boundary trait Probe {
+    machine take<const Limit: u64>(value: u32) -> u32
+    reaches none
+    requires value <= Limit
+    crashes none;
+}
+machine entry() -> u32 crashes none {
+    let first: u32 = Probe::take<4>(3);
+    let second: u32 = Probe::take<8>(7);
+    first
+}
+"#,
+    );
+    let prepared = typed_trees_to_typed_trees::prepare_typed_trees(
+        program,
+        &typed_trees_to_typed_trees::PreparationRequest::settled(),
+    )
+    .unwrap()
+    .0;
+    let positive = judge(read_applied_boundary(&prepared)).unwrap();
+    assert!(
+        matches!(positive, RouteVerdict::Accepted(_)),
+        "{positive:?}"
+    );
+    let mut wrongly_accepted = Vec::new();
+    for missing in [false, true] {
+        let mut changed = prepared.clone().into_inner();
+        let calls = changed
+            .expression_table
+            .iter_expressions()
+            .filter_map(|(at, node)| {
+                let ExpressionNode::Call(call) = node else {
+                    return None;
+                };
+                changed
+                    .closed_requirement_application(call.target_symbol)
+                    .map(|closed| (at, call.target_symbol, closed.template))
+            })
+            .collect::<Vec<_>>();
+        let [first, second] = calls.as_slice() else {
+            panic!("the source has exactly two closed applications: {calls:?}");
+        };
+        assert_eq!(first.2, second.2, "both apply the same declaration");
+        assert_ne!(first.1, second.1, "the limits select different contracts");
+        let ExpressionNode::Call(call) = changed.expression_table.expression_mut(first.0) else {
+            unreachable!()
+        };
+        let expected = if missing {
+            call.authored_machine_application = Default::default();
+            "closed requirement call has no retained source application"
+        } else {
+            call.target_symbol = second.1;
+            "closed requirement application differs from its retained bindings"
+        };
+        match read_applied_boundary(&changed.into()) {
+            Err(refusal) => assert!(refusal.detail.contains(expected), "{refusal:?}"),
+            Ok(elaboration) => {
+                let verdict = judge(Ok(elaboration)).unwrap();
+                if matches!(verdict, RouteVerdict::Accepted(_)) {
+                    wrongly_accepted.push(if missing {
+                        "missing receipt"
+                    } else {
+                        "wrong closed application"
+                    });
+                } else {
+                    panic!("the mismatched call reached a different refusal: {verdict:?}");
+                }
+            }
+        }
+    }
+    assert!(
+        wrongly_accepted.is_empty(),
+        "reader and checker accepted: {wrongly_accepted:?}"
+    );
+}
+
 #[test]
 fn changed_boundary_effects_must_match_the_published_call_envelope() {
     for blocks in [false, true] {

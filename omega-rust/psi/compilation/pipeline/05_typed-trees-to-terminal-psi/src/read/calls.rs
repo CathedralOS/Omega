@@ -207,9 +207,9 @@ impl<'t> Program<'t> {
     }
 
     /// An authored static machine application that applies nothing: no
-    /// static or selected arguments, bindings, lifetimes, inputs, conformance
-    /// or contract source. Stage 03 records one for every authored call; one
-    /// that applies anything is a generic or static call and is refused.
+    /// static or selected inputs left to apply. A closed requirement must
+    /// retain the exact bindings already spent by preparation; declaration
+    /// identity alone does not establish which closed header the caller used.
     pub(super) fn applies_nothing(
         &self,
         id: MachineId,
@@ -221,9 +221,15 @@ impl<'t> Program<'t> {
         if !machine_arguments.is_empty() {
             return unserved("static machine arguments");
         }
+        let closed = self.typed.closed_requirement_application(target);
         if !application.is_valid() {
-            return Ok(());
+            return if closed.is_some() {
+                unserved("closed requirement call has no retained source application")
+            } else {
+                Ok(())
+            };
         }
+        let application_handle = application;
         let application = self
             .typed
             .expression_table
@@ -249,11 +255,17 @@ impl<'t> Program<'t> {
         // selects, whose signature holds the arguments where the requirement
         // named its parameters. The typed trees keep the requirement it was
         // closed from, which must be the one this application registered.
-        if self
-            .typed
-            .closed_requirement_application(target)
-            .is_some_and(|closed| closed.template == application.registration_operation)
-        {
+        if let Some(closed) = closed {
+            if closed.template != application.registration_operation
+                || !self.typed.same_static_machine_application_bindings(
+                    closed.application,
+                    application_handle,
+                )
+            {
+                return unserved(
+                    "closed requirement application differs from its retained bindings",
+                );
+            }
             return Ok(());
         }
         if !application.arguments.is_empty() || !application.selected_machine_arguments.is_empty() {

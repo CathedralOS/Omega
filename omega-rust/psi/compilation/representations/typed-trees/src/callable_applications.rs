@@ -4510,6 +4510,122 @@ pub(crate) mod requirement_instances {
                     })
         }
 
+        /// Reusing a closed header must keep the same type, value and
+        /// lifetime bindings. Compare them in their retained lexical scopes;
+        /// matching a declaration alone does not establish this relation.
+        pub fn same_static_machine_application_bindings(
+            &self,
+            left: static_applications::StaticMachineApplicationHandle,
+            right: static_applications::StaticMachineApplicationHandle,
+        ) -> bool {
+            if !self
+                .expression_table
+                .static_machine_application_is_valid(left)
+                || !self
+                    .expression_table
+                    .static_machine_application_is_valid(right)
+            {
+                return false;
+            }
+            let left_source = self.static_machine_application(left);
+            let right_source = self.static_machine_application(right);
+            let left_bindings = self.static_machine_application_bindings(left);
+            let right_bindings = self.static_machine_application_bindings(right);
+            let left_lifetimes = self.static_machine_application_lifetimes(left);
+            let right_lifetimes = self.static_machine_application_lifetimes(right);
+            if left_source.registration_operation != right_source.registration_operation
+                || left_source.binding_declaration != right_source.binding_declaration
+                || !self
+                    .symbols
+                    .symbols()
+                    .nodes()
+                    .is_valid(left_source.lexical_owner)
+                || !self
+                    .symbols
+                    .symbols()
+                    .nodes()
+                    .is_valid(right_source.lexical_owner)
+                || left_source.bindings.len() != left_bindings.len()
+                || right_source.bindings.len() != right_bindings.len()
+                || left_source.lifetime_bindings.len() != left_lifetimes.len()
+                || right_source.lifetime_bindings.len() != right_lifetimes.len()
+                || left_source.lifetime_binding_declaration
+                    != right_source.lifetime_binding_declaration
+                || left_lifetimes != right_lifetimes
+                || (!right_lifetimes.is_empty()
+                    && left_source.lexical_owner != right_source.lexical_owner)
+                || left_bindings.len() != right_bindings.len()
+            {
+                return false;
+            }
+            left_bindings
+                .iter()
+                .zip(right_bindings)
+                .all(|(left, right)| {
+                    left.parameter == right.parameter
+                        && match (&left.value, &right.value) {
+                            (
+                                static_applications::StaticMachineBindingValue::Type(left),
+                                static_applications::StaticMachineBindingValue::Type(right),
+                            )
+                            | (
+                                static_applications::StaticMachineBindingValue::Const(left),
+                                static_applications::StaticMachineBindingValue::Const(right),
+                            ) => applied_type_identity(self, *left, left_source.lexical_owner, &[])
+                                .zip(applied_type_identity(
+                                    self,
+                                    *right,
+                                    right_source.lexical_owner,
+                                    &[],
+                                ))
+                                .is_some_and(|(left, right)| left == right),
+                            (
+                                static_applications::StaticMachineBindingValue::RuntimeValue {
+                                    type_reference: left,
+                                    ..
+                                },
+                                static_applications::StaticMachineBindingValue::RuntimeValue {
+                                    type_reference: right,
+                                    ..
+                                },
+                            ) => {
+                                applied_type_identity(self, *left, right_source.lexical_owner, &[])
+                                    .zip(applied_type_identity(
+                                        self,
+                                        *right,
+                                        right_source.lexical_owner,
+                                        &[],
+                                    ))
+                                    .is_some_and(|(left, right)| left == right)
+                            }
+                            (
+                                static_applications::StaticMachineBindingValue::Machine(_),
+                                static_applications::StaticMachineBindingValue::Machine(right),
+                            ) => self
+                                .data_type_parameter_by_symbol(left.parameter)
+                                .is_some_and(|parameter| {
+                                    self.static_binding_matches_argument(
+                                        &parameter.kind,
+                                        &left.value,
+                                        right,
+                                        right_source.lexical_owner,
+                                        left_source.lexical_owner,
+                                    )
+                                }),
+                            (
+                                static_applications::StaticMachineBindingValue::Conformance(left),
+                                static_applications::StaticMachineBindingValue::Conformance(right),
+                            ) => self.same_static_machine_operand(
+                                left,
+                                left_source.lexical_owner,
+                                right,
+                                right_source.lexical_owner,
+                            ),
+                            (left, right) => left == right,
+                        }
+                })
+        }
+
         pub fn instantiate_requirement_application(
             &mut self,
             environment: &crate::trait_definition::TraitApplicationEnvironment,
@@ -4604,99 +4720,7 @@ pub(crate) mod requirement_instances {
                             std::mem::discriminant(left) == std::mem::discriminant(right)
                         })
                     && self
-                        .static_machine_application(existing.application)
-                        .lifetime_binding_declaration
-                        == self
-                            .static_machine_application(application)
-                            .lifetime_binding_declaration
-                    && self.static_machine_application_lifetimes(existing.application)
-                        == self.static_machine_application_lifetimes(application)
-                    && (self
-                        .static_machine_application_lifetimes(application)
-                        .is_empty()
-                        || self
-                            .static_machine_application(existing.application)
-                            .lexical_owner
-                            == lexical_owner)
-                    && self
-                        .static_machine_application_bindings(existing.application)
-                        .len()
-                        == bindings.len()
-                    && self
-                        .static_machine_application_bindings(existing.application)
-                        .iter()
-                        .zip(&bindings)
-                        .all(|(left, right)| {
-                            let left_parameter = left.parameter;
-                            let left_value = &left.value;
-                            left.parameter == right.parameter && match (&left.value, &right.value) {
-                                (
-                                    static_applications::StaticMachineBindingValue::Type(left),
-                                    static_applications::StaticMachineBindingValue::Type(right),
-                                )
-                                | (
-                                    static_applications::StaticMachineBindingValue::Const(left),
-                                    static_applications::StaticMachineBindingValue::Const(right),
-                                ) => {
-                                    let existing_owner = self
-                                        .static_machine_application(existing.application)
-                                        .lexical_owner;
-                                    applied_type_identity(self, *left, existing_owner, &[])
-                                        .zip(applied_type_identity(
-                                            self,
-                                            *right,
-                                            lexical_owner,
-                                            &[],
-                                        ))
-                                        .is_some_and(|(left, right)| left == right)
-                                }
-                                (
-                                    static_applications::StaticMachineBindingValue::RuntimeValue {
-                                        type_reference: left,
-                                        ..
-                                    },
-                                    static_applications::StaticMachineBindingValue::RuntimeValue {
-                                        type_reference: right,
-                                        ..
-                                    },
-                                ) => applied_type_identity(self, *left, lexical_owner, &[])
-                                    .zip(applied_type_identity(self, *right, lexical_owner, &[]))
-                                    .is_some_and(|(left, right)| left == right),
-                                // Without this arm two calls selecting one operand
-                                // each get their own instance under one canonical
-                                // identity, which lowering rejects as a duplicate.
-                                (
-                                    static_applications::StaticMachineBindingValue::Machine(_),
-                                    static_applications::StaticMachineBindingValue::Machine(right),
-                                ) => self
-                                    .data_type_parameter_by_symbol(left_parameter)
-                                    .is_some_and(|parameter| {
-                                        self.static_binding_matches_argument(
-                                            &parameter.kind,
-                                            left_value,
-                                            right,
-                                            lexical_owner,
-                                            self.static_machine_application(existing.application)
-                                                .lexical_owner,
-                                        )
-                                    }),
-                                (
-                                    static_applications::StaticMachineBindingValue::Conformance(
-                                        left,
-                                    ),
-                                    static_applications::StaticMachineBindingValue::Conformance(
-                                        right,
-                                    ),
-                                ) => self.same_static_machine_operand(
-                                    left,
-                                    self.static_machine_application(existing.application)
-                                        .lexical_owner,
-                                    right,
-                                    lexical_owner,
-                                ),
-                                (left, right) => left == right,
-                            }
-                        })
+                        .same_static_machine_application_bindings(existing.application, application)
             }) {
                 return Ok(existing.signature.symbol);
             }
