@@ -1654,7 +1654,7 @@ fn assert_bad_integer_conversion_inputs(
     };
     std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {
-            use language_semantics::numeric_intrinsics::NumericIntrinsic;
+            use language_semantics::numeric_intrinsics::{NumericIntrinsic, NumericType};
             use numerics::arithmetic::ArithmeticDomain;
             let fixture = repository().join("tests/fixtures/run/float").join(fixture_name);
             let kept = std::fs::read_to_string(fixture.join("main.omg")).unwrap();

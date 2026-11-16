@@ -607,6 +607,30 @@ fn normalize(
         return Ok(denotation);
     }
     match proposition {
+        // These three IEEE predicates are defined as logical complements,
+        // including unordered NaN inputs. Positive order is never reversed.
+        Proposition::ScalarIeeeFloatComparison {
+            kind,
+            format,
+            left,
+            right,
+        } if matches!(
+            kind,
+            semantic_vocabulary::IeeeFloatComparisonKind::NotEqual
+                | semantic_vocabulary::IeeeFloatComparisonKind::NotLessThan
+                | semantic_vocabulary::IeeeFloatComparisonKind::NotLessOrEqual
+        ) =>
+        {
+            Ok(Proposition::Implication {
+                premise: Box::new(Proposition::ScalarIeeeFloatComparison {
+                    kind: kind.negated(),
+                    format: *format,
+                    left: left.clone(),
+                    right: right.clone(),
+                }),
+                conclusion: Box::new(Proposition::Falsehood),
+            })
+        }
         Proposition::StructuralIdentity { left, right } if left == right => Ok(Proposition::Truth),
         Proposition::Equal(left, right) if left.scalar_type() == ScalarType::Boolean => {
             boolean_equality(left, right, true, budget, depth + 1)
@@ -1514,7 +1538,7 @@ mod value_equality_tests {
     }
 
     #[test]
-    fn literal_ieee_comparison_stays_the_relation() {
+    fn literal_ieee_comparison_keeps_its_predicate_without_deciding_truth() {
         use semantic_vocabulary::{IeeeFloatComparisonKind as Kind, IeeeFloatValue};
         // Fact validity keeps a closed IEEE relation as that relation. These
         // literals are the cases a Boolean decision would erase: +0 compared
@@ -1545,6 +1569,16 @@ mod value_equality_tests {
                 IeeeFloatValue::Binary32(0x7fc0_0001),
                 Kind::NotLessThan,
             ),
+            (
+                IeeeFloatValue::Binary32(0x7fc0_0001),
+                IeeeFloatValue::Binary32(0x7fc0_0001),
+                Kind::NotEqual,
+            ),
+            (
+                IeeeFloatValue::Binary64(0x7ff8_0000_0000_0001),
+                IeeeFloatValue::Binary64(0x7ff8_0000_0000_0001),
+                Kind::NotLessOrEqual,
+            ),
         ];
         let context = PropositionContext::default();
         for (left_bits, right_bits, kind) in relations {
@@ -1561,11 +1595,37 @@ mod value_equality_tests {
                 right,
             };
             let converted = super::check_predicate_denotations(&context, &goal, &[], &[]).unwrap();
+            let expected = if matches!(
+                kind,
+                Kind::NotEqual | Kind::NotLessThan | Kind::NotLessOrEqual
+            ) {
+                let Proposition::ScalarIeeeFloatComparison {
+                    format,
+                    left,
+                    right,
+                    ..
+                } = goal.clone()
+                else {
+                    unreachable!()
+                };
+                Proposition::Implication {
+                    premise: Box::new(Proposition::ScalarIeeeFloatComparison {
+                        kind: kind.negated(),
+                        format,
+                        left,
+                        right,
+                    }),
+                    conclusion: Box::new(Proposition::Falsehood),
+                }
+            } else {
+                goal.clone()
+            };
             assert_eq!(
                 converted.goal(),
-                &goal,
-                "{format:?} {kind:?} must stay a scalar IEEE comparison"
+                &expected,
+                "{format:?} {kind:?} keeps its exact predicate"
             );
+
             let truth = ProofNode {
                 conclusion: Proposition::Truth,
                 rule: ProofRule::Primitive(PrimitiveJudgment::Truth),
