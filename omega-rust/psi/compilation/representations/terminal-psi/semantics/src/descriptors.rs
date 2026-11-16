@@ -11268,130 +11268,157 @@ pub mod descriptor_results {
             fn nonreturning_local_calls_retain_write_effects_and_actual_backing() {
                 use crate::descriptor_results::{DescriptorAnalysis, DescriptorSourceOrigin};
                 use semantic_vocabulary::{InvocationSite, ScalarType, ValueId};
-                let mut module = reference_flow_module(false);
-                let scalar = StructuralTypeId::new(1).unwrap();
-                module.structural_types[1].shape = StructuralTypeShape::Reference {
-                    referent: scalar,
-                    access: StructuralAccess::MutableBorrow,
-                };
-                module.structural_types[1].copyable = false;
-                let actual = PlaceId::new(1).unwrap();
-                let formal = PlaceId::new(7).unwrap();
-                let mut caller = module.machines.remove(0);
-                caller.structural_places.truncate(1);
-                caller.structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
-                let mut helper = machine(2);
-                helper.contract.id = ContractId::new(2).unwrap();
-                helper.parameter_order = caller.parameter_order.clone();
-                helper.structural_parameters = caller.structural_parameters.clone();
-                helper.structural_parameters[0].place = formal;
-                helper.structural_places = caller.structural_places.clone();
-                helper.structural_places[0].id = formal;
-                helper.blocks[0].operations = vec![
-                    Operation::unsuspended(
-                        OperationId::new(1).unwrap(),
-                        OperationResult::Scalar(ValueDeclaration {
-                            id: ValueId::new(1).unwrap(),
-                            scalar_type: ScalarType::Boolean,
-                            qualifications: ScalarQualificationSetId::ZERO,
-                        }),
-                        OperationKind::BooleanConstant { value: true },
-                    ),
-                    Operation::unsuspended(
-                        OperationId::new(2).unwrap(),
-                        OperationResult::Unit,
-                        OperationKind::WriteOnlyPrimitiveStore {
-                            destination: formal,
-                            path: vec![StructuralPathSegment::Referent],
-                            value: ValueId::new(1).unwrap(),
-                            range_obligation: None,
-                        },
-                    ),
-                ];
-                helper.blocks[0].terminator = Terminator::Crash {
-                    edge: EdgeId::new(1).unwrap(),
-                    cause: semantic_vocabulary::CrashCause::Trap,
-                    site_guard: vec![],
-                    frontier_lower_bound: vec![],
-                };
-                caller.blocks[0].operations.clear();
-                caller.blocks[0].terminator = Terminator::InvokeNoNormal {
-                    edge: EdgeId::new(1).unwrap(),
-                    static_reach_binding: None,
-                    required_contract: None,
-                    callee: helper.id,
-                    arguments: vec![],
-                    erased_arguments: vec![],
-                    erased_proof_arguments: vec![],
-                    structural_arguments: vec![terminal_psi::StructuralArgument::whole(
-                        actual,
-                        StructuralAccess::Owned,
-                    )],
-                    claim_transfers: vec![],
-                    requirement_obligations: vec![],
-                    crash_continuations: vec![],
-                };
-                module.machines = vec![caller, helper];
-                let caller = module.machines[0].id;
-                let helper = module.machines[1].id;
-                let graph = crate::descriptor_results::terminal_borrowed_storage_graph_from(
-                    &module,
-                    [caller],
-                    &[],
-                )
-                .unwrap();
-                let body = graph.iter().find(|row| row.id == caller).unwrap();
-                let cut = (BlockId::new(1).unwrap(), 0);
-                let call = body
-                    .known_invocation(&cut)
-                    .expect("the exact local terminal call has an account");
-                assert_eq!(
-                    call.site,
-                    InvocationSite::InvokeNoNormal(EdgeId::new(1).unwrap())
-                );
-                assert_eq!(call.callee(), Some(helper));
-                assert!(!body.unresolved_contents_writes.contains(&cut));
-                let mut analysis = DescriptorAnalysis::with_borrowed_storage_slots(
-                    &module.structural_types,
-                    &graph,
-                );
-                assert_eq!(
-                    analysis.storage_access_frame(caller).unwrap(),
-                    Some([].as_slice())
-                );
-                let accesses = analysis
-                    .storage_access_frame(helper)
-                    .unwrap()
-                    .unwrap()
-                    .to_vec();
-                assert!(accesses.iter().any(|&input| matches!(
-                    analysis.storage_access(helper, input),
-                    Some((access_plans::AccessOperation::Write, _))
-                )));
-                let written = analysis.storage_writes(caller, cut).unwrap().unwrap();
-                assert!(
-                    written
-                        .iter()
-                        .any(|row| row.root == actual
-                            && row.path == [DescriptorPathSegment::Referent]),
-                    "a write before Trap still changes the actual referent: {written:?}"
-                );
-                let origin = DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Argument {
-                    source: formal,
-                    projection: Projection::new(&[StructuralPathSegment::Referent]),
-                });
-                let actuals = analysis
-                    .substitute_call_source(caller, cut, &origin)
+                // An ordinary borrowed object has exact storage. An owned
+                // pointer without its pointee supply must remain unknown.
+                for indirect in [false, true] {
+                    let path = if indirect {
+                        vec![StructuralPathSegment::Referent]
+                    } else {
+                        vec![]
+                    };
+                    let mut module = reference_flow_module(false);
+                    let scalar = StructuralTypeId::new(1).unwrap();
+                    module.structural_types[1].shape = StructuralTypeShape::Reference {
+                        referent: scalar,
+                        access: StructuralAccess::MutableBorrow,
+                    };
+                    module.structural_types[1].copyable = false;
+                    let actual = PlaceId::new(1).unwrap();
+                    let formal = PlaceId::new(7).unwrap();
+                    let mut caller = module.machines.remove(0);
+                    caller.structural_places.truncate(1);
+                    caller.structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
+                    if !indirect {
+                        caller.structural_parameters[0].structural_type = scalar;
+                        caller.structural_parameters[0].multiplicity =
+                            StructuralMultiplicity::Unrestricted;
+                    }
+                    let mut helper = machine(2);
+                    helper.contract.id = ContractId::new(2).unwrap();
+                    helper.parameter_order = caller.parameter_order.clone();
+                    helper.structural_parameters = caller.structural_parameters.clone();
+                    helper.structural_parameters[0].place = formal;
+                    if !indirect {
+                        helper.structural_parameters[0].access = StructuralAccess::MutableBorrow;
+                    }
+                    helper.structural_places = caller.structural_places.clone();
+                    helper.structural_places[0].id = formal;
+                    helper.blocks[0].operations = vec![
+                        Operation::unsuspended(
+                            OperationId::new(1).unwrap(),
+                            OperationResult::Scalar(ValueDeclaration {
+                                id: ValueId::new(1).unwrap(),
+                                scalar_type: ScalarType::Boolean,
+                                qualifications: ScalarQualificationSetId::ZERO,
+                            }),
+                            OperationKind::BooleanConstant { value: true },
+                        ),
+                        Operation::unsuspended(
+                            OperationId::new(2).unwrap(),
+                            OperationResult::Unit,
+                            OperationKind::WriteOnlyPrimitiveStore {
+                                destination: formal,
+                                path: path.clone(),
+                                value: ValueId::new(1).unwrap(),
+                                range_obligation: None,
+                            },
+                        ),
+                    ];
+                    helper.blocks[0].terminator = Terminator::Crash {
+                        edge: EdgeId::new(1).unwrap(),
+                        cause: semantic_vocabulary::CrashCause::Trap,
+                        site_guard: vec![],
+                        frontier_lower_bound: vec![],
+                    };
+                    caller.blocks[0].operations.clear();
+                    caller.blocks[0].terminator = Terminator::InvokeNoNormal {
+                        edge: EdgeId::new(1).unwrap(),
+                        static_reach_binding: None,
+                        required_contract: None,
+                        callee: helper.id,
+                        arguments: vec![],
+                        erased_arguments: vec![],
+                        erased_proof_arguments: vec![],
+                        structural_arguments: vec![terminal_psi::StructuralArgument::whole(
+                            actual,
+                            if indirect {
+                                StructuralAccess::Owned
+                            } else {
+                                StructuralAccess::MutableBorrow
+                            },
+                        )],
+                        claim_transfers: vec![],
+                        requirement_obligations: vec![],
+                        crash_continuations: vec![],
+                    };
+                    module.machines = vec![caller, helper];
+                    let caller = module.machines[0].id;
+                    let helper = module.machines[1].id;
+                    let graph = crate::descriptor_results::terminal_borrowed_storage_graph_from(
+                        &module,
+                        [caller],
+                        &[],
+                    )
                     .unwrap();
-                assert_eq!(
-                    actuals,
-                    vec![DescriptorSourceOrigin::Backing(
-                        DescriptorCallOrigin::Argument {
-                            source: actual,
-                            projection: Projection::new(&[StructuralPathSegment::Referent]),
-                        }
-                    )]
-                );
+                    let body = graph.iter().find(|row| row.id == caller).unwrap();
+                    let cut = (BlockId::new(1).unwrap(), 0);
+                    let call = body
+                        .known_invocation(&cut)
+                        .expect("the exact local terminal call has an account");
+                    assert_eq!(
+                        call.site,
+                        InvocationSite::InvokeNoNormal(EdgeId::new(1).unwrap())
+                    );
+                    assert_eq!(call.callee(), Some(helper));
+                    assert!(!body.unresolved_contents_writes.contains(&cut));
+                    let mut analysis = DescriptorAnalysis::with_borrowed_storage_slots(
+                        &module.structural_types,
+                        &graph,
+                    );
+                    assert_eq!(
+                        analysis.storage_access_frame(caller).unwrap(),
+                        Some([].as_slice())
+                    );
+                    let accesses = analysis
+                        .storage_access_frame(helper)
+                        .unwrap()
+                        .unwrap()
+                        .to_vec();
+                    assert!(accesses.iter().any(|&input| matches!(
+                        analysis.storage_access(helper, input),
+                        Some((access_plans::AccessOperation::Write, _))
+                    )));
+                    if indirect {
+                        assert!(
+                            analysis.storage_writes(caller, cut).unwrap().is_none(),
+                            "an unprovided pointee cannot become a known-empty write"
+                        );
+                        continue;
+                    }
+                    let written = analysis.storage_writes(caller, cut).unwrap().unwrap();
+                    assert!(
+                        written
+                            .iter()
+                            .any(|row| row.root == actual && row.path.is_empty()),
+                        "a write before Trap still changes the actual referent: {written:?}"
+                    );
+                    let origin = DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Argument {
+                        source: formal,
+                        projection: Projection::new(&path),
+                    });
+                    let actuals = analysis
+                        .substitute_call_source(caller, cut, &origin)
+                        .unwrap();
+                    assert_eq!(
+                        actuals,
+                        vec![DescriptorSourceOrigin::Backing(
+                            DescriptorCallOrigin::Argument {
+                                source: actual,
+                                projection: Projection::new(&path),
+                            }
+                        )]
+                    );
+                }
             }
 
             #[test]
