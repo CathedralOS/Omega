@@ -6,7 +6,7 @@ are the same computation. Record literals and member paths are read in
 */
 
 use crate::body::Qualification;
-use semantic_vocabulary::{IntegerType, MachineId, ScalarType};
+use semantic_vocabulary::{IntegerSign, IntegerType, MachineId, ScalarType};
 use terminal_check_tables::{Checked, Construct};
 use typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableNamePath, UnaryOperator,
@@ -1087,6 +1087,7 @@ fn binary_expression(
     suffix: Option<Policy>,
     source: SourceOrigin,
 ) -> Checked<Expression> {
+    let (left, right) = comparison_operands(operator, left, right);
     let (operation, policy, result) = binary_selection(
         id,
         operator,
@@ -1115,6 +1116,71 @@ fn binary_expression(
         result: Some(result),
         source,
     })
+}
+
+/// numeric_values.md, "Integer equality and order" (`mixed-integer-comparison`):
+/// a builtin comparison relates the exact integer values of its operands,
+/// whatever their widths or signedness. Widening the narrower operand to a
+/// fixed carrier that holds every value of both keeps each value exactly, so
+/// comparing there is that relation. Operands that carry a domain or policy,
+/// and pairs no fixed carrier holds (`u128` with a signed partner), are left
+/// unchanged for selection to judge.
+fn comparison_operands(
+    operator: BinaryOperator,
+    left: Expression,
+    right: Expression,
+) -> (Expression, Expression) {
+    let comparison = matches!(
+        operator,
+        BinaryOperator::Equal
+            | BinaryOperator::NotEqual
+            | BinaryOperator::Less
+            | BinaryOperator::LessOrEqual
+            | BinaryOperator::Greater
+            | BinaryOperator::GreaterOrEqual
+    );
+    let plain_integer = |expression: &Expression| match expression.result {
+        Some(ValueType::Scalar(ScalarType::Integer(integer), qualification))
+            if qualification == Qualification::NONE && !integer.is_address() =>
+        {
+            Some(integer)
+        }
+        _ => None,
+    };
+    let (Some(left_type), Some(right_type)) = (plain_integer(&left), plain_integer(&right)) else {
+        return (left, right);
+    };
+    if !comparison || left_type == right_type {
+        return (left, right);
+    }
+    let common = if left_type.can_widen_to(right_type) {
+        Some(right_type)
+    } else if right_type.can_widen_to(left_type) {
+        Some(left_type)
+    } else {
+        [16, 32, 64, 128]
+            .into_iter()
+            .filter_map(|bits| IntegerType::new(IntegerSign::Signed, bits).ok())
+            .find(|carrier| left_type.can_widen_to(*carrier) && right_type.can_widen_to(*carrier))
+    };
+    let Some(common) = common else {
+        return (left, right);
+    };
+    let widen = |operand: Expression, integer: IntegerType| {
+        if integer == common {
+            return operand;
+        }
+        Expression {
+            call_context: None,
+            source: operand.source,
+            result: Some(ValueType::Scalar(
+                ScalarType::Integer(common),
+                Qualification::NONE,
+            )),
+            kind: ExpressionKind::Cast(Box::new(operand)),
+        }
+    };
+    (widen(left, left_type), widen(right, right_type))
 }
 
 /// A contract and an executable expression select the same operator from
@@ -1733,5 +1799,46 @@ mod tests {
                     .starts_with("no arithmetic-policy operator takes a policy-qualified operand"),
             );
         }
+    }
+
+    /// A comparison relates exact values across widths and signedness; the
+    /// narrower operand widens to a carrier holding both. Arithmetic still
+    /// needs one carrier, and a pair no fixed carrier holds stays refused.
+    #[test]
+    fn a_comparison_widens_operands_of_different_integer_carriers() {
+        let integer = |sign, bits| {
+            ValueType::Scalar(
+                ScalarType::Integer(IntegerType::new(sign, bits).unwrap()),
+                Qualification::NONE,
+            )
+        };
+        let boolean = ValueType::Scalar(ScalarType::Boolean, Qualification::NONE);
+        let neither = (false, false);
+        let u32_ = integer(IntegerSign::Unsigned, 32);
+        let u64_ = integer(IntegerSign::Unsigned, 64);
+        let i32_ = integer(IntegerSign::Signed, 32);
+        for operator in [
+            BinaryOperator::Less,
+            BinaryOperator::Equal,
+            BinaryOperator::GreaterOrEqual,
+        ] {
+            assert_eq!(typed(operator, u32_, u64_, neither), Ok(boolean));
+            assert_eq!(typed(operator, u64_, u32_, neither), Ok(boolean));
+            assert_eq!(typed(operator, i32_, u32_, neither), Ok(boolean));
+        }
+        assert_eq!(
+            typed(BinaryOperator::Add, u32_, u64_, neither).unwrap_err(),
+            "typing operand types"
+        );
+        assert_eq!(
+            typed(
+                BinaryOperator::Less,
+                integer(IntegerSign::Unsigned, 128),
+                integer(IntegerSign::Signed, 8),
+                neither
+            )
+            .unwrap_err(),
+            "typing operand types"
+        );
     }
 }
