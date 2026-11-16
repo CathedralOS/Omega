@@ -4471,6 +4471,7 @@ mod declaration_invocations {
                 type_parameters,
                 states,
                 supply_mode: language_semantics::MachineSupplyMode::Boundary,
+                body_is_present: false,
                 ..Default::default()
             });
             let application = |program: &mut TypedTrees, types: [_; 2]| {
