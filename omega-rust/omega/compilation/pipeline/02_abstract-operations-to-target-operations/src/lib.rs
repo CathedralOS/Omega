@@ -382,7 +382,7 @@ pub(crate) mod optimized {
             &self.lowering_facts
         }
 
-        pub fn boundary_origins(&self) -> target_operations::BoundaryOriginFacts<'_> {
+        pub fn boundary_origins(&self) -> native_preparation::BoundaryOriginFacts<'_> {
             boundary_origins(&self.lowering_facts)
         }
 
@@ -410,8 +410,8 @@ pub(crate) mod optimized {
 
     fn boundary_origins(
         input: &AdmittedLoweringFacts,
-    ) -> target_operations::BoundaryOriginFacts<'_> {
-        target_operations::BoundaryOriginFacts {
+    ) -> native_preparation::BoundaryOriginFacts<'_> {
+        native_preparation::BoundaryOriginFacts {
             program_entry: input.program_entry().map(|call| {
                 target_operations::ProgramEntryOrigin {
                     boundary: call.boundary(),

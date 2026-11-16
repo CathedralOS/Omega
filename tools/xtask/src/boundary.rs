@@ -421,6 +421,13 @@ const AFTER_PREPARATION: &[&str] = &[
     "omega-rust/omega/compilation/pipeline/09_resolved-layout-to-resolved-layout",
 ];
 
+/// The crate that defines the sealed Terminal Psi module
+/// (`ClosedTerminalModule`) and the canonical artifact. Native forms use the
+/// canonical vocabulary encoders from `terminal-wire`, which `terminal-codec`
+/// re-exports; reaching `terminal-codec` would let them name the sealed module.
+const SEALED_TERMINAL_MODULE: &str =
+    "omega-rust/psi/compilation/representations/terminal-psi/codec";
+
 /// Instruction selection, the forms from the prepared plan onward, the stages
 /// that turn one into the next, the target setup and installation record they
 /// share, and the leaf vocabulary they carry. Instruction selection is handed
@@ -446,6 +453,19 @@ const SELECTION_REPRESENTATIONS: &[&str] = &[
     "omega-rust/omega/compilation/pipeline/08_selected-form-encoding-to-resolved-layout",
     "omega-rust/omega/compilation/pipeline/09_resolved-layout-to-resolved-layout",
 ];
+
+/// Every crate named by `SELECTION_REPRESENTATIONS` or `AFTER_PREPARATION`,
+/// once each.
+fn native_forms() -> Vec<&'static str> {
+    let mut forms: Vec<&'static str> = SELECTION_REPRESENTATIONS
+        .iter()
+        .chain(AFTER_PREPARATION)
+        .copied()
+        .collect();
+    forms.sort_unstable();
+    forms.dedup();
+    forms
+}
 
 /// Report each of `roots` that can reach a crate under `forbidden` through
 /// production dependencies, with the chain that reaches it. Dev-dependencies
@@ -887,6 +907,12 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             STAGE_02_WORKING_FORM,
             "a stage or form after the prepared plan reaches stage 02's working program; name the record from target-vocabulary",
         )?);
+        violations.extend(transitive_exact_violations(
+            &metadata,
+            &native_forms(),
+            SEALED_TERMINAL_MODULE,
+            "a native form reaches the sealed Terminal Psi module; name the encoder from terminal-wire",
+        )?);
         violations.extend(psi_omega_dependency_violations(&metadata)?);
         violations.extend(dependency_violations(
             &metadata,
@@ -1095,6 +1121,49 @@ mod tests {
         );
         assert_eq!(public_function_parameters(text, "absent"), None);
         assert_eq!(public_function_parameters(text, "stag"), None);
+    }
+
+    #[test]
+    fn native_forms_reach_vocabulary_encoders_but_not_the_sealed_module() {
+        let plan =
+            "omega-rust/omega/compilation/representations/target-operations/legalized-operations";
+        let helper = "omega-rust/omega/compilation/backend/helper";
+        let wire = "omega-rust/psi/compilation/representations/terminal-psi/wire";
+        assert!(native_forms().contains(&plan));
+        let metadata = |dependency: &str, kind: Option<&str>| Metadata {
+            workspace_root: "/repo".to_owned(),
+            packages: vec![
+                pkg("legalized-operations", plan, &[("helper", helper, None)]),
+                pkg("helper", helper, &[("dependency", dependency, kind)]),
+                pkg("terminal-wire", wire, &[]),
+                pkg(
+                    "terminal-codec",
+                    SEALED_TERMINAL_MODULE,
+                    &[("terminal-wire", wire, None)],
+                ),
+            ],
+        };
+        let check = |dependency, kind| {
+            transitive_exact_violations(
+                &metadata(dependency, kind),
+                &[plan],
+                SEALED_TERMINAL_MODULE,
+                "no",
+            )
+            .unwrap()
+        };
+        assert!(
+            check(wire, None).is_empty(),
+            "the encoders alone are allowed"
+        );
+        assert_eq!(
+            check(SEALED_TERMINAL_MODULE, None),
+            vec!["legalized-operations -> helper -> terminal-codec: no".to_owned()]
+        );
+        assert!(
+            check(SEALED_TERMINAL_MODULE, Some("dev")).is_empty(),
+            "a test-only edge is not a production path"
+        );
     }
 
     #[test]

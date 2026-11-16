@@ -67,8 +67,8 @@
 1 omega-rust/psi/compilation/proof-admission/src/lib.rs
 2 omega-rust/psi/compilation/proof-admission/src/mathematical_core.rs
 6 omega-rust/psi/compilation/proof-admission/src/proof.rs
-2 omega-rust/psi/compilation/representations/terminal-psi/codec/src/foundation_validation.rs
-1 omega-rust/psi/compilation/representations/terminal-psi/codec/src/term_wire.rs
+2 omega-rust/psi/compilation/representations/terminal-psi/wire/src/foundation_validation.rs
+1 omega-rust/psi/compilation/representations/terminal-psi/wire/src/term_wire.rs
 2 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/access.rs
 4 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/control_graph.rs
 14 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_replay.rs

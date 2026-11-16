@@ -5,6 +5,7 @@
 //! referent-region size that stage 02 records. The expected text is the
 //! selection `origin/main` emitted for that same geometry.
 
+use crate::BoundaryOriginFacts;
 use abstract_operations::{
     AbstractBlock, AbstractFunction, AbstractFunctionResult, AbstractOperation,
     AbstractOperationPlan, AbstractResult, AbstractStructuralCaseSuccessor,
@@ -21,11 +22,11 @@ use semantic_vocabulary::{
 };
 use target::NativeTarget;
 use target_operations::{
-    BoundaryOriginFacts, TargetCasePointerSlot, TargetControlBlock, TargetControlCaseSuccessor,
-    TargetControlGraph, TargetControlTerminator, TargetFunction, TargetOperationPlan,
-    TargetStructuralCaseSource, TargetStructuralHomeLayout, TargetStructuralHomeOrigin,
-    TargetStructuralHomeRequirement, TargetStructuralParameter, TargetUnitOperation,
-    TargetUnitScalarArgumentSource, TerminalPsiProvenance,
+    TargetCasePointerSlot, TargetControlBlock, TargetControlCaseSuccessor, TargetControlGraph,
+    TargetControlTerminator, TargetFunction, TargetOperationPlan, TargetStructuralCaseSource,
+    TargetStructuralHomeLayout, TargetStructuralHomeOrigin, TargetStructuralHomeRequirement,
+    TargetStructuralParameter, TargetUnitOperation, TargetUnitScalarArgumentSource,
+    TerminalPsiProvenance,
 };
 use terminal_psi::{
     BindingRelevance, SemanticFingerprint, StructuralAccess, StructuralCaseDeclaration,
