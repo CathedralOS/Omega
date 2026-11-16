@@ -46,6 +46,8 @@ mod storage_primitives;
 mod storage_providers;
 mod storage_records_and_arrays;
 mod storage_references;
+#[cfg(test)]
+mod storage_run_custody;
 
 pub(crate) mod boundary {
     pub(crate) use crate::boundary_effects as effects;

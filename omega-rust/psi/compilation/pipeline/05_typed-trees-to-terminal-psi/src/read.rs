@@ -22,6 +22,7 @@ subset is refused with `Unsupported` and its name. A field the subset does not
 serve is refused when it is set, never ignored.
 */
 
+mod access_lifecycles;
 mod arrays;
 mod atomics;
 mod authority;
@@ -38,6 +39,9 @@ mod carriers;
 mod casts;
 mod clause_calls;
 mod constant_values;
+#[path = "content_publication.rs"]
+mod content_publication;
+pub(crate) use content_publication::publish_content_entry_claims;
 mod contracts;
 mod expressions;
 mod fixed_bytes;
@@ -263,6 +267,7 @@ pub(crate) struct Program<'t> {
     /// Resolved domain declarations actually used by this verification unit.
     /// Lowering publishes these meanings, not just the carrier of their values.
     pub declared_domains: Vec<DeclaredDomain>,
+    content_projections: Vec<content_publication::ProjectionDefinition>,
     /// Only completed source contracts enter this stage-local query cache.
     /// It contains no value facts and is never published as evidence.
     inhabitation: terminal_semantics::inhabitation::Inhabitation,
@@ -456,6 +461,7 @@ impl<'t> Program<'t> {
             pending_cleanup: Vec::new(),
             scalar_applications: Default::default(),
             declared_domains: Vec::new(),
+            content_projections: Vec::new(),
             inhabitation: Default::default(),
             record_sources: IdTable::default(),
             resolving: Vec::new(),
@@ -2257,6 +2263,7 @@ mod tests {
         program.record_sources.push(places::RecordSource {
             declaration: point,
             application: None,
+            retained_sequence: None,
             region_owner: SymbolHandle::invalid(),
             fields: vec![a, b],
             cases: Vec::new(),

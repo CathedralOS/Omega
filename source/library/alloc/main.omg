@@ -5,7 +5,8 @@
 // neither scalar geometry nor a strategy counter creates backing authority.
 // Resident values must be extracted or cleaned before their space is reset.
 //
-// The executable package consumer is tests/omega/pass/memory/bump_allocator_canary.
-// vec.omg is the growable-container customer of this allocation contract.
+// vec.omg owns the generic growable collection over live Run cells and vacant
+// spare backing. Its executable acceptance customer exercises actual linear,
+// zero-sized and borrowed elements with growth, rejection and backing return.
 use bump;
 use vec;

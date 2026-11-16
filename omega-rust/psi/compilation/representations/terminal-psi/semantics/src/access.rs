@@ -7,7 +7,8 @@ pub(crate) mod access_lifecycles {
 
     use terminal_psi::{
         BoundaryDeclarationRole, BoundaryMachineResult, StructuralAccess, StructuralTypeShape,
-        TerminalAccessLifecycleExecution, TerminalAccessLifecycleOperation, TerminalModule,
+        TerminalAccessLifecycleExecution, TerminalAccessLifecycleOperation,
+        TerminalAccessPlacement, TerminalModule,
     };
 
     pub(crate) mod result_contract {
@@ -121,7 +122,9 @@ pub(crate) mod access_lifecycles {
                             view.carrier == *referent
                                 && view.schema == plan.schema
                                 && view.policy_identity == plan.policy_identity
-                                && view.placement == plan.placement
+                                && matches!(&plan.placement,
+                                    terminal_psi::TerminalAccessPlacement::Validated(placement)
+                                    if view.placement == *placement)
                         })
                     {
                         return Err(
@@ -179,7 +182,7 @@ pub(crate) mod access_lifecycles {
                             |_| "placement rejection must return exactly storage and value",
                         )?;
                     require_type(&returned[0], plan.storage.carrier)?;
-                    require_type(&returned[1], plan.schema)?;
+                    require_schema(module, &returned[1], plan.schema)?;
                     let failures = failure_cases(module, reason)?;
                     let owner_path = [
                         StructuralPathSegment::Case(ready.id),
@@ -369,7 +372,7 @@ pub(crate) mod access_lifecycles {
                         return Err("placement extraction must return exactly storage and value");
                     };
                     require_type(storage, plan.storage.carrier)?;
-                    require_type(value, plan.schema)?;
+                    require_schema(module, value, plan.schema)?;
                     storage_qualifications(
                         result,
                         &[
@@ -460,6 +463,24 @@ pub(crate) mod access_lifecycles {
                 .ok_or("placement result lost its structural payload")
         }
 
+        fn require_schema(
+            module: &TerminalModule,
+            field: &StructuralFieldDeclaration,
+            expected: StructuralTypeId,
+        ) -> Result<(), &'static str> {
+            let declaration = module
+                .structural_type(expected)
+                .ok_or("placement result schema is absent")?;
+            if let StructuralTypeShape::PrimitiveScalar(scalar) = declaration.shape {
+                if field.relevance.is_erased() || field.field_type.scalar_type() != Some(scalar) {
+                    return Err("placement result scalar differs from its exact schema");
+                }
+                Ok(())
+            } else {
+                require_type(field, expected)
+            }
+        }
+
         fn require_type(
             field: &StructuralFieldDeclaration,
             expected: StructuralTypeId,
@@ -547,8 +568,22 @@ pub(crate) mod access_lifecycles {
             }
             let schema = find_structural_type(&module.structural_types, plan.schema)
                 .ok_or("access lifecycle schema is absent")?;
-            if !matches!(schema.shape, StructuralTypeShape::Record { .. }) {
-                return Err("access lifecycle schema is not a record");
+            match &plan.placement {
+                TerminalAccessPlacement::Validated(_) => {}
+                TerminalAccessPlacement::Native(policy) => {
+                    if plan.target.is_some() || !plan.image_fields.is_empty() {
+                        return Err(
+                            "native placement demand cannot claim completed target geometry",
+                        );
+                    }
+                    crate::structural_qualifications::validate_access_plan(
+                        module,
+                        plan.schema,
+                        plan.schema_identity,
+                        policy,
+                    )
+                    .map_err(|error| error.detail)?;
+                }
             }
             for identity in [
                 plan.policy_identity,
@@ -559,8 +594,19 @@ pub(crate) mod access_lifecycles {
                     return Err("access lifecycle declaration identity is absent");
                 }
             }
-            if !boundary.scalar_parameters.is_empty() {
-                return Err("access lifecycle requires structural inputs");
+            let scalar_schema = match schema.shape {
+                StructuralTypeShape::PrimitiveScalar(value) => Some(value),
+                _ => None,
+            };
+            if !boundary.has_valid_parameter_order() {
+                return Err("access lifecycle lost its exact scalar/structural input ordering");
+            }
+            let scalar_initialize = plan.operation == TerminalAccessLifecycleOperation::Initialize
+                && scalar_schema.is_some();
+            if boundary.scalar_parameters.len() != usize::from(scalar_initialize)
+                || scalar_initialize && Some(boundary.scalar_parameters[0]) != scalar_schema
+            {
+                return Err("access lifecycle scalar input differs from its exact schema");
             }
             let profile_type = match &plan.execution {
                 TerminalAccessLifecycleExecution::SelectedProvider => {
@@ -644,6 +690,32 @@ pub(crate) mod access_lifecycles {
                     *profile_type
                 }
             };
+            let expected_runtime = match plan.operation {
+                TerminalAccessLifecycleOperation::Initialize => {
+                    2 + usize::from(profile_type.is_some())
+                }
+                TerminalAccessLifecycleOperation::MoveOut => {
+                    1 + usize::from(profile_type.is_some())
+                }
+                TerminalAccessLifecycleOperation::View => 2,
+                TerminalAccessLifecycleOperation::Relocate => 4,
+            };
+            if boundary.parameter_order.len() != expected_runtime
+                || boundary
+                    .parameter_order
+                    .iter()
+                    .enumerate()
+                    .any(|(position, kind)| {
+                        *kind
+                            != if scalar_initialize && position == 1 {
+                                terminal_psi::BoundaryParameterKind::Scalar
+                            } else {
+                                terminal_psi::BoundaryParameterKind::Structural
+                            }
+                    })
+            {
+                return Err("access lifecycle changed its exact runtime argument lanes");
+            }
             match plan.operation {
                 TerminalAccessLifecycleOperation::Relocate => {
                     let [run, destination, source_profile, destination_profile] =
@@ -688,21 +760,23 @@ pub(crate) mod access_lifecycles {
                 }
                 TerminalAccessLifecycleOperation::Initialize => {
                     let parameters = boundary.structural_parameters.as_slice();
-                    let expected = if profile_type.is_some() { 3 } else { 2 };
+                    let expected =
+                        1 + usize::from(!scalar_initialize) + usize::from(profile_type.is_some());
                     if parameters.len() != expected {
                         return Err("placement initialization lost its storage/value inputs");
                     }
-                    let value = &parameters[1];
-                    if value.structural_type != plan.schema
-                        || parameters[..2]
-                            .iter()
-                            .any(|parameter| parameter.access != StructuralAccess::Owned)
+                    if parameters[0].access != StructuralAccess::Owned
+                        || !scalar_initialize
+                            && (parameters[1].structural_type != plan.schema
+                                || parameters[1].access != StructuralAccess::Owned)
                     {
                         return Err("placement initialization value differs from its schema");
                     }
+                    let profile_position = 1 + usize::from(!scalar_initialize);
                     if let Some(profile_type) = profile_type
-                        && (parameters[2].structural_type != profile_type
-                            || parameters[2].access != StructuralAccess::SharedBorrow)
+                        && (parameters[profile_position].structural_type != profile_type
+                            || parameters[profile_position].access
+                                != StructuralAccess::SharedBorrow)
                     {
                         return Err(
                             "placement initialization profile differs from its exact input type",
@@ -737,7 +811,7 @@ pub(crate) mod access_lifecycles {
             }) {
                 if view.schema != plan.schema
                     || view.policy_plan_machine_identity != plan.policy_plan_machine_identity
-                    || view.placement != plan.placement
+                    || plan.placement != TerminalAccessPlacement::Validated(view.placement.clone())
                 {
                     return Err("access lifecycle and field view disagree on normalized policy");
                 }
@@ -853,13 +927,18 @@ pub(crate) mod access_lifecycles {
         module: &TerminalModule,
         plan: &terminal_psi::TerminalAccessLifecyclePlan,
     ) -> Result<(), &'static str> {
+        let TerminalAccessPlacement::Validated(placement) = &plan.placement else {
+            // The exact schema/policy demand is validated above. It contains no
+            // fabricated physical field slots before target completion.
+            return Ok(());
+        };
         let Some(StructuralTypeShape::Record { fields, .. }) = module
             .structural_type(plan.schema)
             .map(|declaration| &declaration.shape)
         else {
             return Err("placement image schema is absent");
         };
-        if plan.image_fields.len() != plan.placement.access().plan().entries().len() {
+        if plan.image_fields.len() != placement.access().plan().entries().len() {
             return Err("placement image fields differ from the complete normalized slot roster");
         }
         for (position, identity) in plan.image_fields.iter().enumerate() {
@@ -956,9 +1035,8 @@ pub(crate) mod access_lifecycles {
                 count,
                 singleton,
             } => {
-                if plan.operation == TerminalAccessLifecycleOperation::View
-                    || singleton.is_some()
-                        != (plan.operation == TerminalAccessLifecycleOperation::Initialize)
+                if singleton.is_some()
+                    != (plan.operation == TerminalAccessLifecycleOperation::Initialize)
                 {
                     return Err("typed run owner disagrees with its lifecycle operation");
                 }
@@ -1058,7 +1136,8 @@ pub(crate) mod access_lifecycles {
         let extracting = matches!(
             plan.operation,
             TerminalAccessLifecycleOperation::MoveOut | TerminalAccessLifecycleOperation::Relocate
-        );
+        ) || plan.operation == TerminalAccessLifecycleOperation::View
+            && matches!(storage.owner, terminal_psi::TerminalAccessOwner::Run { .. });
         let input_carrier = if extracting {
             storage.owner_carrier()
         } else {

@@ -147,12 +147,9 @@ impl Program<'_> {
                     )
             })
             .map_or(target, |machine| machine.symbol);
-        if let Some((id, source)) = self
-            .boundaries
-            .rows
-            .iter()
-            .find(|(_, source)| source.run.is_none() && source.source == target)
-        {
+        if let Some((id, source)) = self.boundaries.rows.iter().find(|(_, source)| {
+            source.run.is_none() && source.lifecycle.is_none() && source.source == target
+        }) {
             return Ok(Some((id, source.signature.clone())));
         }
         if typed.symbols.sealed_intrinsic(target)
@@ -173,6 +170,7 @@ impl Program<'_> {
                 typed_trees::declarations::intrinsic_requirements::IntrinsicRequirementKind::TopLevelRequirement => semantic_vocabulary::BoundaryRequirementKind::Machine,
             };
             let id = self.boundaries.rows.push(BoundarySource {
+                lifecycle: None,
                 run: None,
                 source: target,
                 kind,
@@ -321,6 +319,7 @@ impl Program<'_> {
         self.admitted_declarations.include(owner.symbol);
         self.admitted_declarations.include(target);
         let id = self.boundaries.rows.push(BoundarySource {
+            lifecycle: None,
             run: None,
             source: target,
             kind: semantic_vocabulary::BoundaryRequirementKind::Trait,

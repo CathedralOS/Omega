@@ -100,6 +100,7 @@ mod tests {
             id: StructuralTypeId::new(1).unwrap(),
             identity,
             owns_linear_claim: false,
+            retained_sequence: None,
             multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
             no_code_affine_cleanup: false,
             descriptor_cleanup: false,

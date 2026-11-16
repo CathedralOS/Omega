@@ -253,6 +253,7 @@ struct Minted<'a> {
     module: &'a terminal_psi::TerminalModule,
     lowered: &'a TerminalMachine,
     cleanup_catalog: crate::owned_cleanup::Catalog<'a>,
+    claims: terminal_semantics::plain_affine::ClaimsPlan,
     tables: &'a MachineTables,
     /// Whether the lowered form has claimed each obligation row, by position.
     obligations: Vec<bool>,
@@ -424,13 +425,58 @@ impl Minted<'_> {
         }
         let call =
             call_contracts::invocation(self.module, self.lowered, self.tables, invocation, row)?;
-        if !inputs.claim_transfers.is_empty() || !inputs.completion_receipts.is_empty() {
-            return Err(refusal(
-                RefusalReason::Unsupported,
-                self.machine,
-                concerns,
-                "call needs its exact claim-transfer and completion-receipt proof",
-            ));
+        // The receiving walk reconstructs live identities at the exact call
+        // cut. A declaration's original root is not its current storage after
+        // construction, extraction, stores or an owned block arrival.
+        if let Some(frontier) = self.claims.call_frontier(site) {
+            let held = frontier
+                .iter()
+                .map(|claim| (claim.identity, claim.place, claim.path.as_slice()));
+            let boundary = matches!(
+                inputs.callee,
+                terminal_check_tables::edges::Callee::Declared(
+                    semantic_vocabulary::TargetMachineCallable::Boundary(_)
+                )
+            );
+            let matched = if boundary {
+                if !inputs.claim_transfers.is_empty() {
+                    return Err(
+                        self.foreign(concerns, "a boundary call carries internal claim transfers")
+                    );
+                }
+                terminal_semantics::owned_structure::validate_claim_transfers(
+                    inputs.structural_arguments,
+                    held,
+                    inputs.completion_receipts.iter().map(|receipt| {
+                        (
+                            receipt.claim,
+                            receipt.argument_index,
+                            receipt.path.as_slice(),
+                        )
+                    }),
+                )
+            } else {
+                if !inputs.completion_receipts.is_empty() {
+                    return Err(self.foreign(
+                        concerns,
+                        "an internal call carries boundary completion receipts",
+                    ));
+                }
+                terminal_semantics::owned_structure::validate_claim_transfers(
+                    inputs.structural_arguments,
+                    held,
+                    inputs.claim_transfers.iter().map(|transfer| {
+                        (
+                            transfer.claim,
+                            transfer.argument_index,
+                            transfer.path.as_slice(),
+                        )
+                    }),
+                )
+            };
+            matched.map_err(|detail| self.foreign(concerns, detail))?;
+        } else if !self.claims.call_is_unreachable(site) {
+            return Err(self.foreign(concerns, "a call has no reconstructed claim frontier"));
         }
         crate::erased_actuals(&call.contract, inputs, self.machine, invocation)?;
         if inputs.arguments.len() != call.contract.scalar_parameters.len()
@@ -561,6 +607,21 @@ pub(crate) fn follow_the_lowered_form(
                 detail,
             )
         })?,
+        claims: terminal_semantics::plain_affine::verify_claims_in(module, id).map_err(
+            |error| {
+                use terminal_semantics::plain_affine::{Error, Site};
+                let concerns = match error.site() {
+                    Some(Site::Operation(operation)) => Construct::Operation(operation),
+                    Some(Site::Edge(edge)) => Construct::Edge(edge),
+                    None => Construct::Machine,
+                };
+                let (reason, detail) = match error {
+                    Error::Unsupported { detail, .. } => (RefusalReason::Unsupported, detail),
+                    Error::Malformed { detail, .. } => (RefusalReason::ForeignIdentity, detail),
+                };
+                refusal(reason, id, concerns, detail)
+            },
+        )?,
         tables,
         obligations: vec![false; tables.obligations.len()],
         invocations,

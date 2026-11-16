@@ -1035,9 +1035,11 @@ pub(crate) mod placed {
                     profile_argument.access,
                 )?;
                 let (binding, supplied) = self.lifecycle_profile(plan, 0, &backing, &profile)?;
-                let assessment =
-                    self.provider_storage
-                        .prepare_view(binding, &supplied, &plan.placement)?;
+                let assessment = self.provider_storage.prepare_view(
+                    binding,
+                    &supplied,
+                    crate::storage::provider_storage::validated_placement(plan)?,
+                )?;
                 let mut identity_cursor = self.local_structural_identities.cursor();
                 let value = self.mint_staged(&mut identity_cursor, result.structural_type)?;
                 let root = StructuralRuntimePlace::from(&value);
@@ -1592,7 +1594,8 @@ pub(crate) mod placed {
                 || initialized.policy_identity != plan.policy_identity
                 || initialized.policy_plan_machine_identity != plan.policy_plan_machine_identity
                 || initialized.schema_identity != plan.schema_identity
-                || initialized.placement != plan.placement
+                || crate::storage::provider_storage::validated_placement(initialized)?
+                    != &plan.placement
                 || plan.placement.layout().size != Some(compatibility.byte_length())
             {
                 return Err(TerminalInterpretError::ContentTransformationMismatch(

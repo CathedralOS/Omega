@@ -1068,6 +1068,37 @@ pub mod reflection {
             {
                 return Err("a schema query lost its selected type reference".into());
             }
+            if let crate::types::TypeReferenceNode::Named { symbol, .. } =
+                typed.type_reference_table.type_reference(reference)
+                && let Some(atom) = typed.symbols.builtin_type_atom(*symbol)
+                && symbols::PrimitiveType::from_builtin_atom(atom).is_some()
+            {
+                // This is the semantic member roster of the actual builtin,
+                // not a claim that its physical representation is empty.
+                let identity = schema_type_identity(typed, reference, *symbol)?;
+                let root = SchemaNodeHandle::from_index(1);
+                return SemanticSchemaGraph::from_nodes(
+                    vec![
+                        SchemaNode::Invalid,
+                        SchemaNode::Declaration(DeclarationDescription {
+                            owner_identity: identity.clone(),
+                            identity_is_hermetic: true,
+                            name: format!("{atom:?}"),
+                            shape: SchemaShape::Empty,
+                            supply: "Builtin".to_owned(),
+                            multiplicity: "Unrestricted".to_owned(),
+                            carry: None,
+                            type_parameters: Vec::new(),
+                            lifetime_parameters: Vec::new(),
+                            application_identity: Some(identity),
+                            members: Vec::new(),
+                            retired_identities: Vec::new(),
+                        }),
+                    ],
+                    root,
+                    authority,
+                );
+            }
             let data = typed
                 .closed_data_definition(reference)
                 .ok_or("a schema query requires its exact retained data application")?;
@@ -1275,6 +1306,54 @@ pub mod reflection {
                     symbol,
                     name: Identifier::generated(name),
                 })
+        }
+
+        #[test]
+        fn runtime_builtin_schemas_keep_the_actual_carrier_without_named_fields() {
+            use super::construction::{
+                construct_semantic_schema_graph_for_type, schema_type_identity,
+            };
+            let mut symbols = SymbolTableBuilder::default();
+            let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("test"));
+            let builtins = symbols.insert_children(root, symbols::builtin_type_symbols());
+            let fake = symbols
+                .insert_children(root, [(SymbolKind::Data, SymbolNameRef::Static("u32"))])
+                .handle_at(0);
+            let mut typed = TypedTrees {
+                symbols: symbols.finish(),
+                ..Default::default()
+            };
+            let authority = SchemaQueryAuthority::OwningScope {
+                requester_identity: "test".to_owned(),
+            };
+            let mut seen = Vec::new();
+            for (position, atom) in symbols::BuiltinTypeAtom::ALL.iter().copied().enumerate() {
+                let symbol = builtins.handle_at(position as u32);
+                let reference = named(&mut typed, symbol, "diagnostic-only");
+                let graph =
+                    construct_semantic_schema_graph_for_type(&typed, reference, authority.clone());
+                if symbols::PrimitiveType::from_builtin_atom(atom).is_some() {
+                    let graph =
+                        graph.expect("a genuine closed runtime builtin has a semantic schema");
+                    let identity = schema_type_identity(&typed, reference, symbol).unwrap();
+                    assert_eq!(graph.declaration().owner_identity, identity);
+                    assert_eq!(
+                        graph.declaration().application_identity.as_deref(),
+                        Some(identity.as_str())
+                    );
+                    assert!(graph.governed_fields().unwrap().is_empty());
+                    assert_eq!(graph.declaration().shape, SchemaShape::Empty);
+                    assert!(seen.iter().all(|earlier| earlier != &identity));
+                    seen.push(identity);
+                } else {
+                    assert!(
+                        graph.is_err(),
+                        "non-runtime builtin must not acquire empty physical storage"
+                    );
+                }
+            }
+            let fake = named(&mut typed, fake, "u32");
+            assert!(construct_semantic_schema_graph_for_type(&typed, fake, authority).is_err());
         }
 
         #[test]

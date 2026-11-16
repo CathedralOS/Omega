@@ -1,0 +1,37 @@
+use omega::language::core::DllImport;
+use omega::language::core::ForeignBinding;
+
+machine build(builder: &mut Build) {
+    Build::application(builder, "generic_run_vec");
+    let allocation: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "../../../../../source/library/alloc" }));
+    let standard: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "../../../../../source/library/std" }));
+    Build::accept_boundary<Roots>(builder);
+    Build::accept_boundary<Vacancy>(builder);
+    Build::accept_boundary<GoodSupply>(builder);
+    Build::accept_boundary<DeniedSupply>(builder);
+    Build::accept_boundary<NativeAllocation::allocate>(builder);
+    Build::select_provider<ExtentRootProvider, Roots>(builder, windows_x86_64);
+    Build::select_provider<VacantContentTransfer, Vacancy>(builder, windows_x86_64);
+    Build::select_provider<ResourceProfileSupply<GoodMemory>, GoodSupply>(builder, windows_x86_64);
+    Build::select_provider<ResourceProfileSupply<DeniedMemory>, DeniedSupply>(builder, windows_x86_64);
+    Build::bind<NativeAllocation::allocate>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "msvcrt.dll", export: "calloc" } });
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::select_provider<ExtentRootProvider, Roots>(builder, linux_x86_64);
+    Build::select_provider<VacantContentTransfer, Vacancy>(builder, linux_x86_64);
+    Build::select_provider<ResourceProfileSupply<GoodMemory>, GoodSupply>(builder, linux_x86_64);
+    Build::select_provider<ResourceProfileSupply<DeniedMemory>, DeniedSupply>(builder, linux_x86_64);
+    Build::bind<NativeAllocation::allocate>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "calloc", version: "GLIBC_2.2.5" } });
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::select_provider<ExtentRootProvider, Roots>(builder, linux_arm64);
+    Build::select_provider<VacantContentTransfer, Vacancy>(builder, linux_arm64);
+    Build::select_provider<ResourceProfileSupply<GoodMemory>, GoodSupply>(builder, linux_arm64);
+    Build::select_provider<ResourceProfileSupply<DeniedMemory>, DeniedSupply>(builder, linux_arm64);
+    Build::bind<NativeAllocation::allocate>(builder, linux_arm64, ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "calloc", version: "GLIBC_2.17" } });
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::select_provider<ExtentRootProvider, Roots>(builder, macos_arm64);
+    Build::select_provider<VacantContentTransfer, Vacancy>(builder, macos_arm64);
+    Build::select_provider<ResourceProfileSupply<GoodMemory>, GoodSupply>(builder, macos_arm64);
+    Build::select_provider<ResourceProfileSupply<DeniedMemory>, DeniedSupply>(builder, macos_arm64);
+    Build::bind<NativeAllocation::allocate>(builder, macos_arm64, ForeignBinding::DllImport { import: DllImport::MachODylibSymbol { install_name: "/usr/lib/libSystem.B.dylib", symbol: "_calloc" } });
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+}

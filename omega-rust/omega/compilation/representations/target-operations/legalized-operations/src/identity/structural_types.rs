@@ -269,6 +269,14 @@ pub(super) fn encode_structural_type(bytes: &mut Vec<u8>, declaration: &Structur
     bytes.extend_from_slice(&declaration.identity.0.to_le_bytes());
     bytes.extend_from_slice(&declaration.declaration_identity.0.to_le_bytes());
     bytes.push(u8::from(declaration.owns_linear_claim));
+    bytes.push(u8::from(declaration.retained_sequence.is_some()));
+    if let Some(sequence) = &declaration.retained_sequence {
+        bytes.extend_from_slice(&sequence.policy.0.to_le_bytes());
+        bytes.extend_from_slice(&sequence.element_identity.0.to_le_bytes());
+        encode_scalar_restriction(bytes, &sequence.element);
+        bytes.extend_from_slice(&sequence.storage.get().to_le_bytes());
+        bytes.extend_from_slice(&sequence.count.get().to_le_bytes());
+    }
     bytes.push(u8::from(declaration.no_code_affine_cleanup));
     bytes.push(u8::from(declaration.descriptor_cleanup));
     encode_multiplicity(bytes, declaration.multiplicity);
@@ -640,6 +648,7 @@ mod tests {
                 requires: Vec::new(),
                 quotient_carrier: None,
                 owns_linear_claim: false,
+                retained_sequence: None,
                 no_code_affine_cleanup: false,
                 multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                 descriptor_cleanup: true,
@@ -668,6 +677,7 @@ mod tests {
                 requires: Vec::new(),
                 quotient_carrier: None,
                 owns_linear_claim: false,
+                retained_sequence: None,
                 no_code_affine_cleanup: false,
                 multiplicity,
                 descriptor_cleanup: true,
@@ -690,6 +700,7 @@ mod tests {
             requires: Vec::new(),
             quotient_carrier: None,
             owns_linear_claim: flag,
+            retained_sequence: None,
             no_code_affine_cleanup: false,
             multiplicity: terminal_psi::StructuralMultiplicity::Affine,
             descriptor_cleanup: false,
@@ -868,6 +879,7 @@ fn nominal_cleanup_selection_changes_structural_type_identity() {
             requires: Vec::new(),
             quotient_carrier: None,
             owns_linear_claim: false,
+            retained_sequence: None,
             no_code_affine_cleanup: false,
             descriptor_cleanup: false,
             nominal_cleanup: selection.map(|(identity, machine)| {

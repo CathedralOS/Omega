@@ -441,7 +441,24 @@ pub(crate) mod placement {
         pub policy_identity: TerminalIdentityIndex,
         pub policy_plan_machine_identity: TerminalIdentityIndex,
         pub schema_identity: TerminalIdentityIndex,
-        pub placement: access_plans::ValidatedPlacement,
+        pub placement: TerminalAccessPlacement,
+    }
+
+    /// Placement authority is completed only for an explicitly selected target.
+    /// A native demand retains the exact policy and schema, without geometry.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub enum TerminalAccessPlacement {
+        Validated(access_plans::ValidatedPlacement),
+        Native(crate::StructuralDomainAccessPlan),
+    }
+
+    impl TerminalAccessPlacement {
+        pub fn validated(&self) -> Result<&access_plans::ValidatedPlacement, &'static str> {
+            match self {
+                Self::Validated(placement) => Ok(placement),
+                Self::Native(_) => Err("native placement requires selected-target completion"),
+            }
+        }
     }
 
     #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1216,9 +1233,9 @@ pub use placement::{
     AccessRamCorrespondence, AccessRamFieldCorrespondence, AccessorScalarBoundaryDemand,
     ResidentReferenceSource, TerminalAccessFieldPlan, TerminalAccessLifecycleExecution,
     TerminalAccessLifecycleOperation, TerminalAccessLifecyclePlan, TerminalAccessOwner,
-    TerminalAccessProfileOperand, TerminalAccessProfileRequirement, TerminalAccessStorage,
-    TerminalAccessViewInput, TerminalAccessViewPlan, TerminalAccessor, TerminalAccessorKind,
-    canonical_access_view_identity,
+    TerminalAccessPlacement, TerminalAccessProfileOperand, TerminalAccessProfileRequirement,
+    TerminalAccessStorage, TerminalAccessViewInput, TerminalAccessViewPlan, TerminalAccessor,
+    TerminalAccessorKind, canonical_access_view_identity,
 };
 pub use suspension::{
     TerminalSuspensionCallPlan, TerminalSuspensionCallSite, TerminalSuspensionCallTarget,

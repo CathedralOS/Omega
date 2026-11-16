@@ -128,11 +128,7 @@ pub(super) fn source_application(
                 "record application with type and lifetime arguments",
             ));
         }
-        if !template.conformance_bounds.is_empty()
-            || !data.conformance_bounds.is_empty()
-            || !template.requires_facts.is_empty()
-            || !data.requires_facts.is_empty()
-        {
+        if !template.requires_facts.is_empty() || !data.requires_facts.is_empty() {
             return Err(unavailable(
                 "record application whose generic premises are not lowered",
             ));
@@ -171,7 +167,12 @@ pub(super) fn source_application(
         for (parameter, argument) in parameters.iter().zip(arguments) {
             if !parameter.symbol.is_valid()
                 || typed.symbols.get(parameter.symbol).parent != template.symbol
-                || typed.symbols.get(parameter.symbol).kind != symbols::SymbolKind::TypeParameter
+                || typed.symbols.get(parameter.symbol).kind
+                    != if parameter.kind == TypeParameterKind::Implementation {
+                        symbols::SymbolKind::ConformanceParameter
+                    } else {
+                        symbols::SymbolKind::TypeParameter
+                    }
                 || !typed
                     .type_reference_table
                     .contains_type_reference(*argument)
@@ -187,7 +188,7 @@ pub(super) fn source_application(
                 ));
             }
             match parameter.kind {
-                TypeParameterKind::Type => {}
+                TypeParameterKind::Type | TypeParameterKind::Implementation => {}
                 TypeParameterKind::Const { type_reference } => {
                     let carrier = match typed.type_reference_table.type_reference(type_reference) {
                         TypeReferenceNode::Named { symbol, .. } => {
@@ -292,6 +293,7 @@ pub(super) fn source_application(
                 "record application repeats a template binder",
             ));
         }
+        validate_implementation_arguments(typed, template, data, &substitutions, machine)?;
         validate_applied_members(typed, template, data, semantic, &substitutions, machine)?;
     } else {
         match typed.type_reference_table.type_reference(semantic) {
@@ -317,6 +319,121 @@ pub(super) fn source_application(
         reference,
         substitutions,
     })
+}
+
+/// Keep every implementation premise beside its exact supplied value. This
+/// authenticates the substituted schema shape, not the record's refinements or
+/// executable selections; their canonical occurrences retain those obligations.
+fn validate_implementation_arguments(
+    typed: &typed_trees::TypedTrees,
+    template: &DataDefinition,
+    selected: &DataDefinition,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    machine: MachineId,
+) -> Checked<()> {
+    use typed_trees::data::TypeParameterKind;
+    use typed_trees::type_identity::{TypeIdentityQualification, TypeIdentityRequest};
+    let unavailable = |detail| refuse(machine, Construct::Machine, Unserved::Type(detail));
+    let parameters = typed.data_type_parameters(template);
+    let implementation_count = parameters
+        .iter()
+        .filter(|parameter| parameter.kind == TypeParameterKind::Implementation)
+        .count();
+    if template.conformance_bounds.len() != implementation_count
+        || selected.conformance_bounds.len() != template.conformance_bounds.len()
+    {
+        return Err(unavailable(
+            "record application with an unrepresented implementation premise",
+        ));
+    }
+    for (bound, applied) in template
+        .conformance_bounds
+        .iter()
+        .zip(&selected.conformance_bounds)
+    {
+        let parameter = parameters
+            .iter()
+            .find(|parameter| {
+                parameter.symbol == bound.binder
+                    && parameter.kind == TypeParameterKind::Implementation
+            })
+            .ok_or_else(|| {
+                unavailable("record implementation bound has no exact static parameter")
+            })?;
+        if template
+            .conformance_bounds
+            .iter()
+            .filter(|row| row.binder == parameter.symbol)
+            .count()
+            != 1
+            || bound.binder != applied.binder
+            || bound.binder_name != applied.binder_name
+            || bound.trait_symbol != applied.trait_symbol
+            || bound.trait_name != applied.trait_name
+            || !bound.lifetime_arguments.is_empty()
+            || !applied.lifetime_arguments.is_empty()
+            || bound.arguments.len() != applied.arguments.len()
+            || bound
+                .arguments
+                .iter()
+                .zip(&applied.arguments)
+                .any(|(written, actual)| {
+                    typed.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
+                        substitutions,
+                        ..TypeIdentityRequest::ordinary(*written)
+                    }) != typed.normalized_type_identity(*actual)
+                })
+        {
+            return Err(unavailable(
+                "record application changed its retained implementation premise",
+            ));
+        }
+        let (_, argument) = substitutions
+            .iter()
+            .find(|(binder, _)| *binder == parameter.symbol)
+            .ok_or_else(|| unavailable("record implementation has no exact supplied value"))?;
+        let retained_owner = typed.type_reference_table.operand_lifetime_owner(*argument);
+        let owner = if retained_owner.is_valid() {
+            retained_owner
+        } else {
+            template.symbol
+        };
+        typed
+            .require_owned_application_operands(&[*argument], owner)
+            .map_err(|_| {
+                unavailable("record implementation value is not closed in its source scope")
+            })?;
+        let supplied = typed
+            .applied_requirement_scope(owner, *argument)
+            .ok_or_else(|| {
+                unavailable("record implementation needs its complete operation-record schema")
+            })?;
+        let declaration = typed
+            .trait_definition_by_symbol(bound.trait_symbol)
+            .ok_or_else(|| {
+                unavailable("record implementation bound has no exact declared schema")
+            })?;
+        let required_parameters = typed.trait_type_parameters(declaration);
+        if supplied.declaration.symbol != declaration.symbol
+            || !declaration.lifetime_parameters.is_empty()
+            || required_parameters.len() != applied.arguments.len()
+            || required_parameters
+                .iter()
+                .zip(&applied.arguments)
+                .any(|(parameter, actual)| {
+                    supplied.parameter_identity(
+                        typed,
+                        parameter.symbol,
+                        TypeIdentityQualification::Ordinary,
+                    ) != typed.normalized_type_identity(*actual)
+                })
+        {
+            return Err(unavailable(
+                "record implementation value has another declared schema",
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn validate_applied_members(

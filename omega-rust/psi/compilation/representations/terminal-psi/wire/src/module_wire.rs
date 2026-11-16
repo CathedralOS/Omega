@@ -1755,7 +1755,8 @@ pub(crate) mod access_lifecycle_wire {
     use terminal_psi::{
         NominalDeclarationIdentity, TerminalAccessLifecycleExecution,
         TerminalAccessLifecycleOperation, TerminalAccessLifecyclePlan, TerminalAccessOwner,
-        TerminalAccessProfileRequirement, TerminalAccessStorage, TerminalIdentityIndex,
+        TerminalAccessPlacement, TerminalAccessProfileRequirement, TerminalAccessStorage,
+        TerminalIdentityIndex,
     };
 
     pub fn encode_access_lifecycle_catalog(
@@ -1862,7 +1863,16 @@ pub(crate) mod access_lifecycle_wire {
         ] {
             writer.u32(identity.0);
         }
-        super::access_view_plan_wire::encode_placement(writer, &plan.placement)
+        match &plan.placement {
+            TerminalAccessPlacement::Validated(placement) => {
+                writer.u8(0);
+                super::access_view_plan_wire::encode_placement(writer, placement)
+            }
+            TerminalAccessPlacement::Native(policy) => {
+                writer.u8(1);
+                super::declaration_wire::encode_access_policy(writer, policy)
+            }
+        }
     }
 
     pub(crate) fn decode(
@@ -1951,7 +1961,15 @@ pub(crate) mod access_lifecycle_wire {
         let policy_identity = TerminalIdentityIndex(reader.u32()?);
         let policy_plan_machine_identity = TerminalIdentityIndex(reader.u32()?);
         let schema_identity = TerminalIdentityIndex(reader.u32()?);
-        let placement = super::access_view_plan_wire::decode_placement(reader)?;
+        let placement = match reader.u8()? {
+            0 => TerminalAccessPlacement::Validated(
+                super::access_view_plan_wire::decode_placement(reader)?,
+            ),
+            1 => TerminalAccessPlacement::Native(super::declaration_wire::decode_access_policy(
+                reader,
+            )?),
+            tag => return Err(CodecError::InvalidTag("access lifecycle placement", tag)),
+        };
         Ok(TerminalAccessLifecyclePlan {
             boundary,
             target,
@@ -2724,6 +2742,17 @@ pub(crate) mod declaration_wire {
                 reach: access_plans::BoundaryReach::from_services(services),
             })
         }
+    }
+
+    pub(crate) fn encode_access_policy(
+        writer: &mut Writer,
+        policy: &Policy,
+    ) -> Result<(), CodecError> {
+        DomainAccess::write(writer, policy)
+    }
+
+    pub(crate) fn decode_access_policy(reader: &mut Reader<'_>) -> Result<Policy, CodecError> {
+        DomainAccess::read(reader)
     }
 
     struct OptionalBytePredicate;

@@ -1,0 +1,385 @@
+// One ordinary Vec implementation owns scalars, linear values, zero-sized
+// obligations and contained loans. Every allocation returns to its pool owner.
+use alloc::vec;
+use alloc::vec::Vec;
+use alloc::vec::PushOutcome;
+use alloc::vec::GrowthOutcome;
+use alloc::vec::CapacityAllocation;
+use omega::language::core::Extent;
+use omega::language::core::Extent::Granted;
+use omega::language::core::Extent::Vacant;
+use omega::language::core::ExtentRootProvider;
+use omega::language::core::VacantContentTransfer;
+use omega::language::core::AccessReturn;
+use omega::language::core::AccessOutcome;
+use omega::language::core::AccessInitializationFailure;
+use omega::language::core::ResourceProfile;
+use omega::language::core::ResourceProfileSupply;
+use omega::language::core::ResourceRegion;
+use omega::language::core::RelativeRange;
+use omega::language::core::PeerWritability;
+use omega::language::core::StableCapability;
+use omega::language::core::ExternalCapability;
+use omega::language::core::AtomicCapability;
+use omega::language::core::BoundaryReach;
+use omega::language::core::ProcessExit;
+use omega::language::core::Never;
+use omega::language::core::IntervalSet;
+use omega::language::core::Nat;
+use omega::language::core::split_vacant_extent;
+use omega::language::core::merge_vacant_extents;
+
+// calloc supplies real process-owned memory. The admitted root providers below
+// introduce only that actual memory, with no constructed numeric address.
+boundary trait NativeAllocation {
+    machine allocate(count: u64, width: u64) -> addr
+    reaches NativeAllocation
+    requires count == 1
+    ensures result == 0 || no_wrap(result, width)
+    crashes none;
+}
+
+Roots satisfies ExtentRootProvider {
+    machine grant(root: Extent) -> Extent { move root }
+}
+
+Vacancy satisfies VacantContentTransfer {
+    machine transfer(storage: Extent in Granted) -> Extent
+    ensures result in Granted,
+        core::Identity<IntervalSet<Nat>>(
+            Granted::content(old(&storage)), Granted::content(&result))
+    { storage as Extent }
+}
+
+data GoodMemory {}
+data DeniedMemory {}
+
+machine profile_for(storage: &Extent in Granted, stable: StableCapability) -> ResourceProfile
+reaches none crashes none terminates
+{
+    let services: [u64; 32];
+    let mut regions: [ResourceRegion; 32];
+    regions[0] = ResourceRegion {
+        range: RelativeRange { offset: 0, length: storage.length },
+        peer: PeerWritability::Exclusive, stable: stable,
+        external: ExternalCapability::None, atomic: AtomicCapability::None,
+        reach: BoundaryReach { services: services, service_count: 0 },
+    };
+    ResourceProfile { regions: regions, region_count: 1 }
+}
+
+GoodSupply satisfies ResourceProfileSupply<GoodMemory> {
+    machine profile(storage: &Extent in Granted) -> ResourceProfile reaches none crashes none {
+        profile_for(storage, StableCapability::ReadWrite)
+    }
+}
+
+DeniedSupply satisfies ResourceProfileSupply<DeniedMemory> {
+    machine profile(storage: &Extent in Granted) -> ResourceProfile reaches none crashes none {
+        profile_for(storage, StableCapability::None)
+    }
+}
+
+// A pool retains returned allocations until the process exits. Returning an
+// extent to this owner is separate from asking the operating system to free it.
+data Pool [linear]
+requires self.first.length == 16, self.second.length == 32
+{
+    first: Extent in Granted & Vacant;
+    second: Extent in Granted & Vacant;
+}
+
+data Ticket [linear] { id: u64; }
+data Zero [linear] {}
+data Counter { value: u64; }
+data Loan<'lender> [linear] { counter: &'lender mut Counter; }
+data Stats { tickets: u64; sum: u64; zeros: u64; loans: u64; }
+data Grown<T> { vector: Vec<T>; retired: Extent in Granted & Vacant; }
+data ReturnedGrowth<T> { vector: Vec<T>; replacement: Extent in Granted & Vacant; }
+
+machine fail() -> Never crashes Trap { crash Trap; }
+
+machine stats() -> Stats { Stats { tickets: 0, sum: 0, zeros: 0, loans: 0 } }
+
+// Consumers are total for every counter state, so the generic disposal contract
+// needs no stronger caller premise. The tested paths count only three values.
+machine increment(value: u64) -> u64 reaches none crashes none terminates {
+    match value < 18446744073709551615u64 { true -> value + 1, false -> value }
+}
+machine add(left: u64, right: u64) -> u64 reaches none crashes none terminates {
+    match right <= 18446744073709551615u64 - left {
+        true -> left + right,
+        false -> 18446744073709551615u64,
+    }
+}
+
+machine dispose_ticket(value: Ticket, context: Stats) -> Stats reaches none crashes none terminates {
+    let { id } = move value;
+    Stats { tickets: increment(context.tickets), sum: add(context.sum, id),
+        zeros: context.zeros, loans: context.loans }
+}
+machine dispose_zero(value: Zero, context: Stats) -> Stats reaches none crashes none terminates {
+    let {} = move value;
+    Stats { tickets: context.tickets, sum: context.sum,
+        zeros: increment(context.zeros), loans: context.loans }
+}
+machine dispose_loan(value: Loan, context: Stats) -> Stats reaches none crashes none terminates {
+    let { counter } = move value;
+    counter.value = increment(counter.value);
+    Stats { tickets: context.tickets, sum: context.sum,
+        zeros: context.zeros, loans: increment(context.loans) }
+}
+machine dispose_scalar(value: u32, context: Stats) -> Stats reaches none crashes none terminates {
+    Stats { tickets: increment(context.tickets), sum: add(context.sum, value as u64),
+        zeros: context.zeros, loans: context.loans }
+}
+
+machine push<T, Role>(vector: Vec<T>, value: T) -> Vec<T>
+crashes Trap
+ensures embed(result.live.count) == embed(vector.live.count) + 1,
+    result.capacity == vector.capacity
+{
+    transition vec::try_push<T, Role>(move vector, move value) {
+        PushOutcome::Inserted { vector } -> move vector
+        PushOutcome::Full { vector, value } -> fail()
+        PushOutcome::Rejected { vector, value, reason } -> fail()
+    }
+}
+
+machine rejected_push<T>(vector: Vec<T>, value: T) -> AccessReturn<Vec<T>, T>
+crashes Trap
+ensures result.source.live.count == vector.live.count,
+    result.source.capacity == vector.capacity,
+    result.source.spare.base == vector.spare.base,
+    result.source.spare.length == vector.spare.length
+{
+    transition vec::try_push<T, DeniedMemory>(move vector, move value) {
+        PushOutcome::Rejected { vector, value, reason } ->
+            AccessReturn { source: move vector, custody: move value }
+        PushOutcome::Inserted { vector } -> fail()
+        PushOutcome::Full { vector, value } -> fail()
+    }
+}
+
+machine full_push<T>(vector: Vec<T>, value: T) -> AccessReturn<Vec<T>, T>
+crashes Trap
+ensures result.source.live.count == vector.live.count,
+    result.source.capacity == vector.capacity
+{
+    transition vec::try_push<T, GoodMemory>(move vector, move value) {
+        PushOutcome::Full { vector, value } ->
+            AccessReturn { source: move vector, custody: move value }
+        PushOutcome::Inserted { vector } -> fail()
+        PushOutcome::Rejected { vector, value, reason } -> fail()
+    }
+}
+
+machine exhausted<T>(vector: Vec<T>) -> Vec<T>
+crashes Trap
+ensures result.live.count == vector.live.count, result.capacity == vector.capacity
+{
+    transition vec::try_grow<T, GoodMemory, GoodMemory>(move vector, CapacityAllocation::Exhausted) {
+        GrowthOutcome::Exhausted { vector } -> move vector
+        GrowthOutcome::Grown { vector, retired_storage } -> fail()
+        GrowthOutcome::Rejected { vector, replacement, capacity, reason } -> fail()
+    }
+}
+
+machine rejected_growth<T>(vector: Vec<T>, replacement: Extent in Granted & Vacant, capacity: u64)
+    -> ReturnedGrowth<T>
+requires embed(capacity) * embed(vector.cell_size) == embed(replacement.length)
+crashes Trap
+ensures result.vector.live.count == vector.live.count,
+    result.vector.capacity == vector.capacity,
+    result.replacement.base == replacement.base, result.replacement.length == replacement.length
+{
+    transition vec::try_grow<T, GoodMemory, DeniedMemory>(move vector,
+        CapacityAllocation::Available { storage: move replacement, capacity: capacity }) {
+        GrowthOutcome::Rejected { vector, replacement, capacity, reason } ->
+            ReturnedGrowth { vector: move vector, replacement: move replacement }
+        GrowthOutcome::Grown { vector, retired_storage } -> fail()
+        GrowthOutcome::Exhausted { vector } -> fail()
+    }
+}
+
+machine grow<T>(vector: Vec<T>, replacement: Extent in Granted & Vacant, capacity: u64) -> Grown<T>
+requires embed(capacity) * embed(vector.cell_size) == embed(replacement.length)
+crashes Trap
+ensures result.vector.live.count == vector.live.count, result.vector.capacity == capacity,
+    result.vector.live.storage.base == replacement.base,
+    result.retired.base == vector.live.storage.base,
+    embed(result.retired.length) == embed(vector.live.storage.length) + embed(vector.spare.length)
+{
+    transition vec::try_grow<T, GoodMemory, GoodMemory>(move vector,
+        CapacityAllocation::Available { storage: move replacement, capacity: capacity }) {
+        GrowthOutcome::Grown { vector, retired_storage } ->
+            Grown { vector: move vector, retired: move retired_storage }
+        GrowthOutcome::Rejected { vector, replacement, capacity, reason } -> fail()
+        GrowthOutcome::Exhausted { vector } -> fail()
+    }
+}
+
+machine verify_tickets(view: &[Ticket])
+requires view.len == 3
+crashes Trap
+{
+    transition view[0].id == 1u64 && view[1].id == 2u64 && view[2].id == 3u64 {
+        true -> {}
+        false -> fail()
+    }
+}
+
+machine inspect_tickets(vector: &Vec<Ticket>) crashes Trap {
+    transition vec::as_slice<Ticket, GoodMemory>(vector) {
+        AccessOutcome::Ready { view } -> checked(view)
+        AccessOutcome::Rejected { returned, reason } -> fail()
+    }
+    machine checked(view: &[Ticket]) crashes Trap {
+        transition view.len == 3 { true -> verify_tickets(view) false -> fail() }
+    }
+}
+
+machine mutate_loans(vector: &mut Vec<Loan>) crashes Trap {
+    transition vec::as_mut_slice<Loan, GoodMemory>(vector) {
+        AccessOutcome::Ready { view } -> checked(view)
+        AccessOutcome::Rejected { returned, reason } -> fail()
+    }
+    machine checked(view: &mut [Loan]) crashes Trap {
+        transition view.len == 2 { true -> update(view) false -> fail() }
+    }
+    machine update(view: &mut [Loan]) requires view.len == 2 { view[1].counter.value = 20; }
+}
+
+machine ticket_round(pool: Pool) -> Pool
+requires pool.first.length == 16, pool.second.length == 32,
+    size_of<Ticket>() == 8
+crashes Trap
+{
+    let { first, second } = move pool;
+    let first_base: addr = first.base;
+    let second_base: addr = second.base;
+    let initial: Vec<Ticket> = vec::open<Ticket>(move first, 2);
+    let first_ticket: Ticket = Ticket { id: 1 };
+    let one: Vec<Ticket> = push<Ticket, GoodMemory>(move initial, move first_ticket);
+    let rejected = rejected_push<Ticket>(move one, Ticket { id: 2 });
+    let two: Vec<Ticket> = push<Ticket, GoodMemory>(move rejected.source, move rejected.custody);
+    let pending_ticket: Ticket = Ticket { id: 3 };
+    let full = full_push<Ticket>(move two, move first_ticket);
+    let unchanged: Vec<Ticket> = exhausted<Ticket>(move full.source);
+    let denied = rejected_growth<Ticket>(move unchanged, move second, 4);
+    let grown: Grown<Ticket> = grow<Ticket>(move denied.vector, move denied.replacement, 4);
+    let mut three: Vec<Ticket> = push<Ticket, GoodMemory>(move grown.vector, move full.custody);
+    inspect_tickets(&three);
+    let disposed = vec::drain<Ticket, GoodMemory, Stats, dispose_ticket>(move three, stats());
+    transition disposed.context.tickets == 3 && disposed.context.sum == 6 &&
+        grown.retired.base == first_base && grown.retired.length == 16 &&
+        disposed.storage.base == second_base && disposed.storage.length == 32 {
+        true -> Pool { first: move grown.retired, second: move disposed.storage }
+        false -> fail()
+    }
+}
+
+machine zero_round(pool: Pool) -> Pool
+requires pool.first.length == 16, pool.second.length == 32, size_of<Zero>() == 0
+crashes Trap
+{
+    let { first, second } = move pool;
+    let base: addr = first.base;
+    let partition = split_vacant_extent(move first, 0);
+    let initial: Vec<Zero> = vec::open<Zero>(move partition.taken, 3);
+    let one = push<Zero, GoodMemory>(move initial, Zero {});
+    let two = push<Zero, GoodMemory>(move one, Zero {});
+    let three = push<Zero, GoodMemory>(move two, Zero {});
+    let disposed = vec::drain<Zero, GoodMemory, Stats, dispose_zero>(move three, stats());
+    let returned = merge_vacant_extents(move disposed.storage, move partition.rest);
+    transition disposed.context.zeros == 3 && returned.base == base && returned.length == 16 {
+        true -> Pool { first: move returned, second: move second }
+        false -> fail()
+    }
+}
+
+machine loan_round(pool: Pool) -> Pool
+requires pool.first.length == 16, pool.second.length == 32, size_of<Loan>() == 8
+crashes Trap
+{
+    let { first, second } = move pool;
+    let mut left: Counter = Counter { value: 5 };
+    let mut right: Counter = Counter { value: 7 };
+    let initial: Vec<Loan> = vec::open<Loan>(move first, 2);
+    let one = push<Loan, GoodMemory>(move initial, Loan { counter: &mut left });
+    let two = push<Loan, GoodMemory>(move one, Loan { counter: &mut right });
+    let mut grown: Grown<Loan> = grow<Loan>(move two, move second, 4);
+    mutate_loans(&mut grown.vector);
+    let disposed = vec::drain<Loan, GoodMemory, Stats, dispose_loan>(move grown.vector, stats());
+    transition disposed.context.loans == 2 && left.value == 6 && right.value == 21 {
+        true -> Pool { first: move grown.retired, second: move disposed.storage }
+        false -> fail()
+    }
+}
+
+machine scalar_round(pool: Pool) -> Pool
+requires pool.first.length == 16, pool.second.length == 32, size_of<u32>() == 4
+crashes Trap
+{
+    let { first, second } = move pool;
+    let first_base: addr = first.base;
+    let second_base: addr = second.base;
+    let initial: Vec<u32> = vec::open<u32>(move first, 4);
+    let one = push<u32, GoodMemory>(move initial, 17u32);
+    let two = push<u32, GoodMemory>(move one, 29u32);
+    let grown: Grown<u32> = grow<u32>(move two, move second, 8);
+    let last = vec::pop<u32, GoodMemory>(move grown.vector);
+    let disposed = vec::drain<u32, GoodMemory, Stats, dispose_scalar>(move last.vector, stats());
+    transition last.value == 29u32 && disposed.context.tickets == 1 && disposed.context.sum == 17 &&
+        grown.retired.base == first_base && grown.retired.length == 16 &&
+        disposed.storage.base == second_base && disposed.storage.length == 32 {
+        true -> Pool { first: move grown.retired, second: move disposed.storage }
+        false -> fail()
+    }
+}
+
+machine acquire(width: u64) -> Extent in Granted & Vacant
+ensures result.length == width
+crashes Trap crashes Abort
+{
+    let address: addr = NativeAllocation::allocate(1, width);
+    transition address != 0 {
+        true -> grant(address, width)
+        false -> fail()
+    }
+    machine grant(address: addr, width: u64) -> Extent in Granted & Vacant
+    ensures result.length == width
+    {
+        let storage: Extent in Granted & Vacant = VacantContentTransfer::transfer(
+            ExtentRootProvider::grant(Extent { base: address, length: width }));
+        transition storage.base == address && storage.length == width {
+            true -> move storage
+            false -> fail()
+        }
+    }
+}
+
+machine finish(pool: Pool) -> Never {
+    // Ownership has returned to the allocator. This process-scoped pool retains
+    // both vacant roots until normal process termination; it has no live cells.
+    ProcessExit::exit_process(0u32);
+}
+
+machine main() crashes Trap crashes Abort {
+    transition size_of<Ticket>() == 8 && size_of<Loan>() == 8 &&
+        size_of<Zero>() == 0 && size_of<u32>() == 4 {
+        true -> exercise()
+        false -> fail()
+    }
+    machine exercise()
+    requires size_of<Ticket>() == 8, size_of<Loan>() == 8,
+        size_of<Zero>() == 0, size_of<u32>() == 4
+    {
+        let pool: Pool = Pool { first: acquire(16), second: acquire(32) };
+        let after_tickets: Pool = ticket_round(move pool);
+        let after_zero: Pool = zero_round(move after_tickets);
+        let after_loans: Pool = loan_round(move after_zero);
+        let returned: Pool = scalar_round(move after_loans);
+        finish(move returned);
+    }
+}

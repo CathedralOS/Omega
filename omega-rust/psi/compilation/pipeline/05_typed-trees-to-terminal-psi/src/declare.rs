@@ -761,6 +761,32 @@ fn application(
     ))
 }
 
+/// The policy is an ordinary static operation-record value, not a type name.
+/// Use the same complete applied index identity as layout/domain evaluation so
+/// aliases do not add identity and generic arguments cannot disappear.
+pub(crate) fn implementation_argument_identity(
+    typed: &TypedTrees,
+    lexical_owner: SymbolHandle,
+    argument: &typed_trees::expression::StaticMachineArgument,
+) -> Result<String, &'static str> {
+    if !argument.symbol.is_valid()
+        || !typed.symbols.symbols().nodes().is_valid(argument.symbol)
+        || typed.symbols.get(argument.symbol).kind != symbols::SymbolKind::Conformance
+    {
+        return Err("a static implementation operand has no closed operation-record value");
+    }
+    let supplier = typed.static_operand_region_supplier(argument, lexical_owner)?;
+    typed_trees::type_identity::portable_applied_index_identity(
+        typed,
+        typed_trees::type_identity::IndexIdentityArgument::StaticArgument(argument),
+        supplier,
+        &[],
+    )
+    .and_then(|identity| typed.type_identity_text(identity))
+    .filter(|text| !text.is_empty())
+    .ok_or("a static implementation operand lost its complete applied value identity")
+}
+
 // Checked bodies and descriptions use the same complete argument calculation.
 fn application_bindings_commitment(
     typed: &TypedTrees,
@@ -802,10 +828,8 @@ fn application_bindings_commitment(
                     return Err("an application's implementation argument names no implementation");
                 }
                 let identity =
-                    semantic_identity(typed, typed.implementation_value_head(named), identities)?;
-                commitment.conformance_argument(identities.text(identity).ok_or(
-                    "an application's implementation identity is absent from its table",
-                )?)?;
+                    implementation_argument_identity(typed, binding.parameter, argument)?;
+                commitment.conformance_argument(&identity)?;
             }
             // generics.md, "Closed applications and canonical identity":
             // a value argument is part of the application's identity. It is
@@ -1438,6 +1462,50 @@ pub(crate) fn boundary(
             identities,
         );
     }
+    if let Some(operation) = execution.placement_operation() {
+        let application = application.ok_or_else(|| {
+            Diagnostic::error("placement publisher lost its exact source application")
+        })?;
+        let source = typed_trees::AccessExecutionDeclaration::authenticate(typed, symbol)?
+            .ok_or_else(|| {
+                Diagnostic::error("placement publisher lost its sealed source declaration")
+            })?;
+        let actual = match source.operation {
+            typed_trees::AccessLifecycleOperation::Initialize => {
+                terminal_psi::TerminalAccessLifecycleOperation::Initialize
+            }
+            typed_trees::AccessLifecycleOperation::MoveOut => {
+                terminal_psi::TerminalAccessLifecycleOperation::MoveOut
+            }
+            typed_trees::AccessLifecycleOperation::View => {
+                terminal_psi::TerminalAccessLifecycleOperation::View
+            }
+            typed_trees::AccessLifecycleOperation::Relocate => {
+                terminal_psi::TerminalAccessLifecycleOperation::Relocate
+            }
+        };
+        let prepared = typed
+            .bodyless_callable_signature(application, symbol)
+            .map_err(Diagnostic::error)?
+            .ok_or_else(|| {
+                Diagnostic::error("placement publisher lost its closed callable contract")
+            })?;
+        if actual != operation {
+            return Err(Diagnostic::error(
+                "placement publisher changed its sealed operation",
+            ));
+        }
+        return top_level_boundary(
+            typed,
+            symbol,
+            execution,
+            signature,
+            published,
+            None,
+            Some((application, prepared)),
+            identities,
+        );
+    }
     if application.is_some() {
         return Err(Diagnostic::error(
             "ordinary boundary unexpectedly carries a compiler application",
@@ -1661,16 +1729,26 @@ fn top_level_boundary(
             application_bindings_commitment(typed, &callable, bindings, &[], identities, &mut None)
                 .map_err(Diagnostic::error)?;
         for binding in bindings {
-            let typed_trees::static_applications::StaticMachineBindingValue::Type(reference) =
-                binding.value
-            else {
-                return Err(Diagnostic::error(
-                    "run custody publisher has a non-type static operand",
-                ));
-            };
-            method_arguments.push(terminal_psi::ClosedReachArgument::Type(
-                identities.intern(&type_argument(typed, reference).map_err(Diagnostic::error)?),
-            ));
+            use typed_trees::static_applications::StaticMachineBindingValue;
+            method_arguments.push(match &binding.value {
+                StaticMachineBindingValue::Type(reference) => {
+                    terminal_psi::ClosedReachArgument::Type(
+                        identities
+                            .intern(&type_argument(typed, *reference).map_err(Diagnostic::error)?),
+                    )
+                }
+                StaticMachineBindingValue::Conformance(argument) => {
+                    let value =
+                        implementation_argument_identity(typed, binding.parameter, argument)
+                            .map_err(Diagnostic::error)?;
+                    terminal_psi::ClosedReachArgument::Const(identities.intern(&value))
+                }
+                _ => {
+                    return Err(Diagnostic::error(
+                        "compiler boundary publisher has an unsupported static operand",
+                    ));
+                }
+            });
         }
         let specialization = terminal_psi::CheckedMachineSpecialization {
             capture: None,

@@ -422,6 +422,7 @@ fn saved_callee_uses_its_read_cut_after_an_overlapping_write() {
         requires: Vec::new(),
         quotient_carrier: None,
         owns_linear_claim: false,
+        retained_sequence: None,
         no_code_affine_cleanup: true,
         multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         descriptor_cleanup: true,

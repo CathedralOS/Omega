@@ -1854,6 +1854,17 @@ pub(crate) mod structural_encoding {
         bytes.u32(declaration.declaration_identity.0);
         bytes.u8(u8::from(declaration.no_code_affine_cleanup));
         bytes.u8(u8::from(declaration.owns_linear_claim));
+        encode_optional(
+            bytes,
+            declaration.retained_sequence.as_ref(),
+            |bytes, sequence| {
+                bytes.u32(sequence.policy.0);
+                bytes.u32(sequence.element_identity.0);
+                encode_scalar_restriction(bytes, &sequence.element);
+                bytes.id(sequence.storage);
+                bytes.id(sequence.count);
+            },
+        );
         bytes.u8(u8::from(declaration.descriptor_cleanup));
         encode_multiplicity(bytes, declaration.multiplicity);
         encode_optional(
@@ -2235,6 +2246,7 @@ pub(crate) mod structural_encoding {
                     requires: Vec::new(),
                     quotient_carrier: None,
                     owns_linear_claim: false,
+                    retained_sequence: None,
                     no_code_affine_cleanup: false,
                     descriptor_cleanup: false,
                     nominal_cleanup: selected.map(|(identity, machine)| {
@@ -2276,6 +2288,7 @@ pub(crate) mod structural_encoding {
                     requires: Vec::new(),
                     quotient_carrier: None,
                     owns_linear_claim: false,
+                    retained_sequence: None,
                     no_code_affine_cleanup: false,
                     descriptor_cleanup: true,
                     nominal_cleanup: None,
@@ -2591,7 +2604,7 @@ pub(crate) mod unit_encoding {
         ValueDefinitionSite, ValueUse, WorkSettlement,
     };
 
-    const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v59\0";
+    const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v60\0";
     pub fn recompute_psi_optimization_unit_identity(
         unit: &PsiOptimizationUnit,
     ) -> OptimizationUnitIdentity {

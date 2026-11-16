@@ -2913,6 +2913,7 @@ mod block_parameters {
                         identity: terminal_psi::TerminalIdentityIndex(raw as u32),
                         quotient_carrier: None,
                         owns_linear_claim: raw == 3,
+                        retained_sequence: None,
                         multiplicity: if raw == 1 {
                             StructuralMultiplicity::Affine
                         } else {
@@ -8088,19 +8089,14 @@ mod replay {
             ),
         >,
     ) -> bool {
-        let mut seen = BTreeSet::new();
-        pairs.into_iter().all(|(claim, index, path)| {
-            let (Some(argument), Some(live)) =
-                (arguments.get(index as usize), frontier.claims.get(&claim))
-            else {
-                return false;
-            };
-            seen.insert(claim)
-                && argument.access == StructuralAccess::Owned
-                && live.input == Some(argument.place)
-                && live.path.starts_with(&argument.path)
-                && path == &live.path[argument.path.len()..]
-        })
+        terminal_semantics::owned_structure::validate_claim_transfers(
+            arguments,
+            frontier.claims.iter().filter_map(|(identity, live)| {
+                Some((*identity, live.input?, live.path.as_slice()))
+            }),
+            pairs,
+        )
+        .is_ok()
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -8650,10 +8646,8 @@ mod replay {
                     if expected_by_argument.len() != structural_arguments.len() {
                         return Err(invalid());
                     }
-                    for (argument_index, (argument, expected_paths)) in structural_arguments
-                        .iter()
-                        .zip(expected_by_argument)
-                        .enumerate()
+                    for (argument, expected_paths) in
+                        structural_arguments.iter().zip(expected_by_argument)
                     {
                         if argument.access != StructuralAccess::Owned {
                             continue;
@@ -8673,22 +8667,10 @@ mod replay {
                             })
                             .collect::<Vec<_>>();
                         let mut actual_paths = Vec::new();
-                        for (identity, claim) in &frontier.claims {
+                        for claim in frontier.claims.values() {
                             if claim.input == Some(argument.place)
                                 && claim.path.starts_with(&argument.path)
                             {
-                                if claim_transfers
-                                    .iter()
-                                    .filter(|transfer| {
-                                        transfer.claim == *identity
-                                            && transfer.argument_index as usize == argument_index
-                                            && transfer.path == claim.path[argument.path.len()..]
-                                    })
-                                    .count()
-                                    != 1
-                                {
-                                    return Err(invalid());
-                                }
                                 actual_paths.push(&claim.path[argument.path.len()..]);
                             }
                         }
@@ -8729,27 +8711,7 @@ mod replay {
                             )
                         }),
                     );
-                    let complete = structural_arguments.iter().enumerate().all(
-                        |(argument_index, argument)| {
-                            argument.access != StructuralAccess::Owned
-                                || frontier.claims.iter().all(|(identity, claim)| {
-                                    claim.input != Some(argument.place)
-                                        || !claim.path.starts_with(&argument.path)
-                                        || completion_receipts
-                                            .iter()
-                                            .filter(|receipt| {
-                                                receipt.claim == *identity
-                                                    && receipt.argument_index as usize
-                                                        == argument_index
-                                                    && receipt.path
-                                                        == claim.path[argument.path.len()..]
-                                            })
-                                            .count()
-                                            == 1
-                                })
-                        },
-                    );
-                    if !receipts_match || !complete {
+                    if !receipts_match {
                         return Err(OptimizationUnitValidationError::CurrentCleanupMismatch {
                             machine: function.machine,
                             block: block_id,
@@ -10737,6 +10699,7 @@ mod value_custody {
                     identity: TerminalIdentityIndex(raw as u32),
                     quotient_carrier: None,
                     owns_linear_claim: false,
+                    retained_sequence: None,
                     multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                     no_code_affine_cleanup: true,
                     descriptor_cleanup: true,

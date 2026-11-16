@@ -3,215 +3,362 @@ module vec;
 use omega::language::core::Extent;
 use omega::language::core::Extent::Granted;
 use omega::language::core::Extent::Vacant;
-use omega::language::core::VacantExtentParts;
+use omega::language::core::Run;
+use omega::language::core::RunParts;
+use omega::language::core::Live;
+use omega::language::core::AccessOutcome;
+use omega::language::core::AccessReturn;
+use omega::language::core::AccessBorrowReturn;
+use omega::language::core::AccessExtraction;
+use omega::language::core::AccessInitializationFailure;
+use omega::language::core::ResourceProfileSupply;
+use omega::language::core::AccessPolicy;
+use omega::language::core::AccessPlan;
+use omega::language::core::Issuance;
+use omega::language::core::reflect::TypeSchema;
+use omega::language::core::access;
 use omega::language::core::split_vacant_extent;
 use omega::language::core::merge_vacant_extents;
-use omega::language::core::Schema;
-use omega::language::core::FieldPlan;
-use omega::language::core::FieldEntry;
-use omega::language::core::LayoutPlan;
-use omega::language::core::Exposure;
-use omega::language::core::FieldAccess;
-use omega::language::core::AccessPlan;
-use omega::language::core::AccessPolicy;
-use omega::language::core::Issuance;
-use omega::language::core::FixedLayout;
-use omega::language::core::LayoutStorage;
-use omega::language::core::LayoutTarget;
-use omega::language::core::reflect::TypeSchema;
-use omega::language::core::reflect::field;
-use omega::language::core::access;
-use omega::language::core::ResourceProfileSupply;
-use omega::language::core::AccessOutcome;
-use omega::language::core::read;
-use omega::language::core::write;
-// Runtime-sized u32 vector over caller-supplied, qualified backing.
-// The owner supplies storage; growth returns the old extent for release by
-// that same allocator. No capacity ladder, ambient allocator or hidden free.
-//
-// These copy scalars have no resident cleanup debt: the buffer remains Vacant
-// and a checked stable-RAM access view reads/writes each four-byte cell. This
-// does not represent arbitrary T custody; non-copy elements must retain their
-// initialized values and discharge their cleanup before returning vacant bytes.
-//
-// Role selects the already-admitted backing profile, never creates authority.
-// All access operations retain the original extent loan and checked geometry.
 
-public data VecCell { value: u32; }
-// The cell's representation remains four bytes at alignment four. Access
-// requests keep that independent selection rather than embedding it in a policy.
-public data VecCellStorage = LayoutStorage<VecCell, VecCellLayout>;
-public domain VecCell::Controlled
-    access VecCellPolicy;
-public VecCellLayout satisfies FixedLayout<VecCell> {
-    public machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches none crashes none terminates {
-        let mut entries: [FieldEntry; 64];
-        entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
-        LayoutPlan { entries: entries, entry_count: 1, size_fixed: 4, size_is_dynamic: false, align: 4 }
-    }
-}
-
-public VecCellPolicy satisfies AccessPolicy {
+// This policy adds no restrictions or grants. Each Run operation must still
+// establish the selected layout, actual backing, access and transferred custody.
+// In particular, a writable allocation does not thereby become readable RAM.
+public Elements satisfies AccessPolicy {
     machine plan(schema: TypeSchema) -> AccessPlan reaches none crashes none terminates {
-        let mut plan: AccessPlan = access::new_plan(&schema, Issuance::Unrestricted);
-        access::observe(&mut plan, field(VecCell::value),
-            FieldAccess::Stable { read: true, write: true, exposure: Exposure::Exported });
-        plan
+        access::new_plan(&schema, Issuance::Unrestricted)
     }
 }
 
-data Observed { storage: Extent in Granted & Vacant; value: u32; }
-
-machine store_cell<Role>(storage: &mut Extent in Granted & Vacant, value: u32)
-crashes Trap
+// The live prefix owns established T values; spare owns no resident values.
+// Count is stored only by Run. Capacity remains explicit for zero-sized T,
+// whose logical cells still carry ownership and cleanup obligations.
+public data Vec<T> [linear]
+requires
+    self.live.count <= self.capacity,
+    self.cell_size == size_of<T>(),
+    embed(self.live.count) * embed(self.cell_size) == embed(self.live.storage.length),
+    embed(self.capacity - self.live.count) * embed(self.cell_size) == embed(self.spare.length),
+    embed(self.live.storage.length) + embed(self.spare.length) <= 18446744073709551615,
+    self.live.storage.length != 0 || self.live.storage.base == self.spare.base,
+    self.live.storage.length == 0 || self.spare.length == 0 ||
+        embed(self.spare.base) == embed(self.live.storage.base) + embed(self.live.storage.length)
 {
-    transition access::view_extent_mut<VecCellStorage in VecCell::Controlled, Role>(storage as &mut Extent in Granted) {
-        AccessOutcome::Ready { view } -> change(view, value)
-        AccessOutcome::Rejected { returned, reason } -> bad()
-    }
-    machine change(view: &mut VecCellStorage in VecCell::Controlled, value: u32) {
-        write(&mut view.value, value);
-    }
-    machine bad() { crash Trap; }
-}
-
-machine store<Role>(storage: Extent in Granted & Vacant, offset: u64, value: u32) -> Extent in Granted & Vacant
-requires storage.length >= 4, offset <= storage.length - 4
-ensures result.base == storage.base, result.length == storage.length
-crashes Trap
-{
-    let prefix: VacantExtentParts = split_vacant_extent(storage, offset);
-    let element: VacantExtentParts = split_vacant_extent(prefix.rest, 4);
-    let mut cell: Extent in Granted & Vacant = element.taken;
-    store_cell<Role>(&mut cell, value);
-    let suffix: Extent in Granted & Vacant = merge_vacant_extents(cell, element.rest);
-    let whole: Extent in Granted & Vacant = merge_vacant_extents(prefix.taken, suffix);
-    whole
-}
-
-
-public data Vec
-requires self.len <= self.capacity, self.capacity <= 4611686018427387903,
-    self.storage.length == self.capacity * 4
-{
-    storage: Extent in Granted & Vacant;
-    len: u64;
+    live: Run<Elements, T> in Live<Elements, T>;
+    spare: Extent in Granted & Vacant;
     capacity: u64;
+    cell_size: u64;
 }
 
-public machine Vec::open(storage: Extent in Granted & Vacant, capacity: u64) -> Vec
-requires capacity <= 4611686018427387903, storage.length == capacity * 4
-ensures result.len == 0, result.capacity == capacity,
-    result.storage.base == storage.base, result.storage.length == storage.length
-{ Vec { storage: storage, len: 0, capacity: capacity } }
+// Geometry is the exact selected default storage of T, not new authority.
+// Profile-dependent initialization may still reject this backing or alignment.
+public machine open<T>(storage: Extent in Granted & Vacant, capacity: u64) -> Vec<T>
+requires embed(capacity) * embed(size_of<T>()) == embed(storage.length)
+ensures result.live.count == 0, result.capacity == capacity,
+    result.live.storage.base == storage.base,
+    result.spare.base == storage.base, result.spare.length == storage.length
+{
+    let cell_size: u64 = size_of<T>();
+    let parts = split_vacant_extent(move storage, 0);
+    let live: Run<Elements, T> in Live<Elements, T> = Run::empty<Elements, T>(move parts.taken);
+    Vec { live: move live, spare: move parts.rest, capacity: capacity, cell_size: cell_size }
+}
 
-public machine Vec::push<Role>(vec: Vec, value: u32) -> Vec
+public machine length<T>(vector: &Vec<T>) -> u64
+reaches none crashes none terminates
+ensures result == vector.live.count
+{ vector.live.count }
+
+public machine capacity<T>(vector: &Vec<T>) -> u64
+reaches none crashes none terminates
+ensures result == vector.capacity
+{ vector.capacity }
+
+// A view borrows the actual live cells. It does not reinterpret the Vec or
+// Run descriptor as T storage, and an incompatible supply returns no view.
+public machine as_slice<'vector, T, Role>(vector: &'vector Vec<T>)
+    -> AccessOutcome<&'vector [T], AccessBorrowReturn, AccessInitializationFailure>
 reaches ResourceProfileSupply
 invokes ResourceProfileSupply
-requires vec.len < vec.capacity
-ensures result.len == vec.len + 1, result.capacity == vec.capacity,
-    result.storage.base == vec.storage.base, result.storage.length == vec.storage.length
-crashes Trap
+ensures (match result {
+    AccessOutcome::Ready { view } -> view.len == vector.live.count,
+    AccessOutcome::Rejected { returned, reason } -> true,
+})
 {
-    let length: u64 = vec.len;
-    let capacity: u64 = vec.capacity;
-    let storage: Extent in Granted & Vacant = vec.storage;
-    let changed: Extent in Granted & Vacant = store<Role>(storage, length * 4, value);
-    Vec { storage: changed, len: length + 1, capacity: capacity }
+    Run::as_slice<Elements, T, Role>(&vector.live)
 }
 
-machine inspect_cell<Role>(storage: &Extent in Granted & Vacant) -> u32 crashes Trap {
-    transition access::view_extent<VecCellStorage in VecCell::Controlled, Role>(storage as &Extent in Granted) {
-        AccessOutcome::Ready { view } -> read(&view.value)
-        AccessOutcome::Rejected { returned, reason } -> bad()
-    }
-    machine bad() -> u32 { crash Trap; }
-}
-
-machine inspect<Role>(storage: Extent in Granted & Vacant, offset: u64) -> Observed
-requires storage.length >= 4, offset <= storage.length - 4
-ensures result.storage.base == storage.base, result.storage.length == storage.length
-crashes Trap
-{
-    let prefix: VacantExtentParts = split_vacant_extent(storage, offset);
-    let element: VacantExtentParts = split_vacant_extent(prefix.rest, 4);
-    let cell: Extent in Granted & Vacant = element.taken;
-    let value: u32 = inspect_cell<Role>(&cell);
-    let suffix: Extent in Granted & Vacant = merge_vacant_extents(cell, element.rest);
-    let whole: Extent in Granted & Vacant = merge_vacant_extents(prefix.taken, suffix);
-    Observed { storage: whole, value: value }
-}
-
-public data Read { vec: Vec; value: u32; }
-public machine Vec::get<Role>(vec: Vec, index: u64) -> Read
+public machine as_mut_slice<'vector, T, Role>(vector: &'vector mut Vec<T>)
+    -> AccessOutcome<&'vector mut [T], AccessBorrowReturn, AccessInitializationFailure>
 reaches ResourceProfileSupply
 invokes ResourceProfileSupply
-requires index < vec.len
-ensures result.vec.len == vec.len, result.vec.capacity == vec.capacity,
-    result.vec.storage.base == vec.storage.base, result.vec.storage.length == vec.storage.length
-crashes Trap
+ensures (match result {
+    AccessOutcome::Ready { view } -> view.len == vector.live.count,
+    AccessOutcome::Rejected { returned, reason } -> true,
+})
 {
-    let length: u64 = vec.len;
-    let capacity: u64 = vec.capacity;
-    let storage: Extent in Granted & Vacant = vec.storage;
-    let observed: Observed = inspect<Role>(storage, index * 4);
-    Read { vec: Vec { storage: observed.storage, len: length, capacity: capacity }, value: observed.value }
+    Run::as_mut_slice<Elements, T, Role>(&mut vector.live)
 }
 
-data Copied {
-    original: Extent in Granted & Vacant;
-    replacement: Extent in Granted & Vacant;
+public data PushOutcome<T> {
+    case Inserted(vector: Vec<T>);
+    case Full(vector: Vec<T>, value: T);
+    case Rejected(vector: Vec<T>, value: T, reason: AccessInitializationFailure);
 }
 
-machine copy_prefix<Role>(original: Extent in Granted & Vacant, replacement: Extent in Granted & Vacant,
-    count: u64, remaining: u64) -> Copied
-requires count <= 4611686018427387903, remaining <= count,
-    original.length >= count * 4, replacement.length >= count * 4
-ensures result.original.base == original.base, result.original.length == original.length,
-    result.replacement.base == replacement.base, result.replacement.length == replacement.length
-terminates by remaining
-crashes Trap
+// Rejection returns the original value and recomposes the exact spare tail.
+// A zero-sized value is still initialized as a real cell; length arithmetic
+// alone never establishes it or discharges it.
+public machine try_push<T, Role>(vector: Vec<T>, value: T) -> PushOutcome<T>
+reaches ResourceProfileSupply
+invokes ResourceProfileSupply
+ensures (match result {
+    PushOutcome::Inserted { vector as changed } ->
+        embed(changed.live.count) == embed(vector.live.count) + 1 && changed.capacity == vector.capacity &&
+        changed.live.storage.base == vector.live.storage.base,
+    PushOutcome::Full { vector as unchanged, value } ->
+        unchanged.live.count == vector.live.count && unchanged.capacity == vector.capacity &&
+        unchanged.live.storage.base == vector.live.storage.base &&
+        unchanged.spare.base == vector.spare.base && unchanged.spare.length == vector.spare.length,
+    PushOutcome::Rejected { vector as unchanged, value, reason } ->
+        unchanged.live.count == vector.live.count && unchanged.capacity == vector.capacity &&
+        unchanged.live.storage.base == vector.live.storage.base &&
+        unchanged.spare.base == vector.spare.base && unchanged.spare.length == vector.spare.length,
+})
 {
-    transition remaining > 0 {
-        true -> step<Role>(original, replacement, count, remaining)
-        false -> Copied { original: original, replacement: replacement }
+    transition vector.live.count < vector.capacity {
+        true -> insert<T, Role>(move vector, move value)
+        false -> PushOutcome::Full { vector: move vector, value: move value }
     }
-    machine step<Role>(original: Extent in Granted & Vacant, replacement: Extent in Granted & Vacant,
-        count: u64, remaining: u64) -> Copied
-    requires remaining > 0, count <= 4611686018427387903, remaining <= count,
-        original.length >= count * 4, replacement.length >= count * 4
-    ensures result.original.base == original.base, result.original.length == original.length,
-        result.replacement.base == replacement.base, result.replacement.length == replacement.length
+}
+
+machine insert<T, Role>(vector: Vec<T>, value: T) -> PushOutcome<T>
+reaches ResourceProfileSupply
+invokes ResourceProfileSupply
+requires vector.live.count < vector.capacity
+ensures (match result {
+    PushOutcome::Inserted { vector as changed } ->
+        embed(changed.live.count) == embed(vector.live.count) + 1 && changed.capacity == vector.capacity &&
+        changed.live.storage.base == vector.live.storage.base,
+    PushOutcome::Full { vector as unchanged, value } -> false,
+    PushOutcome::Rejected { vector as unchanged, value, reason } ->
+        unchanged.live.count == vector.live.count && unchanged.capacity == vector.capacity &&
+        unchanged.live.storage.base == vector.live.storage.base &&
+        unchanged.spare.base == vector.spare.base && unchanged.spare.length == vector.spare.length,
+})
+{
+    let { live, spare, capacity, cell_size } = move vector;
+    let parts = split_vacant_extent(move spare, cell_size);
+    transition Run::initialize_cell<Elements, T, Role>(move parts.taken, move value) {
+        AccessOutcome::Ready { view } -> PushOutcome::Inserted {
+            vector: Vec {
+                live: Run::merge<Elements, T>(move live, move view),
+                spare: move parts.rest, capacity: capacity, cell_size: cell_size,
+            }
+        }
+        AccessOutcome::Rejected { returned, reason } -> PushOutcome::Rejected {
+            vector: Vec {
+                live: move live,
+                spare: merge_vacant_extents(move returned.source, move parts.rest),
+                capacity: capacity, cell_size: cell_size,
+            },
+            value: move returned.custody, reason: reason,
+        }
+    }
+}
+
+public data Popped<T> { vector: Vec<T>; value: T; }
+
+public machine pop<T, Role>(vector: Vec<T>) -> Popped<T>
+reaches ResourceProfileSupply
+invokes ResourceProfileSupply
+requires vector.live.count > 0
+ensures result.vector.live.count == vector.live.count - 1,
+    result.vector.capacity == vector.capacity,
+    result.vector.live.storage.base == vector.live.storage.base,
+    result.vector.cell_size == vector.cell_size
+{
+    let { live, spare, capacity, cell_size } = move vector;
+    let cut: u64 = live.count - 1;
+    let parts: RunParts<Elements, T> = Run::split<Elements, T>(move live, cut);
+    transition Run::extract_cell<Elements, T, Role>(move parts.right) {
+        AccessExtraction::Moved { storage, value } -> Popped {
+            vector: Vec {
+                live: move parts.left,
+                spare: merge_vacant_extents(move storage, move spare),
+                capacity: capacity, cell_size: cell_size,
+            },
+            value: move value,
+        }
+    }
+}
+
+// The caller's chosen allocator acquires backing. Exhausted carries no grant;
+// an Available alternative must preserve the exact extent it actually acquired.
+public data CapacityAllocation {
+    case Available(storage: Extent in Granted & Vacant, capacity: u64);
+    case Exhausted;
+}
+
+public data GrowthFailure {
+    case Capacity(required: u64, available: u64);
+    case Placement(reason: AccessInitializationFailure);
+}
+
+public data GrowthOutcome<T> {
+    case Grown(vector: Vec<T>, retired_storage: Extent in Granted & Vacant);
+    case Exhausted(vector: Vec<T>);
+    case Rejected(vector: Vec<T>, replacement: Extent in Granted & Vacant,
+        capacity: u64, reason: GrowthFailure);
+}
+
+// Growth consumes no allocator loan. Compatible relocation moves real cells;
+// success returns the entire retired allocation, and failure returns both owners.
+public machine try_grow<T, SourceRole, DestinationRole>(
+    vector: Vec<T>, allocation: CapacityAllocation
+) -> GrowthOutcome<T>
+reaches ResourceProfileSupply
+invokes ResourceProfileSupply
+requires (match allocation {
+    CapacityAllocation::Available { storage, capacity } ->
+        embed(capacity) * embed(vector.cell_size) == embed(storage.length),
+    CapacityAllocation::Exhausted -> true,
+})
+ensures (match result {
+    GrowthOutcome::Grown { vector as changed, retired_storage } ->
+        changed.live.count == vector.live.count && changed.capacity >= vector.capacity &&
+        retired_storage.base == vector.live.storage.base &&
+        embed(retired_storage.length) == embed(vector.live.storage.length) + embed(vector.spare.length) &&
+        (match allocation {
+            CapacityAllocation::Available { storage, capacity } ->
+                changed.capacity == capacity && changed.live.storage.base == storage.base,
+            CapacityAllocation::Exhausted -> false,
+        }),
+    GrowthOutcome::Exhausted { vector as unchanged } ->
+        unchanged.live.count == vector.live.count && unchanged.capacity == vector.capacity &&
+        unchanged.live.storage.base == vector.live.storage.base && unchanged.live.storage.length == vector.live.storage.length &&
+        unchanged.spare.base == vector.spare.base && unchanged.spare.length == vector.spare.length,
+    GrowthOutcome::Rejected { vector as unchanged, replacement, capacity, reason } ->
+        unchanged.live.count == vector.live.count && unchanged.capacity == vector.capacity &&
+        unchanged.live.storage.base == vector.live.storage.base && unchanged.live.storage.length == vector.live.storage.length &&
+        unchanged.spare.base == vector.spare.base && unchanged.spare.length == vector.spare.length,
+})
+{
+    transition allocation {
+        CapacityAllocation::Exhausted -> GrowthOutcome::Exhausted { vector: move vector }
+        CapacityAllocation::Available { storage, capacity } ->
+            grow_available<T, SourceRole, DestinationRole>(move vector, move storage, capacity)
+    }
+}
+
+machine grow_available<T, SourceRole, DestinationRole>(
+    vector: Vec<T>, replacement: Extent in Granted & Vacant, capacity: u64
+) -> GrowthOutcome<T>
+reaches ResourceProfileSupply
+invokes ResourceProfileSupply
+requires embed(capacity) * embed(vector.cell_size) == embed(replacement.length)
+ensures (match result {
+    GrowthOutcome::Grown { vector as changed, retired_storage } ->
+        changed.live.count == vector.live.count && changed.capacity == capacity &&
+        changed.live.storage.base == replacement.base &&
+        retired_storage.base == vector.live.storage.base &&
+        embed(retired_storage.length) == embed(vector.live.storage.length) + embed(vector.spare.length),
+    GrowthOutcome::Exhausted { vector as unchanged } -> false,
+    GrowthOutcome::Rejected { vector as unchanged, replacement as returned, capacity as returned_capacity, reason } ->
+        unchanged.live.count == vector.live.count && unchanged.capacity == vector.capacity &&
+        returned.base == replacement.base && returned.length == replacement.length && returned_capacity == capacity,
+})
+{
+    transition capacity >= vector.capacity {
+        true -> relocate<T, SourceRole, DestinationRole>(move vector, move replacement, capacity)
+        false -> GrowthOutcome::Rejected {
+            reason: GrowthFailure::Capacity { required: vector.capacity, available: capacity },
+            vector: move vector, replacement: move replacement, capacity: capacity,
+        }
+    }
+}
+
+machine relocate<T, SourceRole, DestinationRole>(
+    vector: Vec<T>, replacement: Extent in Granted & Vacant, capacity: u64
+) -> GrowthOutcome<T>
+reaches ResourceProfileSupply
+invokes ResourceProfileSupply
+requires capacity >= vector.capacity,
+    embed(capacity) * embed(vector.cell_size) == embed(replacement.length)
+ensures (match result {
+    GrowthOutcome::Grown { vector as changed, retired_storage } ->
+        changed.live.count == vector.live.count && changed.capacity == capacity &&
+        changed.live.storage.base == replacement.base &&
+        retired_storage.base == vector.live.storage.base &&
+        embed(retired_storage.length) == embed(vector.live.storage.length) + embed(vector.spare.length),
+    GrowthOutcome::Exhausted { vector as unchanged } -> false,
+    GrowthOutcome::Rejected { vector as unchanged, replacement as returned, capacity as returned_capacity, reason } ->
+        unchanged.live.count == vector.live.count && unchanged.capacity == vector.capacity &&
+        returned.base == replacement.base && returned.length == replacement.length && returned_capacity == capacity,
+})
+{
+    let { live, spare, capacity as old_capacity, cell_size } = move vector;
+    let occupied_bytes: u64 = live.storage.length;
+    let destination = split_vacant_extent(move replacement, occupied_bytes);
+    transition Run::relocate<Elements, T, SourceRole, DestinationRole>(move live, move destination.taken) {
+        AccessOutcome::Ready { view } -> GrowthOutcome::Grown {
+            vector: Vec {
+                live: move view.run, spare: move destination.rest,
+                capacity: capacity, cell_size: cell_size,
+            },
+            retired_storage: merge_vacant_extents(move view.vacated, move spare),
+        }
+        AccessOutcome::Rejected { returned, reason } -> GrowthOutcome::Rejected {
+            vector: Vec {
+                live: move returned.source, spare: move spare,
+                capacity: old_capacity, cell_size: cell_size,
+            },
+            replacement: merge_vacant_extents(move returned.custody, move destination.rest),
+            capacity: capacity, reason: GrowthFailure::Placement { reason: reason },
+        }
+    }
+}
+
+// Empty means zero established values, including when every T has size zero.
+// Return is not reclamation: the caller still owes its allocation contract.
+public machine close_empty<T>(vector: Vec<T>) -> Extent in Granted & Vacant
+reaches none crashes none terminates
+requires vector.live.count == 0
+ensures result.base == vector.live.storage.base,
+    embed(result.length) == embed(vector.live.storage.length) + embed(vector.spare.length)
+{
+    let { live, spare, capacity, cell_size } = move vector;
+    let vacant = Run::release_empty<Elements, T>(move live);
+    merge_vacant_extents(move vacant, move spare)
+}
+
+public data Drained<Context> {
+    storage: Extent in Granted & Vacant;
+    context: Context;
+}
+
+// Explicit disposal visits each actual value exactly once. The ordinary
+// consumer receives and returns its own context; no runtime capture or hidden
+// allocator state is introduced. Each split performs constant descriptor work.
+public machine drain<T, Role, Context,
+    const Dispose: machine(value: T, context: Context) -> Context reaches none crashes none terminates
+>(vector: Vec<T>, context: Context) -> Drained<Context>
+reaches ResourceProfileSupply
+invokes ResourceProfileSupply
+ensures result.storage.base == vector.live.storage.base,
+    embed(result.storage.length) == embed(vector.live.storage.length) + embed(vector.spare.length)
+terminates by vector.live.count
+{
+    transition vector.live.count > 0 {
+        true -> step(move vector, move context)
+        false -> Drained { storage: close_empty<T>(move vector), context: move context }
+    }
+    machine step(vector: Vec<T>, context: Context) -> Drained<Context>
+    requires vector.live.count > 0
+    ensures result.storage.base == vector.live.storage.base,
+        embed(result.storage.length) == embed(vector.live.storage.length) + embed(vector.spare.length)
     {
-        let offset: u64 = (count - remaining) * 4;
-        let observed: Observed = inspect<Role>(original, offset);
-        let changed: Extent in Granted & Vacant = store<Role>(replacement, offset, observed.value);
-        transition { _ -> copy_prefix<Role>(observed.storage, changed, count, remaining - 1) }
+        let last: Popped<T> = pop<T, Role>(move vector);
+        let updated: Context = Dispose(move last.value, move context);
+        transition { _ -> drain<T, Role, Context, Dispose>(move last.vector, move updated) }
     }
 }
-
-public data Growth { vec: Vec; retired_storage: Extent in Granted & Vacant; }
-machine verify_vector(storage: &Extent in Granted & Vacant, length: u64, capacity: u64)
-requires length <= capacity, capacity <= 4611686018427387903, storage.length == capacity * 4 {}
-public machine Vec::grow<Role>(vec: Vec, replacement: Extent in Granted & Vacant, capacity: u64)
-    -> Growth
-reaches ResourceProfileSupply
-invokes ResourceProfileSupply
-requires capacity <= 4611686018427387903, capacity >= vec.len,
-    replacement.length == capacity * 4
-ensures result.vec.len == vec.len, result.vec.capacity == capacity,
-    result.vec.storage.base == replacement.base, result.vec.storage.length == replacement.length,
-    result.retired_storage.base == vec.storage.base, result.retired_storage.length == vec.storage.length
-crashes Trap
-{
-    let length: u64 = vec.len;
-    let original: Extent in Granted & Vacant = vec.storage;
-    let copied: Copied = copy_prefix<Role>(original, replacement, length, length);
-    verify_vector(&copied.replacement, length, capacity);
-    let grown: Vec = Vec { storage: copied.replacement, len: length, capacity: capacity };
-    Growth { vec: grown, retired_storage: copied.original }
-}
-
-public machine Vec::close(vec: Vec) -> Extent in Granted & Vacant
-ensures result.base == vec.storage.base, result.length == vec.storage.length
-{ vec.storage }

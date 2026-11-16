@@ -8,18 +8,18 @@ use language_core::sealed_intrinsics::{
 };
 use language_semantics::type_identity::encoding::{CoordinateTag, atom, bare, byte_atom, compound};
 use language_semantics::type_identity::vocabulary::{
-    ConstraintForm, Label, NameForm, OwnerForm, TypeForm,
+    ConstraintForm, IndexForm, Label, NameForm, OwnerForm, TypeForm,
 };
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment as Path, IntegerMathTerm as Math, IntegerSign, IntegerType,
-    IntegerValue, PlaceId, Proposition, ScalarTerm, ScalarType, StructuralFieldId,
-    StructuralTypeId, ValueId,
+    IntegerValue, PlaceId, Proposition, ScalarTerm, ScalarType, StructuralDomainId,
+    StructuralFieldId, StructuralTypeId, ValueId,
 };
 use terminal_psi::{
     BoundaryMachineDeclaration, CheckedBoundaryCallable, CheckedBoundaryExecution,
     CheckedMachineDeclaration, ClosedReachArgument, NominalDeclarationIdentity,
-    StructuralFieldType, StructuralTypeDeclaration, StructuralTypeShape, TerminalIdentityIndex,
-    TerminalIdentityTable,
+    StructuralDomainDeclaration, StructuralFieldType, StructuralTypeDeclaration,
+    StructuralTypeShape, TerminalIdentityIndex, TerminalIdentityTable,
 };
 
 use crate::{RunCustodyContract, RunDescriptorRoles};
@@ -106,6 +106,47 @@ fn source_digest() -> Result<[u8; 32], &'static str> {
         .map_err(|_| "run catalog source has no exact identity")
     })
 }
+
+fn extent_digest() -> Result<[u8; 32], &'static str> {
+    static DIGEST: std::sync::OnceLock<Result<[u8; 32], &'static str>> = std::sync::OnceLock::new();
+    *DIGEST.get_or_init(|| {
+        let (file, bytes) = language_core::sealed_intrinsics::extent_source();
+        source::source_identity::toolchain_source_identity_digest(&source::SourceFile {
+            source_id: source::SourceId(0),
+            path: std::path::Path::new("/compiler/core").join(file),
+            package_root: "/compiler/core".into(),
+            package_identity: None,
+            dependency_scope: source::DependencyScope::Product,
+            origin: source::SourceOrigin::Toolchain,
+            resolution_stratum: source::SourceResolutionStratum::Base,
+            source: std::str::from_utf8(bytes)
+                .map_err(|_| "extent catalog source is not UTF-8")?
+                .into(),
+        })
+        .map_err(|_| "extent catalog source has no exact identity")
+    })
+}
+
+fn source_nominal(digest: &[u8; 32], path: &str) -> String {
+    compound(
+        NameForm::Nominal,
+        [
+            byte_atom(OwnerForm::ToolchainSource, digest),
+            atom(Label::Path, path),
+        ],
+    )
+}
+
+fn live_domain_identity(policy: &str, element: &str) -> Result<String, &'static str> {
+    Ok(compound(
+        TypeForm::Generic,
+        [
+            atom(Label::Name, &source_nominal(&source_digest()?, "Live")),
+            policy.to_owned(),
+            element.to_owned(),
+        ],
+    ))
+}
 fn coordinates(
     operation: RunCustodyOperation,
     policy: &str,
@@ -132,7 +173,7 @@ fn coordinates(
             ],
         )
     };
-    let binder_p = named("$T0");
+    let binder_p = atom(IndexForm::ConstName, "$T0");
     let binder_t = named("$T1");
     let formal = live_run(&binder_p, &binder_t);
     let template_parameters = match operation {
@@ -210,10 +251,10 @@ fn static_source<'a>(
     else {
         return Err("run source authentication needs its actual compiler execution");
     };
-    let [ClosedReachArgument::Type(p), ClosedReachArgument::Type(t)] =
+    let [ClosedReachArgument::Const(p), ClosedReachArgument::Type(t)] =
         checked.method_arguments.as_slice()
     else {
-        return Err("run compiler source lost its complete P and T application");
+        return Err("run compiler source lost its static AccessPolicy value and T application");
     };
     let text = |identity| {
         identities
@@ -251,7 +292,7 @@ fn static_source<'a>(
         language_semantics::conformance_identity::MachineApplicationCommitment::new(
             &expected.callable,
         )?;
-    commitment.type_argument(actual.policy)?;
+    commitment.conformance_argument(actual.policy)?;
     commitment.type_argument(actual.element)?;
     let commitment = commitment.finish();
     let callable = CheckedMachineDeclaration::callable_evidence_identity(
@@ -262,7 +303,7 @@ fn static_source<'a>(
         || text(source.callable)? != callable
         || identity != source.callable
     {
-        return Err("run compiler source changed its complete type specialization");
+        return Err("run compiler source changed its complete static specialization");
     }
     if source.parameter_types.len() != expected.parameters.len()
         || source
@@ -301,46 +342,54 @@ fn scalar_name(scalar: ScalarType) -> Result<String, &'static str> {
         ),
         ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => "f32".to_owned(),
         ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64) => "f64".to_owned(),
+        ScalarType::Callable(_) => {
+            return Err("run callable element needs its exact source contract correspondence");
+        }
     })
 }
 
 // Keep the original qualified identity in the source and specialization. This
 // conversion serves only the exact ordinary storage identity comparison. An
 // unserved qualification/generic normalization refuses rather than erasing it.
-fn ordinary_element<'a>(
+fn validate_element_storage<'a>(
+    identities: &TerminalIdentityTable,
     actual: &str,
     element: &StructuralFieldType,
     mut lookup: impl FnMut(StructuralTypeId) -> Option<&'a StructuralTypeDeclaration>,
-) -> Result<String, &'static str> {
+) -> Result<(), &'static str> {
     match element {
         StructuralFieldType::Scalar(kind) => {
             let name = scalar_name(*kind)?;
             if actual != scalar(&name) {
                 return Err("run scalar element needs its exact qualified storage correspondence");
             }
-            Ok(named(&name))
+            Ok(())
         }
         StructuralFieldType::Structural(id) => {
             let declaration =
                 lookup(*id).ok_or("run element lost its actual structural declaration")?;
-            if actual != declaration.identity {
+            let identity = identities
+                .text(declaration.identity)
+                .ok_or("run element lost its actual structural identity")?;
+            if actual != identity {
                 return Err(
                     "run structural element needs its exact qualified storage correspondence",
                 );
             }
-            Ok(declaration.identity.clone())
+            Ok(())
         }
         _ => Err("run element has no admitted ordinary storage correspondence"),
     }
 }
 
-fn require_record_identity(
+fn require_record_owner(
     declaration: &StructuralTypeDeclaration,
-    expected: &str,
     nominal: &str,
     identities: &TerminalIdentityTable,
 ) -> Result<(), &'static str> {
-    if declaration.identity != expected
+    if identities
+        .text(declaration.identity)
+        .is_none_or(str::is_empty)
         || identities.text(declaration.declaration_identity) != Some(nominal)
     {
         return Err("run descriptor differs from its complete nominal P and T application");
@@ -400,6 +449,7 @@ pub(crate) fn validate<'module>(
     boundary: &BoundaryMachineDeclaration,
     contract: &RunCustodyContract<'module>,
     mut lookup: impl FnMut(StructuralTypeId) -> Option<&'module StructuralTypeDeclaration>,
+    mut domains: impl FnMut(StructuralDomainId) -> Option<&'module StructuralDomainDeclaration>,
 ) -> Result<(), &'static str> {
     let checked = boundary
         .declaration
@@ -423,39 +473,64 @@ pub(crate) fn validate<'module>(
                 right,
                 result,
             },
-        ) => (*run, Some((left.id, right.id, result.structural_type))),
+        ) => (
+            *run,
+            Some((
+                left.id,
+                right.id,
+                result.structural_type,
+                left.identity,
+                right.identity,
+            )),
+        ),
         (RunCustodyOperation::Merge, RunCustodyContract::Merge { run, .. }) => (*run, None),
         _ => return Err("run compiler source changed its projected operation"),
     };
-    let CheckedBoundaryExecution::RunCustody { element, .. } = &checked.execution else {
+    let CheckedBoundaryExecution::RunCustody {
+        policy, element, ..
+    } = &checked.execution
+    else {
         unreachable!("static source authenticated the same execution")
     };
-    let ordinary_t = ordinary_element(actual.element, element, &mut lookup)?;
+    validate_element_storage(&module.identities, actual.element, element, &mut lookup)?;
     let run_declaration = lookup(run.carrier).ok_or("run lost its actual carrier declaration")?;
-    require_record_identity(
-        run_declaration,
-        &generic("Run", &[actual.policy, &ordinary_t]),
-        "toolchain::Run",
-        &module.identities,
-    )?;
+    require_record_owner(run_declaration, "toolchain::Run", &module.identities)?;
+    let sequence = run_declaration
+        .retained_sequence
+        .as_ref()
+        .ok_or("run declaration lost its complete retained element custody type")?;
+    let [_, ClosedReachArgument::Type(element_identity)] = checked.method_arguments.as_slice()
+    else {
+        unreachable!("static source authenticated the closed application")
+    };
+    if sequence.policy != *policy
+        || sequence.element_identity != *element_identity
+        || sequence.element != *element
+        || sequence.storage != run.storage.id
+        || sequence.count != run.count.id
+    {
+        return Err(
+            "run retained sequence differs from its actual policy, element or storage roles",
+        );
+    }
     let extent = lookup(run.extent).ok_or("run lost its actual backing declaration")?;
-    require_record_identity(
-        extent,
-        &named(&core_name("Extent")),
-        "toolchain::Extent",
-        &module.identities,
-    )?;
-    if let Some((_, _, id)) = parts {
-        require_record_identity(
-            lookup(id).ok_or("run split lost its actual parts declaration")?,
-            &generic("RunParts", &[actual.policy, &ordinary_t]),
-            "toolchain::RunParts",
-            &module.identities,
-        )?;
+    require_record_owner(extent, "toolchain::Extent", &module.identities)?;
+    if extent.retained_sequence.is_some() {
+        return Err("run backing cannot invent a retained element sequence");
+    }
+    if let Some((_, _, id, _, _)) = parts {
+        let parts_declaration = lookup(id).ok_or("run split lost its actual parts declaration")?;
+        require_record_owner(parts_declaration, "toolchain::RunParts", &module.identities)?;
+        if parts_declaration.retained_sequence.is_some() {
+            return Err(
+                "run parts retain their two child sequences rather than inventing a parent sequence",
+            );
+        }
     }
     for (ordinal, parameter) in boundary.structural_parameters.iter().enumerate() {
-        if parameter.place
-            != PlaceId::new(ordinal as u64 + 1).ok_or("run formal coordinate overflow")?
+        if parameter.position as usize != ordinal
+            || parameter.place
+                != PlaceId::new(ordinal as u64 + 1).ok_or("run formal coordinate overflow")?
         {
             return Err("run compiler source changed its exact formal storage coordinates");
         }
@@ -475,12 +550,231 @@ pub(crate) fn validate<'module>(
     let (requires, ensures) = scalar_contract(
         actual.operation,
         fields,
-        parts.map(|(left, right, _)| (left, right)),
+        parts.map(|(left, right, _, _, _)| (left, right)),
     )?;
     if !same_clauses(&boundary.scalar_requires, requires)
         || !same_clauses(&boundary.scalar_ensures, ensures)
     {
         return Err("run compiler source changed its complete scalar requires or ensures");
+    }
+    validate_qualified_roles(
+        module,
+        boundary,
+        &actual,
+        run,
+        parts.map(|(_, _, _, left, right)| (left, right)),
+        &mut domains,
+    )?;
+    Ok(())
+}
+
+fn qualified_domain<'a>(
+    identities: &TerminalIdentityTable,
+    domain: &'a StructuralDomainDeclaration,
+    carrier: StructuralTypeId,
+    identity: &str,
+    subject: &str,
+) -> Result<&'a StructuralDomainDeclaration, &'static str> {
+    if domain.carrier != carrier
+        || identities.text(domain.identity) != Some(identity)
+        || identities.text(domain.subject_identity) != Some(subject)
+        || !domain.complete_predicate_theory
+        || domain.required_memberships.as_deref() != Some(&[])
+        || domain
+            .establishment_routes
+            .as_ref()
+            .is_none_or(Vec::is_empty)
+    {
+        return Err("run contract qualification lost its exact protected carrier or declaration");
+    }
+    Ok(domain)
+}
+
+/// The same protected Live family accompanies access and custody transitions.
+/// Matching a Run-shaped descriptor never substitutes for this exact source,
+/// applied type and complete issuer correspondence.
+pub(crate) fn validate_live_domain(
+    module: &terminal_psi::TerminalModule,
+    carrier: StructuralTypeId,
+    policy: &str,
+    element: &str,
+    domain: &StructuralDomainDeclaration,
+) -> Result<(), &'static str> {
+    let domain = qualified_domain(
+        &module.identities,
+        domain,
+        carrier,
+        &live_domain_identity(policy, element)?,
+        &generic("Run", &[policy, element]),
+    )?;
+    if domain.predicate.is_some()
+        || domain.access_policy.is_some()
+        || domain.byte_predicate.is_some()
+        || domain.content_projection.is_some()
+    {
+        return Err("run Live declaration changed its opaque custody qualification");
+    }
+    let permitted = [
+        "Run::empty",
+        "Run::initialize_from_profile",
+        "Run::relocate_from_profiles",
+        "Run::split",
+        "Run::merge",
+    ];
+    let mut seen = [false; 5];
+    for route in domain.establishment_routes.as_ref().unwrap() {
+        let terminal_psi::StructuralEstablishmentRoute::ExactMachine {
+            declaration,
+            machine_identity,
+        } = route
+        else {
+            return Err("run Live declaration changed its authorized compiler routes");
+        };
+        let position = permitted
+            .iter()
+            .position(|path| {
+                module.identities.text(declaration.identity())
+                    == Some(format!("toolchain::{path}").as_str())
+            })
+            .ok_or("run Live declaration admits another issuer")?;
+        if std::mem::replace(&mut seen[position], true)
+            || module
+                .identities
+                .text(*machine_identity)
+                .is_none_or(str::is_empty)
+        {
+            return Err("run Live declaration repeats or loses an issuer callable");
+        }
+        let operation = match position {
+            3 => Some(RunCustodyOperation::Split),
+            4 => Some(RunCustodyOperation::Merge),
+            _ => None,
+        };
+        if let Some(operation) = operation
+            && module.identities.text(*machine_identity)
+                != Some(coordinates(operation, policy, element)?.callable.as_str())
+        {
+            return Err("run Live declaration changes a compiler issuer signature");
+        }
+    }
+    if seen.contains(&false) {
+        return Err("run Live declaration lost an authorized route");
+    }
+    Ok(())
+}
+
+fn validate_qualified_roles<'a>(
+    module: &terminal_psi::TerminalModule,
+    boundary: &BoundaryMachineDeclaration,
+    actual: &ActualTypes<'_>,
+    run: RunDescriptorRoles<'_>,
+    parts: Option<(TerminalIdentityIndex, TerminalIdentityIndex)>,
+    domains: &mut impl FnMut(StructuralDomainId) -> Option<&'a StructuralDomainDeclaration>,
+) -> Result<(), &'static str> {
+    use terminal_psi::{
+        StructuralDomainRequirement, StructuralPathQualification, StructuralPathSegment,
+    };
+    let Some(parameter) = boundary.structural_parameters.first() else {
+        return Err("run contract lost its qualified input");
+    };
+    let [live] = parameter.qualifications.as_slice() else {
+        return Err("run contract needs exactly its closed Live membership");
+    };
+    let domain = domains(*live).ok_or("run contract lost its Live declaration")?;
+    validate_live_domain(module, run.carrier, actual.policy, actual.element, domain)?;
+    let [granted] = parameter.projected_qualifications.as_slice() else {
+        return Err("run contract lost its exact backing qualification");
+    };
+    if granted.path != [StructuralPathSegment::Field(run.storage.identity)] {
+        return Err("run contract moves its backing qualification to another subject");
+    }
+    let granted_id = granted.domain;
+    qualified_domain(
+        &module.identities,
+        domains(granted_id).ok_or("run contract lost its backing grant declaration")?,
+        run.extent,
+        &source_nominal(&extent_digest()?, "Extent::Granted"),
+        &named(&core_name("Extent")),
+    )?;
+    let expected_input = vec![*live];
+    for parameter in &boundary.structural_parameters {
+        if parameter.qualifications != expected_input
+            || parameter.projected_qualifications.as_slice() != [granted.clone()]
+            || !parameter.additional_input_qualifications.is_empty()
+        {
+            return Err("run contract changes the Live or backing premise of an input");
+        }
+    }
+    let expected_requires = boundary
+        .structural_parameters
+        .iter()
+        .map(|parameter| StructuralDomainRequirement {
+            argument_index: parameter.position,
+            path: Vec::new(),
+            domain: *live,
+        })
+        .collect::<Vec<_>>();
+    if boundary.requires != expected_requires
+        || !boundary.normal_qualifications.is_empty()
+        || !boundary.scalar_domain_requirements.is_empty()
+        || !boundary.program_local_root_introductions.is_empty()
+        || !boundary.content_guarantees.is_empty()
+    {
+        return Err("run contract changes qualified premises or introduces unrelated authority");
+    }
+    let terminal_psi::BoundaryMachineResult::Structural(result) = &boundary.result else {
+        unreachable!("descriptor projection checked the result")
+    };
+    let mut projected = Vec::new();
+    match actual.operation {
+        RunCustodyOperation::ReleaseEmpty => {
+            if result.qualifications.len() != 2
+                || !result.qualifications.contains(&granted_id)
+                || !result.projected_qualifications.is_empty()
+            {
+                return Err("empty run release lost its granted vacant result");
+            }
+            let vacant = result
+                .qualifications
+                .iter()
+                .find(|id| **id != granted_id)
+                .ok_or("empty run release repeats its grant instead of vacancy")?;
+            qualified_domain(
+                &module.identities,
+                domains(*vacant).ok_or("empty run release lost its vacancy declaration")?,
+                run.extent,
+                &source_nominal(&extent_digest()?, "Extent::Vacant"),
+                &named(&core_name("Extent")),
+            )?;
+            return Ok(());
+        }
+        RunCustodyOperation::Merge => {
+            if result.qualifications != expected_input {
+                return Err("run merge lost its Live result");
+            }
+            projected.push(granted.clone());
+        }
+        RunCustodyOperation::Split => {
+            if !result.qualifications.is_empty() {
+                return Err("run split changes its unqualified parts result");
+            }
+            let (left, right) = parts.ok_or("run split lost its qualified field roles")?;
+            for field in [left, right] {
+                let path = vec![StructuralPathSegment::Field(field)];
+                projected.push(StructuralPathQualification {
+                    path: path.clone(),
+                    domain: *live,
+                });
+                projected.push(StructuralPathQualification {
+                    path: [path, granted.path.clone()].concat(),
+                    domain: granted_id,
+                });
+            }
+        }
+    }
+    projected.sort_unstable();
+    if result.projected_qualifications != projected {
+        return Err("run result changed its exact qualified field frontier");
     }
     Ok(())
 }
@@ -496,8 +790,16 @@ struct FieldRoles {
 
 fn canonical(mut proposition: Proposition) -> Proposition {
     match &mut proposition {
-        Proposition::Equal(left, right) if left > right => std::mem::swap(left, right),
-        Proposition::IntegerMathEqual(left, right) if left > right => std::mem::swap(left, right),
+        Proposition::Equal(left, right) => {
+            if left > right {
+                std::mem::swap(left, right);
+            }
+        }
+        Proposition::IntegerMathEqual(left, right) => {
+            if left > right {
+                std::mem::swap(left, right);
+            }
+        }
         Proposition::Conjunction(children) | Proposition::Disjunction(children) => {
             for child in children.iter_mut() {
                 *child = canonical(child.clone());
@@ -749,7 +1051,7 @@ mod tests {
                 &expected.callable,
             )
             .unwrap();
-        commitment.type_argument(&p).unwrap();
+        commitment.conformance_argument(&p).unwrap();
         commitment.type_argument(&t).unwrap();
         let commitment = commitment.finish();
         let callable = identities.intern(&CheckedMachineDeclaration::callable_evidence_identity(
@@ -791,11 +1093,367 @@ mod tests {
                 )),
             },
             method_arguments: vec![
-                ClosedReachArgument::Type(policy),
+                ClosedReachArgument::Const(policy),
                 ClosedReachArgument::Type(element),
             ],
         };
         (identities.snapshot(), owner, callable, checked)
+    }
+
+    fn received_module(operation: RunCustodyOperation) -> terminal_psi::TerminalModule {
+        let (identities, owner, identity, checked) = checked(operation);
+        let [ClosedReachArgument::Const(policy), _] = checked.method_arguments.as_slice() else {
+            unreachable!()
+        };
+        let policy = identities.text(*policy).unwrap().to_owned();
+        let mut identities = identities.into_builder();
+        let mut types = crate::storage::run_custody::tests::types();
+        types[0].declaration_identity = identities.intern("toolchain::Extent");
+        types[0].identity = identities.intern(&named(&core_name("Extent")));
+        for (ordinal, name) in [(1, "Run"), (2, "RunParts")] {
+            types[ordinal].declaration_identity = identities.intern(&format!("toolchain::{name}"));
+            types[ordinal].identity = identities.intern(&generic(name, &[&policy, &named("u64")]));
+        }
+        let [
+            ClosedReachArgument::Const(policy_id),
+            ClosedReachArgument::Type(element_id),
+        ] = checked.method_arguments.as_slice()
+        else {
+            unreachable!()
+        };
+        let CheckedBoundaryExecution::RunCustody { element, .. } = &checked.execution else {
+            unreachable!()
+        };
+        types[1].retained_sequence = Some(terminal_psi::StructuralRetainedSequence {
+            policy: *policy_id,
+            element_identity: *element_id,
+            element: element.clone(),
+            storage: StructuralFieldId::new(3).unwrap(),
+            count: StructuralFieldId::new(4).unwrap(),
+        });
+        let mut boundary = crate::storage::run_custody::tests::boundary(operation);
+        boundary.owner = owner;
+        boundary.identity = identity;
+        boundary.declaration = Some(checked);
+        let field = |id| StructuralFieldId::new(id).unwrap();
+        let (requires, ensures) = scalar_contract(
+            operation,
+            FieldRoles {
+                storage: field(3),
+                count: field(4),
+                base: field(1),
+                length: field(2),
+                address: IntegerType::address(64).unwrap(),
+            },
+            Some((field(5), field(6))),
+        )
+        .unwrap();
+        boundary.scalar_requires = requires;
+        boundary.scalar_ensures = ensures;
+        use terminal_psi::{
+            StructuralDomainDeclaration, StructuralDomainRequirement, StructuralEstablishmentRoute,
+            StructuralPathQualification, StructuralPathSegment,
+        };
+        let [
+            ClosedReachArgument::Const(_),
+            ClosedReachArgument::Type(element),
+        ] = boundary
+            .declaration
+            .as_ref()
+            .unwrap()
+            .method_arguments
+            .as_slice()
+        else {
+            unreachable!()
+        };
+        let element = identities.text(*element).unwrap().to_owned();
+        let domain_id = |raw| StructuralDomainId::new(raw).unwrap();
+        let mut routes = Vec::new();
+        for path in [
+            "Run::empty",
+            "Run::initialize_from_profile",
+            "Run::relocate_from_profiles",
+            "Run::split",
+            "Run::merge",
+        ] {
+            let declaration =
+                NominalDeclarationIdentity::new(identities.intern(&format!("toolchain::{path}")));
+            let callable = match path {
+                "Run::split" => {
+                    coordinates(RunCustodyOperation::Split, &policy, &element)
+                        .unwrap()
+                        .callable
+                }
+                "Run::merge" => {
+                    coordinates(RunCustodyOperation::Merge, &policy, &element)
+                        .unwrap()
+                        .callable
+                }
+                _ => format!("catalog:{path}"),
+            };
+            routes.push(StructuralEstablishmentRoute::ExactMachine {
+                declaration,
+                machine_identity: identities.intern(&callable),
+            });
+        }
+        let mut domains = Vec::new();
+        for (raw, identity, subject, carrier, routes) in [
+            (
+                1,
+                live_domain_identity(&policy, &element).unwrap(),
+                generic("Run", &[&policy, &element]),
+                types[1].id,
+                routes.clone(),
+            ),
+            (
+                2,
+                source_nominal(&extent_digest().unwrap(), "Extent::Granted"),
+                named(&core_name("Extent")),
+                types[0].id,
+                vec![routes[0].clone()],
+            ),
+            (
+                3,
+                source_nominal(&extent_digest().unwrap(), "Extent::Vacant"),
+                named(&core_name("Extent")),
+                types[0].id,
+                vec![routes[0].clone()],
+            ),
+        ] {
+            domains.push(StructuralDomainDeclaration {
+                required_memberships: Some(Vec::new()),
+                complete_predicate_theory: true,
+                predicate: None,
+                id: domain_id(raw),
+                semantic_domain: semantic_vocabulary::DomainSemanticId::new(raw).unwrap(),
+                identity: identities.intern(&identity),
+                carrier,
+                subject_identity: identities.intern(&subject),
+                content_projection: None,
+                byte_predicate: None,
+                establishment_routes: Some(routes),
+                access_policy: None,
+            });
+        }
+        let granted = StructuralPathQualification {
+            path: vec![StructuralPathSegment::Field(TerminalIdentityIndex(3))],
+            domain: domain_id(2),
+        };
+        for parameter in &mut boundary.structural_parameters {
+            parameter.qualifications = vec![domain_id(1)];
+            parameter.projected_qualifications = vec![granted.clone()];
+        }
+        boundary.requires = boundary
+            .structural_parameters
+            .iter()
+            .map(|parameter| StructuralDomainRequirement {
+                argument_index: parameter.position,
+                path: Vec::new(),
+                domain: domain_id(1),
+            })
+            .collect();
+        let terminal_psi::BoundaryMachineResult::Structural(result) = &mut boundary.result else {
+            unreachable!()
+        };
+        match operation {
+            RunCustodyOperation::ReleaseEmpty => {
+                result.qualifications = vec![domain_id(2), domain_id(3)]
+            }
+            RunCustodyOperation::Merge => {
+                result.qualifications = vec![domain_id(1)];
+                result.projected_qualifications = vec![granted];
+            }
+            RunCustodyOperation::Split => {
+                for field in [TerminalIdentityIndex(5), TerminalIdentityIndex(6)] {
+                    result
+                        .projected_qualifications
+                        .push(StructuralPathQualification {
+                            path: vec![StructuralPathSegment::Field(field)],
+                            domain: domain_id(1),
+                        });
+                    result
+                        .projected_qualifications
+                        .push(StructuralPathQualification {
+                            path: vec![
+                                StructuralPathSegment::Field(field),
+                                StructuralPathSegment::Field(TerminalIdentityIndex(3)),
+                            ],
+                            domain: domain_id(2),
+                        });
+                }
+                result.projected_qualifications.sort_unstable();
+            }
+        }
+        let mut module = terminal_psi::TerminalModule::declarations();
+        module.identities = identities.snapshot();
+        module.structural_types = types;
+        module.structural_domains = domains;
+        module.boundary_machines = vec![boundary];
+        module
+    }
+
+    #[test]
+    fn run_receiving_checks_the_saved_declaration_and_scalar_contract_together() {
+        for operation in [
+            RunCustodyOperation::ReleaseEmpty,
+            RunCustodyOperation::Split,
+            RunCustodyOperation::Merge,
+        ] {
+            let original = received_module(operation);
+            crate::validate_run_custody_declarations(&original).unwrap();
+            for fault in 0..27 {
+                let mut changed = original.clone();
+                let boundary = &mut changed.boundary_machines[0];
+                match fault {
+                    0 => {
+                        boundary.owner = boundary.declaration.as_ref().unwrap().source.state.clone()
+                    }
+                    1 => boundary.scalar_requires.clear(),
+                    2 => boundary.scalar_ensures[0] = Proposition::Truth,
+                    3 => {
+                        boundary
+                            .declaration
+                            .as_mut()
+                            .unwrap()
+                            .source
+                            .parameter_types[0] = boundary.identity
+                    }
+                    4 => boundary
+                        .declaration
+                        .as_mut()
+                        .unwrap()
+                        .method_arguments
+                        .swap(0, 1),
+                    5 => {
+                        let CheckedBoundaryExecution::RunCustody { element, .. } =
+                            &mut boundary.declaration.as_mut().unwrap().execution
+                        else {
+                            unreachable!()
+                        };
+                        *element = StructuralFieldType::Scalar(ScalarType::Boolean);
+                    }
+                    6 => {
+                        changed.structural_types[1]
+                            .retained_sequence
+                            .as_mut()
+                            .unwrap()
+                            .element_identity = changed.structural_types[2].identity;
+                    }
+                    7 => {
+                        changed.structural_types[0].declaration_identity =
+                            changed.structural_types[1].declaration_identity
+                    }
+                    8 => {
+                        boundary
+                            .declaration
+                            .as_mut()
+                            .unwrap()
+                            .source
+                            .specialization
+                            .as_mut()
+                            .unwrap()
+                            .commitment[0] ^= 1
+                    }
+                    9 => boundary.scalar_ensures.swap(0, 1),
+                    10 => boundary.structural_parameters[0].qualifications.clear(),
+                    11 => boundary.structural_parameters[0]
+                        .projected_qualifications
+                        .clear(),
+                    12 => boundary.requires.clear(),
+                    13 => {
+                        let terminal_psi::BoundaryMachineResult::Structural(result) =
+                            &mut boundary.result
+                        else {
+                            unreachable!()
+                        };
+                        result.qualifications.clear();
+                        result.projected_qualifications.clear();
+                    }
+                    14 => changed.structural_domains[0].establishment_routes = None,
+                    15 => {
+                        changed.structural_domains[0].identity =
+                            changed.structural_domains[1].identity
+                    }
+                    16 => {
+                        changed.structural_domains[1].subject_identity =
+                            changed.structural_domains[0].subject_identity
+                    }
+                    17 => {
+                        changed.structural_domains[0]
+                            .establishment_routes
+                            .as_mut()
+                            .unwrap()
+                            .pop()
+                            .unwrap();
+                    }
+                    18 => changed.structural_types[1].retained_sequence = None,
+                    19 => {
+                        changed.structural_types[1]
+                            .retained_sequence
+                            .as_mut()
+                            .unwrap()
+                            .policy = changed.structural_types[2].identity
+                    }
+                    20 => {
+                        changed.structural_types[1]
+                            .retained_sequence
+                            .as_mut()
+                            .unwrap()
+                            .element_identity = changed.structural_types[0].identity
+                    }
+                    21 => {
+                        changed.structural_types[1]
+                            .retained_sequence
+                            .as_mut()
+                            .unwrap()
+                            .element = StructuralFieldType::Scalar(ScalarType::Boolean)
+                    }
+                    22 => {
+                        changed.structural_types[1]
+                            .retained_sequence
+                            .as_mut()
+                            .unwrap()
+                            .storage = StructuralFieldId::new(4).unwrap()
+                    }
+                    23 => {
+                        changed.structural_types[1]
+                            .retained_sequence
+                            .as_mut()
+                            .unwrap()
+                            .count = StructuralFieldId::new(3).unwrap()
+                    }
+                    24 => {
+                        let issuer = changed.structural_domains[0]
+                            .establishment_routes
+                            .as_ref()
+                            .unwrap()[0]
+                            .clone();
+                        changed.structural_domains[0]
+                            .establishment_routes
+                            .as_mut()
+                            .unwrap()[1] = issuer;
+                    }
+                    25 => {
+                        boundary.structural_parameters[0].projected_qualifications[0].path =
+                            Vec::new()
+                    }
+                    26 => {
+                        let policy =
+                            match boundary.declaration.as_ref().unwrap().method_arguments[0] {
+                                ClosedReachArgument::Const(policy) => policy,
+                                _ => unreachable!(),
+                            };
+                        boundary.declaration.as_mut().unwrap().method_arguments[0] =
+                            ClosedReachArgument::Type(policy);
+                    }
+                    _ => unreachable!(),
+                }
+                assert!(
+                    crate::validate_run_custody_declarations(&changed).is_err(),
+                    "{operation:?} received fault {fault}"
+                );
+            }
+        }
     }
 
     #[test]

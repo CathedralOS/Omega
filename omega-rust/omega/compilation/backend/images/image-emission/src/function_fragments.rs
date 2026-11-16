@@ -16552,6 +16552,7 @@ mod source {
                     shape,
                     quotient_carrier: None,
                     owns_linear_claim: false,
+                    retained_sequence: None,
                     no_code_affine_cleanup: false,
                     multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                     descriptor_cleanup: false,

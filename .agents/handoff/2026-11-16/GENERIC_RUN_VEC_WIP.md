@@ -1,0 +1,9 @@
+# Preserved generic Run/Vec work, not a landing candidate
+
+The user asked for a stable partial landing rather than completing every prerequisite in this change. This branch preserves all authored generic Run/Vec work before separating the ordinary ownership-claim implementation for validation. Nothing here establishes completed generic Vec support.
+
+The current source adds a canonical retained-sequence descriptor, the const AccessPolicy-value port, independent Run authentication, lifecycle target-placement demands and forward policy evaluation, preliminary Content facet publication, an ordinary generic library Vec, and executable positive/negative customer sources. Most of those additions have not compiled or executed. The interpreter index prototype has a known metadata reclamation gap and is not connected to actual populated Run execution. The content numeric reduction is preserved beside this note as an uncompiled .rs.wip file.
+
+Exact executed evidence on this combined source: terminal-semantics, terminal-wire and language-core all-target Clippy passed with an unchanged source snapshot. A current semantic test executable passed three exact claim-transfer controls and one borrowed-successor claim test. Two Run authentication tests passed; the third exposed a stale test mutation expecting the retired Type(P), subsequently corrected but not rerun on this branch. No generic Vec or populated Run native/Psi result is claimed.
+
+Continue from the compiler's actual next diagnostic, retaining the fail-closed Content/lifecycle/count/reference guards. The generic allocation acceptance in allocation.md remains unfinished; no task is marked complete. All local proof files remain in build/generic-vec-consumer, with an independent preservation manifest under /workspace/shared/generic-vec-preservation-2026-11-16.

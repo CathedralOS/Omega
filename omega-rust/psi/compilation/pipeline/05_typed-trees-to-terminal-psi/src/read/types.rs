@@ -1122,6 +1122,7 @@ impl Program<'_> {
                 return unserved("a predicate domain on laid layout storage");
             }
         }
+        self.prepare_domain_content(id, domain)?;
         self.admitted_declarations.include(domain.declaration);
         // Primitive byte domains already retain their predicate on the byte
         // storage descriptor. Ordinary scalar/record domains need their own

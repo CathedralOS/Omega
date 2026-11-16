@@ -75,6 +75,14 @@ pub(super) fn encode_type(
     crate::codec_bytes::push_encoded(bytes, declaration.identity.0.to_le_bytes());
     crate::codec_bytes::push_encoded(bytes, declaration.declaration_identity.0.to_le_bytes());
     bytes.push(u8::from(declaration.owns_linear_claim));
+    bytes.push(u8::from(declaration.retained_sequence.is_some()));
+    if let Some(sequence) = &declaration.retained_sequence {
+        bytes.extend_from_slice(&sequence.policy.0.to_le_bytes());
+        bytes.extend_from_slice(&sequence.element_identity.0.to_le_bytes());
+        encode_scalar_restriction(bytes, &sequence.element)?;
+        bytes.extend_from_slice(&sequence.storage.get().to_le_bytes());
+        bytes.extend_from_slice(&sequence.count.get().to_le_bytes());
+    }
     bytes.push(u8::from(declaration.no_code_affine_cleanup));
     bytes.push(u8::from(declaration.descriptor_cleanup));
     encode_multiplicity(bytes, declaration.multiplicity);
@@ -191,6 +199,17 @@ pub(super) fn decode_type(
     let identity = terminal_psi::TerminalIdentityIndex(cursor.u32()?);
     let declaration_identity = terminal_psi::TerminalIdentityIndex(cursor.u32()?);
     let owns_linear_claim = decode_bool(cursor)?;
+    let retained_sequence = if decode_bool(cursor)? {
+        Some(terminal_psi::StructuralRetainedSequence {
+            policy: terminal_psi::TerminalIdentityIndex(cursor.u32()?),
+            element_identity: terminal_psi::TerminalIdentityIndex(cursor.u32()?),
+            element: decode_scalar_restriction(cursor)?,
+            storage: decode_id(cursor, StructuralFieldId::new)?,
+            count: decode_id(cursor, StructuralFieldId::new)?,
+        })
+    } else {
+        None
+    };
     let no_code_affine_cleanup = decode_bool(cursor)?;
     let descriptor_cleanup = decode_bool(cursor)?;
     let multiplicity = decode_multiplicity(cursor)?;
@@ -308,6 +327,7 @@ pub(super) fn decode_type(
         requires: Vec::new(),
         quotient_carrier,
         owns_linear_claim,
+        retained_sequence,
         no_code_affine_cleanup,
         multiplicity,
         descriptor_cleanup,
@@ -1035,6 +1055,7 @@ mod tests {
                 requires: Vec::new(),
                 quotient_carrier: None,
                 owns_linear_claim: false,
+                retained_sequence: None,
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: false,
                 nominal_cleanup: selection.map(|(identity, machine)| {
@@ -1078,6 +1099,7 @@ mod tests {
                 requires: Vec::new(),
                 quotient_carrier: None,
                 owns_linear_claim: false,
+                retained_sequence: None,
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: true,
                 nominal_cleanup: None,
@@ -1109,6 +1131,7 @@ mod tests {
                 requires: Vec::new(),
                 quotient_carrier: None,
                 owns_linear_claim,
+                retained_sequence: None,
                 no_code_affine_cleanup: false,
                 multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                 descriptor_cleanup: false,
@@ -1145,6 +1168,7 @@ mod tests {
                 requires: Vec::new(),
                 quotient_carrier: None,
                 owns_linear_claim: false,
+                retained_sequence: None,
                 no_code_affine_cleanup: false,
                 multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                 descriptor_cleanup: true,
@@ -1180,6 +1204,7 @@ mod tests {
             requires: Vec::new(),
             quotient_carrier: None,
             owns_linear_claim: false,
+            retained_sequence: None,
             no_code_affine_cleanup: true,
             multiplicity: terminal_psi::StructuralMultiplicity::Affine,
             descriptor_cleanup: false,
@@ -1227,6 +1252,7 @@ mod tests {
             requires: Vec::new(),
             quotient_carrier: None,
             owns_linear_claim: false,
+            retained_sequence: None,
             no_code_affine_cleanup: false,
             multiplicity: terminal_psi::StructuralMultiplicity::Affine,
             descriptor_cleanup: false,
@@ -1298,6 +1324,7 @@ mod tests {
                 requires: Vec::new(),
                 quotient_carrier: None,
                 owns_linear_claim: false,
+                retained_sequence: None,
                 no_code_affine_cleanup: false,
                 multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                 descriptor_cleanup,
@@ -1386,6 +1413,7 @@ mod tests {
                 requires: Vec::new(),
                 quotient_carrier: None,
                 owns_linear_claim: false,
+                retained_sequence: None,
                 no_code_affine_cleanup: false,
                 multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                 descriptor_cleanup: false,

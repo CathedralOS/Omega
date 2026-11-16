@@ -4377,6 +4377,7 @@ pub(crate) mod reference_input {
                 id: type_id(u64::from(identity)),
                 identity: TerminalIdentityIndex(identity),
                 owns_linear_claim: identity == 1,
+                retained_sequence: None,
                 no_code_affine_cleanup: false,
                 multiplicity: if identity == 1 {
                     terminal_psi::StructuralMultiplicity::Linear

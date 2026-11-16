@@ -23,7 +23,7 @@ public domain Extent::Vacant
 established by VacantContentTransfer::transfer, AccessLifecycle::move_out,
     access::extract_resident, Run::extract_from_profile, Run::retire_empty,
     Run::relocate_from_profiles;
-public domain<P, T> Extent::Resident<P, T>
+public domain<const P: AccessPolicy, T> Extent::Resident<P, T>
 established by ResidentContentTransfer::transfer, AccessLifecycle::initialize,
     access::initialize_from_profile;
 
@@ -209,7 +209,7 @@ ensures
 // Every closed P/T application shares this exact route. The provider must bind
 // complete value custody, access-plan identity and backing; equal addresses or a
 // result annotation cannot supply them. This is not Initialize or a byte cast.
-public boundary trait ResidentContentTransfer<P, T> {
+public boundary trait ResidentContentTransfer<const P: AccessPolicy, T> {
     machine transfer(storage: Extent in Granted) -> Extent
     reaches none
     ensures

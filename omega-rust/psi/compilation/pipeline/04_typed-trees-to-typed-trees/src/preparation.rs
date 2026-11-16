@@ -151,9 +151,19 @@ fn refusal(pass: &str, request: &str) -> Diagnostic {
 }
 
 pub fn prepare_typed_trees(
-    mut program: TypedTrees,
+    program: TypedTrees,
     request: &PreparationRequest<'_>,
 ) -> Result<(FrozenTypedTrees, TypedPreparation), Vec<Diagnostic>> {
+    let (program, admission) = prepare_typed_trees_unfrozen(program, request)?;
+    Ok((program.into(), admission))
+}
+
+/// Run this stage once while retaining its ordinary typed representation for
+/// forward evaluation jobs. The caller freezes only after those jobs complete.
+pub fn prepare_typed_trees_unfrozen(
+    mut program: TypedTrees,
+    request: &PreparationRequest<'_>,
+) -> Result<(TypedTrees, TypedPreparation), Vec<Diagnostic>> {
     request.require_served()?;
     for pass in PASSES {
         (pass.run)(&mut program).map_err(|refused| {
@@ -166,7 +176,7 @@ pub fn prepare_typed_trees(
                 .collect::<Vec<_>>()
         })?;
     }
-    Ok((program.into(), request.admission()))
+    Ok((program, request.admission()))
 }
 
 #[cfg(test)]

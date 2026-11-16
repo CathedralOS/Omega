@@ -730,6 +730,18 @@ pub mod types {
             IeeeFloatFormat, ScalarType, StructuralCaseId, StructuralFieldId, StructuralTypeId,
         };
 
+        /// Hidden ordered value custody retained by a descriptor. These are
+        /// semantic roles, not extra ABI fields or authority to establish live
+        /// cells. The exact compiler-owned declaration authenticates the roles.
+        #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        pub struct StructuralRetainedSequence {
+            pub policy: TerminalIdentityIndex,
+            pub element_identity: TerminalIdentityIndex,
+            pub element: StructuralFieldType,
+            pub storage: StructuralFieldId,
+            pub count: StructuralFieldId,
+        }
+
         #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
         pub struct StructuralTypeDeclaration {
             /// Exact source owner; absent for compiler-generated declarations.
@@ -740,6 +752,7 @@ pub mod types {
             /// This declaration's intrinsic root debt, independent of its
             /// declared multiplicity and claims retained in owned components.
             pub owns_linear_claim: bool,
+            pub retained_sequence: Option<StructuralRetainedSequence>,
             pub multiplicity: crate::StructuralMultiplicity,
             pub no_code_affine_cleanup: bool,
             pub descriptor_cleanup: bool,
@@ -1440,6 +1453,14 @@ pub mod types {
                 if contains_shape(&declaration.shape) {
                     return true;
                 }
+                if let Some(sequence) = &declaration.retained_sequence {
+                    if contains_field(&sequence.element) {
+                        return true;
+                    }
+                    if let Some(element) = sequence.element.as_structural() {
+                        pending.push(element);
+                    }
+                }
                 let mut push_fields = |fields: &[StructuralFieldDeclaration]| {
                     pending.extend(structural_children(fields));
                     fields.iter().any(|field| {
@@ -1615,6 +1636,7 @@ pub mod types {
                         requires: Vec::new(),
                         quotient_carrier: None,
                         owns_linear_claim: false,
+                        retained_sequence: None,
                         no_code_affine_cleanup: false,
                         multiplicity: crate::StructuralMultiplicity::Affine,
                         descriptor_cleanup: false,
@@ -1632,6 +1654,7 @@ pub mod types {
                         requires: Vec::new(),
                         quotient_carrier: None,
                         owns_linear_claim: false,
+                        retained_sequence: None,
                         no_code_affine_cleanup: false,
                         multiplicity: crate::StructuralMultiplicity::Affine,
                         descriptor_cleanup: false,
@@ -1646,6 +1669,7 @@ pub mod types {
                         requires: Vec::new(),
                         quotient_carrier: None,
                         owns_linear_claim: false,
+                        retained_sequence: None,
                         no_code_affine_cleanup: false,
                         multiplicity: crate::StructuralMultiplicity::Affine,
                         descriptor_cleanup: false,
@@ -1671,6 +1695,7 @@ pub mod types {
                         requires: Vec::new(),
                         quotient_carrier: None,
                         owns_linear_claim: false,
+                        retained_sequence: None,
                         no_code_affine_cleanup: false,
                         multiplicity: crate::StructuralMultiplicity::Affine,
                         descriptor_cleanup: false,
@@ -1703,13 +1728,13 @@ pub mod types {
     };
     pub use structural::{
         ByteSequenceCarrier, StructuralCaseDeclaration, StructuralFieldDeclaration,
-        StructuralFieldType, StructuralReferentIdentity, StructuralTypeDeclaration,
-        StructuralTypeShape, field_by_identity, find_structural_case, find_structural_type,
-        live_field, live_field_by_id, live_field_by_identity, live_field_entry,
-        structural_case_by_identity, structural_case_initializer_path, structural_case_position,
-        structural_children, structural_type_by_identity, structural_type_contains_reference,
-        structural_type_contains_reference_by, structural_type_has_borrowed_storage_by,
-        unique_structural_declaration,
+        StructuralFieldType, StructuralReferentIdentity, StructuralRetainedSequence,
+        StructuralTypeDeclaration, StructuralTypeShape, field_by_identity, find_structural_case,
+        find_structural_type, live_field, live_field_by_id, live_field_by_identity,
+        live_field_entry, structural_case_by_identity, structural_case_initializer_path,
+        structural_case_position, structural_children, structural_type_by_identity,
+        structural_type_contains_reference, structural_type_contains_reference_by,
+        structural_type_has_borrowed_storage_by, unique_structural_declaration,
     };
 }
 

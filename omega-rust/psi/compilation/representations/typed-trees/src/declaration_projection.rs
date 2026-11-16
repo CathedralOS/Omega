@@ -410,7 +410,8 @@ fn remove_declaration_rows(program: &mut TypedTrees, removed: &SymbolMembership)
         .iter()
         .filter(|(_, row)| match row {
             crate::typed_trees::AccessLifecyclePlan::Absent => false,
-            crate::typed_trees::AccessLifecyclePlan::Evaluated { callable, .. } => {
+            crate::typed_trees::AccessLifecyclePlan::Native { callable, .. }
+            | crate::typed_trees::AccessLifecyclePlan::Evaluated { callable, .. } => {
                 !owner_removed(*callable)
                     && !program
                         .closed_requirement_application(*callable)

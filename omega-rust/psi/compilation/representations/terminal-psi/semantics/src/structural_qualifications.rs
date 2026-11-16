@@ -1373,6 +1373,17 @@ pub fn validate_access_policy(
     let Some(plan) = &domain.access_policy else {
         return Ok(());
     };
+    validate_access_plan(module, domain.carrier, domain.subject_identity, plan)
+}
+
+/// Validate normalized access rules against their exact applied content carrier.
+/// Lifecycle demands and domain qualifications use the same source coordinates.
+pub fn validate_access_plan(
+    module: &TerminalModule,
+    carrier: semantic_vocabulary::StructuralTypeId,
+    subject_identity: terminal_psi::TerminalIdentityIndex,
+    plan: &terminal_psi::StructuralDomainAccessPlan,
+) -> Judged<()> {
     let error = |detail| StructuralQualificationError {
         machine: None,
         detail,
@@ -1388,16 +1399,25 @@ pub fn validate_access_policy(
         return Err(error("domain access rules are not in normalized order"));
     }
     let carrier = module
-        .structural_type(domain.carrier)
+        .structural_type(carrier)
         .ok_or_else(|| error("domain access rules have no carrier declaration"))?;
     let owner = module
         .identities
-        .text(carrier.declaration_identity)
+        .text(
+            if matches!(
+                carrier.shape,
+                terminal_psi::StructuralTypeShape::PrimitiveScalar(_)
+            ) {
+                carrier.identity
+            } else {
+                carrier.declaration_identity
+            },
+        )
         .filter(|identity| !identity.is_empty())
         .ok_or_else(|| error("domain access subject has no exact source declaration"))?;
     let subject = module
         .identities
-        .text(domain.subject_identity)
+        .text(subject_identity)
         .filter(|identity| !identity.is_empty())
         .ok_or_else(|| error("domain access subject has no exact applied identity"))?;
     if plan.schema.declaration().owner_identity != owner

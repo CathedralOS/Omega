@@ -25,11 +25,35 @@ pub(crate) struct BoundarySource {
     pub owning_service: Option<language_semantics::ServiceReachId>,
     pub declaration: crate::declare::BoundaryDeclarationSource,
     pub run: Option<RunBoundarySource>,
+    pub lifecycle: Option<AccessLifecycleBoundarySource>,
 }
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct RunBoundarySource {
     pub application: typed_trees::static_applications::StaticMachineApplicationHandle,
     pub element: crate::body::ValueType,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct AccessLifecycleBoundarySource {
+    pub application: typed_trees::static_applications::StaticMachineApplicationHandle,
+    pub plan: arena::Handle<typed_trees::AccessLifecyclePlan>,
+    pub element: crate::body::ValueType,
+}
+
+impl BoundarySource {
+    fn application(
+        &self,
+    ) -> Result<
+        Option<typed_trees::static_applications::StaticMachineApplicationHandle>,
+        &'static str,
+    > {
+        match (self.run, self.lifecycle) {
+            (Some(run), None) => Ok(Some(run.application)),
+            (None, Some(lifecycle)) => Ok(Some(lifecycle.application)),
+            (None, None) => Ok(None),
+            _ => Err("compiler boundary has two competing application owners"),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -90,7 +114,7 @@ impl BoundaryNamespace {
             return Ok(None);
         };
         if !self.rows.get(id).is_some_and(|owner| {
-            owner.source == symbol && owner.run.is_some_and(|run| run.application == application)
+            owner.source == symbol && owner.application() == Ok(Some(application))
         }) {
             return Err("run custody cached boundary belongs to another source application");
         }
@@ -102,10 +126,10 @@ impl BoundaryNamespace {
         typed: &typed_trees::TypedTrees,
         source: BoundarySource,
     ) -> Result<BoundaryMachineId, &'static str> {
-        let run = source
-            .run
-            .ok_or("run custody boundary has no source application")?;
-        let index = self.application_index(typed, run.application)?;
+        let application = source
+            .application()?
+            .ok_or("compiler boundary has no source application")?;
+        let index = self.application_index(typed, application)?;
         if self.applications[index].1.is_some() {
             return Err("run custody source application already has a published boundary");
         }
@@ -248,7 +272,35 @@ impl BoundaryNamespace {
                 })
                 .collect();
             let reader = declarations.ok_or_else(|| refusal("boundary lost its source owner"))?;
-            let execution = if let Some(run) = source.run {
+            let execution = if let Some(lifecycle) = source.lifecycle {
+                let actual = typed_trees::AccessExecutionDeclaration::authenticate(
+                    reader.typed,
+                    source.source,
+                )
+                .map_err(|diagnostic| refusal(&diagnostic.message))?
+                .ok_or_else(|| refusal("placement boundary lost its exact sealed source"))?;
+                reader
+                    .typed
+                    .bodyless_callable_signature(lifecycle.application, source.source)
+                    .map_err(refusal)?
+                    .ok_or_else(|| {
+                        refusal("placement boundary lost its closed callable occurrence")
+                    })?;
+                match actual.operation {
+                    typed_trees::AccessLifecycleOperation::Initialize => {
+                        CheckedBoundaryExecution::AccessInitialize
+                    }
+                    typed_trees::AccessLifecycleOperation::MoveOut => {
+                        CheckedBoundaryExecution::AccessMoveOut
+                    }
+                    typed_trees::AccessLifecycleOperation::View => {
+                        CheckedBoundaryExecution::AccessView
+                    }
+                    typed_trees::AccessLifecycleOperation::Relocate => {
+                        CheckedBoundaryExecution::AccessRelocate
+                    }
+                }
+            } else if let Some(run) = source.run {
                 let (operation, _) = reader
                     .typed
                     .compiler_primitive_callable_signature(run.application, source.source)
@@ -266,7 +318,8 @@ impl BoundaryNamespace {
                     .expression_table
                     .static_machine_application_bindings(run.application);
                 let Some(typed_trees::static_applications::StaticMachineBinding {
-                    value: typed_trees::static_applications::StaticMachineBindingValue::Type(policy),
+                    value:
+                        typed_trees::static_applications::StaticMachineBindingValue::Conformance(policy),
                     ..
                 }) = bindings.first()
                 else {
@@ -274,11 +327,12 @@ impl BoundaryNamespace {
                         "run custody publisher lost its actual policy operand",
                     ));
                 };
-                let policy = reader
-                    .typed
-                    .type_identity_text(reader.typed.package_qualified_type_identity(*policy))
-                    .filter(|text| !text.is_empty())
-                    .ok_or_else(|| refusal("run custody policy has no actual type identity"))?;
+                let policy = crate::declare::implementation_argument_identity(
+                    reader.typed,
+                    bindings[0].parameter,
+                    policy,
+                )
+                .map_err(refusal)?;
                 let element = match run.element {
                     crate::body::ValueType::Scalar(scalar, _) => {
                         terminal_psi::StructuralFieldType::Scalar(scalar)
@@ -356,7 +410,7 @@ impl BoundaryNamespace {
                     crate::declare::boundary(
                         reader.typed,
                         source.source,
-                        source.run.map(|run| run.application),
+                        source.application().map_err(refusal)?,
                         execution.clone(),
                         &source.signature,
                         crate::declare::Published {
@@ -420,7 +474,7 @@ impl BoundaryNamespace {
                 .is_some_and(|(owner, signature)| {
                     owner.is_boundary && signature.service_reach_is_installation_bound
                 });
-            let callable_identity = if source.run.is_some() {
+            let callable_identity = if source.application().map_err(refusal)?.is_some() {
                 checked.source.callable
             } else {
                 qualifications

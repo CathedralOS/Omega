@@ -4,8 +4,8 @@
 // `ArrayAccess::Length` exposes that extent as a proof-facing measure, and the
 // `as_slice` / `as_mut_slice` requirements adapt an owned array into a
 // borrowed `Slice` view whose length matches the array. They are the
-// owned-array counterpart to `VecAccess::as_slice` and mirror the borrowed
-// `Slice` surface.
+// owned-array counterpart to the ordinary allocation library vector views
+// and mirror the borrowed `Slice` surface.
 //
 // The element layout is backend-owned and the borrowed-view descriptors are a
 // runtime concern; only the proof-facing length/view contracts and

@@ -47,6 +47,9 @@ pub enum CoreVocabulary {
     AccessPolicy,
     AccessPolicyPlan,
     AccessPlan,
+    ResourceProfile,
+    ResourceProfileSupply,
+    ResourceProfileSupplyProfile,
     /// Core `extent.omg`'s linear `Extent` storage data.
     Extent,
     /// One of `Extent`'s declared domains in `extent.omg`.
@@ -55,6 +58,10 @@ pub enum CoreVocabulary {
     ProgramStorageEntry,
     /// Typed-run nominal data and its live-cell predicate; recognition grants no custody.
     Run(RunDeclaration),
+    /// Closed proof-only resource-content vocabulary; recognition grants no authority.
+    Content(ContentDeclaration),
+    /// Ordinary proof-natural data; recognizing it does not discharge conversion.
+    ProofNatural,
     /// Core `fixed_vec.omg`'s `FixedVec<T, N>` data.
     FixedVec,
     /// A primitive instruction-effect proposition in core `assembly_model.omg`.
@@ -65,12 +72,22 @@ pub enum CoreVocabulary {
     IntegerCarrier(IntegerCarrierDeclaration),
 }
 
+/// The closed algebra carriers and projection requirement from core `content.omg`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ContentDeclaration {
+    Content,
+    Project,
+    IntervalSet,
+    CountedQuantity,
+}
+
 /// The exact declarations used by the compiler-supplied run custody family.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum RunDeclaration {
     Run,
     Parts,
     Live,
+    Singleton,
 }
 
 /// The `integer.omg` declarations the carrier-family classification is read
@@ -202,6 +219,8 @@ const LAYOUT: &[u8] = core_source!("layout.omg");
 const EXTENT: &[u8] = core_source!("extent.omg");
 const FIXED_VEC: &[u8] = core_source!("fixed_vec.omg");
 const RUN: &[u8] = core_source!("run.omg");
+const CONTENT: &[u8] = core_source!("content.omg");
+const NAT: &[u8] = core_source!("nat.omg");
 const ASSEMBLY_MODEL: &[u8] = core_source!("assembly_model.omg");
 const EXTERNAL_BINDING: &[u8] = core_source!("external_binding.omg");
 const INTEGER: &[u8] = core_source!("integer.omg");
@@ -236,6 +255,31 @@ const fn selector(
 }
 
 const ROWS: &[CoreVocabularyRow] = &[
+    row("nat.omg", "Nat", NAT, CoreVocabulary::ProofNatural),
+    row(
+        "content.omg",
+        "Content",
+        CONTENT,
+        CoreVocabulary::Content(ContentDeclaration::Content),
+    ),
+    row(
+        "content.omg",
+        "Content::project",
+        CONTENT,
+        CoreVocabulary::Content(ContentDeclaration::Project),
+    ),
+    row(
+        "content.omg",
+        "IntervalSet",
+        CONTENT,
+        CoreVocabulary::Content(ContentDeclaration::IntervalSet),
+    ),
+    row(
+        "content.omg",
+        "CountedQuantity",
+        CONTENT,
+        CoreVocabulary::Content(ContentDeclaration::CountedQuantity),
+    ),
     row("never.omg", "Never", NEVER, CoreVocabulary::Never),
     row(
         "layout.omg",
@@ -472,6 +516,30 @@ const ROWS: &[CoreVocabularyRow] = &[
         RUN,
         CoreVocabulary::Run(RunDeclaration::Live),
     ),
+    row(
+        "run.omg",
+        "Singleton",
+        RUN,
+        CoreVocabulary::Run(RunDeclaration::Singleton),
+    ),
+    row(
+        "layout.omg",
+        "ResourceProfile",
+        LAYOUT,
+        CoreVocabulary::ResourceProfile,
+    ),
+    row(
+        "layout.omg",
+        "ResourceProfileSupply",
+        LAYOUT,
+        CoreVocabulary::ResourceProfileSupply,
+    ),
+    row(
+        "layout.omg",
+        "ResourceProfileSupply::profile",
+        LAYOUT,
+        CoreVocabulary::ResourceProfileSupplyProfile,
+    ),
     row("extent.omg", "Extent", EXTENT, CoreVocabulary::Extent),
     row(
         "extent.omg",
@@ -653,11 +721,76 @@ mod tests {
     }
 
     #[test]
+    fn proof_natural_recognition_does_not_match_user_or_edited_sources() {
+        assert_eq!(
+            CoreVocabularyCatalog::classify(site("nat.omg", "Nat", NAT)),
+            Some(CoreVocabulary::ProofNatural)
+        );
+        for candidate in [
+            site("user.omg", "Nat", NAT),
+            site("nat.omg", "Other", NAT),
+            site("nat.omg", "Nat", b"public data Nat {}"),
+        ] {
+            assert_eq!(CoreVocabularyCatalog::classify(candidate), None);
+        }
+    }
+
+    #[test]
+    fn content_roles_require_the_exact_bundled_declarations() {
+        for (name, role) in [
+            ("Content", ContentDeclaration::Content),
+            ("Content::project", ContentDeclaration::Project),
+            ("IntervalSet", ContentDeclaration::IntervalSet),
+            ("CountedQuantity", ContentDeclaration::CountedQuantity),
+        ] {
+            assert_eq!(
+                CoreVocabularyCatalog::classify(site("content.omg", name, CONTENT)),
+                Some(CoreVocabulary::Content(role))
+            );
+            for candidate in [
+                site("user.omg", name, CONTENT),
+                site("content.omg", name, b"edited"),
+                site("content.omg", "Lookalike", CONTENT),
+            ] {
+                assert_eq!(CoreVocabularyCatalog::classify(candidate), None);
+            }
+        }
+    }
+
+    #[test]
+    fn profile_roles_require_the_exact_bundled_declarations() {
+        for (name, role) in [
+            ("ResourceProfile", CoreVocabulary::ResourceProfile),
+            (
+                "ResourceProfileSupply",
+                CoreVocabulary::ResourceProfileSupply,
+            ),
+            (
+                "ResourceProfileSupply::profile",
+                CoreVocabulary::ResourceProfileSupplyProfile,
+            ),
+        ] {
+            assert_eq!(
+                CoreVocabularyCatalog::classify(site("layout.omg", name, LAYOUT)),
+                Some(role)
+            );
+            for candidate in [
+                site("user.omg", name, LAYOUT),
+                site("layout.omg", name, b"edited"),
+                site("layout.omg", "Lookalike", LAYOUT),
+            ] {
+                assert_eq!(CoreVocabularyCatalog::classify(candidate), None);
+            }
+        }
+    }
+
+    #[test]
     fn run_roles_require_the_exact_bundled_nominal_declarations() {
         for (name, role) in [
             ("Run", RunDeclaration::Run),
             ("RunParts", RunDeclaration::Parts),
             ("Live", RunDeclaration::Live),
+            ("Singleton", RunDeclaration::Singleton),
         ] {
             assert_eq!(
                 CoreVocabularyCatalog::classify(site("run.omg", name, RUN)),

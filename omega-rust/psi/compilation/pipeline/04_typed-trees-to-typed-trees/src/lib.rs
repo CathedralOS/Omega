@@ -13,6 +13,7 @@ mod product;
 
 pub use preparation::{
     PreparationAdmission, PreparationRequest, TypedPreparation, prepare_typed_trees,
+    prepare_typed_trees_unfrozen,
 };
 pub use product::{
     PreparedProductRequirement, prepare_product_operand_application,

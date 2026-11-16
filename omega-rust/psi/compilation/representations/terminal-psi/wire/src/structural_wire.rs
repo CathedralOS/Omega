@@ -1996,6 +1996,14 @@ pub(crate) mod structural_type_wire {
         writer.u32(declaration.identity.0);
         writer.u32(declaration.declaration_identity.0);
         writer.boolean(declaration.owns_linear_claim);
+        writer.boolean(declaration.retained_sequence.is_some());
+        if let Some(sequence) = &declaration.retained_sequence {
+            writer.u32(sequence.policy.0);
+            writer.u32(sequence.element_identity.0);
+            encode_structural_field_type(writer, &sequence.element)?;
+            writer.id(sequence.storage);
+            writer.id(sequence.count);
+        }
         writer.boolean(declaration.no_code_affine_cleanup);
         writer.boolean(declaration.descriptor_cleanup);
         super::structural_result_wire::encode_multiplicity(writer, declaration.multiplicity);
@@ -2161,6 +2169,17 @@ pub(crate) mod structural_type_wire {
         let identity = TerminalIdentityIndex(reader.u32()?);
         let declaration_identity = TerminalIdentityIndex(reader.u32()?);
         let owns_linear_claim = reader.boolean()?;
+        let retained_sequence = if reader.boolean()? {
+            Some(terminal_psi::StructuralRetainedSequence {
+                policy: TerminalIdentityIndex(reader.u32()?),
+                element_identity: TerminalIdentityIndex(reader.u32()?),
+                element: decode_structural_field_type(reader)?,
+                storage: reader.id("StructuralFieldId")?,
+                count: reader.id("StructuralFieldId")?,
+            })
+        } else {
+            None
+        };
         let no_code_affine_cleanup = reader.boolean()?;
         let descriptor_cleanup = reader.boolean()?;
         let multiplicity = super::structural_result_wire::decode_multiplicity(reader)?;
@@ -2307,6 +2326,7 @@ pub(crate) mod structural_type_wire {
             requires,
             quotient_carrier,
             owns_linear_claim,
+            retained_sequence,
             no_code_affine_cleanup,
             multiplicity,
             descriptor_cleanup,
@@ -2430,6 +2450,7 @@ pub(crate) mod structural_type_wire {
                 ],
                 quotient_carrier: None,
                 owns_linear_claim: false,
+                retained_sequence: None,
                 no_code_affine_cleanup: true,
                 multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                 descriptor_cleanup: false,
@@ -2594,6 +2615,7 @@ pub(crate) mod structural_type_wire {
                     requires: Vec::new(),
                     quotient_carrier: None,
                     owns_linear_claim: false,
+                    retained_sequence: None,
                     no_code_affine_cleanup: false,
                     descriptor_cleanup: true,
                     nominal_cleanup: None,
@@ -2639,6 +2661,7 @@ pub(crate) mod structural_type_wire {
                     requires: Vec::new(),
                     quotient_carrier: None,
                     owns_linear_claim,
+                    retained_sequence: None,
                     no_code_affine_cleanup: false,
                     multiplicity: terminal_psi::StructuralMultiplicity::Linear,
                     descriptor_cleanup: false,
@@ -2681,6 +2704,7 @@ pub(crate) mod structural_type_wire {
                 requires: Vec::new(),
                 quotient_carrier: None,
                 owns_linear_claim: false,
+                retained_sequence: None,
                 no_code_affine_cleanup: true,
                 multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                 descriptor_cleanup: true,

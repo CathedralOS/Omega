@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 286`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 287`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -1626,6 +1626,7 @@ pub(crate) mod machine_wire {
                 requires: Vec::new(),
                 quotient_carrier: None,
                 owns_linear_claim: false,
+                retained_sequence: None,
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: false,
                 nominal_cleanup: None,
@@ -3305,6 +3306,7 @@ mod reference_transport_tests {
             identity: TerminalIdentityIndex(2),
             quotient_carrier: None,
             owns_linear_claim: false,
+            retained_sequence: None,
             multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
             no_code_affine_cleanup: false,
             descriptor_cleanup: true,
@@ -3359,6 +3361,7 @@ mod reference_transport_tests {
                 identity: TerminalIdentityIndex(3),
                 quotient_carrier: None,
                 owns_linear_claim: false,
+                retained_sequence: None,
                 multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: false,
@@ -3420,6 +3423,7 @@ mod reference_transport_tests {
             identity: TerminalIdentityIndex(1),
             quotient_carrier: None,
             owns_linear_claim: false,
+            retained_sequence: None,
             multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
             no_code_affine_cleanup: true,
             descriptor_cleanup: false,
@@ -4759,6 +4763,8 @@ pub(crate) use wire::{Reader, Writer, decode_canonical, decode_counted};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
+// Marker 287 adds authenticated retained-sequence policy, element and descriptor roles.
+// No previous type payload retains that hidden custody metadata.
 // Marker 286 replaces the structural type copy bit with its declared three-way
 // multiplicity. A 285 payload cannot supply Linear and must reject before decoding.
 // Marker 285 combines the independently published 284 grammars. Main adds
@@ -4768,7 +4774,7 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // 284 layout supplies this union, so both reject before payload interpretation.
 // Existing callable operation tags and owned-cleanup/decomposition meanings stay
 // unchanged; no old release byte may acquire RunCustody operand meaning.
-pub(crate) const FORMAT_MARKER: u16 = 286;
+pub(crate) const FORMAT_MARKER: u16 = 287;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
@@ -5018,6 +5024,7 @@ mod normal_qualification_tests {
                 identity: TerminalIdentityIndex(position as u32 + 4),
                 quotient_carrier: None,
                 owns_linear_claim: false,
+                retained_sequence: None,
                 no_code_affine_cleanup: position != 2,
                 multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                 descriptor_cleanup: false,
@@ -5129,6 +5136,7 @@ mod normal_qualification_tests {
             identity: TerminalIdentityIndex(12),
             quotient_carrier: None,
             owns_linear_claim: false,
+            retained_sequence: None,
             no_code_affine_cleanup: true,
             multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
             descriptor_cleanup: false,
@@ -5371,6 +5379,7 @@ mod global_descriptor_table_tests {
             identity: TerminalIdentityIndex(3),
             quotient_carrier: None,
             owns_linear_claim: false,
+            retained_sequence: None,
             multiplicity: terminal_psi::StructuralMultiplicity::Affine,
             no_code_affine_cleanup: true,
             descriptor_cleanup: true,
@@ -5528,6 +5537,7 @@ mod descriptor_operation_tests {
                 identity: TerminalIdentityIndex(index as u32 + 3),
                 quotient_carrier: None,
                 owns_linear_claim: false,
+                retained_sequence: None,
                 multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                 no_code_affine_cleanup: true,
                 descriptor_cleanup: true,
@@ -5792,6 +5802,7 @@ mod opaque_value_tests {
             identity: TerminalIdentityIndex(1),
             quotient_carrier: None,
             owns_linear_claim: false,
+            retained_sequence: None,
             multiplicity: terminal_psi::StructuralMultiplicity::Affine,
             no_code_affine_cleanup: true,
             descriptor_cleanup: false,
@@ -5868,7 +5879,7 @@ mod format_marker_tests {
         // None may enter the combined grammar, regardless of payload.
         for legacy in [
             250u16, 251, 252, 256, 260, 261, 264, 265, 266, 267, 268, 269, 270, 271, 272, 273, 274,
-            275, 276, 277, 278, 279, 280, 281, 282, 283, 284, 285,
+            275, 276, 277, 278, 279, 280, 281, 282, 283, 284, 285, 286,
         ] {
             for payload in [&[][..], &[0xff, 0xff, 0xff][..]] {
                 let mut bytes = MAGIC.to_vec();

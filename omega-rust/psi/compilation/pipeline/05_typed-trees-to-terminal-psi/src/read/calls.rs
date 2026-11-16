@@ -633,6 +633,15 @@ impl<'t> Program<'t> {
             return self.runtime_call(id, slots, runtime, arguments, source, None);
         }
         self.bound_target(id, call.target_symbol)?;
+        if let Some(read) = self.access_lifecycle_call(
+            id,
+            slots,
+            StaticArgumentCall::Statement(call),
+            source,
+            None,
+        )? {
+            return Ok(read);
+        }
         if let Some(read) =
             self.run_custody_call(id, slots, StaticArgumentCall::Statement(call), source, None)?
         {
@@ -756,6 +765,15 @@ impl<'t> Program<'t> {
             return self.runtime_call(id, slots, runtime, arguments, source, expected);
         }
         self.bound_target(id, call.target_symbol)?;
+        if let Some(read) = self.access_lifecycle_call(
+            id,
+            slots,
+            StaticArgumentCall::Expression(handle, call),
+            source,
+            expected,
+        )? {
+            return Ok(read);
+        }
         if let Some(read) = self.run_custody_call(
             id,
             slots,

@@ -6,6 +6,7 @@ use std::sync::Arc;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 
+mod access_lifecycles;
 pub(crate) mod access_plan_values;
 mod build_activation;
 mod const_argument_jobs;
@@ -22,6 +23,7 @@ pub use constant_jobs::{
     validate_constant_evaluations,
 };
 pub use domain_access_plans::evaluate as evaluate_domain_access_plans;
+pub use access_lifecycles::evaluate as evaluate_access_lifecycle_plans;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FixedLayoutTargetScope {

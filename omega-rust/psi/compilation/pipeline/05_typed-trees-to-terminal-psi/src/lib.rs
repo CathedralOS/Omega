@@ -51,6 +51,7 @@ mod callable_formations;
 mod callable_headers;
 mod callables;
 mod calling_publication;
+mod claim_publication;
 mod compilation;
 mod publication;
 use publication::PreparedProgram;
@@ -1171,6 +1172,7 @@ fn finish_reading_into<'source>(
     }
     suspension::publish_crossings(&mut elaboration.module).map_err(declaration_error)?;
     qualifications::publish_access_plans(diagnostic, &program, &mut elaboration.module)?;
+    program.publish_access_lifecycle_plans(diagnostic, &mut elaboration.module)?;
     source.records = program.source_record_correspondence(diagnostic)?;
     program.publish_source_declarations(diagnostic, &source.records, &mut elaboration.module)?;
     source.readiness = program.publish_readiness(diagnostic, &mut elaboration.module)?;
@@ -1929,6 +1931,7 @@ fn finish_storage(
         return Err(first);
     }
     lower::publish_write_frames(diagnostic, module, tables)?;
+    claim_publication::publish(diagnostic, module)?;
     // This is the emitted behavior before proving or publication. Keeping its
     // inventory here lets product consumers retain the exact judged module.
     module.unoptimized_behavior = module

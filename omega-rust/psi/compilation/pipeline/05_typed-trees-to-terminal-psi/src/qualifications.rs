@@ -195,6 +195,78 @@ pub(crate) fn publish_access_plans(
     result
 }
 
+/// Bind a lifecycle's complete semantic policy to the same canonical region
+/// and caller vocabulary used by domain policies. This grants no access.
+pub(crate) fn bind_lifecycle_access_plan(
+    diagnostic: MachineId,
+    source: &crate::read::Program<'_>,
+    schema: StructuralTypeId,
+    schema_type: typed_trees::types::TypeReferenceHandle,
+    scalar: bool,
+    plan: &access_plans::AccessPlan,
+    identities: &mut TerminalIdentityTableBuilder,
+) -> Checked<terminal_psi::StructuralDomainAccessPlan> {
+    let unavailable = |detail| {
+        refuse(
+            diagnostic,
+            Construct::Machine,
+            Unserved::Declaration(detail),
+        )
+    };
+    let sources =
+        source::source_identity::toolchain_source_identities(source.typed.symbols.source_files())
+            .map_err(|_| unavailable("lifecycle access rules lost their exact source identities"))?;
+    let regions = if scalar {
+        if !plan
+            .schema
+            .governed_fields()
+            .map_err(|_| unavailable("scalar policy has an invalid member roster"))?
+            .is_empty()
+            || !plan.schema.declaration().members.is_empty()
+        {
+            return Err(unavailable(
+                "scalar lifecycle policy fabricated named members",
+            ));
+        }
+        vec![(plan.schema.root(), Some(Vec::new()))]
+    } else {
+        source.access_plan_regions(diagnostic, schema, schema_type, &plan.schema, identities)?
+    };
+    let mut requested = plan.issuance.iter().flatten().cloned().collect::<Vec<_>>();
+    for (_, callers) in plan.readers.iter().chain(&plan.writers) {
+        requested.extend(callers.iter().cloned());
+    }
+    requested.sort_unstable();
+    requested.dedup();
+    let bindings = typed_trees::reflection::construction::callable_description_sources(
+        source.typed,
+        &requested,
+    )
+    .map_err(|_| unavailable("lifecycle caller descriptions lost their exact applications"))?;
+    let mut callers = Vec::with_capacity(bindings.len());
+    for (description, selected, _) in bindings {
+        let route =
+            crate::declare::access_caller_route(source.typed, &sources, &selected, identities)
+                .map_err(unavailable)?;
+        callers.push((description.clone(), route));
+    }
+    callers.sort_unstable_by(|left, right| left.0.cmp(&right.0));
+    plan.clone().try_bind(
+        |node| {
+            regions
+                .binary_search_by_key(&node, |(node, _)| *node)
+                .map(|index| regions[index].clone())
+                .map_err(|_| unavailable("lifecycle rule names a region outside its exact schema"))
+        },
+        |description| {
+            callers
+                .binary_search_by(|(candidate, _)| candidate.cmp(&description))
+                .map(|index| callers[index].clone())
+                .map_err(|_| unavailable("lifecycle rule has no complete canonical caller"))
+        },
+    )
+}
+
 #[derive(Default)]
 pub(crate) struct Qualifications {
     pub catalog: ScalarQualificationCatalog,
@@ -741,7 +813,7 @@ impl Qualifications {
             semantic_domain,
             identity,
             carrier,
-            content_projection: None,
+            content_projection: source.published_content_projection(symbol).cloned(),
             byte_predicate: None,
             establishment_routes,
         });

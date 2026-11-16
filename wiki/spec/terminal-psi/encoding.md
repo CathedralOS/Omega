@@ -2001,8 +2001,8 @@ An absent machine upper bound differs from an explicit empty bound. Vocabulary
 marker 142 describes this combined schema. The incompatible predecessor schemas
 marked 280 and 281, including independent layouts that shared marker 280, and
 every earlier semantic format reject before payload interpretation.
-The `OMGFCV\0\0` fixed-view recovery envelope uses version 110 for this semantic
-vocabulary; versions 103, 104, 105, 106, 107, 108 and 109 reject at the recovery header.
+The `OMGFCV\0\0` fixed-view recovery envelope uses version 111 for this semantic
+vocabulary; versions 103, 104, 105, 106, 107, 108, 109 and 110 reject at the recovery header.
 
 A present domain access policy carries the complete runtime schema image,
 optional issuance callers, counted reader and writer rules, observations and

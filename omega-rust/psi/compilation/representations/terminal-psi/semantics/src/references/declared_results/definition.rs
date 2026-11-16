@@ -337,6 +337,7 @@ mod tests {
             shape,
             quotient_carrier: None,
             owns_linear_claim: false,
+            retained_sequence: None,
             multiplicity: terminal_psi::StructuralMultiplicity::Affine,
             no_code_affine_cleanup: true,
             descriptor_cleanup: true,

@@ -2028,6 +2028,7 @@ pub(crate) mod component_contents {
                             id: StructuralTypeId::new(offset + ordinal).unwrap(),
                             identity: identities.intern(identity),
                             owns_linear_claim: false,
+                            retained_sequence: None,
                             multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                             no_code_affine_cleanup: true,
                             descriptor_cleanup: false,
@@ -3045,13 +3046,16 @@ impl<'artifact> TerminalExecution<'artifact> {
                     let mut prepared = self.provider_storage.prepare_initial_image(
                         binding,
                         supplied,
-                        &plan.placement,
+                        crate::storage::provider_storage::validated_placement(plan)?,
                         image,
                     )?;
                     if matches!(
                         plan.storage.owner,
                         terminal_psi::TerminalAccessOwner::Run { .. }
-                    ) && plan.placement.layout().size != Some(binding.length)
+                    ) && crate::storage::provider_storage::validated_placement(plan)?
+                        .layout()
+                        .size
+                        != Some(binding.length)
                         && prepared.is_ok()
                     {
                         prepared = Err(crate::storage::provider_storage::initialization::InitializationRejection::IncompatibleSupply);

@@ -1678,6 +1678,7 @@ mod tests {
                 identity: identities.intern(&format!("graph::type{identity}")),
                 quotient_carrier: None,
                 owns_linear_claim: false,
+                retained_sequence: None,
                 no_code_affine_cleanup: true,
                 multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                 descriptor_cleanup: false,

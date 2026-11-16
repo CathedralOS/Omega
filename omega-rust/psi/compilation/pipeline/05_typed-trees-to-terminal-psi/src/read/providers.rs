@@ -356,6 +356,7 @@ impl Program<'_> {
             .boundaries
             .rows
             .push(crate::boundaries::BoundarySource {
+                lifecycle: None,
                 run: None,
                 source: target,
                 owner,

@@ -34,6 +34,7 @@ mod branch_warnings;
 mod build_purpose;
 mod byte_domains;
 mod byte_view_elements;
+mod call_claims;
 mod callable_contracts;
 mod calling_policies;
 mod case_payloads;

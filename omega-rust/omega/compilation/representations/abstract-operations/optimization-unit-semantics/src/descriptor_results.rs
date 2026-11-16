@@ -471,6 +471,7 @@ pub(crate) mod scalar_expressions {
                     },
                     quotient_carrier: None,
                     owns_linear_claim: false,
+                    retained_sequence: None,
                     no_code_affine_cleanup: false,
                     multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                     descriptor_cleanup: false,
@@ -3199,6 +3200,7 @@ mod owned_cleanup_graph_tests {
             identity: TerminalIdentityIndex(value as u32),
             declaration_identity: TerminalIdentityIndex(value as u32),
             owns_linear_claim: false,
+            retained_sequence: None,
             multiplicity: if value == 1 {
                 terminal_psi::StructuralMultiplicity::Unrestricted
             } else {

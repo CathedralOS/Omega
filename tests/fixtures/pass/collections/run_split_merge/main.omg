@@ -3,8 +3,25 @@ use omega::language::core::Run;
 use omega::language::core::RunParts;
 use omega::language::core::Live;
 
-data WidePolicy {}
-data NarrowPolicy {}
+use omega::language::core::AccessPolicy;
+use omega::language::core::AccessPlan;
+use omega::language::core::Issuance;
+use omega::language::core::reflect::TypeSchema;
+use omega::language::core::access;
+
+// Distinct ordinary policy values preserve each complete Run specialization.
+// Wide permits issuance; Narrow permits no issuing route. Neither grants backing.
+public WidePolicy satisfies AccessPolicy {
+    machine plan(schema: TypeSchema) -> AccessPlan reaches none crashes none terminates {
+        access::new_plan(&schema, Issuance::Unrestricted)
+    }
+}
+
+public NarrowPolicy satisfies AccessPolicy {
+    machine plan(schema: TypeSchema) -> AccessPlan reaches none crashes none terminates {
+        access::new_plan(&schema, Issuance::Only { routes: [] })
+    }
+}
 
 public machine split_merge_wide(run: Run<WidePolicy, u64> in Live<WidePolicy, u64>, cut: u64)
     -> Run<WidePolicy, u64> in Live<WidePolicy, u64>

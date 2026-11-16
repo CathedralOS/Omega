@@ -2524,6 +2524,7 @@ pub(crate) mod scalar_observations {
                 identity: TerminalIdentityIndex(id.get() as u32),
                 quotient_carrier: None,
                 owns_linear_claim: false,
+                retained_sequence: None,
                 no_code_affine_cleanup: true,
                 multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                 descriptor_cleanup: true,

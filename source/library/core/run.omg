@@ -2,18 +2,18 @@
 // Live retains established cell custody, never a per-element occupancy tag.
 // Neither constructing this record nor changing count establishes Live.
 
-public data Run<P, T> [linear] {
+public data Run<const P: AccessPolicy, T> [linear] {
     storage: Extent in Granted;
     count: u64;
 }
 
-public domain<P, T> Run<P, T>::Live<P, T>
+public domain<const P: AccessPolicy, T> Run<P, T>::Live<P, T>
 established by Run::empty, Run::initialize_from_profile, Run::relocate_from_profiles,
     Run::split, Run::merge;
 
 // An empty authorized partition contains no cells to initialize. The checked
 // route retains its existing backing claim and establishes no element authority.
-public machine Run::empty<P, T>(storage: Extent in Granted & Vacant)
+public machine Run::empty<const P: AccessPolicy, T>(storage: Extent in Granted & Vacant)
     -> Run<P, T> in Live<P, T>
 requires storage.length == 0
 ensures result.count == 0, result.storage.base == storage.base,
@@ -26,7 +26,7 @@ ensures result.count == 0, result.storage.base == storage.base,
 // Discharge an empty run without inspecting T, selecting a storage provider,
 // or freeing its backing. The returned extent is the same allocation claim;
 // its owner still owes whatever return the allocation contract requires.
-public machine Run::release_empty<P, T>(run: Run<P, T> in Live<P, T>)
+public machine Run::release_empty<const P: AccessPolicy, T>(run: Run<P, T> in Live<P, T>)
     -> Extent in Granted & Vacant
 requires run.count == 0, run.storage.length == 0
 ensures result.base == run.storage.base, result.length == run.storage.length
@@ -34,7 +34,7 @@ ensures result.base == run.storage.base, result.length == run.storage.length
     Run::retire_empty<P, T>(run)
 }
 
-machine Run::retire_empty<P, T>(run: Run<P, T> in Live<P, T>)
+machine Run::retire_empty<const P: AccessPolicy, T>(run: Run<P, T> in Live<P, T>)
     -> Extent in Granted & Vacant
 reaches none
 crashes none
@@ -44,7 +44,7 @@ ensures result.base == run.storage.base, result.length == run.storage.length;
 
 // The two live subsequences retain their actual cells, placement and backing
 // obligations. This product does not issue new cells from counts or geometry.
-public data RunParts<P, T> [linear] {
+public data RunParts<const P: AccessPolicy, T> [linear] {
     left: Run<P, T> in Live<P, T>;
     right: Run<P, T> in Live<P, T>;
 }
@@ -52,7 +52,7 @@ public data RunParts<P, T> [linear] {
 // Split and merge are exact compiler-supplied custody transfers. They access no
 // payload and select no provider. Geometry is necessary alongside the checked
 // cell, placement, carry and outstanding-loan correspondence.
-public machine Run::split<P, T>(run: Run<P, T> in Live<P, T>, cut: u64)
+public machine Run::split<const P: AccessPolicy, T>(run: Run<P, T> in Live<P, T>, cut: u64)
     -> RunParts<P, T>
 reaches none
 crashes none
@@ -73,7 +73,7 @@ ensures
 // Empty byte ranges keep a representable base, including when an occupied
 // zero-footprint run still owns cells. The custody rule preserves their logical
 // order and obligations independently of these byte equations.
-public machine Run::merge<P, T>(left: Run<P, T> in Live<P, T>, right: Run<P, T> in Live<P, T>)
+public machine Run::merge<const P: AccessPolicy, T>(left: Run<P, T> in Live<P, T>, right: Run<P, T> in Live<P, T>)
     -> Run<P, T> in Live<P, T>
 reaches none
 crashes none
@@ -90,10 +90,10 @@ ensures
 
 // This ordinary predicate publishes the count promised by cell initialization.
 // It grants no storage or custody and is not an alternative to Live.
-public domain<P, T> Run<P, T>::Singleton<P, T>
+public domain<const P: AccessPolicy, T> Run<P, T>::Singleton<P, T>
 requires self.count == 1;
 
-public machine Run::initialize_cell<P, T, Role>(
+public machine Run::initialize_cell<const P: AccessPolicy, T, Role>(
     storage: Extent in Granted & Vacant, value: T
 ) -> AccessOutcome<
     Run<P, T> in Live<P, T> & Singleton<P, T>,
@@ -113,7 +113,7 @@ ensures (match result {
     Run::initialize_from_profile<P, T, Role>(storage, value, &profile)
 }
 
-public machine Run::extract_cell<P, T, Role>(run: Run<P, T> in Live<P, T>)
+public machine Run::extract_cell<const P: AccessPolicy, T, Role>(run: Run<P, T> in Live<P, T>)
     -> AccessExtraction<Extent in Granted & Vacant, T>
 requires run.count == 1
 reaches ResourceProfileSupply
@@ -129,7 +129,7 @@ ensures (match result {
 // The compiler realizes these exact declarations. The ordinary wrappers select
 // supply; the primitive must bind that completed call, actual backing, typed
 // cell geometry and transferred custody before publishing a successful result.
-boundary machine Run::initialize_from_profile<P, T, Role>(
+boundary machine Run::initialize_from_profile<const P: AccessPolicy, T, Role>(
     storage: Extent in Granted & Vacant, value: T, profile: &ResourceProfile
 ) -> AccessOutcome<
     Run<P, T> in Live<P, T> & Singleton<P, T>,
@@ -137,19 +137,19 @@ boundary machine Run::initialize_from_profile<P, T, Role>(
     AccessInitializationFailure
 >;
 
-boundary machine Run::extract_from_profile<P, T, Role>(
+boundary machine Run::extract_from_profile<const P: AccessPolicy, T, Role>(
     run: Run<P, T> in Live<P, T>, profile: &ResourceProfile
 ) -> AccessExtraction<Extent in Granted & Vacant, T>
 requires run.count == 1;
 
 // A successful move keeps the cell count and returns the old backing to its
 // caller. Neither the run nor this result allocates or releases storage.
-public data RunRelocation<P, T> {
+public data RunRelocation<const P: AccessPolicy, T> {
     run: Run<P, T> in Live<P, T>;
     vacated: Extent in Granted & Vacant;
 }
 
-public machine Run::relocate<P, T, SourceRole, DestinationRole>(
+public machine Run::relocate<const P: AccessPolicy, T, SourceRole, DestinationRole>(
     run: Run<P, T> in Live<P, T>, destination: Extent in Granted & Vacant
 ) -> AccessOutcome<
     RunRelocation<P, T>,
@@ -181,7 +181,7 @@ ensures (match result {
 // Both profile calls must be bound to their respective original backing.
 // Rejection returns both owners unchanged. Success moves actual cell custody;
 // equal geometry or a copied descriptor is not evidence of that transfer.
-boundary machine Run::relocate_from_profiles<P, T, SourceRole, DestinationRole>(
+boundary machine Run::relocate_from_profiles<const P: AccessPolicy, T, SourceRole, DestinationRole>(
     run: Run<P, T> in Live<P, T>, destination: Extent in Granted & Vacant,
     source_profile: &ResourceProfile, destination_profile: &ResourceProfile
 ) -> AccessOutcome<
@@ -189,3 +189,42 @@ boundary machine Run::relocate_from_profiles<P, T, SourceRole, DestinationRole>(
     AccessReturn<Run<P, T> in Live<P, T>, Extent in Granted & Vacant>,
     AccessInitializationFailure
 >;
+
+// A live run may use encoded or write-only backing, so lending a native typed
+// view remains fallible. The selected profile must establish compatible RAM
+// placement and access; the returned loan retains this exact run's custody.
+public machine Run::as_slice<'storage, const P: AccessPolicy, T, Role>(
+    run: &'storage Run<P, T> in Live<P, T>
+) -> AccessOutcome<&'storage [T], AccessBorrowReturn, AccessInitializationFailure>
+reaches ResourceProfileSupply
+invokes ResourceProfileSupply
+ensures (match result {
+    AccessOutcome::Ready { view } -> view.len == run.count,
+    AccessOutcome::Rejected { returned, reason } -> true,
+})
+{
+    let profile: ResourceProfile = ResourceProfileSupply<Role>::profile(&run.storage);
+    Run::view_from_profile<P, T, Role>(run, &profile)
+}
+
+public machine Run::as_mut_slice<'storage, const P: AccessPolicy, T, Role>(
+    run: &'storage mut Run<P, T> in Live<P, T>
+) -> AccessOutcome<&'storage mut [T], AccessBorrowReturn, AccessInitializationFailure>
+reaches ResourceProfileSupply
+invokes ResourceProfileSupply
+ensures (match result {
+    AccessOutcome::Ready { view } -> view.len == run.count,
+    AccessOutcome::Rejected { returned, reason } -> true,
+})
+{
+    let profile: ResourceProfile = ResourceProfileSupply<Role>::profile(&run.storage);
+    Run::view_mut_from_profile<P, T, Role>(run, &profile)
+}
+
+boundary machine Run::view_from_profile<'storage, const P: AccessPolicy, T, Role>(
+    run: &'storage Run<P, T> in Live<P, T>, profile: &ResourceProfile
+) -> AccessOutcome<&'storage [T], AccessBorrowReturn, AccessInitializationFailure>;
+
+boundary machine Run::view_mut_from_profile<'storage, const P: AccessPolicy, T, Role>(
+    run: &'storage mut Run<P, T> in Live<P, T>, profile: &ResourceProfile
+) -> AccessOutcome<&'storage mut [T], AccessBorrowReturn, AccessInitializationFailure>;

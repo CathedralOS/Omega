@@ -95,6 +95,7 @@ pub(crate) mod access_views {
                         AccessLifecycleOperation::Initialize | AccessLifecycleOperation::MoveOut,
                     ) => Ok(3),
                     (AccessContentShape::Run, AccessLifecycleOperation::Relocate) => Ok(4),
+                    (AccessContentShape::Run, AccessLifecycleOperation::View) => Ok(3),
                     _ => Err(Diagnostic::error(
                         "placement operation has no declared content/type-argument correspondence",
                     )),
@@ -191,10 +192,50 @@ pub(crate) mod access_views {
                     state: state.symbol,
                     template: declaration,
                 };
-                if program.machine_type_parameters(template).len()
-                    != execution.type_parameter_count()?
+                let binders = program.machine_type_parameters(template);
+                if binders.len() != execution.type_parameter_count()? {
+                    return Err(malformed(
+                        "lost its complete original static-argument roster",
+                    ));
+                }
+                let policy = content == AccessContentShape::Run
+                    || operation != AccessLifecycleOperation::View;
+                if policy {
+                    let first = binders
+                        .first()
+                        .ok_or_else(|| malformed("lost its policy value binder"))?;
+                    let [bound] = template.conformance_bounds.as_slice() else {
+                        return Err(malformed("lost its exact AccessPolicy value requirement"));
+                    };
+                    if first.kind != crate::data::TypeParameterKind::Implementation
+                        || bound.binder != first.symbol
+                        || program.core_vocabulary(bound.trait_symbol)
+                            != Some(language_core::core_vocabulary::CoreVocabulary::AccessPolicy)
+                        || !bound.arguments.is_empty()
+                        || !bound.lifetime_arguments.is_empty()
+                        || binders
+                            .iter()
+                            .skip(1)
+                            .any(|parameter| parameter.kind != crate::data::TypeParameterKind::Type)
+                    {
+                        return Err(malformed(
+                            "changed its policy value or element/role type binders",
+                        ));
+                    }
+                } else if !template.conformance_bounds.is_empty()
+                    || binders
+                        .iter()
+                        .any(|parameter| parameter.kind != crate::data::TypeParameterKind::Type)
                 {
-                    return Err(malformed("lost its complete original type-argument roster"));
+                    return Err(malformed("changed its view/role type binders"));
+                }
+                if binders
+                    .iter()
+                    .any(|parameter| parameter.bounds != Default::default())
+                {
+                    return Err(malformed(
+                        "added undeclared static eligibility requirements",
+                    ));
                 }
                 Ok(Some(execution))
             }
@@ -689,18 +730,43 @@ pub(crate) mod access_views {
     pub enum AccessLifecyclePlan {
         #[default]
         Absent,
+        Native {
+            callable: symbols::SymbolHandle,
+            application: crate::static_applications::StaticMachineApplicationHandle,
+            operation: AccessLifecycleOperation,
+            policy_selection: crate::expression::StaticMachineArgument,
+            schema: TypeReferenceHandle,
+            policy_machine: symbols::SymbolHandle,
+            normalized: access_plans::AccessPlan,
+        },
         Evaluated {
             callable: symbols::SymbolHandle,
             operation: AccessLifecycleOperation,
             policy: symbols::SymbolHandle,
-            schema: symbols::SymbolHandle,
+            policy_selection: crate::expression::StaticMachineArgument,
+            schema: TypeReferenceHandle,
+            policy_selection: crate::expression::StaticMachineArgument,
             policy_machine: symbols::SymbolHandle,
             invocations: arena::HandleSpan<source::SourceSpan>,
             target: Option<layout_plans::LayoutTargetFacts>,
-            placement: access_plans::ValidatedPlacement,
+            placement: AccessLifecyclePlacement,
             storage: AccessLifecycleStorage,
             profile_carrier: Option<TypeReferenceHandle>,
         },
+    }
+
+    /// A completed placement or a genuine symbolic default-layout demand.
+    /// Native policy describes restrictions; it grants no storage capability.
+    #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+    pub enum AccessLifecyclePlacement {
+        Validated(access_plans::ValidatedPlacement),
+        Native(access_plans::AccessPlan),
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+    pub enum AccessLifecyclePlacement {
+        Validated(access_plans::ValidatedPlacement),
+        Native(access_plans::AccessPlan),
     }
 
     #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
@@ -748,16 +814,25 @@ pub(crate) mod access_views {
             else {
                 return Ok(Vec::new());
             };
-            let mut definitions = vec![
-                program
-                    .data_definition_by_symbol(*schema)
-                    .ok_or("placement operation lost its schema storage declaration")?,
-            ];
-            if *operation == AccessLifecycleOperation::View {
-                let mut views = program
-                    .access_view_plans
-                    .iter()
-                    .filter(|view| view.policy_symbol == *policy && view.schema_symbol == *schema);
+            let mut definitions = program
+                .closed_data_definition(*schema)
+                .into_iter()
+                .collect::<Vec<_>>();
+            if *operation == AccessLifecycleOperation::View
+                && matches!(
+                    self,
+                    Self::Evaluated {
+                        placement: AccessLifecyclePlacement::Validated(_),
+                        ..
+                    }
+                )
+            {
+                let mut views = program.access_view_plans.iter().filter(|view| {
+                    view.policy_symbol == *policy
+                        && program
+                            .closed_data_definition(*schema)
+                            .is_some_and(|schema| view.schema_symbol == schema.symbol)
+                });
                 let (Some(view), None) = (views.next(), views.next()) else {
                     return Err("placement View lost its unique policy/schema interpretation");
                 };

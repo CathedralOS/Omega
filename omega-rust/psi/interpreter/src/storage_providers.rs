@@ -16,6 +16,16 @@ use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease}
 use extents::Extent;
 use terminal_psi::TerminalAccessLifecyclePlan;
 
+// Execution consumes selected-target completion, never an unresolved native
+// placement demand or a layout guessed from the interpreter's host.
+pub(crate) fn validated_placement(
+    plan: &TerminalAccessLifecyclePlan,
+) -> Result<&access_plans::ValidatedPlacement, TerminalInterpretError> {
+    plan.placement
+        .validated()
+        .map_err(TerminalInterpretError::ContentTransformationMismatch)
+}
+
 pub(crate) mod backing {
     use crate::TerminalEffectRejection;
     use std::ops::{Deref, DerefMut};
@@ -1138,7 +1148,12 @@ pub(crate) mod extraction {
                 ));
             }
             let required = compatibility.byte_length();
-            if plan.placement.layout().size != Some(required) || required > binding.length {
+            if crate::storage::provider_storage::validated_placement(plan)?
+                .layout()
+                .size
+                != Some(required)
+                || required > binding.length
+            {
                 return Err(malformed());
             }
             let loan = allocation
@@ -1427,7 +1442,8 @@ pub(crate) mod field_access {
                 ProviderFieldContent::Resident => {
                     let (initialized, custody, compatibility) =
                         self.live_resident_custody(binding.resident)?;
-                    if initialized.placement != plan.placement
+                    if crate::storage::provider_storage::validated_placement(initialized)?
+                        != &plan.placement
                         || initialized.schema != plan.schema
                         || initialized.policy_identity != plan.policy_identity
                         || initialized.policy_plan_machine_identity
@@ -3072,14 +3088,14 @@ pub(crate) mod relocation {
                     diagnostic,
                 })?;
             let selected = access_plans::validate_run_relocation_resources(
-                &plan.placement,
+                crate::storage::provider_storage::validated_placement(plan)?,
                 count,
                 destination_base,
                 &source_supply,
                 &destination_supply,
             );
             let admitted = access_plans::validate_run_relocation_resources(
-                &plan.placement,
+                crate::storage::provider_storage::validated_placement(plan)?,
                 count,
                 destination_base,
                 &admitted_source,
@@ -3359,7 +3375,10 @@ pub(crate) mod value_image {
             };
             let geometry = ImageGeometry::new(execution, plan.target.as_ref())?;
             require_runtime_fields(&geometry, fields)?;
-            let entries = plan.placement.access().plan().entries();
+            let entries = crate::storage::provider_storage::validated_placement(plan)?
+                .access()
+                .plan()
+                .entries();
             if entries.len() != plan.image_fields.len() {
                 return Err(malformed());
             }
@@ -3375,8 +3394,7 @@ pub(crate) mod value_image {
                     .iter()
                     .find(|field| field.id == *identity)
                     .ok_or(malformed())?;
-                let layout_entry = plan
-                    .placement
+                let layout_entry = crate::storage::provider_storage::validated_placement(plan)?
                     .layout()
                     .entries
                     .iter()
@@ -3391,7 +3409,7 @@ pub(crate) mod value_image {
                 )?;
                 let mut bytes = zeroed(schema.byte_size, execution.account.as_ref())?;
                 layout_plans::decode_aggregate_field_into(
-                    plan.placement.layout(),
+                    crate::storage::provider_storage::validated_placement(plan)?.layout(),
                     &schema,
                     ByteOrder::LittleEndian,
                     image,
@@ -3742,7 +3760,10 @@ pub(crate) mod value_image {
         };
         let mut schemas = Vec::with_capacity(plan.image_fields.len());
         let mut values = Vec::with_capacity(plan.image_fields.len());
-        let entries = plan.placement.access().plan().entries();
+        let entries = crate::storage::provider_storage::validated_placement(plan)?
+            .access()
+            .plan()
+            .entries();
         if entries.len() != plan.image_fields.len() {
             return Err(malformed());
         }
@@ -3751,8 +3772,7 @@ pub(crate) mod value_image {
                 .iter()
                 .find(|field| field.id == *identity)
                 .ok_or(malformed())?;
-            let layout_entry = plan
-                .placement
+            let layout_entry = crate::storage::provider_storage::validated_placement(plan)?
                 .layout()
                 .entries
                 .iter()
@@ -3764,7 +3784,7 @@ pub(crate) mod value_image {
             values.push(value);
         }
         materialize(
-            plan.placement.layout(),
+            crate::storage::provider_storage::validated_placement(plan)?.layout(),
             &schemas,
             &values,
             byte_order,

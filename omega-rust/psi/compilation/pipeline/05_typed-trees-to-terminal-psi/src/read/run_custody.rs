@@ -19,6 +19,44 @@ use super::{Program, Slot};
 use crate::body::{CallTarget, Expression, Termination, ValueType};
 use crate::{SourceOrigin, Unserved, refuse};
 
+#[derive(Clone, Copy)]
+enum ActualArgument<'a> {
+    Policy {
+        value: &'a typed_trees::expression::StaticMachineArgument,
+        owner: SymbolHandle,
+    },
+    Type(TypeReferenceHandle),
+}
+fn same_argument(
+    typed: &TypedTrees,
+    written: TypeReferenceHandle,
+    expected: ActualArgument<'_>,
+) -> bool {
+    match expected {
+        ActualArgument::Type(actual) => same_type(typed, written, actual),
+        ActualArgument::Policy { value, owner } => {
+            use typed_trees::type_identity::{
+                IndexIdentityArgument, portable_applied_index_identity,
+            };
+            let Ok(actual) = crate::declare::implementation_argument_identity(typed, owner, value)
+            else {
+                return false;
+            };
+            let Ok(supplier) = typed.static_operand_region_supplier(value, owner) else {
+                return false;
+            };
+            portable_applied_index_identity(
+                typed,
+                IndexIdentityArgument::TypeReference(written),
+                supplier,
+                &[],
+            )
+            .and_then(|identity| typed.type_identity_text(identity))
+            .is_some_and(|written| !written.is_empty() && written == actual)
+        }
+    }
+}
+
 fn same_type(typed: &TypedTrees, left: TypeReferenceHandle, right: TypeReferenceHandle) -> bool {
     if !typed.type_reference_table.contains_type_reference(left)
         || !typed.type_reference_table.contains_type_reference(right)
@@ -33,7 +71,7 @@ fn qualified_base(
     typed: &TypedTrees,
     reference: TypeReferenceHandle,
     domains: &[CoreVocabulary],
-    arguments: &[TypeReferenceHandle],
+    arguments: &[ActualArgument<'_>],
 ) -> Result<TypeReferenceHandle, &'static str> {
     if !typed
         .type_reference_table
@@ -82,7 +120,7 @@ fn qualified_base(
                 .arguments
                 .iter()
                 .zip(arguments)
-                .all(|(left, right)| same_type(typed, *left, *right))
+                .all(|(left, right)| same_argument(typed, *left, *right))
         {
             return Err("run custody domain changed its actual type arguments");
         }
@@ -95,7 +133,7 @@ fn record_role<'a>(
     machine: MachineId,
     reference: TypeReferenceHandle,
     role: CoreVocabulary,
-    arguments: &[TypeReferenceHandle],
+    arguments: &[ActualArgument<'_>],
 ) -> Checked<&'a DataDefinition> {
     let unavailable = |detail| refuse(machine, Construct::Machine, Unserved::Call(detail));
     if !typed
@@ -147,11 +185,10 @@ fn record_role<'a>(
         || !actuals
             .iter()
             .zip(arguments)
-            .all(|(left, right)| same_type(typed, *left, *right))
+            .all(|(left, right)| same_argument(typed, *left, *right))
         || !lifetimes.is_empty()
         || !data.lifetime_parameters.is_empty()
         || !data.type_parameters.is_empty()
-        || !data.conformance_bounds.is_empty()
         || data.supply_mode != language_semantics::DataSupplyMode::CheckedShape
         || data.properties.multiplicity != language_semantics::Multiplicity::Linear
         || data.properties.carry.is_some()
@@ -171,7 +208,7 @@ fn run_role(
     typed: &TypedTrees,
     machine: MachineId,
     reference: TypeReferenceHandle,
-    arguments: &[TypeReferenceHandle],
+    arguments: &[ActualArgument<'_>],
 ) -> Checked<()> {
     let unavailable = |detail| refuse(machine, Construct::Machine, Unserved::Call(detail));
     let base = qualified_base(
@@ -181,6 +218,40 @@ fn run_role(
         arguments,
     )
     .map_err(unavailable)?;
+    check_run_descriptor_role(typed, machine, base, arguments)
+}
+
+/// Retain the exact Core Run descriptor and its closed policy/element roles.
+/// This descriptive correspondence does not establish Live or any cell custody.
+pub(super) fn descriptor_role(
+    typed: &TypedTrees,
+    machine: MachineId,
+    reference: TypeReferenceHandle,
+    policy: &typed_trees::expression::StaticMachineArgument,
+    element: TypeReferenceHandle,
+    owner: SymbolHandle,
+) -> Checked<()> {
+    check_run_descriptor_role(
+        typed,
+        machine,
+        reference,
+        &[
+            ActualArgument::Policy {
+                value: policy,
+                owner,
+            },
+            ActualArgument::Type(element),
+        ],
+    )
+}
+
+fn check_run_descriptor_role(
+    typed: &TypedTrees,
+    machine: MachineId,
+    base: TypeReferenceHandle,
+    arguments: &[ActualArgument<'_>],
+) -> Checked<()> {
+    let unavailable = |detail| refuse(machine, Construct::Machine, Unserved::Call(detail));
     let data = record_role(
         typed,
         machine,
@@ -248,28 +319,46 @@ fn check_roles(
         ));
     };
     if parameters.len() != 2
+        || parameters[0].kind != TypeParameterKind::Implementation
+        || parameters[1].kind != TypeParameterKind::Type
         || !parameters.iter().zip(bindings).all(|(parameter, binding)| {
-            parameter.symbol == binding.parameter
-                && parameter.kind == TypeParameterKind::Type
-                && parameter.bounds == Default::default()
+            parameter.symbol == binding.parameter && parameter.bounds == Default::default()
         })
     {
         return Err(unavailable(
-            "run custody changed its ordinary P and T telescope",
+            "run custody needs its policy value and element type telescope",
         ));
     }
-    let (StaticMachineBindingValue::Type(p), StaticMachineBindingValue::Type(t)) =
+    let (StaticMachineBindingValue::Conformance(p), StaticMachineBindingValue::Type(t)) =
         (&p.value, &t.value)
     else {
-        return Err(unavailable("run custody needs actual type operands"));
+        return Err(unavailable(
+            "run custody needs an actual policy operation record and element type",
+        ));
     };
-    let arguments = [*p, *t];
+    let owner = typed
+        .expression_table
+        .static_machine_application(application)
+        .lexical_owner;
+    let arguments = [
+        ActualArgument::Policy { value: p, owner },
+        ActualArgument::Type(*t),
+    ];
     let formals = typed
         .state_parameters
         .span(signature.parameters)
         .ok_or_else(|| unavailable("run custody has a stale formal roster"))?;
+    let [bound] = signature.conformance_bounds.as_slice() else {
+        return Err(unavailable(
+            "run custody lost its retained policy value premise",
+        ));
+    };
     if !signature.type_parameters.is_empty()
-        || !signature.conformance_bounds.is_empty()
+        || signature.conformance_bounds != declared.conformance_bounds
+        || bound.binder != parameters[0].symbol
+        || typed.core_vocabulary(bound.trait_symbol) != Some(CoreVocabulary::AccessPolicy)
+        || !bound.arguments.is_empty()
+        || !bound.lifetime_arguments.is_empty()
         || !signature.lifetime_parameters.is_empty()
         || formals.iter().any(|formal| {
             formal.is_const
@@ -530,6 +619,7 @@ impl Program<'_> {
                             completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
                             owning_service: None,
                             declaration,
+                            lifecycle: None,
                             run: Some(crate::boundaries::RunBoundarySource {
                                 application,
                                 element,
@@ -639,6 +729,7 @@ mod tests {
             owning_service: None,
             declaration: crate::declare::BoundaryDeclarationSource::empty_test_fixture(),
             run,
+            lifecycle: None,
         }
     }
 

@@ -2323,10 +2323,26 @@ fn visit_callable_symbol(
         return;
     }
     for (_, plan) in program.access_lifecycle_plans.iter() {
+        if let crate::AccessLifecyclePlan::Native {
+            callable,
+            application,
+            policy_selection,
+            schema,
+            policy_machine,
+            ..
+        } = plan
+            && *callable == symbol
+        {
+            visit_static_machine_bindings(program, retained, *application);
+            visit_static_argument(program, retained, policy_selection);
+            visit_type_reference(program, retained, *schema);
+            visit_callable_symbol(program, retained, *policy_machine);
+        }
         if let crate::AccessLifecyclePlan::Evaluated {
             callable,
             policy,
             schema,
+            policy_selection,
             policy_machine,
             storage,
             profile_carrier,
@@ -2335,7 +2351,8 @@ fn visit_callable_symbol(
             && *callable == symbol
         {
             visit_symbol(retained, *policy);
-            visit_symbol(retained, *schema);
+            visit_type_reference(program, retained, *schema);
+            visit_static_argument(program, retained, policy_selection);
             visit_symbol(retained, *policy_machine);
             visit_type_reference(program, retained, storage.carrier);
             if let Some(profile) = profile_carrier {

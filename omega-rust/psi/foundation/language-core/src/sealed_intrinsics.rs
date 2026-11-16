@@ -532,6 +532,18 @@ const ROWS: &[SealedIntrinsicRow] = &[
         lifecycle(PlacementOperation::Relocate, PlacementContent::Run),
     ),
     row(
+        "run.omg",
+        "Run::view_from_profile",
+        CORE_RUN,
+        lifecycle(PlacementOperation::View, PlacementContent::Run),
+    ),
+    row(
+        "run.omg",
+        "Run::view_mut_from_profile",
+        CORE_RUN,
+        lifecycle(PlacementOperation::View, PlacementContent::Run),
+    ),
+    row(
         "layout.omg",
         "Accessor",
         CORE_LAYOUT,
@@ -670,6 +682,17 @@ impl SealedIntrinsicCatalog {
 /// A matching name outside these bytes grants no numeric primitive custody.
 pub fn float_operations_source() -> (&'static str, &'static [u8]) {
     ("float_operations.omg", CORE_FLOAT_OPERATIONS)
+}
+
+/// Exact bundled source whose declarations own the dense-run custody rules.
+/// Consumers still authenticate the complete declaration and closed signature.
+pub fn run_source() -> (&'static str, &'static [u8]) {
+    ("run.omg", CORE_RUN)
+}
+
+/// Exact bundled source for the backing qualifications used by run contracts.
+pub fn extent_source() -> (&'static str, &'static [u8]) {
+    ("extent.omg", CORE_EXTENT)
 }
 
 /// Exact source coordinates for the hosted primitive and its public contract.

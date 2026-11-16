@@ -126,73 +126,14 @@ fn evaluate_domain(
     let DomainIssuance::Planned(policy) = definition.issuance() else {
         return Err("the domain has no unevaluated policy".into());
     };
-    let schema_type = core_reflection_data(typed, ReflectionDeclaration::TypeSchema)
-        .ok_or("the core `TypeSchema` declaration is not in the program")?;
-    let conformance = typed
-        .conformance_by_symbol(policy.implementation())
-        .ok_or("the selected policy is not a named implementation")?;
-    // The `access` clause names an implementation of the toolchain's
-    // `AccessPolicy`, whose one requirement is `plan`.
-    if typed.core_vocabulary(conformance.trait_symbol) != Some(CoreVocabulary::AccessPolicy) {
-        return Err("the selected policy does not implement the core `AccessPolicy`".into());
-    }
-    let [row] = conformance.rows.as_slice() else {
-        return Err("the selected policy has no single `plan` requirement".into());
-    };
-    if typed.core_vocabulary(row.requirement) != Some(CoreVocabulary::AccessPolicyPlan) {
-        return Err("the selected policy does not implement the core `AccessPolicy::plan`".into());
-    }
-    let (schema_graph, schema, revision) = subject_schema(typed, definition, schema_type)?;
-    let expected_selection = policy_identity(typed, domain, &policy.selection)?;
-    let entry = prepared.entry_selected(
-        domain,
+    let (plan_machine, normalized) = evaluate_policy(
+        typed,
+        prepared,
         domain,
         &policy.selection,
-        row.requirement,
-        std::slice::from_ref(&schema),
-    )?;
-    let accepted = entry.accepted_source();
-    let (selected, member, _) = accepted
-        .named_conformance_call_member(entry.call())?
-        .ok_or("the plan call lost its selected policy member")?;
-    let plan_machine = member.realization_machine;
-    if selected.symbol != policy.implementation() || typed.machine_by_symbol(plan_machine).is_none()
-    {
-        return Err("the plan call lost its policy's source declaration".into());
-    }
-    let receiver = accepted
-        .declaration_operand_from_expression(entry.call().receiver)
-        .map_err(str::to_owned)?;
-    if policy_identity(accepted, domain, &receiver)? != expected_selection {
-        return Err("the plan call changed its domain's complete selected application".into());
-    }
-    let first_receipt = accounting.receipts().len();
-    entry.invoke_recorded(
-        InvocationTarget {
-            name: None,
-            layout_target: None,
-            carrier_layout: None,
-            address_model: None,
-        },
+        definition.target_type,
         accounting,
     )?;
-    let [crate::PureEvaluationRecord::Invocation(receipt)] =
-        &accounting.receipts()[first_receipt..]
-    else {
-        return Err("the plan evaluation lost its own invocation receipt".into());
-    };
-    if !std::ptr::eq(receipt.source(), entry.accepted_source())
-        || !std::ptr::eq(receipt.request_source(), entry.source())
-        || receipt.machine() != entry.symbol()
-        || receipt.requester() != domain
-        || receipt.call()? != entry.call()
-        || receipt.arguments() != entry.arguments()
-        || receipt.invocation()?.is_none()
-    {
-        return Err("the plan result belongs to another selected invocation".into());
-    }
-    let normalized =
-        super::access_plan_values::normalize_for_schema(receipt, schema_graph, &schema, &revision)?;
     // Complete data is retained by the common normalizer. Until operation
     // consumers enforce an axis, recording it as checked would drop a rule.
     for (name, rows) in [
@@ -229,6 +170,86 @@ fn evaluate_domain(
     })
 }
 
+/// Evaluate one actual closed policy application through the ordinary admitted
+/// selected-call bridge. Consumers receive the complete normalized semantic plan.
+pub(super) fn evaluate_policy(
+    typed: &TypedTrees,
+    prepared: &PreparedBuildMachineProgram,
+    requester: SymbolHandle,
+    policy: &typed_trees::expression::StaticMachineArgument,
+    subject: typed_trees::types::TypeReferenceHandle,
+    accounting: &mut SourceCompletionAccounting,
+) -> Result<(SymbolHandle, access_plans::AccessPlan), String> {
+    let schema_type = core_reflection_data(typed, ReflectionDeclaration::TypeSchema)
+        .ok_or("the core `TypeSchema` declaration is not in the program")?;
+    let conformance = typed
+        .conformance_by_symbol(policy.symbol)
+        .ok_or("the selected policy is not a named implementation")?;
+    // The `access` clause names an implementation of the toolchain's
+    // `AccessPolicy`, whose one requirement is `plan`.
+    if typed.core_vocabulary(conformance.trait_symbol) != Some(CoreVocabulary::AccessPolicy) {
+        return Err("the selected policy does not implement the core `AccessPolicy`".into());
+    }
+    let [row] = conformance.rows.as_slice() else {
+        return Err("the selected policy has no single `plan` requirement".into());
+    };
+    if typed.core_vocabulary(row.requirement) != Some(CoreVocabulary::AccessPolicyPlan) {
+        return Err("the selected policy does not implement the core `AccessPolicy::plan`".into());
+    }
+    let (schema_graph, schema, revision) =
+        subject_type_schema(typed, requester, subject, schema_type)?;
+    let expected_selection = policy_identity(typed, requester, policy)?;
+    let entry = prepared.entry_selected(
+        requester,
+        requester,
+        policy,
+        row.requirement,
+        std::slice::from_ref(&schema),
+    )?;
+    let accepted = entry.accepted_source();
+    let (selected, member, _) = accepted
+        .named_conformance_call_member(entry.call())?
+        .ok_or("the plan call lost its selected policy member")?;
+    let plan_machine = member.realization_machine;
+    if selected.symbol != policy.symbol || typed.machine_by_symbol(plan_machine).is_none() {
+        return Err("the plan call lost its policy's source declaration".into());
+    }
+    let receiver = accepted
+        .declaration_operand_from_expression(entry.call().receiver)
+        .map_err(str::to_owned)?;
+    if policy_identity(accepted, requester, &receiver)? != expected_selection {
+        return Err("the plan call changed its domain's complete selected application".into());
+    }
+    let first_receipt = accounting.receipts().len();
+    entry.invoke_recorded(
+        InvocationTarget {
+            name: None,
+            layout_target: None,
+            carrier_layout: None,
+            address_model: None,
+        },
+        accounting,
+    )?;
+    let [crate::PureEvaluationRecord::Invocation(receipt)] =
+        &accounting.receipts()[first_receipt..]
+    else {
+        return Err("the plan evaluation lost its own invocation receipt".into());
+    };
+    if !std::ptr::eq(receipt.source(), entry.accepted_source())
+        || !std::ptr::eq(receipt.request_source(), entry.source())
+        || receipt.machine() != entry.symbol()
+        || receipt.requester() != requester
+        || receipt.call()? != entry.call()
+        || receipt.arguments() != entry.arguments()
+        || receipt.invocation()?.is_none()
+    {
+        return Err("the plan result belongs to another selected invocation".into());
+    }
+    let normalized =
+        super::access_plan_values::normalize_for_schema(receipt, schema_graph, &schema, &revision)?;
+    Ok((plan_machine, normalized))
+}
+
 fn policy_identity(
     typed: &TypedTrees,
     author: SymbolHandle,
@@ -258,26 +279,42 @@ fn core_reflection_data(typed: &TypedTrees, which: ReflectionDeclaration) -> Opt
 
 /// The `TypeSchema` of the domain's subject, asked for by the domain's
 /// author: the same graph `reflect::schema<Subject>()` returns there.
-fn subject_schema(
+fn subject_type_schema(
     typed: &TypedTrees,
-    definition: &typed_trees::domain::DomainDefinition,
+    requester: SymbolHandle,
+    subject_type: typed_trees::types::TypeReferenceHandle,
     schema_type: SymbolHandle,
 ) -> Result<(SemanticSchemaGraph, BuildTimeValue, Vec<u8>), String> {
     let subject = typed
-        .closed_data_definition(definition.target_type)
-        .ok_or("no product route yet: an access plan for a subject that is not closed data")?;
-    let authority = typed_trees::reflection::construction::schema_query_authority(
-        typed,
-        definition.symbol,
-        subject.symbol,
-    )?;
+        .closed_data_definition(subject_type)
+        .map(|data| data.symbol)
+        .or_else(
+            || match typed.type_reference_table.type_reference(subject_type) {
+                typed_trees::types::TypeReferenceNode::Named { symbol, .. }
+                    if typed
+                        .symbols
+                        .builtin_type_atom(*symbol)
+                        .and_then(symbols::PrimitiveType::from_builtin_atom)
+                        .is_some() =>
+                {
+                    Some(*symbol)
+                }
+                _ => None,
+            },
+        )
+        .ok_or("access plan subject has no closed runtime type declaration")?;
+    let authority =
+        typed_trees::reflection::construction::schema_query_authority(typed, requester, subject)?;
     let graph = typed_trees::reflection::construction::construct_semantic_schema_graph_for_type(
         typed,
-        definition.target_type,
+        subject_type,
         authority,
     )?;
-    let revision =
-        typed_trees::reflection::construction::declaration_source_revision(typed, subject.symbol)?;
+    let revision = if typed.symbols.builtin_type_atom(subject).is_some() {
+        Vec::new()
+    } else {
+        typed_trees::reflection::construction::declaration_source_revision(typed, subject)?
+    };
     // Ordinary result snapshots use the canonical record identity, not its
     // short source name. Construct the input with that same identity so the
     // complete returned value can be compared without discarding its type.

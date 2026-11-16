@@ -283,6 +283,7 @@ mod tests {
             identity: TerminalIdentityIndex::ABSENT,
             quotient_carrier: None,
             owns_linear_claim: false,
+            retained_sequence: None,
             multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
             no_code_affine_cleanup: true,
             descriptor_cleanup: false,

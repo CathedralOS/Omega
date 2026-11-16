@@ -313,6 +313,9 @@ impl Program<'_> {
         if !expression.is_valid() {
             return unserved("missing clause expression");
         }
+        if let Some(conservation) = self.content_conservation_clause(id, scope, expression)? {
+            return Ok(conservation);
+        }
         if let Some((predicate, argument)) =
             typed_trees::byte_predicates::byte_predicate_call(typed, expression)
         {
@@ -1645,7 +1648,7 @@ impl Program<'_> {
     /// beneath one. `None` for an expression that names no storage.
     /// Every step is resolved from a symbol; a name or member the typed
     /// trees hold only as a spelling is refused.
-    fn projected(
+    pub(super) fn projected(
         &self,
         id: MachineId,
         scope: &ClauseScope<'_>,

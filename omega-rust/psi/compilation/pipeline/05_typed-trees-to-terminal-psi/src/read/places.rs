@@ -14,11 +14,11 @@ A field, case or type the typed trees hold only as a spelling is refused as
 `Unserved::Spelling`. A member's `case_variant` is a spelling and is never
 read: a payload member is the payload field its symbol names.
 
-The slice serves plain data with explicit copy permission or ordinary affine
-custody: fields and payloads are builtin integers, `bool` or other such data.
-Affine values transfer once and publish normal-edge disposal of their remaining
-regions. Nominal cleanup hooks, linear claims, reference-bearing data and
-extraction through borrowed storage remain outside this slice.
+The reader describes data with explicit copy permission, affine custody or
+linear custody. Fields and payloads are builtin integers, `bool` or other such
+data. Storage lowering publishes claim names and transports; the receiving
+checker independently checks conservation. A type description alone supplies
+neither custody nor permission to dispose of a value.
 A declaration may state lifetime parameters, `data Outer<'a>`, and a field
 may apply such data at them, `inner: Inner<'a>`: they are erased regions, so
 the declaration is one record row (`lifetime_binders`, `lifetime_application`),
@@ -31,8 +31,8 @@ A declaration's `requires` is read into `RecordType::requires` by the clause
 reader the machine contracts use (`contracts`), over `self` and its fields;
 a `requires` on a case is refused (`type data requires`). Everything else
 about a `data` declaration is refused by name, and later slices add to these
-functions rather than replace them: custody (`type data with custody`),
-common fields beside cases (`type mixed data`). Stores into a record's fields are read in
+functions rather than replace them: common fields beside cases (`type mixed
+data`). Stores into a record's fields are read in
 `statements`, dispatch over a sum in `transitions`.
 */
 
@@ -64,6 +64,7 @@ use crate::{SourceOrigin, Unserved, refuse};
 pub(super) struct RecordSource {
     pub(super) declaration: SymbolHandle,
     pub(super) application: Option<typed_trees::SourceTypeApplication>,
+    pub(super) retained_sequence: Option<RetainedSequenceSource>,
     /// The declaration whose lifetime binders a byte view's region is one
     /// of, when the typed trees retained no owner for that occurrence: the
     /// data declaration the view is a field of. Invalid everywhere else.
@@ -85,6 +86,19 @@ type Members = (
 pub(super) enum Member {
     Field(usize),
     Payload { case: usize, field: usize },
+}
+
+/// The source owner retains hidden element custody separately from physical
+/// descriptor fields. Only the exact Core Run declaration supplies these roles.
+#[derive(Clone)]
+pub(crate) struct RetainedSequenceSource {
+    pub(crate) template: SymbolHandle,
+    pub(crate) policy: String,
+    pub(crate) element: ValueType,
+    pub(crate) element_reference: typed_trees::types::TypeReferenceHandle,
+    pub(crate) element_identity: String,
+    pub(crate) storage: StructuralFieldId,
+    pub(crate) count: StructuralFieldId,
 }
 
 impl Program<'_> {
@@ -144,6 +158,56 @@ impl Program<'_> {
             )
         })?;
         let application = super::source_records::source_application(typed, data, reference, id)?;
+        if let Some(origin) = data.generic_instance {
+            let TypeReferenceNode::Generic { base_symbol, .. } =
+                typed.type_reference_table.type_reference(origin)
+            else {
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Type("record implementation lost its exact template application"),
+                ));
+            };
+            let template = typed
+                .unique_data_definition_by_symbol(*base_symbol)
+                .ok_or_else(|| {
+                    refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Type("record implementation lost its exact template"),
+                    )
+                })?;
+            for (parameter, (_, argument)) in typed
+                .data_type_parameters(template)
+                .iter()
+                .zip(&application.substitutions)
+            {
+                if parameter.kind != typed_trees::data::TypeParameterKind::Implementation {
+                    continue;
+                }
+                let TypeReferenceNode::Named { symbol, .. } =
+                    typed.type_reference_table.type_reference(*argument)
+                else {
+                    return Err(refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Type(
+                            "static implementation family needs its general binder or region proof",
+                        ),
+                    ));
+                };
+                // A supplied record is still subject to the ordinary complete
+                // conformance obligations. Its type or prepared tuple does not
+                // establish member refinement or authorize a selected body.
+                if !self.conformance_declaration(id, *symbol)? {
+                    return Err(refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Type("record implementation operand is not an operation record"),
+                    ));
+                }
+            }
+        }
         let regions = self.occurrence_regions(id, data, semantic)?;
         self.record_definition(id, data, Some(application))
             .map(|value_type| with_regions(value_type, regions))
@@ -224,6 +288,91 @@ impl Program<'_> {
         Ok(self.source(id, record)?.declaration)
     }
 
+    pub(crate) fn retained_sequence_sources(
+        &self,
+    ) -> impl Iterator<Item = (StructuralTypeId, SymbolHandle, &RetainedSequenceSource)> {
+        self.record_sources.iter().filter_map(|(record, source)| {
+            source
+                .retained_sequence
+                .as_ref()
+                .map(|sequence| (record, source.declaration, sequence))
+        })
+    }
+
+    pub(crate) fn retained_sequence_source(
+        &self,
+        id: MachineId,
+        record: StructuralTypeId,
+    ) -> Checked<Option<&RetainedSequenceSource>> {
+        Ok(self.source(id, record)?.retained_sequence.as_ref())
+    }
+
+    fn retained_sequence_application(
+        &mut self,
+        id: MachineId,
+        data: &DataDefinition,
+        application: Option<&typed_trees::SourceTypeApplication>,
+        fields: &[RecordField],
+    ) -> Checked<Option<RetainedSequenceSource>> {
+        use language_core::core_vocabulary::{CoreVocabulary, RunDeclaration};
+        let typed = self.typed;
+        let unavailable = |detail| refuse(id, Construct::Machine, Unserved::Type(detail));
+        let Some(origin) = data.generic_instance else {
+            return Ok(None);
+        };
+        let TypeReferenceNode::Generic { base_symbol, .. } =
+            typed.type_reference_table.type_reference(origin)
+        else {
+            return Err(unavailable(
+                "retained sequence has no complete source application",
+            ));
+        };
+        if typed.core_vocabulary(*base_symbol) != Some(CoreVocabulary::Run(RunDeclaration::Run)) {
+            return Ok(None);
+        }
+        let application =
+            application.ok_or_else(|| unavailable("Run lost its exact source application"))?;
+        let [(_, policy_reference), (_, element_reference)] = application.substitutions.as_slice()
+        else {
+            return Err(unavailable("Run lost its actual policy and element tuple"));
+        };
+        let policy_value = typed
+            .static_operand_from_type_reference(*policy_reference)
+            .map_err(|_| unavailable("Run policy has no retained static value"))?;
+        let owner = typed
+            .static_operand_region_supplier(&policy_value, self.lifetime_owner)
+            .map_err(|_| unavailable("Run policy lost its exact supplying declaration"))?;
+        super::run_custody::descriptor_role(
+            typed,
+            id,
+            origin,
+            &policy_value,
+            *element_reference,
+            owner,
+        )?;
+        let policy = crate::declare::implementation_argument_identity(typed, owner, &policy_value)
+            .map_err(|_| unavailable("Run policy has no complete static value identity"))?;
+        let element_identity = typed
+            .type_identity_text(typed.package_qualified_type_identity(*element_reference))
+            .filter(|identity| !identity.is_empty())
+            .ok_or_else(|| unavailable("Run element has no complete closed type identity"))?;
+        let element = self.value_type(id, *element_reference)?;
+        let [storage, count] = fields else {
+            return Err(unavailable(
+                "Run descriptor lost its exact storage/count field roles",
+            ));
+        };
+        Ok(Some(RetainedSequenceSource {
+            template: *base_symbol,
+            policy,
+            element,
+            element_reference: *element_reference,
+            element_identity,
+            storage: storage.id,
+            count: count.id,
+        }))
+    }
+
     fn record_definition(
         &mut self,
         id: MachineId,
@@ -295,8 +444,24 @@ impl Program<'_> {
                 let enclosing = std::mem::replace(&mut self.lifetime_owner, symbol);
                 let read = (|| {
                     if let Some(application) = &application {
-                        for (_, argument) in &application.substitutions {
-                            self.value_type(id, *argument)?;
+                        let template =
+                            typed
+                                .unique_data_definition_by_symbol(symbol)
+                                .ok_or_else(|| {
+                                    refuse(
+                                        id,
+                                        Construct::Machine,
+                                        Unserved::Type("applied data lost its template"),
+                                    )
+                                })?;
+                        for (parameter, (_, argument)) in typed
+                            .data_type_parameters(template)
+                            .iter()
+                            .zip(&application.substitutions)
+                        {
+                            if parameter.kind == typed_trees::data::TypeParameterKind::Type {
+                                self.value_type(id, *argument)?;
+                            }
                         }
                     }
                     self.declared_members(id, typed.data_members(data))
@@ -414,6 +579,8 @@ impl Program<'_> {
         {
             return Err(unserved("copy data with an owned field"));
         }
+        let retained_sequence =
+            self.retained_sequence_application(id, data, application.as_ref(), &declared)?;
         let record: StructuralTypeId = self.records.push(RecordType {
             multiplicity: crate::body::source_multiplicity(data.properties.multiplicity),
             cleanup: None,
@@ -435,6 +602,7 @@ impl Program<'_> {
         self.record_sources.push(RecordSource {
             declaration: symbol,
             application: application.clone(),
+            retained_sequence,
             region_owner: SymbolHandle::invalid(),
             fields: field_symbols,
             cases: case_symbols,
@@ -1454,7 +1622,7 @@ fn record_shape_for<'m>(
     id: MachineId,
     data: &DataDefinition,
     application: Option<&typed_trees::SourceTypeApplication>,
-    purpose: super::storage_metadata::TypePurpose,
+    _purpose: super::storage_metadata::TypePurpose,
     members: arena::RootRows<'m, DataMember>,
     payload: impl Fn(&'m typed_trees::data::DataVariant) -> arena::RootRows<'m, DataField>,
 ) -> Checked<()> {
@@ -1475,20 +1643,16 @@ fn record_shape_for<'m>(
     // select no type, field or layout (`lifetime_binders`).
     if !data.type_parameters.is_empty()
         || data.generic_instance.is_some() && application.is_none()
-        || !data.conformance_bounds.is_empty()
+        || !data.conformance_bounds.is_empty() && application.is_none()
     {
         return unserved("generic data");
     }
     if data.quotient.is_some() {
         return unserved("quotient data");
     }
-    // Descriptor mode may retain a linear claim's geometry. Executable
-    // linear disposition and carry still need their own checked projections.
-    if data.properties.multiplicity == language_semantics::Multiplicity::Linear
-        && purpose == super::storage_metadata::TypePurpose::Value
-    {
-        return unserved("data with custody");
-    }
+    // Multiplicity is descriptive type metadata. The shared ownership walk
+    // publishes exact intrinsic/component claim transport for executable
+    // values; independent Psi checking owns whether those rows are valid.
     if data.properties.carry.is_some() {
         return unserved("data with a carry policy");
     }
@@ -1830,9 +1994,6 @@ mod tests {
         // A declaration-level `requires` is no longer refused here: its
         // clauses are read by the clause reader. A case-level one still is.
         let cases: [(&str, fn(&mut DataDefinition, &mut Vec<DataMember>)); 7] = [
-            ("type data with custody", |data, _| {
-                data.properties.multiplicity = language_semantics::Multiplicity::Linear;
-            }),
             ("type generic data", |data, _| {
                 data.type_parameters = HandleSpan::from_parts(Handle::from_parts(1, 1), 1);
             }),

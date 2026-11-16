@@ -315,7 +315,9 @@ impl<'source> ApplicationPreparation<'source> {
             || parameters.iter().any(|parameter| {
                 !matches!(
                     parameter.kind,
-                    TypeParameterKind::Type | TypeParameterKind::Const { .. }
+                    TypeParameterKind::Type
+                        | TypeParameterKind::Const { .. }
+                        | TypeParameterKind::Implementation
                 )
             })
         {
@@ -329,7 +331,12 @@ impl<'source> ApplicationPreparation<'source> {
                 .symbols()
                 .nodes()
                 .is_valid(parameter.symbol)
-                || self.source.symbols.get(parameter.symbol).kind != SymbolKind::TypeParameter
+                || self.source.symbols.get(parameter.symbol).kind
+                    != if parameter.kind == TypeParameterKind::Implementation {
+                        SymbolKind::ConformanceParameter
+                    } else {
+                        SymbolKind::TypeParameter
+                    }
                 || self.source.symbols.get(parameter.symbol).parent != owner
                 || substitutions
                     .iter()
@@ -391,12 +398,35 @@ impl<'source> ApplicationPreparation<'source> {
                         .is_some()
                         || crate::canonical_const_argument_value(self.source, *argument).is_some()
                 }
+                TypeParameterKind::Implementation => {
+                    // This closes the retained value tuple, not its schema
+                    // constraints, member refinements or conformance verdict.
+                    // A data declaration cannot masquerade as a static record.
+                    crate::domain::index_argument_is_closed(self.source, *argument)
+                        && self
+                            .source
+                            .applied_requirement_scope(owner, *argument)
+                            .is_some()
+                        && self
+                            .source
+                            .require_owned_application_operands(&[*argument], owner)
+                            .is_ok()
+                }
                 _ => false,
             };
         }
         let mut definition = template.clone();
         definition.type_parameters = HandleSpan::empty();
         definition.generic_instance = Some(reference);
+        for bound in &mut definition.conformance_bounds {
+            for argument in &mut bound.arguments {
+                *argument = self
+                    .source
+                    .type_reference_table
+                    .instantiate(*argument, &substitutions)
+                    .map_err(str::to_owned)?;
+            }
+        }
         definition.predicate_subject_type = self
             .source
             .type_reference_table

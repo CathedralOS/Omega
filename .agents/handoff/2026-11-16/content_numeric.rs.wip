@@ -1,0 +1,510 @@
+//! Reduce the closed Content algebras to ordinary mathematical propositions.
+//! The caller supplies exact published projections and version-bound scalar
+//! observations. This function describes the proof goal and assumes none of it.
+
+use semantic_vocabulary::{
+    ContentAlgebraKind, ContentConservation, ContentProjectionExpression,
+    ContentProjectionIdentity, ContentProjectionScalar, ContentStructuralPlace, ContentTerm,
+    IntegerMathLiteral, IntegerMathTerm, IntegerValue, Proposition,
+};
+use terminal_psi::StructuralContentProjection;
+
+fn conjunction(parts: impl IntoIterator<Item = Proposition>) -> Proposition {
+    connective(parts, true)
+}
+fn disjunction(parts: impl IntoIterator<Item = Proposition>) -> Proposition {
+    connective(parts, false)
+}
+fn connective(parts: impl IntoIterator<Item = Proposition>, and: bool) -> Proposition {
+    let mut flat = Vec::new();
+    for part in parts {
+        match (and, part) {
+            (true, Proposition::Falsehood) | (false, Proposition::Truth) => {
+                return if and {
+                    Proposition::Falsehood
+                } else {
+                    Proposition::Truth
+                };
+            }
+            (true, Proposition::Truth) | (false, Proposition::Falsehood) => {}
+            (true, Proposition::Conjunction(parts)) | (false, Proposition::Disjunction(parts)) => {
+                flat.extend(parts)
+            }
+            (_, part) => flat.push(part),
+        }
+    }
+    flat.sort_unstable();
+    flat.dedup();
+    match flat.len() {
+        0 => {
+            if and {
+                Proposition::Truth
+            } else {
+                Proposition::Falsehood
+            }
+        }
+        1 => flat.remove(0),
+        _ => {
+            if and {
+                Proposition::Conjunction(flat)
+            } else {
+                Proposition::Disjunction(flat)
+            }
+        }
+    }
+}
+fn implies(premise: Proposition, conclusion: Proposition) -> Proposition {
+    if premise == Proposition::Falsehood
+        || conclusion == Proposition::Truth
+        || premise == conclusion
+    {
+        Proposition::Truth
+    } else if premise == Proposition::Truth {
+        conclusion
+    } else {
+        Proposition::Implication {
+            premise: Box::new(premise),
+            conclusion: Box::new(conclusion),
+        }
+    }
+}
+fn less_equal(left: &IntegerMathTerm, right: &IntegerMathTerm) -> Proposition {
+    if left == right {
+        Proposition::Truth
+    } else {
+        Proposition::IntegerMathLessOrEqual(left.clone(), right.clone())
+    }
+}
+fn equal(left: &IntegerMathTerm, right: &IntegerMathTerm) -> Proposition {
+    if left == right {
+        Proposition::Truth
+    } else if left < right {
+        Proposition::IntegerMathEqual(left.clone(), right.clone())
+    } else {
+        Proposition::IntegerMathEqual(right.clone(), left.clone())
+    }
+}
+fn zero() -> IntegerMathTerm {
+    IntegerMathTerm::literal(IntegerValue::Unsigned(0))
+}
+fn contains(
+    intervals: &[(IntegerMathTerm, IntegerMathTerm)],
+    point: &IntegerMathTerm,
+) -> Proposition {
+    disjunction(intervals.iter().map(|(start, end)| {
+        conjunction([
+            less_equal(start, point),
+            implies(less_equal(end, point), Proposition::Falsehood),
+        ])
+    }))
+}
+
+struct Side {
+    intervals: Vec<(IntegerMathTerm, IntegerMathTerm)>,
+    quantities: Vec<IntegerMathTerm>,
+}
+
+fn scalar<E: From<&'static str>>(
+    expression: &ContentProjectionScalar,
+    subject: &ContentStructuralPlace,
+    field: &mut impl FnMut(&ContentStructuralPlace, &[String]) -> Result<IntegerMathTerm, E>,
+    depth: usize,
+) -> Result<IntegerMathTerm, E> {
+    if depth > 256 {
+        return Err(E::from(
+            "content projection exceeds the expression-depth budget",
+        ));
+    }
+    Ok(match expression {
+        ContentProjectionScalar::SubjectField(path)
+        | ContentProjectionScalar::RuntimeScalarEmbedding(path) => field(subject, path)?,
+        ContentProjectionScalar::Natural(value) => {
+            if value.is_empty()
+                || value != "0" && value.starts_with('0')
+                || !value.bytes().all(|byte| byte.is_ascii_digit())
+            {
+                return Err(E::from(
+                    "content projection has no canonical natural literal",
+                ));
+            }
+            let magnitude = value.parse::<u128>().map_err(|_| {
+                E::from("content natural literal exceeds the mathematical term representation")
+            })?;
+            IntegerMathTerm::IntegerLiteral(IntegerMathLiteral::new(false, magnitude).map_err(
+                |_| E::from("content natural literal has no mathematical representation"),
+            )?)
+        }
+        ContentProjectionScalar::Successor(inner) => IntegerMathTerm::Add(
+            Box::new(scalar(inner, subject, field, depth + 1)?),
+            Box::new(IntegerMathTerm::literal(IntegerValue::Unsigned(1))),
+        ),
+        ContentProjectionScalar::Add(left, right) => IntegerMathTerm::Add(
+            Box::new(scalar(left, subject, field, depth + 1)?),
+            Box::new(scalar(right, subject, field, depth + 1)?),
+        ),
+        ContentProjectionScalar::Subtract(left, right) => IntegerMathTerm::Subtract(
+            Box::new(scalar(left, subject, field, depth + 1)?),
+            Box::new(scalar(right, subject, field, depth + 1)?),
+        ),
+        ContentProjectionScalar::Multiply(left, right) => IntegerMathTerm::Multiply(
+            Box::new(scalar(left, subject, field, depth + 1)?),
+            Box::new(scalar(right, subject, field, depth + 1)?),
+        ),
+    })
+}
+
+fn expand<E: From<&'static str>>(
+    term: &ContentTerm,
+    conservation: &ContentConservation,
+    projection: &mut impl FnMut(
+        ContentProjectionIdentity,
+        &ContentStructuralPlace,
+    ) -> Result<StructuralContentProjection, E>,
+    field: &mut impl FnMut(&ContentStructuralPlace, &[String]) -> Result<IntegerMathTerm, E>,
+    side: &mut Side,
+    depth: usize,
+) -> Result<(), E> {
+    if depth > 256 {
+        return Err(E::from(
+            "content conservation exceeds the term-depth budget",
+        ));
+    }
+    match term {
+        ContentTerm::Separate(parts) => {
+            if parts.is_empty() {
+                return Err(E::from("content separation has no members"));
+            }
+            for part in parts {
+                expand(part, conservation, projection, field, side, depth + 1)?;
+            }
+        }
+        ContentTerm::Projection {
+            projection: identity,
+            subject,
+        } => {
+            let declared = projection(*identity, subject)?;
+            if declared.identity != *identity || declared.algebra != *conservation.algebra() {
+                return Err(E::from(
+                    "content projection changed its exact owner or algebra",
+                ));
+            }
+            match (&declared.expression, conservation.algebra().kind) {
+                (
+                    ContentProjectionExpression::IntervalSet(intervals),
+                    ContentAlgebraKind::IntervalSet,
+                ) => {
+                    for (start, end) in intervals {
+                        side.intervals.push((
+                            scalar(start, subject, field, 0)?,
+                            scalar(end, subject, field, 0)?,
+                        ));
+                    }
+                }
+                (
+                    ContentProjectionExpression::CountedQuantity(quantity),
+                    ContentAlgebraKind::CountedQuantity,
+                ) => side.quantities.push(scalar(quantity, subject, field, 0)?),
+                _ => {
+                    return Err(E::from(
+                        "content projection expression changed its declared algebra kind",
+                    ));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn interval_conditions(
+    intervals: &[(IntegerMathTerm, IntegerMathTerm)],
+    output: &mut Vec<Proposition>,
+) {
+    for (index, (start, end)) in intervals.iter().enumerate() {
+        output.push(less_equal(&zero(), start));
+        output.push(less_equal(start, end));
+        for (other_start, other_end) in &intervals[..index] {
+            // Empty members have no location and therefore cannot overlap.
+            output.push(disjunction([
+                equal(start, end),
+                equal(other_start, other_end),
+                less_equal(end, other_start),
+                less_equal(other_end, start),
+            ]));
+        }
+    }
+}
+
+/// Equality of finite interval unions is determined at their combined endpoint
+/// roster: half-open membership is constant between consecutive endpoints.
+/// Checking that finite roster avoids guessing interval order or enumerating
+/// permutations. Separation and natural endpoint validity remain explicit goals.
+pub fn conservation_goal<E: From<&'static str>>(
+    conservation: &ContentConservation,
+    mut projection: impl FnMut(
+        ContentProjectionIdentity,
+        &ContentStructuralPlace,
+    ) -> Result<StructuralContentProjection, E>,
+    mut field: impl FnMut(&ContentStructuralPlace, &[String]) -> Result<IntegerMathTerm, E>,
+) -> Result<Proposition, E> {
+    let mut left = Side {
+        intervals: Vec::new(),
+        quantities: Vec::new(),
+    };
+    let mut right = Side {
+        intervals: Vec::new(),
+        quantities: Vec::new(),
+    };
+    expand(
+        conservation.left(),
+        conservation,
+        &mut projection,
+        &mut field,
+        &mut left,
+        0,
+    )?;
+    expand(
+        conservation.right(),
+        conservation,
+        &mut projection,
+        &mut field,
+        &mut right,
+        0,
+    )?;
+    let mut conditions = Vec::new();
+    match conservation.algebra().kind {
+        ContentAlgebraKind::IntervalSet => {
+            interval_conditions(&left.intervals, &mut conditions);
+            interval_conditions(&right.intervals, &mut conditions);
+            let mut endpoints: Vec<_> = left
+                .intervals
+                .iter()
+                .chain(&right.intervals)
+                .flat_map(|(start, end)| [start, end])
+                .collect();
+            endpoints.sort_unstable();
+            endpoints.dedup();
+            let required = endpoints
+                .len()
+                .checked_mul(
+                    left.intervals
+                        .len()
+                        .checked_add(right.intervals.len())
+                        .ok_or_else(|| E::from("content interval count overflows"))?,
+                )
+                .ok_or_else(|| E::from("content endpoint proof size overflows"))?;
+            conditions
+                .try_reserve(required)
+                .map_err(|_| E::from("content endpoint proof exceeds available memory"))?;
+            for endpoint in endpoints {
+                let l = contains(&left.intervals, endpoint);
+                let r = contains(&right.intervals, endpoint);
+                conditions.push(implies(l.clone(), r.clone()));
+                conditions.push(implies(r, l));
+            }
+        }
+        ContentAlgebraKind::CountedQuantity => {
+            for quantity in left.quantities.iter().chain(&right.quantities) {
+                conditions.push(less_equal(&zero(), quantity));
+            }
+            let sum = |values: Vec<IntegerMathTerm>| {
+                values.into_iter().fold(zero(), |sum, value| {
+                    IntegerMathTerm::Add(Box::new(sum), Box::new(value))
+                })
+            };
+            conditions.push(equal(&sum(left.quantities), &sum(right.quantities)));
+        }
+    }
+    Ok(conjunction(conditions))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use semantic_vocabulary::{ContentAlgebra, ContentDomainId, ContentPlaceVersion, PlaceId};
+
+    fn number(value: u128) -> IntegerMathTerm {
+        IntegerMathTerm::literal(IntegerValue::Unsigned(value))
+    }
+    fn evaluate_term(term: &IntegerMathTerm) -> i128 {
+        match term {
+            IntegerMathTerm::IntegerLiteral(value) => {
+                let magnitude: i128 = value.magnitude().try_into().unwrap();
+                if value.negative() {
+                    -magnitude
+                } else {
+                    magnitude
+                }
+            }
+            IntegerMathTerm::Add(left, right) => evaluate_term(left) + evaluate_term(right),
+            IntegerMathTerm::Subtract(left, right) => evaluate_term(left) - evaluate_term(right),
+            IntegerMathTerm::Multiply(left, right) => evaluate_term(left) * evaluate_term(right),
+            _ => panic!("closed law test contains an unbound term"),
+        }
+    }
+    fn evaluate(goal: &Proposition) -> bool {
+        match goal {
+            Proposition::Truth => true,
+            Proposition::Falsehood => false,
+            Proposition::Conjunction(parts) => parts.iter().all(evaluate),
+            Proposition::Disjunction(parts) => parts.iter().any(evaluate),
+            Proposition::Implication {
+                premise,
+                conclusion,
+            } => !evaluate(premise) || evaluate(conclusion),
+            Proposition::IntegerMathEqual(left, right) => {
+                evaluate_term(left) == evaluate_term(right)
+            }
+            Proposition::IntegerMathLessOrEqual(left, right) => {
+                evaluate_term(left) <= evaluate_term(right)
+            }
+            _ => panic!("closed law test contains an unrelated proposition"),
+        }
+    }
+    fn identity() -> ContentProjectionIdentity {
+        ContentProjectionIdentity {
+            domain: ContentDomainId::new(1).unwrap(),
+            projection_report_fingerprint: 7,
+        }
+    }
+    fn algebra() -> semantic_vocabulary::ContentAlgebra {
+        ContentAlgebra {
+            kind: ContentAlgebraKind::IntervalSet,
+            parameter: "test:coordinate-space".into(),
+        }
+    }
+    fn term(root: u64) -> ContentTerm {
+        ContentTerm::Projection {
+            projection: identity(),
+            subject: ContentStructuralPlace {
+                version: ContentPlaceVersion::Current,
+                root: PlaceId::new(root).unwrap(),
+                segments: Vec::new(),
+            },
+        }
+    }
+    fn interval_goal(left: &[u64], right: &[u64], intervals: &[(u128, u128)]) -> Proposition {
+        let side = |roots: &[u64]| match roots {
+            [root] => term(*root),
+            roots => ContentTerm::separate(roots.iter().map(|root| term(*root)).collect()).unwrap(),
+        };
+        let conservation = ContentConservation::new(algebra(), side(left), side(right));
+        conservation_goal::<&'static str>(
+            &conservation,
+            &mut |_, _| {
+                Ok(StructuralContentProjection {
+                    identity: identity(),
+                    algebra: algebra(),
+                    expression: ContentProjectionExpression::IntervalSet(vec![(
+                        ContentProjectionScalar::RuntimeScalarEmbedding(vec!["start".into()]),
+                        ContentProjectionScalar::RuntimeScalarEmbedding(vec!["end".into()]),
+                    )]),
+                })
+            },
+            &mut |subject, path| {
+                let (start, end) = intervals[subject.root.get() as usize - 1];
+                match path.first().map(String::as_str) {
+                    Some("start") => Ok(number(start)),
+                    Some("end") => Ok(number(end)),
+                    _ => Err("missing test field"),
+                }
+            },
+        )
+        .unwrap()
+    }
+    #[test]
+    fn endpoint_law_accepts_partition_and_independent_recomposition() {
+        assert!(evaluate(&interval_goal(
+            &[1],
+            &[2, 3],
+            &[(10, 30), (10, 17), (17, 30)]
+        )));
+        assert!(evaluate(&interval_goal(
+            &[1, 2],
+            &[3],
+            &[(10, 17), (17, 30), (10, 30)]
+        )));
+        assert!(evaluate(&interval_goal(
+            &[1],
+            &[2, 3],
+            &[(10, 30), (10, 30), (900, 900)]
+        )));
+        assert!(evaluate(&interval_goal(
+            &[1, 2],
+            &[3],
+            &[(900, 900), (10, 30), (10, 30)]
+        )));
+    }
+    #[test]
+    fn endpoint_law_refuses_gap_overlap_and_reversed_interval() {
+        assert!(!evaluate(&interval_goal(
+            &[1],
+            &[2, 3],
+            &[(10, 30), (10, 17), (18, 30)]
+        )));
+        assert!(!evaluate(&interval_goal(
+            &[1],
+            &[2, 3],
+            &[(10, 30), (10, 18), (17, 30)]
+        )));
+        assert!(!evaluate(&interval_goal(
+            &[1],
+            &[2, 3],
+            &[(10, 30), (10, 17), (30, 17)]
+        )));
+    }
+    #[test]
+    fn endpoint_law_matches_finite_union_membership_on_small_ranges() {
+        // Exhaust the bounded one-to-two law, using direct set membership as
+        // the independent oracle. This includes all empty placements and both
+        // possible input orders, without assuming common ancestry.
+        for start in 0..=3 {
+            for end in start..=3 {
+                for a in 0..=3 {
+                    for b in a..=3 {
+                        for c in 0..=3 {
+                            for d in c..=3 {
+                                let disjoint = a == b || c == d || b <= c || d <= a;
+                                let same = (0..=3).all(|point| {
+                                    (start <= point && point < end)
+                                        == ((a <= point && point < b) || (c <= point && point < d))
+                                });
+                                assert_eq!(
+                                    evaluate(&interval_goal(
+                                        &[1],
+                                        &[2, 3],
+                                        &[(start, end), (a, b), (c, d)]
+                                    )),
+                                    disjoint && same
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    #[test]
+    fn numeric_reduction_refuses_a_different_owner_or_coordinate_space() {
+        let conservation = ContentConservation::new(algebra(), term(1), term(2));
+        for wrong_owner in [false, true] {
+            let result = conservation_goal::<&'static str>(
+                &conservation,
+                &mut |_, _| {
+                    let mut projection = StructuralContentProjection {
+                        identity: identity(),
+                        algebra: algebra(),
+                        expression: ContentProjectionExpression::IntervalSet(Vec::new()),
+                    };
+                    if wrong_owner {
+                        projection.identity.domain = ContentDomainId::new(2).unwrap();
+                    } else {
+                        projection.algebra.parameter = "test:other-space".into();
+                    }
+                    Ok(projection)
+                },
+                &mut |_, _| Ok(number(0)),
+            );
+            assert!(result.is_err());
+        }
+    }
+}

@@ -3151,6 +3151,7 @@ pub(crate) mod calling_storage {
                 shape,
                 quotient_carrier: None,
                 owns_linear_claim: false,
+                retained_sequence: None,
                 multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                 no_code_affine_cleanup: true,
                 descriptor_cleanup: false,
@@ -4224,21 +4225,28 @@ pub mod run_custody {
         if types.windows(2).any(|pair| pair[0].id == pair[1].id) {
             return Err("run custody has ambiguous structural declaration identities");
         }
+        let mut domains = module.structural_domains.iter().collect::<Vec<_>>();
+        domains.sort_unstable_by_key(|domain| domain.id);
+        if domains.windows(2).any(|pair| pair[0].id == pair[1].id) {
+            return Err("run custody has ambiguous qualification declaration identities");
+        }
         for boundary in &module.boundary_machines {
             if boundary
                 .declaration
                 .as_ref()
                 .is_some_and(|row| row.execution.run_custody_operation().is_some())
             {
-                run_custody_contract_by(
-                    |id| {
-                        let position = types
-                            .binary_search_by_key(&id, |declaration| declaration.id)
-                            .ok()?;
-                        Some(types[position])
-                    },
-                    boundary,
-                )?;
+                let lookup = |id| {
+                    let position = types
+                        .binary_search_by_key(&id, |declaration| declaration.id)
+                        .ok()?;
+                    Some(types[position])
+                };
+                let contract = run_custody_contract_by(lookup, boundary)?;
+                crate::run_custody_identity::validate(module, boundary, &contract, lookup, |id| {
+                    let position = domains.binary_search_by_key(&id, |domain| domain.id).ok()?;
+                    Some(domains[position])
+                })?;
             }
         }
         Ok(())
@@ -4276,7 +4284,7 @@ pub mod run_custody {
     }
 
     #[cfg(test)]
-    mod tests {
+    pub(crate) mod tests {
         use super::*;
         use semantic_vocabulary::{IntegerType, PlaceId};
         use terminal_psi::{
@@ -4309,6 +4317,7 @@ pub mod run_custody {
                 id: ty(id),
                 identity: TerminalIdentityIndex(id as u32),
                 owns_linear_claim: id == 1,
+                retained_sequence: None,
                 multiplicity: StructuralMultiplicity::Linear,
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: false,
@@ -4321,7 +4330,7 @@ pub mod run_custody {
                 requires: Vec::new(),
             }
         }
-        fn types() -> Vec<StructuralTypeDeclaration> {
+        pub(crate) fn types() -> Vec<StructuralTypeDeclaration> {
             vec![
                 record(
                     1,
@@ -4351,7 +4360,7 @@ pub mod run_custody {
                 ),
             ]
         }
-        fn boundary(operation: RunCustodyOperation) -> BoundaryMachineDeclaration {
+        pub(crate) fn boundary(operation: RunCustodyOperation) -> BoundaryMachineDeclaration {
             let identity = TerminalIdentityIndex(20);
             let source = CheckedMachineDeclaration {
                 machine: NominalDeclarationIdentity::new(identity),

@@ -61,7 +61,17 @@ fn prepared(text: &str) -> typed_trees::FrozenTypedTrees {
         tokens_to_syntax_trees::parse(&mut syntax, id, &tokens).unwrap();
     }
     let anchor = run_source.expect("actual bundled Run unit");
-    let bindings = ["Run", "RunParts", "Live"].map(|declaration| {
+    let bindings = [
+        "Run",
+        "RunParts",
+        "Live",
+        "AccessPolicy",
+        "AccessPlan",
+        "Issuance",
+        "reflect::TypeSchema",
+        "access",
+    ]
+    .map(|declaration| {
         symbols::SourceScopedTopLevelBinding::logical_module_import(
             product,
             anchor,
@@ -192,7 +202,7 @@ fn closed_run_split_merge_keeps_actual_types_specializations_and_call_proofs() {
             continue;
         };
         let [
-            ClosedReachArgument::Type(actual_policy),
+            ClosedReachArgument::Const(actual_policy),
             ClosedReachArgument::Type(actual_element),
         ] = checked.method_arguments.as_slice()
         else {

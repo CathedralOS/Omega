@@ -163,8 +163,8 @@ impl SourcePreparationRequest<'_> {
                     &mut program,
                     self.compilation,
                     self.admission.layout_scopes,
-                    self.admission.layout_selection_authority,
-                    self.admission.invocation_sources,
+                    self.admission.layout_selection_authority.clone(),
+                    self.admission.invocation_sources.clone(),
                     &mut accounting,
                 )?;
             build_time_evaluation::validate_constant_evaluations(&program, &accounting).map_err(
@@ -179,8 +179,16 @@ impl SourcePreparationRequest<'_> {
             if let Some(authority) = self.admission.asm_authority {
                 preparation = preparation.with_asm_authority(authority);
             }
-            let (program, _) =
-                typed_trees_to_typed_trees::prepare_typed_trees(program, &preparation)?;
+            let (mut program, _) =
+                typed_trees_to_typed_trees::prepare_typed_trees_unfrozen(program, &preparation)?;
+            build_time_evaluation::evaluate_access_lifecycle_plans(
+                &mut program,
+                self.compilation,
+                self.admission.layout_selection_authority,
+                self.admission.invocation_sources,
+                &mut accounting,
+            )?;
+            let program = typed_trees::FrozenTypedTrees::from(program);
             let key = |symbol: symbols::SymbolHandle| (symbol.arena_index(), symbol.generation());
             let mut declarations = program.const_declarations().iter().collect::<Vec<_>>();
             declarations.sort_unstable_by_key(|declaration| key(declaration.symbol));

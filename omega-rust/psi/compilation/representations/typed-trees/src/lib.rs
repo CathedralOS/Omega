@@ -1215,7 +1215,8 @@ pub use type_reference_queries::ApplicationValueIndices;
 pub use access_views::{
     AccessAtomicObservingResultContract, AccessAtomicResidentContract, AccessBackingOutcome,
     AccessBackingTransfer, AccessContentShape, AccessExecutionDeclaration, AccessFieldPlan,
-    AccessLifecycleOperation, AccessLifecycleOwner, AccessLifecyclePlan, AccessLifecycleStorage,
+    AccessLifecycleOperation, AccessLifecycleOwner, AccessLifecyclePlacement, AccessLifecyclePlan,
+    AccessLifecycleStorage,
     AccessViewPlan, AccessorPrimitive, AccessorTarget, PlanLaidFieldLayoutSource, PlanLaidGeometry,
     PlanLaidLayout, PlanLaidRealizations, PlanLaidRetiredFieldIdentity, PlanLaidSchemaArgument,
     PlanLaidSchemaField, PlanLaidSchemaFieldKind, PlanLaidTargetLayout,
