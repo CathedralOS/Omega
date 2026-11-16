@@ -5926,13 +5926,37 @@ mod scalar_predicate_definition_tests {
         duplicate_input.scalar_predicate_definitions[0]
             .parameters
             .push(input);
-        assert!(decode_module(&module_wire::encode_raw(&duplicate_input).unwrap()).is_err());
+        assert!(matches!(
+            decode_module(&module_wire::encode_raw(&duplicate_input).unwrap()),
+            Err(CodecError::NonCanonicalOrder(
+                "scalar predicate inputs by ValueId"
+            ))
+        ));
 
         let mut duplicate_declaration = original.clone();
         duplicate_declaration
             .scalar_predicate_definitions
             .push(duplicate_declaration.scalar_predicate_definitions[0].clone());
-        assert!(decode_module(&module_wire::encode_raw(&duplicate_declaration).unwrap()).is_err());
+        assert!(matches!(
+            decode_module(&module_wire::encode_raw(&duplicate_declaration).unwrap()),
+            Err(CodecError::NonCanonicalOrder(
+                "scalar predicate definitions by declaration identity"
+            ))
+        ));
+
+        let mut unordered = original.clone();
+        let mut identities = unordered.identities.into_builder();
+        let mut second = unordered.scalar_predicate_definitions[0].clone();
+        second.declaration = identities.intern("test::other-predicate");
+        unordered.identities = identities.build();
+        unordered.scalar_predicate_definitions.push(second);
+        unordered.scalar_predicate_definitions.swap(0, 1);
+        assert!(matches!(
+            decode_module(&module_wire::encode_raw(&unordered).unwrap()),
+            Err(CodecError::NonCanonicalOrder(
+                "scalar predicate definitions by declaration identity"
+            ))
+        ));
 
         let mut unknown = original.clone();
         unknown.scalar_predicate_definitions[0].declaration =

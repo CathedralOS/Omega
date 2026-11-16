@@ -319,14 +319,11 @@ clauses.
 
 ## Synthesized core traits
 
-Equality on a record is requested with an empty implementation, which the
-compiler fills in field by field:
+Request record equality with an empty implementation of Core's `Equatable`
+protocol. The compiler fills in its comparison field by field; a user trait
+with the same name does not grant synthesis.
 
 ```omega
-trait Equatable<T> {
-    machine equals(value: &T, other: &T) -> bool;
-}
-
 data Point { x: i32; y: i32; }
 StructuralEquality satisfies Equatable<Point> { }
 ```

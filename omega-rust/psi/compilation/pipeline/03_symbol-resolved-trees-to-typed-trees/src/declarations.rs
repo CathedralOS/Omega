@@ -581,7 +581,6 @@ pub(crate) mod machine {
     use crate::access_borrow_factory::access_borrow_factory;
     use crate::contracts::invocations::lower_authored_invocations;
     use crate::declarations::state::{complete_state_body, lower_state_declaration};
-    use crate::expressions::equatable::EqualityScope;
     use crate::expressions::expression::lower_expression_handle;
     use crate::lowerer::Lowerer;
     use crate::lowerer::name::{lower_name, lower_names};
@@ -979,11 +978,6 @@ pub(crate) mod machine {
             .enumerate()
         {
             let state = lowerer.source_trees.machine_state(*state);
-            lowerer.equality_scope = Some(EqualityScope::for_state_interface(
-                lowerer.source_trees,
-                machine,
-                state,
-            ));
             let exposure = lowerer.type_reference_exposure.map(|_| {
                 if state_index == 0 {
                     machine.interface_exposure
@@ -994,7 +988,6 @@ pub(crate) mod machine {
             let state = lowerer.with_type_reference_exposure(exposure, |lowerer| {
                 lower_state_declaration(lowerer, state)
             })?;
-            lowerer.equality_scope = None;
             lowerer
                 .typed_trees
                 .push_machine_state(&mut typed_machine, state);
@@ -1138,23 +1131,12 @@ pub(crate) mod machine {
         }
         for (ordinal, source) in source_states.iter().enumerate() {
             let source = lowerer.source_trees.machine_state(*source);
-            lowerer.equality_scope = Some(EqualityScope::for_state_interface(
-                lowerer.source_trees,
-                machine,
-                source,
-            ));
             let mut state = if ordinal < retained_count {
                 lowerer.typed_trees.machine_states(typed_machine)[ordinal].clone()
             } else {
                 lower_state_declaration(lowerer, source)?
             };
-            lowerer.equality_scope = Some(EqualityScope::for_state(
-                lowerer.source_trees,
-                machine,
-                source,
-            ));
             complete_state_body(lowerer, machine.attached_data.as_ref(), source, &mut state)?;
-            lowerer.equality_scope = None;
             if ordinal < retained_count {
                 lowerer.typed_trees.machine_states_mut(typed_machine)[ordinal] = state;
             } else {
@@ -1298,9 +1280,9 @@ pub(crate) mod mathematical {
                 resolved::mathematical::MathematicalBody::Assumption => {
                     typed::mathematical::MathematicalBody::Assumption
                 }
-                // A definition's body is a proof term like a contract clause,
-                // so it may use total policy arithmetic (`+%`); stage 05 forms
-                // it under the definition's own formals.
+                // A definition keeps its selected arithmetic policy, like a
+                // contract. The lowered-form checker proves totality under
+                // the definition's own inputs.
                 resolved::mathematical::MathematicalBody::Definition(term) => {
                     typed::mathematical::MathematicalBody::Definition(
                         lowerer.admitting_contract_policy_operators(|lowerer| {

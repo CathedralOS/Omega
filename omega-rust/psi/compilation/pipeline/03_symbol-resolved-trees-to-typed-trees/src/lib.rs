@@ -9,7 +9,8 @@ generated-source continuations (`lower_seeded_extension` and
 Our typing route runs through two shared cohort operations in `lowerer.rs`
 (`type_resolved_cohort` and `close_typed_cohort`). Before erasing resolved
 membership nodes, `equality_and_exhaustiveness.rs` validates bare case
-equality, synthesized `Equatable` conformances, and match exhaustiveness.
+equality and match exhaustiveness. After typed data applications acquire their
+substituted fields, `equality_preparation.rs` selects exact core comparisons.
 `declarations.rs` then lowers every declaration family through
 `contracts_and_signatures.rs`, `type_reference.rs`, `expression_lowering.rs`,
 `statement_lowering.rs`, and `call_and_product_selections.rs`.
@@ -36,6 +37,7 @@ mod contracts_and_signatures;
 mod declarations;
 mod domain_cast_accounting;
 mod equality_and_exhaustiveness;
+mod equality_preparation;
 mod expression_lowering;
 mod expression_meanings;
 mod lowerer;
@@ -57,9 +59,7 @@ pub(crate) mod expressions {
         build_selections, call_results, capture_product_operands, construction_destinations,
         installed_interrupts, product_queries, product_selections, qualification_casts,
     };
-    pub(crate) use crate::equality_and_exhaustiveness::{
-        equality, equatable, exhaustiveness, proposition,
-    };
+    pub(crate) use crate::equality_and_exhaustiveness::{equality, exhaustiveness, proposition};
     pub(crate) use crate::expression_lowering::expression;
     pub(crate) use crate::statement_lowering::statement;
 }

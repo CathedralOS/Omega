@@ -802,7 +802,9 @@ impl<'t> Program<'t> {
                 )
             })
             .collect();
+        self.schema_types = Some(Vec::new());
         let result = self.trait_signatures(diagnostic, declared, true);
+        self.schema_types = None;
         self.scope = outer;
         result
     }

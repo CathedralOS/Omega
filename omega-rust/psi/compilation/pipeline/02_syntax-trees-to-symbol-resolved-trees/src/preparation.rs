@@ -2589,7 +2589,8 @@ pub(crate) mod trait_defaults {
                 existing_defaults.insert(key);
                 added = true;
             }
-            if selection.declaration_path(trait_symbol) == EQUATABLE_TRAIT_PATH
+            if selection.header_symbols().sealed_intrinsic(trait_symbol)
+                == Some(language_core::sealed_intrinsics::SealedIntrinsic::EqualityProtocol)
                 && let Some(member) = synthesized_equality_member(
                     syntax,
                     &conformance.declaration,
@@ -2824,10 +2825,9 @@ pub(crate) mod trait_defaults {
 
     /*
         The root trait whose closed implementations acquire a synthesized
-        structural `equals` row. Selection is by the exact declaration path, so a
-        module-scoped trait that merely shares the leaf name gains no privilege.
+        structural `equals` row. Only the authenticated bundled declaration
+        grants synthesis; a user trait with the same name remains ordinary code.
     */
-    const EQUATABLE_TRAIT_PATH: &str = "Equatable";
 
     /*
         The `equals` member a closed `Equatable<T>` implementation receives when it

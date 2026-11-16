@@ -291,6 +291,12 @@ impl PackageReviewInput<'_> {
         review: &mut ReviewedProviders,
     ) -> Result<(), Vec<Diagnostic>> {
         let typed = self.typed();
+        let mut native_owners = native_bindings
+            .iter()
+            .map(|(binding, _)| binding.method.requirement_owner())
+            .collect::<Vec<_>>();
+        native_owners.sort_unstable();
+        native_owners.dedup();
         let original_boundaries = &declarations.accepted.closure().elaboration.boundaries;
         // The checked roster names each requirement even without a provider.
         // Join its source declarations by the service and signature identities.
@@ -318,54 +324,61 @@ impl PackageReviewInput<'_> {
             let Some(trait_declaration) = typed.trait_definition_by_symbol(owner) else {
                 continue;
             };
-            if (!trait_declaration.is_public && native_bindings.is_empty())
-                || !closed_service(typed, trait_declaration)
-                || !self.owns(owner, package)?
+            let local_service = self.owns(owner, package)?;
+            let publish_trait = local_service && trait_declaration.is_public;
+            if !closed_service(typed, trait_declaration)
+                || (!publish_trait && native_owners.is_empty())
             {
                 continue;
             }
+            let service_identity = self.nominal(owner)?;
+            if !publish_trait && native_owners.binary_search(&&service_identity).is_err() {
+                continue;
+            }
             let signatures = typed.trait_machine_signatures(trait_declaration);
-            if signatures.len() != rows.len() || rows.windows(2).any(|pair| pair[0].1 == pair[1].1)
+            if (local_service && signatures.len() != rows.len())
+                || rows.windows(2).any(|pair| pair[0].1 == pair[1].1)
             {
                 return Err(unavailable("the complete public requirement roster"));
             }
             let mut callables = Vec::with_capacity(rows.len());
-            for signature in signatures {
-                let index = rows
-                    .binary_search_by_key(&symbol_key(signature.symbol), |(_, original, _)| {
-                        symbol_key(*original)
-                    })
-                    .map_err(|_| unavailable("one exact public service requirement"))?;
-                let boundary = rows[index].2;
-                let identity = self.nominal(signature.symbol)?;
+            for &(_, original, boundary) in rows {
+                let (_, signature) = typed
+                    .trait_machine_signature(original)
+                    .filter(|(declaration, _)| declaration.symbol == owner)
+                    .ok_or_else(|| unavailable("one exact public service requirement"))?;
+                let identity = self.nominal(original)?;
                 let callable = match native_bindings
                     .binary_search_by(|(binding, _)| binding.method.requirement.cmp(&identity))
                 {
                     Ok(index) => native_bindings[index].1.clone(),
-                    Err(_) if trait_declaration.is_public => {
+                    Err(_) if publish_trait => {
                         self.checked_requirement(signature, boundary, identity, declarations)?
                     }
                     Err(_) => break,
                 };
-                callables.push((boundary.id, callable));
+                callables.push((boundary, callable));
             }
-            // A private declaration is retained only with its complete
-            // authored native supply. An unrelated private row stays refused.
+            // A package can supply an imported requirement without owning or
+            // re-exporting its trait. Only the exact authored binding covers it.
             if callables.len() != rows.len() {
                 continue;
             }
-            if trait_declaration.is_public {
+            if publish_trait {
                 let requirements = callables
                     .iter()
                     .map(|(_, callable)| service_requirement(callable))
                     .collect();
                 review
                     .public_traits
-                    .push(service_trait(self.nominal(owner)?, requirements));
+                    .push(service_trait(service_identity, requirements));
             }
             for (boundary, callable) in callables {
-                review.boundaries.push(boundary);
-                review.callables.push(callable);
+                review.boundaries.push(boundary.id);
+                review.services.extend(&boundary.published_service_ceiling);
+                if local_service {
+                    review.callables.push(callable);
+                }
             }
             review.slots.push(owner);
             review.services.push(service);
@@ -859,6 +872,10 @@ impl PackageReviewInput<'_> {
             .declaration
             .as_ref()
             .ok_or_else(|| unavailable("the exact checked boundary declaration"))?;
+        // An external completion retains its source result type for review,
+        // but cannot deliver storage to the caller.
+        let completes_normally =
+            boundary.completion == semantic_vocabulary::BoundaryCompletion::NormalReturn;
         if !signature.lifetime_parameters.is_empty()
             || !signature.type_parameters.is_empty()
             || !signature.conformance_bounds.is_empty()
@@ -886,7 +903,7 @@ impl PackageReviewInput<'_> {
             || !boundary.content_guarantees.is_empty()
             || !boundary.result_reference_regions.is_empty()
             || matches!(&boundary.result, terminal_psi::BoundaryMachineResult::Structural(result)
-                if result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+                if (completes_normally && result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted)
                     || !result.qualifications.is_empty()
                     || !result.projected_qualifications.is_empty())
             || boundary

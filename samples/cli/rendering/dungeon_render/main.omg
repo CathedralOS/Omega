@@ -18,9 +18,6 @@ use omega::language::core::ProcessExit;
 // Expected exit: 0.
 // Expected output contains: ~
 use omega_language_std::Console;
-domain [u8; 6]::Utf8
-requires
-    valid_utf8(self);
 data Cell {
     case Wall;
     case Floor;
@@ -30,14 +27,14 @@ data Cell {
 
 data Main {
     grid: [Cell; 24];
-    line: [u8; 6] in Utf8;
+    line: [u8; 6];
     r: u32 in Wrapping;   // current row
     c: u32 in Wrapping;   // current column (write index into the line buffer)
     lab: u8;              // glyph for the current cell
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("dungeon_render: a 6x4 tile map of enum cells rendered as # . + ~ glyphs");
     main.grid = [
         Cell::Wall,  Cell::Wall,  Cell::Wall,  Cell::Wall,  Cell::Wall,  Cell::Wall,
@@ -45,14 +42,14 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
         Cell::Wall,  Cell::Floor, Cell::Water, Cell::Floor, Cell::Floor, Cell::Wall,
         Cell::Wall,  Cell::Wall,  Cell::Wall,  Cell::Wall,  Cell::Wall,  Cell::Wall
     ];
-    main.r = 0;
+    main.r = 0u32 as +Wrapping;
     transition { _ -> block row_loop(main) }
 
     machine row_loop(main: &mut Main) {
         transition main.r < 4 { true -> block col_start(main) _ -> block done(main) }
     }
     machine col_start(main: &mut Main) {
-        main.c = 0;
+        main.c = 0u32 as +Wrapping;
         main.line = "      ";
         transition { _ -> block col_loop(main) }
     }
@@ -85,14 +82,14 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
         transition { _ -> block col_loop(main) }
     }
     machine emit_row(main: &mut Main) {
-        Console::write_line(main.line);
+        Console::write_line(&main.line[..]);
         main.r = main.r + 1;
         transition { _ -> block row_loop(main) }
     }
     machine done(main: &mut Main) {
         Console::write_line("done: 4 rows rendered -- walls, floor, door and water all classified (exit 0)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(0);
     }
 }
@@ -100,5 +97,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

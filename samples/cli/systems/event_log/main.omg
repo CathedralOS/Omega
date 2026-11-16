@@ -53,7 +53,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::apply(main: &mut Main, event: Event) {
+machine apply(main: &mut Main, event: Event) {
     main.log.event_count = main.log.event_count + 1;
     transition event {
         Event::Deposit { amount } -> do_deposit(main, amount)
@@ -73,19 +73,19 @@ machine Main::apply(main: &mut Main, event: Event) {
     }
 
     machine do_reset(main: &mut Main) {
-        main.log.stats.balance = 0;
+        main.log.stats.balance = 0 as +Saturating;
     }
 
     machine done() {}
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("event_log: case-payload events folding deposits/withdrawals into nested stats");
-    Main::apply(main, Event::Deposit { amount: 100 });
-    Main::apply(main, Event::Deposit { amount: 50 });
-    Main::apply(main, Event::Withdraw { amount: 30 });
-    Main::apply(main, Event::Deposit { amount: 20 });
-    Main::apply(main, Event::Withdraw { amount: 70 });
+    apply(main, Event::Deposit { amount: 100 as +Saturating });
+    apply(main, Event::Deposit { amount: 50 as +Saturating });
+    apply(main, Event::Withdraw { amount: 30 as +Saturating });
+    apply(main, Event::Deposit { amount: 20 as +Saturating });
+    apply(main, Event::Withdraw { amount: 70 as +Saturating });
 
     // Verify balance == 70.
     transition main.log.stats.balance == 70 {
@@ -96,7 +96,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     machine bad_balance(main: &mut Main) {
         Console::write_line("FAIL: wrong final balance (exit 71)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(71);
     }
 
@@ -110,7 +110,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     machine bad_deposits(main: &mut Main) {
         Console::write_line("FAIL: wrong deposit count (exit 72)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(72);
     }
 
@@ -124,7 +124,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     machine bad_withdrawals(main: &mut Main) {
         Console::write_line("FAIL: wrong withdrawal count (exit 73)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(73);
     }
 
@@ -138,14 +138,14 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     machine bad_count(main: &mut Main) {
         Console::write_line("FAIL: wrong event count (exit 74)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(74);
     }
 
     machine good(main: &mut Main) {
         Console::write_line("PASS: balance=70, deposits=3, withdrawals=2, events=5 (exit 70)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(70);
     }
 }
@@ -153,5 +153,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

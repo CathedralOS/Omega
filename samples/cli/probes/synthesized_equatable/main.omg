@@ -1,5 +1,5 @@
-// synthesized_equatable: trait declarations and named implementations as
-// sample code — the first sample declaring a `trait`, satisfying it with
+// synthesized_equatable: Core's equality protocol and named implementations as
+// sample code — this sample satisfies the sealed core `Equatable` trait with
 // an EMPTY named implementation (which receives a synthesized structural
 // `equals` row), and overriding synthesis with an authored body.
 //
@@ -14,9 +14,6 @@
 // true and unequal ones false (operator AND callable), while two identical
 // tokens compare false through the override. Compile-checked only: no
 // standard-library dependency, no ProcessExit provider.
-trait Equatable<T> {
-    machine equals(left: &T, right: &T) -> bool;
-}
 
 data Point {
     x: i32;

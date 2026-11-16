@@ -248,7 +248,12 @@ fn named_predicate_terms_form_under_their_own_inputs() {
         ("unused-wrapping", source.clone(), true, false),
         (
             "called-wrapping",
-            source.replace("requires is_zero(0u32)", "requires reflexive(0u32)"),
+            source
+                .replace("value +% 1u32 == 1u32", "value +% 1u32 == 0u32")
+                .replace(
+                    "requires is_zero(0u32)",
+                    "requires reflexive(4294967295u32)",
+                ),
             true,
             false,
         ),
