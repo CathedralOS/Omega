@@ -3,10 +3,11 @@
 // compile error, not a fall-through. Transitions and value-position matches
 // share the judgement. Arms cover a dispatch when one is `_` or the guard
 // `true`; over a subject, when they name both Booleans of a Boolean subject
-// or every case of its data; over guards, when two compare one expression
-// with `true` and with `false`, or one pair of expressions with `==` and
-// with `!=`, the two sides structurally the same (`same_tree`). Any
-// other ladder of literals, comparisons or predicates closes with `_`.
+// or every case of its data, each by an arm that tests none of its fields;
+// over guards, when two compare one expression with `true` and with `false`,
+// or one pair of expressions with `==` and with `!=`, the two sides
+// structurally the same (`same_tree`). Any other ladder of literals,
+// comparisons or predicates closes with `_`.
 public machine covers(
     typer: &Typer,
     sources: &SourceSet,
@@ -215,7 +216,8 @@ crashes Trap
     ) -> bool {
         let binding: ValueBinding = value_binding(resolution, arm.pattern);
         let named: u64 in Trapping = typer_named_case(binding);
-        transition named == data_case + 1 {
+        let whole: bool = named == data_case + 1 && !tests_a_field(syntax, arm);
+        transition whole {
             true -> answer(true)
             _ -> arm(syntax, resolution, range, kind, flag, data_case, offset + 1)
         }
@@ -223,6 +225,35 @@ crashes Trap
 
     machine answer(present: bool) -> bool {
         present
+    }
+}
+
+// Whether a case arm tests one of its fields. `field: value` is projected
+// equality (wiki/spec/language/patterns.md#pattern-subjects-and-bindings), so
+// `Reading::Value { level: 0 }` selects only some `Value` readings and cannot
+// close the case; binders, renames, `as _` waivers and `..` match any value.
+machine tests_a_field(syntax: &SyntaxTrees, arm: TransitionArm) -> bool
+crashes Trap
+{
+    transition { _ -> field(syntax, arm, 0) }
+
+    machine field(syntax: &SyntaxTrees, arm: TransitionArm, offset: u64 in Trapping) -> bool {
+        transition offset < arm.field_count {
+            true -> candidate(syntax, arm, offset)
+            _ -> answer(false)
+        }
+    }
+
+    machine candidate(syntax: &SyntaxTrees, arm: TransitionArm, offset: u64 in Trapping) -> bool {
+        let pattern_field: PatternField = syntax_trees_pattern_field(syntax, arm.first_field + offset);
+        transition pattern_field.has_value {
+            true -> answer(true)
+            _ -> field(syntax, arm, offset + 1)
+        }
+    }
+
+    machine answer(tests: bool) -> bool {
+        tests
     }
 }
 

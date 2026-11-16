@@ -124,13 +124,6 @@ framework or a list of unimplemented features.
 - Cost: Root-roster order decides a Build provider operand. Delete the fallback, or make it report ambiguity and check import exposure, and refuse unresolved operands.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/modules.md
 
-### The language guide says a module declaration goes at the top of a file; the compiler accepts it anywhere
-- Category: The documents disagree
-- Where: [guide chapter 15](wiki/language_guide/chapter_15_modules_imports_visibility.md#L25), [parser](omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/declarations.rs#L2448), [later header found deliberately](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lowering.rs#L685)
-- Saw: The guide says "A module declaration goes at the top of a file"; modules.md gives no position, the parser accepts `module m;` after other declarations, and `declared_module_path` scans the whole file, so `machine f() {} module m;` puts `f` in module `m`.
-- Cost: The guide states a rule nothing enforces. Refuse a header after a declaration and say so in modules.md, or soften the guide.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/language_guide/chapter_15_modules_imports_visibility.md
-
 ### Specialization never checks a type parameter's `[copy]`, `[linear]` or `carry` bound against the supplied type
 - Category: One idea, several implementations
 - Where: [Operand::read](omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/passes/specialization.rs#L1095), [named_type](omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/passes/specialization.rs#L1537), [generate](omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/passes/specialization.rs#L2257), [callable applications refuse bounds](omega-rust/psi/compilation/representations/typed-trees/src/callable_applications.rs#L419)
@@ -159,20 +152,6 @@ framework or a list of unimplemented features.
 - Cost: An author's `terminates by (i, j)` silently becomes a bounded-distance ranking, and adding lexicographic products later would change what existing code means. Refuse multi-subject witnesses without a view and pin that refusal.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/termination.md
 
-### A bitwise and/or bound uses semantic axioms the certificate never cites
-- Category: A verdict with nothing behind it
-- Where: [bounded_bitwise_sibling](omega-rust/psi/compilation/proof-admission/src/integer_affine.rs#L3285), [bitwise-and branch](omega-rust/psi/compilation/proof-admission/src/integer_affine.rs#L3178), [bitwise-or branch](omega-rust/psi/compilation/proof-admission/src/integer_affine.rs#L3216), [cited list](omega-rust/psi/compilation/proof-admission/src/proof.rs#L528), [core rule instance](omega-rust/psi/compilation/proof-admission/src/bounded_denotation.rs#L8357)
-- Saw: The `IntegerAffineBound` row in [classicality.md](wiki/spec/proofs/classicality.md) says each use re-records the witness's cited axioms, "never as silent steps"; the proof-admission README says admission "runs no proof search of its own"; [kernel_metatheory.md](wiki/spec/proofs/kernel_metatheory.md) says a rule-instance assumption names its content exactly. When the sibling of `x & y` or `x | y` is not a literal, `bounded_bitwise_sibling` searches every prior axiom for `y = m` and `m <= U` and builds a mask bound, but those axioms enter neither the witness's definitions nor `cited`. With axioms `[y <= 3, z = x & y]`, the kernel accepts `z <= 3` recording only the second, and the core assumes `Truth → (z = x & y) → z <= 3`, which is false alone (x = y = 255).
-- Cost: Receivers read a premise list missing a premise the kernel used, and the core rests on a false-alone assumption. Cite and pass the mask axioms as premises, or delete the route, which no prover emits and no test exercises; document the bitwise steps in integer_certificates.md either way.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/proofs/classicality.md
-
-### Four provisional float rules and two discreteness forms skip the mathematical core check
-- Category: A verdict with nothing behind it
-- Where: [IntegerFloatExact](omega-rust/psi/compilation/proof-admission/src/bounded_denotation.rs#L7737), [FloatIntegerConversion](omega-rust/psi/compilation/proof-admission/src/bounded_denotation.rs#L7755), [FloatMeaningNormalization](omega-rust/psi/compilation/proof-admission/src/bounded_denotation.rs#L7770), [IeeeFloatOrderChain](omega-rust/psi/compilation/proof-admission/src/bounded_denotation.rs#L7783), [discreteness](omega-rust/psi/compilation/proof-admission/src/bounded_denotation.rs#L1640), [Unsupported becomes Refused](omega-rust/psi/compilation/proof-admission/src/proof.rs#L258)
-- Saw: [encoding-scheme correspondence](wiki/spec/proofs/kernel_metatheory.md) says "Every certificate rule family denotes" and soundness "reduces to the kernel's own judgment". Denotation returns `Unsupported` for `IeeeFloatOrderChain`, `FloatMeaningNormalization`, `FloatIntegerConversion`, `IntegerFloatExact`, and the strict-to-nonstrict and open `a < b ⊢ a + 1 <= b` forms of `IntegerOrderDiscreteness`; `re_decide_in_mathematical_core` turns that into `MathematicalCoreDecision::Refused`, which only tests read. Certificates containing these steps are accepted with no core check.
-- Cost: Four of the eight provisional (trusted, underived) rows are exactly the ones the double check skips. Denote them as rule instances, as `IntegerPowerOfTwoOrder` is, or correct kernel_metatheory.md and make receivers handle `Refused`.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/proofs/kernel_metatheory.md
-
 ### Three kernel rules accept more forms than their audited rows say
 - Category: The documents disagree
 - Where: [open-term fallback](omega-rust/psi/compilation/proof-admission/src/integer_rules.rs#L224), [exact-op lift](omega-rust/psi/compilation/proof-admission/src/kernel.rs#L252), [strict carrier bound](omega-rust/psi/compilation/proof-admission/src/kernel.rs#L45), [open discreteness](omega-rust/psi/compilation/proof-admission/src/proof.rs#L1634), [inward discreteness](omega-rust/psi/compilation/proof-admission/src/proof.rs#L1666)
@@ -183,26 +162,12 @@ framework or a list of unimplemented features.
 - Cost: Reviewers checking the rows approve a smaller trusted surface than the kernel has; the extra forms appear sound but are unaudited, and the discreteness ones also skip the core. Document every accepted form with its core status, or restrict the code to the rows; decide explicitly whether exact operations are read as total.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/proofs/classicality.md
 
-### On arm64, a float record that misses the vector registers still lets later floats use them
-- Category: One idea, several implementations
-- Where: [HFA register test](omega-rust/omega/compilation/backend/calling-conventions/src/plans/call_plan_evaluation.rs#L697), [stack fallback](omega-rust/omega/compilation/backend/calling-conventions/src/plans/call_plan_evaluation.rs#L754), [AAPCS64 entry](omega-rust/omega/compilation/backend/calling-conventions/src/plans/call_plan_evaluation.rs#L572), [only test](omega-rust/omega/compilation/backend/calling-conventions/src/plans/tests/parameter_and_aggregate_placement.rs#L206)
-- Saw: [public aggregates](wiki/spec/build/boundary_shapes.md#L12) lets a policy place an aggregate "under its target's rules", and the `Aapcs64` policy claims AAPCS64, whose rule C.3 sets the next vector register to 8 and rounds the stack size up to 8 when a homogeneous float aggregate does not fit. `evaluate_split_bank_call` falls to the generic stack branch, which leaves `float_index` unchanged and advances by `byte_size.max(8)` without rounding. With seven `f64` arguments, then `{f64, f64}`, then `f64 z`, C passes `z` at sp+16 and Omega in v7; a stacked three-`f32` record followed by a `u32` puts the `u32` at sp+12 instead of sp+16. Imports and callbacks share the plan.
-- Cost: Foreign calls and callbacks with this shape exchange wrong arguments silently. Set `float_index = 8` and advance by `align_up(byte_size, 8)` on the overflow path, and test the seven-floats case.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/boundary_shapes.md
-
 ### The default macOS arm64 calling plan uses 8-byte stack slots where Apple packs arguments
 - Category: One idea, several implementations
 - Where: [Mach-O arm64 maps to Aapcs64](omega-rust/omega/compilation/backend/calling-conventions/src/plans/vocabulary.rs#L524), [scalar stack placement](omega-rust/omega/compilation/backend/calling-conventions/src/plans/call_plan_evaluation.rs#L754), [import binding](omega-rust/omega/compilation/realization/provider-planning/src/calling_policy_plans/selected_application.rs#L273), [std's Darwin policy](source/library/std/darwin_calling.omg#L182)
 - Saw: [authorship and evaluation](wiki/spec/build/calling_plans.md#L14) says the selected plan "must explicitly support the argument/result's representation, fit and placement; otherwise reject the binding". Apple arm64 places stack arguments at natural alignment with no 8-byte minimum, and `std/darwin_calling.omg` implements that. A default-ABI boundary on macos_arm64 instead gets the generic `Aapcs64` evaluator, which advances by `byte_size.max(8)`: for `f(a0..a7: u64, b: u32, c: u32)` Omega writes `c` at sp+8 while an Apple callee reads sp+4.
 - Cost: Default-ABI imports and callbacks with more than eight integer arguments, any narrower than 8 bytes, pass wrong values on macOS, and the two Darwin implementations disagree. Give Mach-O arm64 its own packed policy row (or refuse such signatures) and test the 9th and 10th `u32`.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/calling_plans.md
-
-### Static linux_arm64 executables align segments to 4 KiB and fail on 16 KiB and 64 KiB page kernels
-- Category: One idea, several implementations
-- Where: [static PAGE_SIZE](omega-rust/omega/compilation/backend/images/image-elf/src/lib.rs#L85), [p_align written](omega-rust/omega/compilation/backend/images/image-elf/src/static_executable.rs#L97), [data segment placement](omega-rust/omega/compilation/backend/images/image-elf/src/static_executable.rs#L136), [dynamic path uses 64 KiB](omega-rust/omega/compilation/backend/images/image-elf/src/load_placement.rs#L1827)
-- Saw: No spec page states page alignment; the AArch64 ELF ABI allows 64 KiB pages, and the crate's own header gives the dynamic path 64 KiB alignment "portable across 64 KiB AArch64 translation granules". `emit_elf_executable`, used for every import-free linux_arm64 executable, writes `p_align = 0x1000` and puts the data segment on the next 4 KiB page, so on a 16 KiB or 64 KiB kernel both segments share a page and the second mapping fails or replaces the text.
-- Cost: A hosted target's normal output does not start on common arm64 Linux machines. Use the target's maximum page size for the static path, shared with the dynamic layout, and state the rule in the native target spec.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/configuration.md
 
 ### The Psi interpreter compares and offsets host-returned addresses that the spec says it must refuse
 - Category: A verdict with nothing behind it
@@ -293,13 +258,6 @@ framework or a list of unimplemented features.
 - Cost: The report is missing exactly when validation fails. Carry the complete row list out with the error and write the report before choosing the exit status.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/command_line.md
 
-### `omega packages audit --help` documents exit 2 for invalid arguments; the code exits 64
-- Category: The documents disagree
-- Where: [audit usage text](omega-rust/omega/application/src/arguments/audit.rs#L13), [parse errors exit 64](omega-rust/omega/application/src/main.rs#L62), [bad adapter exits 64](omega-rust/omega/application/src/commands/packages.rs#L125)
-- Saw: The usage text promises "2: invalid arguments". Every parse error exits with `USAGE_ERROR_EXIT` (64), as does a bad adapter, and the comment in `arguments/mod.rs` explains that 2 is the compiler request contract's `Incomplete` status. `omega packages audit --bogus; echo $?` prints 64.
-- Cost: A script written from `--help` never sees its argument errors. Change the help text to 64, or state the audit statuses in command_line.md.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/command_line.md
-
 ### `x == S::C` on a payload-bearing sum becomes a bare tag test when Psi 03 cannot type `x`
 - Category: One idea, several implementations
 - Where: [untyped comparison left in place](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/equality_preparation.rs#L217), [no type for a receiver call](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/typing_queries.rs#L1425), [read as a case test](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/expressions.rs#L500), [case test without payload check](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/places.rs#L1412)
@@ -365,8 +323,8 @@ framework or a list of unimplemented features.
 
 ### Emission libraries keep earlier stage outputs beside the final layout
 - Category: knowledge crossing a boundary
-- Where: [fragment source](omega-rust/omega/compilation/backend/machine-emission/src/fragment_emission.rs#L211), [driver join](omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L227), [image call binding](omega-rust/omega/compilation/backend/images/image-emission/src/callable_calls.rs#L8), [object accessors](omega-rust/omega/compilation/backend/object-file/src/fragment_container.rs#L204), [runtime-only route](omega-rust/omega/compilation/native-compiler/src/realization.rs#L172), [stage-call exceptions](tools/xtask/src/boundary.rs)
-- Saw: `StagedOptimizedFunctionFragmentEmissionSource::new` joins the stage 09 realization with stage 02's whole output, and frame staging between stages 06 and 07 runs in machine-emission on types defined inside stage crates. The source keeps that `Arc<ValidatedOptimizedTargetOperations>` on every compile; `pre_physical_manifest()` reads stage 01's output through `optimized_target().optimized()`. Image emission's `callable_calls::prepare_from` reads stage 02's execution plan through it, and `object-file` reaches it through `source().source().source()`. Function-realization replay is now opt-in (`retain_replay_for_validation`); this field is not. [pipeline.md](omega-rust/pipeline.md#portable-materialization-and-consumer-ownership) keeps producer history "off the path ordinary consumers walk to get current data". `admit_terminal_runtime` runs stage 01, then calls stage 02's `capture_runtime_borrowed_storage_layouts` on the side. `native-artifact` reads Omega 00's `VerifiedNativeArtifactInput` for runtime provisions.
+- Where: [fragment source](omega-rust/omega/compilation/backend/machine-emission/src/fragment_emission.rs#L211), [driver join](omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L227), [object accessors](omega-rust/omega/compilation/backend/object-file/src/fragment_container.rs#L204), [runtime-only route](omega-rust/omega/compilation/native-compiler/src/realization.rs#L172), [stage-call exceptions](tools/xtask/src/boundary.rs)
+- Saw: `StagedOptimizedFunctionFragmentEmissionSource::new` joins the stage 09 realization with stage 02's whole output, and frame staging between stages 06 and 07 runs in machine-emission on types defined inside stage crates. The source keeps that `Arc<ValidatedOptimizedTargetOperations>` on every compile; image and object consumers can still reach earlier programs through `optimized_target()`, `lowering_facts()` and `source().source().source()`. Function-realization replay is now opt-in (`retain_replay_for_validation`); this field is not. [pipeline.md](omega-rust/pipeline.md#portable-materialization-and-consumer-ownership) keeps producer history "off the path ordinary consumers walk to get current data". `admit_terminal_runtime` runs stage 01, then calls stage 02's `capture_runtime_borrowed_storage_layouts` on the side. `native-artifact` reads Omega 00's `VerifiedNativeArtifactInput` for runtime provisions.
 - Cost: Emission can read anything an earlier stage knew, so a missing fact never has to be carried forward. Move the stage output types emission names into `compilation/representations`, carry the rows emission needs in each stage's output, and delete each `STAGE_CALL_ALLOWANCES` row as its edge goes.
 - Reported: 2026-11-16, pi, while checking that only the native driver calls Omega stages.
 

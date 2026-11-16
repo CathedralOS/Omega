@@ -10,7 +10,7 @@ pub(crate) mod model {
 
     pub(crate) fn legalization_validator_identity() -> OptimizationValidatorIdentity {
         OptimizationValidatorIdentity::from_canonical_bytes(
-            b"omega.terminal-target-legalization-independent-replay.v74",
+            b"omega.terminal-target-legalization-independent-replay.v75",
         )
     }
 
@@ -47,6 +47,9 @@ pub(crate) mod model {
         },
         CallableValueProvenance {
             reason: &'static str,
+        },
+        CallablePublication {
+            cause: target_vocabulary::NativeExecutionFactsError,
         },
         CallableInvocationRoots {
             reason: String,
@@ -479,6 +482,20 @@ pub struct PreparationEvidence<'input> {
     pub ownership_frontier_facts: &'input [optimization_unit::OwnershipFrontierFact],
 }
 
+/// Original inputs for an explicit plan-correspondence audit, never compilation
+/// control. Registrar roots and the pre-physical identity come from the actual
+/// retained producer inputs, not from the proposed execution facts.
+pub struct ExecutionPlanReplayInputs<'input> {
+    pub target: &'input TargetOperationPlan,
+    pub abstract_plan: &'input AbstractOperationPlan,
+    pub unit: &'input optimization_unit::PsiOptimizationUnit,
+    pub origins: crate::BoundaryOriginFacts<'input>,
+    pub installed_interrupts: &'input provider_admission::AdmittedInstalledInterruptCohort,
+    pub closed_module: &'input terminal_codec::ClosedTerminalModule,
+    pub callable_roots: &'input terminal_semantics::callable_values::CallableInvocationRoots,
+    pub pre_physical: optimization_core::PrePhysicalOptimizationManifestIdentity,
+}
+
 #[cfg(test)]
 pub(crate) fn legalize_target_operations(
     target: &TargetOperationPlan,
@@ -503,6 +520,10 @@ pub(crate) fn legalize_target_operations(
         &callable_invocations,
         installed_interrupts,
         types,
+        // These raw-plan unit controls do not model an optimization run.
+        optimization_core::PrePhysicalOptimizationManifestIdentity::from_canonical_bytes(
+            b"standalone native-preparation fixture",
+        ),
     )
 }
 
@@ -620,6 +641,7 @@ pub fn prepare_execution_plan(
     callable_invocations: &crate::PreparedCallableInvocations,
     installed_interrupts: &provider_admission::AdmittedInstalledInterruptCohort,
     types: &crate::native_geometry::ModuleTypes,
+    pre_physical: optimization_core::PrePhysicalOptimizationManifestIdentity,
 ) -> Result<legalized_operations::PreparedExecutionPlan, LegalizationError> {
     crate::installed_interrupts::authorize_target(target, origins.module, installed_interrupts)?;
     validate_boundary_origins(target, origins)?;
@@ -639,6 +661,11 @@ pub fn prepare_execution_plan(
         });
     }
     let plan = LegalizedOperationPlan {
+        execution: Some(
+            callable_invocations
+                .for_target(target, evidence, pre_physical)
+                .map_err(|cause| LegalizationError::CallablePublication { cause })?,
+        ),
         psi: target.psi,
         optimization_unit: evidence.optimization_unit,
         work_schedule: evidence.work_schedule,
@@ -651,15 +678,8 @@ pub fn prepare_execution_plan(
         borrowed_storage_layouts: target.borrowed_storage_layouts.clone(),
         publication: target.publication.clone(),
     };
-    let (callable_invocations, entry_invocations) = callable_invocations
-        .for_target(target, evidence)
-        .map_err(|reason| LegalizationError::CallableValueProvenance { reason })?;
-    Ok(legalized_operations::PreparedExecutionPlan::seal(
-        plan,
-        legalization_validator_identity(),
-        callable_invocations,
-        entry_invocations,
-    ))
+    legalized_operations::PreparedExecutionPlan::seal(plan, legalization_validator_identity())
+        .map_err(|reason| LegalizationError::CallableValueProvenance { reason })
 }
 
 pub fn verify_target_operation_plan_with_closed_module(
@@ -763,18 +783,64 @@ fn audit_target_operation_plan_with_module(
 /// this; it runs on an explicit validator request and in tests.
 pub fn verify_execution_plan(
     prepared: &legalized_operations::PreparedExecutionPlan,
-    target: &TargetOperationPlan,
-    abstract_plan: &AbstractOperationPlan,
-    unit: &optimization_unit::PsiOptimizationUnit,
-    origins: crate::BoundaryOriginFacts<'_>,
-    installed_interrupts: &provider_admission::AdmittedInstalledInterruptCohort,
-    closed_module: &terminal_codec::ClosedTerminalModule,
+    inputs: ExecutionPlanReplayInputs<'_>,
 ) -> Result<(), LegalizationError> {
+    let ExecutionPlanReplayInputs {
+        target,
+        abstract_plan,
+        unit,
+        origins,
+        installed_interrupts,
+        closed_module,
+        callable_roots,
+        pre_physical,
+    } = inputs;
     let mismatch = |machine, part| LegalizationError::PublishedPlanMismatch { machine, part };
     let closed_types =
         crate::native_geometry::accepted_types(closed_module, target.psi, origins.module)
             .ok_or_else(LegalizationError::custody)?;
     let plan = prepared.plan();
+    let callable_program =
+        optimization_unit_semantics::callable_values::optimized_callable_values(unit)
+            .map_err(|reason| LegalizationError::CallableValueProvenance { reason })?;
+    let main = terminal_semantics::callable_values::reachable_callable_invocations_with_roots(
+        &callable_program,
+        [unit.entry],
+        callable_roots,
+    )
+    .map_err(|reason| LegalizationError::CallableValueProvenance { reason })?;
+    let mut entries = Vec::new();
+    for &entry in &main.roots {
+        if entry == unit.entry {
+            continue;
+        }
+        let summary =
+            terminal_semantics::callable_values::reachable_callable_invocations_with_roots(
+                &callable_program,
+                [entry],
+                callable_roots,
+            )
+            .map_err(|reason| LegalizationError::CallableValueProvenance { reason })?;
+        entries.push((entry, std::sync::Arc::new(summary)));
+    }
+    let expected_execution = target_vocabulary::NativeExecutionFacts::seal(
+        target_vocabulary::NativeExecutionRoots {
+            psi: unit.psi,
+            optimization_unit: unit.identity,
+            work_schedule: unit.work_schedule,
+            pre_physical,
+            entry: unit.entry,
+        },
+        std::sync::Arc::new(main),
+        entries,
+    )
+    .map_err(|cause| LegalizationError::CallablePublication { cause })?;
+    if plan.execution.as_ref() != Some(&expected_execution) {
+        return Err(mismatch(
+            None,
+            "prepared callable invocation facts differ from their source",
+        ));
+    }
     crate::publication::verify_source_publication(abstract_plan, &plan.publication)
         .map_err(|part| mismatch(None, part))?;
     if plan.publication != target.publication {

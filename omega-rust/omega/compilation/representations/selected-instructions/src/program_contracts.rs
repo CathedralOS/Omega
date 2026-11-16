@@ -17,6 +17,7 @@ pub struct SelectedProgramContracts {
     profile: Option<TargetProfile>,
     function_abis: Arc<[LegalizedFunctionAbi]>,
     publication: target_vocabulary::NativePublicationFacts,
+    execution: Option<target_vocabulary::NativeExecutionFacts>,
     metadata_identity: [u8; 32],
 }
 
@@ -26,6 +27,7 @@ impl SelectedProgramContracts {
         profile: Option<TargetProfile>,
         function_abis: Arc<[LegalizedFunctionAbi]>,
         publication: target_vocabulary::NativePublicationFacts,
+        execution: Option<target_vocabulary::NativeExecutionFacts>,
     ) -> Result<Self, &'static str> {
         if function_abis
             .windows(2)
@@ -86,11 +88,22 @@ impl SelectedProgramContracts {
             target_vocabulary::identity::function_abi::encode_function_abi(&mut row_bytes, abi);
             digest.raw(&row_bytes);
         }
+        if function_abis.is_empty() != execution.is_none() {
+            return Err("execution context differs from the function ABI roster");
+        }
+        if let Some(facts) = &execution
+            && function_abis
+                .binary_search_by_key(&facts.roots().entry, |row| row.machine)
+                .is_err()
+        {
+            return Err("execution context entry has no current function ABI");
+        }
         Ok(Self {
             borrowed_storage_layouts,
             profile,
             function_abis,
             publication,
+            execution,
             metadata_identity: digest.finish(),
         })
     }
@@ -114,23 +127,40 @@ impl SelectedProgramContracts {
         &self.publication
     }
 
+    pub const fn execution(&self) -> Option<&target_vocabulary::NativeExecutionFacts> {
+        self.execution.as_ref()
+    }
+
     /// Bind every publication field using only fixed-size commitments. Layout
     /// replacement remains visible without rehashing either roster's body.
     pub fn identity_bytes(&self) -> [u8; 32] {
         let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
-            b"omega.selected-program-contracts.v2\0",
+            b"omega.selected-program-contracts.v3\0",
         );
         digest.raw(&self.borrowed_storage_layouts.identity_bytes());
         digest.raw(&self.metadata_identity);
         digest.raw(&self.publication.identity_bytes());
+        match &self.execution {
+            None => digest.byte(0),
+            Some(facts) => {
+                digest.byte(1);
+                digest.raw(&facts.identity_bytes());
+            }
+        }
         digest.finish()
     }
 }
 
 impl Default for SelectedProgramContracts {
     fn default() -> Self {
-        Self::new(Default::default(), None, Arc::from([]), Default::default())
-            .expect("the empty ABI and publication rosters are ordered")
+        Self::new(
+            Default::default(),
+            None,
+            Arc::from([]),
+            Default::default(),
+            None,
+        )
+        .expect("the empty ABI and publication rosters are ordered")
     }
 }
 
@@ -173,6 +203,7 @@ mod tests {
     fn publication(machine: MachineId) -> target_vocabulary::NativePublicationFacts {
         target_vocabulary::NativePublicationFacts::seal(
             vec![target_vocabulary::NativeFunctionPublication {
+                call_targets: Vec::new(),
                 machine,
                 operation_count: 0,
                 sites: Vec::new(),
@@ -183,6 +214,23 @@ mod tests {
         .unwrap()
     }
 
+    // This metadata-only fixture declares one entry and no calls; it grants no
+    // source admission or executable authority.
+    fn execution(entry: MachineId) -> Option<target_vocabulary::NativeExecutionFacts> {
+        Some(target_vocabulary::NativeExecutionFacts::seal(target_vocabulary::NativeExecutionRoots {
+            psi: terminal_psi::TerminalPsiIdentity {
+                program_fingerprint: terminal_psi::SemanticFingerprint::from_bytes([1; 32]),
+                vocabulary_marker: terminal_psi::VocabularyMarker::CURRENT,
+            },
+            optimization_unit: optimization_core::OptimizationUnitIdentity::from_canonical_bytes(b"metadata fixture unit"),
+            work_schedule: semantic_vocabulary::WorkScheduleIdentity::new(1).unwrap(),
+            pre_physical: optimization_core::PrePhysicalOptimizationManifestIdentity::from_canonical_bytes(b"metadata fixture prephysical"),
+            entry,
+        }, Arc::new(target_vocabulary::execution_facts::ReachableCallableInvocations {
+            roots: vec![entry], reached_machines: vec![entry], invocations: Vec::new(), inputs: Vec::new(),
+        }), Vec::new()).unwrap())
+    }
+
     #[test]
     fn publication_contracts_share_the_roster_and_bind_every_field() {
         let rows: Arc<[LegalizedFunctionAbi]> = Arc::from([abi()]);
@@ -191,6 +239,7 @@ mod tests {
             Some(TargetProfile::WindowsX64),
             Arc::clone(&rows),
             publication(rows[0].machine),
+            execution(rows[0].machine),
         )
         .unwrap();
         assert!(Arc::ptr_eq(original.function_abis(), &rows));
@@ -201,6 +250,7 @@ mod tests {
             Some(TargetProfile::UefiX64),
             Arc::clone(&rows),
             publication(rows[0].machine),
+            execution(rows[0].machine),
         )
         .unwrap();
         assert_ne!(identity, profile.identity_bytes());
@@ -211,9 +261,26 @@ mod tests {
             Some(TargetProfile::WindowsX64),
             Arc::from([changed]),
             publication(MachineId::new(2).unwrap()),
+            execution(MachineId::new(2).unwrap()),
         )
         .unwrap();
         assert_ne!(identity, abi.identity_bytes());
+        let mut context = original.clone();
+        let old = context.execution.as_ref().unwrap();
+        let mut roots = old.roots();
+        roots.pre_physical =
+            optimization_core::PrePhysicalOptimizationManifestIdentity::from_canonical_bytes(
+                b"other preparation",
+            );
+        context.execution = Some(
+            target_vocabulary::NativeExecutionFacts::seal(
+                roots,
+                Arc::new(old.callable_invocations().clone()),
+                old.entry_callable_invocations().to_vec(),
+            )
+            .unwrap(),
+        );
+        assert_ne!(identity, context.identity_bytes());
         let mut geometry = original;
         geometry.borrowed_storage_layouts = runtime_abi::NativeBorrowedStorageLayouts::seal(vec![
             runtime_abi::NativeBorrowedStorageLayout::new(
@@ -236,7 +303,8 @@ mod tests {
                 Default::default(),
                 None,
                 Arc::from([abi(), abi()]),
-                Default::default()
+                Default::default(),
+                None,
             )
             .unwrap_err(),
             "function ABI rows are unordered or repeated"
@@ -255,10 +323,39 @@ mod tests {
                 Default::default(),
                 None,
                 Arc::from([unclosed]),
-                publication(MachineId::new(1).unwrap())
+                publication(MachineId::new(1).unwrap()),
+                None,
             )
             .unwrap_err(),
             "function ABI contains an unclosed scalar type"
+        );
+    }
+
+    #[test]
+    fn a_nonempty_abi_roster_cannot_omit_the_prepared_execution_context() {
+        let row = abi();
+        assert_eq!(
+            SelectedProgramContracts::new(
+                Default::default(),
+                None,
+                Arc::from([row.clone()]),
+                publication(row.machine),
+                None
+            )
+            .unwrap_err(),
+            "execution context differs from the function ABI roster"
+        );
+        let entry = MachineId::new(2).unwrap();
+        assert_eq!(
+            SelectedProgramContracts::new(
+                Default::default(),
+                None,
+                Arc::from([row.clone()]),
+                publication(row.machine),
+                execution(entry)
+            )
+            .unwrap_err(),
+            "execution context entry has no current function ABI"
         );
     }
 }
