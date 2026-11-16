@@ -20,6 +20,8 @@ mod carriers {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct ObjectArtifact {
+        pub(crate) program_contracts:
+            std::sync::Arc<selected_instructions::SelectedProgramContracts>,
         pub(crate) projected: crate::object::function_fragments::ProjectedObject,
         pub(crate) hosted_receiver: Option<HostedReceiverBinding>,
         pub(crate) physical_entry: Option<crate::PhysicalEntryBinding>,
@@ -324,22 +326,8 @@ mod carriers {
                 .find(|function| function.machine == machine)
         }
 
-        pub fn borrowed_storage_layouts(
-            &self,
-        ) -> Option<&[runtime_abi::NativeBorrowedStorageLayout]> {
-            self.fragment_replay.as_ref().map(|replay| {
-                replay
-                    .0
-                    .source()
-                    .source()
-                    .source()
-                    .source()
-                    .optimized_target()
-                    .execution_plan()
-                    .plan()
-                    .borrowed_storage_layouts
-                    .as_slice()
-            })
+        pub fn borrowed_storage_layouts(&self) -> &runtime_abi::NativeBorrowedStorageLayouts {
+            &self.program_contracts.borrowed_storage_layouts
         }
 
         pub fn private_functions(&self) -> &[ObjectCompilerPrivateFunction] {

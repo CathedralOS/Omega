@@ -4632,6 +4632,7 @@ pub(crate) mod tests {
         let materialize =
             crate::selection::constraints::row(catalog, constraints.keys.materialize_i64).unwrap();
         let program = LegalizedOperationPlan {
+            borrowed_storage_layouts: Default::default(),
             psi: TerminalPsiIdentity {
                 vocabulary_marker: VocabularyMarker::CURRENT,
                 program_fingerprint: SemanticFingerprint::from_bytes([0; 32]),
@@ -4647,7 +4648,6 @@ pub(crate) mod tests {
             retained_integers: legalized_operations::RetainedIntegerTypes::Unsealed,
             installation_operations: Vec::new(),
             function_abis: Vec::new(),
-            borrowed_storage_layouts: Vec::new(),
         };
         let geometries = crate::native_geometry::NativeGeometries::new(std::iter::empty()).unwrap();
         let backings = crate::selection::foreign_scalar_backings::ForeignScalarBackings::new(

@@ -877,11 +877,11 @@ fn borrowed_storage_and_function_abis_bind_identity() {
         )
     };
     let mut borrowed = plan.clone();
-    borrowed.borrowed_storage_layouts.push(layout(0));
+    borrowed.borrowed_storage_layouts = runtime_abi::NativeBorrowedStorageLayouts::seal(vec![layout(0)]).unwrap();
     let borrowed_identity = legalized_operation_plan_identity(&borrowed);
     assert_ne!(borrowed_identity, original);
     let mut moved = plan.clone();
-    moved.borrowed_storage_layouts.push(layout(1));
+    moved.borrowed_storage_layouts = runtime_abi::NativeBorrowedStorageLayouts::seal(vec![layout(1)]).unwrap();
     assert_identity_drift(borrowed_identity, &moved);
 
     let function = &plan.scalar_functions[0];
@@ -905,4 +905,22 @@ fn borrowed_storage_and_function_abis_bind_identity() {
         result: None,
     });
     assert_identity_drift(described_identity, &scalar);
+}
+
+#[test]
+fn borrowed_geometry_binds_the_prepared_plan_identity() {
+    let mut plan = super::call_aware_plan();
+    let empty = legalized_operation_plan_identity(&plan);
+    plan.borrowed_storage_layouts = runtime_abi::NativeBorrowedStorageLayouts::seal(vec![
+        runtime_abi::NativeBorrowedStorageLayout::new(id(1), 8, 8, [], [], []),
+    ])
+    .unwrap();
+    let populated = legalized_operation_plan_identity(&plan);
+    assert_ne!(populated, empty);
+    assert_eq!(populated, legalized_operation_plan_identity(&plan.clone()));
+    plan.borrowed_storage_layouts = runtime_abi::NativeBorrowedStorageLayouts::seal(vec![
+        runtime_abi::NativeBorrowedStorageLayout::new(id(1), 16, 8, [], [], []),
+    ])
+    .unwrap();
+    assert_ne!(legalized_operation_plan_identity(&plan), populated);
 }

@@ -1880,6 +1880,7 @@ version = "0.1.0"
 dependencies = [
  "arena",
  "semantic-vocabulary",
+ "sha2",
  "target",
 ]
 
@@ -1991,6 +1992,7 @@ dependencies = [
  "native-vocabulary",
  "optimization-core",
  "register-model",
+ "runtime-abi",
  "semantic-vocabulary",
  "sha2",
  "target",

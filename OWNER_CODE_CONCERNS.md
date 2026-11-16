@@ -116,3 +116,9 @@ framework or a list of unimplemented features.
 - Saw: Ordinary emission now builds the object from the prepared plan, and only the replay validators read stage 02's working program, through `retained_working_program.rs`. Those validators (`source::admit`, `establish_geometry` and the object replay) still live in the same 26,000-line file as `build_function_fragment_object_artifact`, so `check-boundary` can keep the stage 02 accessor inside that one helper file but cannot tell a production caller of the helper from a validator caller.
 - Cost: A production path could start reading the working program again without any check failing. Move the replay validators into their own module or crate so the boundary rule can name them.
 - Reported: 2026-11-16, Claude Code, while moving image emission off stage 02's working program.
+### Image publication still reads the prepared plan after selection
+- Category: knowledge crossing a boundary
+- Where: [object evidence](omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments.rs), [stage 02 output](omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/lib.rs)
+- Saw: Object production reads function ABI and byte-output provider rows through `optimized_target().execution_plan().plan()`. It still reaches the complete earlier plan after instruction selection, rather than the contract rows of its current input.
+- Cost: Later publication still depends on earlier program custody. Share the required immutable ABI and provider rows through selected and current native contracts, and read those chunks when publishing the object.
+- Reported: 2026-11-16, Claude Code, while moving the readers of stage 02's output onto the execution plan.

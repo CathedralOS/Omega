@@ -2,7 +2,7 @@
   Canonical SHA-256 identity producer for `SelectedInstructionPlan`.
 
   Owns the byte-stable encoding over which `SelectedInstructionPlanIdentity` is
-  derived (`omega.terminal-selected-instructions.v55\0`). The identity is
+  derived (`omega.terminal-selected-instructions.v56\0`). The identity is
   hierarchical: `Sha256` over the plan's roots and the ordered digests of its
   functions, each function digest (`omega.terminal-selected-instruction-function.v2\0`)
   retaining its static metadata, 64-register pages, local frame storage slots,
@@ -41,7 +41,7 @@ pub(crate) struct RetainedPlanPrefix {
 pub fn selected_instruction_plan_identity(
     plan: &SelectedInstructionPlan,
 ) -> SelectedInstructionPlanIdentity {
-    let domain = b"omega.terminal-selected-instructions.v55\0".as_slice();
+    let domain = b"omega.terminal-selected-instructions.v56\0".as_slice();
     let mut header_bytes = Vec::with_capacity(128);
     header_bytes.extend_from_slice(domain);
     header_bytes.extend_from_slice(plan.psi.program_fingerprint.as_bytes());
@@ -52,6 +52,7 @@ pub fn selected_instruction_plan_identity(
     push_encoded(&mut header_bytes, plan.work_schedule.marker().to_le_bytes());
     header_bytes.extend_from_slice(&plan.target.identity_bytes());
     push_encoded(&mut header_bytes, plan.entry.get().to_le_bytes());
+    header_bytes.extend_from_slice(&plan.contracts.borrowed_storage_layouts.identity_bytes());
     crate::codec_bytes::encode_len(&mut header_bytes, plan.functions.len());
 
     if let Some(retained) = plan.functions.retained_plan_prefix()
@@ -1467,6 +1468,7 @@ mod function_digest_tests {
 
     fn plan(functions: Vec<SelectedFunction>) -> SelectedInstructionPlan {
         SelectedInstructionPlan {
+            contracts: Default::default(),
             psi: TerminalPsiIdentity {
                 vocabulary_marker: VocabularyMarker::CURRENT,
                 program_fingerprint: SemanticFingerprint::from_bytes([1; 32]),

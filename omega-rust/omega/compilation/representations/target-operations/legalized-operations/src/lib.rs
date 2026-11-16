@@ -70,7 +70,7 @@ pub struct LegalizedOperationPlan {
     /// Native storage geometry of borrowed boundary inputs and owned roots
     /// reached by foreign calls. The host bridge reads it to borrow guest
     /// values; the plan carries it so nothing reads stage 02's working form.
-    pub borrowed_storage_layouts: Vec<runtime_abi::NativeBorrowedStorageLayout>,
+    pub borrowed_storage_layouts: runtime_abi::NativeBorrowedStorageLayouts,
 }
 
 impl LegalizedOperationPlan {

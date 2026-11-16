@@ -10,6 +10,9 @@ a semantic field snapshot never overwrites them.
 */
 
 use arena::{Arena, HandleSpan};
+
+mod encoding;
+pub use encoding::{BorrowedStorageEncodingError, NativeBorrowedStorageLayouts};
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, ScalarType, StructuralCaseId, StructuralTypeId,
 };
@@ -35,7 +38,7 @@ impl Default for NativeBorrowedStorageField {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 struct NativeStoragePathStep(CanonicalStructuralPathSegment);
 
 impl Default for NativeStoragePathStep {

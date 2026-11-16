@@ -51,8 +51,9 @@ pub mod static_interrupts;
 mod windows_provider;
 
 pub use borrowed_storage::{
-    NativeBorrowedStorageDiscriminator, NativeBorrowedStorageField, NativeBorrowedStorageLayout,
-    NativeStorageCaseTag, NativeStorageRepetition,
+    BorrowedStorageEncodingError, NativeBorrowedStorageDiscriminator, NativeBorrowedStorageField,
+    NativeBorrowedStorageLayout, NativeBorrowedStorageLayouts, NativeStorageCaseTag,
+    NativeStorageRepetition,
 };
 pub use descriptor_io::{
     DescriptorAbi, DescriptorOperation, descriptor_import, descriptor_import_identity,

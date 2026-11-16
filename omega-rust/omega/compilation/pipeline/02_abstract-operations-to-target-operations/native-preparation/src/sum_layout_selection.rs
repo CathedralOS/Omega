@@ -3875,7 +3875,7 @@ fn target_plan(
             },
         }],
         native_callback_arguments: Vec::new(),
-        borrowed_storage_layouts: Vec::new(),
+        borrowed_storage_layouts: Default::default(),
     }
 }
 
