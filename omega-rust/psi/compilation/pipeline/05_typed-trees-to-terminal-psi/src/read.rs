@@ -67,6 +67,15 @@ use typed_trees::TypedTrees;
 use crate::body::{RecordType, Signature, ValueType};
 use crate::{Unserved, refuse};
 
+/// One member of a complete static type partition. An opaque remainder
+/// excludes exactly the closed types checked by the other members, so an
+/// open classifier's fallback is checked without inventing runtime RTTI.
+#[derive(Clone)]
+pub(crate) struct TypeAlternative {
+    pub arguments: Vec<Option<typed_trees::types::TypeReferenceHandle>>,
+    pub remainder: Option<(usize, Vec<typed_trees::types::TypeReferenceHandle>)>,
+}
+
 #[derive(Debug, Clone, Copy)]
 struct WidthBinding {
     symbol: SymbolHandle,
@@ -202,10 +211,10 @@ pub(crate) struct Program<'t> {
     pub applications: Vec<MachineId>,
     /// The type arguments each of those was read at.
     applied: Vec<(MachineId, Vec<ValueType>)>,
-    /// The source types a finite alternative fixes the entry's parameters to.
+    /// The source types a static alternative fixes the entry's parameters to.
     /// Materialize them under this reader's numbering before checking its body;
     /// record IDs from the reader that discovered the family cannot cross here.
-    pub alternative: Option<Vec<typed_trees::types::TypeReferenceHandle>>,
+    pub alternative: Option<TypeAlternative>,
     /// The locals of the body being read whose value is decided statically
     /// by closed type equations (`static_truth`), by the local's symbol.
     static_truths: Vec<(SymbolHandle, bool)>,

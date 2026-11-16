@@ -1250,8 +1250,8 @@ pub(crate) mod const_arguments {
                     let result = program
                         .machine_by_symbol(call.target_symbol)
                         .or_else(|| program.machine_holding_state(call.target_symbol))
-                        .and_then(|machine| match program.machine_states(machine) {
-                            [state] => Some(state.return_type),
+                        .and_then(|machine| match program.machine_states(machine).as_array() {
+                            Some([state]) => Some(state.return_type),
                             _ => None,
                         })
                         .filter(|result| result.is_valid())

@@ -1142,10 +1142,10 @@ pub(crate) mod tests {
         let machine = source
             .realized_machine_named("retain_schema_member_type")
             .unwrap();
-        let [entry] = source.machine_states(machine) else {
+        let Some([entry]) = source.machine_states(machine).as_array() else {
             panic!("one entry state");
         };
-        let [field] = source.state_parameters(entry) else {
+        let Some([field]) = source.state_parameters(entry).as_array() else {
             panic!("one schema field parameter");
         };
         let enclosing = field.type_reference;
@@ -1897,10 +1897,10 @@ pub(crate) mod tests {
                         .path
                         .ends_with("core/float.omg")
                 );
-                let [state] = source.machine_states(machine) else {
+                let Some([state]) = source.machine_states(machine).as_array() else {
                     panic!("one original helper entry")
                 };
-                let [formal] = source.state_parameters(state) else {
+                let Some([formal]) = source.state_parameters(state).as_array() else {
                     panic!("one declared float input")
                 };
                 let typed_trees::types::TypeReferenceNode::Named { symbol: scalar, .. } = source
@@ -2000,7 +2000,7 @@ pub(crate) mod tests {
         name: &str,
     ) -> (SymbolHandle, typed_trees::expression::ExpressionHandle) {
         let machine = source.realized_machine_named(name).unwrap();
-        let [state] = source.machine_states(machine) else {
+        let Some([state]) = source.machine_states(machine).as_array() else {
             panic!("one authored entry")
         };
         let Some(typed_trees::statement::StatementNode::Transition(transition)) = source
@@ -3208,7 +3208,7 @@ pub(crate) mod tests {
             }",
         );
         let machine = source.realized_machine_named("answer").unwrap();
-        let [state] = source.machine_states(machine) else {
+        let Some([state]) = source.machine_states(machine).as_array() else {
             panic!("one source state")
         };
         assert!(

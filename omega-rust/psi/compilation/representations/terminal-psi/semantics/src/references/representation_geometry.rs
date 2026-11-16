@@ -347,6 +347,64 @@ mod tests {
     }
 
     #[test]
+    fn projected_alignment_does_not_turn_repeated_storage_gaps_into_bytes() {
+        let unsigned =
+            |bits| ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, bits).unwrap());
+        let array = |element, length| StructuralTypeShape::FixedArray {
+            element: ty(element),
+            length: ArrayExtent::Literal(length),
+        };
+        let field = TerminalIdentityIndex(7);
+        for (element_stride, expected) in [(1, true), (2, false)] {
+            let mut module = TerminalModule::declarations();
+            module.structural_types = vec![
+                declaration(1, StructuralTypeShape::PrimitiveScalar(unsigned(8))),
+                declaration(2, array(1, 8)),
+                declaration(
+                    3,
+                    StructuralTypeShape::Record {
+                        fields: vec![StructuralFieldDeclaration {
+                            declaration_identity: Default::default(),
+                            id: StructuralFieldId::new(1).unwrap(),
+                            identity: field,
+                            field_type: StructuralFieldType::Structural(ty(2)),
+                            storage: Some(AuthoredFieldStorage::Repeated {
+                                byte_offset: 0,
+                                element_stride,
+                            }),
+                            inline_carrier: None,
+                            relevance: BindingRelevance::Relevant,
+                        }],
+                        storage: StructuralRecordStorage::Authored(AuthoredRecordStorage {
+                            byte_size: 16,
+                            byte_alignment: 8,
+                        }),
+                    },
+                ),
+                declaration(4, StructuralTypeShape::PrimitiveScalar(unsigned(64))),
+                declaration(5, array(4, 1)),
+                declaration(
+                    6,
+                    StructuralTypeShape::Reference {
+                        referent: ty(5),
+                        access: StructuralAccess::SharedBorrow,
+                    },
+                ),
+            ];
+            assert_eq!(
+                reference_view_compatible(
+                    &module,
+                    ty(3),
+                    &[StructuralPathSegment::Field(field)],
+                    ty(6),
+                    None,
+                ),
+                Ok(expected)
+            );
+        }
+    }
+
+    #[test]
     fn a_shared_view_checks_all_targets_and_does_not_create_boolean_validity() {
         // The bytes must fit every retained target, and equal byte counts
         // cannot turn arbitrary stored bytes into valid Boolean values.

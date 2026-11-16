@@ -2431,6 +2431,11 @@ pub(crate) mod call_origin {
         {
             return Err(LegalizationError::custody());
         }
+        validate_qualified_numeric_executions(
+            native,
+            &input.module.boundary_machines,
+            Some(input.module),
+        )?;
         for function in &native.functions {
             for operation in function.graph.operations() {
                 if let TargetUnitOperation::Call {
@@ -2466,6 +2471,100 @@ pub(crate) mod call_origin {
                 {
                     return Err(LegalizationError::custody());
                 }
+            }
+        }
+        Ok(())
+    }
+
+    /// Check only numeric boundaries consumed by the selected target rows.
+    /// Each distinct qualified declaration is authenticated once; occurrences
+    /// then compare the full operation, including its conversion policy.
+    pub(crate) fn validate_qualified_numeric_executions(
+        native: &TargetOperationPlan,
+        declarations: &[terminal_psi::BoundaryMachineDeclaration],
+        module: Option<&terminal_psi::TerminalModule>,
+    ) -> Result<(), LegalizationError> {
+        use semantic_vocabulary::BoundaryMachineId;
+        use target_operations::{BoundaryExecutionBinding, CompilerBuiltinExecution};
+        let mut consumed: Vec<_> = native
+            .functions
+            .iter()
+            .flat_map(|function| function.graph.operations())
+            .filter_map(|operation| match operation {
+                TargetUnitOperation::NearestIeeeFloatArithmetic { boundary, .. } => Some(*boundary),
+                _ => None,
+            })
+            .collect();
+        consumed.sort_unstable();
+        consumed.dedup();
+        let mut retained: Vec<_> = declarations.iter().collect();
+        retained.sort_unstable_by_key(|row| row.id);
+        let mut canonical: Vec<_> = module
+            .into_iter()
+            .flat_map(|module| &module.boundary_machines)
+            .collect();
+        canonical.sort_unstable_by_key(|row| row.id);
+        fn unique<'a>(
+            rows: &[&'a terminal_psi::BoundaryMachineDeclaration],
+            id: BoundaryMachineId,
+        ) -> Result<&'a terminal_psi::BoundaryMachineDeclaration, LegalizationError> {
+            let index = rows
+                .binary_search_by_key(&id, |row| row.id)
+                .map_err(|_| LegalizationError::custody())?;
+            if index
+                .checked_sub(1)
+                .is_some_and(|previous| rows[previous].id == id)
+                || rows.get(index + 1).is_some_and(|next| next.id == id)
+            {
+                return Err(LegalizationError::custody());
+            }
+            Ok(rows[index])
+        }
+        let mut executions = Vec::new();
+        for id in consumed {
+            let declaration = unique(&retained, id)?;
+            let canonical_declaration = module.map(|_| unique(&canonical, id)).transpose()?;
+            let is_qualified = |row: &terminal_psi::BoundaryMachineDeclaration| matches!(row.result, terminal_psi::BoundaryMachineResult::Scalar(result) if !result.qualifications.is_empty());
+            if !is_qualified(declaration) && !canonical_declaration.is_some_and(is_qualified) {
+                continue;
+            }
+            let module = module.ok_or_else(LegalizationError::custody)?;
+            if canonical_declaration != Some(declaration) {
+                return Err(LegalizationError::custody());
+            }
+            let execution = provider_admission::provider_admission::numeric_boundary_execution(
+                module,
+                declaration,
+            )
+            .map_err(|_| LegalizationError::custody())?;
+            executions.push((id, execution));
+        }
+        for operation in native
+            .functions
+            .iter()
+            .flat_map(|function| function.graph.operations())
+        {
+            let TargetUnitOperation::NearestIeeeFloatArithmetic {
+                boundary,
+                realization,
+                execution,
+                ..
+            } = operation
+            else {
+                continue;
+            };
+            let Ok(index) = executions.binary_search_by_key(boundary, |(id, _)| *id) else {
+                continue;
+            };
+            let expected = executions[index].1;
+            if expected
+                != (CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
+                    operation: realization.operation,
+                    format: realization.format,
+                })
+                || *execution != BoundaryExecutionBinding::CompilerBuiltin(expected)
+            {
+                return Err(LegalizationError::custody());
             }
         }
         Ok(())
@@ -3728,7 +3827,7 @@ pub(crate) mod ieee_float_arithmetic {
             || !realization.supports_target(native)
             || !realization.signature_matches(&declaration.scalar_parameters, scalar)
             || !declaration.structural_parameters.is_empty()
-            || declaration.result != terminal_psi::BoundaryMachineResult::Scalar(scalar.into())
+            || !matches!(declaration.result, terminal_psi::BoundaryMachineResult::Scalar(declared) if declared.scalar_type == scalar)
             || !declaration.requires.is_empty()
             || !declaration.program_local_root_introductions.is_empty()
             || !declaration.content_guarantees.is_empty()

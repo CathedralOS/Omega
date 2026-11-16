@@ -16355,7 +16355,9 @@ pub mod descriptor_results {
                                 .inspect_err(|detail| *failure_detail = Some(*detail))
                                 .ok()?
                             } else {
-                                None
+                                crate::requirement_reference_result(module, callee)
+                                    .inspect_err(|detail| *failure_detail = Some(*detail))
+                                    .ok()?
                             };
                             let implemented = operation.required_contract.is_some();
                             let public_call = match &public {

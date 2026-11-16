@@ -10,7 +10,7 @@ pub(crate) mod model {
 
     pub(crate) fn legalization_validator_identity() -> OptimizationValidatorIdentity {
         OptimizationValidatorIdentity::from_canonical_bytes(
-            b"omega.terminal-target-legalization-independent-replay.v69",
+            b"omega.terminal-target-legalization-independent-replay.v71",
         )
     }
 
@@ -609,19 +609,36 @@ fn verify_target_operation_plan_input(
         abstract_plan,
     )?;
     validate_boundary_origins(target, origins)?;
-    audit_target_operation_plan(target, abstract_plan, unit, closed_types)
+    audit_target_operation_plan_with_module(
+        target,
+        abstract_plan,
+        unit,
+        closed_types,
+        Some(origins.module),
+    )
 }
 
 /// Compare the target operations with a plan prepared from them here and
 /// now. Use this where no published plan exists: fixtures, and a retained
 /// private body that was never sealed.
+#[cfg(test)]
 pub(crate) fn audit_target_operation_plan(
     target: &TargetOperationPlan,
     abstract_plan: &AbstractOperationPlan,
     unit: &optimization_unit::PsiOptimizationUnit,
     closed_types: &crate::native_geometry::ModuleTypes,
 ) -> Result<(), LegalizationError> {
-    let expected = derive_expected_functions(target, abstract_plan, unit, closed_types)?;
+    audit_target_operation_plan_with_module(target, abstract_plan, unit, closed_types, None)
+}
+
+fn audit_target_operation_plan_with_module(
+    target: &TargetOperationPlan,
+    abstract_plan: &AbstractOperationPlan,
+    unit: &optimization_unit::PsiOptimizationUnit,
+    closed_types: &crate::native_geometry::ModuleTypes,
+    module: Option<&terminal_psi::TerminalModule>,
+) -> Result<(), LegalizationError> {
+    let expected = derive_expected_functions(target, abstract_plan, unit, closed_types, module)?;
     let retained = source::derive_target_function_rosters(
         target,
         PreparationEvidence {
@@ -694,6 +711,15 @@ pub fn verify_execution_plan(
             ));
         }
     }
+    if plan.borrowed_storage_layouts != target.borrowed_storage_layouts {
+        return Err(mismatch(
+            None,
+            "borrowed storage geometry differs from the target's",
+        ));
+    }
+    if plan.function_abis != function_abis(target)? {
+        return Err(mismatch(None, "function ABI rows differ from the target's"));
+    }
     crate::installed_interrupts::validate_target(
         target,
         origins.module,
@@ -701,7 +727,13 @@ pub fn verify_execution_plan(
         abstract_plan,
     )?;
     validate_boundary_origins(target, origins)?;
-    let expected = derive_expected_functions(target, abstract_plan, unit, &closed_types)?;
+    let expected = derive_expected_functions(
+        target,
+        abstract_plan,
+        unit,
+        &closed_types,
+        Some(origins.module),
+    )?;
     if expected.scalar_functions.len() != plan.scalar_functions.len() {
         return Err(mismatch(None, "the plan has a different set of functions"));
     }
@@ -733,7 +765,13 @@ fn derive_expected_functions(
     abstract_plan: &AbstractOperationPlan,
     unit: &optimization_unit::PsiOptimizationUnit,
     closed_types: &crate::native_geometry::ModuleTypes,
+    module: Option<&terminal_psi::TerminalModule>,
 ) -> Result<source::SourceFunctionRosters, LegalizationError> {
+    scalar_graph_input::call_origin::validate_qualified_numeric_executions(
+        target,
+        &unit.boundary_machines,
+        module,
+    )?;
     let plan_geometry = crate::native_geometry::NativeGeometry::with_owned_sequence_bounds(
         &abstract_plan.structural_types,
         abstract_plan.structural_types.owned_sequence_bounds(),

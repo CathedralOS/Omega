@@ -156,7 +156,7 @@ pub struct TerminalRuntimeHostProvisions {
     installation: Option<terminal_installation::AdmittedProviderSelections>,
     host: Vec<TerminalRuntimeHostProvision>,
     host_requirements: Vec<RuntimeHostRequirement>,
-    borrowed_storage_layouts: Vec<runtime_abi::NativeBorrowedStorageLayout>,
+    borrowed_storage_layouts: runtime_abi::NativeBorrowedStorageLayouts,
 }
 
 impl TerminalRuntimeHostProvisions {
@@ -300,7 +300,7 @@ impl TerminalRuntimeHostProvisions {
             installation: installation.cloned(),
             host,
             host_requirements,
-            borrowed_storage_layouts: Vec::new(),
+            borrowed_storage_layouts: Default::default(),
         })
     }
 
@@ -367,7 +367,7 @@ impl TerminalRuntimeHostProvisions {
     }
     pub fn with_borrowed_storage_layouts(
         mut self,
-        layouts: Vec<runtime_abi::NativeBorrowedStorageLayout>,
+        layouts: runtime_abi::NativeBorrowedStorageLayouts,
     ) -> Self {
         self.borrowed_storage_layouts = layouts;
         self
@@ -424,7 +424,7 @@ impl TerminalCallableRuntimeProvisions {
 
     pub fn with_borrowed_storage_layouts(
         mut self,
-        layouts: Vec<runtime_abi::NativeBorrowedStorageLayout>,
+        layouts: runtime_abi::NativeBorrowedStorageLayouts,
     ) -> Self {
         self.host = self.host.with_borrowed_storage_layouts(layouts);
         self
@@ -729,7 +729,7 @@ impl TerminalRuntimeProvisions {
 
     pub fn with_borrowed_storage_layouts(
         mut self,
-        layouts: Vec<runtime_abi::NativeBorrowedStorageLayout>,
+        layouts: runtime_abi::NativeBorrowedStorageLayouts,
     ) -> Self {
         self.host_provisions.borrowed_storage_layouts = layouts;
         self

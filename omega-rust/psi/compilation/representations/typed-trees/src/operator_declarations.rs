@@ -1275,7 +1275,7 @@ pub mod operator {
         }
 
         pub(crate) fn normalized_operand_parameters(
-            parameters: &[crate::signature::StateParameter],
+            parameters: arena::RootRows<'_, crate::signature::StateParameter>,
         ) -> impl Iterator<Item = &crate::signature::StateParameter> {
             parameters.iter()
         }
@@ -1406,9 +1406,7 @@ pub mod operator {
             if operator.spelling != operation_spelling(operation) {
                 return None;
             }
-            let [left, right] = typed.operator_parameters(operator) else {
-                return None;
-            };
+            let [left, right] = typed.operator_parameters(operator).as_array()?;
             let primitive = typed.primitive_type_reference(left.type_reference)?;
             if typed.primitive_type_reference(right.type_reference) != Some(primitive) {
                 return None;

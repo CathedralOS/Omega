@@ -479,11 +479,17 @@ impl ClauseBindings for Scope<'_> {
             &path,
         )
         .ok_or("contract extent has no exact declared descriptor")?;
+        // A borrowed byte view is a descriptor with a count, exactly as an
+        // element view is (byte_views.md, "Collection view establishment"):
+        // `out.len` of a `&mut [u8]` formal is that count.
         if !matches!(
             selected.shape,
             terminal_psi::StructuralTypeShape::ElementView { .. }
+                | terminal_psi::StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                )
         ) {
-            return Err("contract extent is not an element view".into());
+            return Err("contract extent is not a borrowed view".into());
         }
         // Extents in this representation have no old-version tag. Do not
         // identify a mutable descriptor's completion extent with its input.

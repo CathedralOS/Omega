@@ -281,7 +281,7 @@ impl Lowering<'_> {
             ExpressionKind::ByteElement { base, index } => {
                 self.read_byte_element(base, index, source)
             }
-            ExpressionKind::CollectionSubslice { .. } | ExpressionKind::ArrayView { .. } => {
+            ExpressionKind::CollectionSubslice { .. } | ExpressionKind::CollectionView { .. } => {
                 Err(self.internal("a byte descriptor is used as a scalar"))
             }
             ExpressionKind::Payload { base, case, field } => {

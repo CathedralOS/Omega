@@ -39,7 +39,7 @@ pub(crate) fn exact_declared_field(
 pub(crate) fn call_target_parameters(
     program: &TypedTrees,
     target: SymbolHandle,
-) -> Option<&[StateParameter]> {
+) -> Option<arena::RootRows<'_, StateParameter>> {
     if let Some(state) = program.state_by_symbol(target) {
         return Some(program.state_parameters(state));
     }
@@ -1644,7 +1644,10 @@ mod tests {
         duplicates.push(duplicates[0].clone());
         let parameters = program.state_parameters.insert_many(duplicates);
         let machine = program.machines()[0].clone();
-        program.machine_states_mut(&machine)[0].parameters = parameters;
+        program
+            .machine_states
+            .get_mut(machine.states.handle_at(0))
+            .parameters = parameters;
         assert!(
             declared_place_type(
                 &program,

@@ -307,6 +307,53 @@ impl<'module> MachineEvidenceGoals<'module> {
                     proposition: Some(proposition),
                 });
             }
+            // A shared whole-representation view owns its converted-count
+            // goal, which needs the source collection's element layout and an
+            // authenticated u64 count measurement.
+            if let terminal_psi::OperationKind::EstablishElementView {
+                source,
+                element,
+                region:
+                    region @ terminal_psi::ElementViewRegion::WholeRepresentation {
+                        source_length,
+                        obligation,
+                    },
+                ..
+            } = &operation.kind
+            {
+                let proposition = (|| {
+                    use terminal_semantics::ValueTypes;
+                    let count = semantic_vocabulary::ScalarType::Integer(
+                        semantic_vocabulary::IntegerType::new(
+                            semantic_vocabulary::IntegerSign::Unsigned,
+                            64,
+                        )
+                        .ok()?,
+                    );
+                    if types.as_ref()?.value_type(*source_length) != Some(count) {
+                        return None;
+                    }
+                    let places = places.get_or_insert_with(|| machine_place_types(machine));
+                    let root = unique_by_id(places, source.place, |(place, _)| *place)?.1?;
+                    let collection = terminal_semantics::runtime_structural_path_tip(
+                        structural_types.iter(),
+                        root,
+                        &source.path,
+                    )?;
+                    terminal_semantics::whole_representation_region_goal(
+                        structural_types.iter(),
+                        &collection.shape,
+                        *element,
+                        *region,
+                        source.access,
+                    )
+                })();
+                goals.push(ExecutionEvidenceGoal {
+                    site,
+                    obligation: *obligation,
+                    proposition,
+                });
+            }
         }
         sites.extend(
             machine

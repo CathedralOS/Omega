@@ -175,8 +175,14 @@ use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
 use target::NativeTarget;
 use terminal_psi::TerminalPsiIdentity;
 
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct SelectedProgramContracts {
+    pub borrowed_storage_layouts: runtime_abi::NativeBorrowedStorageLayouts,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedInstructionPlan {
+    pub contracts: std::sync::Arc<SelectedProgramContracts>,
     pub psi: TerminalPsiIdentity,
     pub work_schedule: WorkScheduleIdentity,
     pub target: NativeTarget,

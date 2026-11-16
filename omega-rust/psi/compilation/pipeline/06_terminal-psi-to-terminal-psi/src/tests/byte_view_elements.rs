@@ -12,6 +12,94 @@ use super::build_purpose::judge_build;
 use super::*;
 use terminal_psi::OperationKind;
 
+#[test]
+fn a_representation_view_count_must_measure_its_captured_descriptor() {
+    use super::build_purpose::{frontier_of, package, roster, symbol};
+    let typed = frontier_of(
+        "machine product_entry() {}",
+        r#"
+machine build_entry(words: &[u32], peer: &[u32]) requires words.len <= 2 {
+    let earlier: u64 = peer.len;
+    let bytes: &[u8] = words as &[u8];
+    consume(bytes);
+}
+machine consume(bytes: &[u8]) {}
+"#,
+    );
+    let mut elaboration = typed_trees_to_terminal_psi::elaborate_for(
+        &typed,
+        roster(
+            &[symbol(&typed, "build_entry")],
+            &[Some(package())],
+            source::DependencyScope::Build,
+        ),
+        terminal_codec::TerminalPublication::Invocation,
+    )
+    .unwrap();
+    let machine = elaboration
+        .module
+        .machines
+        .iter_mut()
+        .find(|machine| {
+            machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .any(|operation| {
+                    matches!(
+                        operation.kind,
+                        OperationKind::EstablishElementView {
+                            region: terminal_psi::ElementViewRegion::WholeRepresentation { .. },
+                            ..
+                        }
+                    )
+                })
+        })
+        .unwrap();
+    let earlier = machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find(|operation| matches!(operation.kind, OperationKind::ElementViewLength { .. }))
+        .unwrap()
+        .result
+        .expect_scalar()
+        .id;
+    let operation = machine
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| {
+            matches!(
+                operation.kind,
+                OperationKind::EstablishElementView {
+                    region: terminal_psi::ElementViewRegion::WholeRepresentation { .. },
+                    ..
+                }
+            )
+        })
+        .unwrap();
+    let OperationKind::EstablishElementView {
+        region: terminal_psi::ElementViewRegion::WholeRepresentation { source_length, .. },
+        ..
+    } = &mut operation.kind
+    else {
+        unreachable!()
+    };
+    assert_ne!(*source_length, earlier);
+    *source_length = earlier;
+    let refusal = match judge(Ok(elaboration)) {
+        Err(refusal) | Ok(RouteVerdict::FallBack(refusal)) => refusal,
+        other => panic!("a substituted measurement must refuse: {other:?}"),
+    };
+    assert!(
+        refusal
+            .detail
+            .contains("source length is not its view's measurement directly before it"),
+        "{refusal:?}"
+    );
+}
+
 /// `accepted`, `rejected` with what the program could not establish, or the
 /// refusal's text.
 fn verdict(build: &str) -> String {
@@ -28,6 +116,60 @@ fn verdict(build: &str) -> String {
         },
         other => panic!("{other:?}"),
     }
+}
+
+#[test]
+fn image_dimensions_establish_the_representation_view_count() {
+    let result = judge_build(
+        r#"
+machine build_entry(width: u32, height: u32, pixels: &[i32])
+requires width > 0 && width <= 8192
+requires height > 0 && height <= 8192
+requires pixels.len == (width as u64) * (height as u64)
+{
+    let bytes: &[u8] = pixels as &[u8];
+    consume(bytes);
+}
+machine consume(bytes: &[u8]) {}
+"#,
+    )
+    .unwrap();
+    assert!(matches!(result, RouteVerdict::Accepted(_)), "{result:#?}");
+}
+
+#[test]
+fn representation_views_do_not_gain_writable_access_or_boolean_validity() {
+    let mutable = judge_build(
+        r#"
+machine build_entry(words: &[u32]) requires words.len <= 2 {
+    let bytes: &[u8] = words as &[u8];
+    mutate(bytes);
+}
+machine mutate(bytes: &mut [u8]) {}
+"#,
+    );
+    match mutable {
+        Ok(RouteVerdict::Rejected { violations, .. }) => assert!(
+            violations.iter().any(|violation| violation
+                .statement
+                .contains("caller lends only immutable access")),
+            "{violations:?}"
+        ),
+        other => panic!("shared representation bytes cannot grant writable access: {other:?}"),
+    }
+    let boolean = verdict(
+        r#"
+machine build_entry(values: &[bool]) requires values.len <= 2 {
+    let bytes: &[u8] = values as &[u8];
+    consume(bytes);
+}
+machine consume(bytes: &[u8]) {}
+"#,
+    );
+    assert!(
+        boolean.contains("target elements do not exactly tile its source elements"),
+        "{boolean}"
+    );
 }
 
 #[test]

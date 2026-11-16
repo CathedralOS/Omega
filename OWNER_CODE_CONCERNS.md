@@ -75,30 +75,37 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Borrowed field recasts lose the target carrier layout of the enclosing record
+- Category: re-deriving
+- Where: [reference view geometry](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/references/representation_geometry.rs#L147), [sum geometry](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/references.rs#L4450)
+- Saw: A recast checks the enclosing record's alignment, but its geometry query has no carrier layout for a sibling sum. The checker supplies the retained target's record resolver without its case-tag layout. An exact `PosixFilesystem` reduction refuses a whole aligned 144-byte field. Changing only the sibling `ErrorKind` field to `u32` yields native and Psi exit 0 on macOS arm64.
+- Cost: The standard-library POSIX stat decoders still refuse the whole buffer. Pass the existing target carrier layout to projected storage checks, preserve the short and misaligned refusals, and replay the unchanged [note vault](https://github.com/CathedralOS/Omega/pull/3722).
+- Reported: 2026-11-15, Codex, while validating shared recasts of an aligned record field.
+
 ### Selected-body activation copies retained side records
 - Category: re-deriving
-- Where: [body activation](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L555), [continuation storage clone](omega-rust/psi/compilation/representations/typed-trees/src/lib.rs#L1295), [retained pages](omega-rust/psi/foundation/arena/src/retained.rs)
-- Saw: Replacing symbols on a shared typed predecessor can still clone side records, normalized identities and owned containers when no bodies are selected. The [data-child sharing change](https://github.com/CathedralOS/Omega/pull/3720) records a historical baseline on both Windows x86-64 Build routes.
-- Cost: Empty activation pays to copy storage unrelated to the selection. Share the remaining immutable storage under its existing owners and keep writes local to the changed records or completion batches. Preserve source application preparation, projection, source authority checks, and signature and inferred-summary dependencies. Re-measure empty activation and nonempty completion on both [scalar and borrowed-root workloads](wiki/drafts/measurements/selected_body_copies.md#workloads-and-boundary), counting copied storage and new output separately. See the [body ownership design](wiki/drafts/designs/compiler_work_ownership.md#representation-and-execution-contract).
+- Where: [body activation](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L669), [continuation storage clone](omega-rust/psi/compilation/representations/typed-trees/src/lib.rs#L1295), [owned arena clone](omega-rust/psi/foundation/arena/src/arena.rs#L748)
+- Saw: Replacing symbols on a shared typed tree can copy side records, normalized identities and owned containers even with no bodies selected. The [call and machine record repair](https://github.com/CathedralOS/Omega/pull/3747) measured empty activation and two nonempty batches on both Windows x86-64 routes. Empty activation requested 2,182,456 bytes in 12,456 allocations and cloned 36 arenas per route on fixed `570d707` with the repair and observer (opt-level 1). See the [data-child repair](https://github.com/CathedralOS/Omega/pull/3720) for the earlier baseline.
+- Cost: Share immutable storage where measurements still show copies. Limit writes to changed records or new batches. Preserve source application preparation, projection, authority checks, and signature and inferred-summary dependencies. Re-measure empty activation and nonempty completion on both [scalar and borrowed-root workloads](wiki/drafts/measurements/selected_body_copies.md#workloads-and-boundary), counting copied storage and new output separately. See the [body ownership design](wiki/drafts/designs/compiler_work_ownership.md#representation-and-execution-contract).
 - Reported: 2026-11-15, Codex, while measuring continuation construction and body completion.
 
 ### Image emission gets installation records from stage 02's output
 - Category: knowledge crossing a boundary
-- Where: [handler stack setup](omega-rust/omega/compilation/native-compiler/src/realization/object_emission.rs#L102), [entry execution setup](omega-rust/omega/compilation/native-compiler/src/realization/callback_thunks.rs#L315), [physical entry requirements](omega-rust/omega/compilation/backend/images/image-emission/src/entries.rs#L4824)
-- Saw: The driver attaches entry execution and installed stack requirements to stage 02's output after preparation. Image emission reads those records back from the stage output. Instruction selection already receives them through [`BoundInstallations`](omega-rust/omega/compilation/backend/runtime/bound-installations/src/lib.rs).
-- Cost: The driver must modify the prepared stage output to carry installation records to image emission. Pass the bound record beside the plan to image emission and remove the two stage-output setters.
+- Where: [handler stack setup](omega-rust/omega/compilation/native-compiler/src/realization/object_emission.rs#L102), [entry execution setup](omega-rust/omega/compilation/native-compiler/src/realization/callback_thunks.rs#L315), [selection input](omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L112), [physical entry requirements](omega-rust/omega/compilation/backend/images/image-emission/src/entries.rs#L4824)
+- Saw: After preparation, the driver stores entry and stack records in stage 02's output and reads them back to build [`BoundInstallations`](omega-rust/omega/compilation/backend/runtime/bound-installations/src/lib.rs) for selection. Image emission also reaches back into stage 02 for stack requirements.
+- Cost: Bind the records once after admission and pass them beside the plan to both consumers. Remove both setters and preserve the installation's program, target and entry checks.
 - Reported: 2026-11-16, Claude Code, while auditing the stage 02 to stage 03 boundary.
 
 ### Later machine forms embed records from the prepared plan
 - Category: knowledge crossing a boundary
-- Where: [selected instructions](omega-rust/omega/compilation/representations/selected-instructions/Cargo.toml#L25), [register homes](omega-rust/omega/compilation/representations/register-homes/Cargo.toml#L13)
-- Saw: `selected-instructions` and `register-homes` embed call records, structural contracts and call-site owners defined in `legalized-operations`, so both depend on the prepared plan's crate.
-- Cost: A change to a legalized-operations record changes the selected and allocated forms without passing through stage 03. Move the embedded records to the form that owns them.
+- Where: [selected dependencies](omega-rust/omega/compilation/representations/selected-instructions/Cargo.toml#L25), [register-home dependencies](omega-rust/omega/compilation/representations/register-homes/Cargo.toml#L13), [selected call records](omega-rust/omega/compilation/representations/selected-instructions/src/calls.rs#L1397), [register-home recovery](omega-rust/omega/compilation/representations/register-homes/src/recovery/structural_calls.rs#L31), [shared vocabulary owners](omega-rust/omega/compilation/representations/README.md#program-families-and-pipeline-boundaries)
+- Saw: `selected-instructions` and `register-homes` use call records, structural contracts, call-site owners and encoders from `legalized-operations`. That crate owns the prepared plan.
+- Cost: Changes to the prepared plan can alter later forms and codecs. Give unchanged records one vocabulary owner and keep form-specific records with their forms. Remove both plan dependencies and check call and contract identities through selection, allocation and recovery.
 - Reported: 2026-11-16, Claude Code, while removing unused dependencies from stages 04 to 09.
 
-### Image emission's replay validators share a file with object production
+### Image publication still reads the prepared plan after selection
 - Category: knowledge crossing a boundary
-- Where: [object production](omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments.rs#L3693), [replay validation](omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments.rs#L3961), [working-program boundary rule](tools/xtask/src/boundary.rs#L855)
-- Saw: Replay validators read stage 02's working program through [a helper](omega-rust/omega/compilation/backend/images/image-emission/src/retained_working_program.rs#L14). The boundary rule restricts the underlying accessor by file. Object production shares a file with the replay validators and can call the helper without crossing the rule.
-- Cost: A production path can regain access to stage 02's working program. Give the replay validators their own module or crate and make `check-boundary` reject a production call to the helper.
-- Reported: 2026-11-16, Claude Code, while moving image emission off stage 02's working program.
+- Where: [object evidence](omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments.rs), [stage 02 output](omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/lib.rs)
+- Saw: Object production reads function ABI and byte-output provider rows through `optimized_target().execution_plan().plan()`. It still reaches the complete earlier plan after instruction selection, rather than the contract rows of its current input.
+- Cost: Later publication still depends on earlier program custody. Share the required immutable ABI and provider rows through selected and current native contracts, and read those chunks when publishing the object.
+- Reported: 2026-11-16, Claude Code, while moving the readers of stage 02's output onto the execution plan.

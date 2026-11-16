@@ -204,8 +204,16 @@ impl Program<'_> {
                     element,
                     qualification,
                     ..
+                }
+                | StorageShape::ElementView {
+                    element,
+                    qualification,
+                    ..
                 } => pending.push(self.storage_value_type(id, *element, *qualification)?),
-                StorageShape::PrimitiveScalar { .. } => {}
+                StorageShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+                    ..
+                })
+                | StorageShape::PrimitiveScalar { .. } => {}
                 _ => {
                     return Err(refuse(
                         id,

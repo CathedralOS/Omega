@@ -60,6 +60,7 @@ pub use optimized::{
     OptimizedTargetLoweringRequest, ValidatedOptimizedTargetOperations,
     capture_runtime_borrowed_storage_layouts, lower_optimized_to_target_operations,
 };
+
 pub(crate) mod boundary_settlements {
     use abstract_operations::{AbstractFunction, CompletionClaimSource};
     use semantic_vocabulary::{PlaceId, ValueId};
@@ -513,7 +514,7 @@ pub(crate) mod optimized {
         optimized: &OptimizedAbstractProgram,
         lowering_facts: &AdmittedLoweringFacts,
         target: NativeTarget,
-    ) -> Result<Vec<runtime_abi::NativeBorrowedStorageLayout>, LoweringError> {
+    ) -> Result<runtime_abi::NativeBorrowedStorageLayouts, LoweringError> {
         require_lowering_context(optimized, lowering_facts, target)?;
         let plan = optimized.plan();
         let types = super::structural_type_lookup::StructuralTypeLookup::for_verified(
@@ -521,7 +522,13 @@ pub(crate) mod optimized {
             lowering_facts,
         )
         .map_err(LoweringError::NonDenseStructuralTypes)?;
-        Ok(super::borrowed_storage::capture(plan, &types))
+        runtime_abi::NativeBorrowedStorageLayouts::seal(super::borrowed_storage::capture(
+            plan, &types,
+        ))
+        .map_err(|error| LoweringError::FunctionContract {
+            machine: plan.entry,
+            reason: error.reason,
+        })
     }
 
     fn require_lowering_context(

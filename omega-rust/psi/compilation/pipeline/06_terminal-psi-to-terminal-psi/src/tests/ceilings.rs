@@ -429,7 +429,7 @@ machine entry() invokes Missing {}
     )
     .err()
     .expect("an unresolved invocation cannot narrow the published service");
-    let [requirement] = program.trait_machine_signatures(registrar) else {
+    let Some([requirement]) = program.trait_machine_signatures(registrar).as_array() else {
         panic!("the service must declare one requirement");
     };
     assert!(

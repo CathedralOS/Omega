@@ -409,10 +409,17 @@ impl<'t> Program<'t> {
             None
         };
         let reading = match alternative {
-            Some(arguments) => Reading::Alternative(
-                arguments
+            Some(alternative) => Reading::Alternative(
+                alternative
+                    .arguments
                     .into_iter()
-                    .map(|argument| self.value_type(id, argument))
+                    .enumerate()
+                    .map(|(position, argument)| match argument {
+                        Some(argument) => self.value_type(id, argument),
+                        None => Ok(ValueType::Rigid(terminal_check_tables::values::RigidType(
+                            position as u32,
+                        ))),
+                    })
                     .collect::<Checked<_>>()?,
             ),
             None if self.rigid && self.symbols.is_empty() => Reading::GenericEntry,
@@ -810,7 +817,7 @@ impl<'t> Program<'t> {
     /// value facts. A fact about another value or domain still needs checking.
     fn fact_restates_formal_domain(
         &self,
-        formals: &[StateParameter],
+        formals: arena::RootRows<'_, StateParameter>,
         fact: &typed_trees::domain::ProofFact,
     ) -> bool {
         use typed_trees::domain::ProofFact;
@@ -968,10 +975,7 @@ impl<'t> Program<'t> {
         // arguments are explicit (machines.md, "Static declarations and
         // explicit state"). Test retained attachment, not name spelling:
         // module, trait and lexical qualification remain independent.
-        if machine.attached_data_symbol.is_valid()
-            || machine.attached_data_application.is_valid()
-            || machine.generic_data_template.is_valid()
-        {
+        if machine.has_data_owner() {
             return Err(crate::reject(
                 id,
                 SourceOrigin::of(
@@ -989,7 +993,7 @@ impl<'t> Program<'t> {
             id,
             "state span",
         )?;
-        let [state] = states else {
+        let Some([state]) = states.as_array() else {
             return Err(refuse(
                 id,
                 Construct::Machine,
@@ -1612,7 +1616,7 @@ impl<'t> Program<'t> {
                         .flatten()
                     })
                     .ok_or_else(|| unserved("conformer lost its prepared owning requirement"))?;
-                let [entry] = typed.machine_states(machine) else {
+                let Some([entry]) = typed.machine_states(machine).as_array() else {
                     return Err(unserved("conformer without one owned entry state"));
                 };
                 if !typed.instantiated_machine_state_matches(
@@ -2122,8 +2126,21 @@ impl<'t> Program<'t> {
             .ok_or_else(|| unavailable("numeric primitive has no scalar operand"))?;
         let expected_result = terminal_semantics::numeric_primitives::result_scalar_type(meaning)
             .map_err(unavailable)?;
-        if parameters != vec![ValueType::plain(expected_operand); expected.operand_count]
-            || result != Some(ValueType::plain(expected_result))
+        let qualification = match terminal_semantics::numeric_primitives::result_policy(meaning)
+            .map_err(unavailable)?
+        {
+            None => Qualification::NONE,
+            Some(domain) => {
+                Qualification::of_policy(crate::body::Policy::of_domain(domain).ok_or_else(
+                    || unavailable("numeric primitive has an unsupported result policy"),
+                )?)
+            }
+        };
+        if parameters.len() != expected.operand_count
+            || parameters
+                .iter()
+                .any(|parameter| *parameter != ValueType::plain(expected_operand))
+            || result != Some(ValueType::Scalar(expected_result, qualification))
         {
             return Err(unavailable(
                 "numeric primitive differs from its canonical scalar signature",
@@ -3651,7 +3668,7 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
         }
         ExpressionKind::Field { base, .. }
         | ExpressionKind::Payload { base, .. }
-        | ExpressionKind::ArrayView { base, .. }
+        | ExpressionKind::CollectionView { base, .. }
         | ExpressionKind::CollectionMeasure { base, .. }
         | ExpressionKind::ByteSequencePredicate { base, .. } => {
             spans(base, binder, out);
@@ -3848,7 +3865,7 @@ fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
         }
         ExpressionKind::Field { base, .. }
         | ExpressionKind::Payload { base, .. }
-        | ExpressionKind::ArrayView { base, .. }
+        | ExpressionKind::CollectionView { base, .. }
         | ExpressionKind::CollectionMeasure { base, .. }
         | ExpressionKind::ByteSequencePredicate { base, .. } => {
             expression_slot_uses(base, uses);

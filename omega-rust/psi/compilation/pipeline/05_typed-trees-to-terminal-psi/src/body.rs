@@ -1072,10 +1072,10 @@ pub enum ExpressionKind {
         start: Option<Box<Expression>>,
         end: Option<Box<Expression>>,
     },
-    /// An explicit borrow of a whole closed array, as a byte descriptor or
-    /// a typed element view. The descriptor borrows
-    /// the selected backing; its formation owns a separate loan occurrence.
-    ArrayView {
+    /// A view of the captured collection, preserving its elements or presenting
+    /// their complete representation. Formation borrows that exact backing and
+    /// owns a separate loan occurrence.
+    CollectionView {
         base: Box<Expression>,
         access: language_core::ReferenceAccess,
         element: StructuralTypeId,

@@ -669,6 +669,39 @@ fn a_sum_bounds_each_cases_payload_under_that_case() {
     }
 }
 
+/// A nested machine's inferred requirement may name the length of a
+/// `&mut [u8]` formal: `write_byte` stores `out[index]`, so it owes
+/// `index < out.len`, which its caller's guard `index + 1 < out.len`
+/// supplies. A borrowed byte view is a descriptor with a count, like an
+/// element view (`wiki/spec/terminal-psi/byte_views.md`), so the checker
+/// forms that length in the requirement instead of refusing it.
+///
+/// The twin differs only in the guard: `index < path.len` says nothing about
+/// `out`, so the store is rejected.
+#[test]
+fn a_nested_requirement_names_a_mutable_byte_views_length() {
+    let program = |guard: &str| {
+        format!(
+            "machine put(path: &[u8], out: &mut [u8], index: u64) {{\n    \
+             transition index < path.len {{ true -> byte(path, out, index) _ -> done() }}\n    \
+             machine byte(path: &[u8], out: &mut [u8], index: u64) {{\n        \
+             transition {guard} {{ true -> write_byte(path, out, index) _ -> done() }}\n    }}\n    \
+             machine write_byte(path: &[u8], out: &mut [u8], index: u64) {{\n        \
+             out[index] = path[index];\n        transition {{ _ -> done() }}\n    }}\n    \
+             machine done() {{ }}\n}}\n\
+             machine main() {{\n    let mut out: [u8; 4];\n    put(\"abc\", &mut out[..], 1);\n}}\n"
+        )
+    };
+    assert_eq!(
+        verdicts("guarded_by_out_len", &program("index + 1 < out.len")),
+        ["accepted"]
+    );
+    assert_eq!(
+        verdicts("guarded_by_path_len", &program("index < path.len")),
+        ["rejected"]
+    );
+}
+
 /// A case payload in a domain with predicates owes them of a value in that
 /// case (`wiki/spec/language/data_and_literals.md`: "case-dependent
 /// projections require established case knowledge"), exactly as if the sum's
@@ -837,6 +870,31 @@ fn a_generic_machine_that_exceeds_its_callee_is_rejected_where_it_is_applied() {
         ),
         ["rejected", "accepted", "rejected"]
     );
+}
+
+/// An open classifier checks both named types and the opaque remainder.
+/// Its sole caller selects u8; neither an unused bool arm nor the fallback
+/// may violate the authored result contract.
+#[test]
+fn an_open_type_classifier_checks_unused_cases_and_the_remainder() {
+    let source = "machine classify<T>() -> u8 ensures result <= 2u8 {\n\
+        transition { T == u8 -> 0u8 T == bool -> 1u8 _ -> 2u8 }\n\
+        }\n machine main() { let value: u8 = classify<u8>(); }\n";
+    assert_eq!(verdicts("open_type_classifier", source), ["accepted"; 4]);
+    for (name, broken) in [
+        (
+            "unused_type_classifier_case",
+            source.replace("bool -> 1u8", "bool -> 3u8"),
+        ),
+        (
+            "type_classifier_remainder",
+            source.replace("_ -> 2u8", "_ -> 3u8"),
+        ),
+    ] {
+        let results = verdicts(name, &broken);
+        assert!(results.contains(&"rejected"), "{name}: {results:?}");
+        assert!(!results.contains(&"not-supported"), "{name}: {results:?}");
+    }
 }
 
 /// A finite family: `pick<T>` admits `u8` and `u16` and is applied at both.

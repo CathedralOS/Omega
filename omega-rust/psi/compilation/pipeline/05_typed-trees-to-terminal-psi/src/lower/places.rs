@@ -734,7 +734,7 @@ fn expression_homes<'b>(
         | ExpressionKind::Establish { operand, .. }
         | ExpressionKind::Referent(operand)
         | ExpressionKind::Field { base: operand, .. }
-        | ExpressionKind::ArrayView { base: operand, .. }
+        | ExpressionKind::CollectionView { base: operand, .. }
         | ExpressionKind::CollectionMeasure { base: operand, .. }
         | ExpressionKind::ByteSequencePredicate { base: operand, .. }
         | ExpressionKind::Payload { base: operand, .. }
@@ -2039,15 +2039,58 @@ impl<'a> Lowering<'a> {
                     fresh: true,
                 }))
             }
-            ExpressionKind::ArrayView {
+            ExpressionKind::CollectionView {
                 base,
                 access,
                 element,
             } => {
                 let captured = continuing!(self.capture_place(base));
+                let ValueType::Record(backing, _, _) = captured.3 else {
+                    return Err(self.internal("a collection view has no collection backing"));
+                };
+                let representation = match self.record_type(backing)?.shape {
+                    StorageShape::FixedArray {
+                        element: stored, ..
+                    }
+                    | StorageShape::ElementView {
+                        element: stored, ..
+                    } => stored != *element,
+                    StorageShape::ByteSequence(_) => false,
+                    _ => return Err(self.internal("a collection view has another backing shape")),
+                };
+                // Measure the captured descriptor, not a later read of its
+                // source expression. The separate safety obligation checks
+                // that scaling this exact count fits the result's u64 count.
+                let source_length = if representation {
+                    let at = Located {
+                        root: captured.0,
+                        path: captured.1.clone(),
+                        place: captured.2,
+                        record: backing,
+                        fresh: false,
+                    };
+                    Some(self.measured_view(&at, expression.source)?.2)
+                } else {
+                    None
+                };
                 let lent = self.captured_loan(base, *access, captured, None)?;
                 let operation = self.operation_identity(expression.source);
                 let before = self.here()?;
+                let region = if let Some(source_length) = source_length {
+                    let obligation = self.obligation(
+                        ObligationKind::OperationSafety {
+                            site: ExecutionSite::Operation(operation),
+                        },
+                        before,
+                        expression.source,
+                    );
+                    terminal_psi::ElementViewRegion::WholeRepresentation {
+                        source_length,
+                        obligation,
+                    }
+                } else {
+                    terminal_psi::ElementViewRegion::WholeCollection
+                };
                 self.obligation(
                     ObligationKind::Loan {
                         captured: lent.place,
@@ -2073,7 +2116,6 @@ impl<'a> Lowering<'a> {
                     },
                     record,
                 )?;
-                let region = terminal_psi::ElementViewRegion::WholeCollection;
                 let kind = match access {
                     language_core::ReferenceAccess::Shared => OperationKind::EstablishElementView {
                         destination: root,
@@ -2154,6 +2196,10 @@ impl<'a> Lowering<'a> {
                 let source = StructuralArgument {
                     place: captured,
                     path: Vec::new(),
+                    // A window of a descriptor reads it as the descriptor
+                    // measurement does. A mutable byte formal has no access in
+                    // its carrier (its slot holds the permission), so its
+                    // window observes the bytes shared, like `measured_view`.
                     access: match self.record_type(record)?.shape {
                         StorageShape::ByteSequence(
                             terminal_psi::ByteSequenceCarrier::BorrowedView {
@@ -2164,6 +2210,9 @@ impl<'a> Lowering<'a> {
                             access: Some(access),
                             ..
                         } => access,
+                        StorageShape::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BorrowedView { access: None },
+                        ) => StructuralAccess::SharedBorrow,
                         _ => return Err(self.internal("a range lost its descriptor access")),
                     },
                 };
