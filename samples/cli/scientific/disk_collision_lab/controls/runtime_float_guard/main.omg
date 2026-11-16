@@ -6,7 +6,7 @@ use omega_language_std::Console;
 use omega::language::core::F64::from_i32;
 data Values {x:f64;}
 data Main {values:Values;}
-machine Main::main(main:&mut Main) reaches ProcessExit + Console {
+machine main(main:&mut Main) reaches ProcessExit + Console {
  let byte:ByteRead=block Console::read_byte();
  transition byte {ByteRead::Byte{value} -> guard(main,value) _ -> fail(main)}
  machine guard(main:&mut Main,value:i32) {
@@ -20,5 +20,5 @@ machine Main::main(main:&mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

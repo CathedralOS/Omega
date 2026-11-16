@@ -171,6 +171,7 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
             structural: Some(LegalizedStructuralContract {
                 result: None,
                 structural_types: vec![StructuralTypeDeclaration {
+                    declaration_identity: Default::default(),
                     requires: Vec::new(),
                     quotient_carrier: None,
                     owns_linear_claim: false,
@@ -184,6 +185,7 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
                         storage: terminal_psi::StructuralRecordStorage::Packed,
                         fields: vec![
                             StructuralFieldDeclaration {
+                                declaration_identity: Default::default(),
                                 inline_carrier: None,
                                 storage: None,
                                 id: id::<StructuralFieldId>(1),
@@ -196,6 +198,7 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
                                 ),
                             },
                             StructuralFieldDeclaration {
+                                declaration_identity: Default::default(),
                                 inline_carrier: None,
                                 storage: None,
                                 id: id::<StructuralFieldId>(2),

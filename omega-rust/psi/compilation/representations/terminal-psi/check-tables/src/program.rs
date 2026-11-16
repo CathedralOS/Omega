@@ -93,6 +93,11 @@ pub struct MachineSources {
     /// begin an authored arm, so the advisory warning about an arm no
     /// arrival can take is read from here.
     pub branches: Vec<Branch>,
+    /// Each authored `_` arm of a dispatch over a sum whose every declared
+    /// case an earlier arm names (`lower`, `select`). No arrival takes such
+    /// an arm, so lowering leaves it out, and the advisory warning about it
+    /// is read from here (`Elaboration::dead_wildcards`).
+    pub dead_wildcards: Vec<SourceOrigin>,
 }
 
 /// One authored arm of a transition or a value `match`, and where control
@@ -396,6 +401,18 @@ impl Elaboration {
     pub fn authored_branches(&self) -> impl Iterator<Item = (MachineId, Branch)> + '_ {
         authored_machine_sources(&self.module, &self.sources)
             .flat_map(|(machine, sources)| sources.branches.iter().map(move |row| (machine, *row)))
+    }
+
+    /// The `_` arms of this program's authored machines that no declared
+    /// case reaches, each with its machine, in machine order. Generated
+    /// machines are left out for the reason `authored_branches` gives.
+    pub fn dead_wildcards(&self) -> impl Iterator<Item = (MachineId, SourceOrigin)> + '_ {
+        authored_machine_sources(&self.module, &self.sources).flat_map(|(machine, sources)| {
+            sources
+                .dead_wildcards
+                .iter()
+                .map(move |arm| (machine, *arm))
+        })
     }
 }
 

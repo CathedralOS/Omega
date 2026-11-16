@@ -534,7 +534,9 @@ pub(crate) mod runtime_image {
 }
 
 pub(crate) mod schema_nodes {
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    #[derive(
+        Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, compiler_storage::Record,
+    )]
     pub struct SchemaNodeHandle(pub(crate) u32);
 
     impl SchemaNodeHandle {
@@ -559,7 +561,7 @@ pub(crate) mod schema_nodes {
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub enum SchemaNode {
         Invalid,
         Declaration(DeclarationDescription),
@@ -568,7 +570,7 @@ pub(crate) mod schema_nodes {
         NominalReference(NominalReferenceDescription),
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct DeclarationDescription {
         pub owner_identity: String,
         pub identity_is_hermetic: bool,
@@ -584,7 +586,7 @@ pub(crate) mod schema_nodes {
         pub retired_identities: Vec<u64>,
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct TypeParameterDescription {
         pub name: String,
         pub kind: &'static str,
@@ -592,7 +594,7 @@ pub(crate) mod schema_nodes {
         pub bounds: String,
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct FieldDescription {
         pub member_identity: String,
         pub name: String,
@@ -604,7 +606,7 @@ pub(crate) mod schema_nodes {
         pub owner_case: SchemaNodeHandle,
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct CaseDescription {
         pub member_identity: String,
         pub name: String,
@@ -614,7 +616,7 @@ pub(crate) mod schema_nodes {
         pub retired_payload_identities: Vec<u64>,
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct NominalReferenceDescription {
         pub owner_identity: String,
         pub owner_kind: String,
@@ -622,7 +624,7 @@ pub(crate) mod schema_nodes {
         pub application_identity: String,
     }
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub enum SchemaShape {
         Empty,
         Record,
@@ -630,7 +632,7 @@ pub(crate) mod schema_nodes {
         Mixed,
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub enum SchemaQueryAuthority {
         OwningScope { requester_identity: String },
         ForeignScope { requester_identity: String },
@@ -642,12 +644,31 @@ pub use schema_nodes::{
     SchemaNode, SchemaNodeHandle, SchemaQueryAuthority, SchemaShape, TypeParameterDescription,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SemanticSchemaGraph {
     nodes: Vec<SchemaNode>,
     root: SchemaNodeHandle,
     authority: SchemaQueryAuthority,
     revision: u64,
+}
+
+// Compiler snapshots use the same complete image as ordinary schema values.
+// Reusing its decoder preserves root and visibility checks without maintaining
+// another serialization of the graph or its static parameter-kind labels.
+impl compiler_storage::Record for SemanticSchemaGraph {
+    fn write(
+        &self,
+        output: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        compiler_storage::Record::write(&self.runtime_image(), output)
+    }
+
+    fn read<Context>(
+        input: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        let image = <Vec<u8> as compiler_storage::Record>::read(input)?;
+        Self::from_runtime_image(&image).map_err(|reason| input.error(reason))
+    }
 }
 
 impl SemanticSchemaGraph {

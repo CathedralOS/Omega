@@ -341,6 +341,216 @@ fn a_selected_access_plan_returns_its_declared_route_element_lifetimes() {
     }
 }
 
+// The original selected-plan program names its actual issuer and then uses
+// the governed value. Its returned description must remain linked to that
+// declaration after source-free transport; a different owner cannot replace it.
+#[test]
+fn actual_policy_callers_keep_their_selected_declaration_after_transport() {
+    let mut typed = typed_source(include_str!("selected_access_plan_family.omg"));
+    let main = typed.realized_machine_named("main").unwrap().symbol;
+    let entries = [main];
+    let request = terminal_production::TerminalSourceCompilation {
+        declaration_metadata: &[],
+        entries: &entries,
+        subjects: &[],
+        purpose: source::DependencyScope::Product,
+        selected: &[],
+        bindings: &[],
+        supplies: &[],
+    };
+    let mut accounting = SourceCompletionAccounting::default();
+    super::domain_access_plans::evaluate(&mut typed, request, None, None, &mut accounting)
+        .expect("evaluate the actual domain's selected policy with normal call accounting");
+    let (source, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+        typed.clone(),
+        &typed_trees_to_typed_trees::PreparationRequest::settled(),
+    )
+    .expect("ordinary preparation keeps the exact caller description");
+    let accepted = terminal_production::AcceptedTerminalSource::judge(
+        std::sync::Arc::new(source),
+        request,
+        terminal_codec::TerminalPublication::Portable,
+    )
+    .expect("the original governed program passes normal admission");
+    let bytes = terminal_codec::encode_module(accepted.module()).unwrap();
+    let restored = terminal_codec::decode_module(&bytes)
+        .expect("the same policy links survive independent artifact receiving");
+    let domain = restored
+        .structural_domains
+        .iter()
+        .position(|domain| {
+            domain.access_policy.as_ref().is_some_and(|plan| {
+                plan.issuance
+                    .as_ref()
+                    .is_some_and(|routes| routes.len() == 1)
+            })
+        })
+        .expect("one actual retained issuer");
+    let route = &restored.structural_domains[domain]
+        .access_policy
+        .as_ref()
+        .unwrap()
+        .issuance
+        .as_ref()
+        .unwrap()[0];
+    assert!(
+        !route.0.0,
+        "the actual selected issuer is an ordinary machine"
+    );
+    assert!(matches!(
+        route.1,
+        terminal_psi::StructuralEstablishmentRoute::ExactMachine { .. }
+    ));
+    let stamp = typed.realized_machine_named("stamp").unwrap().symbol;
+    let stamp_identity = typed.normalized_hermetic_symbol_identity(stamp).unwrap();
+    let stamp = restored
+        .machines
+        .iter()
+        .find(|machine| {
+            machine.declaration.as_ref().is_some_and(|declaration| {
+                restored.identities.text(declaration.semantic_declaration)
+                    == Some(stamp_identity.as_str())
+            })
+        })
+        .expect("the actual issuer's normally checked body")
+        .id;
+    assert!(
+        terminal_semantics::structural_qualifications::caller_matches_machine(
+            &restored, stamp, route
+        )
+        .expect("match the actual declaration, entry and complete application")
+    );
+    let number = typed.realized_machine_named("number").unwrap().symbol;
+    let number_identity = typed.normalized_hermetic_symbol_identity(number).unwrap();
+    let other = restored
+        .machines
+        .iter()
+        .filter_map(|machine| machine.declaration.as_ref())
+        .find(|declaration| {
+            restored.identities.text(declaration.semantic_declaration)
+                == Some(number_identity.as_str())
+        })
+        .expect("the original program's other genuine declaration");
+    let number = restored
+        .machines
+        .iter()
+        .find(|machine| machine.declaration.as_ref() == Some(other))
+        .unwrap()
+        .id;
+    assert!(
+        !terminal_semantics::structural_qualifications::caller_matches_machine(
+            &restored, number, route
+        )
+        .expect("another genuine machine is not the named caller")
+    );
+    let mut wrong_entry = restored.clone();
+    wrong_entry
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == stamp)
+        .unwrap()
+        .declaration
+        .as_mut()
+        .unwrap()
+        .state = other.state.clone();
+    assert!(
+        !terminal_semantics::structural_qualifications::caller_matches_machine(
+            &wrong_entry,
+            stamp,
+            route
+        )
+        .expect("a counted entry nominal cannot replace the exact original entry")
+    );
+    let mut redirected = restored.clone();
+    let changed = redirected.structural_domains[domain]
+        .access_policy
+        .as_mut()
+        .unwrap()
+        .issuance
+        .as_mut()
+        .unwrap()
+        .first_mut()
+        .unwrap();
+    let terminal_psi::StructuralEstablishmentRoute::ExactMachine {
+        declaration,
+        machine_identity,
+    } = &mut changed.1
+    else {
+        unreachable!()
+    };
+    *declaration = other.machine.clone();
+    *machine_identity = other.callable;
+    let error = terminal_semantics::structural_qualifications::validate(&redirected)
+        .expect_err("a valid description cannot name another genuine source declaration");
+    assert_eq!(
+        error.detail,
+        "machine caller describes another source declaration or revision"
+    );
+    // An incoming program may already hold a qualified value. Refusing new
+    // source plans is insufficient until operations enforce the same rules.
+    let reader = restored.machine(number).unwrap();
+    assert!(reader.structural_parameters.iter().any(|parameter| {
+        parameter
+            .qualifications
+            .contains(&restored.structural_domains[domain].id)
+    }));
+    assert!(reader.operations().any(|operation| {
+        operation
+            .kind
+            .storage_uses()
+            .iter()
+            .any(|(_, access)| matches!(access, Some(access_plans::AccessOperation::Read)))
+    }));
+    let mut denied_read = restored.clone();
+    let policy = denied_read.structural_domains[domain]
+        .access_policy
+        .as_mut()
+        .unwrap();
+    policy
+        .readers
+        .push(((policy.schema.root(), Some(Vec::new())), Vec::new()));
+    terminal_semantics::structural_qualifications::validate_access_policy(
+        &denied_read,
+        &denied_read.structural_domains[domain],
+    )
+    .expect("the denied whole-subject row still names its genuine declaration");
+    let denied_bytes = terminal_codec::encode_module(&denied_read)
+        .expect("serialize the actual program with its added deny-all read rule");
+    let Err(error) = terminal_codec::decode_module(&denied_bytes) else {
+        panic!(
+            "received program with a deny-all read rule was admitted without operation enforcement"
+        );
+    };
+    assert!(matches!(
+        error,
+        terminal_codec::CodecError::MalformedStructuralFoundation(
+            "memory access checks for these saved rules are not implemented yet"
+        )
+    ));
+    // This is an ordinary program with an authored Trap ceiling. Execute its
+    // accepted product; constant evaluation has a separate no-crash condition.
+    let produced = accepted
+        .produce(
+            Default::default(),
+            &mut terminal_production::UnmeasuredProduction,
+        )
+        .expect("publish the same accepted ordinary program");
+    let program = terminal_interpreter::TerminalProgram::borrow(produced.view());
+    let mut instance = program
+        .instantiate(terminal_interpreter::TerminalInstantiation::default())
+        .expect("the original program needs no external supply");
+    let mut meter = terminal_work::WorkMeter::unbounded();
+    assert_eq!(
+        instance
+            .invoke(&mut meter)
+            .expect("execute the original main"),
+        terminal_interpreter::TerminalExecutionStatus::Complete(
+            terminal_interpreter::TerminalExecutionResult::Unit,
+        ),
+    );
+    accounting.validate_charges().unwrap();
+}
+
 #[test]
 fn ordinary_lifetime_invocation_keeps_schema_images_and_refuses_local_escape() {
     let source = r#"
@@ -496,6 +706,32 @@ fn actual_access_plan_normalization_preserves_rules_and_authenticates_descriptio
     let result = last_receipt(&accounting);
     let normalized = crate::terminal_values::access_plan_result(query, &result)
         .expect("exact query and result correspondence");
+    // Domain snapshots retain this same complete result, including borrowed
+    // function descriptions and the schema's original query visibility.
+    let encoded = compiler_storage::encode(&normalized, compiler_storage::RecordLimits::default())
+        .expect("record the actual normalized policy result");
+    let retained = compiler_storage::decode::<access_plans::AccessPlan>(
+        &encoded,
+        compiler_storage::RecordLimits::default(),
+    )
+    .expect("recover the same complete normalized policy result");
+    assert_eq!(retained, normalized);
+    let mut foreign_region = normalized.clone();
+    foreign_region.readers[0].0 = typed_trees::reflection::SchemaNodeHandle::INVALID;
+    let encoded =
+        compiler_storage::encode(&foreign_region, compiler_storage::RecordLimits::default())
+            .expect("stage the same result with a foreign region handle");
+    let error = compiler_storage::decode::<access_plans::AccessPlan>(
+        &encoded,
+        compiler_storage::RecordLimits::default(),
+    )
+    .expect_err("a restored result cannot name a region outside its schema");
+    assert!(
+        error
+            .to_string()
+            .contains("exact semantic subject or field"),
+        "{error}"
+    );
     let issuers = normalized.issuance.as_ref().expect("explicit Only choice");
     assert_eq!(issuers.len(), 2);
     assert_eq!(

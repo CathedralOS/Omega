@@ -174,6 +174,7 @@ pub(crate) mod inline_carriers {
 
         fn scalar(raw: u64) -> StructuralTypeDeclaration {
             StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
                 requires: Vec::new(),
                 id: StructuralTypeId::new(raw).unwrap(),
                 identity: TerminalIdentityIndex(raw as u32),
@@ -192,6 +193,7 @@ pub(crate) mod inline_carriers {
             root.shape = StructuralTypeShape::Record {
                 storage: StructuralRecordStorage::Packed,
                 fields: vec![StructuralFieldDeclaration {
+                    declaration_identity: Default::default(),
                     id: StructuralFieldId::new(1).unwrap(),
                     identity: TerminalIdentityIndex(4),
                     relevance: BindingRelevance::Relevant,

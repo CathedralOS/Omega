@@ -18,8 +18,8 @@ data Main {
 
 // Protocol: one bounded line "M 0D", M=1..6 and density D=1..8. EOF without LF
 // is accepted, CRLF is accepted, full buffers and trailing bytes are rejected.
-machine Main::main(main: &mut Main) reaches ProcessExit + Console crashes Trap {
-    let read: LineReadResult = block Console::read_line(&mut main.input);
+machine main(main: &mut Main) reaches ProcessExit + Console crashes Trap {
+    let read: LineReadResult = block Console::read_line(&mut main.input[..]);
     transition read {
         LineReadResult::LineComplete { count } -> line(main, count)
         LineReadResult::EndOfInput { count } -> end(main, count)
@@ -168,5 +168,5 @@ machine trace(step: i32, index: i32, particle: Particle, net: f64, residual: f64
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console crashes Trap {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

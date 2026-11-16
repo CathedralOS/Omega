@@ -1489,7 +1489,7 @@ including the integer carrier. Vocabulary marker 137 and native input record
 `OMGNTI32` distinguish these contracts; their earlier formats reject. This adds
 no arithmetic proof rule or execution authority.
 
-Semantic format marker 279 retains transparent scalar predicate definitions
+Semantic format marker 280 retains transparent scalar predicate definitions
 beside the proposition-declaration table. Each row carries its exact declaration
 identity-table index, an ordered counted list of scalar input declarations, and
 the body proposition. Rows strictly increase by declaration identity; inputs
@@ -2827,7 +2827,7 @@ outside this codec.
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 279 | yes |
+| semantic module | `PSITERM\0` | 280 | yes |
 | canonical artifact | `PSIART\0\0` | 3 | no |
 | debug map | `PSIDBG\0\0` | 1 | yes |
 | optimization execution | `PSIOEXE\0` | 2 | no |

@@ -565,6 +565,12 @@ pub enum AsmGlobalDescriptorTableOperation {
 }
 
 impl AsmGlobalDescriptorTableOperation {
+    /// SGDT writes its memory operand; LGDT reads it. Keep this direction
+    /// with the action so admission and operand effects agree.
+    pub const fn writes_operand(self) -> bool {
+        matches!(self, Self::Store)
+    }
+
     pub const fn mnemonic(self) -> &'static str {
         match self {
             Self::Store => "sgdt",

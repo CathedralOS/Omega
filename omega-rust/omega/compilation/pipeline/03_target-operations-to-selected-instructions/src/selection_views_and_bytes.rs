@@ -2336,9 +2336,6 @@ pub(crate) mod element_views {
                 length_byte_offset,
                 ..
             } => {
-                if *length_byte_offset != 8 {
-                    return Err(invalid());
-                }
                 if source.path.is_empty() && builder.transport.element_view(source.place).is_some()
                 {
                     element_view_length(builder, row, source.place, *length_byte_offset)
@@ -2400,11 +2397,7 @@ pub(crate) mod element_views {
         if !crate::structural_inputs::runtime_indices_match(indices, &geometry.elements) {
             return Err(invalid());
         }
-        let pointer = if descriptor.path.is_empty() {
-            element_backing_pointer(builder, row, source)?
-        } else {
-            descriptor_operands::backing(function, builder, row, descriptor, indices)?
-        };
+        let pointer = descriptor_operands::backing(function, builder, row, descriptor, indices)?;
         let physical_index = scaled_element_index(
             builder,
             source,

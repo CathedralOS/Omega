@@ -931,6 +931,82 @@ pub mod conformance_identity {
         }
     }
 
+    /// A generated body's source publisher and receiver calculate its identity
+    /// from the same complete arguments. Value arguments retain the checked
+    /// binder's carrier as well as their canonical scalar value.
+    pub struct MachineApplicationCommitment(DomainDigestEncoder);
+
+    impl MachineApplicationCommitment {
+        pub fn new(callable: &str) -> Result<Self, &'static str> {
+            use std::hash::Hash;
+            if callable.is_empty() {
+                return Err("machine application has no exact template callable identity");
+            }
+            let mut commitment = Self(DomainDigestEncoder::new(
+                b"omega.lowered-machine-static-application.v1\0",
+            ));
+            callable.hash(&mut commitment);
+            Ok(commitment)
+        }
+
+        pub fn type_argument(&mut self, identity: &str) -> Result<(), &'static str> {
+            use std::hash::Hash;
+            if identity.is_empty() {
+                return Err("machine application has an empty type argument");
+            }
+            identity.hash(self);
+            Ok(())
+        }
+
+        pub fn const_argument(
+            &mut self,
+            value: &crate::const_value::CanonicalConstValue,
+        ) -> Result<(), &'static str> {
+            use std::hash::Hash;
+            if value.type_name.is_empty() || !value.is_scalar() {
+                return Err("machine application has no checked scalar carrier and value");
+            }
+            (
+                "canonical-value.v2",
+                value.type_name.as_str(),
+                value.encoding.as_str(),
+            )
+                .hash(self);
+            Ok(())
+        }
+
+        pub fn conformance_argument(&mut self, identity: &str) -> Result<(), &'static str> {
+            use std::hash::Hash;
+            if identity.is_empty() {
+                return Err("machine application has an empty implementation identity");
+            }
+            ("implementation", identity).hash(self);
+            Ok(())
+        }
+
+        pub fn machine_argument(&mut self, identity: &str) -> Result<(), &'static str> {
+            use std::hash::Hash;
+            if identity.is_empty() {
+                return Err("machine application has an empty callable argument identity");
+            }
+            ("machine", identity).hash(self);
+            Ok(())
+        }
+
+        pub fn finish(self) -> [u8; 32] {
+            self.0.finish()
+        }
+    }
+
+    impl std::hash::Hasher for MachineApplicationCommitment {
+        fn finish(&self) -> u64 {
+            0
+        }
+        fn write(&mut self, bytes: &[u8]) {
+            self.0.raw(bytes);
+        }
+    }
+
     /// The source publisher and artifact receiver must identify the same
     /// applied public member. Preserve the existing type/value hash sequence;
     /// another operand category needs its complete contract before use here.
@@ -938,27 +1014,12 @@ pub mod conformance_identity {
         callable: &str,
         arguments: &[MachineOperandSelectionIdentity],
     ) -> Result<[u8; 32], &'static str> {
-        use std::hash::{Hash, Hasher};
-        struct Commitment(DomainDigestEncoder);
-        impl Hasher for Commitment {
-            fn finish(&self) -> u64 {
-                0
-            }
-            fn write(&mut self, bytes: &[u8]) {
-                self.0.raw(bytes);
-            }
-        }
-        if callable.is_empty() {
-            return Err("applied requirement has no exact template callable identity");
-        }
-        let mut commitment = Commitment(DomainDigestEncoder::new(
-            b"omega.lowered-machine-static-application.v1\0",
-        ));
-        callable.hash(&mut commitment);
+        use std::hash::Hash;
+        let mut commitment = MachineApplicationCommitment::new(callable)?;
         for argument in arguments {
             match argument {
                 MachineOperandSelectionIdentity::Type(identity) if !identity.is_empty() => {
-                    identity.hash(&mut commitment);
+                    commitment.type_argument(identity)?;
                 }
                 MachineOperandSelectionIdentity::Const(identity) if !identity.is_empty() => {
                     ("value", identity.as_str()).hash(&mut commitment);
@@ -970,7 +1031,7 @@ pub mod conformance_identity {
                 }
             }
         }
-        Ok(commitment.0.finish())
+        Ok(commitment.finish())
     }
 
     pub fn source_identity_commitments(bytes: &[u8]) -> (u64, [u8; 32]) {

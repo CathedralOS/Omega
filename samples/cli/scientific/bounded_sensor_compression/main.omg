@@ -16,7 +16,7 @@ use domain::report::report;
 data Main { }
 
 // The entry owns input, private codec storage, decoding and certification.
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     let mut input: InputBuffer;
     let success: bool = block read_input(&mut input);
     transition success && input.length > 0 {
@@ -88,5 +88,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

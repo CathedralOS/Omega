@@ -11,7 +11,7 @@ use model::transport;
 data Main {}
 
 // The explicit entry context is ordinary ZII-valid data; checked Console calls demand its static provider slot.
-machine Main::main(context:&mut Main) reaches ProcessExit + Console {
+machine main(context:&mut Main) reaches ProcessExit + Console {
  let mut input:input::Input;
  let mut field:transport::Field;
  let parsed:bool=block io::input::parse(&mut input);
@@ -56,5 +56,5 @@ machine value(field:&model::transport::Field,index:u32 in Saturating) reaches Co
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

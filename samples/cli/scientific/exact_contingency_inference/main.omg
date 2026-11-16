@@ -8,8 +8,8 @@ use controls::runtime_oracle;
 
 data Main { input: [u8; 19]; digits: [u64 in Wrapping; 17]; }
 // One bounded record: 17 ASCII digits followed by LF, or exact-length EOF.
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
-    let read: LineReadResult = block Console::read_line(&mut main.input);
+machine main(main: &mut Main) reaches ProcessExit + Console {
+    let read: LineReadResult = block Console::read_line(&mut main.input[..]);
     transition read {
         LineReadResult::LineComplete { count } -> command(main, count)
         LineReadResult::EndOfInput { count } -> end(main, count)
@@ -80,5 +80,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

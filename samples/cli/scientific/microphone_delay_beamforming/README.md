@@ -55,7 +55,7 @@ OMEGA_LIBRARY_ROOT="$PWD/source/library" /absolute/path/to/omega run --both --ke
 one constant out-of-bounds microphone sample write. It must reject with exactly
 the documented `cannot prove index `8` is within length 8` rule, not a package,
 parse, unrelated type, or entry review error. Validation records it separately.
-Build metadata binds the real Main::main entry for the supported Linux target;
+Build metadata binds the real main entry for the supported Linux target;
 other hosts require their documented entry/provider binding and validation.
 Generated artifacts and execution evidence belong under ignored `build/`.
 

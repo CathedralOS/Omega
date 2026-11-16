@@ -131,7 +131,7 @@ public data FieldEntry {
 // source tiling for fragments, destination bounds/overlap, and fixed-plan
 // size/alignment before anything trusts the plan. Native layout evaluation
 // retains a compiler-private demand catalog beside this semantic value; each
-// entry comes from an executed `LayoutPlan::place_private` call citing one exact
+// entry comes from an executed `layout_plan_place_private` call citing one exact
 // named `PrivateCallbackSlot<T, Layout, Requirement>` implementation. Neither raw
 // slot identities nor callback addresses enter this record.
 public data LayoutPlan {
@@ -148,7 +148,7 @@ public data LayoutPlan {
 // named implementation such as
 // `CallbackSlot satisfies PrivateCallbackSlot<Record, Spread, Callback::call> { }` is
 // inert until that layout policy explicitly cites it through
-// `LayoutPlan::place_private<Implementation>`; another policy cannot place it. A
+// `layout_plan_place_private<Implementation>`; another policy cannot place it. A
 // callback occupying a whole foreign ABI parameter is instead declared once in
 // its registrar requirement's native telescope; it is not a layout slot and
 // does not use this relationship.
@@ -161,13 +161,15 @@ public trait PrivateCallbackSlot<T, Layout satisfies FixedLayout<T>, machine Req
 // machine: typed lowering records the exact conformance separately and build-
 // time evaluation emits a private-placement receipt while returning `plan`
 // unchanged. Runtime code receives no slot identity or callback address.
-public machine LayoutPlan::place_private(plan: LayoutPlan, offset: u64) -> LayoutPlan {
+public machine layout_plan_place_private(plan: LayoutPlan, offset: u64) -> LayoutPlan {
     plan
 }
 
-// Several Bits placements may fill one private slot. The complete set must
-// cover its source exactly and preserve every other field in the layout.
-public machine LayoutPlan::place_private(plan: LayoutPlan, representation: FieldPlan) -> LayoutPlan {
+// The field-plan form, so several Bits placements may fill one private slot.
+// The complete set must cover its source exactly and preserve every other
+// field in the layout. It has its own name because a free machine name selects
+// one declaration; the offset form above keeps `layout_plan_place_private`.
+public machine layout_plan_place_private_field(plan: LayoutPlan, representation: FieldPlan) -> LayoutPlan {
     plan
 }
 

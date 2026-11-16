@@ -299,13 +299,6 @@ mod link_custody {
 mod link_custody {
     use std::{io, path::Path};
 
-    pub(super) fn has_single_hard_link(_path: &Path) -> io::Result<bool> {
-        Err(io::Error::new(
-            io::ErrorKind::Unsupported,
-            "hard-link custody inspection is not implemented on this platform",
-        ))
-    }
-
     pub(super) fn filesystem_object_identity(_path: &Path) -> io::Result<(u64, u64)> {
         Err(io::Error::new(
             io::ErrorKind::Unsupported,

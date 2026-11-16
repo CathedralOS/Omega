@@ -1847,6 +1847,16 @@ pub(crate) fn lower_selected_module(
             ));
         }
     }
+    let owned_sequence_bounds = match scope {
+        Some(scope) => scope.owned_sequence_bounds().to_vec(),
+        None => abstract_operations::closed_owned_sequence_bounds(module, |_| true).map_err(
+            |reason| {
+                LoweringError::SemanticIdentity(
+                    terminal_codec::CodecError::MalformedStructuralFoundation(reason),
+                )
+            },
+        )?,
+    };
     let functions = module
         .machines
         .iter()
@@ -1865,7 +1875,8 @@ pub(crate) fn lower_selected_module(
         .with_access_lifecycles(lifecycles.to_vec())
         .map_err(LoweringError::SemanticIdentity)?
         .with_quotients(module.quotients.clone())
-        .map_err(LoweringError::SemanticIdentity)?,
+        .map_err(LoweringError::SemanticIdentity)?
+        .with_owned_sequence_bounds(owned_sequence_bounds),
         boundary_machines: module
             .boundary_machines
             .iter()

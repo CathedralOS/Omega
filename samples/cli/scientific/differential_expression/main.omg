@@ -7,8 +7,8 @@ use domain::model;
 use domain::math;
 
 data Main { protocol: Protocol; study: Study; }
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
-    let parsed: bool = block Protocol::read(&mut main.protocol);
+machine main(main: &mut Main) reaches ProcessExit + Console {
+    let parsed: bool = block protocol_read(&mut main.protocol);
     transition parsed {
  true -> metadata(main, 0, 0)
  false -> syntax(main) }
@@ -63,8 +63,8 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
  false -> gene(main, 0) }
     }
     machine factor_line(main: &mut Main, index: i32 in Wrapping) {
-        Console::write("factor,"); Protocol::integer(&mut main.protocol, index); Console::write(",");
-        Protocol::number(&mut main.protocol, factor(&main.study, index)); Console::write_line("");
+        Console::write("factor,"); integer(&mut main.protocol, index); Console::write(",");
+        number(&mut main.protocol, factor(&main.study, index)); Console::write_line("");
         transition { _ -> factors(main, index + 1) }
     }
     machine gene(main: &mut Main, index: i32 in Wrapping) {
@@ -123,7 +123,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
  false -> done(main) }
     }
     machine row(main: &mut Main, index: i32 in Wrapping) requires index >= 0 && index < 8 {
-        Console::write("gene,"); Protocol::integer(&mut main.protocol, index); Console::write(",");
+        Console::write("gene,"); integer(&mut main.protocol, index); Console::write(",");
         transition main.study.reason[index] == 0 {
  true -> result(main, index)
  false -> reason(main, index) }
@@ -143,15 +143,15 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     machine boundary(main: &mut Main, index: i32 in Wrapping) { Console::write_line("group_zero_boundary"); transition { _ -> report(main, index + 1) } }
     machine result(main: &mut Main, index: i32 in Wrapping) requires index >= 0 && index < 8 {
         Console::write("tested,");
-        Protocol::number(&mut main.protocol, main.study.base[index]); Console::write(",");
-        Protocol::number(&mut main.protocol, main.study.dispersion[index]); Console::write(",");
-        Protocol::number(&mut main.protocol, main.study.mean_a[index]); Console::write(",");
-        Protocol::number(&mut main.protocol, main.study.mean_b[index]); Console::write(",");
-        Protocol::number(&mut main.protocol, main.study.fold[index]); Console::write(",");
-        Protocol::number(&mut main.protocol, main.study.error[index]); Console::write(",");
-        Protocol::number(&mut main.protocol, main.study.likelihood[index]); Console::write(",");
-        Protocol::number(&mut main.protocol, main.study.p[index]); Console::write(",");
-        Protocol::number(&mut main.protocol, main.study.q[index]); Console::write_line("");
+        number(&mut main.protocol, main.study.base[index]); Console::write(",");
+        number(&mut main.protocol, main.study.dispersion[index]); Console::write(",");
+        number(&mut main.protocol, main.study.mean_a[index]); Console::write(",");
+        number(&mut main.protocol, main.study.mean_b[index]); Console::write(",");
+        number(&mut main.protocol, main.study.fold[index]); Console::write(",");
+        number(&mut main.protocol, main.study.error[index]); Console::write(",");
+        number(&mut main.protocol, main.study.likelihood[index]); Console::write(",");
+        number(&mut main.protocol, main.study.p[index]); Console::write(",");
+        number(&mut main.protocol, main.study.q[index]); Console::write_line("");
         transition { _ -> report(main, index + 1) }
     }
     machine done(main: &mut Main) { ProcessExit::exit_process(0); }
@@ -214,5 +214,5 @@ machine adjustment(study: &Study, gene: i32 in Wrapping) -> f64 {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

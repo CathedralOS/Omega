@@ -15,9 +15,9 @@ use planner::output::emit_integer;
 // One complete line is the transaction. Full input is rejected rather than
 // solving a silently truncated prefix. No external solver or runtime fixture.
 data Main { }
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     let mut bytes: [u8; 256];
-    let result: LineReadResult = block Console::read_line(&mut bytes);
+    let result: LineReadResult = block Console::read_line(&mut bytes[..]);
     transition result {
         LineReadResult::LineComplete { count } -> parse(main, &bytes, count)
         LineReadResult::EndOfInput { count } -> parse(main, &bytes, count)
@@ -87,5 +87,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

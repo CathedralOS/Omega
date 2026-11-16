@@ -1350,6 +1350,7 @@ pub(crate) mod external_providers {
             if let Some(specialization) = &declaration.specialization
                 && (![
                     specialization.template.identity(),
+                    specialization.template_entry.identity(),
                     specialization.template_semantic_declaration,
                     specialization.template_callable,
                 ]
@@ -1833,9 +1834,15 @@ pub(crate) mod reach_applications {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum ClosedReachParameter {
-        Type { argument: String },
-        Const { argument: String },
-        Proposition { argument: String },
+        Type {
+            argument: String,
+        },
+        Const {
+            argument: language_semantics::const_value::CanonicalConstValue,
+        },
+        Proposition {
+            argument: String,
+        },
         Machine(ClosedReachMachineBinding),
     }
 

@@ -666,10 +666,6 @@ impl BigRational {
         (self.denominator == BigInt::from_u64(1)).then(|| self.numerator.clone())
     }
 
-    pub fn as_integer_ratio(&self) -> (&BigInt, &BigInt) {
-        (&self.numerator, &self.denominator)
-    }
-
     pub fn truncate_to_integer(&self) -> BigInt {
         self.numerator
             .div_rem(&self.denominator)

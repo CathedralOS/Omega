@@ -2892,7 +2892,6 @@ pub(crate) mod control {
         AbstractFunctionResult, AbstractOperation, OptimizationNode, PsiProvenance, ScalarType,
     };
     use crate::LegalizationError;
-    use terminal_semantics::descriptor_results::is_descriptor;
     pub(crate) fn validate(
         node: &OptimizationNode,
         _body: &[OptimizationNode],
@@ -2918,7 +2917,14 @@ pub(crate) mod control {
                 },
                 AbstractFunctionResult::Structural(declared),
             ) => {
-                if is_descriptor(structural_types.iter(), declared.structural_type) {
+                if structural_types
+                    .declaration(declared.structural_type)
+                    .is_ok_and(|declaration| {
+                        calling_conventions::terminal_layout::is_native_view_descriptor(
+                            &declaration.shape,
+                        )
+                    })
+                {
                     if !super::byte_views::descriptor_return(function, *source, structural_types)
                         || !returned_claims.is_empty()
                         || !trivial_affine_locals.is_empty()
@@ -3247,7 +3253,11 @@ pub(crate) mod element_views {
         {
             return None;
         }
-        geometry.byte_offset = geometry.byte_offset.checked_add(8)?;
+        geometry.byte_offset = geometry.byte_offset.checked_add(
+            calling_conventions::terminal_layout::element_view_length_offset(
+                &types.declaration(geometry.selected).ok()?.shape,
+            )?,
+        )?;
         Some(geometry)
     }
 

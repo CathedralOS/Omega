@@ -153,14 +153,6 @@ pub enum FieldAccess {
 }
 
 impl FieldAccess {
-    pub const fn has_destructive_read(&self) -> bool {
-        match self {
-            Self::External { read, .. } => matches!(read, ExternalRead::Take),
-            Self::Region { permissions, .. } => permissions.take,
-            Self::Inaccessible | Self::Stable { .. } | Self::Atomic { .. } => false,
-        }
-    }
-
     pub fn operation_names(&self) -> Vec<&'static str> {
         match self {
             FieldAccess::Inaccessible | FieldAccess::Atomic { .. } => Vec::new(),

@@ -3,7 +3,7 @@ use omega::language::core::ProcessExit;
 // Expected exit: 70.
 use omega_language_std::Console;
 data Main { }
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     let bytes: [u8; 2] = [65,66];
     transition bytes[0] == 65 {
         true -> read(main, &bytes)
@@ -22,5 +22,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    main(&mut entry_storage);
 }

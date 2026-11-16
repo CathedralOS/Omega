@@ -1237,6 +1237,12 @@ impl<'a> Lowering<'a> {
                 arrivals.push((edge, target, source));
             }
         }
+        // Blocks are not numbered in edge order: a loop head reached by a
+        // back edge from a block drafted earlier than its entry edge's source
+        // would list its arrivals out of order. Terminal Psi keeps each
+        // invariant's arrivals in increasing `EdgeId` order, so name them in
+        // that order here.
+        arrivals.sort_unstable_by_key(|(edge, _, _)| *edge);
         for (edge, target, source) in arrivals {
             let obligation = self.obligation(
                 ObligationKind::ArrivalInvariant { edge },

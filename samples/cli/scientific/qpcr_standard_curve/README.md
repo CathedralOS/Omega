@@ -38,7 +38,7 @@ omega packages update --project samples/cli/independent/qpcr_standard_curve --ta
 omega run --both --keep samples/cli/independent/qpcr_standard_curve/main.omg < samples/cli/independent/qpcr_standard_curve/input.txt
 ```
 
-Build binds the exact Application::main entry for Linux x86-64, Windows x86-64,
+Build binds the exact main entry for Linux x86-64, Windows x86-64,
 and macOS arm64. Qualification records the actual host; bindings alone establish
 no execution result on other hosts. The application-private log/exp series do not
 claim a full math library; reduction bounds and finite numerical limits are

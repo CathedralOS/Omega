@@ -221,6 +221,7 @@ pub(crate) mod structural_field_wire {
     ) -> Result<(), CodecError> {
         writer.id(field.id);
         writer.u32(field.identity.0);
+        writer.u32(field.declaration_identity.0);
         writer.u8(match field.relevance {
             BindingRelevance::Relevant => 1,
             BindingRelevance::Erased => 2,
@@ -292,6 +293,7 @@ pub(crate) mod structural_field_wire {
     ) -> Result<StructuralFieldDeclaration, CodecError> {
         let id = reader.id("StructuralFieldId")?;
         let identity = TerminalIdentityIndex(reader.u32()?);
+        let declaration_identity = TerminalIdentityIndex(reader.u32()?);
         let relevance = match reader.u8()? {
             1 => BindingRelevance::Relevant,
             2 => BindingRelevance::Erased,
@@ -300,6 +302,7 @@ pub(crate) mod structural_field_wire {
         let inline_carrier = super::wire::decode_optional_id(reader, "StructuralTypeId")?;
         let field_type = decode_structural_field_type(reader)?;
         Ok(StructuralFieldDeclaration {
+            declaration_identity,
             inline_carrier,
             storage: None,
             id,
@@ -1900,6 +1903,7 @@ pub(crate) mod structural_type_wire {
         }
         writer.id(declaration.id);
         writer.u32(declaration.identity.0);
+        writer.u32(declaration.declaration_identity.0);
         writer.boolean(declaration.owns_linear_claim);
         writer.boolean(declaration.no_code_affine_cleanup);
         writer.boolean(declaration.descriptor_cleanup);
@@ -2008,6 +2012,7 @@ pub(crate) mod structural_type_wire {
                 });
                 writer.len("structural cases", cases.len())?;
                 for case in cases {
+                    writer.u32(case.declaration_identity.0);
                     writer.id(case.id);
                     writer.u32(case.identity.0);
                     writer.len("structural case payload fields", case.fields.len())?;
@@ -2021,6 +2026,7 @@ pub(crate) mod structural_type_wire {
                 writer.counted("mixed structural fields", fields, encode_structural_field)?;
                 writer.len("mixed structural cases", cases.len())?;
                 for case in cases {
+                    writer.u32(case.declaration_identity.0);
                     writer.id(case.id);
                     writer.u32(case.identity.0);
                     writer.len("mixed structural case payload fields", case.fields.len())?;
@@ -2057,6 +2063,7 @@ pub(crate) mod structural_type_wire {
         };
         let id = reader.id("StructuralTypeId")?;
         let identity = TerminalIdentityIndex(reader.u32()?);
+        let declaration_identity = TerminalIdentityIndex(reader.u32()?);
         let owns_linear_claim = reader.boolean()?;
         let no_code_affine_cleanup = reader.boolean()?;
         let descriptor_cleanup = reader.boolean()?;
@@ -2154,6 +2161,7 @@ pub(crate) mod structural_type_wire {
             3 | SUM_WITH_REQUIRES => StructuralTypeShape::Sum {
                 cases: decode_counted(reader, |reader| {
                     Ok(StructuralCaseDeclaration {
+                        declaration_identity: TerminalIdentityIndex(reader.u32()?),
                         id: reader.id("StructuralCaseId")?,
                         identity: TerminalIdentityIndex(reader.u32()?),
                         fields: decode_counted(reader, decode_structural_field)?,
@@ -2165,6 +2173,7 @@ pub(crate) mod structural_type_wire {
                 fields: decode_counted(reader, decode_structural_field)?,
                 cases: decode_counted(reader, |reader| {
                     Ok(StructuralCaseDeclaration {
+                        declaration_identity: TerminalIdentityIndex(reader.u32()?),
                         id: reader.id("StructuralCaseId")?,
                         identity: TerminalIdentityIndex(reader.u32()?),
                         fields: decode_counted(reader, decode_structural_field)?,
@@ -2188,6 +2197,7 @@ pub(crate) mod structural_type_wire {
             Vec::new()
         };
         Ok(StructuralTypeDeclaration {
+            declaration_identity,
             requires,
             quotient_carrier,
             owns_linear_claim,
@@ -2306,6 +2316,7 @@ pub(crate) mod structural_type_wire {
 
         fn invariant_record(storage: StructuralRecordStorage) -> StructuralTypeDeclaration {
             StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
                 requires: vec![
                     semantic_vocabulary::Proposition::Truth,
                     semantic_vocabulary::Proposition::Falsehood,
@@ -2329,6 +2340,7 @@ pub(crate) mod structural_type_wire {
             let mut reader = Reader::new(bytes);
             assert!(!reader.boolean().unwrap());
             let _: StructuralTypeId = reader.id("StructuralTypeId").unwrap();
+            reader.u32().unwrap();
             reader.u32().unwrap();
             for _ in 0..4 {
                 reader.boolean().unwrap();
@@ -2371,7 +2383,23 @@ pub(crate) mod structural_type_wire {
             }
 
             let mut sum = invariant_record(StructuralRecordStorage::Packed);
-            sum.shape = StructuralTypeShape::Sum { cases: Vec::new() };
+            sum.declaration_identity = TerminalIdentityIndex(17);
+            sum.shape = StructuralTypeShape::Sum {
+                cases: vec![terminal_psi::StructuralCaseDeclaration {
+                    declaration_identity: TerminalIdentityIndex(18),
+                    id: semantic_vocabulary::StructuralCaseId::new(1).unwrap(),
+                    identity: TerminalIdentityIndex(2),
+                    fields: vec![StructuralFieldDeclaration {
+                        declaration_identity: TerminalIdentityIndex(19),
+                        inline_carrier: None,
+                        id: StructuralFieldId::new(1).unwrap(),
+                        identity: TerminalIdentityIndex(3),
+                        relevance: BindingRelevance::Relevant,
+                        field_type: StructuralFieldType::Scalar(ScalarType::Boolean),
+                        storage: None,
+                    }],
+                }],
+            };
             let mut writer = Writer::default();
             encode_structural_type(&mut writer, &sum).unwrap();
             let bytes = writer.finish();
@@ -2423,6 +2451,7 @@ pub(crate) mod structural_type_wire {
             let mut encodings = Vec::new();
             for copyable in [false, true] {
                 let declaration = StructuralTypeDeclaration {
+                    declaration_identity: Default::default(),
                     requires: Vec::new(),
                     quotient_carrier: None,
                     owns_linear_claim: false,
@@ -2459,6 +2488,7 @@ pub(crate) mod structural_type_wire {
             let mut encodings = Vec::new();
             for owns_linear_claim in [false, true] {
                 let declaration = StructuralTypeDeclaration {
+                    declaration_identity: Default::default(),
                     requires: Vec::new(),
                     quotient_carrier: None,
                     owns_linear_claim,
@@ -2499,6 +2529,7 @@ pub(crate) mod structural_type_wire {
             let stored =
                 ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 8).expect("signed byte"));
             let declaration = StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
                 requires: Vec::new(),
                 quotient_carrier: None,
                 owns_linear_claim: false,
@@ -2514,6 +2545,7 @@ pub(crate) mod structural_type_wire {
                         byte_alignment: 1,
                     }),
                     fields: vec![StructuralFieldDeclaration {
+                        declaration_identity: Default::default(),
                         inline_carrier: None,
                         id: StructuralFieldId::new(1).expect("field identity"),
                         identity: terminal_psi::TerminalIdentityIndex(16),

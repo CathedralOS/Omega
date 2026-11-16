@@ -1359,6 +1359,7 @@ dependencies = [
  "numerics",
  "optimization-core",
  "semantic-vocabulary",
+ "terminal-codec",
  "terminal-psi",
  "terminal-semantics",
 ]
@@ -2400,6 +2401,7 @@ dependencies = [
  "arena",
  "compiler-storage",
  "flow-effects",
+ "language-semantics",
  "layout-plans",
  "numerics",
  "proof-admission",
