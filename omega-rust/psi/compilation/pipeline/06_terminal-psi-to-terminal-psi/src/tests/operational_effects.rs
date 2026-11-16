@@ -780,16 +780,17 @@ fn an_abstract_termination_promise_checks_call_and_tail_premises() {
         data Ticket { number: u32; }
         domain Ticket::Ready established by stamp;
         machine stamp(ticket: Ticket) -> Ticket in Ready { ticket as +Ready }
+        machine inspect(ticket: &Ticket) -> u32 { ticket.number }
         machine main(ticket: &Ticket, pending: bool) -> u32 {
-            let answer: u32 = relay(ticket, pending);
-            answer + 0
-        }
-        machine relay(ticket: &Ticket, pending: bool) -> u32 {
+            let answer: u32 = inspect(ticket);
             transition pending {
-                true -> main(ticket, false)
+                true -> relay(ticket, false)
                 false -> done()
             }
             machine done() -> u32 { 7 }
+        }
+        machine relay(ticket: &Ticket, pending: bool) -> u32 {
+            main(ticket, pending)
         }
     "#,
     )
@@ -803,6 +804,7 @@ fn an_abstract_termination_promise_checks_call_and_tail_premises() {
             .unwrap()
     };
     let main = symbol("main");
+    let inspect = symbol("inspect");
     let relay = symbol("relay");
     let done = symbol("done");
     let domain = original.module.structural_domains[0].id;
@@ -830,7 +832,7 @@ fn an_abstract_termination_promise_checks_call_and_tail_premises() {
         },
     });
     assert!(crate::ceilings::judge(&form).unwrap().is_empty());
-    for (callee, caller, tail) in [(relay, main, false), (main, relay, true)] {
+    for (callee, caller, tail) in [(inspect, main, false), (main, relay, true)] {
         let mut conditional = form.clone();
         conditional
             .requirement_ceilings
