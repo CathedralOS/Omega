@@ -468,7 +468,18 @@ fn check_callback_publication(retain_body_source: bool) {
     .expect("prepare real callback occurrence closure");
     let admitted = admit_prepared_native_realization(input, artifact, &request)
         .expect("admit callback registrar with exact selected foreign contract");
-    let (root, providers) = super::emit_body(admitted, false, |_| {});
+    let (root, providers) = super::emit_body(admitted, false, |target| {
+        let callback = MachineId::new(2).unwrap();
+        let facts = target.execution_plan().execution_facts();
+        assert!(facts.callable_invocations().roots.contains(&callback));
+        assert!(
+            facts
+                .callable_invocations_from(callback)
+                .expect("the activated callback has its independently prepared context")
+                .roots
+                .contains(&callback)
+        );
+    });
     let program_context = Arc::clone(providers.program_provider_context());
     let body_request = NativeAdmissionRequest {
         entry: TargetMachineCallable::Machine(MachineId::new(2).unwrap()),
