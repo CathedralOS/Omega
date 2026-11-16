@@ -11187,7 +11187,7 @@ mod source {
                                         && graph.call_plan.result.as_ref().is_some_and(|placement|
                                             (placement.shape == calling_conventions::ValueShape::integer(0, 1)
                                                 && placement.locations.is_empty())
-                                            || (graph.call_plan.policy == calling_conventions::CallingPolicy::Aapcs64
+                                            || (graph.call_plan.policy.is_aapcs64()
                                                 && placement.shape.class == calling_conventions::ValueClass::Integer
                                                 && matches!(placement.locations.as_slice(),
                                                     [calling_conventions::ValueLocation::Indirect {

@@ -3316,14 +3316,7 @@ pub(crate) mod hosted_receiver {
             || !function.entry_claims.is_empty()
             || !source.visible_parameters().is_empty()
             || function.attachment.is_some()
-            || abi.call_plan.policy
-                != if artifact.target.architecture == target::Architecture::Aarch64 {
-                    CallingPolicy::Aapcs64
-                } else if artifact.target == target::NativeTarget::windows_x64() {
-                    CallingPolicy::MicrosoftX64
-                } else {
-                    CallingPolicy::SystemVAMD64
-                }
+            || abi.call_plan.policy != CallingPolicy::native_for_target(artifact.target)
             || function.structural_parameters.len() != private_entry_ram.len()
             || abi.structural_parameters.len() != private_entry_ram.len()
             || abi.call_plan.parameters.len() != private_entry_ram.len()
