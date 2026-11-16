@@ -5,7 +5,8 @@
 
 use std::sync::Arc;
 
-use arena::{Arena, HandleSpan, HierarchyArena, SpanHandles};
+use crate::storage::{SymbolHierarchy, SymbolRows};
+use arena::{HandleSpan, RetainedArena, SpanHandles};
 use semantic_vocabulary::PackageKeyIdentity;
 use source::{SourceFile, SourceId, SourceMap, SourceOrigin, SourceSpan};
 
@@ -27,8 +28,10 @@ mod child_batches {
         copies earlier children or relocates a declaration's original child range.
     */
 
+    use crate::storage::SymbolRows;
     use crate::{Symbol, SymbolHandle};
-    use arena::{Arena, Handle, HandleSpan};
+    use arena::{Handle, HandleSpan};
+    use std::sync::Arc;
 
     #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
     struct ChildBatch {
@@ -44,8 +47,8 @@ mod child_batches {
 
     #[derive(Debug, Clone, Default, PartialEq, Eq)]
     pub(super) struct SupplementalChildren {
-        batches: Arena<ChildBatch>,
-        parents: Vec<ChildChain>,
+        batches: SymbolRows<ChildBatch>,
+        parents: Arc<Vec<ChildChain>>,
     }
 
     impl compiler_storage::Record for SupplementalChildren {
@@ -63,17 +66,17 @@ mod child_batches {
             input: &mut compiler_storage::RecordReader<'_, Context>,
         ) -> Result<Self, compiler_storage::RecordError> {
             input.record(|input| {
-                let batches = Arena::<ChildBatch>::read(input)?;
-                let parents = Vec::<ChildChain>::read(input)?;
+                let batches = SymbolRows::<ChildBatch>::read(input)?;
+                let parents = Arc::<Vec<ChildChain>>::read(input)?;
 
                 // Restored links must not turn missing declarations into empty
                 // lookup results, loop forever, or append through the dummy row.
                 // Every retained batch belongs to exactly one terminating chain
                 // whose recorded tail is its final batch. Zero denotes no chain.
-                input.allocate(batches.storage_slice().len())?;
-                let mut visited = vec![false; batches.storage_slice().len()];
+                input.allocate(batches.len())?;
+                let mut visited = vec![false; batches.len()];
                 let mut visited_count = 0;
-                for chain in &parents {
+                for chain in parents.iter() {
                     if chain.first.is_valid() != chain.last.is_valid() {
                         return Err(input.error("supplemental child chain has only one endpoint"));
                     }
@@ -115,13 +118,13 @@ mod child_batches {
             }
             let parent_index = parent.arena_index() as usize;
             if self.parents.len() <= parent_index {
-                self.parents.resize(parent_index + 1, ChildChain::default());
+                Arc::make_mut(&mut self.parents).resize(parent_index + 1, ChildChain::default());
             }
             let next = self.batches.insert(ChildBatch {
                 children,
                 next: Handle::invalid(),
             });
-            let chain = &mut self.parents[parent_index];
+            let chain = &mut Arc::make_mut(&mut self.parents)[parent_index];
             if chain.last.is_valid() {
                 self.batches.get_mut(chain.last).next = next;
             } else {
@@ -144,7 +147,7 @@ mod child_batches {
     }
 
     pub(super) struct SupplementalChildHandles<'table> {
-        batches: &'table Arena<ChildBatch>,
+        batches: &'table SymbolRows<ChildBatch>,
         next_batch: Handle<ChildBatch>,
         children: HandleSpan<Symbol>,
     }
@@ -264,10 +267,8 @@ mod child_batches {
             );
 
             let mut shared = table_with_batches();
-            shared
-                .supplemental_children
-                .parents
-                .push(root_chain(&shared));
+            let chain = root_chain(&shared);
+            Arc::make_mut(&mut shared.supplemental_children.parents).push(chain);
             let error = restore(&shared).expect_err("shared chain");
             assert!(
                 error
@@ -285,7 +286,7 @@ mod child_batches {
             ] {
                 let mut table = table_with_batches();
                 let parent = table.root().arena_index() as usize;
-                table.supplemental_children.parents[parent].last = tail;
+                Arc::make_mut(&mut table.supplemental_children.parents)[parent].last = tail;
                 let error = restore(&table).expect_err("missing, early or stale tail");
                 assert!(
                     error.reason.contains("only one endpoint")
@@ -298,7 +299,7 @@ mod child_batches {
         fn supplemental_storage_rejects_unowned_batches() {
             let mut table = table_with_batches();
             let parent = table.root().arena_index() as usize;
-            table.supplemental_children.parents[parent] = ChildChain::default();
+            Arc::make_mut(&mut table.supplemental_children.parents)[parent] = ChildChain::default();
             let error = restore(&table).expect_err("unowned batch storage");
             assert!(error.reason.contains("batch has no owning chain"));
         }
@@ -307,8 +308,8 @@ mod child_batches {
         fn supplemental_storage_charges_chain_validation_scratch() {
             #[derive(compiler_storage::Record)]
             struct UncheckedChildren {
-                batches: Arena<ChildBatch>,
-                parents: Vec<ChildChain>,
+                batches: SymbolRows<ChildBatch>,
+                parents: Arc<Vec<ChildChain>>,
             }
             let children = table_with_batches().supplemental_children;
             let bytes = encode(&children, RecordLimits::default()).unwrap();
@@ -334,7 +335,7 @@ mod child_batches {
                     low = middle + 1;
                 }
             }
-            let scratch = children.batches.storage_slice().len();
+            let scratch = children.batches.len();
             let tight = RecordLimits {
                 allocation: low + scratch - 1,
                 ..Default::default()
@@ -696,10 +697,10 @@ mod modules {
                 return Err("module declaration requires a nonempty logical path");
             }
             if source.0 >= self.source_module_index.len() {
-                self.source_module_index
+                Arc::make_mut(&mut self.source_module_index)
                     .resize(source.0 + 1, SymbolHandle::invalid());
             }
-            self.source_module_index[source.0] = parent;
+            Arc::make_mut(&mut self.source_module_index)[source.0] = parent;
             Ok(())
         }
 
@@ -728,7 +729,7 @@ mod modules {
                 import.exact_source = false;
             }
             binding.producer = super::BindingProducer::AuthoredImport;
-            self.source_scoped_top_level_bindings.push(binding);
+            Arc::make_mut(&mut self.source_scoped_top_level_bindings).push(binding);
             self.binding_source_index.clear();
         }
 
@@ -1303,7 +1304,7 @@ mod modules {
                         .any(|(_, symbol)| self.symbol_source_is_selected(*symbol)),
                     ..Default::default()
                 };
-                for binding in &self.source_scoped_top_level_bindings {
+                for binding in self.source_scoped_top_level_bindings.iter() {
                     if !self.source_binding_is_selected(binding) {
                         continue;
                     }
@@ -2452,26 +2453,26 @@ use child_batches::{SupplementalChildHandles, SupplementalChildren};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct SymbolTable {
-    symbols: HierarchyArena<Symbol>,
-    names: Arena<SymbolName>,
-    path_members: Arena<SymbolHandle>,
+    symbols: SymbolHierarchy,
+    names: SymbolRows<SymbolName>,
+    path_members: RetainedArena<SymbolHandle>,
     sources: Option<Arc<SourceMap>>,
-    source_scoped_top_level_bindings: Vec<SourceScopedTopLevelBinding>,
+    source_scoped_top_level_bindings: Arc<Vec<SourceScopedTopLevelBinding>>,
     root: SymbolHandle,
     supplemental_children: SupplementalChildren,
-    module_symbols: Arena<SymbolHandle>,
+    module_symbols: SymbolRows<SymbolHandle>,
     /*
         Dense `SourceId`-indexed map from a source to its declared module:
         a linear scan per lookup would cost `O(#sources)` on every
         module-qualified name walk.
     */
-    source_module_index: Vec<SymbolHandle>,
+    source_module_index: Arc<Vec<SymbolHandle>>,
     /*
         Declaration membership at the last activation frontier. Later allocations
         belong to the new cohort. Selecting a source again does not resurrect
         an older declaration that already left its predecessor's view.
     */
-    inherited_symbols: Vec<bool>,
+    inherited_symbols: Arc<Vec<bool>>,
     root_names: RootNameIndexCache,
     /*
         `source_scoped_top_level_bindings` bucketed by reference source,
@@ -2497,8 +2498,8 @@ pub struct SymbolTable {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SymbolTableBuilder {
-    symbols: HierarchyArena<Symbol>,
-    names: Arena<SymbolName>,
+    symbols: SymbolHierarchy,
+    names: SymbolRows<SymbolName>,
     sources: Option<Arc<SourceMap>>,
     source_scoped_top_level_bindings: Vec<SourceScopedTopLevelBinding>,
     root: SymbolHandle,
@@ -2659,14 +2660,14 @@ impl SymbolTableBuilder {
         SymbolTable {
             symbols: self.symbols,
             names: self.names,
-            path_members: Arena::new(),
+            path_members: RetainedArena::new(),
             sources: self.sources,
-            source_scoped_top_level_bindings: self.source_scoped_top_level_bindings,
+            source_scoped_top_level_bindings: Arc::new(self.source_scoped_top_level_bindings),
             root: self.root,
             supplemental_children: SupplementalChildren::default(),
-            module_symbols: Arena::new(),
-            source_module_index: Vec::new(),
-            inherited_symbols: Vec::new(),
+            module_symbols: SymbolRows::new(),
+            source_module_index: Arc::default(),
+            inherited_symbols: Arc::default(),
             root_names: RootNameIndexCache::default(),
             binding_source_index: BindingSourceIndexCache::default(),
             module_path_index: ModulePathIndexCache::default(),
@@ -2685,7 +2686,7 @@ impl SymbolTableBuilder {
 }
 
 fn child_symbol(
-    names: &mut Arena<SymbolName>,
+    names: &mut SymbolRows<SymbolName>,
     sources: Option<&SourceMap>,
     parent: SymbolHandle,
     kind: SymbolKind,
@@ -2994,7 +2995,7 @@ impl SymbolTable {
         additional_source_scoped_top_level_bindings: Vec<SourceScopedTopLevelBinding>,
     ) -> SymbolTableExtension {
         self.sources = sources;
-        self.source_scoped_top_level_bindings
+        Arc::make_mut(&mut self.source_scoped_top_level_bindings)
             .extend(additional_source_scoped_top_level_bindings);
         self.binding_source_index.clear();
         self.module_path_index.clear();
@@ -3031,7 +3032,10 @@ impl SymbolTable {
                     .is_none_or(|span| sources.source_is_selected(span.source_id));
         }
         if let Some(previous) = self.sources.as_deref() {
-            for (position, module) in self.source_module_index.iter_mut().enumerate() {
+            for (position, module) in Arc::make_mut(&mut self.source_module_index)
+                .iter_mut()
+                .enumerate()
+            {
                 let source = SourceId(position);
                 if sources.source_is_selected(source) && !previous.source_is_selected(source) {
                     *module = SymbolHandle::invalid();
@@ -3047,9 +3051,9 @@ impl SymbolTable {
             })
             .cloned()
             .collect::<Vec<_>>();
-        self.inherited_symbols = inherited;
+        self.inherited_symbols = Arc::new(inherited);
         self.sources = Some(sources);
-        self.source_scoped_top_level_bindings = source_scoped_top_level_bindings;
+        self.source_scoped_top_level_bindings = Arc::new(source_scoped_top_level_bindings);
         self.binding_source_index.clear();
         self.root_names.clear();
         self.module_path_index.clear();
@@ -4198,15 +4202,15 @@ impl SymbolTable {
         self.path_members.span_or_empty(path.members)
     }
 
-    pub fn symbols(&self) -> &HierarchyArena<Symbol> {
+    pub fn symbols(&self) -> &SymbolHierarchy {
         &self.symbols
     }
 
-    pub fn names(&self) -> &Arena<SymbolName> {
+    pub fn names(&self) -> &SymbolRows<SymbolName> {
         &self.names
     }
 
-    pub fn path_member_arena(&self) -> &Arena<SymbolHandle> {
+    pub fn path_member_arena(&self) -> &RetainedArena<SymbolHandle> {
         &self.path_members
     }
 }

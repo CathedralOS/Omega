@@ -1836,10 +1836,10 @@ mod continuation_storage_tests {
         let original = Arc::new(original);
         let predecessor = Arc::clone(&original);
         let replacement = symbols("new");
-        let replacement_rows = replacement.names().storage_slice().as_ptr();
+        let replacement_rows = std::ptr::from_ref(replacement.get(replacement.root()));
         let successor = original.with_replaced_symbols(replacement);
         assert_eq!(
-            successor.symbols.names().storage_slice().as_ptr(),
+            std::ptr::from_ref(successor.symbols.get(successor.symbols.root())),
             replacement_rows
         );
         assert_eq!(predecessor.symbols.name(predecessor.symbols.root()), "old");
