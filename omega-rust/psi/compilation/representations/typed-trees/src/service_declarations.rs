@@ -320,12 +320,32 @@ pub mod provider_declarations {
         fn catalogs_require_the_exact_immutable_owner_even_for_equal_source() {
             let owner = Arc::new(FrozenTypedTrees::from(TypedTrees::default()));
             let other = Arc::new(owner.as_ref().clone());
-            let inventory = PreparedProviderInventory::new(Arc::clone(&owner), &[]);
+            let issued = [(source::SourceId(7), [0x31; 32])];
+            let mut registry = issued.to_vec();
+            let inventory = PreparedProviderInventory::new(Arc::clone(&owner), &registry);
+            registry[0] = (source::SourceId(22), [0xb7; 32]);
+            drop(registry);
             assert!(Arc::ptr_eq(inventory.program(), &owner));
             assert!(inventory.services_for(&owner).is_ok());
             assert!(inventory.origins_for(&owner).is_ok());
             assert!(inventory.services_for(&other).is_err());
             assert!(inventory.origins_for(&other).is_err());
+            assert_eq!(
+                inventory
+                    .services_for(&owner)
+                    .unwrap()
+                    .exact_toolchain_sources(),
+                &issued,
+            );
+            let catalog = inventory.retained_service_catalog();
+            assert!(
+                catalog
+                    .bind(super::ProviderPlanningContext::new(
+                        owner.as_ref().as_ref(),
+                        source::DependencyScope::Build,
+                    ))
+                    .is_err()
+            );
         }
 
         #[test]
@@ -1461,6 +1481,7 @@ pub(crate) mod catalog {
         owner_identity: u64,
         owner_address: usize,
         scope: source::DependencyScope,
+        exact_toolchain_sources: Box<[(source::SourceId, [u8; 32])]>,
         records: Arena<ServiceRecord>,
         requirements: Arena<PreparedServiceRequirement>,
         arguments: Arena<TypeReferenceHandle>,
@@ -1536,6 +1557,7 @@ pub(crate) mod catalog {
                 owner_identity: program.identity.get(),
                 owner_address: std::ptr::from_ref(program) as usize,
                 scope: context.scope,
+                exact_toolchain_sources: exact_toolchain_sources.into(),
                 records: Arena::new(),
                 requirements: Arena::new(),
                 arguments: Arena::new(),
@@ -1727,6 +1749,11 @@ pub(crate) mod catalog {
 
         pub fn context(self) -> ProviderPlanningContext<'catalog> {
             self.context
+        }
+
+        /// The issued registry used to construct this catalog's exact source identities.
+        pub fn exact_toolchain_sources(self) -> &'catalog [(source::SourceId, [u8; 32])] {
+            &self.catalog.exact_toolchain_sources
         }
 
         pub fn declaration(

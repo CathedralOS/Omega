@@ -182,14 +182,35 @@ fn trait_implementation_nomination_uses_the_exact_binder_and_nominal_bound() {
 
 #[test]
 fn selected_entry_receipt_keeps_the_accepted_artifact_and_rejects_other_owners() {
+    let repository = fixture_package_inputs::repo_root();
+    let workspace = repository.join("build").join(format!(
+        "omega-selected-entry-receipt-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&workspace);
+    std::fs::create_dir_all(&workspace).unwrap();
+    let main = workspace.join("main.omg");
+    std::fs::copy(
+        repository.join("tests/fixtures/run/calls/scalar_contract_route_exit/main.omg"),
+        &main,
+    )
+    .unwrap();
+    // The receipt belongs to Build's selected entry. Keep the scalar program
+    // unchanged and select its entry explicitly for each hosted target.
+    std::fs::write(
+        workspace.join("build.omg"),
+        r#"machine build(builder: &mut Build) {
+    Build::application(builder, "selected_entry_receipt");
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+}
+"#,
+    )
+    .unwrap();
     std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {
-            let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-                .ancestors()
-                .nth(4)
-                .unwrap();
-            let main =
-                repository.join("tests/fixtures/run/calls/scalar_contract_route_exit/main.omg");
             let checked = orchestration::check_source(
                 &mut compiler::CompilationSession::default(),
                 compiler::CheckedCompileRequest::new(&main, Some("linux_x86_64")),
@@ -271,11 +292,15 @@ fn selected_entry_receipt_keeps_the_accepted_artifact_and_rejects_other_owners()
             // Entry metadata belongs to the initial shared source request.
             // Rejudging that same roster must preserve its accepted artifact;
             // no target may patch metadata into an existing publication.
+            let catalog = checked
+                .source_inspection()
+                .inventory()
+                .services_for(accepted.source().as_ref())
+                .expect("the accepted source's retained Product service catalog");
             let schema = package_compilation::selected_program_entry_boundary(
-                accepted.source(),
+                catalog,
                 signature.target_slot(),
                 None,
-                checked.sources().exact_toolchain_sources(),
             )
             .expect("the selected target's authenticated source schema");
             assert!(
@@ -414,4 +439,5 @@ fn selected_entry_receipt_keeps_the_accepted_artifact_and_rejects_other_owners()
         .join()
         .unwrap();
     });
+    std::fs::remove_dir_all(workspace).unwrap();
 }
