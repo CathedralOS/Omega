@@ -75,6 +75,13 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Literal byte-view validation rescans each function for its producer
+- Category: re-deriving
+- Where: [literal producer lookup](omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/native-preparation/src/legalization_scalar_graph.rs#L5308), [function inputs](omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/native-preparation/src/legalization_function_inputs.rs#L14)
+- Saw: Each lookup scans the structural declarations and every operation in the function to find one exact literal producer. Call reconstruction, provenance checks and home retirement can repeat the lookup for the same literal, even though the validator already prepares indexed input rows for the function.
+- Cost: A function with a growing number of literal views can do quadratic lookup work during independent validation. Index producers with the existing function inputs and preserve rejection of mismatched declarations, duplicate producers and nonliteral homes. Measure lookup work with a growing literal roster.
+- Reported: 2026-11-15, Codex, while validating a shared byte view across native edges.
+
 ### Conformance witnesses rebuild the same calling ABI catalog
 - Category: re-deriving
 - Where: [witness loop](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/compilation.rs#L225), [calling ABI preparation](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/calling_abis.rs#L66), [catalog owner](omega-rust/psi/compilation/representations/typed-trees/src/service_declarations.rs#L1348)
