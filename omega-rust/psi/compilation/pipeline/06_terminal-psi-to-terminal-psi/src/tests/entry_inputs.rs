@@ -468,3 +468,66 @@ machine entry(options: OpenOptions) -> u32
     };
     accepted.publish_invocation().unwrap();
 }
+
+#[test]
+fn a_recursive_call_retains_the_guard_on_its_qualified_scalar_input() {
+    let source = r#"
+domain i64::FileHandle
+requires self != -1;
+
+machine walk(handle: i64 in FileHandle, again: bool) -> i64 {
+    transition { _ -> directory(handle, again) }
+    machine directory(handle: i64 in FileHandle, again: bool) -> i64
+    requires true {
+        transition (handle as -FileHandle) != 0 {
+            true -> query(handle, again)
+            false -> -3i64
+        }
+    }
+    machine query(handle: i64 in FileHandle, again: bool) -> i64
+    requires (handle as -FileHandle) != 0 {
+        transition again {
+            true -> directory(handle, false)
+            false -> (handle as -FileHandle)
+        }
+    }
+}
+
+machine entry() crashes Trap {
+    let result: i64 = walk(41i64 as +FileHandle, true);
+    transition result == 41 { true -> done() false -> fail() }
+    machine done() {}
+    machine fail() { crash Trap; }
+}
+"#;
+    let judge_source = |source: &str| {
+        let typed = super::boundary_calls::typed(source);
+        let entry = super::boundary_calls::entry(&typed);
+        let elaboration = typed_trees_to_terminal_psi::elaborate_for(
+            &typed,
+            super::build_purpose::roster(&[entry], &[], source::DependencyScope::Product),
+            terminal_codec::TerminalPublication::Invocation,
+        )
+        .unwrap();
+        judge(Ok(elaboration)).unwrap()
+    };
+    let verdict = judge_source(source);
+    let RouteVerdict::Accepted(accepted) = verdict else {
+        panic!("the guard applies to the recursive caller's actual handle: {verdict:?}");
+    };
+    accepted.publish_invocation().unwrap();
+
+    let verdict = judge_source(&source.replace(
+        "transition (handle as -FileHandle) != 0",
+        "transition (handle as -FileHandle) == 0",
+    ));
+    let RouteVerdict::Rejected { unproved, .. } = verdict else {
+        panic!("the zero edge cannot prove the call's nonzero condition: {verdict:?}");
+    };
+    assert!(
+        unproved
+            .iter()
+            .any(|row| row.statement.contains("call query from directory")),
+        "the zero edge must fail the query input obligation: {unproved:?}"
+    );
+}
