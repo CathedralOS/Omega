@@ -1,6 +1,6 @@
 // One complete Windows implementation of the portable service. The operation
 // owners below perform real OS work; this map preserves each public capability
-// row and invokes only the Windows raw family. Unsupported portable contracts
+// row and calls only the Windows raw family. Unsupported portable contracts
 // are explicit here, never filled by sentinel rows in that raw family.
 use omega::language::core::FilesystemContentRead;
 use omega::language::core::FilesystemContentWrite;
@@ -13,7 +13,6 @@ FilesystemWindowsProvider satisfies FilesystemService {
     machine create(path: &[u8] in Path) -> OpenResult
     blocks
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
-    invokes WindowsFilesystemHost
     {
         block windows_filesystem_create(path)
     }
@@ -21,7 +20,6 @@ FilesystemWindowsProvider satisfies FilesystemService {
     machine create_new(path: &[u8] in Path) -> OpenResult
     blocks
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
-    invokes WindowsFilesystemHost
     {
         block windows_filesystem_create_new(path)
     }
@@ -29,7 +27,6 @@ FilesystemWindowsProvider satisfies FilesystemService {
     machine open(path: &[u8] in Path) -> OpenResult
     blocks
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
-    invokes WindowsFilesystemHost
     {
         block windows_filesystem_open(path)
     }
@@ -37,7 +34,6 @@ FilesystemWindowsProvider satisfies FilesystemService {
     machine append(path: &[u8] in Path) -> OpenResult
     blocks
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
-    invokes WindowsFilesystemHost
     {
         block windows_filesystem_append(path)
     }
@@ -45,7 +41,6 @@ FilesystemWindowsProvider satisfies FilesystemService {
     machine read(file: File, buffer: &mut [u8], count: u64) -> IoResult
     blocks
     reaches FilesystemContentRead
-    invokes WindowsFilesystemHost
     {
         block windows_filesystem_read(file, buffer, count)
     }
@@ -53,7 +48,6 @@ FilesystemWindowsProvider satisfies FilesystemService {
     machine write(file: File, bytes: &[u8]) -> IoResult
     blocks
     reaches FilesystemContentWrite
-    invokes WindowsFilesystemHost
     {
         block windows_filesystem_write(file, bytes)
     }
@@ -61,7 +55,6 @@ FilesystemWindowsProvider satisfies FilesystemService {
     machine close(file: File) -> UnitResult
     blocks
 
-    invokes WindowsFilesystemHost
     {
         block windows_filesystem_close(file)
     }
@@ -69,7 +62,6 @@ FilesystemWindowsProvider satisfies FilesystemService {
     machine write_all(path: &[u8] in Path, bytes: &[u8]) -> UnitResult
     blocks
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
-    invokes WindowsFilesystemHost
     {
         block windows_filesystem_write_all(path, bytes)
     }
@@ -77,7 +69,6 @@ FilesystemWindowsProvider satisfies FilesystemService {
     machine read_all(path: &[u8] in Path, buffer: &mut [u8], count: u64) -> IoResult
     blocks
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
-    invokes WindowsFilesystemHost
     {
         block windows_filesystem_read_all(path, buffer, count)
     }
@@ -85,7 +76,6 @@ FilesystemWindowsProvider satisfies FilesystemService {
     machine copy(from: &[u8] in Path, to: &[u8] in Path, buffer: &mut [u8], cap: u64) -> IoResult
     blocks
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery
-    invokes WindowsFilesystemHost
     {
         block windows_filesystem_copy(from, to, buffer, cap)
     }
@@ -93,7 +83,6 @@ FilesystemWindowsProvider satisfies FilesystemService {
     machine exists(path: &[u8] in Path) -> bool
     blocks
     reaches FilesystemMetadataQuery
-    invokes WindowsFilesystemHost
     {
         block windows_filesystem_exists(path)
     }
@@ -101,7 +90,6 @@ FilesystemWindowsProvider satisfies FilesystemService {
     machine try_exists(path: &[u8] in Path) -> ExistsResult
     blocks
     reaches FilesystemMetadataQuery
-    invokes WindowsFilesystemHost
     {
         block windows_filesystem_try_exists(path)
     }
@@ -109,7 +97,6 @@ FilesystemWindowsProvider satisfies FilesystemService {
     machine metadata_path(path: &[u8] in Path) -> MetadataResult
     blocks
     reaches FilesystemMetadataQuery
-    invokes WindowsFilesystemHost
     {
         block windows_filesystem_metadata_path(path, false)
     }
@@ -117,7 +104,6 @@ FilesystemWindowsProvider satisfies FilesystemService {
     machine symlink_metadata(path: &[u8] in Path) -> MetadataResult
     blocks
     reaches FilesystemMetadataQuery
-    invokes WindowsFilesystemHost
     {
         block windows_filesystem_metadata_path(path, true)
     }
@@ -125,7 +111,6 @@ FilesystemWindowsProvider satisfies FilesystemService {
     machine remove(path: &[u8] in Path) -> UnitResult
     blocks
     reaches FilesystemNamespaceMutation
-    invokes WindowsFilesystemHost
     {
         block windows_filesystem_remove(path)
     }
@@ -133,7 +118,6 @@ FilesystemWindowsProvider satisfies FilesystemService {
     machine create_dir(path: &[u8] in Path) -> UnitResult
     blocks
     reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
-    invokes WindowsFilesystemHost
     {
         block windows_filesystem_create_dir(path)
     }
@@ -141,7 +125,6 @@ FilesystemWindowsProvider satisfies FilesystemService {
     machine remove_dir(path: &[u8] in Path) -> UnitResult
     blocks
     reaches FilesystemNamespaceMutation
-    invokes WindowsFilesystemHost
     {
         block windows_filesystem_remove_dir(path)
     }
@@ -149,7 +132,6 @@ FilesystemWindowsProvider satisfies FilesystemService {
     machine create_dir_all(path: &[u8] in Path) -> UnitResult
     blocks
     reaches FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery
-    invokes WindowsFilesystemHost
     {
         block windows_filesystem_create_dir_all(path)
     }
@@ -157,7 +139,6 @@ FilesystemWindowsProvider satisfies FilesystemService {
     machine read_dir_is_empty(path: &[u8] in Path) -> EmptyResult
     blocks
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
-    invokes WindowsFilesystemHost
     {
         block windows_filesystem_read_dir_is_empty(path)
     }
@@ -165,7 +146,6 @@ FilesystemWindowsProvider satisfies FilesystemService {
     machine set_permissions(path: &[u8] in Path, perms: Permissions) -> UnitResult
     blocks
         reaches FilesystemMetadataQuery + FilesystemMetadataMutation
-    invokes WindowsFilesystemHost
     {
         block windows_filesystem_set_permissions(path, perms)
     }
@@ -182,7 +162,6 @@ FilesystemWindowsProvider satisfies FilesystemService {
     machine read_link(path: &[u8] in Path, buffer: &mut [u8], count: u64) -> IoResult
     blocks
     reaches FilesystemMetadataQuery
-    invokes WindowsFilesystemHost
     {
         block windows_filesystem_read_link(path, buffer, count)
     }
@@ -190,7 +169,6 @@ FilesystemWindowsProvider satisfies FilesystemService {
     machine set_file_permissions(file: File, perms: Permissions) -> UnitResult
     blocks
         reaches FilesystemMetadataQuery + FilesystemMetadataMutation
-    invokes WindowsFilesystemHost
     {
         block windows_filesystem_set_file_permissions(file, perms)
     }
@@ -198,7 +176,6 @@ FilesystemWindowsProvider satisfies FilesystemService {
     machine rename(from: &[u8] in Path, to: &[u8] in Path) -> UnitResult
     blocks
     reaches FilesystemNamespaceMutation
-    invokes WindowsFilesystemHost
     {
         block windows_filesystem_rename(from, to)
     }
@@ -206,7 +183,6 @@ FilesystemWindowsProvider satisfies FilesystemService {
     machine set_len(file: File, length: i64) -> UnitResult
     blocks
     reaches FilesystemContentWrite + FilesystemMetadataMutation
-    invokes WindowsFilesystemHost
     {
         block windows_filesystem_set_length(file, length)
     }
@@ -214,7 +190,6 @@ FilesystemWindowsProvider satisfies FilesystemService {
     machine sync(file: File) -> UnitResult
     blocks
 
-    invokes WindowsFilesystemHost
     {
         block windows_filesystem_sync(file)
     }
@@ -223,7 +198,6 @@ FilesystemWindowsProvider satisfies FilesystemService {
     machine sync_data(file: File) -> UnitResult
     blocks
 
-    invokes WindowsFilesystemHost
     {
         block windows_filesystem_sync(file)
     }
@@ -231,7 +205,6 @@ FilesystemWindowsProvider satisfies FilesystemService {
     machine try_clone(file: File) -> OpenResult
     blocks
 
-    invokes WindowsFilesystemHost
     {
         windows_filesystem_clone(file)
     }
@@ -261,7 +234,6 @@ FilesystemWindowsProvider satisfies FilesystemService {
     machine metadata(file: File) -> MetadataResult
     blocks
     reaches FilesystemMetadataQuery
-    invokes WindowsFilesystemHost
     {
         block windows_filesystem_metadata(file)
     }
@@ -269,7 +241,6 @@ FilesystemWindowsProvider satisfies FilesystemService {
     machine open_with(path: &[u8] in Path, options: OpenOptions) -> OpenResult
     blocks
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
-    invokes WindowsFilesystemHost
     {
         block windows_filesystem_open_with(path, options)
     }
@@ -277,7 +248,6 @@ FilesystemWindowsProvider satisfies FilesystemService {
     machine read_dir_count(path: &[u8] in Path) -> IoResult
     blocks
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration
-    invokes WindowsFilesystemHost
     {
         block windows_filesystem_read_dir_count(path)
     }
@@ -285,7 +255,6 @@ FilesystemWindowsProvider satisfies FilesystemService {
     machine read_dir_nth(path: &[u8] in Path, n: u64) -> DirEntryResult
     blocks
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
-    invokes WindowsFilesystemHost
     {
         block windows_filesystem_read_dir_nth(path, n)
     }
@@ -293,7 +262,6 @@ FilesystemWindowsProvider satisfies FilesystemService {
     machine remove_dir_all(path: &[u8] in Path) -> UnitResult
     blocks
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
-    invokes WindowsFilesystemHost
     {
         block windows_filesystem_remove_dir_all(path)
     }
@@ -301,7 +269,6 @@ FilesystemWindowsProvider satisfies FilesystemService {
     machine read_at(file: File, buffer: &mut [u8], count: u64, offset: i64) -> IoResult
     blocks
     reaches FilesystemContentRead
-    invokes WindowsFilesystemHost
     {
         block windows_filesystem_read_at(file, buffer, count, offset)
     }
@@ -309,7 +276,6 @@ FilesystemWindowsProvider satisfies FilesystemService {
     machine write_at(file: File, bytes: &[u8], offset: i64) -> IoResult
     blocks
     reaches FilesystemContentWrite
-    invokes WindowsFilesystemHost
     {
         block windows_filesystem_write_at(file, bytes, offset)
     }
@@ -317,7 +283,6 @@ FilesystemWindowsProvider satisfies FilesystemService {
     machine hard_link(original: &[u8] in Path, link: &[u8] in Path) -> UnitResult
     blocks
     reaches FilesystemNamespaceMutation
-    invokes WindowsFilesystemHost
     {
         block windows_filesystem_hard_link(original, link)
     }
@@ -325,7 +290,6 @@ FilesystemWindowsProvider satisfies FilesystemService {
     machine set_times(file: File, accessed: i64, modified: i64) -> UnitResult
     blocks
     reaches FilesystemMetadataMutation
-    invokes WindowsFilesystemHost
     {
         block windows_filesystem_set_times(file, accessed, modified)
     }
@@ -333,7 +297,6 @@ FilesystemWindowsProvider satisfies FilesystemService {
     machine canonicalize(path: &[u8] in Path, buffer: &mut [u8]) -> UnitResult
     blocks
     reaches FilesystemMetadataQuery
-    invokes WindowsFilesystemHost
     {
         block windows_filesystem_canonicalize(path, buffer)
     }
@@ -341,7 +304,6 @@ FilesystemWindowsProvider satisfies FilesystemService {
     machine lock(file: File) -> UnitResult
     blocks
 
-    invokes WindowsFilesystemHost
     {
         block windows_filesystem_lock(file)
     }
@@ -349,7 +311,6 @@ FilesystemWindowsProvider satisfies FilesystemService {
     machine lock_shared(file: File) -> UnitResult
     blocks
 
-    invokes WindowsFilesystemHost
     {
         block windows_filesystem_lock_shared(file)
     }
@@ -357,7 +318,6 @@ FilesystemWindowsProvider satisfies FilesystemService {
     machine try_lock(file: File) -> TryLockResult
     blocks
 
-    invokes WindowsFilesystemHost
     {
         block windows_filesystem_try_lock(file)
     }
@@ -365,7 +325,6 @@ FilesystemWindowsProvider satisfies FilesystemService {
     machine try_lock_shared(file: File) -> TryLockResult
     blocks
 
-    invokes WindowsFilesystemHost
     {
         block windows_filesystem_try_lock_shared(file)
     }
@@ -373,7 +332,6 @@ FilesystemWindowsProvider satisfies FilesystemService {
     machine unlock(file: File) -> UnitResult
     blocks
 
-    invokes WindowsFilesystemHost
     {
         block windows_filesystem_unlock(file)
     }

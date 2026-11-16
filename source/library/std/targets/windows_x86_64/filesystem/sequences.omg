@@ -29,7 +29,6 @@ machine windows_filesystem_finish_read(outcome: IoResult, released: UnitResult) 
 
 machine windows_filesystem_write_complete(file: File, bytes: &[u8]) -> UnitResult
 reaches FilesystemContentWrite
-invokes WindowsFilesystemHost
 {
     transition { _ -> block remaining(file, bytes, 0) }
     machine remaining(file: File, bytes: &[u8], position: u64) -> UnitResult
@@ -69,7 +68,6 @@ invokes WindowsFilesystemHost
 
 machine windows_filesystem_write_all(path: &[u8] in Path, bytes: &[u8]) -> UnitResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
-invokes WindowsFilesystemHost
 {
     let acquired: OpenResult = block windows_filesystem_create(path);
     transition acquired {
@@ -87,7 +85,6 @@ invokes WindowsFilesystemHost
 // initialized prefix, not a promise to fill the caller's entire buffer.
 machine windows_filesystem_read_all(path: &[u8] in Path, buffer: &mut [u8], count: u64) -> IoResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
-invokes WindowsFilesystemHost
 {
     transition count <= buffer.len {
         true -> block acquire(path, buffer, count)
