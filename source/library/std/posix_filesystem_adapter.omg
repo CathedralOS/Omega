@@ -416,7 +416,6 @@ requires open_writable >= 0 && open_writable <= 1,
     rd_nb: u8;
     entry_name: [u8; 256];
 
-    rdn_result: DirEntryResult;
     rda_sub: i32;
     rda_rc: i32;
 
@@ -1537,8 +1536,8 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
         filesystem.rda_fd = filesystem.rda_stack[filesystem.rda_depth - 1];
 
         let fd: i32 = filesystem.rda_fd;
-        filesystem.rdn_result = posix_filesystem_read_dir_entry_fd(filesystem, fd, 0);
-        transition filesystem.rdn_result {
+        let result: DirEntryResult = posix_filesystem_read_dir_entry_fd(filesystem, fd, 0);
+        transition result {
             DirEntryResult::End -> rds_pop(filesystem)
             DirEntryResult::Ok { entry } -> rds_entry(filesystem, entry)
             DirEntryResult::Error { kind } -> rds_fail(filesystem)
@@ -1581,8 +1580,8 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
         filesystem.rda_fd = filesystem.rda_stack[filesystem.rda_depth - 1];
 
         let fd: i32 = filesystem.rda_fd;
-        filesystem.rdn_result = posix_filesystem_read_dir_entry_fd(filesystem, fd, 0);
-        transition filesystem.rdn_result {
+        let result: DirEntryResult = posix_filesystem_read_dir_entry_fd(filesystem, fd, 0);
+        transition result {
             DirEntryResult::Ok { entry } -> rds_rm_child(filesystem, entry)
             DirEntryResult::End -> rds_continue(filesystem)
             DirEntryResult::Error { kind } -> rds_fail(filesystem)
