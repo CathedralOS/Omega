@@ -1469,10 +1469,15 @@ fn a_shared_collection_recast_keeps_payload_geometry_and_count_fit() {
         unreachable!()
     };
     *element = wrong_element;
-    let refusal = judge(Ok(changed)).unwrap();
+    let refusal = judge(Ok(changed)).unwrap_err();
+    assert_eq!(
+        refusal.reason,
+        terminal_check_tables::RefusalReason::ForeignIdentity
+    );
     assert!(
-        matches!(refusal, RouteVerdict::FallBack(ref refusal)
-        if refusal.detail.contains("array view changes its descriptor type, access or ownership")),
+        refusal
+            .detail
+            .contains("array view changes its descriptor type, access or ownership"),
         "{refusal:?}"
     );
 
@@ -1506,5 +1511,67 @@ fn a_shared_collection_recast_keeps_payload_geometry_and_count_fit() {
     assert!(
         refusal.contains("compatible element representations and exact tiling"),
         "{refusal}"
+    );
+}
+
+#[test]
+fn a_shared_recast_reads_the_original_pixel_payload() {
+    let source = r#"machine inspect(pixels: &[i32]) -> u64
+requires pixels.len == 2u64 {
+    let bytes: &[u8] = pixels as &[u8];
+    transition bytes.len == 8u64 {
+        true -> verify(bytes)
+        _ -> (1u64)
+    }
+    machine verify(bytes: &[u8]) -> u64 requires bytes.len == 8u64 {
+        transition bytes[0] == 17u8 && bytes[7] == 34u8 {
+            true -> (0u64)
+            _ -> (2u64)
+        }
+    }
+}
+machine entry() -> u64 {
+    let pixels: [i32; 2] = [0x11111111, 0x22222222];
+    inspect(&pixels[..])
+}
+"#;
+    let typed = super::boundary_calls::typed(source);
+    let entry = super::boundary_calls::entry(&typed);
+    let elaboration = typed_trees_to_terminal_psi::elaborate_for(
+        &typed,
+        typed_trees_to_terminal_psi::Compilation {
+            declaration_metadata: &[],
+            entries: &[entry],
+            subjects: &[],
+            purpose: source::DependencyScope::Product,
+            selected: &[],
+            bindings: &[],
+            supplies: &[],
+        },
+        terminal_codec::TerminalPublication::Invocation,
+    );
+    let accepted = match judge(elaboration).unwrap() {
+        RouteVerdict::Accepted(accepted) => accepted,
+        other => panic!("the payload byte oracle must be checked: {other:?}"),
+    };
+    let publication = accepted.publish_invocation().unwrap();
+    let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+    let mut instance = program.instantiate(Default::default()).unwrap();
+    let status = instance
+        .invoke(&mut terminal_work::WorkMeter::with_budget(10_000))
+        .unwrap();
+    assert!(
+        matches!(
+            status,
+            terminal_interpreter::TerminalExecutionStatus::Complete(
+                terminal_interpreter::TerminalExecutionResult::Scalar(
+                    terminal_interpreter::TerminalScalarValue::Integer {
+                        value: semantic_vocabulary::IntegerValue::Unsigned(0),
+                        ..
+                    }
+                )
+            )
+        ),
+        "{status:?}"
     );
 }
