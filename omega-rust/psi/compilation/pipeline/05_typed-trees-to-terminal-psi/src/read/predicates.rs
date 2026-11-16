@@ -461,7 +461,8 @@ impl Program<'_> {
             declaration: definition.symbol,
             identity: definition.semantic_id,
         };
-        self.declared_domain(id, domain, carrier, definition.target_type)?;
+        let at = crate::SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent);
+        self.declared_domain(id, domain, carrier, definition.target_type, at)?;
         match carrier {
             ValueType::Scalar(scalar_type, _) => {
                 let domains = crate::body::DomainSet::EMPTY.with(domain).ok_or_else(|| {

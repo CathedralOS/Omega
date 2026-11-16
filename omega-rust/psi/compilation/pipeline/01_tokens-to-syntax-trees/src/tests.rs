@@ -2222,7 +2222,7 @@ pub(crate) mod definitions_and_contracts {
     #[test]
     fn parses_target_scoped_bodyless_boundary_machine() {
         let source = r#"
-        boundary trait ProcessExit { machine exit_process(code: i32) -> Never reaches ProcessExit terminates; }
+        boundary trait ProcessExit { machine exit_process(code: i32) -> Never reaches ProcessExit crashes none terminates; }
         linux_x86_64 boundary machine terminate_process(code: i32) -> Never
             satisfies ProcessExit::exit_process;
         "#;
