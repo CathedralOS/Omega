@@ -812,7 +812,7 @@ impl Program<'_> {
         machine: MachineId,
         value_type: ValueType,
     ) -> Checked<ByteSequencePredicateSet> {
-        let mut predicates = ByteSequencePredicateSet::EMPTY;
+        let predicates = ByteSequencePredicateSet::EMPTY;
         let ValueType::Record(row, qualification, _) = value_type else {
             return Ok(predicates);
         };
@@ -822,8 +822,33 @@ impl Program<'_> {
         ) {
             return Ok(predicates);
         }
+        self.byte_qualification_predicates(machine, qualification)
+    }
+
+    /// Pure byte predicates named by exact domain applications. The caller
+    /// owns the byte carrier's shape; this query supplies no value proof.
+    pub(super) fn byte_qualification_predicates(
+        &self,
+        machine: MachineId,
+        qualification: Qualification,
+    ) -> Checked<ByteSequencePredicateSet> {
+        if qualification.policy.is_some() {
+            return Err(refuse(
+                machine,
+                Construct::Machine,
+                Unserved::Type("arithmetic policy on byte storage"),
+            ));
+        }
+        let mut predicates = ByteSequencePredicateSet::EMPTY;
         for domain in qualification.domains.members() {
-            self.domain_theory(machine, domain)?;
+            let theory = self.domain_theory(machine, domain)?;
+            if theory.access_policy.is_some() {
+                return Err(refuse(
+                    machine,
+                    Construct::Machine,
+                    Unserved::Type("byte predicate conversion needs governed domain evidence"),
+                ));
+            }
             let predicate =
                 typed_trees::byte_predicates::domain_byte_predicate(self.typed, domain.declaration)
                     .ok_or_else(|| {

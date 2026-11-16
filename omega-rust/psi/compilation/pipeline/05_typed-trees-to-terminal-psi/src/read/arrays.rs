@@ -103,10 +103,11 @@ pub(super) fn source_sequence_view(
 }
 
 impl Program<'_> {
-    /// The element of a plain closed byte array. This recognizes its storage,
-    /// not a conversion to a view; only an explicit range forms that loan.
+    /// The exact element storage of a closed byte array. Whole-value domains
+    /// stay on its source expression and do not change this storage geometry;
+    /// only an explicit range forms a descriptor loan.
     pub(super) fn byte_array_element(&self, actual: Option<ValueType>) -> Option<StructuralTypeId> {
-        let Some(ValueType::Record(actual, Qualification::NONE, _)) = actual else {
+        let Some(ValueType::Record(actual, _, _)) = actual else {
             return None;
         };
         let actual = self.records.get(actual)?;
@@ -182,7 +183,7 @@ impl Program<'_> {
         let Some(range) = self.typed.expression_table.range_node(indexed.index) else {
             return Ok(None);
         };
-        let ValueType::Record(mut view, Qualification::NONE, _) = expected else {
+        let ValueType::Record(mut view, expected_qualification, _) = expected else {
             return Ok(None);
         };
         // Formation owns a stored descriptor with the written loan. Only the
@@ -288,6 +289,50 @@ impl Program<'_> {
             return Err(unavailable("array view without a plain closed u8 array"));
         };
         let byte_view = typed_element.is_none() && self.is_readable_byte_view(machine, backing)?;
+        let partial = range.start.is_valid() || range.end.is_valid() || range.end_inclusive;
+        // A plain destination cannot erase a governed or non-byte source's
+        // requirements. Validate actual backing qualifications independently
+        // of which predicates the destination requests.
+        let source_predicates = if backing_type.qualification() != Qualification::NONE {
+            if typed_element.is_some()
+                || !(byte_view || self.byte_array_element(base.result).is_some())
+            {
+                return Err(unavailable(
+                    "qualified range backing is not served byte storage",
+                ));
+            }
+            self.byte_qualification_predicates(machine, backing_type.qualification())?
+        } else {
+            semantic_vocabulary::ByteSequencePredicateSet::EMPTY
+        };
+        if expected_qualification != Qualification::NONE {
+            if typed_element.is_some() || requested != StructuralAccess::SharedBorrow {
+                return Err(unavailable(
+                    "qualified range without a shared byte descriptor",
+                ));
+            }
+            let retained = if partial {
+                source_predicates.subslice()
+            } else {
+                source_predicates
+            };
+            let required = self.byte_qualification_predicates(machine, expected_qualification)?;
+            if !retained.implies(required) {
+                return Err(unavailable(
+                    "range domains not preserved by its actual byte backing",
+                ));
+            }
+        }
+        // Presentation follows only predicates preserved by the real source.
+        // Lowering still establishes the actual descriptor without result
+        // qualification annotations; receiving proofs reconstruct its bytes.
+        let present = |mut expression: Expression| -> Checked<Expression> {
+            let Some(ValueType::Record(row, _, regions)) = expression.result else {
+                return Err(unavailable("range lost its actual descriptor"));
+            };
+            expression.result = Some(ValueType::Record(row, expected_qualification, regions));
+            Ok(expression)
+        };
         // A shared descriptor can snapshot its unrestricted value. A child
         // of an exclusive descriptor instead keeps a persistent payload loan,
         // including when that child only observes the bytes.
@@ -297,9 +342,15 @@ impl Program<'_> {
             && self.data_type(machine, backing)?.copyable
         {
             self.authorized(machine, backing_type, Access::Read)?;
-            return self
-                .byte_subslice(machine, slots, base, range, borrow.target, source)
-                .map(Some);
+            return present(self.byte_subslice(
+                machine,
+                slots,
+                base,
+                range,
+                borrow.target,
+                source,
+            )?)
+            .map(Some);
         }
         // A partial range of fixed storage is the window of the whole-array
         // loan: the loan keeps the backing's exact extent `N`, and the
@@ -307,12 +358,8 @@ impl Program<'_> {
         // own length like any other subslice (byte_views.md, "Source
         // correspondence"). A writable window also needs to keep its
         // exclusive descriptor live through the subslice.
-        let partial = range.start.is_valid() || range.end.is_valid() || range.end_inclusive;
         let element = match typed_element {
             None if byte_view => {
-                if backing_type.qualification() != Qualification::NONE {
-                    return Err(unavailable("a borrowed range retains qualified backing"));
-                }
                 let retained = self
                     .record_sources
                     .get(backing)
@@ -385,12 +432,12 @@ impl Program<'_> {
             result: Some(ValueType::Record(view, Qualification::NONE, regions)),
             source,
         };
-        if partial {
-            return self
-                .collection_window(machine, slots, whole, range, source)
-                .map(Some);
-        }
-        Ok(Some(whole))
+        let formed = if partial {
+            self.collection_window(machine, slots, whole, range, source)?
+        } else {
+            whole
+        };
+        present(formed).map(Some)
     }
 
     /// A collection recast borrows the same captured window. Its destination
