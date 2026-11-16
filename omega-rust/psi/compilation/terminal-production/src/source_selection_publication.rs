@@ -1849,9 +1849,13 @@ machine entry() -> u32 crashes none {{
         let (program, _) = closed_requirement_formed_in_build(false);
         let source = accept_formation_program(program).unwrap();
         let prepared = prepare(&source, source.module(), None).unwrap();
-        terminal_installation::selection_questions::validate_selection_questions(
+        terminal_installation::selection_questions::admit_selection_questions(
             source.module(),
             &prepared.questions,
+            &terminal_installation::selection_questions::SelectionAuthorities {
+                build: None,
+                product: None,
+            },
         )
         .unwrap();
         let (build, _) = prepared
@@ -1875,9 +1879,13 @@ machine entry() -> u32 crashes none {{
         let (program, _) = closed_requirement_formed_in_build(true);
         let source = accept_formation_program(program).unwrap();
         let prepared = prepare(&source, source.module(), None).unwrap();
-        let refused = terminal_installation::selection_questions::validate_selection_questions(
+        let refused = terminal_installation::selection_questions::admit_selection_questions(
             source.module(),
             &prepared.questions,
+            &terminal_installation::selection_questions::SelectionAuthorities {
+                build: None,
+                product: None,
+            },
         )
         .unwrap_err();
         assert!(
