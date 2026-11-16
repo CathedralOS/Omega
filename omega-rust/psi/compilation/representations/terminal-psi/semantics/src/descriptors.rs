@@ -522,7 +522,7 @@ pub mod descriptor_lifetimes {
                 if step
                     .inputs
                     .iter()
-                    .any(|input| observes(*position, input) && input.overlaps(location))
+                    .any(|(input, _)| observes(*position, input) && input.overlaps(location))
                 {
                     observations.push(occurrence.clone());
                     if step.may_escape {
@@ -691,6 +691,15 @@ pub mod descriptor_lifetimes {
         }
     }
 
+    /// The operand order also identifies captured constructor elements. A
+    /// memory operation belongs to its original typed source, not to aliases
+    /// later added solely to keep a loan alive. An unavailable source cannot
+    /// establish permission even when its whole root is observed for liveness.
+    pub type DescriptorFlowInput = (
+        DescriptorLocation,
+        Option<(access_plans::AccessOperation, DescriptorFlowSource)>,
+    );
+
     #[derive(Clone, Default)]
     pub struct DescriptorFlowStep {
         pub definitions: Vec<DescriptorLocation>,
@@ -702,9 +711,24 @@ pub mod descriptor_lifetimes {
         pub consumed: Vec<DescriptorLocation>,
         pub derivations: Vec<(DescriptorLocation, DescriptorLocation)>,
         pub authority_derivations: Vec<(DescriptorLocation, DescriptorLocation)>,
-        pub inputs: Vec<DescriptorLocation>,
+        pub inputs: Vec<DescriptorFlowInput>,
         pub may_escape: bool,
         pub successors: Vec<DescriptorFlowEdge>,
+    }
+
+    impl DescriptorFlowStep {
+        /// A value-transfer rewrite can refine the loan observations without
+        /// replacing the instruction's actual memory operations. Constructor
+        /// operands are never rewritten here: their order and duplicates are
+        /// the captured element roster.
+        pub fn replace_value_inputs(
+            &mut self,
+            inputs: impl IntoIterator<Item = DescriptorLocation>,
+        ) {
+            self.inputs.retain(|(_, access)| access.is_some());
+            self.inputs
+                .extend(inputs.into_iter().map(|input| (input, None)));
+        }
     }
 
     #[derive(Clone)]
@@ -850,7 +874,7 @@ pub mod descriptor_lifetimes {
             if step
                 .inputs
                 .iter()
-                .any(|input| input.contains(name) || name.contains(input))
+                .any(|(input, _)| input.contains(name) || name.contains(input))
             {
                 observations.push(occurrence.clone());
                 if step.may_escape {
@@ -1331,7 +1355,7 @@ pub mod descriptor_lifetimes {
                 (
                     position(0),
                     DescriptorFlowStep {
-                        inputs: vec![root(1)],
+                        inputs: vec![(root(1), None)],
                         successors: vec![edge(1)],
                         ..Default::default()
                     },
@@ -3151,6 +3175,92 @@ pub mod descriptor_results {
             descriptor_contents_query_with(types, root, root_type, path, final_field, |_| None)
         }
 
+        pub(crate) fn descriptor_storage_use_source(
+            types: &[StructuralTypeDeclaration],
+            place_types: &std::collections::BTreeMap<PlaceId, StructuralTypeId>,
+            operation: &terminal_psi::OperationKind,
+            used: terminal_psi::StructuralStorageUse<'_>,
+            select: impl Fn(semantic_vocabulary::ValueId) -> Option<semantic_vocabulary::ScalarTerm>,
+        ) -> crate::descriptor_lifetimes::DescriptorFlowSource {
+            use crate::descriptor_lifetimes::DescriptorFlowSource;
+            use terminal_psi::StructuralStorageUse;
+
+            let (root, query) = match used {
+                StructuralStorageUse::Place(root) => {
+                    return DescriptorFlowSource::Location(DescriptorLocation::whole(root));
+                }
+                StructuralStorageUse::Projection(source) => (
+                    source.root,
+                    place_types.get(&source.root).and_then(|ty| {
+                        descriptor_contents_query_with(
+                            types,
+                            source.root,
+                            *ty,
+                            source.path,
+                            source.field,
+                            &select,
+                        )
+                    }),
+                ),
+                StructuralStorageUse::Canonical { root, path } => (
+                    root,
+                    place_types.get(&root).and_then(|ty| {
+                        let location = crate::descriptor_lifetimes::canonical_descriptor_location(
+                            types, root, *ty, path,
+                        )?;
+                        Some(DescriptorContentsQuery::from_location(&location))
+                    }),
+                ),
+                StructuralStorageUse::ObservedField { root, path, field } => (
+                    root,
+                    place_types.get(&root).and_then(|ty| {
+                        let mut selected = path.to_vec();
+                        selected.push(semantic_vocabulary::CanonicalStructuralPathSegment::Field(
+                            field,
+                        ));
+                        let location = crate::descriptor_lifetimes::canonical_descriptor_location(
+                            types, root, *ty, &selected,
+                        )?;
+                        Some(DescriptorContentsQuery::from_location(&location))
+                    }),
+                ),
+                StructuralStorageUse::Element { descriptor, path } => {
+                    let query = (|| {
+                        let (index, obligation) = match operation {
+                            terminal_psi::OperationKind::ElementViewRead {
+                                index,
+                                obligation,
+                                ..
+                            }
+                            | terminal_psi::OperationKind::ElementViewWrite {
+                                index,
+                                obligation,
+                                ..
+                            } => (*index, *obligation),
+                            _ => return None,
+                        };
+                        let mut selected = descriptor.path.to_vec();
+                        if let Some(field) = descriptor.field {
+                            selected.push(StructuralPathSegment::Field(field));
+                        }
+                        selected.push(StructuralPathSegment::RuntimeIndex { index, obligation });
+                        selected.extend_from_slice(path);
+                        descriptor_contents_query_with(
+                            types,
+                            descriptor.root,
+                            *place_types.get(&descriptor.root)?,
+                            &selected,
+                            None,
+                            &select,
+                        )
+                    })();
+                    (descriptor.root, query)
+                }
+                StructuralStorageUse::Type(_) => unreachable!("a type is not an operation operand"),
+            };
+            DescriptorFlowSource::from_query(root, query)
+        }
+
         fn descriptor_contents_query_with(
             types: &[StructuralTypeDeclaration],
             root: PlaceId,
@@ -3338,7 +3448,7 @@ pub mod descriptor_results {
                     )?);
                 }
             }
-            step.inputs = vec![from];
+            step.replace_value_inputs([from]);
             Some(())
         }
 
@@ -10867,7 +10977,14 @@ pub mod descriptor_results {
                         semantic_vocabulary::StructuralFieldId::new(number).unwrap(),
                     )],
                 };
-                assert_eq!(row.flow[&release].inputs, vec![leaf(1)]);
+                assert_eq!(
+                    row.flow[&release]
+                        .inputs
+                        .iter()
+                        .map(|(input, _)| input)
+                        .collect::<Vec<_>>(),
+                    vec![&leaf(1)]
+                );
                 assert_eq!(row.flow[&release].definitions, vec![leaf(1)]);
                 let released = descriptor_location_lifetime(&row.flow, birth, &leaf(1));
                 let sibling = descriptor_location_lifetime(&row.flow, birth, &leaf(2));
@@ -12242,6 +12359,13 @@ pub mod descriptor_results {
                         let graph = terminal_borrowed_storage_graph(&module);
                         assert_eq!(graph.len(), 1);
                         let position = (body.entry, 0);
+                        assert!(
+                            graph[0].flow[&position]
+                                .inputs
+                                .iter()
+                                .all(|(_, access)| access.is_none()),
+                            "moving a whole descriptor does not read its backing"
+                        );
                         assert_eq!(
                             graph[0].payload_invalidations[&position],
                             [Some(DescriptorContentsQuery::from_location(
@@ -12307,6 +12431,18 @@ pub mod descriptor_results {
                     module.machines = vec![field_body.clone()];
                     let graph = terminal_borrowed_storage_graph(&module);
                     assert_eq!(graph.len(), 1);
+                    let accesses: Vec<_> = graph[0].flow[&(field_body.entry, 0)]
+                        .inputs
+                        .iter()
+                        .filter_map(|(_, access)| access.as_ref())
+                        .collect();
+                    assert!(
+                        matches!(accesses.as_slice(),
+                        [(access_plans::AccessOperation::Take, crate::descriptor_lifetimes::DescriptorFlowSource::Contents(query))]
+                            if query.root == source && query.steps == [DescriptorContentsStep::Address(
+                                crate::descriptor_lifetimes::DescriptorPathSegment::Field(moved))]),
+                        "a projected move keeps its actual field rather than authorizing a sibling"
+                    );
                     let frames = crate::borrowed_storage::inferred_write_frames(&module).unwrap();
                     assert_eq!(frames.get(field_body.id), Some(&Some(Vec::new())));
                     let mut analysis =
@@ -12419,6 +12555,19 @@ pub mod descriptor_results {
                         [Some(DescriptorContentsQuery { steps, .. })]
                             if matches!(steps.as_slice(), [DescriptorContentsStep::Element { .. }])
                     ));
+                    let accesses: Vec<_> = graph[0].flow[&(body.entry, 0)]
+                        .inputs
+                        .iter()
+                        .filter_map(|(_, access)| access.as_ref())
+                        .collect();
+                    assert!(
+                        matches!(accesses.as_slice(),
+                        [(access_plans::AccessOperation::Write, crate::descriptor_lifetimes::DescriptorFlowSource::Contents(query))]
+                            if query.root == source && matches!(query.steps.as_slice(),
+                                [DescriptorContentsStep::Element { selector: Some(selector), .. }]
+                                    if **selector == semantic_vocabulary::ScalarTerm::value(index, integer))),
+                        "the backing write retains its evaluated index at the input cut"
+                    );
                     assert_eq!(
                         crate::borrowed_storage::inferred_write_frames(&module)
                             .unwrap()
@@ -13420,7 +13569,7 @@ pub mod descriptor_results {
         payload_memberships, reference_backing_memberships, terminal_payload_contract,
     };
 
-    pub(crate) use contents::inline_selected_index;
+    pub(crate) use contents::{descriptor_storage_use_source, inline_selected_index};
     pub use payload_history::{
         PayloadMembershipHistory, current_payload_contract, current_selected_payload_contract,
     };
@@ -14418,7 +14567,7 @@ pub mod descriptor_results {
                     // A scalar sibling does not observe the reference leaves
                     // beside it. Retain the representation's projected uses;
                     // reducing them to roots spuriously extends those loans.
-                    for (used, _) in operation.kind.storage_uses() {
+                    for (used, access) in operation.kind.storage_uses() {
                         use terminal_psi::StructuralStorageUse;
                         let (root, selected) = match used {
                             StructuralStorageUse::Place(root) => {
@@ -14461,12 +14610,37 @@ pub mod descriptor_results {
                             StructuralStorageUse::Type(_) => continue,
                         };
                         if let Some(selected) = selected {
-                            step.inputs.push(selected);
+                            let access = access.map(|access| {
+                                (
+                                    access,
+                                    descriptor_storage_use_source(
+                                        &module.structural_types,
+                                        &graph.place_types,
+                                        &operation.kind,
+                                        used,
+                                        |value| scalar_expressions.expression(value),
+                                    ),
+                                )
+                            });
+                            step.inputs.push((selected, access));
                         } else {
                             // An unresolved selection can retain authority,
                             // never establish disjointness or an early end.
                             step.may_escape = true;
-                            step.inputs.push(DescriptorLocation::whole(root));
+                            let selected = DescriptorLocation::whole(root);
+                            let access = access.map(|access| {
+                                (
+                                    access,
+                                    descriptor_storage_use_source(
+                                        &module.structural_types,
+                                        &graph.place_types,
+                                        &operation.kind,
+                                        used,
+                                        |value| scalar_expressions.expression(value),
+                                    ),
+                                )
+                            });
+                            step.inputs.push((selected, access));
                         }
                     }
                     let result = operation.result.structural();
@@ -14760,7 +14934,7 @@ pub mod descriptor_results {
                     match &operation.kind {
                         OperationKind::ReleaseReference { source, path } => {
                             let source = location(*source, path, None)?;
-                            step.inputs = vec![source.clone()];
+                            step.replace_value_inputs([source.clone()]);
                             step.definitions.push(source);
                         }
                         OperationKind::ByteSequenceLength { source }
@@ -14772,7 +14946,7 @@ pub mod descriptor_results {
                                 &source.path,
                                 None,
                             )?;
-                            step.inputs = vec![query.observation()];
+                            step.replace_value_inputs([query.observation()]);
                         }
                         OperationKind::EstablishNativeCodeLayout { .. }
                             if slot_kind.tracks_views() =>
@@ -14973,7 +15147,7 @@ pub mod descriptor_results {
                                 None,
                             )?;
                             let source = query.observation();
-                            step.inputs = vec![source.clone()];
+                            step.replace_value_inputs([source.clone()]);
                             let destination = DescriptorLocation::whole(result?.place);
                             step.derivations.push((source.clone(), destination.clone()));
                             graph
@@ -15007,7 +15181,7 @@ pub mod descriptor_results {
                                 _ => unreachable!("selected structural value transport"),
                             };
                             if let Some(source) = source {
-                                step.inputs = vec![source.clone()];
+                                step.replace_value_inputs([source.clone()]);
                                 step.derivations.push((source, destination.clone()));
                             } else {
                                 step.may_escape = true;
@@ -15035,7 +15209,7 @@ pub mod descriptor_results {
                             ..
                         } => {
                             if let Some(source) = location(*source, path, Some(*field)) {
-                                step.inputs = vec![source];
+                                step.replace_value_inputs([source]);
                             } else {
                                 step.may_escape = true;
                             }
@@ -15070,7 +15244,7 @@ pub mod descriptor_results {
                             );
                             if let Some(source) = location(*source, path, *field) {
                                 let destination = DescriptorLocation::whole(result.place);
-                                step.inputs = vec![source.clone()];
+                                step.replace_value_inputs([source.clone()]);
                                 step.definitions.push(source.clone());
                                 step.derivations.push((source, destination));
                             } else {
@@ -15817,7 +15991,7 @@ pub mod descriptor_results {
                                     ),
                                 )
                             };
-                        step.inputs.push(source.observation());
+                        step.inputs.push((source.observation(), None));
                         if parameter.access == StructuralAccess::Owned
                             && parameter.multiplicity != StructuralMultiplicity::Unrestricted
                         {
@@ -15895,7 +16069,7 @@ pub mod descriptor_results {
                             }
                             returns.push((position, DescriptorLocation::whole(*source)));
                         }
-                        step.inputs.push(DescriptorLocation::whole(*source));
+                        step.inputs.push((DescriptorLocation::whole(*source), None));
                         step.may_escape = true;
                         graph.normal_exits.push(position);
                     }
@@ -15914,9 +16088,10 @@ pub mod descriptor_results {
                         graph.unresolved_contents_writes.insert(position);
                         for argument in structural_arguments {
                             if let Some(source) = location(argument.place, &argument.path, None) {
-                                step.inputs.push(source);
+                                step.inputs.push((source, None));
                             } else {
-                                step.inputs.push(DescriptorLocation::whole(argument.place));
+                                step.inputs
+                                    .push((DescriptorLocation::whole(argument.place), None));
                             }
                         }
                         step.may_escape = true;
@@ -15992,11 +16167,16 @@ pub mod descriptor_results {
                             parameter.access,
                             terminal_psi::exclusive_borrow_pair_pattern!()
                         ) {
-                            step.inputs.extend(slot_kind.slots(
-                                &module.structural_types,
-                                parameter.place,
-                                parameter.structural_type,
-                            )?);
+                            step.inputs.extend(
+                                slot_kind
+                                    .slots(
+                                        &module.structural_types,
+                                        parameter.place,
+                                        parameter.structural_type,
+                                    )?
+                                    .into_iter()
+                                    .map(|input| (input, None)),
+                            );
                         }
                     }
                 }

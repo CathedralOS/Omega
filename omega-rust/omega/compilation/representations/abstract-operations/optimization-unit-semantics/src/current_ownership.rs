@@ -244,7 +244,7 @@ pub(crate) mod address_joins {
                             BTreeMap::new();
                         for (position, step) in &current.flow {
                             let observed = queries.entry(*position).or_default();
-                            observed.extend(step.inputs.iter().cloned());
+                            observed.extend(step.inputs.iter().map(|(input, _)| input.clone()));
                             observed.extend(step.definitions.iter().cloned());
                             for (source, destination) in &step.derivations {
                                 observed.insert(source.clone());
@@ -1504,7 +1504,7 @@ pub(crate) mod address_joins {
                         if let Some(index) = step
                             .inputs
                             .iter()
-                            .rposition(|input| input == &raw || Some(input) == canonical)
+                            .rposition(|(input, _)| input == &raw || Some(input) == canonical)
                         {
                             step.inputs.remove(index);
                         }
@@ -1537,7 +1537,7 @@ pub(crate) mod address_joins {
                             inputs: function
                                 .structural_places
                                 .iter()
-                                .map(|place| DescriptorLocation::whole(place.id))
+                                .map(|place| (DescriptorLocation::whole(place.id), None))
                                 .collect(),
                             may_escape: true,
                             successors: targets

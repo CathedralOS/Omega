@@ -147,6 +147,7 @@ pub(crate) mod analysis {
                     let demanded = step
                         .inputs
                         .iter()
+                        .map(|(input, _)| input)
                         .chain(step.derivations.iter().map(|(source, _)| source))
                         .chain(step.authority_derivations.iter().map(|(source, _)| source))
                         .chain(
@@ -1068,12 +1069,14 @@ pub(crate) mod analysis {
                 step.definitions.extend(aliases);
                 step.definitions.sort();
                 step.definitions.dedup();
+                // This is a derived loan-liveness account. Canonical alias
+                // observations do not become additional memory operations.
                 let mut observations = step
                     .inputs
                     .iter()
-                    .map(canonical)
+                    .map(|(input, _)| canonical(input))
                     .collect::<Result<Vec<_>, _>>()?;
-                for input in &step.inputs {
+                for (input, _) in &step.inputs {
                     if input.path.is_empty()
                         && let Some(Some(origins)) = before.slots.get(input)
                     {
@@ -1083,9 +1086,12 @@ pub(crate) mod analysis {
                         }));
                     }
                 }
-                step.inputs.extend(observations);
-                step.inputs.sort();
-                step.inputs.dedup();
+                let mut inputs: Vec<_> =
+                    step.inputs.iter().map(|(input, _)| input.clone()).collect();
+                inputs.extend(observations);
+                inputs.sort();
+                inputs.dedup();
+                step.inputs = inputs.into_iter().map(|input| (input, None)).collect();
                 step.derivations = step
                     .derivations
                     .iter()
@@ -1169,35 +1175,38 @@ pub(crate) mod analysis {
                                 completed: Some(_), ..
                             } => return Err(incomplete_step()),
                             DescriptorPayloadTarget::Incoming(query) => {
-                                step.inputs.push(query.observation());
+                                step.inputs.push((query.observation(), None));
                                 step.may_escape = true;
                                 for origin in &effect.origins {
                                     match origin {
                                         DescriptorStoredOrigin::IncomingSlot { position, path } => {
-                                            step.inputs.push(
+                                            step.inputs.push((
                                                 self.replay
                                                     .actual_slot(call, *position, path)
                                                     .ok_or_else(incomplete_step)?,
-                                            )
+                                                None,
+                                            ))
                                         }
                                         DescriptorStoredOrigin::IncomingContents {
                                             position,
                                             steps,
                                             ..
-                                        } => step.inputs.push(
+                                        } => step.inputs.push((
                                             self.replay
                                                 .actual_contents(machine, call, *position, steps)
                                                 .ok_or_else(incomplete_step)?
                                                 .observation(),
-                                        ),
+                                            None,
+                                        )),
                                         DescriptorStoredOrigin::Parameter { position, .. } => {
-                                            step.inputs.push(
+                                            step.inputs.push((
                                                 call.arguments
                                                     .get(*position)
                                                     .and_then(Option::as_ref)
                                                     .ok_or_else(incomplete_step)?
                                                     .clone(),
-                                            )
+                                                None,
+                                            ))
                                         }
                                         _ => {}
                                     }
@@ -1239,12 +1248,13 @@ pub(crate) mod analysis {
                                     .derivations
                                     .push((canonical(source)?, destination.clone())),
                                 None => {
-                                    step.inputs.push(
+                                    step.inputs.push((
                                         contents
                                             .as_ref()
                                             .ok_or_else(incomplete_step)?
                                             .observation(),
-                                    );
+                                        None,
+                                    ));
                                     step.may_escape = true;
                                 }
                             }
@@ -1309,7 +1319,7 @@ pub(crate) mod analysis {
                                     query.steps.extend(
                                         path.iter().cloned().map(DescriptorContentsStep::Address),
                                     );
-                                    step.inputs.push(query.observation());
+                                    step.inputs.push((query.observation(), None));
                                     step.may_escape = true;
                                     continue;
                                 };
@@ -1327,7 +1337,7 @@ pub(crate) mod analysis {
                                     .ok_or_else(incomplete_step)?
                                     .clone();
                                 query.steps.extend_from_slice(steps);
-                                step.inputs.push(query.observation());
+                                step.inputs.push((query.observation(), None));
                                 step.may_escape = true;
                                 continue;
                             }
@@ -1346,7 +1356,7 @@ pub(crate) mod analysis {
                                         .get(*position)
                                         .and_then(Option::as_ref)
                                         .ok_or_else(incomplete_step)?;
-                                    step.inputs.push(query.observation());
+                                    step.inputs.push((query.observation(), None));
                                     step.may_escape = true;
                                     continue;
                                 };
@@ -5827,7 +5837,7 @@ pub(crate) mod engine {
             let state = states.get(&producer)?;
             let reads = DescriptorReadDepth::at(machine, state, Some(states));
             let mut elements = Vec::with_capacity(step.inputs.len());
-            for element in &step.inputs {
+            for (element, _) in &step.inputs {
                 if machine.location_type(self.types, element, None)? != element_type {
                     return None;
                 }
