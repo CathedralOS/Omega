@@ -193,3 +193,51 @@ fn typed_product_descriptions_use_the_named_capture_and_reject_another_role() {
         "{diagnostics:?}"
     );
 }
+
+#[test]
+fn runtime_formal_descriptions_publish_without_reading_parameter_values() {
+    let repository = fixture_package_inputs::repo_root();
+    let positive = repository.join("tests/fixtures/run/reflection/parameter_description/main.omg");
+    let mut prepared = fixture_package_inputs::reviewed_repository_fixture_package_inputs(
+        &positive,
+        Some("macos_arm64"),
+    )
+    .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+    let checked =
+        fixture_package_inputs::check_fixture(&mut prepared, "macos_arm64", Default::default())
+            .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+    let published = checked
+        .terminal_publication()
+        .accepted()
+        .unwrap()
+        .produce(
+            source_compiler::TerminalProductionCustody::default(),
+            &mut source_compiler::UnmeasuredProduction,
+        )
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+    assert!(published.view().module().entry.is_some());
+
+    let negative =
+        repository.join("tests/fixtures/fail/reflection/parameter_description_wrong_kind/main.omg");
+    let diagnostics = match fixture_package_inputs::reviewed_repository_fixture_package_inputs(
+        &negative,
+        Some("macos_arm64"),
+    ) {
+        Err(diagnostics) => diagnostics,
+        Ok(mut prepared) => match fixture_package_inputs::check_fixture(
+            &mut prepared,
+            "macos_arm64",
+            Default::default(),
+        ) {
+            Err(diagnostics) => diagnostics,
+            Ok(_) => panic!("a field is not a boundary requirement's formal"),
+        },
+    };
+    let expected = std::fs::read_to_string(negative.with_file_name("expected.txt")).unwrap();
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains(expected.trim())),
+        "{diagnostics:?}"
+    );
+}

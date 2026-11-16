@@ -20,6 +20,7 @@ use symbols::{SymbolHandle, SymbolKind};
 use terminal_psi::{OperationKind, TerminalModule};
 use typed_trees::TypedTrees;
 use typed_trees::callable_values::RuntimeCallableContractHandle;
+use typed_trees::references::StaticArgumentRole;
 use typed_trees_to_terminal_psi::selection_questions::{
     RawDependencyKind, RawDesignationInput, RawSelectionQuestion, RawSelectionQuestions,
     RawSelectionRole, RawSelectionTarget,
@@ -418,9 +419,12 @@ impl<'source> Questions<'source> {
                 }
                 let selected = self.source_target(target)?;
                 if parameter.is_valid() {
-                    return self
-                        .declarations
-                        .symbol_reference(&mut self.output, owner, parameter);
+                    return self.declarations.symbol_reference(
+                        &mut self.output,
+                        owner,
+                        parameter,
+                        StaticArgumentRole::ValueDependency,
+                    );
                 }
                 if let Some(dispatch) = dispatch {
                     if dispatch.realization_machine != selected {
@@ -433,6 +437,7 @@ impl<'source> Questions<'source> {
                             &mut self.output,
                             owner,
                             dispatch.evidence_parameter,
+                            StaticArgumentRole::ValueDependency,
                         );
                     }
                 } else if source_target != selected {
@@ -454,8 +459,12 @@ impl<'source> Questions<'source> {
                         )));
                     }
                 }
-                self.declarations
-                    .symbol_reference(&mut self.output, owner, selected)
+                self.declarations.symbol_reference(
+                    &mut self.output,
+                    owner,
+                    selected,
+                    StaticArgumentRole::ValueDependency,
+                )
             }
         }
     }
@@ -605,8 +614,12 @@ impl<'source> Questions<'source> {
         } else {
             self.source_target(TargetMachineCallable::Machine(body))?
         };
-        self.declarations
-            .symbol_reference(&mut self.output, source.owner, selected)
+        self.declarations.symbol_reference(
+            &mut self.output,
+            source.owner,
+            selected,
+            StaticArgumentRole::ValueDependency,
+        )
     }
 
     fn retain_invocation(
@@ -903,6 +916,11 @@ impl<'source> Questions<'source> {
                     &mut self.output,
                     dependency.lexical_owner,
                     dependency.target,
+                    if dependency.kind == RawDependencyKind::Description {
+                        StaticArgumentRole::DeclarationDescription
+                    } else {
+                        StaticArgumentRole::ValueDependency
+                    },
                 )
                 .map_err(|error| {
                     selection_context(
@@ -985,6 +1003,7 @@ impl<'source> Questions<'source> {
                         &mut self.output,
                         raw.lexical_owner,
                         symbol,
+                        StaticArgumentRole::DeclarationDescription,
                     )?
                 }
             }
@@ -1532,6 +1551,7 @@ impl<'source> Declarations<'source> {
         output: &mut SelectionQuestions,
         owner: SymbolHandle,
         symbol: SymbolHandle,
+        role: StaticArgumentRole,
     ) -> Result<SelectionReference, Diagnostic> {
         self.valid(symbol, "reference target")?;
         if let Some(atom) = self.typed.symbols.builtin_type_atom(symbol) {
@@ -1556,7 +1576,9 @@ impl<'source> Declarations<'source> {
             | SymbolKind::MachineParameter
             | SymbolKind::ConformanceParameter
             | SymbolKind::PropositionParameter
-            | SymbolKind::PropositionMachineParameter => {
+            | SymbolKind::PropositionMachineParameter
+                if role == StaticArgumentRole::ValueDependency =>
+            {
                 self.local_binding(output, owner, symbol, self.typed.symbols.get(symbol).parent)
             }
             _ => Ok(SelectionReference::Declaration(
@@ -1665,6 +1687,61 @@ machine entry() -> u64 crashes none {
             terminal_codec::TerminalPublication::Invocation,
         )
         .unwrap()
+    }
+
+    #[test]
+    fn describing_a_formal_does_not_make_its_argument_value_visible() {
+        let source = named_calls();
+        let published = source
+            .produce(
+                crate::TerminalProductionCustody::default(),
+                &mut crate::UnmeasuredProduction,
+            )
+            .unwrap();
+        assert!(published.view().module().entry.is_some());
+        let typed = source.source();
+        let entry = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "entry")
+            .unwrap()
+            .symbol;
+        let callee = typed
+            .machines()
+            .iter()
+            .find(|machine| typed.symbols.display_path(machine.symbol, "::") == "First::pick")
+            .unwrap();
+        let state = typed.machine_states(callee).first().unwrap();
+        let formal = typed
+            .tables
+            .state_parameters
+            .span_or_empty(state.parameters)
+            .first()
+            .unwrap()
+            .symbol;
+        let mut declarations = Declarations::new(&source, source.module()).unwrap();
+        let mut questions = SelectionQuestions::default();
+        let description = declarations
+            .symbol_reference(
+                &mut questions,
+                entry,
+                formal,
+                StaticArgumentRole::DeclarationDescription,
+            )
+            .unwrap();
+        assert!(matches!(description, SelectionReference::Declaration(_)));
+        let error = declarations
+            .symbol_reference(
+                &mut questions,
+                entry,
+                formal,
+                StaticArgumentRole::ValueDependency,
+            )
+            .unwrap_err();
+        assert!(
+            error.message.contains("outside its actual lexical context"),
+            "{error:?}"
+        );
     }
 
     #[test]
