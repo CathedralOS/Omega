@@ -1177,26 +1177,6 @@ impl SourceContinuation {
             .map_err(refuse)
     }
 
-    pub fn prepare_product_requirement_operand(
-        &mut self,
-        operand: &language_semantics::declaration_selection::ProductDeclarationOperand,
-        author: symbols::SymbolHandle,
-        static_environment: Option<
-            &language_semantics::declaration_selection::product_operands::ProductStaticEnvironment,
-        >,
-    ) -> Result<typed_trees_to_typed_trees::PreparedProductRequirement, Vec<Diagnostic>> {
-        let source = Arc::clone(&self.input);
-        let lookups =
-            typed_trees::product_operand::ProductSourceLookups::new(source.typing.typed());
-        typed_trees_to_typed_trees::prepare_product_requirement_operand(
-            Arc::make_mut(&mut self.input).typing.typed_mut(),
-            &lookups,
-            operand,
-            author,
-            static_environment,
-        )
-    }
-
     pub fn rejoin_product_provider_selection(
         &mut self,
         selection: &build_time_evaluation::provider_declarations::RetainedProviderSelection,
