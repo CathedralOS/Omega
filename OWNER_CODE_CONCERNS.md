@@ -272,13 +272,6 @@ framework or a list of unimplemented features.
 - Cost: Scripts reading `$?` cannot tell a compiler bug from a rejected program. Add `InternalFailure` (exit 3), classify compiler-invariant errors as it, and exit with it.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/compiler_request.md
 
-### A failed stage validator never reaches the `--report-file` report
-- Category: A verdict with nothing behind it
-- Where: [first failure drops the rows](omega-rust/omega/build-system/orchestration/src/project/stage_validators.rs#L201), [exit before the report](omega-rust/omega/application/src/commands/compile.rs#L158), [report write](omega-rust/omega/application/src/commands/compile.rs#L161)
-- Saw: [independent stage validators](wiki/spec/build/command_line.md#L152) says to report validator names and "passed/failed results in the existing compile report; `--report-file` retains those rows". `StageValidatorRequest::run_with` returns `Err(BuildError::StageValidation(row))` at the first failure and drops the rows already gathered, and `present_single` exits on refusal before `write_report_or_exit`. `omega --every-validator --report-file r.txt main.omg` with one failing validator writes no `r.txt`; with several targets the batch report keeps a `failed:` line but loses that target's passed rows. No report can contain a failed row.
-- Cost: The report is missing exactly when validation fails. Carry the complete row list out with the error and write the report before choosing the exit status.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/command_line.md
-
 ### `omega packages audit --help` documents exit 2 for invalid arguments; the code exits 64
 - Category: The documents disagree
 - Where: [audit usage text](omega-rust/omega/application/src/arguments/audit.rs#L13), [parse errors exit 64](omega-rust/omega/application/src/main.rs#L62), [bad adapter exits 64](omega-rust/omega/application/src/commands/packages.rs#L125)
