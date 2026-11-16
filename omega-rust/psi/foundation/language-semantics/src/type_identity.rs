@@ -739,13 +739,21 @@ mod grammar {
         })
     }
 
+    pub(super) fn nominal_coordinates<'text>(
+        reader: &mut Reader<'text>,
+        visitor: &mut dyn TypeIdentityPackageOwnerVisitor,
+    ) -> Result<(OwnerForm, Option<[u8; 32]>, std::borrow::Cow<'text, str>)> {
+        let (owner, digest) = owner(reader, visitor)?;
+        reader.expect(b',')?;
+        let path = reader.atom(Label::Path, visitor)?;
+        Ok((owner, digest, path))
+    }
+
     fn nominal(
         reader: &mut Reader<'_>,
         visitor: &mut dyn TypeIdentityPackageOwnerVisitor,
     ) -> Result {
-        let (owner, digest) = owner(reader, visitor)?;
-        reader.expect(b',')?;
-        let path = reader.atom(Label::Path, visitor)?;
+        let (owner, digest, path) = nominal_coordinates(reader, visitor)?;
         visitor.nominal_declaration(owner, digest, &path)
     }
 
@@ -1552,12 +1560,27 @@ pub mod vocabulary {
 pub use callable_display::callable_display_path;
 pub use lifetime_partition::normalize_requirement_lifetime_partition;
 
+/// The semantic name of a declaration owned by a package. Nominal identity
+/// queries and source publication use this same spelling for that owner/path.
+pub fn package_declaration_identity(
+    package: semantic_vocabulary::PackageKeyIdentity,
+    path: &str,
+) -> String {
+    use std::fmt::Write as _;
+    let mut owner = String::with_capacity(64);
+    for byte in package.digest() {
+        let _ = write!(owner, "{byte:02x}");
+    }
+    format!("package:{owner}::{path}")
+}
+
 /// A closed declaration and its physical ABI retain the same complete static
 /// application in different existing identities. Match their template, owner
 /// and ordered operands without treating the template alone as the closed call.
 pub fn closed_requirement_matches_calling_abi(
     declaration: &str,
     template: &str,
+    nominal_template: &str,
     callable: &str,
     abi: &semantic_vocabulary::CallingAbiIdentity,
 ) -> Result<bool, TypeIdentityVisitError> {
@@ -1619,7 +1642,7 @@ pub fn closed_requirement_matches_calling_abi(
         Ok(actual_template == template && owner == abi.declaring_application && operands_match)
     })?;
     reader.finish()?;
-    Ok(matched && closed_callable_matches(callable, abi, &mut syntax)?)
+    Ok(matched && closed_callable_matches(callable, template, nominal_template, abi, &mut syntax)?)
 }
 
 fn trait_application(
@@ -1672,12 +1695,34 @@ fn callable_coordinates<'a>(
 
 fn closed_callable_matches(
     callable: &str,
+    semantic_template: &str,
+    nominal_template: &str,
     abi: &semantic_vocabulary::CallingAbiIdentity,
     syntax: &mut dyn TypeIdentityPackageOwnerVisitor,
 ) -> Result<bool> {
     use encoding::CoordinateTag;
     let (path, parameters) = callable_coordinates(callable, syntax)?;
     let (template_path, _) = callable_coordinates(&abi.requirement_identity, syntax)?;
+    if template_path != nominal_template {
+        return Ok(false);
+    }
+    let mut nominal = framing::Reader::new(nominal_template);
+    nominal.expect_tag(vocabulary::NameForm::Nominal)?;
+    let (owner, digest, declared_path) =
+        grammar::compound(&mut nominal, syntax, grammar::nominal_coordinates)?;
+    nominal.finish()?;
+    let package = match (owner, digest) {
+        (vocabulary::OwnerForm::Package, Some(digest)) => {
+            semantic_vocabulary::PackageKeyIdentity::from_digest(digest)
+                .ok_or(Error::MalformedIdentity)?
+        }
+        // The semantic name alone does not carry the exact source revision
+        // of a toolchain declaration. Do not guess an owner correspondence.
+        _ => return Err(Error::UnsupportedEmbeddedName),
+    };
+    if package_declaration_identity(package, &declared_path) != semantic_template {
+        return Ok(false);
+    }
     let mut reader = framing::Reader::new(&parameters);
     reader.callable_regions = true;
     reader.expect_tag(CoordinateTag::ClosedRequirement)?;

@@ -947,6 +947,7 @@ pub(crate) mod declarations {
                 || !language_semantics::type_identity::closed_requirement_matches_calling_abi(
                     text(self.source.semantic_declaration)?,
                     text(application.template_semantic_declaration)?,
+                    text(application.template.identity())?,
                     text(self.source.callable)?,
                     abi,
                 )

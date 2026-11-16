@@ -8417,12 +8417,9 @@ impl TypedTrees {
         }
         let path = self.symbols.display_path(symbol, "::");
         if let Some(package) = self.symbols.symbol_package_identity(symbol) {
-            let mut owner = String::with_capacity(64);
-            use std::fmt::Write as _;
-            for byte in package.digest() {
-                let _ = write!(owner, "{byte:02x}");
-            }
-            return Ok(format!("package:{owner}::{path}"));
+            return Ok(
+                language_semantics::type_identity::package_declaration_identity(package, &path),
+            );
         }
         match self.symbols.symbol_source_origin(symbol) {
             Some(source::SourceOrigin::Toolchain) => Ok(format!("toolchain::{path}")),

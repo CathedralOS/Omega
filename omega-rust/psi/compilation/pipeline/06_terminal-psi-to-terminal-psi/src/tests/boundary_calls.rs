@@ -941,6 +941,10 @@ machine entry() -> u32 crashes none {
                 language_semantics::type_identity::closed_requirement_matches_calling_abi(
                     &malformed,
                     template,
+                    module
+                        .identities
+                        .text(application.template.identity())
+                        .unwrap(),
                     module.identities.text(declaration.source.callable).unwrap(),
                     abi,
                 )
@@ -954,7 +958,14 @@ machine entry() -> u32 crashes none {
         ] {
             assert!(
                 language_semantics::type_identity::closed_requirement_matches_calling_abi(
-                    identity, template, &malformed, abi,
+                    identity,
+                    template,
+                    module
+                        .identities
+                        .text(application.template.identity())
+                        .unwrap(),
+                    &malformed,
+                    abi,
                 )
                 .is_err()
             );
