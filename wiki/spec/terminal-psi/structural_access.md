@@ -219,11 +219,12 @@ the element the same way and open its
 loan.
 
 For [contract-gated core operations](../language/expressions.md#contract-gated-core-operations),
-the primitive's complete instantiated contract is discharged before lowering.
+the lowered-form checker discharges the primitive's complete instantiated
+contract on the lowered program.
 Changing the source prover does not remove the evidence carried by an access:
 each `RuntimeIndex` obligation retains the exact selector, live extent,
 descriptor/backing and applicable storage versions from that occurrence.
-The existing source-checked evidence handoff must preserve this relation;
+The lowered-form checker's evidence must preserve this relation;
 neither an occurrence handle alone nor a producer's assertion of success proves
 the bound. Receivers check the applicable evidence at the existing trust
 boundaries; ordinary pipeline stages consume their producer's checked plans.
@@ -654,7 +655,7 @@ must be below its array's declared extent. A runtime-selected element's field is
 carrier steps reach a sum. The final field is then a relevant scalar payload
 field of that exact declared case. A case payload is overlaid at the sum's own
 place, so the carrier's shape is no evidence that the overlay is live. Each
-`Case` step requires source admission to establish the selected case for the
+`Case` step requires the [lowered-form checker](../../drafts/designs/check_on_lowered_form.md) to establish the selected case for the
 same root and prefix at the read's observation epoch. A dominating membership
 test or dispatch supplies that fact. Otherwise the case holds when every other declared case of
 that sum is refuted. A refutation is a surviving membership observation of the
@@ -665,8 +666,11 @@ for `StructuralCaseLeafCopy`. The rule is the same for a `Case` step directly on
 the root, though producers read a root sum's payload as parameters of its
 dispatch block. Unknown, erased, truncated, and non-record carriers reject;
 consumers must not infer a path from names or layout offsets. Terminal validation
-checks the declared path, exact scalar type and access independently, relying on
-source checking for the case-refutation judgment.
+checks the declared path, exact scalar type and access independently.
+The lowered-form checker owns the case-refutation judgment but does not make it
+yet: it refuses a payload read that only a refutation would justify, such as
+the untested final arm of an exhaustive test chain (`TASKS.md`,
+**LOWERED-FORM-CHECKER**).
 
 Reading a nested field observes the original backing below that root, not a
 copied child or a new borrow. Independent validation retains the root's readable
@@ -836,7 +840,7 @@ custody and predicate checks. Descriptor replacement is the
 `StructuralByteViewFieldStore` above. Qualified mutable, write-only, and access-unspecified
 view fields remain unsupported. The supported predicates are
 valid UTF-8, ASCII-only, no NUL, and nonempty. Receiving validation checks these
-invariants independently of source checking. The rewrite validator repeats
+invariants independently of the producing compiler's checker. The rewrite validator repeats
 the check after optimization in the corpus runner and the tests, not on the
 default compile path ([verification placement](../../../omega-rust/pipeline.md#verification-placement)). Zero-initialized attachment storage requires every contained byte
 field predicate to hold for the empty sequence. Every write keeps every declared
@@ -849,8 +853,8 @@ reconstructs the store's goal from the exact destination declaration:
 `index < length`, then `value <= 127` when the field declares ASCII-only or
 valid UTF-8, then `1 <= value` when it declares no NUL. Nonempty adds no leg
 because the store keeps the extent. A producer supplies the certificate; it
-cannot weaken the goal, and checked-source preservation facts are not carried
-as authority.
+cannot weaken the goal, and preservation facts from the producer's checker are not
+carried as authority.
 
 Valid UTF-8 is not a per-byte class: an ASCII byte written over part of a
 multi-byte scalar breaks it. Unless the field also declares ASCII-only, every
