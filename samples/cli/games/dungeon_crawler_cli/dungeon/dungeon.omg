@@ -183,11 +183,11 @@ machine dungeon_game_over(dungeon: &mut Dungeon) {
 
 machine dungeon_initialize(
     dungeon: &mut Dungeon,
-    seed: u64 in Wrapping
+    start_seed: u64 in Wrapping
 ) {
     create(&mut dungeon.player_system, "Wanderer", &mut dungeon.player);
-    seed(seed, &mut dungeon.random);
-    generate(&mut dungeon.generator, seed, &mut dungeon.level);
+    seed(start_seed, &mut dungeon.random);
+    generate(&mut dungeon.generator, start_seed, &mut dungeon.level);
     dungeon.current_cell = dungeon.level.start_cell;
     dungeon.mode = GameMode::Exploring;
     dungeon.treasure_taken = false;
