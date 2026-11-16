@@ -3368,7 +3368,16 @@ pub fn visit_expression(
             if retained.derived_declaration_references() {
                 visit_type_reference(program, retained, cast.result_type);
             }
-            visit_symbol(retained, cast.semantic_domain_symbol);
+            // Carrier and builtin policy casts have no nominal domain
+            // declaration. Preserve every present coordinate, including a
+            // malformed one, so publication still refuses missing custody.
+            if cast.semantic_domain_symbol != SymbolHandle::invalid()
+                || !cast.semantic_domain.is_empty()
+                || !cast.semantic_domain_arguments.is_empty()
+                || cast.semantic_domain_id != language_semantics::SemanticDomainId::NULL
+            {
+                visit_symbol(retained, cast.semantic_domain_symbol);
+            }
             for argument in program.type_reference_handles(cast.semantic_domain_arguments) {
                 visit_type_reference(program, retained, *argument);
             }
@@ -4729,5 +4738,69 @@ mod designated_type_argument_tests {
                 .is_empty()
         );
         assert!(collect_selected_program_type_occurrences(&program, &excluded).is_empty());
+    }
+}
+
+#[cfg(test)]
+mod cast_dependency_tests {
+    use super::*;
+
+    #[derive(Default)]
+    struct Symbols(Vec<SymbolHandle>);
+    impl Extend<SymbolHandle> for Symbols {
+        fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, symbols: T) {
+            self.0.extend(symbols);
+        }
+    }
+    impl TypedReferences for Symbols {}
+
+    #[test]
+    fn absent_cast_domains_are_not_dependencies_but_malformed_nominal_inputs_remain_owed() {
+        use crate::expression::TableCastExpression;
+        let mut program = TypedTrees::default();
+        let value = program
+            .expression_table
+            .insert(ExpressionNode::Boolean(true));
+        let carrier = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Primitive(
+                crate::types::PrimitiveType::U32,
+            ));
+        let mut cast = TableCastExpression {
+            value,
+            target_type: carrier,
+            result_type: carrier,
+            target_label: Default::default(),
+            domain: numerics::arithmetic::ArithmeticDomain::Wrapping,
+            semantic_domain: Default::default(),
+            semantic_domain_arguments: Default::default(),
+            semantic_domain_symbol: SymbolHandle::invalid(),
+            semantic_domain_id: language_semantics::SemanticDomainId::NULL,
+            form: language_core::cast_form::CastForm::Value,
+        };
+        let expression = program.expression_table.insert(ExpressionNode::Cast(cast));
+        let observed = |program: &TypedTrees| {
+            let mut symbols = Symbols::default();
+            visit_expression(program, &mut symbols, expression);
+            symbols.0
+        };
+        assert!(observed(&program).is_empty());
+        cast.domain = numerics::arithmetic::ArithmeticDomain::Exact;
+        *program.expression_table.expression_mut(expression) = ExpressionNode::Cast(cast);
+        assert!(observed(&program).is_empty());
+        for symbol in [
+            SymbolHandle::from_parts(7, 1),
+            SymbolHandle::from_parts(0, 1),
+        ] {
+            cast.semantic_domain_symbol = symbol;
+            *program.expression_table.expression_mut(expression) = ExpressionNode::Cast(cast);
+            assert_eq!(observed(&program), vec![symbol]);
+        }
+        cast.semantic_domain_symbol = SymbolHandle::invalid();
+        cast.semantic_domain_arguments = program
+            .type_reference_table
+            .insert_type_reference_handles([carrier]);
+        *program.expression_table.expression_mut(expression) = ExpressionNode::Cast(cast);
+        assert_eq!(observed(&program), vec![SymbolHandle::invalid()]);
     }
 }

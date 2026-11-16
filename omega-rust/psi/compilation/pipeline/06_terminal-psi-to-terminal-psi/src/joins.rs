@@ -963,12 +963,24 @@ mod tests {
     #[test]
     fn structural_only_join_snapshots_keep_every_distinct_arrival() {
         fn judged(text: &str) -> Vec<crate::RouteVerdict> {
+            let mut sources = source::SourceMap::default();
+            let source = sources
+                .add_checked_instance(
+                    "package/main.omg".into(),
+                    text.to_owned(),
+                    "package".into(),
+                    None,
+                    source::SourceOrigin::User,
+                    source::SourceResolutionStratum::Base,
+                    source::DependencyScope::Product,
+                )
+                .source_id;
             let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
-            let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-            let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-                syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax),
-            )
-            .unwrap();
+            let syntax =
+                tokens_to_syntax_trees::parse_syntax_trees_with_id(source, &tokens).unwrap();
+            let mut request = syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax);
+            request.sources = Some(std::sync::Arc::new(sources));
+            let resolved = syntax_trees_to_symbol_resolved_trees::resolve(request).unwrap();
             let typed =
                 symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
                     .unwrap();
