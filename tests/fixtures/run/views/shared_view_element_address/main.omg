@@ -1,0 +1,28 @@
+// Expected exit: 0
+// A shared byte view of an array names the array's own elements, so
+// `address_of(&view[i])` equals `address_of(&bytes[i])` and differs from every
+// other element's address (counts_and_addresses.md, "Compatible views of the
+// same storage location expose the same address").
+machine first_address(bytes: &[u8]) -> addr requires bytes.len > 0 {
+    address_of(&bytes[0])
+}
+machine main() crashes Trap {
+    let mut bytes: [u8; 4] = [3, 5, 7, 9];
+    let view: &[u8] = &bytes[..];
+    let tail: &[u8] = &bytes[1..];
+    let zero: addr = address_of(&bytes[0]);
+    let one: addr = address_of(&bytes[1]);
+    let view_zero: addr = address_of(&view[0]);
+    let view_one: addr = address_of(&view[1]);
+    let tail_zero: addr = address_of(&tail[0]);
+    let passed: addr = first_address(&bytes[..]);
+    transition zero != 0 && zero != one
+        && view_zero == zero && view_one == one && view_zero != one
+        && tail_zero == one && tail_zero != zero
+        && passed == zero {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

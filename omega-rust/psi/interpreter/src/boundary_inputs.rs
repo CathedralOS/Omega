@@ -749,6 +749,38 @@ pub(crate) mod byte_arrays {
                 }
             }
 
+            /// A shared view of a byte array holds a snapshot of the bytes, but
+            /// its byte `index` still names one element of that array. Callers
+            /// that need the element itself (its address, or the original scalar
+            /// a boundary call lends) map through the captured array window, so
+            /// `&view[i]` and `&bytes[i]` stay one location. Returns `None` when
+            /// the view was not taken from an array or has since been copied.
+            pub(crate) fn original_view_byte_element(
+                &self,
+                bytes: &crate::storage::byte_sequences::ByteSequenceView,
+                index: usize,
+            ) -> Result<
+                Option<crate::storage::primitive_storage::PrimitiveStorageEndpoint>,
+                TerminalInterpretError,
+            > {
+                let Some(window) = bytes.original_array() else {
+                    return Ok(None);
+                };
+                if index >= window.length {
+                    return Err(malformed());
+                }
+                let index = window.offset.checked_add(index).ok_or(malformed())?;
+                if index >= self.stored_byte_array_length(&window.array)? {
+                    return Err(malformed());
+                }
+                Ok(Some(
+                    crate::storage::primitive_storage::PrimitiveStorageEndpoint::ArrayElement {
+                        array: window.array.clone(),
+                        index,
+                    },
+                ))
+            }
+
             pub(crate) fn stored_byte_array_read(
                 &self,
                 storage: &ArrayStorage,

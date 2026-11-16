@@ -1081,23 +1081,13 @@ pub(crate) mod original_residence {
         let PrimitiveStorageEndpoint::ViewByte { bytes, index } = &storage.endpoint else {
             return Ok(storage.clone());
         };
-        let Some(window) = bytes.original_array() else {
-            return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+        let endpoint = execution
+            .original_view_byte_element(bytes, *index)?
+            .ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
                 "original byte-view scalar requires its captured array window",
-            ));
-        };
-        if *index >= window.length {
-            return Err(malformed());
-        }
-        let index = window.offset.checked_add(*index).ok_or(malformed())?;
-        if index >= execution.stored_byte_array_length(&window.array)? {
-            return Err(malformed());
-        }
+            ))?;
         Ok(PrimitiveStorage {
-            endpoint: PrimitiveStorageEndpoint::ArrayElement {
-                array: window.array.clone(),
-                index,
-            },
+            endpoint,
             encoding: storage.encoding,
         })
     }

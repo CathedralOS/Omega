@@ -6036,6 +6036,12 @@ pub(crate) mod storage_addresses {
                     place
                 }
                 PrimitiveStorageEndpoint::ViewByte { bytes, index } => {
+                    // A view taken from an array exposes that array's element
+                    // address; only bytes with no array behind them use the
+                    // view's own exposure namespace.
+                    if let Some(element) = self.original_view_byte_element(&bytes, index)? {
+                        return self.endpoint_identity(element);
+                    }
                     let (namespace, index) = bytes
                         .storage_address_coordinate(index)
                         .ok_or_else(exhausted)?;
