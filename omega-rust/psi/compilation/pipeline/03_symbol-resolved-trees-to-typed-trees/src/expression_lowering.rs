@@ -1431,6 +1431,49 @@ pub(crate) mod expression {
                                 } else {
                                     symbols::SymbolHandle::invalid()
                                 };
+                                let query_arguments =
+                                    self.source.expression_handles(call.arguments);
+                                let query_operand = if query_arguments.len() == 1 {
+                                    Some(self.source.expression(query_arguments[0]))
+                                } else {
+                                    None
+                                };
+                                let query_members = match query_operand {
+                                    Some(resolved::expression::ExpressionNode::Name(path)) => {
+                                        self.source.name_path_members(path.members)
+                                    }
+                                    _ => &[],
+                                };
+                                if call.machine_arguments.is_empty()
+                                    && call.evidence_arguments.is_empty()
+                                    && let Some(request) =
+                                        crate::expressions::product_queries::description_request(
+                                            program,
+                                            call.target_symbol,
+                                            call.receiver.is_valid().then_some(namespace),
+                                            query_operand,
+                                            query_members,
+                                            self.source.source_span(expression),
+                                        )
+                                {
+                                    let query = crate::expressions::build_selections::lower(
+                                        program,
+                                        self.target_trees,
+                                        request,
+                                        Vec::new(),
+                                        self.source_owner,
+                                        Vec::new(),
+                                        call.operational_acknowledgement,
+                                    )?;
+                                    let typed::expression::ExpressionNode::Call(generated) =
+                                        self.target_trees.expression_table.expression(query)
+                                    else {
+                                        unreachable!()
+                                    };
+                                    let selected = generated.target_symbol;
+                                    self.finalize_generated_call_selection(expression, selected)?;
+                                    return Ok(query);
+                                }
                                 if let Some(operation) =
                                     crate::expressions::product_queries::operation(
                                         program,

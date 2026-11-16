@@ -2327,7 +2327,33 @@ impl Analysis<'_> {
                 if self.root(projection.root)?.is_none() {
                     return Ok(());
                 }
-                let (path, _) = self.observed(projection.root, projection.path)?;
+                // Field operands retain a final selector outside their common
+                // source path. Reading the parent instead would require moved
+                // siblings to be live and would lose this exact observation.
+                let selected = projection
+                    .field
+                    .map(|field| {
+                        let root = self
+                            .root(projection.root)?
+                            .ok_or(Error::malformed("tracked projection lost its root"))?;
+                        let field = crate::projected_field_declaration(
+                            self.types.iter(),
+                            root.structural_type,
+                            projection.path,
+                            field,
+                        )
+                        .ok_or(Error::malformed(
+                            "storage projection lost its exact declared field",
+                        ))?;
+                        let mut path = projection.path.to_vec();
+                        path.push(StructuralPathSegment::Field(field.identity));
+                        Ok::<_, Error>(path)
+                    })
+                    .transpose()?;
+                let (path, _) = self.observed(
+                    projection.root,
+                    selected.as_deref().unwrap_or(projection.path),
+                )?;
                 self.read(state, projection.root, &path, site)
             }
             StructuralStorageUse::Canonical { root, path }

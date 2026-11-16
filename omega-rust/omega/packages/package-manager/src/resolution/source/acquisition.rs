@@ -564,6 +564,23 @@ impl AcquiredBuildSource {
         self.declare_build(returned)?.source_binding()
     }
 
+    /// A source continuation may name this acquired package after its Build
+    /// issued a named declaration. Reuse final declaration admission for its
+    /// lineage and capture, without claiming a completed dependency graph.
+    pub fn declared_source_inputs(
+        &self,
+        declaration: &build_declarations::BuildDeclaration,
+    ) -> Result<package_compilation::PackageCompilationInputs, String> {
+        let source = self.declare_requests(Some(declaration), std::iter::empty())?;
+        package_compilation::PackageCompilationInputs::new(
+            source.identity(),
+            declaration.kind(),
+            vec![source.source_binding()?],
+            Vec::new(),
+        )
+        .map_err(|errors| format!("cannot admit named query source: {errors:?}"))
+    }
+
     pub fn declare_build(
         &self,
         returned: &build_settings::ReturnedBuild,

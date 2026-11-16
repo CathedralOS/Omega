@@ -1,4 +1,4 @@
-// Explicit scalar demand between native preparation and native lowering.
+// Explicit scalar demand between native selection and the first Omega stage.
 // The application sponsors evaluation; `NativeScalarCompletion` retains only
 // the deduplicated `ScalarApplicationId` demand and the completed
 // `AdmittedScalarApplications` judgment, never an evaluator or a callback into

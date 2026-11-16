@@ -153,17 +153,21 @@ impl EntryContractSource {
 
 /// Resolve the selected target schema inside its admitted contract source.
 pub fn selected_program_entry_boundary(
-    typed: &typed_trees::TypedTrees,
+    catalog: typed_trees::service_declarations::ServiceCatalog<'_>,
     slot: target::ProgramEntrySlotDeclaration,
     package_inputs: Option<&crate::PackageCompilationInputs>,
-    exact_sources: &[(source::SourceId, [u8; 32])],
 ) -> Result<symbols::SymbolHandle, Vec<diagnostics::Diagnostic>> {
     use diagnostics::Diagnostic;
-    use typed_trees::service_declarations::{
-        PreparedServiceCatalog, ProviderSchemaDeclaration,
-        provider_declarations::ProviderPlanningContext,
-    };
+    use typed_trees::service_declarations::ProviderSchemaDeclaration;
     let failure = |message| vec![Diagnostic::error(message)];
+    let context = catalog.context();
+    if context.scope != source::DependencyScope::Product {
+        return Err(failure(
+            "selected entry boundary requires the Product service catalog",
+        ));
+    }
+    let typed = context.typed;
+    let exact_sources = catalog.exact_toolchain_sources();
     if slot != slot.owner.program_entry_slot() {
         return Err(failure(
             "selected entry slot differs from its target declaration",
@@ -181,10 +185,6 @@ pub fn selected_program_entry_boundary(
             "selected target entry contract has no unambiguous accepted supplier",
         ));
     }
-    let catalog = PreparedServiceCatalog::prepare(
-        ProviderPlanningContext::new(typed, source::DependencyScope::Product),
-        exact_sources,
-    );
     let mut matching = Vec::new();
     for declaration in catalog.declared_traits() {
         let ProviderSchemaDeclaration::BoundaryTrait(symbol) = declaration.schema else {

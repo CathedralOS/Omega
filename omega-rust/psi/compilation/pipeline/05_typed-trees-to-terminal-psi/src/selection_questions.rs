@@ -207,6 +207,7 @@ struct RuntimeSelection {
 
 struct ExpressionScope {
     expression: ExpressionHandle,
+    description: bool,
     designated: Vec<(
         AuthoredDeclarationSelectionOccurrenceId,
         RawDesignationInput,
@@ -240,7 +241,7 @@ struct Capture<'a> {
         RawSelectionRole,
         RawDependencyKind,
     )>,
-    seen_expressions: Membership<(SymbolHandle, ExpressionHandle)>,
+    seen_expressions: Membership<(SymbolHandle, ExpressionHandle, bool)>,
     seen_types: Membership<(SymbolHandle, TypeReferenceHandle)>,
     seen_facts: Membership<(SymbolHandle, arena::Handle<typed_trees::domain::ProofFact>)>,
     next_authored_symbol: Option<(SymbolHandle, RawSelectionRole)>,
@@ -248,6 +249,50 @@ struct Capture<'a> {
 }
 
 impl Capture<'_> {
+    fn describing(&self) -> bool {
+        self.expressions
+            .last()
+            .is_some_and(|scope| scope.description)
+    }
+
+    fn description_operand(&self, expression: ExpressionHandle) -> bool {
+        use typed_trees::references::StaticArgumentRole;
+        if self.describing() {
+            return true;
+        }
+        let call = if let Some(scope) = self.expressions.last() {
+            let ExpressionNode::Call(call) =
+                self.typed.expression_table.expression(scope.expression)
+            else {
+                return false;
+            };
+            StaticArgumentCall::Expression(scope.expression, call)
+        } else if let Some(statement) = self.statement {
+            let StatementNode::Call(call) = self.typed.statement_table.statement(statement) else {
+                return false;
+            };
+            StaticArgumentCall::Statement(call)
+        } else {
+            return false;
+        };
+        if typed_trees::reflection::construction::declaration_query_argument_role(self.typed, call)
+            != StaticArgumentRole::DeclarationDescription
+        {
+            return false;
+        }
+        match call {
+            StaticArgumentCall::Expression(_, call) => self
+                .typed
+                .expression_table
+                .expression_handles(call.arguments),
+            StaticArgumentCall::Statement(call) => self
+                .typed
+                .statement_table
+                .expression_handles(call.arguments),
+        }
+        .contains(&expression)
+    }
+
     fn fail(&mut self, reason: impl Into<String>) {
         if self.error.is_none() {
             self.error = Some(SelectionCaptureError(reason.into()));
@@ -323,16 +368,18 @@ impl Capture<'_> {
             return None;
         }
         let row = self.typed.symbols.get(symbol);
-        if matches!(
-            row.kind,
-            SymbolKind::Parameter
-                | SymbolKind::TypeParameter
-                | SymbolKind::MachineParameter
-                | SymbolKind::ConformanceParameter
-                | SymbolKind::PropositionParameter
-                | SymbolKind::PropositionMachineParameter
-                | SymbolKind::Local
-        ) {
+        if !self.describing()
+            && matches!(
+                row.kind,
+                SymbolKind::Parameter
+                    | SymbolKind::TypeParameter
+                    | SymbolKind::MachineParameter
+                    | SymbolKind::ConformanceParameter
+                    | SymbolKind::PropositionParameter
+                    | SymbolKind::PropositionMachineParameter
+                    | SymbolKind::Local
+            )
+        {
             if !row.parent.is_valid() || !self.typed.symbols.symbols().nodes().is_valid(row.parent)
             {
                 self.fail("local selection has no exact declaration owner");
@@ -618,7 +665,11 @@ impl Extend<SymbolHandle> for Capture<'_> {
             self.dependency(
                 symbol,
                 RawSelectionRole::Execution,
-                RawDependencyKind::Declaration,
+                if self.describing() {
+                    RawDependencyKind::Description
+                } else {
+                    RawDependencyKind::Declaration
+                },
             );
         }
     }
@@ -684,7 +735,18 @@ impl TypedReferences for Capture<'_> {
             self.fail("source selection traversed a stale expression");
             return false;
         }
-        let key = (self.owner, expression);
+        // A declaration query names a formal; it does not read that formal's
+        // argument value. Preserve the existing Core query classification on
+        // its exact operand, without widening ordinary local visibility.
+        let description = self.description_operand(expression);
+        if self
+            .seen_expressions
+            .contains(&(self.owner, expression, !description))
+        {
+            self.fail("one source expression changes its declaration-description role");
+            return false;
+        }
+        let key = (self.owner, expression, description);
         if !self.seen_expressions.insert(key) {
             return false;
         }
@@ -710,6 +772,7 @@ impl TypedReferences for Capture<'_> {
         };
         self.expressions.push(ExpressionScope {
             expression,
+            description,
             designated,
             runtime,
         });
@@ -1188,6 +1251,139 @@ mod tests {
     }
 
     #[test]
+    fn cast_domain_dependencies_distinguish_absent_selected_and_invalid_coordinates() {
+        use numerics::integer_carrier::FixedInteger;
+        use numerics::literals::{IntegerLanding, IntegerLiteral, LandedIntegerType};
+        use typed_trees::types::TypeReferenceNode;
+
+        let mut builder = SymbolTableBuilder::default();
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let children = builder.insert_children(
+            root,
+            symbols::builtin_type_symbols().into_iter().chain([
+                (SymbolKind::Machine, SymbolNameRef::Static("convert")),
+                (SymbolKind::Domain, SymbolNameRef::Static("SelectedDomain")),
+            ]),
+        );
+        let owner = children.handles().nth(symbols::BUILTIN_TYPE_COUNT).unwrap();
+        let domain = children
+            .handles()
+            .nth(symbols::BUILTIN_TYPE_COUNT + 1)
+            .unwrap();
+        let state = builder
+            .insert_children(owner, [(SymbolKind::State, SymbolNameRef::Static("entry"))])
+            .handle_at(0);
+        let mut symbols = builder.finish();
+        symbols.install_integer_types([FixedInteger::U8, FixedInteger::U64]);
+        let mut typed = TypedTrees {
+            symbols,
+            ..Default::default()
+        };
+        let target_symbol = typed
+            .symbols
+            .builtin_atom_symbol(symbols::BuiltinTypeAtom::U64)
+            .unwrap();
+        let target = typed.type_reference_table.insert(TypeReferenceNode::Named {
+            symbol: target_symbol,
+            name: Identifier::generated("u64"),
+        });
+        assert_eq!(
+            typed
+                .type_reference_table
+                .primitive_type(target, &typed.symbols),
+            Some(symbols::PrimitiveType::U64)
+        );
+        let domain_id = typed.semantic_domains.intern("SelectedDomain");
+        typed.push_domain_definition(typed_trees::domain::DomainDefinition {
+            symbol: domain,
+            name: Identifier::generated("SelectedDomain"),
+            target_type: target,
+            semantic_id: domain_id,
+            ..Default::default()
+        });
+        let value = typed.expression_table.insert(ExpressionNode::Integer(
+            IntegerLiteral::from_value(42).with_landing(IntegerLanding {
+                landed_type: LandedIntegerType::U8,
+                domain: numerics::arithmetic::ArithmeticDomain::Exact,
+            }),
+        ));
+        let cast = typed.expression_table.insert(ExpressionNode::Cast(
+            typed_trees::expression::TableCastExpression {
+                value,
+                target_type: target,
+                result_type: target,
+                target_label: Default::default(),
+                domain: numerics::arithmetic::ArithmeticDomain::Exact,
+                semantic_domain: Default::default(),
+                semantic_domain_arguments: Default::default(),
+                semantic_domain_symbol: SymbolHandle::invalid(),
+                semantic_domain_id: language_semantics::SemanticDomainId::NULL,
+                form: language_core::cast_form::CastForm::Value,
+            },
+        ));
+        let statements = typed
+            .statement_table
+            .insert_statements([StatementNode::Expression(cast)]);
+        let states = typed.machine_states.insert_many([State {
+            symbol: state,
+            statement_nodes: statements,
+            ..Default::default()
+        }]);
+        typed.push_machine(Machine {
+            symbol: owner,
+            states,
+            ..Default::default()
+        });
+        let admitted = DeclarationSelection::from_symbols([owner]);
+        let operators = CompletedOperators::default();
+        let ordinary = capture(&typed, &admitted, &operators, &[]).unwrap();
+        assert!(ordinary.dependencies.iter().all(|dependency| {
+            dependency.target != domain && dependency.target != SymbolHandle::invalid()
+        }));
+
+        let mut domain_name = arena::HandleSpan::empty();
+        typed
+            .expression_table
+            .push_name_path_member(&mut domain_name, Identifier::generated("SelectedDomain"));
+        let ExpressionNode::Cast(node) = typed.expression_table.expression_mut(cast) else {
+            unreachable!()
+        };
+        node.semantic_domain = domain_name;
+        node.semantic_domain_id = domain_id;
+        let refusal = capture(&typed, &admitted, &operators, &[]).unwrap_err();
+        assert!(
+            refusal
+                .to_string()
+                .contains("missing or stale declaration coordinate"),
+            "{refusal}"
+        );
+
+        let ExpressionNode::Cast(node) = typed.expression_table.expression_mut(cast) else {
+            unreachable!()
+        };
+        node.semantic_domain_symbol = domain;
+        let selected = capture(&typed, &admitted, &operators, &[]).unwrap();
+        assert!(selected.dependencies.contains(&RawSelectionDependency {
+            lexical_owner: owner,
+            target: domain,
+            role: RawSelectionRole::Execution,
+            kind: RawDependencyKind::Declaration,
+        }));
+
+        let ExpressionNode::Cast(node) = typed.expression_table.expression_mut(cast) else {
+            unreachable!()
+        };
+        node.semantic_domain_symbol = SymbolHandle::from_parts(u32::MAX, 1);
+        let refusal = capture(&typed, &admitted, &operators, &[]).unwrap_err();
+        assert!(
+            refusal
+                .to_string()
+                .contains("missing or stale declaration coordinate"),
+            "{refusal}"
+        );
+    }
+
+    #[test]
     fn an_admitted_unresolved_occurrence_refuses_with_its_actual_binding_reason() {
         let (typed, a, b, _) = source();
         let refused = capture(
@@ -1543,6 +1739,64 @@ mod tests {
             refused.to_string().contains("current callable contract"),
             "{refused}"
         );
+    }
+
+    #[test]
+    fn casts_omit_only_absent_semantic_domain_coordinates() {
+        use typed_trees::expression::TableCastExpression;
+        for fault in 0..3 {
+            let (mut typed, owner, _, _) = source();
+            let value = typed.expression_table.insert(ExpressionNode::Boolean(true));
+            let expression =
+                typed
+                    .expression_table
+                    .insert(ExpressionNode::Cast(TableCastExpression {
+                        value,
+                        target_type: Default::default(),
+                        result_type: Default::default(),
+                        target_label: Default::default(),
+                        domain: numerics::arithmetic::ArithmeticDomain::Wrapping,
+                        semantic_domain: Default::default(),
+                        semantic_domain_arguments: Default::default(),
+                        semantic_domain_symbol: if fault == 1 {
+                            SymbolHandle::from_arena_index(9999)
+                        } else {
+                            SymbolHandle::invalid()
+                        },
+                        semantic_domain_id: language_semantics::SemanticDomainId(u32::from(
+                            fault == 2,
+                        )),
+                        form: Default::default(),
+                    }));
+            let state = typed
+                .machine_by_symbol(owner)
+                .unwrap()
+                .states
+                .handles()
+                .next()
+                .unwrap();
+            typed.machine_states.get_mut(state).statement_nodes = typed
+                .statement_table
+                .insert_statements([StatementNode::Expression(expression)]);
+            // This tests source-coordinate capture, before cast type checking.
+            // Missing and stale declared-domain coordinates are not omitted.
+            let result = capture(
+                &typed,
+                &DeclarationSelection::from_symbols([owner]),
+                &CompletedOperators::default(),
+                &[],
+            );
+            if fault == 0 {
+                result.unwrap();
+            } else {
+                assert!(
+                    result
+                        .unwrap_err()
+                        .to_string()
+                        .contains("missing or stale declaration coordinate")
+                );
+            }
+        }
     }
 
     #[test]

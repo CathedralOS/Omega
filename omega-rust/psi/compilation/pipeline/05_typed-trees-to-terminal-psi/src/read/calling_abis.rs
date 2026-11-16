@@ -434,6 +434,12 @@ impl Program<'_> {
         {
             return Err("calling ABI parameter lost its retained source type".into());
         }
+        // Outer qualifications stay in the complete ABI key, while storage
+        // classifies the actual outer borrow shell. Inner reference domains
+        // still pass through the ordinary stored-carrier reader below.
+        let reference = self
+            .storage_carrier(entry, reference)
+            .map_err(|error| error.detail)?;
         let (reference, access, referent) = match self
             .typed
             .type_reference_table
@@ -528,6 +534,7 @@ impl PreparedCallingAbis {
         module.calling_abi_signatures = crate::calling_publication::join_abi_declarations(
             self.entry,
             &module.identities,
+            &module.structural_types,
             &module.calling_abi_signatures,
             &rows,
         )?;
@@ -734,7 +741,7 @@ mod descriptor_storage_tests {
     fn borrowed_slice_abi_formals_use_the_checked_descriptor() {
         use language_core::ReferenceAccess;
 
-        let (mut typed, address, _, _, _) = fixture();
+        let (mut typed, address, _, qualified, _) = fixture();
         let byte_symbol = typed
             .symbols
             .builtin_atom_symbol(BuiltinTypeAtom::U8)
@@ -776,6 +783,20 @@ mod descriptor_storage_tests {
                 });
             (reference, expected_access)
         });
+        let TypeReferenceNode::Constrained { constraints, .. } =
+            typed.type_reference_table.type_reference(qualified)
+        else {
+            panic!("the fixture retains its declared qualification");
+        };
+        let constraints = *constraints;
+        let qualified_written = written.map(|(reference, _)| {
+            typed
+                .type_reference_table
+                .insert(TypeReferenceNode::Constrained {
+                    base_type: reference,
+                    constraints,
+                })
+        });
         let stored_mutable = typed
             .type_reference_table
             .insert(TypeReferenceNode::Reference {
@@ -814,7 +835,9 @@ mod descriptor_storage_tests {
         program.begin_declaration_storage(entry, 0).unwrap();
         let owned = program.calling_abi_parameter(entry, bytes).unwrap();
         assert_eq!(owned.access, StructuralAccess::Owned);
-        for ((reference, access), carrier) in written.into_iter().zip(checked) {
+        for (((reference, access), qualified), carrier) in
+            written.into_iter().zip(qualified_written).zip(checked)
+        {
             assert_ne!(carrier, owned.structural_type);
             assert_eq!(
                 program.calling_abi_parameter(entry, reference).unwrap(),
@@ -823,6 +846,12 @@ mod descriptor_storage_tests {
                     callback_backing: Some(carrier),
                     access,
                 },
+            );
+            // Describing the qualified outer reference retains the same
+            // access, borrowed descriptor and complete callback backing.
+            assert_eq!(
+                program.calling_abi_parameter(entry, qualified).unwrap(),
+                program.calling_abi_parameter(entry, reference).unwrap(),
             );
         }
         assert_eq!(

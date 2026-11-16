@@ -3635,7 +3635,9 @@ impl<'a> Storage<'a> {
             // Each compared view is read whole through its own descriptor.
             OperationKind::ByteSequenceEqual { left, right } => [left, right]
                 .into_iter()
-                .map(|operand| self.stored_at(operand.source(), &[], concerns))
+                .map(|operand| {
+                    self.argument(&self.byte_operand_argument(operand, concerns)?, concerns)
+                })
                 .collect(),
             OperationKind::StructuralCaseLeafCopy { .. } => {
                 Err(self.unsupported(concerns, "a case leaf copy"))

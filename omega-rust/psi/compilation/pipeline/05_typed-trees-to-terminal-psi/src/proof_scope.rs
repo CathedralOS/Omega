@@ -225,8 +225,12 @@ pub(crate) fn declare(
                         callee,
                         ..ProofApplicationCall::default()
                     });
-                    unavailable =
-                        Some("compiler evaluation needs admitted boundary execution".into());
+                    // The exact boundary declaration and frame are known.
+                    // Keep selection facts available to Build admission, while
+                    // pure invocation still owes admitted boundary execution.
+                    invocation_refusal.get_or_insert_with(|| {
+                        "compiler evaluation needs admitted boundary execution".into()
+                    });
                 }
                 if matches!(operation.kind, OperationKind::CallDynamic { .. }) {
                     unavailable = Some(
@@ -254,8 +258,9 @@ pub(crate) fn declare(
                         callee,
                         ..ProofApplicationCall::default()
                     });
-                    unavailable =
-                        Some("compiler evaluation needs admitted external completion".into());
+                    invocation_refusal.get_or_insert_with(|| {
+                        "compiler evaluation needs admitted external completion".into()
+                    });
                 }
                 _ => {}
             }

@@ -421,8 +421,25 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                             // Build has prepared. They then run against the
                             // same activation: the returned stage is not
                             // completed, it is continued.
+                            let named_source = if activation.requests().iter().any(|issued| {
+                                matches!(
+                                    issued.request(),
+                                    build_declarations::BuildRequest::Package(_)
+                                        | build_declarations::BuildRequest::Application(_)
+                                )
+                            }) {
+                                Some(
+                                    acquired
+                                        .declared_source_inputs(
+                                            &activation.project_declaration().map_err(Source)?,
+                                        )
+                                        .map_err(Source)?,
+                                )
+                            } else {
+                                None
+                            };
                             invocation
-                                .prepare_next_stage(prepared.clone())
+                                .prepare_next_stage(prepared.clone(), named_source)
                                 .map_err(Compilation)?;
                             self.source_completion_accounting
                                 .append(invocation.source_completion_accounting().clone());
@@ -554,9 +571,24 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                                 dependencies: ready,
                             } => {
                                 let mut build = dependencies.build;
+                                let named_source = if query.operation.requires_named_source() {
+                                    Some(
+                                        build
+                                            .acquired
+                                            .declared_source_inputs(
+                                                &build
+                                                    .activation
+                                                    .project_declaration()
+                                                    .map_err(Source)?,
+                                            )
+                                            .map_err(Source)?,
+                                    )
+                                } else {
+                                    None
+                                };
                                 let description = build
                                     .queries
-                                    .describe(&query, ready.inputs)
+                                    .describe_with_source(&query, ready.inputs, named_source)
                                     .map_err(|diagnostics| Compilation(diagnostics.into()))?;
                                 build
                                     .activation

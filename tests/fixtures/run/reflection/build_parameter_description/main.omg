@@ -1,0 +1,5 @@
+// Expected exit: 0
+// Product imports expose declarations; Build describes them without executing them.
+use api::Table;
+use api::Query;
+machine main() { }

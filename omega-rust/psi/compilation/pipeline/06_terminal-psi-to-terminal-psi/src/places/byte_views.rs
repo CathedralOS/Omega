@@ -586,7 +586,7 @@ impl<'a> Storage<'a> {
     /// lengths and live byte prefixes." byte_views.md, of an evaluated
     /// content predicate: "The operand retains its own dominating length
     /// observation, readable access, and establishment." So each operand is
-    /// a whole view this machine may read, and the length it names is that
+    /// a complete selected view this machine may read, and the length it names is that
     /// same view's measurement: the lowered form measures the left view,
     /// then the right one, then compares, with nothing else between, so no
     /// operation can have changed either extent. The result is a plain
@@ -612,26 +612,36 @@ impl<'a> Storage<'a> {
         // `after` counts the comparison itself: the right view's
         // measurement is two back, the left view's three back.
         for (operand, back) in [(left, 3), (right, 2)] {
-            let ByteSequenceOperand::Whole { source, length } = operand else {
-                return Err(self.unsupported(concerns, "a comparison of a view stored in a field"));
-            };
-            if !source.path.is_empty() || source.access != StructuralAccess::SharedBorrow {
-                return Err(self.unsupported(
-                    concerns,
-                    "a byte comparison of a view that is not read whole and shared",
-                ));
-            }
+            let source = self.byte_operand_argument(operand, concerns)?;
             self.readable_byte_view(operation, source.place, &source.path)?;
             let measured = after
                 .checked_sub(back)
                 .and_then(|position| operations.get(position))
                 .is_some_and(|measurement| {
-                    matches!(&measurement.kind, OperationKind::ByteSequenceLength { source: measured }
-                        if measured.place == source.place && measured.path.is_empty())
+                    let same_descriptor = match (operand, &measurement.kind) {
+                        (
+                            ByteSequenceOperand::Whole { source, .. },
+                            OperationKind::ByteSequenceLength { source: measured },
+                        ) => measured == source,
+                        (
+                            ByteSequenceOperand::Field { source, field, .. },
+                            OperationKind::StructuralByteSequenceFieldLength {
+                                source: measured,
+                                path,
+                                field: measured_field,
+                            },
+                        ) => {
+                            *measured == source.place
+                                && path == &source.path
+                                && measured_field == field
+                        }
+                        _ => false,
+                    };
+                    same_descriptor
                         && measurement
                             .result
                             .scalar_ref()
-                            .is_some_and(|result| result.id == *length)
+                            .is_some_and(|result| result.id == operand.length())
                 });
             if !measured {
                 return Err(self.unsupported(
@@ -692,6 +702,26 @@ impl<'a> Storage<'a> {
             }
         }
         Ok(true)
+    }
+
+    /// Both forms describe one readable operand. Field IDs are resolved by
+    /// the same declared-carrier owner used for field reads and measurements.
+    pub(super) fn byte_operand_argument(
+        &self,
+        operand: &terminal_psi::control_flow::ByteSequenceOperand,
+        concerns: Construct,
+    ) -> Checked<StructuralArgument> {
+        use terminal_psi::control_flow::ByteSequenceOperand;
+        let source = operand.argument();
+        if source.access != StructuralAccess::SharedBorrow {
+            return Err(self.unsupported(concerns, "a byte comparison without shared read access"));
+        }
+        match operand {
+            ByteSequenceOperand::Whole { source, .. } => Ok(source.clone()),
+            ByteSequenceOperand::Field { source, field, .. } => {
+                self.byte_field_argument(source.place, &source.path, *field, concerns)
+            }
+        }
     }
 
     /// A field operation carries a local field ID beside its enclosing path.
