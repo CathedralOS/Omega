@@ -273,7 +273,7 @@ fn retained_interrupt_geometry_does_not_authorize_an_unassociated_helper() {
         .unwrap();
     let module = TerminalModule::for_entry(plan.entry);
     let interrupts = provider_admission::AdmittedInstalledInterruptCohort::empty(plan.psi);
-    let evidence = crate::TargetSelectionEvidence {
+    let evidence = crate::PreparationEvidence {
         optimization_unit: unit.identity,
         work_schedule: unit.work_schedule,
         accepted_obligation_facts: &[],
@@ -285,13 +285,11 @@ fn retained_interrupt_geometry_does_not_authorize_an_unassociated_helper() {
         target_context: None,
         module: &module,
     };
-    crate::legalization::legalize_retained_target_operations(
+    crate::legalization::prepare_execution_plan(
         &target,
         evidence,
         origins,
         &interrupts,
-        None,
-        &[],
         legalized_operations::RetainedIntegerTypes::Unsealed,
     )
     .unwrap();
@@ -319,13 +317,11 @@ fn retained_interrupt_geometry_does_not_authorize_an_unassociated_helper() {
         &target.functions[0].graph.blocks[0].operations[0],
     )
     .unwrap();
-    let error = crate::legalization::legalize_retained_target_operations(
+    let error = crate::legalization::prepare_execution_plan(
         &target,
         evidence,
         origins,
         &interrupts,
-        None,
-        &[],
         legalized_operations::RetainedIntegerTypes::Unsealed,
     )
     .expect_err("operand geometry cannot invent an admitted helper association");
@@ -559,7 +555,7 @@ fn selection_honors_the_stored_call_plan_without_recomputing_it() {
         panic!("call");
     };
     assert_eq!(call.call_plan, stored);
-    assert!(crate::selection_call_abi::stored_plan_placements(policy, &call).is_some());
+    assert!(call.stored_plan_placements(policy).is_some());
     // An argument placed somewhere the stored plan does not put it is refused,
     // even where that placement is what a recomputed plan would choose.
     let mut moved = call.clone();
@@ -569,12 +565,12 @@ fn selection_honors_the_stored_call_plan_without_recomputing_it() {
         panic!("scalar argument");
     };
     *placement = evaluated.parameters[0].clone();
-    assert!(crate::selection_call_abi::stored_plan_placements(policy, &moved).is_none());
+    assert!(moved.stored_plan_placements(policy).is_none());
     let mut missing = call.clone();
     missing.arguments.pop();
-    assert!(crate::selection_call_abi::stored_plan_placements(policy, &missing).is_none());
+    assert!(missing.stored_plan_placements(policy).is_none());
     let foreign = CallingPolicy::native_for_target(NativeTarget::linux_arm64());
-    assert!(crate::selection_call_abi::stored_plan_placements(foreign, &call).is_none());
+    assert!(call.stored_plan_placements(foreign).is_none());
 }
 
 #[test]
@@ -3465,7 +3461,7 @@ fn select(name: &str, plan: &AbstractOperationPlan, target: TargetOperationPlan)
     }
     let module = TerminalModule::for_entry(plan.entry);
     let interrupts = provider_admission::AdmittedInstalledInterruptCohort::empty(plan.psi);
-    let legalized = crate::legalize_target_operations(
+    let prepared = crate::legalization::legalize_target_operations(
         &target,
         plan,
         &unit,
@@ -3476,16 +3472,21 @@ fn select(name: &str, plan: &AbstractOperationPlan, target: TargetOperationPlan)
             module: &module,
         },
         &interrupts,
-        None,
-        &[],
     )
-    .unwrap_or_else(|error| panic!("{name}: legalize {error:?}"));
+    .unwrap_or_else(|error| panic!("{name}: prepare {error:?}"));
     let environment = register_environment::baseline_target_register_environment(target.target)
         .unwrap_or_else(|error| panic!("{name}: registers {error:?}"));
-    let constraints =
-        crate::optimized::constraints::selection_constraints(&legalized, &environment);
-    let selected = crate::select_instructions(&legalized, &constraints, &environment)
-        .unwrap_or_else(|error| panic!("{name}: select {error:?}"));
+    // From here selection sees the prepared plan and nothing behind it.
+    let selected = target_operations_to_selected_instructions::select_instructions_for_plan(
+        &prepared,
+        target_operations_to_selected_instructions::BoundInstallations {
+            interrupts: &interrupts,
+            entry_execution: None,
+            stack_requirements: &[],
+        },
+        &environment,
+    )
+    .unwrap_or_else(|error| panic!("{name}: select {error:?}"));
     let mut text = format!("== {name}\n");
     for function in selected.plan().functions.iter() {
         for slot in &function.local_storage_slots {

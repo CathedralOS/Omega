@@ -1659,7 +1659,7 @@ pub(crate) mod element_establishment {
                 .blocks
                 .iter()
                 .any(|block| block.structural_parameters.contains(parameter))
-                && abstract_operations::control_flow::address_joins::is_descriptor_join_in(
+                && native_vocabulary::address_joins::is_descriptor_join_in(
                     parameter,
                     &signature.structural_types,
                 )

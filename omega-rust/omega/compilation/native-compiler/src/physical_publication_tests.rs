@@ -107,7 +107,7 @@ fn reject_changed_entry_literal(
     *value = IntegerValue::Unsigned(8);
 
     let optimized = target.optimized();
-    let error = target_operations_to_selected_instructions::verify_target_operation_plan_with_closed_module(
+    let error = native_preparation::verify_target_operation_plan_with_closed_module(
         &mismatched,
         optimized.plan(),
         optimized.unit(),
@@ -118,7 +118,7 @@ fn reject_changed_entry_literal(
     .expect_err("a retained target literal must agree with the compiled source");
     assert!(
         matches!(error,
-            target_operations_to_selected_instructions::TargetOperationAuditError::SourceCustodyMismatch {
+            native_preparation::TargetOperationAuditError::SourceCustodyMismatch {
                 machine: Some(rejected_machine), ..
             } if rejected_machine == entry),
         "{error:?}"

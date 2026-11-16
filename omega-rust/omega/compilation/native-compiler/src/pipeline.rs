@@ -32,7 +32,7 @@ use selected_instructions_to_selected_instructions::{
     SelectedInstructionOptimizationError, SelectedOptimizationInput, optimize_selected_instructions,
 };
 use target_operations_to_selected_instructions::{
-    OptimizedSelectionPipelineError, TargetSelectionInput, stage_optimized_instruction_selection,
+    OptimizedSelectionPipelineError, SelectionInput, stage_optimized_instruction_selection,
 };
 
 pub(crate) enum TargetLoweringError {
@@ -117,19 +117,13 @@ pub(crate) fn emit_target(
         observation.enter(NativePipelineStage::InstructionSelection);
         let optimized = target_input.optimized();
         stage_optimized_instruction_selection(
-            TargetSelectionInput {
-                target: target_input.target_operations(),
-                evidence: target_operations_to_selected_instructions::TargetSelectionEvidence {
-                    optimization_unit: optimized.unit().identity,
-                    work_schedule: optimized.unit().work_schedule,
-                    accepted_obligation_facts: &optimized.unit().accepted_obligation_facts,
-                    ownership_frontier_facts: &optimized.unit().ownership_frontier_facts,
+            SelectionInput {
+                plan: target_input.execution_plan(),
+                installations: target_operations_to_selected_instructions::BoundInstallations {
+                    interrupts: target_input.lowering_facts().installed_interrupts(),
+                    entry_execution: target_input.installed_entry_execution(),
+                    stack_requirements: target_input.installed_stack_requirements(),
                 },
-                closed_module: target_input.lowering_facts().closed_module(),
-                origins: target_input.boundary_origins(),
-                installed_interrupts: target_input.lowering_facts().installed_interrupts(),
-                installed_entry_execution: target_input.installed_entry_execution(),
-                installed_stack_requirements: target_input.installed_stack_requirements(),
                 optimization: optimized.identity_bundle().identity(),
                 projection: optimized.projection(),
                 manifest: optimized.pre_physical_manifest().identity,

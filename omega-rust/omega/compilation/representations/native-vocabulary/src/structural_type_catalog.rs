@@ -260,7 +260,7 @@ impl PartialEq<StructuralTypeCatalog> for Vec<StructuralTypeDeclaration> {
     }
 }
 
-pub(super) fn unique_structural_type<'a>(
+pub fn unique_structural_type<'a>(
     types: impl Iterator<Item = &'a StructuralTypeDeclaration>,
     identity: StructuralTypeId,
 ) -> Option<&'a StructuralTypeDeclaration> {

@@ -262,6 +262,21 @@ pub fn forbidden_rules() -> Vec<Rule> {
             allowed: FIREWALL_ALLOWANCES.to_vec(),
         },
     ];
+    // Instruction selection is handed the execution plan stage 02 prepared.
+    // The abstract program, the optimization unit and its fact tables, and the
+    // sealed module's codec are what that plan was prepared from; selection
+    // must not be able to name them. Leaf vocabulary those forms share lives
+    // in representations/native-vocabulary, below all of them.
+    rules.push(Rule {
+        owners: vec![OMEGA_STAGES[3]],
+        forbidden: vec![
+            "omega-rust/omega/compilation/representations/abstract-operations",
+            "omega-rust/psi/compilation/representations/terminal-psi/codec",
+        ],
+        reason: "instruction selection reads the prepared execution plan, not the abstract program, the optimization unit or the sealed module (omega-rust/pipeline.md); carry what selection needs in the plan",
+        except_owners: vec![],
+        allowed: vec![],
+    });
     // Typing and Terminal stages consume representation-owned handoffs; their
     // drivers, not adjacent stages, coordinate deferred work.
     for (owners, stages) in [
@@ -682,6 +697,57 @@ mod tests {
                 violations.is_empty(),
                 permitted,
                 "{owner} -> {dependency}: {violations:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn selection_cannot_reach_the_forms_its_plan_was_prepared_from() {
+        const ABSTRACT: &str = "omega-rust/omega/compilation/representations/abstract-operations";
+        for (dependency, kind, permitted) in [
+            (ABSTRACT, None, false),
+            (
+                "omega-rust/omega/compilation/representations/abstract-operations/optimization-unit",
+                None,
+                false,
+            ),
+            (
+                "omega-rust/omega/compilation/representations/abstract-operations/optimization-unit-semantics",
+                None,
+                false,
+            ),
+            (
+                "omega-rust/psi/compilation/representations/terminal-psi/codec",
+                None,
+                false,
+            ),
+            // Tests may build a plan the way stage 02 does.
+            (ABSTRACT, Some("dev"), true),
+            (
+                "omega-rust/omega/compilation/representations/target-operations/legalized-operations",
+                None,
+                true,
+            ),
+            (
+                "omega-rust/omega/compilation/representations/native-vocabulary",
+                None,
+                true,
+            ),
+        ] {
+            let metadata = Metadata {
+                workspace_root: "/repo".to_owned(),
+                packages: vec![pkg(
+                    "selection",
+                    OMEGA_STAGES[3],
+                    &[("dependency", dependency, kind)],
+                )],
+            };
+            let violations = forbidden_dependency_violations(&metadata, &forbidden_rules())
+                .expect("fixture paths belong to the test workspace");
+            assert_eq!(
+                violations.is_empty(),
+                permitted,
+                "selection -> {dependency} ({kind:?}): {violations:?}"
             );
         }
     }

@@ -658,7 +658,7 @@ pub(crate) mod constraints {
 }
 pub(crate) mod construction {
     #[allow(unused_imports)]
-    pub(crate) use crate::legalization::ValidatedLegalizedOperations;
+    pub(crate) use crate::BoundExecutionPlan;
     #[allow(unused_imports)]
     pub(crate) use crate::selection::model::SelectedInstructionError;
     pub(crate) use crate::selection_scalar_graph as scalar_graph;
@@ -669,7 +669,7 @@ pub(crate) mod construction {
     pub(crate) use crate::selection::constraints::require_key_rows;
 
     pub(crate) fn build_plan(
-        legalized: &ValidatedLegalizedOperations,
+        legalized: &BoundExecutionPlan<'_>,
         constraints: &SelectedSelectionConstraints,
         environment: &register_environment::ValidatedTargetRegisterEnvironment,
     ) -> Result<SelectedInstructionPlan, SelectedInstructionError> {
@@ -1267,14 +1267,14 @@ pub(crate) mod foreign_scalar_backings {
     }
 }
 pub(crate) mod identity {
-    use crate::legalization::ValidatedLegalizedOperations;
+    use crate::BoundExecutionPlan;
     use crate::selection::model::SelectedInstructionValidationReceipt;
     use selected_instructions::SelectedInstructionPlan;
     use selected_instructions::selected_instruction_plan_identity;
 
     pub(crate) fn receipt(
         plan: &SelectedInstructionPlan,
-        legalized: &ValidatedLegalizedOperations,
+        legalized: &BoundExecutionPlan<'_>,
     ) -> SelectedInstructionValidationReceipt {
         let function_count = plan.functions.len();
         let block_count = plan
@@ -1337,7 +1337,7 @@ pub(crate) mod integer_conversion {
             }
             LegalizedScalarInstructionKind::IntegerExactCast { source_type, .. } => {
                 let from = *source_type;
-                if !crate::legalization::exact_cast_has_native_carriers(
+                if !crate::native_geometry::exact_cast_has_native_carriers(
                     from.as_checking(),
                     target.as_checking(),
                 ) {
@@ -1766,7 +1766,6 @@ pub(crate) use crate::selection_inputs::scalar_array_input;
 pub(crate) use crate::selection_inputs::storage_origin_input;
 pub(crate) use crate::selection_inputs::structural_array_input;
 pub(crate) use crate::selection_inputs::structural_local_input;
-pub(crate) use scalar_call_abi::scalar_shape;
 pub(crate) mod value_transport {
     use std::collections::{BTreeMap, BTreeSet};
 
@@ -1881,7 +1880,7 @@ pub use selected_instructions::selected_instruction_plan_identity;
 pub(crate) use selected_instructions::SelectedSelectionConstraints;
 
 #[allow(unused_imports)]
-pub(crate) use crate::legalization::ValidatedLegalizedOperations;
+pub(crate) use crate::BoundExecutionPlan;
 #[allow(unused_imports)]
 pub(crate) use construction::build_plan;
 
@@ -1889,7 +1888,7 @@ pub(crate) use construction::build_plan;
 /// Nothing from the source module, the abstract program or the optimization
 /// unit is passed here; the plan carries what selection needs.
 pub(crate) fn select_instructions(
-    legalized: &ValidatedLegalizedOperations,
+    legalized: &BoundExecutionPlan<'_>,
     constraints: &SelectedSelectionConstraints,
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
 ) -> Result<ValidatedSelectedInstructions, SelectedInstructionError> {

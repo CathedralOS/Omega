@@ -3980,7 +3980,7 @@ pub(crate) mod replay {
             .source()
             .optimized_target();
         let optimized = current.optimized();
-        target_operations_to_selected_instructions::verify_target_operation_plan_with_closed_module(
+        native_preparation::verify_target_operation_plan_with_closed_module(
             current.target_operations(),
             optimized.plan(),
             optimized.unit(),

@@ -25,7 +25,7 @@ pub(crate) use legalized_operations::{
     LegalizedScalarInstructionKind, SaturatingCarrier, TrappingForm, TrappingOperation,
 };
 #[allow(unused_imports)]
-pub(crate) use optimization_unit::ValueDefinitionSite;
+pub(crate) use native_vocabulary::provenance::ValueDefinitionSite;
 #[allow(unused_imports)]
 pub(crate) use register_model::{
     PreparedRegisterConstraintCatalog, RegisterClassId, RegisterConstraintKey,
@@ -1509,7 +1509,7 @@ pub(crate) mod boolean_value {
     struct IntegerComparisonSequence<'state, 'catalog> {
         state: &'state mut Builder<'catalog>,
         value: semantic_vocabulary::ValueId,
-        site: optimization_unit::ValueDefinitionSite,
+        site: native_vocabulary::provenance::ValueDefinitionSite,
         provenance: SelectedInstructionProvenance,
     }
 
@@ -1644,7 +1644,7 @@ pub(crate) mod byte_input {
         };
         if !row.has_valid_hosted_read_byte_shape()
             || row.result.is_some()
-            || !matches!(row.ownership.as_slice(), [optimization_unit::OwnershipEvent::ClaimCompletion(claims)] if claims.is_empty())
+            || !matches!(row.ownership.as_slice(), [native_vocabulary::provenance::OwnershipEvent::ClaimCompletion(claims)] if claims.is_empty())
         {
             return Err(SelectedInstructionError::custody());
         }
@@ -1729,7 +1729,7 @@ pub(crate) mod byte_output {
             .resolve(source)
             .ok_or_else(|| SelectedInstructionError::custody())?;
         if row.result.is_some()
-            || !matches!(row.ownership.as_slice(), [optimization_unit::OwnershipEvent::ClaimCompletion(claims)] if claims.is_empty())
+            || !matches!(row.ownership.as_slice(), [native_vocabulary::provenance::OwnershipEvent::ClaimCompletion(claims)] if claims.is_empty())
             || !matches!(scalar_type, semantic_vocabulary::ClosedScalarType::Integer(integer)
                 if integer.bits() == 32 && integer.sign() == IntegerSign::Signed)
         {
@@ -1796,8 +1796,8 @@ pub(crate) mod call_arguments {
     pub(crate) trait InvocationArgumentSource {
         fn invocation_site(&self) -> semantic_vocabulary::InvocationSite;
         fn invocation_call_plan(&self) -> Option<&calling_conventions::CallPlan>;
-        fn invocation_ownership(&self) -> &[optimization_unit::OwnershipEvent];
-        fn invocation_work(&self) -> &[optimization_unit::WorkSettlement];
+        fn invocation_ownership(&self) -> &[native_vocabulary::provenance::OwnershipEvent];
+        fn invocation_work(&self) -> &[native_vocabulary::provenance::WorkSettlement];
         fn invocation_argument_place(
             &self,
             position: usize,
@@ -1819,10 +1819,10 @@ pub(crate) mod call_arguments {
                 _ => None,
             }
         }
-        fn invocation_ownership(&self) -> &[optimization_unit::OwnershipEvent] {
+        fn invocation_ownership(&self) -> &[native_vocabulary::provenance::OwnershipEvent] {
             &self.ownership
         }
-        fn invocation_work(&self) -> &[optimization_unit::WorkSettlement] {
+        fn invocation_work(&self) -> &[native_vocabulary::provenance::WorkSettlement] {
             &self.work
         }
         fn invocation_argument_place(
@@ -1855,8 +1855,8 @@ pub(crate) mod call_arguments {
     pub(crate) struct TerminalInvocation<'a> {
         pub edge: semantic_vocabulary::EdgeId,
         pub call: &'a LegalizedScalarCall,
-        pub ownership: &'a [optimization_unit::OwnershipEvent],
-        pub work: &'a [optimization_unit::WorkSettlement],
+        pub ownership: &'a [native_vocabulary::provenance::OwnershipEvent],
+        pub work: &'a [native_vocabulary::provenance::WorkSettlement],
     }
 
     impl InvocationArgumentSource for TerminalInvocation<'_> {
@@ -1866,10 +1866,10 @@ pub(crate) mod call_arguments {
         fn invocation_call_plan(&self) -> Option<&calling_conventions::CallPlan> {
             Some(&self.call.call_plan)
         }
-        fn invocation_ownership(&self) -> &[optimization_unit::OwnershipEvent] {
+        fn invocation_ownership(&self) -> &[native_vocabulary::provenance::OwnershipEvent] {
             self.ownership
         }
-        fn invocation_work(&self) -> &[optimization_unit::WorkSettlement] {
+        fn invocation_work(&self) -> &[native_vocabulary::provenance::WorkSettlement] {
             self.work
         }
         fn invocation_argument_place(
@@ -2432,8 +2432,8 @@ pub(crate) mod call_arguments {
         builder: &mut Builder<'_>,
         owner: target_operations::CallSiteOwner,
         call: &LegalizedScalarCall,
-        effect: optimization_unit::EffectLink,
-        ownership: Vec<optimization_unit::OwnershipEvent>,
+        effect: native_vocabulary::provenance::EffectLink,
+        ownership: Vec<native_vocabulary::provenance::OwnershipEvent>,
         kind: SelectedInstructionKind,
         key: RegisterConstraintKey,
         operands: &[VirtualRegisterId],
@@ -2455,7 +2455,7 @@ pub(crate) mod cleanup_call {
     use crate::SelectedInstructionError;
     use calling_conventions::ValueClass;
     use legalized_operations::{LegalizedScalarArgument, LegalizedScalarCall};
-    use optimization_unit::EffectLink;
+    use native_vocabulary::provenance::EffectLink;
     use target_operations::{CallSiteOwner, NativeCallOrigin};
 
     pub(crate) fn emit(
@@ -4798,7 +4798,7 @@ pub(crate) mod no_normal {
                 operands.push(pointer);
             } else {
                 let scalar_type = match declared_result {
-                    abstract_operations::AbstractFunctionResult::Scalar(result) => {
+                    native_vocabulary::values::AbstractFunctionResult::Scalar(result) => {
                         result.scalar_type
                     }
                     _ => integer,
@@ -5041,9 +5041,9 @@ pub(crate) mod normalized_foreign {
         Operation(&'source LegalizedScalarInstruction),
         ExternalCompletion {
             edge: semantic_vocabulary::EdgeId,
-            effect: optimization_unit::EffectLink,
-            ownership: &'source [optimization_unit::OwnershipEvent],
-            work: &'source [optimization_unit::WorkSettlement],
+            effect: native_vocabulary::provenance::EffectLink,
+            ownership: &'source [native_vocabulary::provenance::OwnershipEvent],
+            work: &'source [native_vocabulary::provenance::WorkSettlement],
         },
     }
 

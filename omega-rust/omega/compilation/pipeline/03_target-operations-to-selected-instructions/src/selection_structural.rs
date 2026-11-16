@@ -961,7 +961,9 @@ pub(crate) mod leaf_copy {
             .find(|(place, _)| *place == *source)
             .map(|(_, pointer)| *pointer);
         let geometry = match path {
-            abstract_operations::StructuralCopyPath::Ordinary(path) if !path.is_empty() => {
+            native_vocabulary::structural_stores::StructuralCopyPath::Ordinary(path)
+                if !path.is_empty() =>
+            {
                 function.structural.as_ref().ok_or(invalid())?;
                 let root = crate::selection::reference_input::root_type(function, *source)
                     .ok_or(invalid())?;
@@ -971,7 +973,7 @@ pub(crate) mod leaf_copy {
                         .ok_or(invalid())?,
                 )
             }
-            abstract_operations::StructuralCopyPath::Case(path) => {
+            native_vocabulary::structural_stores::StructuralCopyPath::Case(path) => {
                 function.structural.as_ref().ok_or(invalid())?;
                 let root = crate::selection::reference_input::root_type(function, *source)
                     .ok_or(invalid())?;
@@ -1050,7 +1052,7 @@ pub(crate) mod leaf_copy {
             return Err(invalid());
         };
         let destination_admits = match destination {
-            abstract_operations::StructuralWindowRoot::Parameter(destination) => {
+            native_vocabulary::structural_stores::StructuralWindowRoot::Parameter(destination) => {
                 matches!(
                     destination.access,
                     terminal_psi::StructuralAccess::Owned
@@ -1066,10 +1068,11 @@ pub(crate) mod leaf_copy {
                     .iter()
                     .any(|block| block.structural_parameters.contains(destination)))
             }
-            abstract_operations::StructuralWindowRoot::OwnedResult { .. } => true,
-            abstract_operations::StructuralWindowRoot::OwnedBlockParameter { block, parameter } => {
-                block_home(source, parameter.place) == Some((*block, parameter))
-            }
+            native_vocabulary::structural_stores::StructuralWindowRoot::OwnedResult { .. } => true,
+            native_vocabulary::structural_stores::StructuralWindowRoot::OwnedBlockParameter {
+                block,
+                parameter,
+            } => block_home(source, parameter.place) == Some((*block, parameter)),
         };
         if row.result.is_some() || !destination_admits {
             return Err(invalid());
@@ -2974,7 +2977,7 @@ pub(crate) mod record {
                                 destination,
                                 address,
                                 codec,
-                                abstract_operations::AbstractResult {
+                                native_vocabulary::values::AbstractResult {
                                     value: *value,
                                     scalar_type: scalar.as_checking(),
                                 },
@@ -3882,7 +3885,7 @@ pub(crate) mod encoded_scalar {
         place: PlaceId,
         address: VirtualRegisterId,
         codec: VirtualRegisterId,
-        value: abstract_operations::AbstractResult,
+        value: native_vocabulary::values::AbstractResult,
     ) -> Result<(), SelectedInstructionError> {
         let (_, value_register, _, scalar) = builder.resolve(value.value).ok_or(invalid())?;
         if scalar.as_checking() != value.scalar_type
@@ -4896,10 +4899,10 @@ pub(crate) mod scalar_store {
             _ => return Err(invalid()),
         };
         let declared = match &destination {
-            abstract_operations::StructuralScalarStoreDestination::Parameter(parameter) => {
+            native_vocabulary::structural_stores::StructuralScalarStoreDestination::Parameter(parameter) => {
                 crate::selection::arrival_parameter_input::store_destination(source, parameter)
             }
-            abstract_operations::StructuralScalarStoreDestination::OwnedResult {
+            native_vocabulary::structural_stores::StructuralScalarStoreDestination::OwnedResult {
                 producer,
                 result,
             } => {
@@ -4908,7 +4911,7 @@ pub(crate) mod scalar_store {
                         source, *producer, result,
                     )
             }
-            abstract_operations::StructuralScalarStoreDestination::OwnedBlockParameter {
+            native_vocabulary::structural_stores::StructuralScalarStoreDestination::OwnedBlockParameter {
                 block,
                 parameter,
             } => crate::selection::owned_block_home_input::store_destination(
@@ -4977,7 +4980,7 @@ pub(crate) mod scalar_store {
                 scalar_field_fragments(destination.structural_type(), path, *field, declarations)
         {
             if matches!(&destination,
-                    abstract_operations::StructuralScalarStoreDestination::Parameter(parameter)
+                    native_vocabulary::structural_stores::StructuralScalarStoreDestination::Parameter(parameter)
                         if parameter.access == terminal_psi::StructuralAccess::WriteOnlyBorrow)
                 || reference_destination
                     && crate::selection::reference_input::referent_projection(

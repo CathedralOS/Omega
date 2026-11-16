@@ -6,79 +6,12 @@ receipts and obligation/runtime-index helpers.
 */
 
 pub(crate) mod model {
-    use legalized_operations::{LegalizedOperationPlan, LegalizedOperationPlanIdentity};
     use optimization_core::OptimizationValidatorIdentity;
 
     pub(crate) fn legalization_validator_identity() -> OptimizationValidatorIdentity {
         OptimizationValidatorIdentity::from_canonical_bytes(
             b"omega.terminal-target-legalization-independent-replay.v69",
         )
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub(crate) struct ValidatedLegalizedOperations {
-        pub(crate) plan: LegalizedOperationPlan,
-        pub(crate) receipt: LegalizationValidationReceipt,
-        pub(crate) installed_stack_requirements:
-            Vec<installation_evidence::InstalledInterruptStackRequirement>,
-        pub(crate) installed_interrupts: provider_admission::AdmittedInstalledInterruptCohort,
-        pub(crate) installed_entry_execution:
-            Option<provider_admission::AdmittedInstalledEntryExecution>,
-    }
-
-    impl ValidatedLegalizedOperations {
-        pub(crate) fn installed_entry_execution(
-            &self,
-        ) -> Option<&provider_admission::AdmittedInstalledEntryExecution> {
-            self.installed_entry_execution.as_ref()
-        }
-
-        pub(crate) fn installed_stack_requirements(
-            &self,
-        ) -> &[installation_evidence::InstalledInterruptStackRequirement] {
-            &self.installed_stack_requirements
-        }
-
-        pub(crate) fn installed_interrupts(
-            &self,
-        ) -> &provider_admission::AdmittedInstalledInterruptCohort {
-            &self.installed_interrupts
-        }
-        pub const fn plan(&self) -> &LegalizedOperationPlan {
-            &self.plan
-        }
-
-        pub const fn receipt(&self) -> LegalizationValidationReceipt {
-            self.receipt
-        }
-    }
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub(crate) struct LegalizationValidationReceipt {
-        pub(crate) identity: LegalizedOperationPlanIdentity,
-        pub(crate) validator: OptimizationValidatorIdentity,
-        pub(crate) optimization_unit: optimization_core::OptimizationUnitIdentity,
-        pub(crate) work_schedule: semantic_vocabulary::WorkScheduleIdentity,
-        pub(crate) target: target::NativeTarget,
-        pub(crate) function_count: usize,
-    }
-
-    impl LegalizationValidationReceipt {
-        pub const fn identity(self) -> LegalizedOperationPlanIdentity {
-            self.identity
-        }
-
-        pub const fn validator(self) -> OptimizationValidatorIdentity {
-            self.validator
-        }
-
-        pub const fn optimization_unit(self) -> optimization_core::OptimizationUnitIdentity {
-            self.optimization_unit
-        }
-
-        pub const fn work_schedule(self) -> semantic_vocabulary::WorkScheduleIdentity {
-            self.work_schedule
-        }
     }
 
     #[derive(Debug, Clone, PartialEq, Eq)]
@@ -509,7 +442,6 @@ pub(crate) use crate::legalization_source as source;
 
 pub use model::LegalizationError;
 pub(crate) use model::legalization_validator_identity;
-pub(crate) use model::{LegalizationValidationReceipt, ValidatedLegalizedOperations};
 pub(crate) use obligations::{accepted_fact, facts, references_obligation};
 
 #[allow(unused_imports)]
@@ -524,6 +456,15 @@ pub(crate) use target_operations::TargetOperationPlan;
 #[allow(unused_imports)]
 pub(crate) use source::derive_source_function_rosters;
 
+/// The facts of the optimized program that preparation joins to target rows.
+#[derive(Debug, Clone, Copy)]
+pub struct PreparationEvidence<'input> {
+    pub optimization_unit: optimization_core::OptimizationUnitIdentity,
+    pub work_schedule: semantic_vocabulary::WorkScheduleIdentity,
+    pub accepted_obligation_facts: &'input [optimization_unit::AcceptedObligationFact],
+    pub ownership_frontier_facts: &'input [optimization_unit::OwnershipFrontierFact],
+}
+
 #[cfg(test)]
 pub(crate) fn legalize_target_operations(
     target: &TargetOperationPlan,
@@ -531,12 +472,10 @@ pub(crate) fn legalize_target_operations(
     unit: &optimization_unit::PsiOptimizationUnit,
     origins: target_operations::BoundaryOriginFacts<'_>,
     installed_interrupts: &provider_admission::AdmittedInstalledInterruptCohort,
-    installed_entry_execution: Option<&provider_admission::AdmittedInstalledEntryExecution>,
-    installed_stack_requirements: &[installation_evidence::InstalledInterruptStackRequirement],
-) -> Result<ValidatedLegalizedOperations, LegalizationError> {
-    legalize_retained_target_operations(
+) -> Result<legalized_operations::PreparedExecutionPlan, LegalizationError> {
+    prepare_execution_plan(
         target,
-        crate::TargetSelectionEvidence {
+        PreparationEvidence {
             optimization_unit: unit.identity,
             work_schedule: unit.work_schedule,
             accepted_obligation_facts: &unit.accepted_obligation_facts,
@@ -544,21 +483,23 @@ pub(crate) fn legalize_target_operations(
         },
         origins,
         installed_interrupts,
-        installed_entry_execution,
-        installed_stack_requirements,
         legalized_operations::RetainedIntegerTypes::Unsealed,
     )
 }
 
-pub(crate) fn legalize_retained_target_operations(
+/// Build the execution plan from the target operations stage 02 lowered.
+///
+/// Every target row keeps the identity and obligations of the operation it
+/// came from, so this reads the target program and the optimized program's
+/// facts; it never reads an earlier executable body. A fact or type the plan
+/// needs and cannot find refuses the program here, before selection starts.
+pub fn prepare_execution_plan(
     target: &TargetOperationPlan,
-    evidence: crate::TargetSelectionEvidence<'_>,
+    evidence: PreparationEvidence<'_>,
     origins: target_operations::BoundaryOriginFacts<'_>,
     installed_interrupts: &provider_admission::AdmittedInstalledInterruptCohort,
-    installed_entry_execution: Option<&provider_admission::AdmittedInstalledEntryExecution>,
-    installed_stack_requirements: &[installation_evidence::InstalledInterruptStackRequirement],
     retained_integers: legalized_operations::RetainedIntegerTypes,
-) -> Result<ValidatedLegalizedOperations, LegalizationError> {
+) -> Result<legalized_operations::PreparedExecutionPlan, LegalizationError> {
     crate::installed_interrupts::authorize_target(target, origins.module, installed_interrupts)?;
     validate_boundary_origins(target, origins)?;
     let rosters = source::derive_target_function_rosters(target, evidence, &retained_integers)?;
@@ -572,39 +513,11 @@ pub(crate) fn legalize_retained_target_operations(
         scalar_functions: rosters.scalar_functions,
         retained_integers,
     };
-    Ok(seal(
-        target,
+    Ok(legalized_operations::PreparedExecutionPlan::seal(
         plan,
-        installed_interrupts,
-        installed_entry_execution,
-        installed_stack_requirements,
+        legalization_validator_identity(),
     ))
 }
-
-pub(crate) fn seal(
-    target: &TargetOperationPlan,
-    plan: LegalizedOperationPlan,
-    installed_interrupts: &provider_admission::AdmittedInstalledInterruptCohort,
-    installed_entry_execution: Option<&provider_admission::AdmittedInstalledEntryExecution>,
-    installed_stack_requirements: &[installation_evidence::InstalledInterruptStackRequirement],
-) -> ValidatedLegalizedOperations {
-    let receipt = LegalizationValidationReceipt {
-        identity: legalized_operation_plan_identity(&plan),
-        validator: legalization_validator_identity(),
-        optimization_unit: plan.optimization_unit,
-        work_schedule: plan.work_schedule,
-        target: target.target,
-        function_count: plan.scalar_functions.len(),
-    };
-    ValidatedLegalizedOperations {
-        plan,
-        receipt,
-        installed_interrupts: installed_interrupts.clone(),
-        installed_entry_execution: installed_entry_execution.cloned(),
-        installed_stack_requirements: installed_stack_requirements.to_vec(),
-    }
-}
-pub(crate) use scalar_graph_input::exact_cast_has_native_carriers;
 
 pub fn verify_target_operation_plan(
     target: &TargetOperationPlan,
@@ -717,7 +630,7 @@ pub(crate) fn audit_target_operation_plan(
     let expected = derive_source_function_rosters(target, abstract_plan, unit, closed_types)?;
     let retained = source::derive_target_function_rosters(
         target,
-        crate::TargetSelectionEvidence {
+        PreparationEvidence {
             optimization_unit: unit.identity,
             work_schedule: unit.work_schedule,
             accepted_obligation_facts: &unit.accepted_obligation_facts,

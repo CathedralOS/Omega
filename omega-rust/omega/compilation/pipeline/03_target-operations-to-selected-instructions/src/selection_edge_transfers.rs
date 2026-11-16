@@ -1089,7 +1089,7 @@ pub(crate) mod descriptors {
                 place: parameter,
             };
             let binding = SelectedStructuralBinding {
-                semantic: abstract_operations::AbstractStructuralBinding {
+                semantic: native_vocabulary::values::AbstractStructuralBinding {
                     parameter,
                     argument: terminal_psi::StructuralArgument::whole(
                         place,

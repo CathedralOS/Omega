@@ -3574,7 +3574,7 @@ pub(crate) use custody::validate_source_custody;
 /// Ordinary legalization consumes only target execution and immutable judgments.
 pub(crate) fn derive_target_function_rosters(
     target: &TargetOperationPlan,
-    evidence: crate::TargetSelectionEvidence<'_>,
+    evidence: crate::PreparationEvidence<'_>,
     types: &legalized_operations::RetainedIntegerTypes,
 ) -> Result<SourceFunctionRosters, LegalizationError> {
     let geometries =

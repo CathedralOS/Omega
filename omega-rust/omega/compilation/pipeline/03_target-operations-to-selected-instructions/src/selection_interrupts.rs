@@ -498,10 +498,10 @@ pub(crate) mod interrupt_installation_calls {
         fn invocation_call_plan(&self) -> Option<&calling_conventions::CallPlan> {
             Some(&self.call.call_plan)
         }
-        fn invocation_ownership(&self) -> &[optimization_unit::OwnershipEvent] {
+        fn invocation_ownership(&self) -> &[native_vocabulary::provenance::OwnershipEvent] {
             &[]
         }
-        fn invocation_work(&self) -> &[optimization_unit::WorkSettlement] {
+        fn invocation_work(&self) -> &[native_vocabulary::provenance::WorkSettlement] {
             &[]
         }
         fn invocation_argument_place(
@@ -541,7 +541,7 @@ pub(crate) mod interrupt_installation_calls {
             }
             InstallationCallRole::Work => crate::selection::scalar_call_abi::no_normal_key(
                 call,
-                &abstract_operations::AbstractFunctionResult::Unit,
+                &native_vocabulary::values::AbstractFunctionResult::Unit,
                 environment,
             ),
         }
