@@ -150,7 +150,7 @@ fn unknown_and_unproduced_validators_are_invocation_errors() {
         console.contains("unknown stage validator `NoSuchValidator`"),
         "{console}"
     );
-    let (success, console, _) = compile(
+    let (success, console, report) = compile(
         "named-check",
         CASE_FIXTURE,
         &["--check", "--every-validator", "--validator", NAME],
@@ -161,5 +161,16 @@ fn unknown_and_unproduced_validators_are_invocation_errors() {
             "stage validator `{NAME}` cannot run in this compilation: --check produces no native target operations"
         )),
         "{console}"
+    );
+    // A refused compilation still writes its report before exiting, the
+    // same way a failing stage validator's rows reach it.
+    assert!(
+        report.starts_with("stage validator roster (omega "),
+        "{report}"
+    );
+    assert!(
+        report.contains("target: host default\nfailed: ")
+            && report.contains("--check produces no native target operations"),
+        "{report}"
     );
 }

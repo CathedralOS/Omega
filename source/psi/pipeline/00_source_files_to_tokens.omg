@@ -13,6 +13,10 @@ public data Lexer {
     token_start: u64 in Trapping;
     token_end: u64 in Trapping;
     decoded_start: u64 in Trapping;
+    // The value of the integer literal under way, accumulated as its digits
+    // are consumed, and whether it still fits in 64 bits.
+    literal_magnitude: u64 in Wrapping;
+    literal_exact: bool;
 }
 
 // One decoded Unicode scalar and its encoded width in bytes. A failed decode
@@ -27,6 +31,8 @@ public machine lexer_initialize(lexer: &mut Lexer, source_id: u32 in Trapping) {
     source_unit_clear(&mut lexer.source, SourceId { value: source_id });
     token_stream_clear(&mut lexer.output, SourceId { value: source_id });
     lexer.cursor = 0;
+    lexer.literal_magnitude = 0;
+    lexer.literal_exact = true;
 }
 
 public machine append_source_byte(lexer: &mut Lexer, byte: u8) {
@@ -826,6 +832,99 @@ machine lexer_digit_in_base(byte: u32 in Trapping, base: NumericBase) -> bool {
     machine hex_lower(byte: u32 in Trapping) -> bool { transition byte >= 97 && byte <= 102 { true -> true _ -> false } }
 }
 
+// Fold one digit of `base` into the integer literal under way. A value past
+// 2^64 - 1 clears `literal_exact` rather than wrapping
+// (wiki/spec/language/numeric_values.md#literal-landing-and-destinations).
+// A float's fraction and exponent digits also pass through here; a float
+// token never reads the result.
+machine lexer_accumulate_digit(lexer: &mut Lexer, base: NumericBase, byte: u32 in Trapping) {
+    let value: u64 in Wrapping = lexer_digit_value(byte);
+    let room: u64 in Wrapping = 18446744073709551615 - value;
+    transition base {
+        NumericBase::Binary -> fold(lexer, 2, value, room / 2)
+        NumericBase::Octal -> fold(lexer, 8, value, room / 8)
+        NumericBase::Decimal -> fold(lexer, 10, value, room / 10)
+        NumericBase::Hexadecimal -> fold(lexer, 16, value, room / 16)
+    }
+    // `magnitude * radix + value` fits exactly when `magnitude <= limit`.
+    machine fold(lexer: &mut Lexer, radix: u64 in Wrapping, value: u64 in Wrapping, limit: u64 in Wrapping) {
+        transition lexer.literal_exact && lexer.literal_magnitude <= limit {
+            true -> fits(lexer, radix, value)
+            _ -> overflows(lexer)
+        }
+    }
+    machine fits(lexer: &mut Lexer, radix: u64 in Wrapping, value: u64 in Wrapping) {
+        lexer.literal_magnitude = lexer.literal_magnitude * radix + value;
+    }
+    machine overflows(lexer: &mut Lexer) {
+        lexer.literal_exact = false;
+    }
+}
+
+// A digit byte's value; the caller has checked it is a digit of its base.
+machine lexer_digit_value(byte: u32 in Trapping) -> u64 in Wrapping {
+    let value: u64 in Wrapping = ((byte as -Trapping) as u64) as +Wrapping;
+    transition byte <= 57 {
+        true -> answer(value - 48)
+        _ -> letter(value, byte)
+    }
+    machine letter(value: u64 in Wrapping, byte: u32 in Trapping) -> u64 in Wrapping {
+        transition byte >= 97 {
+            true -> answer(value - 87)
+            _ -> answer(value - 55)
+        }
+    }
+    machine answer(value: u64 in Wrapping) -> u64 in Wrapping { value }
+}
+
+// The carrier an integer literal's suffix, the bytes `start..end`, names.
+machine integer_suffix(source: &SourceUnit, start: u64 in Trapping, end: u64 in Trapping) -> IntegerSuffix
+crashes Trap
+{
+    let sign: u8 = source_unit_byte_or_nul(source, start);
+    let first: u8 = source_unit_byte_or_nul(source, start + 1);
+    let second: u8 = source_unit_byte_or_nul(source, start + 2);
+    let length: u64 in Trapping = end - start;
+    transition length {
+        0 -> answer(IntegerSuffix::None)
+        2 -> byte_width(sign, first)
+        3 -> wide(sign, first, second)
+        _ -> answer(IntegerSuffix::Unknown)
+    }
+    machine byte_width(sign: u8, first: u8) -> IntegerSuffix {
+        transition first == 56 {
+            true -> signed(sign, IntegerSuffix::U8, IntegerSuffix::I8)
+            _ -> answer(IntegerSuffix::Unknown)
+        }
+    }
+    machine wide(sign: u8, first: u8, second: u8) -> IntegerSuffix {
+        transition first == 49 && second == 54 {
+            true -> signed(sign, IntegerSuffix::U16, IntegerSuffix::I16)
+            _ -> thirty_two(sign, first, second)
+        }
+    }
+    machine thirty_two(sign: u8, first: u8, second: u8) -> IntegerSuffix {
+        transition first == 51 && second == 50 {
+            true -> signed(sign, IntegerSuffix::U32, IntegerSuffix::I32)
+            _ -> sixty_four(sign, first, second)
+        }
+    }
+    machine sixty_four(sign: u8, first: u8, second: u8) -> IntegerSuffix {
+        transition first == 54 && second == 52 {
+            true -> signed(sign, IntegerSuffix::U64, IntegerSuffix::I64)
+            _ -> answer(IntegerSuffix::Unknown)
+        }
+    }
+    machine signed(sign: u8, unsigned_suffix: IntegerSuffix, signed_suffix: IntegerSuffix) -> IntegerSuffix {
+        transition sign {
+            117 -> answer(unsigned_suffix)
+            105 -> answer(signed_suffix)
+            _ -> answer(IntegerSuffix::Unknown)
+        }
+    }
+    machine answer(suffix: IntegerSuffix) -> IntegerSuffix { suffix }
+}
+
 // Consume the digits of `base` and their `_` separators at the cursor. The
 // result is whether at least one digit was consumed.
 machine consume_digits(lexer: &mut Lexer, base: NumericBase) -> bool {
@@ -848,11 +947,15 @@ machine consume_digits(lexer: &mut Lexer, base: NumericBase) -> bool {
     machine digit(lexer: &mut Lexer, base: NumericBase, saw_digit: bool, current: u32 in Trapping) -> bool {
         let digit: bool = lexer_digit_in_base(current, base);
         transition digit {
-            true -> consume(lexer, base)
+            true -> consume(lexer, base, current)
             _ -> done(saw_digit)
         }
     }
-    machine consume(lexer: &mut Lexer, base: NumericBase) -> bool { lexer.cursor = lexer.cursor + 1; transition { _ -> scan(lexer, base, true) } }
+    machine consume(lexer: &mut Lexer, base: NumericBase, current: u32 in Trapping) -> bool {
+        lexer_accumulate_digit(lexer, base, current);
+        lexer.cursor = lexer.cursor + 1;
+        transition { _ -> scan(lexer, base, true) }
+    }
     machine done(saw_digit: bool) -> bool { saw_digit }
 }
 
@@ -912,6 +1015,8 @@ machine dot_starts_float(lexer: &mut Lexer) -> bool {
 machine lex_number(lexer: &mut Lexer) {
     lexer.token_start = lexer.cursor;
     lexer.decoded_start = lexer.output.decoded_length as u64 in Trapping;
+    lexer.literal_magnitude = 0;
+    lexer.literal_exact = true;
     let source_byte: u8 = source_unit_byte_or_nul(&lexer.source, lexer.cursor);
     transition source_byte == 46 {
         true -> leading_dot(lexer)
@@ -928,6 +1033,7 @@ machine lex_number(lexer: &mut Lexer) {
         let source_byte: u8 = source_unit_byte_or_nul(&lexer.source, lexer.cursor);
         let first: u32 in Trapping = source_byte as u32 in Trapping;
         lexer.cursor = lexer.cursor + 1;
+        lexer.literal_magnitude = ((source_byte as u64) as +Wrapping) - 48;
         transition first == 48 {
             true -> prefix_bound(lexer)
             _ -> decimal_digits(lexer)
@@ -954,6 +1060,7 @@ machine lex_number(lexer: &mut Lexer) {
     // Consume the base marker, then the digits it selects.
     machine based_digits(lexer: &mut Lexer, base: NumericBase) {
         lexer.cursor = lexer.cursor + 1;
+        lexer.literal_magnitude = 0;
         let saw_digit: bool = consume_digits(lexer, base);
         let empty_digits: bool = !saw_digit;
         transition { _ -> finish_integer(lexer, base, empty_digits) }
@@ -1035,12 +1142,17 @@ machine lex_number(lexer: &mut Lexer) {
         push_token(lexer, float);
     }
     machine finish_integer(lexer: &mut Lexer, base: NumericBase, empty_digits: bool) {
+        let suffix_start: u64 in Trapping = lexer.cursor;
         let has_suffix: bool = consume_suffix(lexer);
         lexer.token_end = lexer.cursor;
+        let suffix: IntegerSuffix = integer_suffix(&lexer.source, suffix_start, lexer.cursor);
         let integer: TokenKind = TokenKind::Integer {
             base: base,
             empty_digits: empty_digits,
-            has_suffix: has_suffix
+            has_suffix: has_suffix,
+            magnitude: lexer.literal_magnitude,
+            exact: lexer.literal_exact,
+            suffix: suffix
         };
         push_token(lexer, integer);
     }

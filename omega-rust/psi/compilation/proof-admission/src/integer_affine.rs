@@ -558,9 +558,6 @@ mod bound_mapping {
                 CheckedIntegerEndpointStep::BitwiseAndMask(mask) => {
                     Some(if current_is_lower { 0 } else { *mask })
                 }
-                CheckedIntegerEndpointStep::BitwiseAndBoundedMask { upper, .. } => {
-                    Some(if current_is_lower { 0 } else { *upper })
-                }
                 CheckedIntegerEndpointStep::BitwiseOrLiteralImage(literal) => {
                     Some(if current_is_lower {
                         mapped
@@ -568,16 +565,6 @@ mod bound_mapping {
                         -1
                     } else {
                         bitwise_or_image_maximum(mapped, *literal)
-                            .ok_or(IntegerAffineBoundConversionError::MappedBoundOverflow)?
-                    })
-                }
-                CheckedIntegerEndpointStep::BitwiseOrBoundedImage { upper, .. } => {
-                    Some(if current_is_lower {
-                        mapped
-                    } else if mapped < 0 {
-                        -1
-                    } else {
-                        bitwise_or_image_maximum(mapped, *upper)
                             .ok_or(IntegerAffineBoundConversionError::MappedBoundOverflow)?
                     })
                 }
@@ -2824,13 +2811,7 @@ mod truth_bounds {
                     maximum = *mask;
                     saw_total_image = true;
                 }
-                CheckedIntegerEndpointStep::BitwiseAndBoundedMask { upper, .. } => {
-                    minimum = 0;
-                    maximum = *upper;
-                    saw_total_image = true;
-                }
-                CheckedIntegerEndpointStep::BitwiseOrLiteralImage(_)
-                | CheckedIntegerEndpointStep::BitwiseOrBoundedImage { .. } => {
+                CheckedIntegerEndpointStep::BitwiseOrLiteralImage(_) => {
                     return Err(IntegerAffineBoundConversionError::TruthRootWithoutTotalImage);
                 }
                 CheckedIntegerEndpointStep::MultipleRemainder { required_bounds } => {
@@ -3045,7 +3026,6 @@ mod witness_checking {
             coefficient: i128,
             offset: i128,
             landed: Option<&LandedInteger>,
-            prior_axioms: &[Proposition],
         ) -> Option<
             Result<
                 (ScalarTerm, i128, i128, bool, CheckedIntegerEndpointStep),
@@ -3161,31 +3141,16 @@ mod witness_checking {
                     } else {
                         left
                     };
-                    if let Some((mask, used_landing)) =
-                        signed_literal(sibling, integer_type, landed)
-                    {
-                        if mask < 0 {
-                            return Some(Err(IntegerAffineWitnessError::NegativeBitwiseAndMask));
-                        }
-                        (
-                            Some(coefficient),
-                            Some(offset),
-                            used_landing,
-                            CheckedIntegerEndpointStep::BitwiseAndMask(mask),
-                        )
-                    } else {
-                        let (mask, upper) =
-                            bounded_bitwise_sibling(sibling, integer_type, prior_axioms)?;
-                        (
-                            Some(coefficient),
-                            Some(offset),
-                            false,
-                            CheckedIntegerEndpointStep::BitwiseAndBoundedMask {
-                                mask: mask.clone(),
-                                upper,
-                            },
-                        )
+                    let (mask, used_landing) = signed_literal(sibling, integer_type, landed)?;
+                    if mask < 0 {
+                        return Some(Err(IntegerAffineWitnessError::NegativeBitwiseAndMask));
                     }
+                    (
+                        Some(coefficient),
+                        Some(offset),
+                        used_landing,
+                        CheckedIntegerEndpointStep::BitwiseAndMask(mask),
+                    )
                 }
                 ScalarTerm::IntegerBitwiseOr {
                     scalar_type,
@@ -3199,31 +3164,17 @@ mod witness_checking {
                     } else {
                         left
                     };
-                    if let Some((sibling, used_landing)) =
-                        signed_literal(sibling_operand, integer_type, landed)
-                    {
-                        if sibling < 0 {
-                            return Some(Err(IntegerAffineWitnessError::NegativeBitwiseOrSibling));
-                        }
-                        (
-                            Some(coefficient),
-                            Some(offset),
-                            used_landing,
-                            CheckedIntegerEndpointStep::BitwiseOrLiteralImage(sibling),
-                        )
-                    } else {
-                        let (operand, upper) =
-                            bounded_bitwise_sibling(sibling_operand, integer_type, prior_axioms)?;
-                        (
-                            Some(coefficient),
-                            Some(offset),
-                            false,
-                            CheckedIntegerEndpointStep::BitwiseOrBoundedImage {
-                                operand: operand.clone(),
-                                upper,
-                            },
-                        )
+                    let (sibling, used_landing) =
+                        signed_literal(sibling_operand, integer_type, landed)?;
+                    if sibling < 0 {
+                        return Some(Err(IntegerAffineWitnessError::NegativeBitwiseOrSibling));
                     }
+                    (
+                        Some(coefficient),
+                        Some(offset),
+                        used_landing,
+                        CheckedIntegerEndpointStep::BitwiseOrLiteralImage(sibling),
+                    )
                 }
                 ScalarTerm::WrappingIntegerAdd {
                     scalar_type,
@@ -3280,52 +3231,6 @@ mod witness_checking {
                 )),
                 _ => Err(IntegerAffineWitnessError::CoefficientOverflow),
             })
-        }
-
-        fn bounded_bitwise_sibling<'a>(
-            operand: &'a ScalarTerm,
-            integer_type: IntegerType,
-            prior_axioms: &'a [Proposition],
-        ) -> Option<(&'a ScalarTerm, i128)> {
-            let mut masks = vec![operand];
-            for proposition in prior_axioms {
-                let Proposition::Equal(left, right) = proposition else {
-                    continue;
-                };
-                if left == operand {
-                    masks.push(right);
-                } else if right == operand {
-                    masks.push(left);
-                }
-            }
-            for mask in masks {
-                let Some(upper) = prior_axioms.iter().find_map(|proposition| {
-                    let Proposition::LessOrEqual(left, right) = proposition else {
-                        return None;
-                    };
-                    if left != mask {
-                        return None;
-                    }
-                    let upper =
-                        fixed_integer_as_i128(right, integer_type).filter(|upper| *upper >= 0)?;
-                    Some(upper)
-                }) else {
-                    continue;
-                };
-                let nonnegative = matches!(
-                    mask.scalar_type(),
-                    ScalarType::Integer(kind) if kind.sign() == IntegerSign::Unsigned
-                ) || prior_axioms.iter().any(|proposition| {
-                    let Proposition::LessOrEqual(left, right) = proposition else {
-                        return false;
-                    };
-                    right == mask && fixed_integer_as_i128(left, integer_type) == Some(0)
-                });
-                if nonnegative {
-                    return Some((mask, upper));
-                }
-            }
-            None
         }
 
         pub(super) fn apply_shift_definition(
@@ -3575,15 +3480,7 @@ mod witness_checking {
             literal: i128,
         },
         BitwiseAndMask(i128),
-        BitwiseAndBoundedMask {
-            mask: ScalarTerm,
-            upper: i128,
-        },
         BitwiseOrLiteralImage(i128),
-        BitwiseOrBoundedImage {
-            operand: ScalarTerm,
-            upper: i128,
-        },
         CorrelatedAdd {
             endpoint: ScalarTerm,
         },
@@ -3885,7 +3782,6 @@ mod witness_checking {
                         coefficient,
                         offset,
                         landed.as_ref(),
-                        &semantic_axioms[..index],
                     )
                 }),
                 both_orientations(left, right, |first, second| {

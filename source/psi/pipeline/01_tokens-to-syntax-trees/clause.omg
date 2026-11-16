@@ -463,6 +463,7 @@ crashes Trap
             name: name,
             type_reference: 0,
             first_row: 0,
+            literal: 0,
             source_span: span
         };
         emit_expression(parser, input, node);

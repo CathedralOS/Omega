@@ -155,14 +155,22 @@ fn check_published_plan(
 
     let optimized = target.optimized();
     let verify = |prepared: &PreparedExecutionPlan| {
+        let callable_roots = target
+            .lowering_facts()
+            .callable_invocation_roots(target.working_program_for_validation())
+            .unwrap();
         native_preparation::verify_execution_plan(
             prepared,
-            target.working_program_for_validation(),
-            optimized.plan(),
-            optimized.unit(),
-            target.boundary_origins(),
-            target.lowering_facts().installed_interrupts(),
-            target.lowering_facts().closed_module(),
+            native_preparation::ExecutionPlanReplayInputs {
+                target: target.working_program_for_validation(),
+                abstract_plan: optimized.plan(),
+                unit: optimized.unit(),
+                origins: target.boundary_origins(),
+                installed_interrupts: target.lowering_facts().installed_interrupts(),
+                closed_module: target.lowering_facts().closed_module(),
+                callable_roots: &callable_roots,
+                pre_physical: optimized.pre_physical_manifest().identity,
+            },
         )
     };
     let published = target.execution_plan();
@@ -179,6 +187,18 @@ fn check_published_plan(
         published.plan().borrowed_storage_layouts
     );
     assert!(
+        std::ptr::eq(
+            selected
+                .plan()
+                .contracts
+                .execution()
+                .unwrap()
+                .callable_invocations(),
+            published.callable_invocations(),
+        ),
+        "selection shares preparation's actual query rows"
+    );
+    assert!(
         selected
             .plan()
             .functions
@@ -188,13 +208,60 @@ fn check_published_plan(
     );
 
     let reseal = |plan| {
-        PreparedExecutionPlan::seal(
-            plan,
-            published.receipt().validator(),
-            std::sync::Arc::new(published.callable_invocations().clone()),
-            published.entry_callable_invocations().to_vec(),
-        )
+        PreparedExecutionPlan::seal(plan, published.receipt().validator())
+            .expect("the proposed plan still carries its prepared execution facts")
     };
+    let mut missing_context = published.plan().clone();
+    missing_context.execution = None;
+    assert_eq!(
+        PreparedExecutionPlan::seal(missing_context, published.receipt().validator()).unwrap_err(),
+        "execution plan has no prepared callable facts"
+    );
+    let original_facts = published.execution_facts();
+    let mut changed_reach = original_facts.callable_invocations().clone();
+    let foreign_machine = MachineId::new(4096).unwrap();
+    assert!(
+        changed_reach
+            .reached_machines
+            .iter()
+            .all(|machine| *machine < foreign_machine)
+    );
+    changed_reach.reached_machines.push(foreign_machine);
+    let mut foreign_roots = original_facts.roots();
+    foreign_roots.pre_physical =
+        optimization_core::PrePhysicalOptimizationManifestIdentity::from_canonical_bytes(
+            b"foreign prephysical root",
+        );
+    for facts in [
+        target_operations::NativeExecutionFacts::seal(
+            original_facts.roots(),
+            Arc::new(changed_reach),
+            original_facts.entry_callable_invocations().to_vec(),
+        )
+        .unwrap(),
+        target_operations::NativeExecutionFacts::seal(
+            foreign_roots,
+            Arc::new(original_facts.callable_invocations().clone()),
+            original_facts.entry_callable_invocations().to_vec(),
+        )
+        .unwrap(),
+    ] {
+        let mut changed = published.plan().clone();
+        changed.execution = Some(facts);
+        let changed = reseal(changed);
+        assert!(changed.is_intact());
+        assert_ne!(changed.receipt().identity(), published.receipt().identity());
+        assert!(
+            matches!(
+                verify(&changed),
+                Err(PublishedPlanMismatch {
+                    machine: None,
+                    part: "prepared callable invocation facts differ from their source",
+                })
+            ),
+            "resealed query output and preparation roots need independent correspondence"
+        );
+    }
     let mut changed_abi = published.plan().clone();
     std::sync::Arc::make_mut(&mut changed_abi.function_abis)
         .first_mut()

@@ -495,8 +495,11 @@ fn validate(
                 abstract_operations::AbstractFunctionResult::Unit
             );
             let frame = source::frame(source, placed.machine)?;
-            let calls =
-                source::stack_calls(source, placed.machine, source::callable_invocations(source))?;
+            let calls = source::stack_calls(
+                source,
+                placed.machine,
+                source::callable_invocations(source)?,
+            )?;
             stack::validate(
                 unit,
                 (
