@@ -254,11 +254,6 @@ machine take(bytes: &[u8]) { }";
         terminal_codec::EvidenceSealValidator::new(&received, &publication.seals.seals)
             .validate_all();
     let checked = judge(Ok(changed));
-    eprintln!("changed receiving evidence: {changed_evidence:?}");
-    match &checked {
-        Ok(RouteVerdict::Accepted(_)) => eprintln!("changed checker verdict: Accepted"),
-        other => eprintln!("changed checker verdict: {other:?}"),
-    }
     assert!(
         matches!(
             changed_evidence,
