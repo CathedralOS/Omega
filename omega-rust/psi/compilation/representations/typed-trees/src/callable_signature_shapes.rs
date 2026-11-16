@@ -243,7 +243,7 @@ impl crate::TypedTrees {
             return Err("selected parameter has an ambiguous or stale supplying application");
         }
         let source = self.static_machine_application(receipt.binding_application);
-        if source.binding_declaration != receipt.template
+        if source.binding_declaration != self.specialization_binding_declaration(receipt)?
             || !self
                 .symbols
                 .symbols()
