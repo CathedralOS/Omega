@@ -810,7 +810,7 @@ impl<'t> Program<'t> {
     /// value facts. A fact about another value or domain still needs checking.
     fn fact_restates_formal_domain(
         &self,
-        formals: &[StateParameter],
+        formals: arena::RootRows<'_, StateParameter>,
         fact: &typed_trees::domain::ProofFact,
     ) -> bool {
         use typed_trees::domain::ProofFact;
@@ -989,7 +989,7 @@ impl<'t> Program<'t> {
             id,
             "state span",
         )?;
-        let [state] = states else {
+        let Some([state]) = states.as_array() else {
             return Err(refuse(
                 id,
                 Construct::Machine,
@@ -1612,7 +1612,7 @@ impl<'t> Program<'t> {
                         .flatten()
                     })
                     .ok_or_else(|| unserved("conformer lost its prepared owning requirement"))?;
-                let [entry] = typed.machine_states(machine) else {
+                let Some([entry]) = typed.machine_states(machine).as_array() else {
                     return Err(unserved("conformer without one owned entry state"));
                 };
                 if !typed.instantiated_machine_state_matches(

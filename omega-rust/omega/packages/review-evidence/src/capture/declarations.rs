@@ -27,7 +27,7 @@ use typed_trees::types::TypeReferenceHandle;
 pub(super) struct ContractScope<'a> {
     pub owner: SymbolHandle,
     pub subject: Option<(SymbolHandle, TypeReferenceHandle)>,
-    pub parameters: &'a [typed_trees::signature::StateParameter],
+    pub parameters: arena::RootRows<'a, typed_trees::signature::StateParameter>,
     pub result: Option<TypeReferenceHandle>,
 }
 
@@ -395,7 +395,7 @@ impl<'a> PackageReviewInput<'a> {
             ContractScope {
                 owner: domain.symbol,
                 subject: Some((domain.subject_symbol, domain.target_type)),
-                parameters: &[],
+                parameters: Default::default(),
                 result: None,
             },
             depth,

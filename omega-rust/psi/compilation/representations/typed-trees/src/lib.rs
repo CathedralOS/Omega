@@ -1403,7 +1403,7 @@ pub struct TypedTreeTables {
     pub data_members: arena::RootedArena<data::DataMember>,
     pub data_payload_fields: arena::RootedArena<data::DataField>,
     pub domain_definitions: SpelledDeclarationTable<domain::DomainDefinition>,
-    pub proof_facts: Arena<domain::ProofFact>,
+    pub proof_facts: arena::RootedArena<domain::ProofFact>,
     proof_fact_source_spans: Vec<Option<source::SourceSpan>>,
     pub propositions: arena::RootedArena<proposition::PropositionDefinition>,
     pub proposition_binders: Arena<proposition::PropositionBinder>,
@@ -1418,12 +1418,12 @@ pub struct TypedTreeTables {
     pub operators: SpelledDeclarationTable<crate::operator::OperatorDefinition>,
     pub machine_owned_data: Arena<machine::OwnedData>,
     pub machine_trait_conformances: Arena<machine::TraitConformance>,
-    pub machine_states: Arena<crate::state::State>,
-    pub state_parameters: Arena<signature::StateParameter>,
+    pub machine_states: arena::RootedArena<crate::state::State>,
+    pub state_parameters: arena::RootedArena<signature::StateParameter>,
     pub traits: arena::RootedArena<trait_definition::TraitDefinition>,
     pub conformances: arena::RootedArena<trait_definition::Conformance>,
     pub trait_requirements: Arena<trait_definition::TraitRequirement>,
-    pub trait_machine_signatures: Arena<signature::StateSignature>,
+    pub trait_machine_signatures: arena::RootedArena<signature::StateSignature>,
     pub(crate) applied_callable_signatures: callable_applications::AppliedCallableTable,
     pub(crate) callable_substitutions: Arena<callable_applications::CallableSubstitution>,
     pub(crate) trait_application_frames: Arena<trait_definition::RetainedTraitApplicationFrame>,
@@ -1432,7 +1432,7 @@ pub struct TypedTreeTables {
     pub(crate) callable_lifetime_substitutions:
         Arena<crate::static_applications::StaticMachineLifetimeBinding>,
     pub signature_invokes: Arena<signature::AuthoredInvocation>,
-    pub signature_contracts: Arena<signature::SignatureContract>,
+    pub signature_contracts: arena::RootedArena<signature::SignatureContract>,
     pub expression_table: expression::ExpressionTable,
     pub statement_table: crate::statement::StatementTable,
     pub type_reference_table: types::TypeReferenceTable,
@@ -1949,6 +1949,137 @@ mod continuation_storage_tests {
         let mut builder = SymbolTableBuilder::new();
         builder.insert_root(SymbolKind::Machine, SymbolNameRef::Borrowed(name));
         builder.finish()
+    }
+
+    #[test]
+    fn selected_continuation_shares_callable_children_and_isolates_writes() {
+        use crate::name::Identifier;
+        use crate::{callable_applications, domain, signature, state};
+
+        let mut original = TypedTrees::default();
+        let parameters = original
+            .state_parameters
+            .insert_many((0..260).map(|_| signature::StateParameter::default()));
+        let facts = original
+            .proof_facts
+            .insert_many([domain::ProofFact::default(), domain::ProofFact::default()]);
+        let contracts = original.signature_contracts.insert_many([
+            signature::SignatureContract {
+                facts,
+                ..Default::default()
+            },
+            signature::SignatureContract::default(),
+        ]);
+        let states = original.machine_states.insert_many([
+            state::State {
+                parameters,
+                contracts,
+                ..Default::default()
+            },
+            state::State::default(),
+        ]);
+        let signatures = original.trait_machine_signatures.insert_many([
+            signature::StateSignature {
+                parameters,
+                contracts,
+                ..Default::default()
+            },
+            signature::StateSignature::default(),
+        ]);
+        let applied = original
+            .applied_callable_signatures
+            .insert(callable_applications::AppliedCallableSignature::default());
+        let other_applied = original
+            .applied_callable_signatures
+            .insert(callable_applications::AppliedCallableSignature::default());
+        let original = Arc::new(original);
+        let predecessor = Arc::clone(&original);
+        let mut successor = original.with_replaced_symbols(symbols("successor"));
+        let fork = Arc::get_mut(&mut successor).unwrap();
+
+        macro_rules! shares {
+            ($table:ident, $handle:expr) => {
+                assert!(std::ptr::eq(
+                    predecessor.$table.get($handle),
+                    fork.$table.get($handle)
+                ));
+            };
+        }
+        shares!(state_parameters, parameters.start());
+        shares!(proof_facts, facts.start());
+        shares!(signature_contracts, contracts.start());
+        shares!(machine_states, states.start());
+        shares!(trait_machine_signatures, signatures.start());
+        shares!(applied_callable_signatures, applied);
+
+        fork.state_parameters.get_mut(parameters.start()).name = Identifier::generated("changed");
+        fork.proof_facts.set(
+            facts.start(),
+            domain::ProofFact::Expression(arena::Handle::from_parts(1, 1)),
+        );
+        fork.signature_contracts
+            .get_mut(contracts.start())
+            .token_count = 7;
+        fork.machine_states.get_mut(states.start()).name = Identifier::generated("changed");
+        fork.trait_machine_signatures
+            .get_mut(signatures.start())
+            .name = Identifier::generated("changed");
+        fork.applied_callable_signatures
+            .replace(
+                applied,
+                callable_applications::AppliedCallableSignature::default(),
+            )
+            .unwrap();
+        assert!(!std::ptr::eq(
+            predecessor.applied_callable_signatures.get(applied),
+            fork.applied_callable_signatures.get(applied)
+        ));
+
+        assert_eq!(
+            predecessor.state_parameters.get(parameters.start()).name,
+            Identifier::default()
+        );
+        assert_eq!(
+            predecessor.proof_facts.get(facts.start()),
+            &domain::ProofFact::default()
+        );
+        assert_eq!(
+            predecessor
+                .signature_contracts
+                .get(contracts.start())
+                .token_count,
+            0
+        );
+        assert_eq!(
+            predecessor.machine_states.get(states.start()).name,
+            Identifier::default()
+        );
+        assert_eq!(
+            predecessor
+                .trait_machine_signatures
+                .get(signatures.start())
+                .name,
+            Identifier::default()
+        );
+        assert_eq!(
+            predecessor.applied_callable_signatures.get(applied),
+            &callable_applications::AppliedCallableSignature::default()
+        );
+        shares!(state_parameters, parameters.handle_at(259));
+        shares!(proof_facts, facts.handle_at(1));
+        shares!(signature_contracts, contracts.handle_at(1));
+        shares!(machine_states, states.handle_at(1));
+        shares!(trait_machine_signatures, signatures.handle_at(1));
+        shares!(applied_callable_signatures, other_applied);
+        assert!(fork.applied_callable_signatures.free(applied));
+        let recycled = fork
+            .applied_callable_signatures
+            .insert(callable_applications::AppliedCallableSignature::default());
+        assert_eq!(recycled.arena_index(), applied.arena_index());
+        assert_ne!(recycled.generation(), applied.generation());
+        assert!(!fork.applied_callable_signatures.is_valid(applied));
+        assert!(predecessor.applied_callable_signatures.is_valid(applied));
+        assert!(!predecessor.applied_callable_signatures.is_valid(recycled));
     }
 
     #[test]
