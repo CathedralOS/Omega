@@ -234,14 +234,15 @@ mod tests {
     }
 
     fn publication(machine: MachineId) -> target_vocabulary::NativePublicationFacts {
-        target_vocabulary::NativePublicationFacts::seal(vec![
-            target_vocabulary::NativeFunctionPublication {
+        target_vocabulary::NativePublicationFacts::seal(
+            vec![target_vocabulary::NativeFunctionPublication {
                 machine,
                 operation_count: 0,
                 sites: Vec::new(),
                 byte_literals: Vec::new(),
-            },
-        ])
+            }],
+            Default::default(),
+        )
         .unwrap()
     }
 

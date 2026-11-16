@@ -642,6 +642,7 @@ mod tests {
                         byte_literals: Vec::new(),
                     })
                     .collect(),
+                Default::default(),
             )
             .unwrap();
             changed.contracts = Arc::new(
