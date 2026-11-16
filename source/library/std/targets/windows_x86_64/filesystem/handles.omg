@@ -25,9 +25,7 @@ machine windows_filesystem_opened(handle: u64) -> OpenResult
 machine windows_filesystem_open_with(path: &[u8] in Path, options: OpenOptions) -> OpenResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
 {
-    // Truncation requires random-write access. Append-only access cannot
-    // satisfy it, and must not be upgraded just to make a flag combination fit.
-    transition options.truncate && (!options.write || options.append) && !options.create_new {
+    transition open_options_truncate_conflict(options) {
         true -> (OpenResult::Error { kind: ErrorKind::InvalidInput })
         false -> block access(path, options)
     }
