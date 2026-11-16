@@ -597,59 +597,6 @@ machine write_number(ticket: &mut Ticket in Stamped) { ticket.number = 41; }
         ),
     ] {
         let mut typed = typed_source(&source);
-        for refusal in &typed.deferred_refusals {
-            if refusal.request
-                == typed_trees::deferred_refusals::DeferredRequest::CallParameterSelection
-            {
-                eprintln!(
-                    "PARAMETER-ROW owner={} row={refusal:?}",
-                    typed.symbols.name(refusal.declaration)
-                );
-            }
-        }
-        for machine in typed
-            .machines()
-            .iter()
-            .filter(|machine| machine.name.as_str().contains("allow_readers"))
-        {
-            eprintln!(
-                "PARAMETER-MACHINE name={} symbol={:?} states={:?}",
-                machine.name.as_str(),
-                machine.symbol,
-                typed
-                    .machine_states(machine)
-                    .iter()
-                    .map(|state| (state.symbol, typed.state_parameters(state).len()))
-                    .collect::<Vec<_>>()
-            );
-            for state in typed.machine_states(machine) {
-                for statement in typed.statement_table.statements(state.statement_nodes) {
-                    if let typed_trees::statement::StatementNode::Call(call) = statement {
-                        eprintln!(
-                            "PARAMETER-CALL written={} target={:?} target_name={} kind={:?} machine={:?} args={:?}",
-                            call.target.as_str(),
-                            call.target_symbol,
-                            typed.symbols.name(call.target_symbol),
-                            call.target_symbol
-                                .is_valid()
-                                .then(|| typed.symbols.get(call.target_symbol).kind),
-                            typed
-                                .machine_by_symbol(call.target_symbol)
-                                .map(|callee| (callee.symbol, typed.machine_states(callee).len())),
-                            typed
-                                .statement_table
-                                .expression_handles(call.arguments)
-                                .iter()
-                                .map(|arg| (
-                                    typed.expression_table.source_span(*arg),
-                                    format!("{:?}", typed.expression_table.expression(*arg))
-                                ))
-                                .collect::<Vec<_>>()
-                        );
-                    }
-                }
-            }
-        }
         let main = typed.realized_machine_named("main").unwrap().symbol;
         let entries = [main];
         let request = terminal_production::TerminalSourceCompilation {
