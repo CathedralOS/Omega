@@ -916,8 +916,25 @@ impl TypedReferences for Capture<'_> {
                             let expression = self.expressions.last().map(|scope| {
                                 self.typed.expression_table.display_name(scope.expression)
                             });
+                            // A copied expression may have been checked in another
+                            // function. Name that distinction without borrowing its
+                            // answer for the declaration that still needs checking.
+                            let checked = if binding
+                                == AuthoredDeclarationSelectionLateBinding::CheckedOperator
+                            {
+                                match self.completed_operators.reads.iter().find(|read| read.occurrence == occurrence) {
+                                    Some(read) if read.owner != self.owner => format!(
+                                        "; the operation was checked only in `{}`",
+                                        self.typed.symbols.display_path(read.owner, "::"),
+                                    ),
+                                    Some(_) => "; only another copy of the operation was checked in this declaration".to_owned(),
+                                    None => "; no checked read of this operation was retained".to_owned(),
+                                }
+                            } else {
+                                String::new()
+                            };
                             self.fail(format!(
-                                "admitted source selection {:?} remains unresolved as {binding:?} in `{}` at {}",
+                                "admitted source selection {:?} remains unresolved as {binding:?} in `{}` at {}{checked}",
                                 row.kind(),
                                 self.typed.symbols.display_path(self.owner, "::"),
                                 expression.as_deref().unwrap_or("a declaration"),
@@ -1684,11 +1701,13 @@ mod tests {
         );
         answers.record_builtin(&typed, b, expression).unwrap();
         answers.finish();
+        let refusal = capture(&typed, &admitted, &answers, &[])
+            .unwrap_err()
+            .to_string();
+        assert!(refusal.contains("CheckedOperator"));
         assert!(
-            capture(&typed, &admitted, &answers, &[])
-                .unwrap_err()
-                .to_string()
-                .contains("CheckedOperator")
+            refusal.contains("the operation was checked only in `B`"),
+            "{refusal}"
         );
         answers.record_builtin(&typed, a, expression).unwrap();
         answers.finish();
