@@ -190,8 +190,7 @@ fn check_published_plan(
         )
     };
     let mut changed_abi = published.plan().clone();
-    changed_abi
-        .function_abis
+    std::sync::Arc::make_mut(&mut changed_abi.function_abis)
         .first_mut()
         .expect("the prepared program has function ABI rows")
         .machine = MachineId::new(4096).unwrap();

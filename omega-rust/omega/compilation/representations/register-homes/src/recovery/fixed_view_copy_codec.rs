@@ -1,6 +1,6 @@
 /*
 We encode and decode the self-authenticating `FixedViewCopyPlan` artifact
-(`OMGFCV\0\0`, version 109), binding the source selected-instruction, live-range,
+(`OMGFCV\0\0`, version 110), binding the source selected-instruction, live-range,
 and legality roots, the required segment-home evidence, the inserted
 fixed-view copies, and the authenticated transformed `SelectedInstructionPlan`
 payload. Native-binding receipts and hosted imports remain distinct from finite
@@ -57,7 +57,7 @@ const MAGIC: &[u8; 8] = b"OMGFCV\0\0";
 // Recovery binds complete callable/numeric/installation contracts, saved domain
 // access policies and transparent scalar predicates with their exact identities.
 // Reject predecessor recovery schemas before reading their payload.
-pub(super) const VERSION: u32 = 109;
+pub(super) const VERSION: u32 = 110;
 pub(super) const ENVELOPE: Envelope = Envelope::new(MAGIC, VERSION);
 const ENVELOPE_DOMAIN: &[u8] = b"omega-fixed-view-copy-envelope-v62\0";
 
@@ -595,6 +595,7 @@ pub(super) fn encode_ordinary_plan(
     let borrowed_storage = plan.contracts.borrowed_storage_layouts.canonical_bytes();
     length(bytes, borrowed_storage.len());
     bytes.extend_from_slice(borrowed_storage);
+    super::program_contracts::encode(bytes, &plan.contracts);
     length(bytes, plan.functions.len());
     for function in &plan.functions {
         encode_function(bytes, function)?;
@@ -618,11 +619,10 @@ pub(super) fn decode_ordinary_plan(
     let borrowed_storage_layouts =
         runtime_abi::NativeBorrowedStorageLayouts::decode(cursor.take(borrowed_storage_length)?)
             .map_err(FixedViewCopyDecodeError::InvalidBorrowedStorage)?;
+    let contracts = super::program_contracts::decode(cursor, borrowed_storage_layouts)?;
     let functions = decode_list(cursor, decode_function)?;
     Ok(SelectedInstructionPlan {
-        contracts: std::sync::Arc::new(selected_instructions::SelectedProgramContracts {
-            borrowed_storage_layouts,
-        }),
+        contracts: std::sync::Arc::new(contracts),
         psi: TerminalPsiIdentity {
             vocabulary_marker: marker,
             program_fingerprint: fingerprint,

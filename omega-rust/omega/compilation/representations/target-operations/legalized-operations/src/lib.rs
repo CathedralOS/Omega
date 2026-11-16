@@ -65,7 +65,7 @@ pub struct LegalizedOperationPlan {
     /// authority says with what.
     pub installation_operations: Vec<semantic_vocabulary::OperationId>,
     /// Each function's target calling contract, sorted by machine and unique.
-    pub function_abis: Vec<LegalizedFunctionAbi>,
+    pub function_abis: std::sync::Arc<[LegalizedFunctionAbi]>,
     /// Native storage geometry of borrowed boundary inputs and owned roots
     /// reached by foreign calls. The host bridge reads it to borrow guest
     /// values; the plan carries it so nothing reads stage 02's working form.

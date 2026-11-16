@@ -760,6 +760,7 @@ dependencies = [
  "target",
  "target-operations",
  "target-operations-to-selected-instructions",
+ "target-vocabulary",
  "task-plans",
  "terminal-codec",
  "terminal-installation",
@@ -1232,11 +1233,13 @@ dependencies = [
  "installation-evidence",
  "language-core",
  "legalized-operations",
+ "native-vocabulary",
  "optimization-core",
  "optimization-unit",
  "optimization-unit-semantics",
  "provider-admission",
  "register-environment",
+ "runtime-abi",
  "selected-instructions",
  "semantic-vocabulary",
  "target",
@@ -1552,6 +1555,7 @@ dependencies = [
 name = "post-allocation-machine"
 version = "0.1.0"
 dependencies = [
+ "calling-conventions",
  "isa-x86_64",
  "optimization-core",
  "register-environment",

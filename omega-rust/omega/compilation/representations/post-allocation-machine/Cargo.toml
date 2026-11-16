@@ -21,6 +21,7 @@ semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" 
 sha2 = "0.10.9"
 
 [dev-dependencies]
+calling-conventions = { path = "../../backend/calling-conventions" }
 runtime-abi = { path = "../../backend/runtime/runtime-abi" }
 isa-x86_64 = { path = "../../backend/isa/isa-x86_64" }
 target-operations = { path = "../target-operations" }
