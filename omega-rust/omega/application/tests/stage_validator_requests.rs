@@ -104,7 +104,19 @@ fn every_validator_reports_what_ran_and_what_was_inapplicable() {
         report
             .lines()
             .any(|line| line.starts_with("stage validator roster (omega ")
-                && line.ends_with(&format!("): {NAME}, FixedFrameCorrespondence"))),
+                && line.ends_with(&format!(
+                    "): {NAME}, FixedFrameCorrespondence, SelectedInstructionRewriteReplay"
+                ))),
+        "{report}"
+    );
+    // This program selects no selected-instruction rewrite rule, so the
+    // replay validator has no run to check and says so instead of passing.
+    assert!(
+        report.lines().any(|line| line.starts_with(
+            "stage validator SelectedInstructionRewriteReplay (target "
+        ) && line.ends_with(
+            "stage selected-instruction rewrites): inapplicable: no selected-instruction rewrite rule ran"
+        )),
         "{report}"
     );
     let (success, console, report) = compile(
