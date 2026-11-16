@@ -526,6 +526,10 @@ impl<'t> Program<'t> {
                             lexical_owner: *owner,
                             binders: &[],
                             lifetime_binders: &[],
+                            exact_toolchain_sources: self
+                                .shared
+                                .exact_toolchain_sources(self.typed)
+                                .map_err(|reason| services::unavailable(diagnostic, reason))?,
                         },
                     )
                     .ok_or_else(|| {

@@ -1566,6 +1566,10 @@ impl<'t> Program<'t> {
                     lexical_owner: operand_owner,
                     binders: &[],
                     lifetime_binders: &[],
+                    exact_toolchain_sources: self
+                        .shared
+                        .exact_toolchain_sources(self.typed)
+                        .map_err(|reason| super::services::unavailable(id, reason))?,
                 },
             )
             .and_then(|identity| self.typed.type_identity_text(identity))

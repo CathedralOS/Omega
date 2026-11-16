@@ -87,12 +87,14 @@ type SharedReading = std::sync::Arc<SharedProgram>;
 fn shared_reading(typed: &TypedTrees) -> SharedReading {
     std::sync::Arc::new(SharedProgram {
         captures: typed_trees::NamedConformanceCaptureIndex::new(typed),
+        exact_toolchain_sources: Default::default(),
         calling_catalogs: Default::default(),
     })
 }
 
 pub(crate) struct SharedProgram {
     pub captures: typed_trees::NamedConformanceCaptureIndex,
+    exact_toolchain_sources: std::sync::OnceLock<Result<Vec<(source::SourceId, [u8; 32])>, String>>,
     /// The service catalog that supplies boundary calling ABIs, one slot per
     /// dependency purpose (`Product`, `Build`). The catalog depends only on
     /// the typed program and that purpose, so the first reading that asks for
@@ -105,6 +107,18 @@ type CallingCatalog =
     Result<std::sync::Arc<typed_trees::service_declarations::PreparedServiceCatalog>, String>;
 
 impl SharedProgram {
+    pub(crate) fn exact_toolchain_sources(
+        &self,
+        typed: &TypedTrees,
+    ) -> Result<&[(source::SourceId, [u8; 32])], &str> {
+        self.exact_toolchain_sources
+            .get_or_init(|| {
+                source::source_identity::toolchain_source_identities(typed.symbols.source_files())
+            })
+            .as_deref()
+            .map_err(String::as_str)
+    }
+
     pub(crate) fn calling_catalog(
         &self,
         typed: &TypedTrees,
@@ -122,11 +136,10 @@ impl SharedProgram {
             // authority. The coordinator authenticates the nominated handles
             // against its admitted source registry before constructing the
             // compilation.
-            let sources =
-                source::source_identity::toolchain_source_identities(typed.symbols.source_files())?;
+            let sources = self.exact_toolchain_sources(typed).map_err(str::to_owned)?;
             Ok(std::sync::Arc::new(
                 typed_trees::service_declarations::PreparedServiceCatalog::prepare(
-                    context, &sources,
+                    context, sources,
                 ),
             ))
         })
