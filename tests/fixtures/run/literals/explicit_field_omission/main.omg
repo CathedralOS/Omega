@@ -1,0 +1,48 @@
+// Explicit omission zeroes only omitted fields; every complete value stays valid.
+// Expected exit: 0
+data Leaf [copy] { value: u32; enabled: bool; }
+data Choice [copy] {
+    case First(value: u32, tail: u32);
+    case Second(value: u32, tail: u32);
+}
+data Packet [copy] requires key != 0u32 {
+    before: u64;
+    key: u32;
+    nested: Leaf;
+    chosen: Choice;
+    after: u64;
+}
+machine first_is_zero(choice: Choice) -> bool {
+    match choice {
+        Choice::First { value, tail } -> value == 0u32 && tail == 0u32
+        Choice::Second { value, tail } -> false
+    }
+}
+machine selected_is_right(choice: Choice) -> bool {
+    match choice {
+        Choice::First { value, tail } -> false
+        Choice::Second { value, tail } -> value == 23u32 && tail == 0u32
+    }
+}
+machine main() crashes Trap {
+    let packet: Packet = Packet {
+        before: 37u64, key: 17u32,
+        nested: Leaf { enabled: true, .. },
+        chosen: Choice::Second { value: 23u32, .. },
+        after: 91u64, ..
+    };
+    let defaults: Packet = Packet { before: 43u64, key: 19u32, after: 97u64, .. };
+    let zero: Leaf = Leaf { .. };
+    transition packet.before == 37u64 && packet.key == 17u32 && packet.after == 91u64
+        && packet.nested.value == 0u32 && packet.nested.enabled
+        && selected_is_right(packet.chosen)
+        && defaults.before == 43u64 && defaults.key == 19u32 && defaults.after == 97u64
+        && defaults.nested.value == 0u32 && defaults.nested.enabled == false
+        && first_is_zero(defaults.chosen)
+        && zero.value == 0u32 && zero.enabled == false {
+        true -> done()
+        false -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}
