@@ -343,7 +343,7 @@ pub mod ownership {
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct UnitAffineCleanupRecord {
         pub psi_edge: EdgeId,
-        pub structural_types: abstract_operations::StructuralTypeCatalog, // Verifier-owned type closure retained to reconstruct the exact residual partition.
+        pub structural_types: native_vocabulary::structural_type_catalog::StructuralTypeCatalog, // Verifier-owned type closure retained to reconstruct the exact residual partition.
         pub locals: Vec<(
             OperationId,
             StructuralPlaceDeclaration,
@@ -360,7 +360,7 @@ pub mod ownership {
         pub successor_operation_ordinal: usize,
         pub source_block: BlockId,
         pub target_block: BlockId,
-        pub bindings: Vec<abstract_operations::ValueBinding>,
+        pub bindings: Vec<native_vocabulary::values::ValueBinding>,
         pub cleanup: UnitAffineCleanupRecord, // Zero-byte cleanup boundary before the successor's first operation.
     }
 
@@ -383,7 +383,7 @@ pub mod ownership {
 pub mod provenance {
     use super::*;
 
-    pub type SemanticCodeSite = optimization_unit::PsiProvenance;
+    pub type SemanticCodeSite = native_vocabulary::provenance::PsiProvenance;
 
     pub fn semantic_code_site(site: InvocationSite) -> SemanticCodeSite {
         match site {

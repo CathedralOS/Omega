@@ -9,15 +9,14 @@ name = "machine_code"
 path = "src/lib.rs"
 
 [dependencies]
+native-vocabulary = { path = "../native-vocabulary" }
 register-homes = { path = "../register-homes" }
 post-allocation-machine = { path = "../post-allocation-machine" }
 calling-conventions = { path = "../../backend/calling-conventions" }
 function-identity = { path = "../../../foundation/function-identity" }
 optimization-core = { path = "../../../foundation/optimization-core" }
-optimization-unit = { path = "../abstract-operations/optimization-unit" }
 target = { path = "../../backend/target" }
 register-model = { path = "../../backend/register-model" }
-abstract-operations = { path = "../abstract-operations" }
 selected-instructions = { path = "../selected-instructions" }
 target-operations = { path = "../target-operations" }
 task-plans = { path = "../../backend/runtime/task-plans" }
