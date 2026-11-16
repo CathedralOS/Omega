@@ -1531,7 +1531,14 @@ impl<'t> Program<'t> {
         machine: &'t Machine,
     ) -> Checked<Option<(SymbolHandle, &'t StateSignature)>> {
         let typed = self.typed;
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Machine(what));
+        // Name the conformer: the refusal is raised before its signature is read.
+        let unserved = |what| {
+            self.read_failure_at(
+                refuse(id, Construct::Machine, Unserved::Machine(what)),
+                machine.symbol,
+                "the requirement it satisfies",
+            )
+        };
         let context = match self.declared_requirement_origin(id, machine)? {
             Some(context) => context,
             None => {
@@ -1589,11 +1596,10 @@ impl<'t> Program<'t> {
             .trait_definition_by_symbol(owner)
             .ok_or_else(|| unserved("conformer lost its originating trait declaration"))?;
         self.requirement_termination(id, requirement)?;
-        if !definition.lifetime_parameters.is_empty()
-            || !definition.conformance_bounds.is_empty()
-            || !definition.requires.is_empty()
-            || definition.refines.is_some()
-            || !definition.refinement_clauses.is_empty()
+        // A parent edge leaves the requirement's own contract as declared;
+        // its application is judged with the trait (`served_trait_header`).
+        if !definition.conformance_bounds.is_empty()
+            || super::subjects::served_trait_header(typed, definition).is_err()
         {
             return Err(unserved(
                 "declared requirement needs its complete trait application",
@@ -1629,7 +1635,14 @@ impl<'t> Program<'t> {
         if machine.satisfies.is_empty() {
             return Ok(None);
         }
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Machine(what));
+        // Name the conformer: the refusal is raised before its signature is read.
+        let unserved = |what| {
+            self.read_failure_at(
+                refuse(id, Construct::Machine, Unserved::Machine(what)),
+                machine.symbol,
+                "the requirement it satisfies",
+            )
+        };
         let [edge] = self.typed.machine_trait_conformances(machine) else {
             return Err(unserved(
                 "conformer without exactly one declared requirement",
@@ -2906,7 +2919,7 @@ impl<'t> Program<'t> {
     // own, so the diagnostic leads to the file, line and column even inside
     // a dependency. The innermost declaration read places the refusal; an
     // outer one only adds its name.
-    fn read_failure_at(
+    pub(super) fn read_failure_at(
         &self,
         mut refusal: terminal_check_tables::Refusal,
         declaration: SymbolHandle,
