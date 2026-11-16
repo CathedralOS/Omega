@@ -766,3 +766,96 @@ fn a_tail_call_keeps_its_borrowed_formal_contract() {
         );
     }
 }
+
+#[test]
+fn an_abstract_termination_promise_checks_call_and_tail_premises() {
+    use terminal_check_tables::contracts::{Ceiling, RequirementCeilings};
+    use terminal_psi::{TerminalCallableTermination, TerminalCallableTerminationPremise};
+
+    // Keep real lowered calls and their argument relations. Only the checking
+    // bounds below change: this tests the consumer independently of the source
+    // reader's current refusal to read conditional progress promises.
+    let original = invocation(
+        r#"
+        data Ticket { number: u32; }
+        domain Ticket::Ready established by stamp;
+        machine stamp(ticket: Ticket) -> Ticket in Ready { ticket as +Ready }
+        machine main(ticket: &Ticket, pending: bool) -> u32 {
+            let answer: u32 = relay(ticket, pending);
+            answer + 0
+        }
+        machine relay(ticket: &Ticket, pending: bool) -> u32 {
+            transition pending {
+                true -> main(ticket, false)
+                false -> done()
+            }
+            machine done() -> u32 { 7 }
+        }
+    "#,
+    )
+    .unwrap();
+    let symbol = |name: &str| {
+        original
+            .names
+            .iter()
+            .find(|(_, names)| names.machine == name)
+            .map(|(id, _)| id)
+            .unwrap()
+    };
+    let main = symbol("main");
+    let relay = symbol("relay");
+    let done = symbol("done");
+    let domain = original.module.structural_domains[0].id;
+    let mut form = original;
+    form.module
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == done)
+        .unwrap()
+        .blocks
+        .clear();
+    form.requirements = vec![done];
+    form.module
+        .callables
+        .machine_envelopes
+        .iter_mut()
+        .for_each(|row| *row = None);
+    form.requirement_ceilings = form.tables.machines.map(|_, _| RequirementCeilings {
+        reaches: Ceiling::Authored(Vec::new()),
+        invokes: Some(Vec::new()),
+        suspension: Some(false),
+        blocking: Some(false),
+        termination: TerminalCallableTermination::Terminates {
+            premises: Vec::new(),
+        },
+    });
+    assert!(crate::ceilings::judge(&form).unwrap().is_empty());
+    for (callee, caller, tail) in [(relay, main, false), (main, relay, true)] {
+        let mut conditional = form.clone();
+        conditional
+            .requirement_ceilings
+            .get_mut(callee)
+            .unwrap()
+            .termination = TerminalCallableTermination::Terminates {
+            premises: vec![TerminalCallableTerminationPremise {
+                parameter: 0,
+                path: Vec::new(),
+                domain,
+            }],
+        };
+        let refused = crate::ceilings::judge(&conditional).unwrap_err();
+        assert_eq!(refused.machine, caller, "{refused:?}");
+        assert_eq!(refused.reason, RefusalReason::Unsupported, "{refused:?}");
+        assert!(
+            refused
+                .detail
+                .contains("callee termination premises need their exact invocation proof"),
+            "{refused:?}"
+        );
+        assert_eq!(
+            matches!(refused.concerns, Construct::Edge(_)),
+            tail,
+            "{refused:?}"
+        );
+    }
+}

@@ -1042,7 +1042,10 @@ pub(crate) fn judge(
                 context.holder(contract, &origins, &mut reached)?;
             }
             if reached.conditional_progress
-                && matches!(ceiling, Envelope::Runtime(envelope) if matches!(envelope.termination, terminal_psi::TerminalCallableTermination::Terminates { .. }))
+                && matches!(
+                    ceiling.termination(),
+                    terminal_psi::TerminalCallableTermination::Terminates { .. }
+                )
             {
                 return Err(context
                     .unsupported("callee termination premises need their exact invocation proof"));
@@ -1172,8 +1175,10 @@ fn tail_contribution(
         .operational(envelope, ceiling)
         .map_err(|reason| context.unsupported(reason))?;
     if reached.conditional_progress
-        && matches!(ceiling, Envelope::Runtime(envelope) if matches!(envelope.termination,
-            terminal_psi::TerminalCallableTermination::Terminates { .. }))
+        && matches!(
+            ceiling.termination(),
+            terminal_psi::TerminalCallableTermination::Terminates { .. }
+        )
     {
         return Err(
             context.unsupported("callee termination premises need their exact invocation proof")
