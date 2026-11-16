@@ -51,6 +51,7 @@ struct Source {
     placeholder: SymbolHandle,
     main: SymbolHandle,
     partial: SymbolHandle,
+    nested: Option<(SymbolHandle, SymbolHandle)>,
 }
 
 /// `target<static>()` or `target()`, as an expression held by `holder`.
@@ -126,6 +127,12 @@ fn source() -> Source {
 }
 
 fn source_with_typed_record(typed_record: bool) -> Source {
+    source_with_record_children(typed_record, false)
+}
+
+/// The same authored Const record with two nested declarations, each retaining
+/// the enclosing binder. Held selects a different operation instead of an alias.
+fn source_with_record_children(typed_record: bool, with_children: bool) -> Source {
     let mut sources = source::SourceMap::default();
     let file = sources.add_with_metadata(
         std::path::PathBuf::from("implementation-values.omg"),
@@ -178,6 +185,18 @@ fn source_with_typed_record(typed_record: bool) -> Source {
     );
     let (selected, advance_state) = (advance_children.handle_at(0), advance_children.handle_at(1));
     let placeholder = child(&mut builder, selected, SymbolKind::State, "apply");
+    let nested = with_children.then(|| {
+        let machine = child(&mut builder, advance_state, SymbolKind::Machine, "child");
+        let state = child(&mut builder, machine, SymbolKind::State, "entry");
+        let grandchild = child(&mut builder, state, SymbolKind::Machine, "grandchild");
+        let grandchild_state = child(&mut builder, grandchild, SymbolKind::State, "entry");
+        (machine, state, grandchild, grandchild_state)
+    });
+    let held_operation = with_children.then(|| {
+        let machine = child(&mut builder, held, SymbolKind::Machine, "apply");
+        let state = child(&mut builder, machine, SymbolKind::State, "apply");
+        (machine, state)
+    });
     let main_state = child(&mut builder, main, SymbolKind::State, "entry");
     let partial_state = child(&mut builder, partial, SymbolKind::State, "entry");
     let locals = builder.insert_children(
@@ -197,6 +216,12 @@ fn source_with_typed_record(typed_record: bool) -> Source {
         .symbols
         .record_declaration_owner(hold_apply, hold)
         .unwrap();
+    if let Some((machine, _)) = held_operation {
+        program
+            .symbols
+            .record_declaration_owner(machine, held)
+            .unwrap();
+    }
 
     // trait Step { machine apply(); }
     let machines = program
@@ -213,7 +238,8 @@ fn source_with_typed_record(typed_record: bool) -> Source {
         ..Default::default()
     });
 
-    // Hold and Held select `Hold::apply`; Empty selects nothing.
+    // Ordinarily Held aliases Hold. The nested fixture instead selects its
+    // own authored operation, making two distinct resulting record values.
     let row = ConformanceRow {
         declaring_trait: step,
         declaring_trait_name: Identifier::generated("Step"),
@@ -228,11 +254,24 @@ fn source_with_typed_record(typed_record: bool) -> Source {
         (hold, vec![row.clone()], SymbolHandle::invalid()),
         (
             held,
-            vec![ConformanceRow {
-                source: ConformanceRowSource::Reference,
-                ..row
+            vec![if let Some((machine, state)) = held_operation {
+                ConformanceRow {
+                    realization_machine: machine,
+                    realization_state: state,
+                    realization_name: Identifier::generated("Held::apply"),
+                    ..row
+                }
+            } else {
+                ConformanceRow {
+                    source: ConformanceRowSource::Reference,
+                    ..row
+                }
             }],
-            hold,
+            if with_children {
+                SymbolHandle::invalid()
+            } else {
+                hold
+            },
         ),
         (empty, Vec::new(), SymbolHandle::invalid()),
     ] {
@@ -258,6 +297,17 @@ fn source_with_typed_record(typed_record: bool) -> Source {
         Vec::new(),
     );
 
+    if let Some((machine, state)) = held_operation {
+        push_machine(
+            &mut program,
+            machine,
+            "Held::apply",
+            Vec::new(),
+            state,
+            Vec::new(),
+        );
+    }
+
     // advance<Selected satisfies Step>() { Selected::apply() }
     let mut members = HandleSpan::empty();
     program
@@ -282,7 +332,13 @@ fn source_with_typed_record(typed_record: bool) -> Source {
             selected: written_requirement,
             original: written_requirement,
         }),
-        ..call(&mut program, advance, written_requirement, "apply", None)
+        ..call(
+            &mut program,
+            nested.map_or(advance, |(_, _, grandchild, _)| grandchild),
+            written_requirement,
+            "apply",
+            None,
+        )
     };
     let through = program
         .expression_table
@@ -290,6 +346,25 @@ fn source_with_typed_record(typed_record: bool) -> Source {
     let target = program
         .statement_table
         .insert_transition_target(TransitionTargetNode::Value(through));
+    let outer_target = if let Some((_, state, _, _)) = nested {
+        let call = call(
+            &mut program,
+            advance,
+            state,
+            "child",
+            Some(StaticMachineArgument {
+                symbol: selected,
+                path: Box::new([Identifier::generated("Selected")]),
+                ..Default::default()
+            }),
+        );
+        let value = program.expression_table.insert(ExpressionNode::Call(call));
+        program
+            .statement_table
+            .insert_transition_target(TransitionTargetNode::Value(value))
+    } else {
+        target
+    };
     push_machine(
         &mut program,
         advance,
@@ -308,7 +383,7 @@ fn source_with_typed_record(typed_record: bool) -> Source {
         },
         advance_state,
         vec![StatementNode::Transition(TableTransition {
-            target,
+            target: outer_target,
             ..TableTransition::default()
         })],
     );
@@ -334,6 +409,47 @@ fn source_with_typed_record(typed_record: bool) -> Source {
                 }]);
         let position = program.machine_position_by_symbol(advance).unwrap();
         program.machine_mut(position).type_parameters = parameters;
+        if let Some((child, child_state, grandchild, grandchild_state)) = nested {
+            let parameter = program
+                .machine_type_parameters(program.machine_by_symbol(advance).unwrap())[0]
+                .clone();
+            let call = call(
+                &mut program,
+                child,
+                grandchild_state,
+                "grandchild",
+                Some(StaticMachineArgument {
+                    symbol: selected,
+                    path: Box::new([Identifier::generated("Selected")]),
+                    ..Default::default()
+                }),
+            );
+            let value = program.expression_table.insert(ExpressionNode::Call(call));
+            let child_target = program
+                .statement_table
+                .insert_transition_target(TransitionTargetNode::Value(value));
+            for (machine, state, name, target) in [
+                (child, child_state, "child", child_target),
+                (grandchild, grandchild_state, "grandchild", target),
+            ] {
+                push_machine(
+                    &mut program,
+                    machine,
+                    name,
+                    Vec::new(),
+                    state,
+                    vec![StatementNode::Transition(TableTransition {
+                        target,
+                        ..Default::default()
+                    })],
+                );
+                let parameters = program
+                    .data_type_parameters
+                    .insert_many([parameter.clone()]);
+                let position = program.machine_position_by_symbol(machine).unwrap();
+                program.machine_mut(position).type_parameters = parameters;
+            }
+        }
     }
 
     // main and partial: `let _ = advance<Implementation>();`
@@ -395,6 +511,7 @@ fn source_with_typed_record(typed_record: bool) -> Source {
         placeholder,
         main,
         partial,
+        nested: nested.map(|(child, _, grandchild, _)| (child, grandchild)),
     }
 }
 
@@ -902,4 +1019,242 @@ fn typed_const_records_forward_the_declared_value_and_reject_another_schema() {
     let errors =
         prepare(&mut program).expect_err("another exact schema is not the declared record type");
     assert!(errors[0].message.contains("another declared schema"));
+}
+
+#[test]
+fn nested_const_records_keep_the_root_binding_owner_and_distinct_callable_identities() {
+    let Source {
+        mut program,
+        advance,
+        selected,
+        hold,
+        main,
+        nested,
+        ..
+    } = source_with_record_children(true, true);
+    let (child_template, grandchild_template) = nested.expect("authored child and grandchild");
+    prepare(&mut program).expect("prepare real nested record applications");
+    assert!(
+        program.deferred_refusal(main).is_none(),
+        "{:?}",
+        program.deferred_refusal(main)
+    );
+    let entered: Vec<_> = calls(&program, main)
+        .iter()
+        .map(|call| call.target_symbol)
+        .collect();
+    assert_eq!(entered.len(), 2);
+    assert_ne!(
+        entered[0], entered[1],
+        "different record values make different outer applications"
+    );
+    let held = program
+        .conformances()
+        .iter()
+        .find(|record| program.symbols.name(record.symbol) == "Held")
+        .unwrap()
+        .symbol;
+    let mut identities = Vec::new();
+    for (entry, actual) in [(entered[0], hold), (entered[1], held)] {
+        let outer = program.symbols.get(entry).parent;
+        let application = program
+            .machine_specialization(outer)
+            .expect("outer receipt")
+            .binding_application;
+        let child_entry = calls(&program, outer)[0].target_symbol;
+        let child = program.symbols.get(child_entry).parent;
+        let grandchild_entry = calls(&program, child)[0].target_symbol;
+        let grandchild = program.symbols.get(grandchild_entry).parent;
+        assert_eq!(program.symbols.get(child).parent, entry);
+        assert_eq!(program.symbols.get(grandchild).parent, child_entry);
+        let mut application_identities = Vec::new();
+        for (instance, template) in [(child, child_template), (grandchild, grandchild_template)] {
+            assert!(
+                program.deferred_refusal(instance).is_none(),
+                "{:?}",
+                program.deferred_refusal(instance)
+            );
+            let receipt = program
+                .machine_specialization(instance)
+                .expect("real copied receipt");
+            assert_eq!(
+                receipt.template, template,
+                "executable identity remains the child declaration"
+            );
+            assert_eq!(receipt.binding_application, application);
+            assert_eq!(
+                program.specialization_binding_declaration(receipt).unwrap(),
+                advance
+            );
+            assert_eq!(
+                program.executable_application_template(instance).unwrap(),
+                Some(template)
+            );
+            assert_eq!(
+                program
+                    .data_type_parameters
+                    .span_or_empty(receipt.template_parameters),
+                program.machine_type_parameters(program.machine_by_symbol(advance).unwrap()),
+                "the producer retains the complete original binder prefix",
+            );
+            let frames = program
+                .enclosing_invocation_frames(instance)
+                .expect("read the outer binding frame");
+            let [frame] = frames.as_slice() else {
+                panic!("one enclosing application")
+            };
+            assert_eq!(frame.declaration, advance);
+            assert_eq!(frame.argument_owner, main);
+            let [binding] = frame.bindings else {
+                panic!("one retained Const binding")
+            };
+            assert_eq!(binding.parameter, selected);
+            let StaticMachineBindingValue::Const(reference) = binding.value else {
+                panic!("Const remains a value")
+            };
+            assert!(
+                matches!(program.type_reference_table.type_reference(reference),
+                typed_trees::types::TypeReferenceNode::Named { symbol, .. } if *symbol == actual)
+            );
+            let source = program
+                .specialization_source_operand(receipt)
+                .expect("retain each child's source application");
+            assert_eq!(source.symbol, template);
+            assert_eq!(
+                source.application.as_ref().unwrap().arguments[0].symbol,
+                actual
+            );
+            let callable = typed_trees::type_identity::portable_machine_selection_identity(
+                &program,
+                &StaticMachineArgument {
+                    symbol: instance,
+                    ..Default::default()
+                },
+                Default::default(),
+                &[],
+            )
+            .expect("canonical generated callable selection");
+            assert_eq!(callable.0, template);
+            application_identities.push((
+                program.specialization_source_identity(receipt).unwrap(),
+                callable,
+            ));
+        }
+        assert_ne!(
+            application_identities[0], application_identities[1],
+            "child and grandchild have separate callable declarations"
+        );
+        identities.push(application_identities);
+    }
+    for level in 0..2 {
+        assert_ne!(
+            identities[0][level].0, identities[1][level].0,
+            "source identity retains the actual outer record"
+        );
+        assert_ne!(
+            identities[0][level].1, identities[1][level].1,
+            "callable identity retains the actual outer record"
+        );
+    }
+}
+
+#[test]
+fn nested_const_record_frames_refuse_foreign_owners_prefixes_and_suppliers() {
+    let Source {
+        mut program,
+        advance,
+        main,
+        hold_apply,
+        ..
+    } = source_with_record_children(true, true);
+    prepare(&mut program).expect("prepare real nested record applications");
+    let outer = program
+        .symbols
+        .get(calls(&program, main)[0].target_symbol)
+        .parent;
+    let child = program
+        .symbols
+        .get(calls(&program, outer)[0].target_symbol)
+        .parent;
+    let original = program
+        .machine_specialization(child)
+        .expect("real copied child")
+        .clone();
+    let application = original.binding_application;
+    assert_eq!(
+        program
+            .specialization_binding_declaration(&original)
+            .unwrap(),
+        advance
+    );
+    let refused = |program: &TypedTrees, expected: &str| {
+        let receipt = program.machine_specialization(child).unwrap();
+        let owner = program
+            .specialization_binding_declaration(receipt)
+            .expect_err("corrupt ownership must refuse");
+        assert!(owner.contains(expected), "{owner}");
+        let frames = program
+            .enclosing_invocation_frames(child)
+            .err()
+            .expect("corrupt frames must refuse");
+        assert!(frames.contains(expected), "{frames}");
+        let identity = program
+            .specialization_source_identity(receipt)
+            .expect_err("corrupt source identity must refuse");
+        assert!(identity.contains(expected), "{identity}");
+    };
+    let replace = |program: &mut TypedTrees, receipt: typed_trees::MachineSpecialization| {
+        program.machine_specializations.edit(|rows| {
+            *rows.iter_mut().find(|row| row.instance == child).unwrap() = receipt;
+        });
+    };
+
+    // A valid, unrelated source machine is not an enclosing declaration.
+    let mut foreign_parent = original.clone();
+    foreign_parent.template = hold_apply;
+    replace(&mut program, foreign_parent);
+    refused(&program, "lexical ancestry");
+    replace(&mut program, original.clone());
+
+    program
+        .expression_table
+        .static_machine_application_mut(application)
+        .binding_declaration = main;
+    refused(&program, "declaration");
+    program
+        .expression_table
+        .static_machine_application_mut(application)
+        .binding_declaration = advance;
+
+    let mut missing = original.clone();
+    missing.template_parameters = HandleSpan::empty();
+    replace(&mut program, missing);
+    refused(&program, "prefix");
+    replace(&mut program, original.clone());
+
+    // Keep the child prefix present, but cross its binder kind against the
+    // untouched outer declaration. Restore the source row before the next check.
+    let prefix = original.template_parameters.start();
+    let original_parameter = program.data_type_parameters.get(prefix).clone();
+    program.data_type_parameters.get_mut(prefix).kind = typed_trees::data::TypeParameterKind::Type;
+    refused(&program, "prefix");
+    *program.data_type_parameters.get_mut(prefix) = original_parameter;
+
+    program
+        .expression_table
+        .static_machine_application_mut(application)
+        .lexical_owner = SymbolHandle::invalid();
+    refused(&program, "supplier");
+    program
+        .expression_table
+        .static_machine_application_mut(application)
+        .lexical_owner = main;
+    assert_eq!(
+        program
+            .specialization_binding_declaration(&original)
+            .unwrap(),
+        advance
+    );
+    assert!(program.enclosing_invocation_frames(child).is_ok());
+    assert!(program.specialization_source_identity(&original).is_ok());
 }
