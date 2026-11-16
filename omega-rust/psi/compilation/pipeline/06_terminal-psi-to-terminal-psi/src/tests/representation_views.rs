@@ -136,3 +136,66 @@ machine write(buffer: &mut [u8], count: u64) -> u64 {requires} {{
     // Without the bound the window may end past the bytes it views.
     assert_eq!(verdict(&program("")), "rejected");
 }
+
+#[test]
+fn a_borrowed_record_buffer_can_be_recast_as_a_whole() {
+    let source = r#"
+data Word [copy] { value: u64; }
+data Receiver [copy] {
+    prefix: u64;
+    stat_buf: [u8; 8];
+}
+
+machine read_word(receiver: &Receiver) -> u64 {
+    let word: &Word = &receiver.stat_buf as &Word;
+    word.value
+}
+
+machine entry() crashes Trap {
+    let receiver: Receiver = Receiver { prefix: 0, stat_buf: [42, 0, 0, 0, 0, 0, 0, 0] };
+    let value: u64 = read_word(&receiver);
+    transition value == 42 { true -> done() false -> fail() }
+    machine done() {}
+    machine fail() { crash Trap; }
+}
+"#;
+    let judge_source = |program: &str| {
+        let typed = super::boundary_calls::typed(program);
+        let entry = super::boundary_calls::entry(&typed);
+        let elaboration = typed_trees_to_terminal_psi::elaborate_for(
+            &typed,
+            super::build_purpose::roster(&[entry], &[], source::DependencyScope::Product),
+            terminal_codec::TerminalPublication::Invocation,
+        )
+        .unwrap();
+        judge(Ok(elaboration))
+    };
+    let accepted = match judge_source(source) {
+        Ok(RouteVerdict::Accepted(accepted)) => accepted,
+        verdict => panic!("the field occupies the complete aligned region: {verdict:?}"),
+    };
+    accepted.publish_invocation().unwrap();
+
+    // One borrowed byte does not grant access to its siblings.
+    let single_byte = source.replace("&receiver.stat_buf as", "&receiver.stat_buf[0] as");
+    // The root is still aligned to eight, but the buffer now begins at byte nine.
+    let unaligned = source
+        .replace("    prefix: u64;", "    prefix: u64;\n    tag: u8;")
+        .replace("prefix: 0, stat_buf", "prefix: 0, tag: 0, stat_buf");
+    // Stronger address alignment cannot make padding readable.
+    let padded = source
+        .replace(
+            "data Receiver [copy]",
+            "data Padded [copy] { tag: u8; value: u32; }\ndata Receiver [copy]",
+        )
+        .replace("stat_buf: [u8; 8]", "stat_buf: Padded")
+        .replace("[42, 0, 0, 0, 0, 0, 0, 0]", "Padded { tag: 42, value: 0 }");
+    for program in [single_byte, unaligned, padded] {
+        let refused = judge_source(&program);
+        assert!(
+            format!("{refused:?}")
+                .contains("reference formation changes its captured referent type"),
+            "{refused:?}"
+        );
+    }
+}
