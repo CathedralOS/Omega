@@ -217,7 +217,8 @@ impl<'t> Program<'t> {
     /// type bindings happen to be concrete; calls use the same generic
     /// contracts as a form whose binders remain rigid.
     fn checking_generic_entry(&self, id: MachineId) -> bool {
-        id.get() == 1 && (self.rigid || self.alternative.is_some())
+        (id.get() == 1 && (self.rigid || self.alternative.is_some()))
+            || self.applied.binary_search_by_key(&id, |row| row.0).is_ok()
     }
 
     /// Whether every generic parameter of `declared`, a machine or its entry
@@ -2071,7 +2072,7 @@ impl<'t> Program<'t> {
             }
             other => return unserved(symbol_kind(other)),
         };
-        let callee = self.application(machine, type_arguments)?;
+        let callee = self.application(id, machine, type_arguments)?;
         self.call_of(
             id,
             slots,
@@ -2367,7 +2368,7 @@ impl<'t> Program<'t> {
         // The callee's formals are the arguments' expected types, so its
         // signature is read first; reading order is not evaluation order.
         let callee = match self.inherited_type_arguments(id, target) {
-            Some(arguments) => self.application(target, arguments)?,
+            Some(arguments) => self.application(id, target, arguments)?,
             None => self.machine(target)?,
         };
         self.call_of(

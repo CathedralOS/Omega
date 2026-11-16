@@ -45,11 +45,24 @@ pub(crate) fn declare(
                 .iter()
                 .find_map(|(owner, reason)| (*owner == machine.id).then_some(*reason))
                 .unwrap_or("proof scope without an exact machine declaration");
-            refuse(
+            let mut refusal = refuse(
                 machine.id,
                 Construct::Machine,
                 Unserved::Declaration(reason),
-            )
+            );
+            if let Some(&symbol) = elaboration.machines.get(machine.id)
+                && typed.symbols.symbols().nodes().is_valid(symbol)
+            {
+                refusal.detail.push_str(&format!(
+                    " while publishing the declaration of `{}`",
+                    typed.symbols.display_path(symbol, "::"),
+                ));
+                refusal.source_span = typed
+                    .symbols
+                    .symbol_provenance_source_span(symbol)
+                    .filter(|span| *span != source::SourceSpan::default());
+            }
+            refusal
         })?;
         scope
             .declarations
