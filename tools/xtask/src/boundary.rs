@@ -107,6 +107,68 @@ const FIREWALL_ALLOWANCES: &[Allowance] = &[Allowance {
     dependency: "omega-rust/psi/compilation/build-time-evaluation",
 }];
 
+/// Libraries that still call into a numbered Omega stage instead of reading the
+/// representation the driver hands them. Each row is a reach around the one
+/// native pipeline: emission rereads an earlier stage's output beside the
+/// final machine form, or runs a stage's helper itself. Remove a row when its
+/// edge goes; the stale-allowance check refuses a row whose edge is gone, so
+/// the list can only shrink. Never add a row.
+const STAGE_CALL_ALLOWANCES: &[Allowance] = &[
+    // Saved products recover their native inputs with the retained-input
+    // codec, which still lives in Omega 00 rather than beside
+    // `RetainedTerminalArtifact` in verified-optimization-input. The other
+    // names products takes from Omega 00 are re-exports of their owners.
+    Allowance {
+        owner: PRODUCTS,
+        dependency: "omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations",
+    },
+    // Runtime provisions and the entry receiver read Omega 00's admitted input.
+    Allowance {
+        owner: "omega-rust/omega/compilation/backend/artifacts/native-artifact",
+        dependency: "omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations",
+    },
+    // Object replay and validation rerun stage 02 preparation and stage 03
+    // geometry helpers on the retained earlier program.
+    Allowance {
+        owner: "omega-rust/omega/compilation/backend/images/image-emission",
+        dependency: "omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations",
+    },
+    Allowance {
+        owner: "omega-rust/omega/compilation/backend/images/image-emission",
+        dependency: "omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/native-preparation",
+    },
+    Allowance {
+        owner: "omega-rust/omega/compilation/backend/images/image-emission",
+        dependency: "omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions",
+    },
+    // Fragment emission keeps stage 02's output beside the stage 09 layout,
+    // and frame staging names stage output types that live in stage crates.
+    Allowance {
+        owner: "omega-rust/omega/compilation/backend/machine-emission",
+        dependency: "omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations",
+    },
+    Allowance {
+        owner: "omega-rust/omega/compilation/backend/machine-emission",
+        dependency: "omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes",
+    },
+    Allowance {
+        owner: "omega-rust/omega/compilation/backend/machine-emission",
+        dependency: "omega-rust/omega/compilation/pipeline/06_register-homes-to-post-allocation-machine",
+    },
+    Allowance {
+        owner: "omega-rust/omega/compilation/backend/machine-emission",
+        dependency: "omega-rust/omega/compilation/pipeline/07_post-allocation-machine-to-selected-form-encoding",
+    },
+    Allowance {
+        owner: "omega-rust/omega/compilation/backend/machine-emission",
+        dependency: "omega-rust/omega/compilation/pipeline/08_selected-form-encoding-to-resolved-layout",
+    },
+    Allowance {
+        owner: "omega-rust/omega/compilation/backend/machine-emission",
+        dependency: "omega-rust/omega/compilation/pipeline/09_resolved-layout-to-resolved-layout",
+    },
+];
+
 pub struct Rule {
     pub owners: Vec<&'static str>,
     pub forbidden: Vec<&'static str>,
@@ -262,6 +324,17 @@ pub fn forbidden_rules() -> Vec<Rule> {
             allowed: FIREWALL_ALLOWANCES.to_vec(),
         },
     ];
+    // The native driver is the only production caller of the numbered Omega
+    // stages, so the stages run once, in order, as one pipeline. A library
+    // that needs a stage's result reads the representation the driver hands
+    // it; stage-to-stage edges have their own rule below.
+    rules.push(Rule {
+        owners: vec!["omega-rust"],
+        forbidden: OMEGA_STAGES.to_vec(),
+        reason: "only the native driver runs Omega stages (pipeline.md \"Two drivers, one pass\"); read the representation the driver hands you",
+        except_owners: vec![NATIVE_ROOT, OMEGA_PIPELINE],
+        allowed: STAGE_CALL_ALLOWANCES.to_vec(),
+    });
     // Instruction selection is handed the execution plan stage 02 prepared.
     // The abstract program, the optimization unit and its fact tables, and the
     // sealed module's codec are what that plan was prepared from; selection
@@ -1102,6 +1175,39 @@ mod tests {
                     "{owner} -> {dependency}: {violations:?}"
                 );
             }
+        }
+    }
+
+    #[test]
+    fn only_the_native_driver_runs_omega_stages() {
+        const LIBRARY: &str = "omega-rust/omega/compilation/backend/machine-emission";
+        const PACKAGES: &str = "omega-rust/omega/packages/package-manager";
+        for (owner, dependency, kind, permitted) in [
+            (NATIVE_ROOT, OMEGA_STAGES[9], None, true),
+            (LIBRARY, OMEGA_STAGES[3], None, false),
+            (LIBRARY, OMEGA_STAGES[3], Some("build"), false),
+            (LIBRARY, OMEGA_STAGES[3], Some("dev"), true),
+            (PACKAGES, OMEGA_STAGES[0], None, false),
+            (
+                LIBRARY,
+                "omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/native-preparation",
+                None,
+                false,
+            ),
+            // A row of the shrinking allowance list stays permitted.
+            (LIBRARY, OMEGA_STAGES[9], None, true),
+        ] {
+            let metadata = Metadata {
+                workspace_root: "/repo".to_owned(),
+                packages: vec![pkg("consumer", owner, &[("stage", dependency, kind)])],
+            };
+            let violations = forbidden_dependency_violations(&metadata, &forbidden_rules())
+                .expect("fixture paths belong to the test workspace");
+            assert_eq!(
+                violations.is_empty(),
+                permitted,
+                "{owner} -> {dependency}: {violations:?}"
+            );
         }
     }
 
