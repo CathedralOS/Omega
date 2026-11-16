@@ -912,8 +912,8 @@ fn finish_logical_witness<'source>(
     }
     program.prepare_domain_predicates(entry)?;
     program.prepare_envelope_policies()?;
-    let source_selection_questions = capture_source_questions(&mut program, entry)?;
     let services = program.service_map(entry)?;
+    let source_selection_questions = capture_source_questions(&mut program, entry)?;
     let components = prepare_call_components(&bodies, &mut program.signatures)?;
     let mut witness = lower_program(
         Some(entry),

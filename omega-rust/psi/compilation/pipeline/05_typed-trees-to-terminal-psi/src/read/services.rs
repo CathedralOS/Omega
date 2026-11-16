@@ -1002,6 +1002,23 @@ impl Program<'_> {
         for (_, row) in self.declaration_envelopes.iter() {
             source_roots(row, &mut roots);
         }
+        // A header can name services without supplying an executable body.
+        // Keep its known names in the same service registry; omitted bounds
+        // remain open in the prepared policy and grant no additional effects.
+        for (_, policy) in self.declared_envelope_policies.iter() {
+            let Some(policy) = policy else { continue };
+            roots.extend(policy.reach.iter().flatten().copied());
+            roots.extend(
+                policy
+                    .invokes
+                    .iter()
+                    .flatten()
+                    .filter_map(|target| match target {
+                        Invocation::Service(service) => Some(*service),
+                        Invocation::Parameter(_) => None,
+                    }),
+            );
+        }
         for (_, row) in self.boundaries.rows.iter() {
             source_roots(&row.envelope, &mut roots);
             roots.extend(row.owning_service);
