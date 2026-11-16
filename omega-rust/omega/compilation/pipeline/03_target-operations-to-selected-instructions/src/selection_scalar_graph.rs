@@ -7658,19 +7658,21 @@ pub(crate) fn select_function(
         &mut builder.transport.memory,
     )?;
     let mut selected = SelectedFunction {
-        machine: source.machine,
-        attachment: source.attachment,
-        nominal_cleanup_subject: source.nominal_cleanup_subject,
-        provenance: source.provenance.clone(),
-        structural: source.structural.clone(),
-        outgoing_arguments: builder.transport.slots,
-        local_storage_slots: builder.transport.local_slots,
-        calls: builder.transport.calls,
-        normalized_foreign_calls: builder.transport.normalized_foreign_calls,
-        memory_accesses: builder.transport.memory,
-        boundary_settlements: builder.transport.settlements,
+        contracts: std::sync::Arc::new(selected_instructions::SelectedFunctionContracts {
+            machine: source.machine,
+            attachment: source.attachment,
+            nominal_cleanup_subject: source.nominal_cleanup_subject,
+            provenance: source.provenance.clone(),
+            structural: source.structural.clone(),
+            outgoing_arguments: builder.transport.slots,
+            local_storage_slots: builder.transport.local_slots,
+            calls: builder.transport.calls,
+            normalized_foreign_calls: builder.transport.normalized_foreign_calls,
+            memory_accesses: builder.transport.memory,
+            boundary_settlements: builder.transport.settlements,
+            virtual_registers: builder.registers,
+        }),
         entry_block: SelectedBlockId(0),
-        virtual_registers: builder.registers,
         blocks: blocks.into(),
     };
     crate::selection::edge_transfers::prepare(

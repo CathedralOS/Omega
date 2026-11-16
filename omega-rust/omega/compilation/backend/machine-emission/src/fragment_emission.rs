@@ -1857,19 +1857,21 @@ mod tests {
         let byte_count = u64::from(instruction_count + 1) * 4;
         (
             SelectedFunction {
-                machine,
-                attachment: None,
-                nominal_cleanup_subject: None,
-                provenance: Default::default(),
-                structural: None,
-                local_storage_slots: Vec::new(),
-                outgoing_arguments: Vec::new(),
-                calls: Vec::new(),
-                normalized_foreign_calls: Vec::new(),
-                memory_accesses: Vec::new(),
-                boundary_settlements: Vec::new(),
+                contracts: std::sync::Arc::new(selected_instructions::SelectedFunctionContracts {
+                    machine,
+                    attachment: None,
+                    nominal_cleanup_subject: None,
+                    provenance: Default::default(),
+                    structural: None,
+                    local_storage_slots: Vec::new(),
+                    outgoing_arguments: Vec::new(),
+                    calls: Vec::new(),
+                    normalized_foreign_calls: Vec::new(),
+                    memory_accesses: Vec::new(),
+                    boundary_settlements: Vec::new(),
+                    virtual_registers: Vec::new(),
+                }),
                 entry_block: block,
-                virtual_registers: Vec::new(),
                 blocks: (vec![SelectedBlock {
                     id: block,
                     origin: SelectedBlockOrigin::Source(BlockId::new(1).unwrap()),

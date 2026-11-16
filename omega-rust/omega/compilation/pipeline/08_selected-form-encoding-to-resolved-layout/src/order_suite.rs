@@ -85,19 +85,21 @@ pub(crate) fn block_with(
 
 pub(crate) fn function_from_blocks(blocks: Vec<SelectedBlock>) -> SelectedFunction {
     SelectedFunction {
-        machine: MachineId::new(1).unwrap(),
-        attachment: None,
-        nominal_cleanup_subject: None,
-        provenance: Default::default(),
-        structural: None,
-        outgoing_arguments: Vec::new(),
-        local_storage_slots: Vec::new(),
-        calls: Vec::new(),
-        normalized_foreign_calls: Vec::new(),
-        memory_accesses: Vec::new(),
-        boundary_settlements: Vec::new(),
+        contracts: std::sync::Arc::new(selected_instructions::SelectedFunctionContracts {
+            machine: MachineId::new(1).unwrap(),
+            attachment: None,
+            nominal_cleanup_subject: None,
+            provenance: Default::default(),
+            structural: None,
+            outgoing_arguments: Vec::new(),
+            local_storage_slots: Vec::new(),
+            calls: Vec::new(),
+            normalized_foreign_calls: Vec::new(),
+            memory_accesses: Vec::new(),
+            boundary_settlements: Vec::new(),
+            virtual_registers: Vec::new(),
+        }),
         entry_block: SelectedBlockId(0),
-        virtual_registers: Vec::new(),
         blocks: blocks.into(),
     }
 }

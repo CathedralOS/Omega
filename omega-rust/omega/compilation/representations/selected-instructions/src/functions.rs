@@ -220,10 +220,11 @@ impl SelectedFunctions {
             entry.previous_prefix_verified = true;
         }
         let old_len = entry.function.virtual_registers.len();
+        let contracts = Arc::make_mut(&mut entry.function.contracts);
         let result = f(
-            &mut entry.function.local_storage_slots,
-            &mut entry.function.virtual_registers,
-            &mut entry.function.boundary_settlements,
+            &mut contracts.local_storage_slots,
+            &mut contracts.virtual_registers,
+            &mut contracts.boundary_settlements,
             &mut entry.function.blocks,
         );
         debug_assert!(entry.function.virtual_registers.len() >= old_len);
