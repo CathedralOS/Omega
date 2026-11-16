@@ -613,33 +613,87 @@ impl<'t> Program<'t> {
         self.names.push(names);
         self.value_parameters.push(value_parameters);
         self.value_arguments.push(Vec::new());
+        if matches!(reading, Reading::GenericEntry | Reading::Alternative(_)) {
+            let (machine, _) = self.declaration(id, symbol)?;
+            let parameters = self.typed.machine_type_parameters(machine);
+            if !parameters.is_empty()
+                && parameters
+                    .iter()
+                    .all(|parameter| parameter.kind == typed_trees::data::TypeParameterKind::Type)
+            {
+                if parameters.len() != scope.len()
+                    || !parameters
+                        .iter()
+                        .zip(&scope)
+                        .all(|(parameter, (binder, _))| parameter.symbol == *binder)
+                {
+                    return Err(refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Machine("generic entry has another type-argument scope"),
+                    ));
+                }
+                self.applied
+                    .push((id, scope.iter().map(|(_, value)| *value).collect(), None));
+            }
+        }
         self.scopes.push(scope);
         self.const_scopes.push(widths);
         Ok(())
     }
 
-    /// The `MachineId` that stands for the generic machine `symbol` applied
-    /// at `arguments`, the types a call in a generic check form's entry
-    /// gives its type parameters, in declaration order: its signature and
-    /// contract at those types, and no body. The machine's own body is
-    /// checked once as the entry of its own generic check form, so here it
-    /// is only what its callers are held to, like a requirement.
+    /// Read the generic callee at the actual type tuple. Its body supplies
+    /// inferred effects through the ordinary closure reader, while its
+    /// template remains an independent checking obligation.
     pub(super) fn application(
         &mut self,
+        caller: MachineId,
         symbol: SymbolHandle,
         arguments: Vec<ValueType>,
     ) -> Checked<MachineId> {
-        if let Some((id, _)) = self
-            .applied
-            .iter()
-            .find(|(id, applied)| self.symbols.get(*id) == Some(&symbol) && *applied == arguments)
-        {
+        if let Some((id, _, _)) = self.applied.iter().find(|(id, applied, _)| {
+            self.symbols.get(*id) == Some(&symbol) && *applied == arguments
+        }) {
             return Ok(*id);
+        }
+        // Exact recurrence reuses the tuple above. A new tuple cannot revisit
+        // its introducing template: expanding changing-type recursion has no
+        // established finite body closure. Every stored parent is an earlier
+        // machine, so this walk cannot itself follow a cycle.
+        let mut ancestor = Some(caller);
+        while let Some(current) = ancestor {
+            let source = self.symbols.get(current).ok_or_else(|| {
+                refuse(
+                    caller,
+                    Construct::Machine,
+                    Unserved::Call("type application has no exact caller"),
+                )
+            })?;
+            if *source == symbol {
+                return Err(refuse(
+                    caller,
+                    Construct::Machine,
+                    Unserved::Call("recursive generic type application changes its arguments"),
+                ));
+            }
+            let Ok(position) = self.applied.binary_search_by_key(&current, |row| row.0) else {
+                break;
+            };
+            ancestor = self.applied[position].2;
+            if ancestor.is_some_and(|parent| parent >= current) {
+                return Err(refuse(
+                    caller,
+                    Construct::Machine,
+                    Unserved::Call("type application has an invalid caller ancestry"),
+                ));
+            }
         }
         let id = self.next_identity()?;
         self.read_machine(id, symbol, Reading::Applied(arguments.clone()))?;
-        self.applied.push((id, arguments));
-        self.requirements.push(id);
+        self.applied.push((id, arguments, Some(caller)));
+        // The body is read under its own public input contract. Reading it
+        // for effect inference does not let caller facts narrow that boundary.
+        self.fixed_inputs.push(id);
         self.applications.push(id);
         Ok(id)
     }

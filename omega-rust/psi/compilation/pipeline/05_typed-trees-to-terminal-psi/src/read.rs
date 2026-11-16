@@ -231,11 +231,13 @@ pub(crate) struct Program<'t> {
     const_scope: Vec<ConstBinding>,
     const_scopes: IdTable<MachineId, Vec<ConstBinding>>,
     /// The generic machines a generic check form's entry calls at its own
-    /// type parameters, each read once per tuple of type arguments as its
-    /// contract with no body (`Elaboration::applications`).
+    /// type parameters, each read once per tuple with its actual body. These
+    /// applications also retain their independent template checks.
     pub applications: Vec<MachineId>,
-    /// The type arguments each of those was read at.
-    applied: Vec<(MachineId, Vec<ValueType>)>,
+    /// Exact type instances, ordered by machine ID, and the first caller that
+    /// introduced each. Root forms have no caller. This bounds recursive
+    /// expansion while allowing the same tuple to reuse its existing body.
+    applied: Vec<(MachineId, Vec<ValueType>, Option<MachineId>)>,
     /// The source types a static alternative fixes the entry's parameters to.
     /// Materialize them under this reader's numbering before checking its body;
     /// record IDs from the reader that discovered the family cannot cross here.
