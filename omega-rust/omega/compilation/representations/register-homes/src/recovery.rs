@@ -27,10 +27,10 @@ use ::selected_instructions::{
     SelectedInstructionProvenance, VirtualFixedConstraintSite, VirtualRegisterId,
     VirtualRegisterOrigin, selected_instruction_plan_identity,
 };
-use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
-use optimization_unit::{
+use native_vocabulary::provenance::{
     PsiProvenance, ValueDefinitionSite, WorkSettlement, encode_value_definition_site_identity,
 };
+use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
 use register_model::{
     RegisterClassId, RegisterConstraintKey, RegisterViewId, TargetRegisterEnvironmentIdentity,
 };
@@ -1156,10 +1156,10 @@ mod tests {
         SelectedInstructionProvenance, VirtualFixedConstraintSite, VirtualRegisterId,
         VirtualRegisterOrigin,
     };
+    use native_vocabulary::provenance::{PsiProvenance, ValueDefinitionSite, WorkSettlement};
     use optimization_core::{
         OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage,
     };
-    use optimization_unit::{PsiProvenance, ValueDefinitionSite, WorkSettlement};
     use register_model::{
         RegisterClassId, RegisterConstraintFamily, RegisterConstraintKey, RegisterOperandAccess,
         RegisterViewId, TargetRegisterEnvironmentIdentity,

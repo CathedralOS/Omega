@@ -5,11 +5,11 @@
 use omega::language::core::FilesystemMetadataQuery;
 use omega::language::core::FilesystemMetadataMutation;
 use omega::language::core::widen_u32_to_u64;
-use omega::language::core::narrow_u64_to_i64_exact;
 use omega::language::core::narrow_i64_to_u64_exact;
 
 machine windows_filesystem_seconds(ticks: u64) -> i64 {
-    narrow_u64_to_i64_exact(ticks / 10000000) - 11644473600
+    let since_windows_epoch: u64 = ticks / 10000000;
+    (since_windows_epoch as i64) - 11644473600
 }
 
 machine windows_filesystem_kind(attributes: u32, reparse_tag: u32) -> FileKind {
@@ -56,7 +56,6 @@ machine windows_filesystem_metadata_result(outcome: WindowsMetadataResult) -> Me
 
 machine windows_filesystem_metadata(file: File) -> MetadataResult
 reaches FilesystemMetadataQuery
-invokes WindowsFilesystemHost
 {
     transition file.handle != 0 {
         true -> block query(file)
@@ -70,7 +69,6 @@ invokes WindowsFilesystemHost
 
 machine windows_filesystem_metadata_path(path: &[u8] in Path, no_follow: bool) -> MetadataResult
 reaches FilesystemMetadataQuery
-invokes WindowsFilesystemHost
 {
     let outcome: WindowsMetadataResult = block WindowsFilesystemHost::read_metadata(path, no_follow);
     windows_filesystem_metadata_result(outcome)
@@ -78,7 +76,6 @@ invokes WindowsFilesystemHost
 
 machine windows_filesystem_exists(path: &[u8] in Path) -> bool
 reaches FilesystemMetadataQuery
-invokes WindowsFilesystemHost
 {
     let outcome: MetadataResult = block windows_filesystem_metadata_path(path, false);
     transition outcome { MetadataResult::Ok { meta } -> true _ -> false }
@@ -86,7 +83,6 @@ invokes WindowsFilesystemHost
 
 machine windows_filesystem_try_exists(path: &[u8] in Path) -> ExistsResult
 reaches FilesystemMetadataQuery
-invokes WindowsFilesystemHost
 {
     let outcome: MetadataResult = block windows_filesystem_metadata_path(path, false);
     transition outcome {
@@ -131,7 +127,6 @@ machine windows_filesystem_encode_timestamp(seconds: i64) -> WindowsTimestampEnc
 
 machine windows_filesystem_set_times(file: File, accessed: i64, modified: i64) -> UnitResult
 reaches FilesystemMetadataMutation
-invokes WindowsFilesystemHost
 {
     transition file.handle != 0 {
         true -> block access_time(file, accessed, modified)
@@ -161,7 +156,6 @@ invokes WindowsFilesystemHost
 // read-only request is translated; Default restores the ordinary writable bit.
 machine windows_filesystem_set_permissions(path: &[u8] in Path, permissions: Permissions) -> UnitResult
 reaches FilesystemMetadataQuery + FilesystemMetadataMutation
-invokes WindowsFilesystemHost
 {
     transition permissions {
         Permissions::Default -> block update(path, false)
@@ -176,7 +170,6 @@ invokes WindowsFilesystemHost
 
 machine windows_filesystem_set_file_permissions(file: File, permissions: Permissions) -> UnitResult
 reaches FilesystemMetadataQuery + FilesystemMetadataMutation
-invokes WindowsFilesystemHost
 {
     transition file.handle != 0 {
         true -> block select(file, permissions)

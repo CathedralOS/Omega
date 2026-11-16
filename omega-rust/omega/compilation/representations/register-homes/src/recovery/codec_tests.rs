@@ -4,15 +4,17 @@ Wire envelope, round-trip, rejection precedence, and structural catalog tests fo
 Verifies that `FixedViewCopyPlan` deterministic wire encoding (`OMGFCV\0\0` v102), authentication digests, stale-version rejection precedence, edge transport bindings, call-site owners, local and outgoing storage rosters, returned descriptor origins, and complete placement/lifecycle catalogs survive round-trip encoding and fail closed under tampering or truncation.
 */
 
-use abstract_operations::StructuralTypeCatalog;
 use access_plans::{AccessFields, BoundaryReach, validate_placement};
 use calling_conventions::{CallPlan, CallingPolicy, EntryControl, MachineRegister, RegisterSet};
 use layout_plans::{LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport};
 use legalized_operations::{LegalizedScalarCall, LegalizedStructuralContract, NativeCallOrigin};
+use native_vocabulary::provenance::{
+    EffectLink, PsiProvenance, ValueDefinitionSite, WorkSettlement,
+};
+use native_vocabulary::structural_type_catalog::StructuralTypeCatalog;
 use optimization_core::{
     AcceptedObligationFactIdentity, OptimizationWorkBudget, OptimizationWorkUsage,
 };
-use optimization_unit::{EffectLink, PsiProvenance, ValueDefinitionSite, WorkSettlement};
 use register_model::{
     RegisterClassId, RegisterConstraintFamily, RegisterConstraintKey, RegisterOperandAccess,
     RegisterViewId, TargetRegisterEnvironmentIdentity,
@@ -227,7 +229,7 @@ pub(super) fn successor_parameter_function() -> SelectedFunction {
             block: SelectedBlockId(1),
             source_target: BlockId::new(2).unwrap(),
             bindings: vec![selected_instructions::SelectedValueBinding {
-                semantic: abstract_operations::ValueBinding {
+                semantic: native_vocabulary::values::ValueBinding {
                     parameter: ValueId::new(3).unwrap(),
                     argument: ValueId::new(1).unwrap(),
                     scalar_type,
@@ -714,8 +716,8 @@ fn process_exit_codec_preserves_terminal_nominal_edge_and_source_without_scratch
             settlement:
                 selected_instructions::SelectedBoundarySettlementPayload::HostedExitProcessI32 {
                     edge: semantic_vocabulary::EdgeId::new(311).unwrap(),
-                    execution: target_operations::BoundaryExecutionBinding::CompilerBuiltin(
-                        target_operations::CompilerBuiltinExecution::HostedExitProcessI32,
+                    execution: target_vocabulary::BoundaryExecutionBinding::CompilerBuiltin(
+                        target_vocabulary::CompilerBuiltinExecution::HostedExitProcessI32,
                     ),
                     boundary: semantic_vocabulary::BoundaryMachineId::new(317).unwrap(),
                     source: semantic_vocabulary::ValueId::new(331).unwrap(),
@@ -879,7 +881,7 @@ fn bindings_mut(plan: &mut FixedViewCopyPlan) -> &mut Vec<SelectedValueBinding> 
 fn current_artifact_and_identity_bind_transport_role_and_both_registers() {
     let mut original = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     bindings_mut(&mut original).push(SelectedValueBinding {
-        semantic: abstract_operations::ValueBinding {
+        semantic: native_vocabulary::values::ValueBinding {
             parameter: ValueId::new(40).unwrap(),
             argument: ValueId::new(41).unwrap(),
             scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
@@ -963,13 +965,13 @@ fn structural_function() -> SelectedFunction {
     });
     function.calls = vec![SelectedCallContract {
         instruction: SelectedInstructionId(0),
-        owner: target_operations::CallSiteOwner::Operation(OperationId::new(41).unwrap()),
+        owner: target_vocabulary::CallSiteOwner::Operation(OperationId::new(41).unwrap()),
         call: LegalizedScalarCall {
             descriptor_origins: Vec::new(),
             access_bindings: Vec::new(),
             structural_result: None,
             source: NativeCallOrigin::Authored,
-            target: target_operations::NativeCallTarget::Machine(MachineId::new(42).unwrap()),
+            target: target_vocabulary::NativeCallTarget::Machine(MachineId::new(42).unwrap()),
             call_plan: call_plan(&[MachineRegister::X86Rax, MachineRegister::X86Rcx], 0x4567),
             arguments: Vec::new(),
             result_placement: None,
@@ -1031,7 +1033,7 @@ fn artifact_v15_round_trips_structural_functions_call_plans_and_semantic_call_ro
 fn dynamic_call_target_round_trips_selector_and_requirement_identity() {
     let mut plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     let mut function = structural_function();
-    function.calls[0].call.target = target_operations::NativeCallTarget::Dynamic {
+    function.calls[0].call.target = target_vocabulary::NativeCallTarget::Dynamic {
         selector: semantic_vocabulary::ValueId::new(47).unwrap(),
         interface: 13,
         slot: 29,
@@ -1487,22 +1489,22 @@ fn cleanup_call_owner_round_trips_and_identity_keeps_edge_and_action() {
     let mut original = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     std::sync::Arc::make_mut(&mut original.transformed).functions[0] = structural_function();
     let function = &mut std::sync::Arc::make_mut(&mut original.transformed).functions[0];
-    function.calls[0].owner = target_operations::CallSiteOwner::CleanupAction {
+    function.calls[0].owner = target_vocabulary::CallSiteOwner::CleanupAction {
         edge: semantic_vocabulary::EdgeId::new(41).unwrap(),
         action_ordinal: 7,
     };
     eq!(FixedViewCopyPlan::decode(&original.encode().unwrap()).unwrap() => original);
     let identity = selected_instructions::selected_instruction_plan_identity(&original.transformed);
     for owner in [
-        target_operations::CallSiteOwner::CleanupAction {
+        target_vocabulary::CallSiteOwner::CleanupAction {
             edge: semantic_vocabulary::EdgeId::new(43).unwrap(),
             action_ordinal: 7,
         },
-        target_operations::CallSiteOwner::CleanupAction {
+        target_vocabulary::CallSiteOwner::CleanupAction {
             edge: semantic_vocabulary::EdgeId::new(41).unwrap(),
             action_ordinal: 8,
         },
-        target_operations::CallSiteOwner::Operation(OperationId::new(41).unwrap()),
+        target_vocabulary::CallSiteOwner::Operation(OperationId::new(41).unwrap()),
     ] {
         let mut changed = original.clone();
         std::sync::Arc::make_mut(&mut changed.transformed).functions[0].calls[0].owner = owner;
@@ -1535,7 +1537,7 @@ fn returned_descriptor_origins_preserve_namespace_and_memory_role_in_wire_identi
         },
         Origin::Empty,
     ];
-    let target_operations::CallSiteOwner::Operation(producer) = function.calls[0].owner else {
+    let target_vocabulary::CallSiteOwner::Operation(producer) = function.calls[0].owner else {
         unreachable!("fixture call is operation-owned")
     };
     function.memory_accesses.push(SelectedMemoryAccess {
@@ -1623,7 +1625,7 @@ fn scalar_result_buffer_round_trips_separately_from_boundary_controls() {
 
 #[test]
 fn installation_call_owner_round_trips_and_identity_keeps_operation_and_role() {
-    use target_operations::{CallSiteOwner, InstallationCallRole};
+    use target_vocabulary::{CallSiteOwner, InstallationCallRole};
     let mut original = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     std::sync::Arc::make_mut(&mut original.transformed).functions[0] = structural_function();
     std::sync::Arc::make_mut(&mut original.transformed).functions[0].calls[0].owner =

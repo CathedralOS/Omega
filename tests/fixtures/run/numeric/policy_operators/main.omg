@@ -1,0 +1,151 @@
+// Every shifted-value policy accepts every count policy.
+// Public requirements keep each body independent of the current callers.
+public machine shift_plain_plain(value: u32, count: u64) -> u32
+requires value <= 15u32 && count <= 3u64
+crashes none
+{ value << count }
+public machine shift_plain_wrapping(value: u32, count: u64 in Wrapping) -> u32
+requires value <= 15u32 && count <= 3u64
+crashes none
+{ value << count }
+public machine shift_plain_saturating(value: u32, count: u64 in Saturating) -> u32
+requires value <= 15u32 && count <= 3u64
+crashes none
+{ value << count }
+public machine shift_plain_trapping(value: u32, count: u64 in Trapping) -> u32
+requires value <= 15u32 && count <= 3u64
+crashes none
+{ value << count }
+public machine shift_wrapping_plain(value: u32 in Wrapping, count: u64) -> u32 in Wrapping
+requires value <= 15u32 && count <= 3u64
+crashes none
+{ value << count }
+public machine shift_wrapping_wrapping(value: u32 in Wrapping, count: u64 in Wrapping) -> u32 in Wrapping
+requires value <= 15u32 && count <= 3u64
+crashes none
+{ value << count }
+public machine shift_wrapping_saturating(value: u32 in Wrapping, count: u64 in Saturating) -> u32 in Wrapping
+requires value <= 15u32 && count <= 3u64
+crashes none
+{ value << count }
+public machine shift_wrapping_trapping(value: u32 in Wrapping, count: u64 in Trapping) -> u32 in Wrapping
+requires value <= 15u32 && count <= 3u64
+crashes none
+{ value << count }
+public machine shift_saturating_plain(value: u32 in Saturating, count: u64) -> u32 in Saturating
+requires value <= 15u32 && count <= 3u64
+crashes none
+{ value << count }
+public machine shift_saturating_wrapping(value: u32 in Saturating, count: u64 in Wrapping) -> u32 in Saturating
+requires value <= 15u32 && count <= 3u64
+crashes none
+{ value << count }
+public machine shift_saturating_saturating(value: u32 in Saturating, count: u64 in Saturating) -> u32 in Saturating
+requires value <= 15u32 && count <= 3u64
+crashes none
+{ value << count }
+public machine shift_saturating_trapping(value: u32 in Saturating, count: u64 in Trapping) -> u32 in Saturating
+requires value <= 15u32 && count <= 3u64
+crashes none
+{ value << count }
+public machine shift_trapping_plain(value: u32 in Trapping, count: u64) -> u32 in Trapping
+requires value <= 15u32 && count <= 3u64
+crashes none
+{ value << count }
+public machine shift_trapping_wrapping(value: u32 in Trapping, count: u64 in Wrapping) -> u32 in Trapping
+requires value <= 15u32 && count <= 3u64
+crashes none
+{ value << count }
+public machine shift_trapping_saturating(value: u32 in Trapping, count: u64 in Saturating) -> u32 in Trapping
+requires value <= 15u32 && count <= 3u64
+crashes none
+{ value << count }
+public machine shift_trapping_trapping(value: u32 in Trapping, count: u64 in Trapping) -> u32 in Trapping
+requires value <= 15u32 && count <= 3u64
+crashes none
+{ value << count }
+public machine bits_Wrapping(value: u32 in Wrapping, mask: u32) -> u32 in Wrapping
+crashes none
+ensures result == ((~value | mask) ^ value) & mask
+{ ((~value | mask) ^ value) & mask }
+public machine bits_Saturating(value: u32 in Saturating, mask: u32) -> u32 in Saturating
+crashes none
+ensures result == ((~value | mask) ^ value) & mask
+{ ((~value | mask) ^ value) & mask }
+public machine bits_Trapping(value: u32 in Trapping, mask: u32) -> u32 in Trapping
+crashes none
+ensures result == ((~value | mask) ^ value) & mask
+{ ((~value | mask) ^ value) & mask }
+public machine saturate_signed(value: i8 in Saturating, count: u64 in Trapping) -> i8 in Saturating
+requires count < 8u64
+crashes none
+ensures result == value << count
+{ value << count }
+public machine saturate_unsigned(value: u8 in Saturating, count: i64 in Wrapping) -> u8 in Saturating
+requires count >= 0i64 && count < 8i64
+crashes none
+{ value << count }
+public machine signed_count(value: u32 in Wrapping, count: i64 in Saturating) -> u32 in Wrapping
+crashes none
+{ value << count }
+public machine mixed(value: u32 in Wrapping, step: u32) -> u32 in Wrapping
+crashes none
+ensures result == value + step
+{ value + step }
+machine main() crashes Trap {
+    let v_plain_plain: u32 = shift_plain_plain(3u32, 2u64);
+    let v_plain_wrapping: u32 = shift_plain_wrapping(3u32, (2u64 as +Wrapping));
+    let v_plain_saturating: u32 = shift_plain_saturating(3u32, (2u64 as +Saturating));
+    let v_plain_trapping: u32 = shift_plain_trapping(3u32, (2u64 as +Trapping));
+    let v_wrapping_plain: u32 in Wrapping = shift_wrapping_plain((3u32 as +Wrapping), 2u64);
+    let v_wrapping_wrapping: u32 in Wrapping = shift_wrapping_wrapping((3u32 as +Wrapping), (2u64 as +Wrapping));
+    let v_wrapping_saturating: u32 in Wrapping = shift_wrapping_saturating((3u32 as +Wrapping), (2u64 as +Saturating));
+    let v_wrapping_trapping: u32 in Wrapping = shift_wrapping_trapping((3u32 as +Wrapping), (2u64 as +Trapping));
+    let v_saturating_plain: u32 in Saturating = shift_saturating_plain((3u32 as +Saturating), 2u64);
+    let v_saturating_wrapping: u32 in Saturating = shift_saturating_wrapping((3u32 as +Saturating), (2u64 as +Wrapping));
+    let v_saturating_saturating: u32 in Saturating = shift_saturating_saturating((3u32 as +Saturating), (2u64 as +Saturating));
+    let v_saturating_trapping: u32 in Saturating = shift_saturating_trapping((3u32 as +Saturating), (2u64 as +Trapping));
+    let v_trapping_plain: u32 in Trapping = shift_trapping_plain((3u32 as +Trapping), 2u64);
+    let v_trapping_wrapping: u32 in Trapping = shift_trapping_wrapping((3u32 as +Trapping), (2u64 as +Wrapping));
+    let v_trapping_saturating: u32 in Trapping = shift_trapping_saturating((3u32 as +Trapping), (2u64 as +Saturating));
+    let v_trapping_trapping: u32 in Trapping = shift_trapping_trapping((3u32 as +Trapping), (2u64 as +Trapping));
+    let result_bits_Wrapping: u32 in Wrapping = bits_Wrapping(5u32 as +Wrapping, 15u32);
+    let result_bits_Saturating: u32 in Saturating = bits_Saturating(5u32 as +Saturating, 15u32);
+    let result_bits_Trapping: u32 in Trapping = bits_Trapping(5u32 as +Trapping, 15u32);
+    let positive: i8 in Saturating = saturate_signed(100i8 as +Saturating, 2u64 as +Trapping);
+    let negative: i8 in Saturating = saturate_signed((0i8 - 100i8) as +Saturating, 2u64 as +Trapping);
+    let unchanged: i8 in Saturating = saturate_signed((0i8 - 100i8) as +Saturating, 0u64 as +Trapping);
+    let unsigned: u8 in Saturating = saturate_unsigned(100u8 as +Saturating, 2i64 as +Wrapping);
+    let total: u32 in Wrapping = mixed(4294967295u32 as +Wrapping, 2u32);
+    let signed_count_result: u32 in Wrapping = signed_count(1u32 as +Wrapping, (0i64 - 1i64) as +Saturating);
+    let exact_count: u64 in Wrapping = 31u64 as +Wrapping;
+    let exact: u32 = 1u32 << exact_count;
+    transition v_plain_plain == 12u32 &&
+        v_plain_wrapping == 12u32 &&
+        v_plain_saturating == 12u32 &&
+        v_plain_trapping == 12u32 &&
+        v_wrapping_plain == 12u32 &&
+        v_wrapping_wrapping == 12u32 &&
+        v_wrapping_saturating == 12u32 &&
+        v_wrapping_trapping == 12u32 &&
+        v_saturating_plain == 12u32 &&
+        v_saturating_wrapping == 12u32 &&
+        v_saturating_saturating == 12u32 &&
+        v_saturating_trapping == 12u32 &&
+        v_trapping_plain == 12u32 &&
+        v_trapping_wrapping == 12u32 &&
+        v_trapping_saturating == 12u32 &&
+        v_trapping_trapping == 12u32 &&
+        result_bits_Wrapping == 10u32 &&
+        result_bits_Saturating == 10u32 &&
+        result_bits_Trapping == 10u32 &&
+        positive == 127i8 &&
+        negative == (0i8 - 127i8 - 1i8) &&
+        unchanged == (0i8 - 100i8) &&
+        unsigned == 255u8 &&
+        total == 1u32 &&
+        signed_count_result == 2147483648u32 &&
+        exact == 2147483648u32 { true -> done() false -> failed() }
+    machine done() {}
+    machine failed() { crash Trap; }
+}

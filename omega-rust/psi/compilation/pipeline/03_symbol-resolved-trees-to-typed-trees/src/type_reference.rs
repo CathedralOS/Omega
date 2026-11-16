@@ -667,14 +667,6 @@ pub(crate) mod computed_results {
     }
 }
 pub(crate) mod const_arguments {
-    use diagnostics::Diagnostic;
-    use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
-    use symbols::SymbolHandle;
-    use typed_trees::TypedTrees;
-    use typed_trees::name::Identifier;
-    use typed_trees::typed_trees::canonical_const_declaration_value;
-    use typed_trees::types::TypeReferenceNode;
-
     pub(crate) mod closed_applications {
         use diagnostics::Diagnostic;
         use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
@@ -687,6 +679,10 @@ pub(crate) mod const_arguments {
             program: &mut TypedTrees,
             frontier: usize,
         ) -> Result<(), Diagnostic> {
+            // A shared argument may appear in several receiving applications.
+            // Check each carrier while the selected declaration and any typed
+            // literal still exist, then publish the canonical keys together.
+            let mut replacements = Vec::new();
             let mut applications = program
                 .type_reference_table
                 .type_reference_rows()
@@ -865,6 +861,18 @@ pub(crate) mod const_arguments {
                     let TypeParameterKind::Const { type_reference } = parameter.kind else {
                         continue;
                     };
+                    if let Some(spelling) = named_argument_in_carrier(
+                        program,
+                        declaration,
+                        parameter,
+                        argument,
+                        type_reference,
+                        &parameters,
+                        &arguments,
+                    )? {
+                        replacements.push((argument, spelling));
+                        continue;
+                    }
                     let needs_admission = needs_admission(program, argument);
                     match program.type_reference_table.type_reference(argument) {
                         TypeReferenceNode::ConstExpression(_) if needs_admission => {}
@@ -892,21 +900,168 @@ pub(crate) mod const_arguments {
                     else {
                         continue;
                     };
-                    let Some(spelling) =
-                        argument_in_carrier(program, declaration, parameter, argument, carrier)?
-                    else {
+                    let spelling =
+                        argument_in_carrier(program, declaration, parameter, argument, carrier)?;
+                    let Some(spelling) = spelling else {
                         continue;
                     };
-                    program.type_reference_table.substitute_node(
-                        argument,
-                        TypeReferenceNode::Named {
-                            symbol: symbols::SymbolHandle::invalid(),
-                            name: Identifier::generated(spelling),
-                        },
-                    );
+                    replacements.push((argument, spelling));
                 }
             }
+            for (argument, spelling) in replacements {
+                program.type_reference_table.substitute_node(
+                    argument,
+                    TypeReferenceNode::Named {
+                        symbol: symbols::SymbolHandle::invalid(),
+                        name: Identifier::generated(spelling),
+                    },
+                );
+            }
             Ok(())
+        }
+
+        /// A selected constant already has a declared carrier. Compare it
+        /// against the complete receiving application before its name is
+        /// replaced by an index key. This types the argument; its declaration's
+        /// constructor and predicates remain the ordinary checker's work.
+        fn named_argument_in_carrier(
+            program: &TypedTrees,
+            owner: symbols::SymbolHandle,
+            parameter: &typed_trees::data::TypeParameter,
+            argument: typed_trees::types::TypeReferenceHandle,
+            carrier: typed_trees::types::TypeReferenceHandle,
+            parameters: &[typed_trees::data::TypeParameter],
+            arguments: &[typed_trees::types::TypeReferenceHandle],
+        ) -> Result<Option<String>, Diagnostic> {
+            let TypeReferenceNode::Named { symbol, name } =
+                program.type_reference_table.type_reference(argument)
+            else {
+                return Ok(None);
+            };
+            let origins = program
+                .type_reference_table
+                .constant_origins(argument)
+                .map_err(Diagnostic::error)?;
+            let symbol = if symbol.is_valid() {
+                *symbol
+            } else {
+                if CanonicalConstValue::from_atom(name.as_str()).is_none() {
+                    return Ok(None);
+                }
+                let Some(origin) = origins.first() else {
+                    return Ok(None);
+                };
+                if origins
+                    .iter()
+                    .any(|other| other.declaration != origin.declaration)
+                {
+                    return Err(Diagnostic::error(
+                        "canonical const argument has ambiguous declaration custody",
+                    ));
+                }
+                origin.declaration
+            };
+            let Some(declaration) = program.const_declaration_by_symbol(symbol) else {
+                return Ok(None);
+            };
+            if declaration.evaluated_value.is_none() {
+                return Ok(None);
+            }
+            let refuse = |reason: &str| {
+                Diagnostic::error(format!(
+                    "const argument for `{}` of `{}` is invalid: {reason}",
+                    parameter.name.as_str(),
+                    program.symbols.name(owner),
+                ))
+                .with_source_span(
+                    origins
+                        .iter()
+                        .find(|origin| origin.declaration == symbol)
+                        .map_or_else(source::SourceSpan::default, |origin| origin.reference),
+                )
+            };
+            if !program
+                .type_reference_table
+                .contains_type_reference(carrier)
+                || !program
+                    .type_reference_table
+                    .contains_type_reference(declaration.declared_type)
+            {
+                return Err(refuse(
+                    "the selected constant or receiving carrier is stale",
+                ));
+            }
+            let substitutions = parameters
+                .iter()
+                .zip(arguments)
+                .map(|(parameter, argument)| (parameter.symbol, *argument))
+                .collect::<Vec<_>>();
+            let expected = program.type_identity_with_simultaneous_substitutions(
+                typed_trees::type_identity::TypeIdentityRequest {
+                    substitutions: &substitutions,
+                    ..typed_trees::type_identity::TypeIdentityRequest::ordinary(carrier)
+                },
+            );
+            if expected != program.normalized_type_identity(declaration.declared_type) {
+                return Err(refuse(
+                    "the selected constant's declared carrier differs from its receiving parameter",
+                ));
+            }
+            let value = typed_trees::canonical_const_declaration_value(program, symbol)
+                .ok_or_else(|| refuse("the selected constant has no canonical static value"))?;
+            if let Some(retained) = CanonicalConstValue::from_atom(name.as_str())
+                && retained.encoding != value.encoding
+            {
+                return Err(refuse(
+                    "the represented value differs from its selected declaration",
+                ));
+            }
+            match value.decode_encoding() {
+                Some(
+                    DecodedCanonicalConstValue::Integer { .. }
+                    | DecodedCanonicalConstValue::Boolean(_),
+                ) => {
+                    let Some(carrier) = builtin_carrier(program, carrier, parameters, arguments)
+                    else {
+                        return Ok(None);
+                    };
+                    let primitive = match carrier {
+                        Carrier::Integer(landed) => {
+                            typed_trees::types::PrimitiveType::Integer(landed.value_carrier())
+                        }
+                        Carrier::Boolean => typed_trees::types::PrimitiveType::Bool,
+                    };
+                    let checked = program
+                        .prepare_callable_scalar_argument(
+                            primitive,
+                            &typed_trees::expression::StaticMachineArgument {
+                                symbol,
+                                ..Default::default()
+                            },
+                        )
+                        .map_err(refuse)?;
+                    match checked {
+                        typed_trees::expression::ExpressionNode::Integer(value) => value
+                            .value_bignum()
+                            .map(|value| Some(value.to_string()))
+                            .ok_or_else(|| refuse("the scalar value is not an integer")),
+                        typed_trees::expression::ExpressionNode::Boolean(value) => {
+                            Ok(Some(value.to_string()))
+                        }
+                        _ => Err(refuse(
+                            "the selected constant has no scalar materialization",
+                        )),
+                    }
+                }
+                Some(
+                    DecodedCanonicalConstValue::Record { .. }
+                    | DecodedCanonicalConstValue::Variant { .. }
+                    | DecodedCanonicalConstValue::Array { .. },
+                ) => Ok(Some(value.atom())),
+                _ => Err(refuse(
+                    "the selected constant is not a canonical index value",
+                )),
+            }
         }
 
         /// Records a const argument typing does not admit on the
@@ -1018,8 +1173,7 @@ pub(crate) mod const_arguments {
             argument: typed_trees::types::TypeReferenceHandle,
             carrier: Carrier,
         ) -> Result<Option<String>, Diagnostic> {
-            use typed_trees::expression::{ExpressionNode, StaticMachineArgument};
-            use typed_trees::types::PrimitiveType;
+            use typed_trees::expression::ExpressionNode;
 
             let refuse = |source_span, found: String| {
                 let expected = match carrier {
@@ -1035,51 +1189,6 @@ pub(crate) mod const_arguments {
             };
             let expression = match *program.type_reference_table.type_reference(argument) {
                 TypeReferenceNode::ConstExpression(expression) => expression,
-                TypeReferenceNode::Named { symbol, .. } => {
-                    if !program
-                        .const_declaration_by_symbol(symbol)
-                        .is_some_and(|constant| {
-                            constant
-                                .evaluated_value
-                                .as_ref()
-                                .is_some_and(|value| value.encoding().is_some())
-                        })
-                    {
-                        return Ok(None);
-                    }
-                    let span = program
-                        .type_reference_table
-                        .constant_origins(argument)
-                        .map_err(Diagnostic::error)?
-                        .iter()
-                        .find(|origin| origin.declaration == symbol)
-                        .map_or_else(source::SourceSpan::default, |origin| origin.reference);
-                    let selected = StaticMachineArgument {
-                        symbol,
-                        ..Default::default()
-                    };
-                    let primitive = match carrier {
-                        Carrier::Integer(landed) => PrimitiveType::Integer(landed.value_carrier()),
-                        Carrier::Boolean => PrimitiveType::Bool,
-                    };
-                    return program
-                        .prepare_callable_scalar_argument(primitive, &selected)
-                        .map(|checked| match checked {
-                            ExpressionNode::Integer(value) => {
-                                value.value_bignum().map(|value| value.to_string())
-                            }
-                            ExpressionNode::Boolean(value) => Some(value.to_string()),
-                            _ => {
-                                unreachable!("scalar argument preparation returns a scalar literal")
-                            }
-                        })
-                        .map_err(|reason| {
-                            refuse(
-                                span,
-                                format!("constant `{}` ({reason})", program.symbols.name(symbol)),
-                            )
-                        });
-                }
                 _ => return Ok(None),
             };
             let refuse = |found| refuse(program.expression_table.source_span(expression), found);
@@ -1237,6 +1346,9 @@ pub(crate) mod const_arguments {
             argument: typed_trees::types::TypeReferenceHandle,
         ) -> bool {
             match program.type_reference_table.type_reference(argument) {
+                TypeReferenceNode::Named { symbol, .. } if symbol.is_valid() => {
+                    program.const_declaration_by_symbol(*symbol).is_some()
+                }
                 TypeReferenceNode::ConstExpression(expression) => {
                     !program.pending_const_range_endpoints.contains(expression)
                         && typed_trees::domain::index_argument_is_closed(program, argument)
@@ -1776,6 +1888,90 @@ pub(crate) mod const_arguments {
             }
 
             #[test]
+            fn every_receiver_checks_a_shared_typed_argument_before_its_name_is_erased() {
+                for named in [false, true] {
+                    let literal = IntegerLiteral::from_value(1).with_landing(IntegerLanding {
+                        landed_type: LandedIntegerType::U8,
+                        domain: ArithmeticDomain::Exact,
+                    });
+                    let (mut program, argument) =
+                        applied_alias("T", ExpressionNode::Integer(literal));
+                    let alias = program.type_aliases()[0].symbol;
+                    if named {
+                        let symbol = program.symbols.insert_generated_root_from(
+                            alias,
+                            SymbolKind::Const,
+                            "VALUE",
+                        );
+                        let declared_type = program.type_aliases()[0].expansion;
+                        program.push_const_declaration(ConstDeclaration {
+                            symbol,
+                            declared_type,
+                            evaluated_value: Some(language_core::constant_value::EvaluatedConstant::Encoded(
+                                language_semantics::const_value::CanonicalConstIdentity::integer(LandedIntegerType::U8, 1).encoding,
+                            )),
+                            ..Default::default()
+                        });
+                        program.type_reference_table.substitute_node(
+                            argument,
+                            TypeReferenceNode::Named {
+                                symbol,
+                                name: Identifier::generated("VALUE"),
+                            },
+                        );
+                        program
+                            .type_reference_table
+                            .attach_constant_origins(
+                                argument,
+                                [typed_trees::types::TypeConstantOrigin {
+                                    declaration: symbol,
+                                    reference: Default::default(),
+                                }],
+                            )
+                            .unwrap();
+                    }
+                    let original = program
+                        .type_reference_table
+                        .type_reference(argument)
+                        .clone();
+                    let u16_symbol = program
+                        .symbols
+                        .builtin_atom_symbol(symbols::BuiltinTypeAtom::Integer(
+                            numerics::integer_carrier::FixedInteger::unsigned(16),
+                        ))
+                        .unwrap();
+                    let u16_type = program
+                        .type_reference_table
+                        .insert(TypeReferenceNode::Named {
+                            symbol: u16_symbol,
+                            name: Identifier::generated("u16"),
+                        });
+                    let arguments = program
+                        .type_reference_table
+                        .insert_type_reference_handles([u16_type, argument]);
+                    program
+                        .type_reference_table
+                        .insert(TypeReferenceNode::Generic {
+                            base_symbol: alias,
+                            base_name: Identifier::generated("Alias"),
+                            arguments,
+                            lifetime_arguments: Vec::new(),
+                        });
+                    let error = normalize(&mut program, 0).unwrap_err();
+                    let expected = if named {
+                        "declared carrier differs from its receiving parameter"
+                    } else {
+                        "must be a `u16`, found a `u8` literal"
+                    };
+                    assert!(error.message.contains(expected), "{}", error.message);
+                    assert_eq!(
+                        program.type_reference_table.type_reference(argument),
+                        &original
+                    );
+                }
+            }
+
+            #[test]
             fn a_boolean_carrier_takes_a_boolean_literal_only() {
                 let (mut program, argument) = applied_alias("bool", ExpressionNode::Boolean(true));
                 normalize(&mut program, 0).unwrap();
@@ -1810,60 +2006,7 @@ pub(crate) mod const_arguments {
         }
     }
 
-    pub(crate) fn normalize_const_argument_carriers(
-        program: &mut TypedTrees,
-        frontier: usize,
-    ) -> Result<(), Diagnostic> {
-        let mut replacements = Vec::new();
-        for (site, symbol, spelling) in program.type_reference_table.named_references() {
-            if usize::try_from(site.arena_index()).is_ok_and(|index| index <= frontier) {
-                continue;
-            }
-            let Some(declaration) = program.const_declaration_by_symbol(symbol) else {
-                continue;
-            };
-            let Some(_) = declaration
-                .evaluated_value
-                .as_ref()
-                .and_then(|value| value.encoding())
-            else {
-                continue;
-            };
-            let Some(value) = canonical_const_declaration_value(program, symbol) else {
-                return Err(Diagnostic::error(
-                    "selected constant has no canonical static carrier value",
-                ));
-            };
-            let decoded = value.decode_encoding().ok_or_else(|| {
-                Diagnostic::error("selected constant has malformed canonical value encoding")
-            })?;
-            if !matches!(
-                decoded,
-                DecodedCanonicalConstValue::Record { .. }
-                    | DecodedCanonicalConstValue::Variant { .. }
-            ) {
-                continue;
-            }
-            if let Some(retained) = CanonicalConstValue::from_atom(spelling)
-                && retained.encoding != value.encoding
-            {
-                return Err(Diagnostic::error(
-                    "structured constant argument differs from its selected declaration value",
-                ));
-            }
-            replacements.push((site, value.atom()));
-        }
-        for (site, spelling) in replacements {
-            program.type_reference_table.substitute_node(
-                site,
-                TypeReferenceNode::Named {
-                    symbol: SymbolHandle::invalid(),
-                    name: Identifier::generated(spelling),
-                },
-            );
-        }
-        closed_applications::normalize(program, frontier)
-    }
+    pub(crate) use closed_applications::normalize as normalize_const_argument_carriers;
 }
 pub(crate) mod constraints {
     use crate::tables::{type_constraints, type_references};

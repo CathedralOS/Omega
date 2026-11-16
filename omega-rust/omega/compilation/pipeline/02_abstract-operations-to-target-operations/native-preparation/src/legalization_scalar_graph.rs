@@ -1038,7 +1038,11 @@ pub(crate) mod aggregate_results {
             };
             match action {
                 terminal_psi::TerminalAffineCleanupAction::RetireHome(place) => {
+                    // A byte literal establishes a descriptor home directly.
+                    // Its producer has no structural result to find above.
                     owner(*place).is_some()
+                        || super::literals::declaration_producer(function_inputs.function(), *place)
+                            .is_some()
                 }
                 terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place) => {
                     discardable(*place)
@@ -1239,11 +1243,15 @@ pub(crate) mod aggregate_results {
         parameter: &terminal_psi::StructuralParameterDeclaration,
         plan: &crate::native_geometry::NativePlan<'_>,
     ) -> bool {
-        terminal_semantics::view_descriptor_parameter(parameter, plan.structural_types.iter())
-            || abstract_operations::control_flow::owner_loans::is_shared_view_carrier_loan_in(
-                parameter,
-                plan.geometry(),
-            )
+        // Block arrivals keep the descriptor's retained access. Use the
+        // same classification as the native producer and successor checks.
+        abstract_operations::control_flow::address_joins::is_descriptor_join_in(
+            parameter,
+            &plan.structural_types,
+        ) || abstract_operations::control_flow::owner_loans::is_shared_view_carrier_loan_in(
+            parameter,
+            plan.geometry(),
+        )
     }
 
     pub(crate) fn call_argument(
@@ -1623,7 +1631,7 @@ pub(crate) mod atomic_access {
         }
         let cell = terminal_semantics::atomic_cell_type(types.iter(), root, &location.path)?;
         let scalar_type = cell.scalar_type();
-        let integer = target_operations::operations::atomic_storage_integer_type_closed(
+        let integer = target_operations::atomic_storage_integer_type_closed(
             event,
             unit.closed_scalar(scalar_type)?,
         )?;
@@ -6326,10 +6334,13 @@ pub(crate) mod structural_call {
             terminal_psi::reading_borrow_pair_pattern!()
         ) || !semantic.path.is_empty()
             || destination_parameter.access != semantic.access
-            || !terminal_semantics::view_descriptor_parameter(
+            || !(terminal_semantics::view_descriptor_parameter(
                 destination_parameter,
                 structural_types.iter(),
-            )
+            ) || abstract_operations::control_flow::owner_loans::is_shared_byte_view(
+                destination_parameter,
+                |identity| structural_types.declaration(identity).ok(),
+            ))
             || !(access == semantic.access
                 || access == StructuralAccess::MutableBorrow
                     && semantic.access == StructuralAccess::SharedBorrow)

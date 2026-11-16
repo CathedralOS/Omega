@@ -119,6 +119,7 @@ fn covered(
         }
         // The premise is only assumed; the conclusion is what is proved.
         Proposition::Implication { conclusion, .. } => covered(conclusion, fixed, width),
+        Proposition::Equal(left, right) if byte_predicate_goal(left, right) => true,
         Proposition::LessOrEqual(left, right)
         | Proposition::LessThan(left, right)
         | Proposition::Equal(left, right) => {
@@ -174,6 +175,19 @@ fn covered(
         }
         _ => false,
     }
+}
+
+fn byte_predicate_goal(left: &ScalarTerm, right: &ScalarTerm) -> bool {
+    matches!(
+        (left, right),
+        (
+            ScalarTerm::ByteSequencePredicate { .. },
+            ScalarTerm::Boolean(true)
+        ) | (
+            ScalarTerm::Boolean(true),
+            ScalarTerm::ByteSequencePredicate { .. }
+        )
+    )
 }
 
 /// `covered` with no value fixed: the goal's form as written.
@@ -1158,6 +1172,11 @@ impl<'a> Prover<'a> {
                 if let Some(proof) = self.closed(goal.clone()) {
                     return Ok(proof);
                 }
+                if byte_predicate_goal(left, right)
+                    && let Some(proof) = self.by_byte_implication(goal)
+                {
+                    return Ok(proof);
+                }
                 if !matches!(left.scalar_type(), ScalarType::Integer(_)) {
                     return Err("equality of non-integers is proved only by a hypothesis");
                 }
@@ -1237,6 +1256,39 @@ impl<'a> Prover<'a> {
                 conclusion,
             } => self.implication(premise, conclusion, goal),
         }
+    }
+
+    fn by_byte_implication(&mut self, goal: &Proposition) -> Option<ProofNode> {
+        for index in 0..self.facts.len() {
+            let Proposition::Implication {
+                premise,
+                conclusion,
+            } = &self.facts[index].proposition
+            else {
+                continue;
+            };
+            if !conclusion.same_commutative_predicate(goal) {
+                continue;
+            }
+            let premise = premise.clone();
+            let conclusion = conclusion.as_ref().clone();
+            let Ok(premise) = self.prove(&premise) else {
+                continue;
+            };
+            let result = node(
+                conclusion,
+                ProofRule::ImplicationElimination {
+                    implication: Box::new(self.facts[index].proof(&self.facts)),
+                    premise: Box::new(premise),
+                },
+            );
+            return if result.conclusion == *goal {
+                Some(result)
+            } else {
+                flip(result).ok()
+            };
+        }
+        None
     }
 
     /// `left <= right` or `left < right` from the left side's upper bound and

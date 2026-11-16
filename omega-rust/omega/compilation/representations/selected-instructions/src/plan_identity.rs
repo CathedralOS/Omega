@@ -13,7 +13,8 @@
   edited blocks, and digest rosters.
 */
 
-use optimization_unit::{PsiProvenance, WorkSettlement};
+use native_vocabulary::provenance::PsiProvenance;
+use native_vocabulary::provenance::WorkSettlement;
 use register_model::encode_constraint_key;
 use semantic_vocabulary::{IntegerSign, ScalarType};
 
@@ -104,7 +105,7 @@ struct RetainedHeaderKey {
     attachment: Option<semantic_vocabulary::StructuralTypeId>,
     nominal_cleanup_subject: Option<semantic_vocabulary::StructuralTypeId>,
     entry_block: crate::SelectedBlockId,
-    provenance: target_operations::TerminalPsiProvenance,
+    provenance: target_vocabulary::TerminalPsiProvenance,
     structural: Option<legalized_operations::LegalizedStructuralContract>,
     outgoing_arguments: Vec<crate::SelectedOutgoingArgumentSlot>,
     calls: Vec<crate::SelectedCallContract>,
@@ -788,27 +789,27 @@ mod contracts {
         for row in &function.calls {
             crate::codec_bytes::push_encoded(bytes, row.instruction.0.to_le_bytes());
             match row.owner {
-                target_operations::CallSiteOwner::Operation(operation) => {
+                target_vocabulary::CallSiteOwner::Operation(operation) => {
                     bytes.push(0);
                     crate::codec_bytes::push_encoded(bytes, operation.get().to_le_bytes());
                 }
-                target_operations::CallSiteOwner::InvokeNoNormal(edge) => {
+                target_vocabulary::CallSiteOwner::InvokeNoNormal(edge) => {
                     bytes.push(3);
                     crate::codec_bytes::push_encoded(bytes, edge.get().to_le_bytes());
                 }
-                target_operations::CallSiteOwner::ExternalCompletion(edge) => {
+                target_vocabulary::CallSiteOwner::ExternalCompletion(edge) => {
                     bytes.push(2);
                     crate::codec_bytes::push_encoded(bytes, edge.get().to_le_bytes());
                 }
-                target_operations::CallSiteOwner::Installation { operation, role } => {
+                target_vocabulary::CallSiteOwner::Installation { operation, role } => {
                     bytes.push(4);
                     crate::codec_bytes::push_encoded(bytes, operation.get().to_le_bytes());
                     bytes.push(match role {
-                        target_operations::InstallationCallRole::Validate => 0,
-                        target_operations::InstallationCallRole::Work => 1,
+                        target_vocabulary::InstallationCallRole::Validate => 0,
+                        target_vocabulary::InstallationCallRole::Work => 1,
                     });
                 }
-                target_operations::CallSiteOwner::CleanupAction {
+                target_vocabulary::CallSiteOwner::CleanupAction {
                     edge,
                     action_ordinal,
                 } => {
@@ -1162,7 +1163,7 @@ mod ordinary {
             original
                 .structural_bindings
                 .push(crate::SelectedStructuralBinding {
-                    semantic: abstract_operations::AbstractStructuralBinding {
+                    semantic: native_vocabulary::values::AbstractStructuralBinding {
                         parameter: PlaceId::new(4).unwrap(),
                         argument: terminal_psi::StructuralArgument {
                             place: PlaceId::new(5).unwrap(),
@@ -1172,7 +1173,7 @@ mod ordinary {
                     },
                     transport: crate::SelectedStructuralTransport::Unused,
                     source_indices: vec![legalized_operations::LegalizedRuntimeIndexOperand {
-                        operand: abstract_operations::AbstractResult {
+                        operand: native_vocabulary::values::AbstractResult {
                             value: ValueId::new(6).unwrap(),
                             scalar_type: ScalarType::Integer(
                                 IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
@@ -1252,7 +1253,7 @@ mod ordinary {
 mod register {
     use super::{encode_option_u16, encode_scalar_type};
     use crate::VirtualRegister;
-    use optimization_unit::encode_value_definition_site_identity;
+    use native_vocabulary::provenance::encode_value_definition_site_identity;
 
     pub(super) fn encode(bytes: &mut Vec<u8>, register: &VirtualRegister) {
         crate::codec_bytes::push_encoded(bytes, register.id.0.to_le_bytes());

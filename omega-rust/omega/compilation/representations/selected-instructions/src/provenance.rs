@@ -8,7 +8,8 @@
   and charges a nonzero unit count.
 */
 
-use optimization_unit::{PsiProvenance, WorkSettlement};
+use native_vocabulary::provenance::PsiProvenance;
+use native_vocabulary::provenance::WorkSettlement;
 use semantic_vocabulary::{EdgeId, ObligationId, OperationId, ValueId};
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]

@@ -6986,7 +6986,12 @@ fn apply_cleanup_actions(
     for action in actions {
         let place = match action {
             TerminalAffineCleanupAction::RetireHome(place) => {
-                if source_contract(function, custody, place).is_none() {
+                if source_contract(function, custody, place).is_none()
+                    && crate::legalization::scalar_graph_input::literals::declaration_producer(
+                        function, place,
+                    )
+                    .is_none()
+                {
                     return Err(invalid());
                 }
                 custody.leaves.retain(|(carrier, path), _| {

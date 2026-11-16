@@ -38,6 +38,93 @@ use terminal_psi::{
 const HOST: fn() -> NativeTarget = NativeTarget::linux_x64;
 
 #[test]
+fn a_literal_edge_can_retire_its_descriptor_home() {
+    use crate::legalization_function_inputs::FunctionInputs;
+    use crate::legalization_scalar_graph::control;
+    use semantic_vocabulary::StructuralPlaceKind;
+    use terminal_psi::{StructuralPlaceDeclaration, TerminalAffineCleanupAction};
+
+    let mut names = TerminalIdentityTableBuilder::default();
+    let mut view = reference_type(1, names.intern("literal bytes"), ty(1));
+    view.shape =
+        StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+            access: None,
+        });
+    let literal = StructuralPlaceDeclaration {
+        id: place(1),
+        kind: StructuralPlaceKind::ByteSequenceLiteral {
+            declaration_ordinal: 0,
+            structural_type: view.id,
+        },
+    };
+    let plan = plan(
+        names,
+        vec![view.clone()],
+        function_with_body(
+            Vec::new(),
+            vec![
+                entry(
+                    1,
+                    vec![
+                        AbstractOperation::EstablishByteSequenceLiteral {
+                            psi_operation: op(1),
+                            place: literal,
+                            structural_type: view,
+                            bytes: b"dir/file".to_vec(),
+                            qualifications: Vec::new(),
+                        },
+                        AbstractOperation::Jump {
+                            psi_edge: edge(1),
+                            target: block_id(2),
+                            bindings: Vec::new(),
+                            structural_bindings: Vec::new(),
+                            cleanup_actions: vec![TerminalAffineCleanupAction::RetireHome(
+                                literal.id,
+                            )],
+                        },
+                    ],
+                ),
+                entry(
+                    2,
+                    vec![AbstractOperation::ReturnUnit {
+                        psi_edge: edge(2),
+                        cleanup_actions: Vec::new(),
+                    }],
+                ),
+            ],
+        ),
+    );
+    let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
+        .unwrap();
+    let function = &unit.functions[0];
+    let inputs = FunctionInputs::new(function);
+    let types = crate::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+    let terminator = function.blocks[0].nodes.last().unwrap();
+    control::validate(terminator, &[], &inputs, &types).unwrap();
+
+    for wrong in [
+        TerminalAffineCleanupAction::RetireHome(place(9)),
+        TerminalAffineCleanupAction::DiscardRoot(literal.id),
+    ] {
+        // Make the operation and edge agree so the custody check itself must
+        // refuse each mutation rather than just finding a mismatched edge.
+        let mut forged = terminator.clone();
+        let AbstractOperation::Jump {
+            cleanup_actions, ..
+        } = &mut forged.operation
+        else {
+            unreachable!()
+        };
+        cleanup_actions[0] = wrong.clone();
+        forged.successors[0].cleanup_actions[0] = wrong.clone();
+        assert!(
+            control::validate(&forged, &[], &inputs, &types).is_err(),
+            "{wrong:?}"
+        );
+    }
+}
+
+#[test]
 fn retained_instruction_metadata_projects_without_a_node_and_rejects_changed_custody() {
     let integer = u64_type();
     let plan = plan(

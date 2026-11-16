@@ -24,7 +24,7 @@ pub(crate) mod interrupt_installation {
         SelectedLocalStorageSlot, SelectedMemoryAccessRole,
     };
     use semantic_vocabulary::IntegerValue;
-    use target_operations::InstallationCallRole;
+    use target_vocabulary::InstallationCallRole;
     pub(crate) mod address {
         use super::{SelectedInstructionError, failure};
         use calling_conventions::InterruptGateAddress;
@@ -483,7 +483,7 @@ pub(crate) mod interrupt_installation_calls {
         Builder, LegalizedScalarInstruction, VirtualRegisterId,
     };
     use legalized_operations::LegalizedScalarCall;
-    use target_operations::{CallSiteOwner, InstallationCallRole};
+    use target_vocabulary::{CallSiteOwner, InstallationCallRole};
 
     struct Invocation<'a> {
         row: &'a LegalizedScalarInstruction,
