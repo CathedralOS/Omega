@@ -124,6 +124,58 @@ fn private_inputs_cross_an_omitted_helper_chain() {
 }
 
 #[test]
+fn view_extent_facts_follow_only_the_guarded_input_across_private_arrivals() {
+    let source = r#"
+machine entry(bytes: &[u8], other: &[u8], index: u64) -> u8 {
+    transition index < bytes.len { true -> next(INPUT, index) false -> 255u8 }
+    machine next(bytes: &[u8], index: u64) -> u8 {
+        transition { _ -> fetch(bytes, index) }
+    }
+    machine fetch(bytes: &[u8], index: u64) -> u8 {
+        bytes[index]
+    }
+}
+"#;
+    let judge_input = |input| {
+        let typed = super::boundary_calls::typed(&source.replace("INPUT", input));
+        let entry = super::boundary_calls::entry(&typed);
+        let elaboration = typed_trees_to_terminal_psi::elaborate_for(
+            &typed,
+            typed_trees_to_terminal_psi::Compilation {
+                declaration_metadata: &[],
+                entries: &[entry],
+                subjects: &[None],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Invocation,
+        )
+        .unwrap();
+        assert_eq!(elaboration.private_inputs.len(), 2);
+        judge(Ok(elaboration)).unwrap()
+    };
+    let verdict = judge_input("bytes");
+    let RouteVerdict::Accepted(accepted) = verdict else {
+        panic!("the guarded descriptor reaches both helpers: {verdict:?}");
+    };
+    accepted.publish_invocation().unwrap();
+
+    for input in ["other", "&bytes[0..index]"] {
+        let verdict = judge_input(input);
+        let RouteVerdict::Rejected { unproved, .. } = verdict else {
+            panic!("the guard cannot justify indexing {input}: {verdict:?}");
+        };
+        assert!(
+            unproved
+                .iter()
+                .any(|row| row.machine == id(3) && safety(&row.kind))
+        );
+    }
+}
+
+#[test]
 fn a_fixed_input_boundary_does_not_receive_its_callers_stronger_fact() {
     let entry = machine(vec![], vec![returns(call(2, vec![unsigned(2)]))]);
     let forward = machine(

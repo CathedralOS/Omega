@@ -5101,8 +5101,30 @@ impl<'a> AtCall<'_, 'a> {
         CallObservations {
             call: self,
             readable,
+            extents: None,
             projections: None,
             terms: Vec::new(),
+        }
+    }
+
+    fn observed_place(&self, origin: ValueOrigin) -> Option<Lineage> {
+        match origin {
+            ValueOrigin::StorageContent { place, .. } => {
+                lineage(self.storage.machine, &self.tables.places, place).ok()
+            }
+            ValueOrigin::Operation(operation) => {
+                let operation = self.storage.operation(operation, self.concerns).ok()?;
+                let leaf = self.storage.read_leaf(operation).ok()??;
+                let (block, after) = self
+                    .storage
+                    .graph
+                    .locate(ProgramPoint::AfterOperation(operation.id))
+                    .ok()?;
+                self.storage
+                    .backing(&leaf, block, after.checked_sub(1)?, self.concerns)
+                    .ok()
+            }
+            _ => None,
         }
     }
 
@@ -5123,7 +5145,8 @@ impl<'a> AtCall<'_, 'a> {
 pub(crate) struct CallObservations<'s, 'a> {
     call: &'s AtCall<'s, 'a>,
     readable: Vec<(&'s Lineage, usize)>,
-    // Keep unvisited and unbound distinct. Only named fields keep a term.
+    extents: Option<Vec<(Lineage, usize, ValueId)>>,
+    // Keep unvisited and unbound distinct. Only named observations keep a term.
     projections: Option<IdTable<ValueId, Option<Option<usize>>>>,
     terms: Vec<ScalarTerm>,
 }
@@ -5148,47 +5171,73 @@ impl CallObservations<'_, '_> {
             .get_mut(value)?;
         let projection = *slot.get_or_insert_with(|| {
             let call = self.call;
-            let recorded = match row.origin {
-                ValueOrigin::StorageContent { place, .. } => {
-                    lineage(call.storage.machine, &call.tables.places, place).ok()?
-                }
-                ValueOrigin::Operation(operation) => {
-                    let operation = call.storage.operation(operation, call.concerns).ok()?;
-                    let leaf = call.storage.read_leaf(operation).ok()??;
-                    let (block, after) = call
-                        .storage
-                        .graph
-                        .locate(ProgramPoint::AfterOperation(operation.id))
+            let recorded = call.observed_place(row.origin)?;
+            let (formal, path, held) =
+                if let Some((formal, path)) = formal_observation_path(&self.readable, &recorded) {
+                    let held = call
+                        .held_at(&recorded)
+                        .observation(&recorded, scalar_type)
                         .ok()?;
-                    call.storage
-                        .backing(&leaf, block, after.checked_sub(1)?, call.concerns)
-                        .ok()?
-                }
-                _ => return None,
-            };
-            let (formal, path) = formal_observation_path(&self.readable, &recorded)?;
-            let root = call.callee_formals[formal].place;
-            let held = call
-                .held_at(&recorded)
-                .observation(&recorded, scalar_type)
-                .ok()?;
+                    (formal, path, held)
+                } else if let (Some(Segment::Extent), ScalarType::Integer(integer)) =
+                    (recorded.segments.last(), scalar_type)
+                {
+                    // A reborrow can carry the observed extent in a new
+                    // descriptor. Match the reaching value of that actual.
+                    let extents = self.extents.get_or_insert_with(|| {
+                        let mut extents: Vec<_> = self
+                            .readable
+                            .iter()
+                            .filter_map(|(actual, formal)| {
+                                let ScalarTerm::Value { id, .. } =
+                                    call.held_at(actual).extent_of(actual, integer).ok()?
+                                else {
+                                    return None;
+                                };
+                                let origin = call.tables.values.get(id)?.origin;
+                                let source = call.observed_place(origin)?;
+                                matches!(source.segments.last(), Some(Segment::Extent))
+                                    .then_some((source, *formal, id))
+                            })
+                            .collect();
+                        extents.sort_unstable();
+                        extents
+                    });
+                    let position = extents.partition_point(|(place, _, _)| place < &recorded);
+                    let (place, formal, held) = extents.get(position)?;
+                    if *place != recorded {
+                        return None;
+                    }
+                    (*formal, Vec::new(), ScalarTerm::value(*held, scalar_type))
+                } else {
+                    return None;
+                };
             if !same(held, ScalarTerm::value(value, scalar_type)) {
                 return None;
             }
+            let root = call.callee_formals[formal].place;
             let version = semantic_vocabulary::ContentPlaceVersion::Entry;
-            let term = match scalar_type {
-                ScalarType::Boolean => ScalarTerm::BooleanField {
+            let term = match (recorded.segments.last(), scalar_type) {
+                (Some(Segment::Extent), ScalarType::Integer(scalar_type)) => {
+                    ScalarTerm::ViewExtent {
+                        root,
+                        path,
+                        scalar_type,
+                    }
+                }
+                (Some(Segment::Extent), _) => return None,
+                (_, ScalarType::Boolean) => ScalarTerm::BooleanField {
                     version,
                     root,
                     path,
                 },
-                ScalarType::Integer(scalar_type) => ScalarTerm::IntegerField {
+                (_, ScalarType::Integer(scalar_type)) => ScalarTerm::IntegerField {
                     version,
                     root,
                     path,
                     scalar_type,
                 },
-                ScalarType::IeeeFloat(format) => ScalarTerm::IeeeFloatField {
+                (_, ScalarType::IeeeFloat(format)) => ScalarTerm::IeeeFloatField {
                     version,
                     root,
                     path,
@@ -5209,6 +5258,12 @@ fn formal_observation_path(
     readable: &[(&Lineage, usize)],
     recorded: &Lineage,
 ) -> Option<(usize, Vec<CanonicalStructuralPathSegment>)> {
+    // A length is observed on the descriptor. Its formal term names that
+    // descriptor, so the final extent marker is not a path projection.
+    let subject = match recorded.segments.split_last() {
+        Some((Segment::Extent, descriptor)) => descriptor,
+        _ => &recorded.segments,
+    };
     let segment = |segment: &Segment| match segment {
         Segment::Field(field) => Some(CanonicalStructuralPathSegment::Field(*field)),
         Segment::Case(case) => Some(CanonicalStructuralPathSegment::Case(*case)),
@@ -5217,21 +5272,20 @@ fn formal_observation_path(
         _ => None,
     };
     // Any segment unavailable in a contract must lie inside the actual.
-    let shortest = recorded
-        .segments
+    let shortest = subject
         .iter()
         .rposition(|step| segment(step).is_none())
         .map_or(0, |position| position + 1);
-    let (formal, prefix) = (shortest..=recorded.segments.len())
+    let (formal, prefix) = (shortest..=subject.len())
         .filter_map(|length| {
-            let prefix = (recorded.root, &recorded.segments[..length]);
+            let prefix = (recorded.root, &subject[..length]);
             let first = readable
                 .partition_point(|(actual, _)| (actual.root, actual.segments.as_slice()) < prefix);
             let (actual, formal) = readable.get(first)?;
             ((actual.root, actual.segments.as_slice()) == prefix).then_some((*formal, length))
         })
         .min()?;
-    let path = recorded.segments[prefix..]
+    let path = subject[prefix..]
         .iter()
         .map(segment)
         .collect::<Option<Vec<_>>>()?;
