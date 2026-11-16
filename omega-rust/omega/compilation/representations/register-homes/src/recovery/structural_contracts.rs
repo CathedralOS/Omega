@@ -1162,19 +1162,21 @@ mod local_slot_tests {
     #[test]
     fn byte_span_contract_roundtrip_retains_length_obligation_and_accepted_fact() {
         let empty = || SelectedFunction {
-            machine: semantic_vocabulary::MachineId::new(1).unwrap(),
-            attachment: None,
-            nominal_cleanup_subject: None,
-            provenance: Default::default(),
-            structural: None,
-            local_storage_slots: Vec::new(),
-            outgoing_arguments: Vec::new(),
-            calls: Vec::new(),
-            normalized_foreign_calls: Vec::new(),
-            memory_accesses: Vec::new(),
-            boundary_settlements: Vec::new(),
+            contracts: std::sync::Arc::new(selected_instructions::SelectedFunctionContracts {
+                machine: semantic_vocabulary::MachineId::new(1).unwrap(),
+                attachment: None,
+                nominal_cleanup_subject: None,
+                provenance: Default::default(),
+                structural: None,
+                local_storage_slots: Vec::new(),
+                outgoing_arguments: Vec::new(),
+                calls: Vec::new(),
+                normalized_foreign_calls: Vec::new(),
+                memory_accesses: Vec::new(),
+                boundary_settlements: Vec::new(),
+                virtual_registers: Vec::new(),
+            }),
             entry_block: SelectedBlockId(0),
-            virtual_registers: Vec::new(),
             blocks: (Vec::new()).into(),
         };
         let length = semantic_vocabulary::ValueId::new(7).unwrap();

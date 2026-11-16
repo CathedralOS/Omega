@@ -669,20 +669,22 @@ pub(super) fn decode_function(
     let virtual_registers = decode_list(cursor, decode_register)?;
     let blocks = decode_list(cursor, decode_block)?;
     let mut function = SelectedFunction {
-        machine,
-        attachment,
-        nominal_cleanup_subject,
-        provenance: target_vocabulary::TerminalPsiProvenance { operations, edges },
+        contracts: std::sync::Arc::new(selected_instructions::SelectedFunctionContracts {
+            machine,
+            attachment,
+            nominal_cleanup_subject,
+            provenance: target_vocabulary::TerminalPsiProvenance { operations, edges },
+            virtual_registers,
+            structural: None,
+            outgoing_arguments: Vec::new(),
+            local_storage_slots: Vec::new(),
+            calls: Vec::new(),
+            normalized_foreign_calls: Vec::new(),
+            memory_accesses: Vec::new(),
+            boundary_settlements: Vec::new(),
+        }),
         entry_block,
-        virtual_registers,
         blocks: blocks.into(),
-        structural: None,
-        outgoing_arguments: Vec::new(),
-        local_storage_slots: Vec::new(),
-        calls: Vec::new(),
-        normalized_foreign_calls: Vec::new(),
-        memory_accesses: Vec::new(),
-        boundary_settlements: Vec::new(),
     };
     decode_contracts(cursor, &mut function)?;
     if !function.ids_are_positions() {
