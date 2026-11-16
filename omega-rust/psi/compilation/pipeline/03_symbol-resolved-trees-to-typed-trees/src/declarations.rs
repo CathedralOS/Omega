@@ -584,7 +584,7 @@ pub(crate) mod machine {
     use crate::expressions::expression::lower_expression_handle;
     use crate::lowerer::Lowerer;
     use crate::lowerer::name::{lower_name, lower_names};
-    use crate::signatures::type_parameters::{lower_type_parameter, lower_type_parameters};
+    use crate::signatures::type_parameters::lower_type_parameters;
     use crate::tables::resolved_expressions;
     use crate::type_reference::{lower_type_reference_into_table, retain_type_reference_selection};
     use arena::HandleSpan;
@@ -805,9 +805,35 @@ pub(crate) mod machine {
         let inherited =
             crate::signatures::lexical_context::enclosing_parameters(lowerer.source_trees, machine);
         if !inherited.is_empty() {
+            // These are occurrences of their enclosing declaration's binders,
+            // not new declarations. Reuse that owner's exact typed row, including
+            // its schema/lifetime payload and original selection exposure.
             let mut parameters = inherited
                 .into_iter()
-                .map(|parameter| lower_type_parameter(lowerer, parameter))
+                .map(|parameter| {
+                    let trees = &lowerer.typed_trees;
+                    let owner = trees
+                        .symbols
+                        .symbols()
+                        .nodes()
+                        .is_valid(parameter.symbol)
+                        .then(|| trees.symbols.get(parameter.symbol).parent);
+                    owner
+                        .and_then(|owner| trees.machine_by_symbol(owner))
+                        .and_then(|owner| {
+                            trees
+                                .machine_type_parameters(owner)
+                                .iter()
+                                .find(|declared| declared.symbol == parameter.symbol)
+                        })
+                        .cloned()
+                        .ok_or_else(|| {
+                            Diagnostic::error(
+                                "an inherited static parameter lost its declaring machine's typed binder",
+                            )
+                            .with_source_span(parameter.name.source_span())
+                        })
+                })
                 .collect::<Result<Vec<_>, _>>()?;
             parameters.extend_from_slice(
                 lowerer

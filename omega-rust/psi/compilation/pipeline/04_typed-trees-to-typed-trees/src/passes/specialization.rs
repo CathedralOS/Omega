@@ -428,7 +428,9 @@ fn serve(program: &mut TypedTrees, site: Site, generated: &mut GeneratedMachines
         return Ok(());
     }
     if parameters.len() != arguments.len() {
-        return Err(Stop::Unserved(None));
+        return Err(unserved(
+            "a static application argument count differs from its declared binders",
+        ));
     }
     let mut operands = Vec::with_capacity(parameters.len());
     for ((parameter, kind), argument) in parameters.iter().zip(&arguments) {
@@ -1271,7 +1273,7 @@ fn bind(
 fn template(program: &TypedTrees, symbol: SymbolHandle) -> Served<Vec<(Machine, State)>> {
     let root = program
         .machine_by_symbol(symbol)
-        .ok_or(Stop::Unserved(None))?;
+        .ok_or_else(|| unserved("a declaration template has no exact machine"))?;
     let parameters = program
         .machine_callable_parameters(root)
         .into_iter()
@@ -1292,16 +1294,20 @@ fn template(program: &TypedTrees, symbol: SymbolHandle) -> Served<Vec<(Machine, 
                 .iter()
                 .any(|parameter| parameters.get(&parameter.symbol) != Some(parameter))
         {
-            return Err(Stop::Unserved(None));
+            return Err(unserved(
+                "a nested declaration has static binders different from its enclosing template",
+            ));
         }
         if has_unserved_type_expression(program, &types) {
-            return Err(Stop::Unserved(None));
+            return Err(unserved(
+                "a declaration template has an embedded type expression without a retained static operand",
+            ));
         }
         for owner in [machine.symbol, state.symbol] {
             for child in program
                 .symbols
                 .child_handles(owner)
-                .ok_or(Stop::Unserved(None))?
+                .ok_or_else(|| unserved("a declaration template lost its owned child roster"))?
             {
                 if program.symbols.get(child).kind == SymbolKind::Machine {
                     pending.push(child);
@@ -1590,7 +1596,9 @@ fn copy_declarations(
             .static_operand_from_type_reference(copied.source)
             .is_err()
     }) {
-        return Err(Stop::Unserved(None));
+        return Err(unserved(
+            "a copied body has an embedded type expression without a retained static operand",
+        ));
     }
     let type_start = program.type_reference_table.type_reference_count() + 1;
     let expression_start = program.expression_table.expression_count() + 1;
