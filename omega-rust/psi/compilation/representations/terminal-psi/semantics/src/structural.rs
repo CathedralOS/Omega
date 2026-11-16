@@ -5282,19 +5282,21 @@ pub(crate) mod structural_effect {
             element_view_leaf(types, element, path).map(|leaf| leaf.scalar_type)
         }
         /// A by-value read copies a statically selected scalar from its element.
+        /// Only that scalar leaf is copied, so a non-copy element may supply
+        /// one of its scalar fields; reading the whole element is a different
+        /// operation that its own multiplicity governs.
         pub fn element_view_read_scalar(
             types: &[StructuralTypeDeclaration],
             element: StructuralTypeId,
             path: &[StructuralPathSegment],
         ) -> Option<ScalarType> {
-            if !terminal_psi::find_structural_type(types, element)?.copyable
-                || !path.iter().all(|segment| {
-                    matches!(
-                        segment,
-                        StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_)
-                    )
-                })
-            {
+            terminal_psi::find_structural_type(types, element)?;
+            if !path.iter().all(|segment| {
+                matches!(
+                    segment,
+                    StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_)
+                )
+            }) {
                 return None;
             }
             element_view_leaf_scalar(types, element, path)
