@@ -1100,6 +1100,76 @@ machine entry() -> u32 crashes none {
     let elaboration = read_applied_boundary(&prepared).unwrap();
     let module = &elaboration.module;
     assert_eq!(module.boundary_machines.len(), 2);
+    let owner = prepared
+        .traits()
+        .iter()
+        .find(|owner| prepared.symbols.name(owner.symbol) == "Probe")
+        .unwrap();
+    let surface = typed_trees::service_declarations::projection::from_typed(
+        typed_trees::provider_declarations::ProviderPlanningContext::new(
+            &prepared,
+            source::DependencyScope::Product,
+        ),
+        owner,
+    );
+    eprintln!(
+        "normalized source surface: {:?}",
+        surface
+            .as_ref()
+            .map(|surface| {
+                surface
+                    .declaration
+                    .methods
+                    .iter()
+                    .map(|method| {
+                        (
+                            method.name.as_str(),
+                            surface
+                                .declaration
+                                .identity_text(method.requirement_identity),
+                        )
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .map_err(|error| &error.message)
+    );
+    eprintln!(
+        "emitted schemas: {:?}",
+        module
+            .service_schemas
+            .iter()
+            .map(|schema| (
+                schema.declaration,
+                schema.application,
+                schema.surface.methods.len(),
+            ))
+            .collect::<Vec<_>>()
+    );
+    eprintln!(
+        "emitted services: {:?}",
+        module
+            .services
+            .iter()
+            .map(|service| (service.id, service.identity,))
+            .collect::<Vec<_>>()
+    );
+    for boundary in &module.boundary_machines {
+        let service = module
+            .services
+            .iter()
+            .find(|service| Some(service.id) == boundary.owning_service)
+            .unwrap();
+        eprintln!(
+            "boundary {:?}: declaration {:?}, application {:?}, requirement {:?}",
+            boundary.id,
+            boundary.owner.identity(),
+            service.identity,
+            module.identities.text(boundary.identity)
+        );
+        module
+            .service_schema(boundary.owner.identity(), service.identity)
+            .expect("each closed boundary retains its complete service schema");
+    }
     let abis = module
         .boundary_machines
         .iter()
