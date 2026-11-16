@@ -19,8 +19,10 @@ keeps the same callers and values. It removes only the first helper's explicit
 plain integer. All four helpers declare `requires true`; private input inference
 cannot narrow their input contracts.
 
-The compiler must retain the selected Core declaration, the exact source and
-result carriers, the complete integer-result contract, and the result policy.
+`I32` and `U32` are module namespaces. The expected result-domain set selects
+an exact declared overload before the compiler matches its input types. The
+compiler retains that Core declaration, the source and result carriers, the
+complete integer-result contract, and the result policy.
 Native checking must reject replacing saturation with truncation or erasing
 that policy from retained declarations.
 
