@@ -1,3 +1,4 @@
+module domain::model;
 public data Truss {
     nodes: u64; bars: u64; coordinates: [f64; 16]; fixed: [bool; 16]; loads: [f64; 16];
     first: [u64; 16]; second: [u64; 16]; rigidity: [f64; 16]; valid: bool;

@@ -6,7 +6,18 @@ use omega_language_std::Console;
 use omega_language_std::LineReadResult;
 use omega::language::core::F64::from_i32;
 use physics::model;
+use physics::model::Layer;
+use physics::model::Particle;
+use physics::model::Step;
+use physics::model::layer_at;
+use physics::model::layer;
+use physics::model::absolute;
+use physics::model::force;
+use physics::model::terminal_velocity;
+use physics::model::advance;
 use reporting::numbers;
+use reporting::numbers::number;
+use reporting::numbers::micro;
 
 data Main {
     input: [u8; 16];
@@ -18,8 +29,8 @@ data Main {
 
 // Protocol: one bounded line "M 0D", M=1..6 and density D=1..8. EOF without LF
 // is accepted, CRLF is accepted, full buffers and trailing bytes are rejected.
-machine Main::main(main: &mut Main) reaches ProcessExit + Console crashes Trap {
-    let read: LineReadResult = block Console::read_line(&mut main.input);
+machine main(main: &mut Main) reaches ProcessExit + Console crashes Trap {
+    let read: LineReadResult = block Console::read_line(&mut main.input[..]);
     transition read {
         LineReadResult::LineComplete { count } -> line(main, count)
         LineReadResult::EndOfInput { count } -> end(main, count)
@@ -168,5 +179,5 @@ machine trace(step: i32, index: i32, particle: Particle, net: f64, residual: f64
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console crashes Trap {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

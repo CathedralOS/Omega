@@ -7,6 +7,8 @@ use omega_language_std::Console;
 use omega_language_std::LineReadResult;
 use omega::language::core::I32::from_f64;
 use domain::mixture;
+use domain::mixture::Mixture;
+use domain::mixture::correct;
 
 data Main {
     input: [u8; 15];
@@ -48,8 +50,8 @@ machine emit(main: &mut Main, value: f64) reaches ProcessExit + Console {
     machine positive(main: &mut Main, value: f64) { emit_positive(main, value); }
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
-    let observed: LineReadResult = block Console::read_line(&mut main.input);
+machine main(main: &mut Main) reaches ProcessExit + Console {
+    let observed: LineReadResult = block Console::read_line(&mut main.input[..]);
     transition observed {
         LineReadResult::LineComplete { count } -> length(main, count)
         _ -> malformed(main)
@@ -145,5 +147,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

@@ -4,13 +4,23 @@ use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 use omega::language::core::narrow_u64_to_i64_saturating;
 use domain::input;
+use domain::input::Input;
+use domain::input::read;
 use domain::model;
+use domain::model::Problem;
+use domain::model::valid;
+use domain::model::problem;
 use domain::rates;
+use domain::rates::physical;
 use domain::integrate;
+use domain::integrate::Solution;
+use domain::integrate::integrate;
 use domain::report;
+use domain::report::scaled;
+use domain::report::integer64;
 data Main { input: Input; problem: Problem; solution: Solution; }
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
-    block Input::read(&mut main.input);
+machine main(main: &mut Main) reaches ProcessExit + Console {
+    block read(&mut main.input);
     transition valid(&main.input) { true -> prepare(main) false -> invalid(main) }
     machine prepare(main: &mut Main) {
         main.problem = problem(&main.input);
@@ -39,5 +49,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

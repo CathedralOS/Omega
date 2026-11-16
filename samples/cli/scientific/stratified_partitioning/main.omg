@@ -1,10 +1,20 @@
 use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 use input::parser;
+use input::parser::Tokens;
+use input::parser::tokens_read;
 use data::dataset;
+use data::dataset::Dataset;
+use data::dataset::load;
 use partition::allocation;
+use partition::allocation::Allocation;
+use partition::allocation::allocation_solve;
 use partition::audit;
+use partition::audit::Audit;
+use partition::audit::check;
 use report::output;
+use report::output::number;
+use report::output::report;
 
 data Main {
     tokens: Tokens;
@@ -12,22 +22,22 @@ data Main {
     allocation: Allocation;
     audit: Audit;
 }
-machine Main::main(context: &mut Main) reaches ProcessExit + Console {
-    block Tokens::read(&mut context.tokens);
-    Dataset::load(&mut context.data, &context.tokens);
+machine main(context: &mut Main) reaches ProcessExit + Console {
+    block tokens_read(&mut context.tokens);
+    load(&mut context.data, &context.tokens);
     transition context.data.valid {
         true -> solve(context)
         _ -> invalid(context)
     }
     machine solve(context: &mut Main) {
-        Allocation::solve(&mut context.allocation, &context.data);
+        allocation_solve(&mut context.allocation, &context.data);
         transition context.allocation.found {
             true -> audit(context)
             _ -> infeasible(context)
         }
     }
     machine audit(context: &mut Main) {
-        Audit::check(&mut context.audit, &context.data, &context.allocation);
+        check(&mut context.audit, &context.data, &context.allocation);
         transition context.audit.valid {
             true -> output(context)
             _ -> corrupt(context)
@@ -55,5 +65,5 @@ machine Main::main(context: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

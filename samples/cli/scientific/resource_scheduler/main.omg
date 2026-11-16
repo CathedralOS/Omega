@@ -8,15 +8,23 @@ use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 use omega_language_std::LineReadResult;
 use domain::model;
+use domain::model::Problem;
+use domain::model::Schedule;
 use domain::input;
+use domain::input::Input;
+use domain::input::Tokens;
+use domain::input::parse;
+use domain::input::decode;
 use domain::solver;
+use domain::solver::solve;
 use domain::verify;
+use domain::verify::verify;
 
 data Main { }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     let mut input: Input;
-    let received: LineReadResult = block Console::read_line(&mut input.bytes);
+    let received: LineReadResult = block Console::read_line(&mut input.bytes[..]);
     transition received {
         LineReadResult::LineComplete { count } -> length(main, &input, count)
         LineReadResult::EndOfInput { count } -> length(main, &input, count)
@@ -106,5 +114,5 @@ machine print_number(main: &mut Main, value: i32 in Wrapping) reaches Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

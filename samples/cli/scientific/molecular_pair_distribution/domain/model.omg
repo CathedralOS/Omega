@@ -1,3 +1,4 @@
+module domain::model;
 public data Distribution {
     box: i32;
     particles: i32 in Wrapping;

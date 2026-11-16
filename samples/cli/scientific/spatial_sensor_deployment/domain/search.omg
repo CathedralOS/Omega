@@ -1,4 +1,8 @@
+module domain::search;
 use domain::model;
+use domain::model::Problem;
+use domain::model::Search;
+use domain::model::Evaluation;
 // Exhaust each of 8 deployments and 256 demand assignments. No greedy coverage
 // shortcut: capacities couple demand choices. Assignment digit 0 means unserved.
 machine evaluate(problem: &Problem, work: &mut Evaluation,
@@ -101,7 +105,7 @@ machine deployment_cost(problem: &Problem, mask: u64 in Wrapping) -> u64 in Wrap
     }
 }
 
-machine Search::solve(search: &mut Search, problem: &Problem) {
+public machine solve(search: &mut Search, problem: &Problem) {
     search.mask = 0; search.cost = 0; search.score = 0; search.code = 0; search.ties = 0;
     transition { _ -> subset(search, problem, 0) }
     machine subset(search: &mut Search, problem: &Problem, mask: u64 in Wrapping) {

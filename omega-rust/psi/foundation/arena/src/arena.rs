@@ -57,9 +57,11 @@ impl RevisionStamp {
         *self.0.get_mut() = Self::UNSTAMPED;
     }
 
-    /// A copy names the same contents, so it keeps the stamp it was copied at.
+    /// A copy names the same contents, so it shares the source's stamp. An unstamped
+    /// source draws its stamp first; otherwise the two would later draw different
+    /// stamps for the same contents, and a snapshot would not keep its epoch.
     pub(super) fn copy(&self) -> Self {
-        Self(AtomicU64::new(self.0.load(Ordering::Acquire)))
+        Self(AtomicU64::new(self.get()))
     }
 }
 
@@ -2007,6 +2009,20 @@ mod tests {
         *original.get_mut(row) = 2;
         assert!(original.revision() > later);
         assert_ne!(original.revision(), copy.revision());
+    }
+
+    /// Cloning before anything has read the stamp still gives both copies one stamp,
+    /// so a snapshot taken right after a mutation keeps that epoch.
+    #[test]
+    fn clone_of_unread_arena_shares_its_stamp() {
+        let mut original = Arena::<u64>::new();
+        let row = original.insert(1);
+        let snapshot = original.clone();
+        let shared = original.revision();
+        assert_eq!(snapshot.revision(), shared);
+        *original.get_mut(row) = 2;
+        assert_ne!(original.revision(), shared);
+        assert_eq!(snapshot.revision(), shared);
     }
     #[test]
     fn removed_ordered_roots_retain_metadata_without_membership() {

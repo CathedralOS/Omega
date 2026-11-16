@@ -1,3 +1,4 @@
+module domain::input;
 use omega_language_std::ByteRead;
 use omega_language_std::Console;
 use omega::language::core::F64::from_i32;
@@ -6,7 +7,7 @@ public data Input {
  values: [f64; 67]; count: u64 in Wrapping; bytes: u64 in Wrapping; length: u64 in Wrapping;
  token: [i32 in Wrapping; 64]; valid: bool;
 }
-public machine Input::read(input: &mut Input)
+public machine read(input: &mut Input)
 invokes Console reaches Console blocks crashes Trap {
  input.count = 0; input.bytes = 0; input.length = 0; input.valid = true;
  transition { _ -> receive(input) }
@@ -33,14 +34,14 @@ invokes Console reaches Console blocks crashes Trap {
   transition { _ -> receive(input) }
  }
  machine flush(input: &mut Input) {
-  Input::flush(input);
+  input_flush(input);
   transition input.valid { true -> receive(input) false -> done() }
  }
- machine finish(input: &mut Input) { Input::flush(input); }
+ machine finish(input: &mut Input) { input_flush(input); }
  machine invalid(input: &mut Input) { input.valid = false; }
  machine done() {}
 }
-machine Input::flush(input: &mut Input) {
+machine input_flush(input: &mut Input) {
  transition input.length > 0 { true -> capacity(input) false -> done() }
  machine capacity(input: &mut Input) {
   transition input.count < 67 { true -> start(input) false -> invalid(input) }

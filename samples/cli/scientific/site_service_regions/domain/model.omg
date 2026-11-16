@@ -1,3 +1,4 @@
+module domain::model;
 // Invocation-private bounded storage: clipping a convex 12-edge boundary by
 // at most seven bisectors needs at most 19 distinct vertices. Capacity 32 leaves margin;
 // overflow is still an explicit application failure, never a silent truncation.

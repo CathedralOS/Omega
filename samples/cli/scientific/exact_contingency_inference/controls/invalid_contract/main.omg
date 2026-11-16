@@ -5,4 +5,4 @@ machine impossible_weight() -> CheckedWeight
 ensures result.value == 2
 { CheckedWeight { value: 1 } }
 data Main {}
-machine Main::main(main: &mut Main) { let weight: CheckedWeight = impossible_weight(); }
+machine main(main: &mut Main) { let weight: CheckedWeight = impossible_weight(); }

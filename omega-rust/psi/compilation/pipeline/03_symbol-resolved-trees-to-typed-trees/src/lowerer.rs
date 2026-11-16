@@ -16,7 +16,6 @@ use crate::declarations::proposition::lower_proposition_definition;
 use crate::declarations::provider_defaults::finalize_provider_default_calls;
 use crate::declarations::trait_definition::lower_trait_definition;
 use crate::declarations::type_aliases::lower_type_alias_definition;
-use crate::expressions::equatable::validate_equatable_conformances_in;
 use crate::expressions::exhaustiveness::validate_case_dispatch_exhaustiveness_in;
 use crate::expressions::expression::lower_expression_handle;
 use crate::lowerer::progress::normalize_machine_progress_premises;
@@ -562,7 +561,9 @@ pub(crate) mod seeded_continuation {
                 )]);
             }
             self.resolved = successor;
-            Arc::make_mut(&mut self.typed).symbols = self.resolved.symbols.clone();
+            self.typed = self
+                .typed
+                .with_replaced_symbols(self.resolved.symbols.clone());
             Ok(self)
         }
 
@@ -774,7 +775,6 @@ pub(crate) mod seeded_continuation {
         let mut lowerer = Lowerer {
             typed_trees: candidate,
             source_trees: &source,
-            equality_scope: None,
             type_reference_exposure: Some(
                 AuthoredDeclarationSelectionExposure::PrivateImplementation,
             ),
@@ -851,7 +851,6 @@ pub(crate) mod seeded_continuation {
         let mut lowerer = Lowerer {
             typed_trees: candidate,
             source_trees: &source,
-            equality_scope: None,
             type_reference_exposure: Some(
                 AuthoredDeclarationSelectionExposure::PrivateImplementation,
             ),
@@ -1481,8 +1480,6 @@ pub(crate) fn validate_resolved_semantics_in(
 ) -> Result<(), Diagnostic> {
     crate::expressions::equality::validate_equality_operands_in(symbol_resolved_trees, cohort)?;
 
-    validate_equatable_conformances_in(symbol_resolved_trees, cohort)?;
-
     validate_case_dispatch_exhaustiveness_in(symbol_resolved_trees, cohort)
 }
 
@@ -1498,7 +1495,6 @@ pub fn lower_symbol_resolved_trees(
             ..TypedTrees::default()
         },
         source_trees: symbol_resolved_trees,
-        equality_scope: None,
         type_reference_exposure:
             Some(language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation),
         admits_contract_policy_operators: false,
@@ -1791,6 +1787,11 @@ pub(crate) fn close_typed_cohort(
     {
         validate_computed_arguments(lowerer.source_trees)?;
     }
+    crate::equality_preparation::prepare(
+        &mut lowerer.typed_trees,
+        cohort.typed_expressions,
+        cohort.conformances,
+    )?;
     finalize_provider_default_calls(&mut lowerer.typed_trees)?;
     target_machine_families::append(
         lowerer.source_trees,
@@ -1895,7 +1896,6 @@ pub(crate) fn declaration_exposure(
 pub(crate) struct Lowerer<'source> {
     pub(crate) typed_trees: TypedTrees,
     pub(crate) source_trees: &'source SymbolResolvedTrees,
-    pub(crate) equality_scope: Option<crate::expressions::equatable::EqualityScope>,
     pub(crate) type_reference_exposure:
         Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure>,
     /// Set while the contracts of a machine or one of its states are lowered.

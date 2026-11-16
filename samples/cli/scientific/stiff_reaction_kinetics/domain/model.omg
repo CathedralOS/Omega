@@ -1,5 +1,7 @@
+module domain::model;
 use omega::language::core::F64::from_u64;
 use domain::input;
+use domain::input::Input;
 public data Vector [copy] { a: f64; b: f64; c: f64; }
 public data Reaction [copy] { a: u64; b: u64; c: u64; p: u64; q: u64; r: u64; rate: f64; }
 public data Problem [copy] { first: Reaction; second: Reaction; third: Reaction; initial: Vector; end: f64; step: f64; absolute: f64; relative: f64; trials: u64; iterations: u64; }

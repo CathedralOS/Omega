@@ -1,8 +1,9 @@
+module domain::phasor;
 // Private bounded cosine: reduce into [-pi, pi], then degree-20 Taylor.
 // Geometry validation bounds phase to 8*pi; the sine shift adds pi/2, requiring <=5 turns.
 // Taylor remainder <= pi^22/22! < 8e-11. No shared numerics imports.
 public data Phasor { }
-public machine Phasor::cosine(angle: f64) -> f64 {
+public machine cosine(angle: f64) -> f64 {
     transition { _ -> reduce(angle) }
     machine reduce(angle: f64) -> f64 {
         transition angle > 3.141592653589793 {
@@ -32,7 +33,7 @@ public machine Phasor::cosine(angle: f64) -> f64 {
         transition { _ -> (value) }
     }
 }
-public machine Phasor::sine(angle: f64) -> f64 {
-    let result: f64 = Phasor::cosine(angle - 1.5707963267948966);
+public machine sine(angle: f64) -> f64 {
+    let result: f64 = cosine(angle - 1.5707963267948966);
     transition { _ -> (result) }
 }

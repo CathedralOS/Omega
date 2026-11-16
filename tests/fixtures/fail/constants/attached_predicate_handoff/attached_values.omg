@@ -1,0 +1,14 @@
+module attached_values;
+
+machine valid(value: u64) -> bool reaches none crashes none { value <= 2u64 }
+public data Index [copy] requires valid(value) { value: u64; }
+const Index::SELECTED: Index = Index { value: 3u64 };
+machine make() -> Index { Index { value: 2u64 } }
+const COMPUTED: Index = make();
+public machine probe() crashes Trap {
+    let item: Index = Index { value: 1u64 };
+    let selected: Index = Index::SELECTED;
+    transition item.value == 1u64 && selected.value == 2u64 && COMPUTED.value == 2u64 { true -> complete() _ -> fail() }
+}
+machine complete() {}
+machine fail() crashes Trap { crash Trap; }

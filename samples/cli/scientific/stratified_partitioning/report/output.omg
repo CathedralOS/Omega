@@ -1,7 +1,12 @@
+module report::output;
 use omega_language_std::Console;
 use data::dataset;
+use data::dataset::Dataset;
 use partition::allocation;
+use partition::allocation::Allocation;
+use partition::allocation::absolute;
 use partition::audit;
+use partition::audit::Audit;
 public machine number(value: i32 in Saturating)
 reaches Console
 invokes Console

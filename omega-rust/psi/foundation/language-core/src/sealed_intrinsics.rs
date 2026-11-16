@@ -26,6 +26,8 @@ use std::path::Path;
 /// The compiler-supplied operation a catalog row identifies.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum SealedIntrinsic {
+    /// Core's structural equality synthesis protocol; not an executable primitive.
+    EqualityProtocol,
     /// A bodyless machine supplied by a closed portable compiler catalog.
     CompilerPrimitive(CompilerPrimitive),
     /// A member of core's `NativeFloats` realization of `FloatNativeOperations`.
@@ -232,6 +234,12 @@ const fn lifecycle(operation: PlacementOperation, content: PlacementContent) -> 
 
 const ROWS: &[SealedIntrinsicRow] = &[
     row(
+        "equality.omg",
+        "Equatable",
+        bundled!("core/equality.omg"),
+        SealedIntrinsic::EqualityProtocol,
+    ),
+    row(
         "indexing.omg",
         "read",
         bundled!("core/indexing.omg"),
@@ -282,6 +290,12 @@ const ROWS: &[SealedIntrinsicRow] = &[
     row(
         "nat.omg",
         "Nat::Descending",
+        bundled!("core/nat.omg"),
+        SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::NaturalRanking),
+    ),
+    row(
+        "nat.omg",
+        "Nat::BoundedDistance",
         bundled!("core/nat.omg"),
         SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::NaturalRanking),
     ),
@@ -383,7 +397,13 @@ const ROWS: &[SealedIntrinsicRow] = &[
     ),
     row(
         "layout.omg",
-        "LayoutPlan::place_private",
+        "layout_plan_place_private",
+        CORE_LAYOUT,
+        SealedIntrinsic::PrivateLayoutPlacement,
+    ),
+    row(
+        "layout.omg",
+        "layout_plan_place_private_field",
         CORE_LAYOUT,
         SealedIntrinsic::PrivateLayoutPlacement,
     ),
@@ -657,18 +677,19 @@ mod tests {
 
     #[test]
     fn rows_match_only_their_exact_file_declaration_and_source() {
+        for placement in [
+            "layout_plan_place_private",
+            "layout_plan_place_private_field",
+        ] {
+            assert_eq!(
+                SealedIntrinsicCatalog::classify(site("layout.omg", placement, CORE_LAYOUT)),
+                Some(SealedIntrinsic::PrivateLayoutPlacement)
+            );
+        }
         assert_eq!(
             SealedIntrinsicCatalog::classify(site(
                 "layout.omg",
-                "LayoutPlan::place_private",
-                CORE_LAYOUT
-            )),
-            Some(SealedIntrinsic::PrivateLayoutPlacement)
-        );
-        assert_eq!(
-            SealedIntrinsicCatalog::classify(site(
-                "layout.omg",
-                "LayoutPlan::place_private",
+                "layout_plan_place_private",
                 b"authored lookalike"
             )),
             None

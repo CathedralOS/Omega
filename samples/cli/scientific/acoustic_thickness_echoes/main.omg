@@ -2,11 +2,19 @@ use omega::language::core::ProcessExit;
 // Complete bounded echo acquisition, validation, prediction and reporting.
 use omega_language_std::Console;
 use model::records;
+use model::records::Acquisition;
+use model::records::EchoResult;
+use model::records::Token;
 use model::paths;
+use model::paths::build_boundaries;
+use model::paths::match_echo;
 use input::tokens;
+use input::tokens::read_token;
+use input::tokens::at_end;
 use report::output;
+use report::output::write_echo;
 data Main { }
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     let mut acquisition: Acquisition;
     let layers: Token = block read_token();
     let echoes: Token = block read_token();
@@ -125,5 +133,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

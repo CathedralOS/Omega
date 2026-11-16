@@ -5,12 +5,23 @@ use omega_language_std::Console;
 use omega_language_std::LineReadResult;
 use omega::language::core::F64::is_finite;
 use domain::matrix;
+use domain::matrix::covariance_valid;
 use domain::filter;
+use domain::filter::Filter;
+use domain::filter::initialize;
+use domain::filter::predict;
+use domain::filter::observe;
 use io::input;
+use io::input::digit;
+use io::input::configuration;
+use io::input::reading;
+use io::input::unsigned_value;
+use io::input::measured_value;
 use io::trace;
+use io::trace::emit;
 data Main { filter: Filter; line: [u8; 16]; }
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
-    let result: LineReadResult = block Console::read_line(&mut main.line);
+machine main(main: &mut Main) reaches ProcessExit + Console {
+    let result: LineReadResult = block Console::read_line(&mut main.line[..]);
     transition result {
         LineReadResult::LineComplete { count } -> block header(main, count)
         _ -> bad_input(main)
@@ -27,7 +38,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
         transition { _ -> block read(main, 0) }
     }
     machine read(main: &mut Main, step: u64) requires step <= 8 {
-        let result: LineReadResult = block Console::read_line(&mut main.line);
+        let result: LineReadResult = block Console::read_line(&mut main.line[..]);
         transition result {
             LineReadResult::LineComplete { count } -> block capacity(main, step, count)
             LineReadResult::EndOfInput { count } -> end(main, step, count)
@@ -104,5 +115,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

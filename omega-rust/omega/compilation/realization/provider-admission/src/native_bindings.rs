@@ -481,7 +481,7 @@ fn validate_native_calling(
     if parameters != telescope.parameters.as_slice() {
         return Err("calling application differs from the canonical argument telescope".into());
     }
-    validate_native_geometry(module, boundary, application)?;
+    validate_native_geometry(module, profile, boundary, application)?;
     if !telescope.binders.is_empty() {
         return Err(
             "native Build callbacks need their admitted calling and retention resource".into(),
@@ -582,6 +582,7 @@ pub fn validate_native_binding_realization(
 
 fn validate_native_geometry(
     module: &terminal_psi::TerminalModule,
+    profile: target::TargetProfile,
     boundary: &terminal_psi::BoundaryMachineDeclaration,
     application: &calling_conventions::BoundaryCallingApplication,
 ) -> Result<(), String> {
@@ -613,6 +614,13 @@ fn validate_native_geometry(
             .ok_or("native owned value has no canonical type")?;
         if let terminal_psi::StructuralTypeShape::PrimitiveScalar(kind) = shape.shape {
             return scalar(kind, root);
+        }
+        if matches!(
+            shape.shape,
+            terminal_psi::StructuralTypeShape::Record { .. }
+                | terminal_psi::StructuralTypeShape::FixedArray { .. }
+        ) {
+            return validate_owned_aggregate(module, profile, application, kind, root);
         }
         if !shape.shape.is_view_descriptor()
             && !matches!(
@@ -691,6 +699,39 @@ fn validate_native_geometry(
         }
         _ => Err("native calling result differs from its canonical requirement".into()),
     }
+}
+
+fn validate_owned_aggregate(
+    module: &terminal_psi::TerminalModule,
+    profile: target::TargetProfile,
+    application: &calling_conventions::BoundaryCallingApplication,
+    kind: semantic_vocabulary::StructuralTypeId,
+    root: u16,
+) -> Result<(), String> {
+    // Use the same public storage projection as the calling-plan producer.
+    // A retained ABI length cannot establish an unresolved semantic extent.
+    let extents = |id| {
+        Err(terminal_semantics::StorageGeometryError::UnresolvedExtent(
+            id,
+        ))
+    };
+    let mut recipes = layout::TerminalBoundaryRecipes::new(module, profile.target_name(), &extents);
+    let recipe = recipes.value(kind)?;
+    let mut expected =
+        layout::BoundaryValueLayout::new(layout::LayoutTarget::for_profile(profile)?);
+    let (_, canonical) = expected.value_type(recipes.recipes(), recipe)?;
+    let actual = calling_conventions::BoundaryValueGraph {
+        shapes: &application.signature.shapes,
+        fields: &application.signature.fields,
+    };
+    if !expected.matches_value(canonical, &actual, root) {
+        return Err("native owned aggregate differs from its canonical field layout".into());
+    }
+    let (_, _, opaque_occurrences) = expected.into_parts();
+    if !opaque_occurrences.is_empty() {
+        return Err("native owned aggregate needs admitted opaque representation custody".into());
+    }
+    Ok(())
 }
 
 #[cfg(test)]

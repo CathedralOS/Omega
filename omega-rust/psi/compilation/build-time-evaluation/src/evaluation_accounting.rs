@@ -680,10 +680,6 @@ impl SourceCompletionAccounting {
         Arc::make_mut(&mut self.receipts).push(PureEvaluationRecord::Invocation(Arc::new(receipt)));
     }
 
-    pub fn was_reused(&self) -> bool {
-        self.reused
-    }
-
     pub fn has_complete_usage(&self) -> bool {
         self.receipts
             .iter()

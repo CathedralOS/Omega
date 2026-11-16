@@ -1897,8 +1897,18 @@ pub(crate) mod module_normalization {
             if !module_sources.contains(&constant.name.source_span().source_id) {
                 continue;
             }
-            if mode != ConstResolutionMode::Complete {
-            } else if module_literal_constant(syntax, constant, Some(selection)) {
+            if mode != ConstResolutionMode::Complete
+                || crate::preparation::generic_data::const_destination_requires_proof(
+                    syntax,
+                    constant,
+                    Some(selection),
+                )
+            {
+                // The retained initializer checks this destination in its
+                // own module, using the same route as a root declaration.
+                continue;
+            }
+            if module_literal_constant(syntax, constant, Some(selection)) {
                 if matches!(
                     syntax_type_references(syntax).type_reference(constant.type_reference),
                     TypeReferenceNode::FixedArray { .. }
@@ -2589,7 +2599,8 @@ pub(crate) mod trait_defaults {
                 existing_defaults.insert(key);
                 added = true;
             }
-            if selection.declaration_path(trait_symbol) == EQUATABLE_TRAIT_PATH
+            if selection.header_symbols().sealed_intrinsic(trait_symbol)
+                == Some(language_core::sealed_intrinsics::SealedIntrinsic::EqualityProtocol)
                 && let Some(member) = synthesized_equality_member(
                     syntax,
                     &conformance.declaration,
@@ -2824,10 +2835,9 @@ pub(crate) mod trait_defaults {
 
     /*
         The root trait whose closed implementations acquire a synthesized
-        structural `equals` row. Selection is by the exact declaration path, so a
-        module-scoped trait that merely shares the leaf name gains no privilege.
+        structural `equals` row. Only the authenticated bundled declaration
+        grants synthesis; a user trait with the same name remains ordinary code.
     */
-    const EQUATABLE_TRAIT_PATH: &str = "Equatable";
 
     /*
         The `equals` member a closed `Equatable<T>` implementation receives when it

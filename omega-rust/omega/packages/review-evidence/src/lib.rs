@@ -28,7 +28,7 @@ pub mod encoding;
 pub mod permission_acceptance;
 pub mod record;
 
+pub use capture::project_checked_package_policy;
 pub use capture::{IntoPackageReviewInput, PackageReviewInput};
 pub use capture::{PackageReviewProjectionError, project_package_review};
 pub use capture::{SemanticBindingProjectionError, candidate_target_entry_binding};
-pub use capture::{project_checked_package_policy, project_checked_terminal_permission_policy};

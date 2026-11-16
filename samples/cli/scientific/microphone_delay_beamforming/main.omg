@@ -2,13 +2,15 @@ use omega::language::core::ProcessExit;
 use omega_language_std::ByteRead;
 use omega_language_std::Console;
 use domain::records;
+use domain::records::Beamforming;
 use domain::beamforming;
+use domain::beamforming::analyze;
 
 data Main { records: Beamforming; }
 
 // Runtime input is a bounded 36-digit stream with optional ASCII whitespace.
 // Reject truncation and trailing digits rather than silently selecting fixtures.
-machine Main::main(context: &mut Main) reaches ProcessExit + Console {
+machine main(context: &mut Main) reaches ProcessExit + Console {
     transition { _ -> read(context, 0) }
     machine read(context: &mut Main, position: u64) {
         let observed: ByteRead = block Console::read_byte();
@@ -179,5 +181,5 @@ reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

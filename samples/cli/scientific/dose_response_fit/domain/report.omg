@@ -1,10 +1,14 @@
+module domain::report;
 use omega_language_std::Console;
 use omega::language::core::F64::from_i32;
 use omega::language::core::I64::from_f64;
 use omega::language::core::narrow_i32_to_u8_trapping;
 use omega::language::core::narrow_i64_to_i32_trapping;
 use domain::model;
+use domain::model::Observations;
+use domain::model::Fit;
 use domain::mathematics;
+use domain::mathematics::exponential;
 
 // Fixed six-decimal reporting; bounded input makes all scaled values fit i64.
 // Round magnitude half upward and retain the sign separately.

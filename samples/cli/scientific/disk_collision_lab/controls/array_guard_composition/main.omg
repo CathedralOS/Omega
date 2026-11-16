@@ -9,7 +9,7 @@ machine accepted(lab:&Measurements,choice:i32)->bool {
  machine test(lab:&Measurements)->bool {lab.events == 1 && lab.first == 0 && lab.second == 1 && abs_f64(lab.time-2.0) <= 0.000000001 && abs_f64(lab.impulse-1.5) <= 0.000000001}
  machine rejected()->bool {false}
 }
-machine Probe::main(probe:&mut Probe) {
+machine main(probe:&mut Probe) {
  transition { _ -> check(probe) }
  machine check(probe:&mut Probe) {
   observe(&mut probe.lab);
@@ -27,5 +27,5 @@ machine Probe::main(probe:&mut Probe) {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
     let mut entry_storage: Probe;
-    Probe::main(&mut entry_storage);
+    main(&mut entry_storage);
 }

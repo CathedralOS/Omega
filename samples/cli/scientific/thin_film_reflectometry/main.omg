@@ -2,8 +2,15 @@ use omega::language::core::ProcessExit;
 // Expected exit: 0 with input.txt; malformed or out-of-domain stdin exits 10.
 // Numerical output oracle: fixtures.json (both engines).
 use domain::input;
+use domain::input::Reader;
+use domain::input::Number;
+use domain::input::number;
+use domain::input::ended;
 use domain::report;
+use domain::report::field;
 use domain::complex;
+use domain::complex::norm;
+use domain::complex::quotient;
 use omega::language::core::complex::Complex;
 use omega::language::core::F64::from_i32;
 use omega::language::core::I32::from_f64;
@@ -20,7 +27,7 @@ data Application {
     a: f64; b: f64; c: f64; d: f64;
     minimum: f64; minimum_wavelength: f64;
 }
-machine Application::main(application: &mut Application) reaches ProcessExit + Console crashes Trap {
+machine main(application: &mut Application) reaches ProcessExit + Console crashes Trap {
     let ambient: Number = block number(&mut application.reader);
     let substrate: Number = block number(&mut application.reader);
     let layers: Number = block number(&mut application.reader);
@@ -141,5 +148,5 @@ machine Application::main(application: &mut Application) reaches ProcessExit + C
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console crashes Trap {
     let mut entry_storage: Application;
-    block Application::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

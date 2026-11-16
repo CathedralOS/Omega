@@ -857,6 +857,11 @@ pub mod domain {
     pub struct CheckedDomainAccessPlan {
         /// The policy member whose body returned the plan.
         pub plan_machine: SymbolHandle,
+        /// Keep the complete returned rules with the domain that selected
+        /// them. These descriptions alone grant no operation permission.
+        pub normalized: access_plans::AccessPlan,
+        /// These issuer bindings name declarations only. A read/write rule
+        /// must also match the function's complete static arguments.
         pub issuance: CheckedIssuance,
     }
 

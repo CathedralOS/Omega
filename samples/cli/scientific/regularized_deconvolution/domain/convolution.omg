@@ -1,3 +1,4 @@
+module domain::convolution;
 // Centered periodic H: output[i] = sum_j kernel[j] input[i+width/2-j].
 // The adjoint reverses that offset; asymmetric kernels must preserve this sign.
 public machine convolve(input: &[f64; 32], output: &mut [f64; 32], kernel: &[f64; 5], length: i32 in Wrapping, width: i32 in Wrapping, adjoint: bool) {

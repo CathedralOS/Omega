@@ -1502,7 +1502,10 @@ including the integer carrier. Vocabulary marker 137 and native input record
 `OMGNTI32` distinguish these contracts; their earlier formats reject. This adds
 no arithmetic proof rule or execution authority.
 
-Semantic format marker 279 adds proposition tags 20 and 21 for integer-result
+Semantic format marker 279 retains complete domain-access rules and the source
+identities of their subjects, cases and fields.
+
+Semantic format marker 280 adds proposition tags 20 and 21 for integer-result
 conversion graphs and source-only exact cast eligibility. Vocabulary marker
 138 distinguishes these predicates. Earlier semantic formats reject before
 table decoding. The native terminal-input record uses `OMGNTI33` and rejects
@@ -2836,7 +2839,7 @@ outside this codec.
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 279 | yes |
+| semantic module | `PSITERM\0` | 280 | yes |
 | canonical artifact | `PSIART\0\0` | 3 | no |
 | debug map | `PSIDBG\0\0` | 1 | yes |
 | optimization execution | `PSIOEXE\0` | 2 | no |

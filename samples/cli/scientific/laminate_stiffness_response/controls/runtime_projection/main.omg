@@ -7,7 +7,7 @@ machine read(storage: &Storage,layer: u64,row: u64,column: u64) -> f64
 requires layer <= 1 requires row <= 1 requires column <= 1 {
     storage.cells[layer][row][column]
 }
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     let mut storage: Storage;
     storage.cells[1][0][1] = 41.0;
     let observed: f64 = read(&storage,1,0,1);
@@ -19,5 +19,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    main(&mut entry_storage);
 }

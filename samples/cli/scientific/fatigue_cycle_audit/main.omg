@@ -3,25 +3,32 @@ use omega::language::core::ProcessExit;
 // Empty stdin is the frozen invalid case; valid histories exit 0.
 use omega_language_std::Console;
 use domain::input;
+use domain::input::Input;
+use domain::input::read;
+use domain::input::validate;
 use domain::cycles;
+use domain::cycles::Audit;
+use domain::cycles::prepare;
+use domain::cycles::count;
 use domain::report;
+use domain::report::write;
 
 data Main {
     input: Input;
     audit: Audit;
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
-    block Input::read(&mut main.input);
-    Input::validate(&mut main.input);
+machine main(main: &mut Main) reaches ProcessExit + Console {
+    block read(&mut main.input);
+    validate(&mut main.input);
     transition main.input.valid {
         true -> calculate(main)
         false -> invalid(main)
     }
     machine calculate(main: &mut Main) {
-        Audit::prepare(&mut main.audit, &main.input);
-        Audit::count(&mut main.audit);
-        Report::write(&mut main.audit);
+        prepare(&mut main.audit, &main.input);
+        count(&mut main.audit);
+        write(&mut main.audit);
         ProcessExit::exit_process(0);
     }
     machine invalid(main: &mut Main) {
@@ -33,5 +40,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

@@ -6,9 +6,19 @@ use omega::language::core::max_i32;
 use omega_language_std::Console;
 use omega_language_std::LineReadResult;
 use domain::calibration;
+use domain::calibration::Calibration;
+use domain::calibration::initialize;
+use domain::calibration::interpolate;
 use domain::trace;
+use domain::trace::Trace;
+use domain::trace::identify;
+use domain::trace::residual_statistics;
 use io::input;
+use io::input::Input;
+use io::input::parse_line;
 use io::report;
+use io::report::number;
+use io::report::field;
 
 data Instrument {
     buffer: [u8; 64];
@@ -17,12 +27,12 @@ data Instrument {
 }
 // One finite record per iteration. Invalid records never mutate history.
 // The 256-row bound keeps counts and residual sums within signed i32.
-machine Instrument::run(instrument: &mut Instrument) reaches ProcessExit + Console {
-    Calibration::initialize(&mut instrument.calibration);
+machine run(instrument: &mut Instrument) reaches ProcessExit + Console {
+    initialize(&mut instrument.calibration);
     Console::write_line("row stimulus branch prediction observed residual width (response milliunits)");
     transition { _ -> block read(instrument) }
     machine read(instrument: &mut Instrument) {
-        let input: LineReadResult = block Console::read_line(&mut instrument.buffer);
+        let input: LineReadResult = block Console::read_line(&mut instrument.buffer[..]);
         transition input {
             LineReadResult::LineComplete { count } -> block bounded(instrument, count)
             LineReadResult::EndOfInput { count } -> end_of_input(instrument, count)
@@ -121,5 +131,5 @@ machine Instrument::run(instrument: &mut Instrument) reaches ProcessExit + Conso
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Instrument;
-    block Instrument::run(&mut entry_storage);
+    block run(&mut entry_storage);
 }

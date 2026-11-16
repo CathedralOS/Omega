@@ -1700,8 +1700,7 @@ mod byte_literals {
         Ok((pool, offsets))
     }
 
-    /// The octets a pool address names, with the alignment they need: a byte literal's own
-    /// bytes, or the encoded roster of an owned element sequence.
+    /// The exact quoted bytes named by a retained literal address.
     fn literal_octets<'a>(
         source: &'a StagedOptimizedRelocationFreeObjectContainer,
         row: &PlacedImageAddress,
@@ -1712,7 +1711,7 @@ mod byte_literals {
         if row.operation != literal.operation {
             return Err(Error::Mismatch("literal address operation changed"));
         }
-        let (abstracted, targeted) = source::function(source, row.machine)?;
+        let (abstracted, _) = source::function(source, row.machine)?;
         let mut matches = abstracted
             .operations()
             .filter_map(|operation| match operation {
@@ -1723,24 +1722,6 @@ mod byte_literals {
                     ..
                 } if *psi_operation == literal.operation && place.id == literal.place => {
                     Some(Some((Cow::Borrowed(bytes.as_slice()), 1)))
-                }
-                AbstractOperation::EstablishStructuralArray {
-                    psi_operation,
-                    result,
-                    ..
-                } if *psi_operation == literal.operation && result.place == literal.place => {
-                    let geometry = calling_conventions::terminal_layout::NativeGeometry::new(
-                        &targeted.graph.structural_types,
-                    )
-                    .ok()?;
-                    Some(
-                        target_operations::constant_element_roster(
-                            abstracted.blocks.iter().flat_map(|block| &block.operations),
-                            operation,
-                            &geometry,
-                        )
-                        .map(|roster| (Cow::Owned(roster.octets), usize::from(roster.alignment))),
-                    )
                 }
                 _ => None,
             });
@@ -7428,8 +7409,9 @@ mod source {
                     selected: &SelectedFunction,
                     arguments: &[StructuralArgument; 6],
                 ) -> Result<Self, Error> {
-                    let geometry = calling_conventions::terminal_layout::NativeGeometry::new(
+                    let geometry = calling_conventions::terminal_layout::NativeGeometry::with_owned_sequence_bounds(
                         &target.graph.structural_types,
+                        target.graph.structural_types.owned_sequence_bounds(),
                     )
                     .map_err(|_| {
                         Error::Mismatch("installation catalog repeats a structural identity")
@@ -10739,9 +10721,9 @@ mod source {
             source: &AbstractOperation,
             operations: impl Iterator<Item = &'operations target_operations::TargetUnitOperation>
             + Clone,
-            structural_types: &[terminal_psi::StructuralTypeDeclaration],
+            structural_types: &abstract_operations::StructuralTypeCatalog,
         ) -> bool {
-            let Ok(mut layouts) = crate::object::object_artifact::replay::structural::condition_layout::StructuralReplay::new(structural_types) else {
+            let Ok(mut layouts) = crate::object::object_artifact::replay::structural::condition_layout::StructuralReplay::from_catalog(structural_types) else {
                 return false;
             };
             let expected = source
@@ -10763,10 +10745,10 @@ mod source {
         pub(super) fn return_cleanup_calls_match<'operations>(
             actions: &[TerminalAffineCleanupAction],
             operations: impl Iterator<Item = &'operations target_operations::TargetUnitOperation>,
-            structural_types: &[terminal_psi::StructuralTypeDeclaration],
+            structural_types: &abstract_operations::StructuralTypeCatalog,
             edge: semantic_vocabulary::EdgeId,
         ) -> bool {
-            let Ok(mut layouts) = crate::object::object_artifact::replay::structural::condition_layout::StructuralReplay::new(structural_types) else {
+            let Ok(mut layouts) = crate::object::object_artifact::replay::structural::condition_layout::StructuralReplay::from_catalog(structural_types) else {
                 return false;
             };
             edge_cleanup_calls_match(actions, operations, &mut layouts, edge)
@@ -10879,23 +10861,27 @@ mod source {
             fn nominal_image_return_rejoins_every_action_and_original_receiver() {
                 let edge = EdgeId::new(1).unwrap();
                 let structural_type = StructuralTypeId::new(1).unwrap();
-                let structural_types = vec![structural_declaration(
-                    structural_type,
-                    terminal_psi::TerminalIdentityIndex(1),
-                    StructuralTypeShape::Record {
-                        storage: terminal_psi::StructuralRecordStorage::Packed,
-                        fields: vec![StructuralFieldDeclaration {
-                            inline_carrier: None,
-                            storage: None,
-                            id: StructuralFieldId::new(1).unwrap(),
-                            identity: terminal_psi::TerminalIdentityIndex(2),
-                            relevance: BindingRelevance::Relevant,
-                            field_type: StructuralFieldType::Scalar(ScalarType::IeeeFloat(
-                                IeeeFloatFormat::Binary32,
-                            )),
-                        }],
-                    },
-                )];
+                let structural_types: abstract_operations::StructuralTypeCatalog =
+                    vec![structural_declaration(
+                        structural_type,
+                        terminal_psi::TerminalIdentityIndex(1),
+                        StructuralTypeShape::Record {
+                            storage: terminal_psi::StructuralRecordStorage::Packed,
+                            fields: vec![StructuralFieldDeclaration {
+                                declaration_identity: Default::default(),
+                                inline_carrier: None,
+                                storage: None,
+                                id: StructuralFieldId::new(1).unwrap(),
+                                identity: terminal_psi::TerminalIdentityIndex(2),
+                                relevance: BindingRelevance::Relevant,
+                                field_type: StructuralFieldType::Scalar(ScalarType::IeeeFloat(
+                                    IeeeFloatFormat::Binary32,
+                                )),
+                            }],
+                        },
+                    )]
+                    .into();
+
                 let machine = MachineId::new(9).unwrap();
                 let shape = ValueShape::borrowed_reference(4, 4);
                 let plan = evaluate_call_plan(
@@ -13312,7 +13298,7 @@ mod source {
 
             fn layouts(&mut self) -> Option<&mut crate::object::object_artifact::replay::structural::condition_layout::StructuralReplay<'a>>{
                 self.layouts.get_or_insert_with(|| {
-                    crate::object::object_artifact::replay::structural::condition_layout::StructuralReplay::new(&self.target.graph.structural_types)
+                    crate::object::object_artifact::replay::structural::condition_layout::StructuralReplay::from_catalog(&self.target.graph.structural_types)
                 }).as_mut().ok()
             }
 
@@ -15638,6 +15624,7 @@ mod source {
                 shape: StructuralTypeShape,
             ) -> StructuralTypeDeclaration {
                 StructuralTypeDeclaration {
+                    declaration_identity: Default::default(),
                     requires: Vec::new(),
                     id,
                     identity,
@@ -15659,6 +15646,7 @@ mod source {
                 StructuralTypeShape::Record {
                     storage: terminal_psi::StructuralRecordStorage::Packed,
                     fields: vec![StructuralFieldDeclaration {
+                        declaration_identity: Default::default(),
                         inline_carrier: None,
                         storage: None,
                         id,
@@ -15771,6 +15759,7 @@ mod source {
                             StructuralTypeShape::Record {
                                 storage: terminal_psi::StructuralRecordStorage::Packed,
                                 fields: vec![StructuralFieldDeclaration {
+                                    declaration_identity: Default::default(),
                                     inline_carrier: None,
                                     id: field,
                                     identity: terminal_psi::TerminalIdentityIndex(2),
@@ -16516,6 +16505,7 @@ mod source {
                         StructuralTypeShape::Record {
                             storage: terminal_psi::StructuralRecordStorage::Packed,
                             fields: vec![StructuralFieldDeclaration {
+                                declaration_identity: Default::default(),
                                 inline_carrier: None,
                                 storage: None,
                                 id: StructuralFieldId::new(2).unwrap(),
@@ -16539,6 +16529,7 @@ mod source {
                         StructuralTypeShape::Record {
                             storage: terminal_psi::StructuralRecordStorage::Packed,
                             fields: vec![StructuralFieldDeclaration {
+                                declaration_identity: Default::default(),
                                 inline_carrier: None,
                                 storage: None,
                                 id: field,
@@ -16643,6 +16634,7 @@ mod source {
                 let fields =
                     record_fields_mut(&mut grouped.graph.structural_types.make_mut()[0]).unwrap();
                 fields.push(StructuralFieldDeclaration {
+                    declaration_identity: Default::default(),
                     inline_carrier: None,
                     storage: None,
                     id: StructuralFieldId::new(3).unwrap(),
@@ -17454,6 +17446,7 @@ mod source {
                     unreachable!();
                 };
                 fields.push(StructuralFieldDeclaration {
+                    declaration_identity: Default::default(),
                     inline_carrier: None,
                     storage: None,
                     id: output,
@@ -21821,14 +21814,17 @@ mod structural {
                             StructuralTypeShape::Sum {
                                 cases: vec![
                                     terminal_psi::StructuralCaseDeclaration {
+                                        declaration_identity: Default::default(),
                                         id: StructuralCaseId::new(1).unwrap(),
                                         identity: terminal_psi::TerminalIdentityIndex(2),
                                         fields: vec![],
                                     },
                                     terminal_psi::StructuralCaseDeclaration {
+                                        declaration_identity: Default::default(),
                                         id: StructuralCaseId::new(2).unwrap(),
                                         identity: terminal_psi::TerminalIdentityIndex(3),
                                         fields: vec![terminal_psi::StructuralFieldDeclaration {
+                                            declaration_identity: Default::default(),
                                             inline_carrier: None,
                                             storage: None,
                                             id: StructuralFieldId::new(1).unwrap(),

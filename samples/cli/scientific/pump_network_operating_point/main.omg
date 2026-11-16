@@ -1,12 +1,18 @@
 use omega::language::core::ProcessExit;
 use platform::input;
+use platform::input::Input;
+use platform::input::read;
 use domain::network;
+use domain::network::Network;
+use domain::network::valid;
 use domain::solver;
+use domain::solver::Solver;
+use domain::solver::solve;
 use omega_language_std::Console;
 
 // Explicit build entry; EOF is a valid record terminator. No pause prompt.
 data Main { }
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     let mut input: Input;
     _ = block read(&mut input);
     transition input.accepted {
@@ -41,5 +47,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

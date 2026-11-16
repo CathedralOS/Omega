@@ -5,7 +5,7 @@ the same exact-slot join and cycle prohibition while preserving declared
 ceilings on opaque rows.
 */
 
-use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow};
+use effects::provider_plan::{ProviderBinding, ProviderPlan};
 
 pub fn validate_declared_synchronous_invocation_cycles(
     selected_plans: &[effects::provider_plan::ProviderPlan],
@@ -325,51 +325,6 @@ fn synchronous_cycle_from(
     path.pop();
     color[node] = 2;
     None
-}
-
-pub fn exact_row_for_schema_method<'plan>(
-    plan: &'plan ProviderPlan,
-    method: &effects::provider_plan::ServiceMethod,
-) -> Result<&'plan ProviderPlanRow, diagnostics::Diagnostic> {
-    if plan
-        .schema
-        .identity_text(method.requirement_identity)
-        .is_empty()
-    {
-        return Err(diagnostics::Diagnostic::error(format!(
-            "ProviderPlan `{}` schema method `{}` has no exact synchronous-invocation overload identity",
-            plan.name, method.name,
-        )));
-    }
-    let method_count = plan
-        .schema
-        .declaration
-        .methods
-        .iter()
-        .filter(|candidate| candidate.requirement_identity == method.requirement_identity)
-        .count();
-    if method_count != 1 {
-        return Err(diagnostics::Diagnostic::error(format!(
-            "ProviderPlan `{}` contains {method_count} schema methods for exact synchronous-invocation overload `{}`",
-            plan.name,
-            plan.schema.identity_text(method.requirement_identity),
-        )));
-    }
-    let rows = plan
-        .rows
-        .iter()
-        .filter(|row| plan.schema.row_binds_method(row, method, &plan.identities))
-        .collect::<Vec<_>>();
-    let [row] = rows.as_slice() else {
-        return Err(diagnostics::Diagnostic::error(format!(
-            "ProviderPlan `{}` schema method `{}` / `{}` binds {} exact synchronous-invocation rows",
-            plan.name,
-            method.name,
-            plan.schema.identity_text(method.requirement_identity),
-            rows.len(),
-        )));
-    };
-    Ok(*row)
 }
 
 fn exact_authored_invocations(

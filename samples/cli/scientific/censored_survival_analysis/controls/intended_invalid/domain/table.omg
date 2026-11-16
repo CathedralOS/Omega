@@ -1,1 +1,2 @@
+module domain::table;
 public data Table { survival: [f64; 32]; }

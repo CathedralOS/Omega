@@ -6,14 +6,21 @@ use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 use omega_language_std::LineReadResult;
 use model::fill;
+use model::fill::Cavity;
+use model::fill::valid;
+use model::fill::cavity_simulate;
+use model::fill::balanced;
+use model::fill::arrival_row_holds;
 use input::parse;
+use input::parse::parse_input;
 use report::output;
+use report::output::report;
 
 data Main { }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     let mut input: [u8; 32];
-    let result: LineReadResult = block Console::read_line(&mut input);
+    let result: LineReadResult = block Console::read_line(&mut input[..]);
     transition result {
         LineReadResult::LineComplete { count } -> prefix(main, &input, count)
         LineReadResult::EndOfInput { count } -> prefix(main, &input, count)
@@ -40,8 +47,8 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
         }
     }
     machine advance(main: &mut Main, cavity: &mut Cavity) {
-        Cavity::simulate(cavity);
-        transition Cavity::balanced(cavity) {
+        cavity_simulate(cavity);
+        transition balanced(cavity) {
             true -> publish(main, cavity)
             _ -> unbalanced(main)
         }
@@ -63,5 +70,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

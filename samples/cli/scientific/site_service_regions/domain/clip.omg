@@ -1,4 +1,7 @@
+module domain::clip;
 use domain::model;
+use domain::model::Polygon;
+use domain::model::Partition;
 // Sutherland-Hodgman clipping against a*x+b*y<=c. No geometric tolerance
 // changes cell ownership: points exactly on a bisector belong to both closures.
 public machine append(polygon: &mut Polygon, x: f64, y: f64) -> bool {

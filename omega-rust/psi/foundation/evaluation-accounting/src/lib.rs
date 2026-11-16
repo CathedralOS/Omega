@@ -274,36 +274,6 @@ impl BuildEvaluationSponsor {
         Ok(())
     }
 
-    pub fn reserve_live_filesystem_handle(
-        &self,
-    ) -> Result<BuildEvaluationLiveFilesystemHandleLease, String> {
-        let maximum = self.account.limits.maximum_live_filesystem_handles();
-        let mut consumed = self.account.consumed.lock().map_err(|_| {
-            "build-evaluation live-filesystem-handle sponsor account is unavailable".to_owned()
-        })?;
-        let Some(candidate) = consumed.live_filesystem_handles.checked_add(1) else {
-            return Err("build-evaluation live-filesystem-handle accounting overflowed".to_owned());
-        };
-        if candidate > maximum {
-            return Err(format!(
-                "build-evaluation live-filesystem-handle sponsor exhausted at {maximum} handles"
-            ));
-        }
-        consumed.live_filesystem_handles = candidate;
-        consumed.peak_live_filesystem_handles =
-            consumed.peak_live_filesystem_handles.max(candidate);
-        drop(consumed);
-        Ok(BuildEvaluationLiveFilesystemHandleLease {
-            sponsor: self.clone(),
-        })
-    }
-
-    fn release_live_filesystem_handle(&self) {
-        let mut consumed = self.consumption();
-        debug_assert!(consumed.live_filesystem_handles > 0);
-        consumed.live_filesystem_handles = consumed.live_filesystem_handles.saturating_sub(1);
-    }
-
     pub fn charge_pure_usage(
         &self,
         mut usage: BuildEvaluationUsage,
@@ -406,17 +376,6 @@ fn charged_total(
         ));
     }
     Ok(candidate)
-}
-
-#[derive(Debug)]
-pub struct BuildEvaluationLiveFilesystemHandleLease {
-    sponsor: BuildEvaluationSponsor,
-}
-
-impl Drop for BuildEvaluationLiveFilesystemHandleLease {
-    fn drop(&mut self) {
-        self.sponsor.release_live_filesystem_handle();
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]

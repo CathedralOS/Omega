@@ -49,7 +49,7 @@ and trusted admissions require their own soundness justification.
 | `IntegerOrderDiscreteness` | Constructive-decidable | `x ≤ c` to `x < c + 1` by literal adjacency; sound because the fixed-integer order is discrete and decidable. |
 | `IntegerSubtractOrder` | Constructive-decidable | `r = a − b ∧ 0 < b ⊢ r < a` over exact fixed integers. |
 | `IntegerAddOrder` | Constructive-decidable | `r = a + b ∧ 0 < b ⊢ a < r` over exact fixed integers. |
-| `IntegerSubtractAntitone` | Constructive-decidable | `p = m − x ∧ q = m − y ∧ y < x ⊢ p < q` over exact fixed integers with one minuend. |
+| `IntegerSubtractAntitone` | Constructive-decidable | `p = m − x ∧ q = m − y ∧ y < x ⊢ p < q` over exact fixed integers with one minuend. With unsigned saturating subtraction, ordered minuends and oppositely ordered subtrahends give nonstrict order. Strict order requires one strict operand comparison and a positive larger difference. |
 | `IntegerMathOrderTranslation` | Constructive | `a <= b` implies `a + t <= b + t` over mathematical integers, derived from the existing addition monotonicity law. It introduces neither a new assumption nor a finite operation. |
 | `IntegerOrderAntisymmetry` | Constructive | Two opposite nonstrict integer bounds establish equality by the existing order antisymmetry law. No excluded middle or new assumption is introduced. |
 | `IntegerLessOrEqualTransitivity`, `IntegerStrictOrderTransitivity` | Constructive | Order composition with an exact shared middle; strict chains require at least one strict edge. |

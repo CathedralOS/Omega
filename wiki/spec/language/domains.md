@@ -763,10 +763,14 @@ machine farther(left: i32 in Km, right: i32 in Km) -> bool {
 ```
 
 [Core policy-domain operators](numeric_values.md#policy-domains) explicitly
-declare mixed qualified/plain parameter types in both orders. A plain variable
-matches those signatures just as a plain literal does; neither gains a domain
-at the call site. This is ordinary exact matching, not a general conversion
-rule for mismatched qualifications or carriers.
+declare mixed qualified/plain arithmetic, comparison and binary bitwise
+parameter types in both orders. A plain variable matches those signatures just
+as a plain literal does; neither gains a domain at the call site. Shift
+declarations accept a plain count or one carrying any single core arithmetic
+policy, independently of the shifted value's policy. The shifted value alone
+determines shift behavior and result qualification. These are exact declared
+parameter types, not a general conversion rule or permission to drop other
+qualifications. Explicitly suffixed operators still require unqualified operands.
 
 In a domain's own `requires`, `self` is the value in the underlying carrier
 without the domain being defined, so `self > 0` in `Positive` is a builtin

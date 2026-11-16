@@ -1,15 +1,18 @@
+module domain::input;
 use domain::model;
+use domain::model::Problem;
+use domain::model::predecessor;
 
-data Input { bytes: [u8; 256]; }
+public data Input { bytes: [u8; 256]; }
 
-data Tokens {
+public data Tokens {
     values: [i32 in Wrapping; 19];
     count: i32 in Wrapping;
 }
 // Parse only the prefix actually supplied by Console. One line is one request.
 // Grammar: unsigned decimals <=99, separated by ASCII whitespace. Negative,
 // oversized, non-decimal and excess tokens fail before scheduling begins.
-machine parse(text: &Input, length: i32 in Wrapping, tokens: &mut Tokens) -> bool {
+public machine parse(text: &Input, length: i32 in Wrapping, tokens: &mut Tokens) -> bool {
     tokens.values = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
     tokens.count = 0;
     transition length >= 0 && length <= 256 {
@@ -85,7 +88,7 @@ machine parse(text: &Input, length: i32 in Wrapping, tokens: &mut Tokens) -> boo
     }
 }
 
-machine decode(tokens: &Tokens, problem: &mut Problem) -> bool {
+public machine decode(tokens: &Tokens, problem: &mut Problem) -> bool {
     problem.count = tokens.values[0];
     problem.capacity_a = tokens.values[1];
     problem.capacity_b = tokens.values[2];

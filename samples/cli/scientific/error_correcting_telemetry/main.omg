@@ -5,13 +5,20 @@ use omega_language_std::Console;
 use omega_language_std::LineReadResult;
 use omega::language::core::widen_u8_to_i32;
 use codec::field;
+use codec::field::Frame;
+use codec::field::encode;
+use codec::field::location;
+use codec::field::syndrome_first;
+use codec::field::syndrome_second;
 use codec::decoder;
+use codec::decoder::Recovery;
+use codec::decoder::recover;
 
 data Main { input: [u8; 8]; }
 // Protocol: Eab LF or Dabcd LF. Digits 0..4 are F5 symbols; '_' is an erasure.
 // One bounded line is consumed per record, at most 2000 records. Oversized
 // lines stop with status 3 rather than interpreting their tail as a new frame.
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     transition { _ -> next(main, 0) }
     machine next(main: &mut Main, records: i32) {
         transition records < 2000 {
@@ -22,7 +29,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     machine read(main: &mut Main, records: i32)
     requires records >= 0 && records < 2000
     {
-        let observed: LineReadResult = block Console::read_line(&mut main.input);
+        let observed: LineReadResult = block Console::read_line(&mut main.input[..]);
         transition observed {
             LineReadResult::LineComplete { count } -> dispatch(main, records + 1, count)
             LineReadResult::EndOfInput { count } -> end(main, count)
@@ -107,5 +114,5 @@ machine syndromes(main: &mut Main, frame: &Frame) reaches Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

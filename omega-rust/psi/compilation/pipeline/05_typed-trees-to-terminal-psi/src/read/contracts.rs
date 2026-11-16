@@ -252,6 +252,11 @@ impl Program<'_> {
         if !expression.is_valid() {
             return unserved("missing clause expression");
         }
+        if let Some((predicate, argument)) =
+            typed_trees::byte_predicates::byte_predicate_call(typed, expression)
+        {
+            return self.byte_predicate_clause(id, scope, predicate, argument);
+        }
         match typed.expression_table.expression(expression) {
             ExpressionNode::Boolean(value) => {
                 return Ok(if *value {
@@ -469,6 +474,48 @@ impl Program<'_> {
             .map(Proposition::Disjunction),
             _ => unserved("comparison"),
         }
+    }
+
+    /// A primitive byte predicate of a byte view (`no_nul(self)`,
+    /// `valid_utf8(text)`) is decided by the bytes the view shows, so a
+    /// clause states the term the checker reconstructs for those bytes:
+    /// `ByteSequencePredicate { root, path } == true` over the storage the
+    /// argument names (byte_views.md: "An ordinary or boundary shared-byte
+    /// argument may satisfy its formal's primitive byte domains from these
+    /// reconstructed predicates"). A domain `[u8]::Path requires
+    /// no_nul(self)` on a formal `path: &[u8] in Path` is then an entry
+    /// requirement over that formal's bytes, which every caller proves under
+    /// the exact argument substitution. An argument that names no byte
+    /// view's storage is refused.
+    fn byte_predicate_clause(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        predicate: typed_trees::byte_predicates::ByteSequencePredicate,
+        argument: ExpressionHandle,
+    ) -> Checked<Proposition> {
+        let unserved = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
+        let Some((root, path, value_type)) = self.projected(id, scope, argument)? else {
+            return Err(unserved("byte predicate of something that is not storage"));
+        };
+        let ValueType::Record(row, _, _) = value_type else {
+            return Err(unserved(
+                "byte predicate of something that is not a byte view",
+            ));
+        };
+        if !matches!(
+            self.data_type(id, row)?.shape,
+            StorageShape::ByteSequence(_)
+        ) {
+            return Err(unserved(
+                "byte predicate of something that is not a byte view",
+            ));
+        }
+        canonical::equal(
+            ScalarTerm::byte_sequence_predicate(predicate, root, path),
+            ScalarTerm::Boolean(true),
+            id,
+        )
     }
 
     /// A selected pure comparison denotes its canonical IEEE predicate. Its
@@ -1053,11 +1100,31 @@ impl Program<'_> {
         use language_core::cast_form::CastEntryKind;
         let unavailable = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
         if cast.form == language_core::cast_form::CastForm::Value && cast.result_type.is_valid() {
-            let (term, before) = self.term(id, scope, cast.value, expected)?;
-            let after = self.scalar_domain_cast_type(id, cast.result_type, before)?;
+            let after = self.qualified_scalar_type(id, cast.result_type)?;
+            let landing = after.scalar().filter(|_| self.wholly_anonymous(cast.value));
+            let (term, before) = self.term(id, scope, cast.value, landing)?;
             if before == after {
                 return Ok((term, after));
             }
+            if let (
+                ValueType::Scalar(ScalarType::Integer(from), Qualification::NONE),
+                ValueType::Scalar(ScalarType::Integer(to), Qualification::NONE),
+            ) = (before, after)
+                && !from.is_address()
+                && !to.is_address()
+            {
+                // Widening is total. A narrowing or sign change must form its
+                // representability obligation before this clause can be used.
+                let converted = if from.can_widen_to(to) {
+                    ScalarTerm::integer_widen(from, to, term)
+                } else {
+                    ScalarTerm::integer_exact_cast(from, to, term)
+                };
+                return converted
+                    .map(|term| (term, after))
+                    .map_err(|_| unavailable("integer cast with no exact carrier conversion"));
+            }
+            self.scalar_domain_cast_type(id, cast.result_type, before)?;
             return Err(unavailable(
                 "value cast in a clause changes its qualification",
             ));

@@ -4,8 +4,17 @@ use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 use omega_language_std::LineReadResult;
 use domain::model;
+use domain::model::Circuit;
+use domain::model::Equilibrium;
+use domain::model::Observation;
+use domain::model::equilibria;
+use domain::model::advance;
 use io::input;
+use io::input::Inputs;
+use io::input::parse;
 use io::output;
+use io::output::voltage;
+use io::output::integer;
 
 data Main {
     bytes: [u8; 192];
@@ -24,8 +33,8 @@ data Main {
     overload_count: i32 in Wrapping;
     first_recovered: i32;
 }
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
-    let read: LineReadResult = block Console::read_line(&mut main.bytes);
+machine main(main: &mut Main) reaches ProcessExit + Console {
+    let read: LineReadResult = block Console::read_line(&mut main.bytes[..]);
     transition read {
         LineReadResult::LineComplete { count } -> received(main, count)
         LineReadResult::EndOfInput { count } -> received(main, count)
@@ -78,16 +87,16 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
         main.overload_count = 0;
         main.equilibrium = equilibria(main.circuit, main.first_drive);
         Console::write_line("rail_limited_amplifier v1; voltage=uv; q=ppm");
-        Main::equilibrium_row(main, 0);
+        equilibrium_row(main, 0);
         main.equilibrium = equilibria(main.circuit, main.final_drive);
-        Main::equilibrium_row(main, 1);
+        equilibrium_row(main, 1);
         main.drive = main.first_drive;
         main.observed.output = main.previous;
         main.observed.feedback = main.circuit.feedback * main.previous;
         main.observed.raw = main.previous;
         main.observed.overload = 0;
-        Main::trace_row(main);
-        Main::measure(main);
+        trace_row(main);
+        measure(main);
         transition { _ -> loop(main) }
     }
     machine loop(main: &mut Main) {
@@ -104,8 +113,8 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
         };
         main.observed = advance(main.circuit, main.drive, main.previous);
         main.previous = main.observed.output;
-        Main::trace_row(main);
-        Main::measure(main);
+        trace_row(main);
+        measure(main);
         transition { _ -> loop(main) }
     }
     machine finish(main: &mut Main) {
@@ -135,18 +144,18 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
         ProcessExit::exit_process(64);
     }
 }
-machine Main::equilibrium_row(main: &mut Main, phase: i32) reaches Console {
+machine equilibrium_row(main: &mut Main, phase: i32) reaches Console {
     Console::write("E,");
     integer(phase);
     Console::write(",");
     let lower_exists: bool = main.equilibrium.lower_exists;
-    Main::flag(main, lower_exists);
+    flag(main, lower_exists);
     let interior_exists: bool = main.equilibrium.interior_exists;
-    Main::flag(main, interior_exists);
+    flag(main, interior_exists);
     let upper_exists: bool = main.equilibrium.upper_exists;
-    Main::flag(main, upper_exists);
+    flag(main, upper_exists);
     let continuum: bool = main.equilibrium.continuum;
-    Main::flag(main, continuum);
+    flag(main, continuum);
     voltage(main.equilibrium.interior);
     Console::write(",");
     voltage(main.equilibrium.multiplier);
@@ -154,11 +163,11 @@ machine Main::equilibrium_row(main: &mut Main, phase: i32) reaches Console {
     integer(match main.equilibrium.stable { true -> (1) false -> (0) });
     Console::write_line("");
 }
-machine Main::flag(main: &mut Main, flag: bool) reaches Console {
+machine flag(main: &mut Main, flag: bool) reaches Console {
     integer(match flag { true -> (1) false -> (0) });
     Console::write(",");
 }
-machine Main::trace_row(main: &mut Main) reaches Console {
+machine trace_row(main: &mut Main) reaches Console {
     Console::write("T,");
     integer(main.step as i32);
     Console::write(",");
@@ -173,7 +182,7 @@ machine Main::trace_row(main: &mut Main) reaches Console {
     integer(main.observed.overload);
     Console::write_line("");
 }
-machine Main::measure(main: &mut Main) {
+machine measure(main: &mut Main) {
     transition main.observed.overload != 0 {
         true -> overload(main)
         false -> recovery(main)
@@ -213,5 +222,5 @@ machine Main::measure(main: &mut Main) {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

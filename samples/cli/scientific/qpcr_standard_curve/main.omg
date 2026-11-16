@@ -1,8 +1,16 @@
 use omega::language::core::ProcessExit;
 // Expected exit: 0 for input.txt; numerical oracle: validation/oracles.json.
 use domain::input;
+use domain::input::Reader;
+use domain::input::Number;
+use domain::input::number;
+use domain::input::ended;
 use domain::report;
+use domain::report::field;
 use domain::math;
+use domain::math::logarithm;
+use domain::math::exponential;
+use domain::math::residual_sum;
 use omega::language::core::F64::from_i32;
 use omega::language::core::F64::is_finite;
 use omega::language::core::I32::from_f64;
@@ -15,7 +23,7 @@ data Application {
     mean_x: f64; mean_y: f64; variance_x: f64; variance_y: f64; covariance: f64;
     slope: f64; intercept: f64; residual_square: f64; minimum_x: f64; maximum_x: f64; minimum_y: f64; maximum_y: f64;
 }
-machine Application::main(application: &mut Application) reaches ProcessExit + Console crashes Trap {
+machine main(application: &mut Application) reaches ProcessExit + Console crashes Trap {
     let standards: Number = block number(&mut application.reader);
     let unknowns: Number = block number(&mut application.reader);
     transition standards.valid && unknowns.valid && standards.value >= 3.0 && standards.value <= 8.0 && unknowns.value >= 0.0 && unknowns.value <= 8.0 {
@@ -160,5 +168,5 @@ machine Application::main(application: &mut Application) reaches ProcessExit + C
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console crashes Trap {
     let mut entry_storage: Application;
-    block Application::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

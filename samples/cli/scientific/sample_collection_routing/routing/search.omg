@@ -1,9 +1,14 @@
+module routing::search;
 // Exhaust all 4^4 event words, independently testing each word's four visits.
 // A feasible word necessarily visits each pickup/drop once: duplicate pickups
 // and drops reject, drops require pickups, and both deliveries must complete.
 // The word code orders routes lexicographically; retain the first tied optimum.
 use routing::model;
+use routing::model::Plan;
+use routing::model::Tour;
+use routing::model::Certificate;
 use routing::visit;
+use routing::visit::visit;
 
 public machine solve(plan: &Plan, certificate: &mut Certificate) {
     certificate.feasible = 0;

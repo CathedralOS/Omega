@@ -1,3 +1,4 @@
+module platform::report;
 use omega_language_std::Console;
 // Signed fixed-width decimal in hundredths of an energy unit.
 public machine number(value: i32 in Saturating) reaches Console

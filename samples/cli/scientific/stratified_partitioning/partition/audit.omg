@@ -1,7 +1,11 @@
+module partition::audit;
 // Materialize row assignments, then check conservation and every same-group
 // pair. Reporting consumes these audited assignments rather than recomputing.
 use data::dataset;
+use data::dataset::Dataset;
 use partition::allocation;
+use partition::allocation::Allocation;
+use partition::allocation::selected;
 public data Audit {
     assignments: [i32; 16] in Saturating;
     counts: [i32; 3] in Saturating;
@@ -9,7 +13,7 @@ public data Audit {
     leakage: i32 in Saturating;
     valid: bool;
 }
-public machine Audit::check(audit: &mut Audit, data: &Dataset, result: &Allocation) {
+public machine check(audit: &mut Audit, data: &Dataset, result: &Allocation) {
     transition { _ -> rows(audit, data, result, 0) }
     machine rows(audit: &mut Audit, data: &Dataset, result: &Allocation, index: i32 in Saturating) {
         transition index >= 0 && index < 16 && index < data.count {

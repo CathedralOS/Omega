@@ -4,10 +4,16 @@ use omega::language::core::ProcessExit;
 // Expected output contains: status=ok
 use omega_language_std::Console;
 use domain::input;
+use domain::input::Reader;
+use domain::input::Input;
+use domain::input::read_input;
 use domain::equilibrium;
+use domain::equilibrium::Equilibrium;
+use domain::equilibrium::solve;
 use domain::report;
+use domain::report::report;
 data Main { reader: Reader; }
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     main.reader.consumed = 0;
     let mut input: Input;
     let valid: bool = block read_input(&mut main.reader, &mut input);
@@ -31,5 +37,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

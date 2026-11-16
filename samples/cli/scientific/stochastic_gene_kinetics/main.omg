@@ -5,13 +5,18 @@ use omega_language_std::ByteRead;
 use omega_language_std::Console;
 use omega::language::core::narrow_i64_to_u64_saturating;
 use kinetics;
+use kinetics::Model;
+use kinetics::advance;
+use kinetics::valid;
 use format;
+use format::integer;
+use format::number;
 data Main {
     model: Model; mode: u64; initial_x: i64;
     replicate: u64; sum_x: u64; sum_x2: u64; sum_y: u64; sum_y2: u64;
     zero: u64; one: u64; two: u64; three_plus: u64;
 }
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     let first: ByteRead = block Console::read_byte();
     transition first { ByteRead::Byte { value } -> digit(main, value) _ -> invalid(main) }
     machine digit(main: &mut Main, value: i32) {
@@ -170,5 +175,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

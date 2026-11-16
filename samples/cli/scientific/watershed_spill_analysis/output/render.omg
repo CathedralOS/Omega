@@ -1,8 +1,9 @@
+module output::render;
 use omega_language_std::Console;
 
 // Values are 0..81, so two decimal digits cover every emitted quantity.
 // Output uses the existing console provider and no numerics package.
-machine number(value: i32 in Wrapping) reaches Console {
+public machine number(value: i32 in Wrapping) reaches Console {
     transition value >= 10 {
         true -> higher(value)
         _ -> digit(value)
@@ -16,7 +17,7 @@ machine number(value: i32 in Wrapping) reaches Console {
     }
 }
 
-machine grid(values: &[i32 in Wrapping; 25]) reaches Console {
+public machine grid(values: &[i32 in Wrapping; 25]) reaches Console {
     transition { _ -> cell(values, 0) }
     machine cell(values: &[i32 in Wrapping; 25], index: i32 in Wrapping) {
         transition index >= 0 && index < 25 {

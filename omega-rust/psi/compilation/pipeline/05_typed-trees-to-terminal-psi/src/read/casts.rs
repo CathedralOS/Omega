@@ -147,12 +147,14 @@ impl Program<'_> {
                     kind: ExpressionKind::Establish {
                         operand: Box::new(operand),
                         clauses: vec![semantic_vocabulary::Proposition::FloatMeaningEqual(clause)],
-                        stated: format!(
-                            "the float value is exactly representable in {}",
-                            match to {
-                                semantic_vocabulary::IeeeFloatFormat::Binary32 => "f32",
-                                semantic_vocabulary::IeeeFloatFormat::Binary64 => "f64",
-                            }
+                        stated: terminal_check_tables::program::CastCondition::ExactRepresentation(
+                            format!(
+                                "the float value is exactly representable in {}",
+                                match to {
+                                    semantic_vocabulary::IeeeFloatFormat::Binary32 => "f32",
+                                    semantic_vocabulary::IeeeFloatFormat::Binary64 => "f64",
+                                }
+                            ),
                         ),
                     },
                     call_context: None,
@@ -187,7 +189,9 @@ impl Program<'_> {
                         source: source_term,
                         target: to,
                     }],
-                    stated: format!("the float value is exactly representable in {carrier}"),
+                    stated: terminal_check_tables::program::CastCondition::ExactRepresentation(
+                        format!("the float value is exactly representable in {carrier}"),
+                    ),
                 },
                 call_context: None,
                 source,
@@ -471,7 +475,10 @@ impl Program<'_> {
                             kind: ExpressionKind::Establish {
                                 operand: Box::new(operand),
                                 clauses,
-                                stated,
+                                stated:
+                                    terminal_check_tables::program::CastCondition::DomainMembership(
+                                        stated,
+                                    ),
                             },
                             result: Some(result),
                             source,

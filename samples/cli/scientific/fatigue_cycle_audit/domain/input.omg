@@ -1,3 +1,4 @@
+module domain::input;
 use omega_language_std::ByteRead;
 use omega_language_std::Console;
 
@@ -12,7 +13,7 @@ public data Input {
     index: u64;
 }
 
-machine Input::read(input: &mut Input) reaches Console {
+public machine read(input: &mut Input) reaches Console {
     input.count = 0;
     input.bytes = 0;
     input.number = 0;
@@ -54,15 +55,15 @@ machine Input::read(input: &mut Input) reaches Console {
         }
     }
     machine separator(input: &mut Input) {
-        Input::flush(input);
+        flush(input);
         transition input.valid { true -> scan(input) false -> done() }
     }
-    machine finish(input: &mut Input) { Input::flush(input); }
+    machine finish(input: &mut Input) { flush(input); }
     machine invalid(input: &mut Input) { input.valid = false; }
     machine done() {}
 }
 
-machine Input::flush(input: &mut Input) {
+machine flush(input: &mut Input) {
     transition input.active && input.count < 19 {
         true -> store(input)
         false -> other(input)
@@ -80,7 +81,7 @@ machine Input::flush(input: &mut Input) {
     machine done() {}
 }
 
-machine Input::validate(input: &mut Input) {
+public machine validate(input: &mut Input) {
     transition input.valid && input.count >= 5 && input.count <= 19 {
         true -> curve(input)
         false -> invalid(input)

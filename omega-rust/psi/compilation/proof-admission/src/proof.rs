@@ -2345,7 +2345,7 @@ pub(crate) mod strict_order_transitivity {
     }
 }
 pub(crate) mod subtract_antitone {
-    use semantic_vocabulary::{IntegerCarrier, Proposition, ScalarTerm, ScalarType};
+    use semantic_vocabulary::{IntegerCarrier, IntegerSign, Proposition, ScalarTerm, ScalarType};
 
     use super::ProofError;
 
@@ -2355,6 +2355,68 @@ pub(crate) mod subtract_antitone {
         order: &Proposition,
         conclusion: &Proposition,
     ) -> Result<(), ProofError> {
+        if let (
+            Proposition::Equal(
+                smaller,
+                ScalarTerm::SaturatingIntegerSubtract {
+                    scalar_type,
+                    left: smaller_minuend,
+                    right: smaller_subtrahend,
+                },
+            ),
+            Proposition::Equal(
+                larger,
+                ScalarTerm::SaturatingIntegerSubtract {
+                    scalar_type: larger_type,
+                    left: larger_minuend,
+                    right: larger_subtrahend,
+                },
+            ),
+        ) = (smaller, larger)
+        {
+            let invalid = ProofError::RulePremiseMismatch("unsigned saturating subtraction order");
+            if scalar_type != larger_type
+                || scalar_type.carrier() != IntegerCarrier::Fixed
+                || scalar_type.is_address()
+                || scalar_type.sign() != IntegerSign::Unsigned
+                || smaller.scalar_type() != ScalarType::Integer(*scalar_type)
+                || larger.scalar_type() != ScalarType::Integer(*scalar_type)
+            {
+                return Err(invalid);
+            }
+            let Proposition::Conjunction(parts) = order else {
+                return Err(invalid);
+            };
+            let ordered = |part: &Proposition, left: &ScalarTerm, right: &ScalarTerm| match part {
+                Proposition::LessThan(a, b) if a == left && b == right => Some(true),
+                Proposition::LessOrEqual(a, b) if a == left && b == right => Some(false),
+                _ => None,
+            };
+            let [minuends, subtrahends, strict_premises @ ..] = parts.as_slice() else {
+                return Err(invalid);
+            };
+            let minuends = ordered(minuends, smaller_minuend, larger_minuend)
+                .ok_or_else(|| invalid.clone())?;
+            let subtrahends = ordered(subtrahends, larger_subtrahend, smaller_subtrahend)
+                .ok_or_else(|| invalid.clone())?;
+            // Increasing the minuend or decreasing the subtrahend cannot
+            // shrink a clamped difference. Strict operand order matters
+            // only when the larger difference is above the zero plateau.
+            match strict_premises {
+                [] if conclusion == &Proposition::LessOrEqual(smaller.clone(), larger.clone()) => {
+                    return Ok(());
+                }
+                [positive]
+                    if (minuends || subtrahends)
+                        && ordered(positive, larger_subtrahend, larger_minuend) == Some(true)
+                        && conclusion
+                            == &Proposition::LessThan(smaller.clone(), larger.clone()) =>
+                {
+                    return Ok(());
+                }
+                _ => return Err(invalid),
+            }
+        }
         let difference = |proposition: &Proposition| match proposition {
             Proposition::Equal(
                 result,

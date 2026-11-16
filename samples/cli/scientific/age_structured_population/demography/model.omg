@@ -1,3 +1,4 @@
+module demography::model;
 // A closed, synthetic census model: newborn, juvenile, and open-ended adult.
 // Rates are thousandths. Flooring is per survival cohort and once for births.
 // All arithmetic stays below 10^10 after input bounds; Wrapping declares the

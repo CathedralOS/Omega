@@ -4,12 +4,20 @@ use omega::language::core::ProcessExit;
 // Expected output contains: error=input:
 use omega_language_std::Console;
 use domain::model;
+use domain::model::Observations;
+use domain::model::Fit;
 use domain::input;
+use domain::input::InputReader;
+use domain::input::read_input;
 use domain::fit;
+use domain::fit::bounds;
+use domain::fit::parameter;
+use domain::fit::fit_curve;
 use domain::report;
+use domain::report::report;
 
 data Main { reader: InputReader; }
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     main.reader.remaining = 4096; main.reader.exhausted = false;
     let mut observations: Observations;
     let valid: bool = block read_input(&mut main.reader, &mut observations);
@@ -61,5 +69,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

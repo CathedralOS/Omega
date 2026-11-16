@@ -1,7 +1,9 @@
+module partition::allocation;
 // Enumerate all eight-bit group masks. Strict improvement preserves the
 // smallest mask on ties; unused bits therefore stay zero. Group membership
 // depends only on the numeric ID, never on input position.
 use data::dataset;
+use data::dataset::Dataset;
 public data Allocation {
     mask: i32 in Saturating;
     score: i32 in Saturating;
@@ -31,7 +33,7 @@ public machine selected(mask: i32 in Saturating, group: i32 in Saturating) -> bo
     requires weight > 0
     { (mask / weight) % 2 == 1 }
 }
-public machine Allocation::solve(result: &mut Allocation, data: &Dataset) {
+public machine allocation_solve(result: &mut Allocation, data: &Dataset) {
     result.score = 10000;
     result.total_error = 10000;
     transition { _ -> candidate(result, data, 1) }

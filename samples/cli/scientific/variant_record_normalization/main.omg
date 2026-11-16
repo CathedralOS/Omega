@@ -3,10 +3,23 @@ use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 use omega_language_std::LineReadResult;
 use domain::sequence;
+use domain::sequence::Sequence;
 use domain::input;
+use domain::input::Input;
+use domain::input::parse;
 use domain::normalization;
+use domain::normalization::Variant;
+use domain::normalization::Normalization;
+use domain::normalization::normalize;
 use domain::ledger;
+use domain::ledger::Ledger;
+use domain::ledger::source_mask;
+use domain::ledger::add;
 use domain::report;
+use domain::report::number;
+use domain::report::separator;
+use domain::report::newline;
+use domain::report::variant_row;
 
 data Main { }
 data Application {
@@ -20,13 +33,13 @@ data Application {
     rejected: u64 in Wrapping;
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     let mut application: Application;
     Console::write_line("VARIANT_NORMALIZATION|1");
     transition { _ -> read(&mut application) }
     machine read(application: &mut Application) {
         let mut line: [u8; 64];
-        let result: LineReadResult = block Console::read_line(&mut line);
+        let result: LineReadResult = block Console::read_line(&mut line[..]);
         transition result {
             LineReadResult::LineComplete { count } -> process(application, &line, count as u64 in Wrapping, false)
             LineReadResult::EndOfInput { count } -> eof(application, &line, count as u64 in Wrapping)
@@ -175,7 +188,7 @@ machine consume(application: &mut Application, input: &Input) -> u64 in Wrapping
     machine accepted(application: &mut Application, input: &Input, result: &mut Normalization) -> u64 in Wrapping {
         result.canonical.contig = input.contig;
         result.canonical.provenance = source_mask(input.source);
-        let action: u64 in Wrapping = Ledger::add(&mut application.ledger, &result.canonical);
+        let action: u64 in Wrapping = add(&mut application.ledger, &result.canonical);
         transition action < 2 {
             true -> emit(input, result, action)
             _ -> 6
@@ -224,5 +237,5 @@ machine render_ledger(ledger: &Ledger) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

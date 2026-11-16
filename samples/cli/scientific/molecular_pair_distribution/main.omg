@@ -3,9 +3,15 @@ use omega::language::core::ProcessExit;
 // Expected output contains: molecular_pair_distribution
 use omega_language_std::Console;
 use io::input;
+use io::input::InputReader;
+use io::input::Token;
+use io::input::token;
 use io::output;
 use domain::model;
+use domain::model::Distribution;
 use domain::distribution;
+use domain::distribution::histogram;
+use domain::distribution::report;
 
 machine main() reaches ProcessExit + Console invokes Console blocks crashes Trap {
     let mut reader: InputReader;

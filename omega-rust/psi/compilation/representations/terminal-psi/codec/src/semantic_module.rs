@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 279`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 280`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -1453,6 +1453,7 @@ pub(crate) mod machine_declaration_wire {
         writer.boolean(body.specialization.is_some());
         if let Some(specialization) = &body.specialization {
             writer.u32(specialization.template.identity().0);
+            writer.u32(specialization.template_entry.identity().0);
             writer.u32(specialization.template_callable.0);
             writer.u32(specialization.template_semantic_declaration.0);
             writer.bytes(&specialization.commitment);
@@ -1480,6 +1481,9 @@ pub(crate) mod machine_declaration_wire {
         let specialization = if reader.boolean()? {
             Some(CheckedMachineSpecialization {
                 template: NominalDeclarationIdentity::new(TerminalIdentityIndex(reader.u32()?)),
+                template_entry: NominalDeclarationIdentity::new(TerminalIdentityIndex(
+                    reader.u32()?,
+                )),
                 template_callable: TerminalIdentityIndex(reader.u32()?),
                 template_semantic_declaration: TerminalIdentityIndex(reader.u32()?),
                 commitment: reader.array()?,
@@ -1516,6 +1520,7 @@ pub(crate) mod machine_declaration_wire {
         if body.contract == [0; 32]
             || body.specialization.as_ref().is_some_and(|row| {
                 row.commitment == [0; 32]
+                    || row.template_entry.identity().is_absent()
                     || row.template_callable.is_absent()
                     || row.template_semantic_declaration.is_absent()
                     || row.capture.as_ref().is_some_and(|capture| {
@@ -1585,6 +1590,7 @@ pub(crate) mod machine_wire {
                 kind: StructuralPlaceKind::Parameter { position: 0 },
             });
             module.structural_types.push(StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
                 requires: Vec::new(),
                 quotient_carrier: None,
                 owns_linear_claim: false,
@@ -2353,7 +2359,7 @@ pub(crate) mod reach_application_wire {
                 }
                 ClosedReachParameter::Const { argument } => {
                     writer.u8(1);
-                    writer.string("reach const argument", argument)?;
+                    writer.string("reach const argument", &argument.atom())?;
                 }
                 ClosedReachParameter::Proposition { argument } => {
                     writer.u8(2);
@@ -2473,7 +2479,12 @@ pub(crate) mod reach_application_wire {
                     argument: reader.string("reach const argument")?,
                 },
                 1 => ClosedReachParameter::Const {
-                    argument: reader.string("reach proposition argument")?,
+                    argument: language_semantics::const_value::CanonicalConstValue::from_atom(
+                        &reader.string("reach const argument")?,
+                    )
+                    .ok_or(CodecError::MalformedStructuralFoundation(
+                        "reach const argument has no canonical value",
+                    ))?,
                 },
                 2 => ClosedReachParameter::Proposition {
                     argument: reader.string("reach requirement")?,
@@ -3255,6 +3266,7 @@ mod reference_transport_tests {
                 abstract_opaque: false,
             });
         module.structural_types.push(StructuralTypeDeclaration {
+            declaration_identity: Default::default(),
             requires: Vec::new(),
             id: StructuralTypeId::new(2).unwrap(),
             identity: TerminalIdentityIndex(2),
@@ -3307,6 +3319,7 @@ mod reference_transport_tests {
                 [],
             );
             module.structural_types.push(StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
                 requires: Vec::new(),
                 id: StructuralTypeId::new(3).unwrap(),
                 identity: TerminalIdentityIndex(3),
@@ -3319,6 +3332,7 @@ mod reference_transport_tests {
                 shape: StructuralTypeShape::Record {
                     storage: StructuralRecordStorage::Packed,
                     fields: vec![StructuralFieldDeclaration {
+                        declaration_identity: Default::default(),
                         inline_carrier: None,
                         id: StructuralFieldId::new(1).unwrap(),
                         identity: TerminalIdentityIndex(4),
@@ -3365,6 +3379,7 @@ mod reference_transport_tests {
             )
         };
         let carrier = StructuralTypeDeclaration {
+            declaration_identity: Default::default(),
             requires: Vec::new(),
             id: StructuralTypeId::new(1).unwrap(),
             identity: TerminalIdentityIndex(1),
@@ -3385,6 +3400,7 @@ mod reference_transport_tests {
         record.shape = StructuralTypeShape::Record {
             storage: StructuralRecordStorage::Packed,
             fields: vec![StructuralFieldDeclaration {
+                declaration_identity: Default::default(),
                 id: StructuralFieldId::new(1).unwrap(),
                 identity: TerminalIdentityIndex(4),
                 relevance: BindingRelevance::Relevant,
@@ -4143,6 +4159,7 @@ mod routed_scalar_tests {
             .as_mut()
             .unwrap()
             .specialization = Some(CheckedMachineSpecialization {
+            template_entry: NominalDeclarationIdentity::new(TerminalIdentityIndex(1)),
             template: NominalDeclarationIdentity::new(TerminalIdentityIndex(1)),
             template_callable: TerminalIdentityIndex(3),
             template_semantic_declaration: TerminalIdentityIndex(1),
@@ -4242,6 +4259,7 @@ mod routed_scalar_tests {
         declaration.callable = TerminalIdentityIndex(2);
         declaration.specialization = Some(CheckedMachineSpecialization {
             capture: None,
+            template_entry: NominalDeclarationIdentity::new(TerminalIdentityIndex(1)),
             template: NominalDeclarationIdentity::new(TerminalIdentityIndex(1)),
             template_callable: TerminalIdentityIndex(3),
             template_semantic_declaration: TerminalIdentityIndex(1),
@@ -4782,8 +4800,10 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Marker 278 retains typed integer operands in canonical float-result equations,
 // alongside 277's installation-bound service rows. A 277 reader cannot
 // authenticate a from-integer result contract.
-// Marker 279 adds total integer-result conversion and exact-cast predicates.
-pub(crate) const FORMAT_MARKER: u16 = 279;
+// Marker 279 retains complete domain access rules and source identities for
+// their subject, cases and fields. Marker 280 adds total integer-result
+// conversion and exact-cast predicates to that schema.
+pub(crate) const FORMAT_MARKER: u16 = 280;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
@@ -4808,6 +4828,18 @@ pub(crate) fn encode_closed_execution_module(
     scalar_qualification_wire::validate(&module.scalar_qualifications)?;
     validate_canonical_order(module)?;
     module_wire::encode_raw_closed(module)
+}
+
+/// The complete domain declaration has one encoding for artifact transport
+/// and downstream identity checks. Omitting a rule from an identity would let
+/// a changed permission reuse an earlier checked optimization unit.
+pub fn encode_structural_domain_declaration(
+    declaration: &terminal_psi::StructuralDomainDeclaration,
+) -> Result<Vec<u8>, CodecError> {
+    use self::wire_fields::Field;
+    let mut writer = Writer::default();
+    module_wire::declaration_wire::Domain::write(&mut writer, declaration)?;
+    Ok(writer.finish())
 }
 
 pub fn encode_structural_type_declaration(
@@ -4984,6 +5016,7 @@ mod normal_qualification_tests {
                     .into_iter()
                     .enumerate()
                     .map(|(position, identity)| StructuralFieldDeclaration {
+                        declaration_identity: Default::default(),
                         inline_carrier: None,
                         id: StructuralFieldId::new(position as u64 + 1).unwrap(),
                         identity: TerminalIdentityIndex(identity),
@@ -5011,6 +5044,7 @@ mod normal_qualification_tests {
                 );
             }
             module.structural_types.push(StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
                 requires: Vec::new(),
                 id: type_id(position as u64 + 1),
                 identity: TerminalIdentityIndex(position as u32 + 4),
@@ -5025,6 +5059,8 @@ mod normal_qualification_tests {
         }
         let domain = StructuralDomainId::new(1).unwrap();
         module.structural_domains.push(StructuralDomainDeclaration {
+            subject_identity: Default::default(),
+            access_policy: None,
             id: domain,
             semantic_domain: DomainSemanticId::new(1).unwrap(),
             identity: TerminalIdentityIndex(10),
@@ -5118,6 +5154,7 @@ mod normal_qualification_tests {
     fn boundary_logical_result_lifetimes_round_trip_and_reject_missing_frontiers() {
         let mut module = module();
         module.structural_types.push(StructuralTypeDeclaration {
+            declaration_identity: Default::default(),
             requires: Vec::new(),
             id: type_id(5),
             identity: TerminalIdentityIndex(12),
@@ -5358,6 +5395,7 @@ mod global_descriptor_table_tests {
         });
         let carrier = StructuralTypeId::new(1).unwrap();
         module.structural_types.push(StructuralTypeDeclaration {
+            declaration_identity: Default::default(),
             requires: Vec::new(),
             id: carrier,
             identity: TerminalIdentityIndex(3),
@@ -5513,6 +5551,7 @@ mod descriptor_operation_tests {
         ];
         for (index, shape) in shapes.into_iter().enumerate() {
             module.structural_types.push(StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
                 requires: Vec::new(),
                 id: StructuralTypeId::new(index as u64 + 1).unwrap(),
                 identity: TerminalIdentityIndex(index as u32 + 3),
@@ -5775,6 +5814,7 @@ mod opaque_value_tests {
         let identity = StructuralTypeId::new(1).unwrap();
         module.identities = identity_table(1);
         module.structural_types.push(StructuralTypeDeclaration {
+            declaration_identity: Default::default(),
             requires: Vec::new(),
             id: identity,
             identity: TerminalIdentityIndex(1),
@@ -5842,7 +5882,7 @@ mod format_marker_tests {
         // float conversion ordinal also cannot supply the retained carrier identity.
         for legacy in [
             250u16, 251, 252, 256, 260, 261, 264, 265, 266, 267, 268, 269, 270, 271, 272, 273, 274,
-            275, 276, 277,
+            275, 276, 277, 278,
         ] {
             for payload in [&[][..], &[0xff, 0xff, 0xff][..]] {
                 let mut bytes = MAGIC.to_vec();

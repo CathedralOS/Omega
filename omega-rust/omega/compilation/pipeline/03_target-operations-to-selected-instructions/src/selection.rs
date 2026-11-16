@@ -688,7 +688,12 @@ pub(crate) mod construction {
                 source
                     .structural
                     .as_ref()
-                    .map_or(&[][..], |contract| contract.structural_types.as_slice())
+                    .map_or((&[][..], &[][..]), |contract| {
+                        (
+                            contract.structural_types.as_slice(),
+                            contract.structural_types.owned_sequence_bounds(),
+                        )
+                    })
             }),
         )
         .map_err(|_| SelectedInstructionError::custody())?;
@@ -712,6 +717,9 @@ pub(crate) mod construction {
                                 .structural
                                 .as_ref()
                                 .map_or(&[][..], |contract| contract.structural_types.as_slice()),
+                            source.structural.as_ref().map_or(&[][..], |contract| {
+                                contract.structural_types.owned_sequence_bounds()
+                            }),
                         )
                         .ok_or_else(SelectedInstructionError::custody)?,
                     constraints,
@@ -1088,11 +1096,19 @@ pub(crate) mod foreign_scalar_backings {
                     .structural
                     .as_ref()
                     .map_or(&[][..], |signature| signature.structural_types.as_slice());
-                let geometry = self.geometries.get(declarations).ok_or_else(|| {
-                    SelectedInstructionError::custody_because(
-                        "foreign backing query lost its prepared native geometry",
+                let geometry = self
+                    .geometries
+                    .get(
+                        declarations,
+                        function.structural.as_ref().map_or(&[][..], |signature| {
+                            signature.structural_types.owned_sequence_bounds()
+                        }),
                     )
-                })?;
+                    .ok_or_else(|| {
+                        SelectedInstructionError::custody_because(
+                            "foreign backing query lost its prepared native geometry",
+                        )
+                    })?;
                 let function = &crate::native_geometry::NativeInput::with_types(
                     function,
                     geometry,

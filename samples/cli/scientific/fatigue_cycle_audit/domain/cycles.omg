@@ -1,4 +1,6 @@
+module domain::cycles;
 use domain::input;
+use domain::input::Input;
 
 // Declared synthetic four-point rule: close b,c when its range is no larger
 // than either enclosing range a,b or c,d; remove b,c and re-examine the tail.
@@ -33,7 +35,7 @@ public data Audit {
     fourth: u64;
 }
 
-machine Audit::prepare(audit: &mut Audit, input: &Input) {
+public machine prepare(audit: &mut Audit, input: &Input) {
     audit.exponent = input.values[0];
     audit.denominator = input.values[1] * 2;
     audit.turning_count = 0;
@@ -103,13 +105,13 @@ machine Audit::prepare(audit: &mut Audit, input: &Input) {
     machine done() {}
 }
 
-machine Audit::distance(left: u64 in Wrapping, right: u64 in Wrapping) -> u64 in Wrapping {
+machine distance(left: u64 in Wrapping, right: u64 in Wrapping) -> u64 in Wrapping {
     transition left >= right { true -> descending(left, right) false -> ascending(left, right) }
     machine descending(left: u64 in Wrapping, right: u64 in Wrapping) -> u64 in Wrapping { left - right }
     machine ascending(left: u64 in Wrapping, right: u64 in Wrapping) -> u64 in Wrapping { right - left }
 }
 
-machine Audit::record(audit: &mut Audit) {
+machine record(audit: &mut Audit) {
     transition audit.cycle_count < 16 { true -> store(audit) false -> done() }
     machine store(audit: &mut Audit) {
         audit.ranges[audit.cycle_count] = audit.range;
@@ -131,7 +133,7 @@ machine Audit::record(audit: &mut Audit) {
     machine done() {}
 }
 
-machine Audit::count(audit: &mut Audit) {
+public machine count(audit: &mut Audit) {
     audit.index = 0;
     audit.stack_count = 0;
     audit.cycle_count = 0;
@@ -161,15 +163,15 @@ machine Audit::count(audit: &mut Audit) {
         transition audit.first < 16 && audit.second < 16 && audit.third < 16 && audit.fourth < 16 { true -> ranges(audit) false -> done() }
     }
     machine ranges(audit: &mut Audit) {
-        audit.left = Audit::distance(audit.stack[audit.first], audit.stack[audit.second]);
-        audit.middle = Audit::distance(audit.stack[audit.second], audit.stack[audit.third]);
-        audit.right = Audit::distance(audit.stack[audit.third], audit.stack[audit.fourth]);
+        audit.left = distance(audit.stack[audit.first], audit.stack[audit.second]);
+        audit.middle = distance(audit.stack[audit.second], audit.stack[audit.third]);
+        audit.right = distance(audit.stack[audit.third], audit.stack[audit.fourth]);
         transition audit.middle <= audit.left && audit.middle <= audit.right { true -> close(audit) false -> feed_guard(audit) }
     }
     machine close(audit: &mut Audit) {
         audit.range = audit.middle;
         audit.weight = 2;
-        Audit::record(audit);
+        record(audit);
         transition audit.second < 16 && audit.fourth < 16 && audit.stack_count >= 4 && audit.stack_count <= 16 { true -> remove(audit) false -> done() }
     }
     machine remove(audit: &mut Audit) {
@@ -190,9 +192,9 @@ machine Audit::count(audit: &mut Audit) {
         transition audit.first < 16 && audit.index < 16 { true -> residual(audit) false -> done() }
     }
     machine residual(audit: &mut Audit) {
-        audit.range = Audit::distance(audit.stack[audit.first], audit.stack[audit.index]);
+        audit.range = distance(audit.stack[audit.first], audit.stack[audit.index]);
         audit.weight = 1;
-        Audit::record(audit);
+        record(audit);
         transition audit.index < 16 { true -> next(audit) false -> done() }
     }
     machine next(audit: &mut Audit) {

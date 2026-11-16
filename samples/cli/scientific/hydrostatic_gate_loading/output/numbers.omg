@@ -1,3 +1,4 @@
+module output::numbers;
 // Artifacts use decimal integers in micro-units, rounded half away from zero.
 // Maximum model bounds keep scaled loads below 2e18, within signed i64.
 use omega_language_std::Console;

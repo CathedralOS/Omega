@@ -3,12 +3,20 @@ use omega::language::core::ProcessExit;
 // Expected output contains: planar_truss_elasticity
 use omega_language_std::Console;
 use io::input;
+use io::input::Input;
+use io::input::read_input;
 use io::decode;
+use io::decode::decode;
 use io::report;
+use io::report::Output;
+use io::report::report;
 use domain::model;
+use domain::model::Truss;
+use domain::model::Solution;
 use domain::solver;
+use domain::solver::solve;
 data Main { input: Input; output: Output; truss: Truss; result: Solution; }
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     block read_input(&mut main.input);
     transition main.input.valid { true -> decode_input(main) false -> invalid(main) }
     machine decode_input(main: &mut Main) {
@@ -33,5 +41,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

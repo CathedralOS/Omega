@@ -1,8 +1,14 @@
 use omega::language::core::ProcessExit;
 // Expected exit: 0.
 use domain::input;
+use domain::input::Reader;
+use domain::input::Number;
+use domain::input::number;
+use domain::input::ended;
 use domain::report;
+use domain::report::field;
 use domain::convolution;
+use domain::convolution::convolve;
 use omega::language::core::F64::from_i32;
 use omega::language::core::I32::from_f64;
 use omega::language::core::sqrt_f64;
@@ -14,7 +20,7 @@ data Application {
     length: i32 in Wrapping; width: i32 in Wrapping; index: i32 in Wrapping; iterations: i32 in Wrapping;
     regularization: f64; kernel_sum: f64; sum: f64; squared: f64; previous: f64; scale: f64; residual_norm: f64; roughness: f64;
 }
-machine Application::main(application: &mut Application) reaches ProcessExit + Console crashes Trap {
+machine main(application: &mut Application) reaches ProcessExit + Console crashes Trap {
     let length: Number = block number(&mut application.reader);
     let width: Number = block number(&mut application.reader);
     let regularization: Number = block number(&mut application.reader);
@@ -171,5 +177,5 @@ machine Application::main(application: &mut Application) reaches ProcessExit + C
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console crashes Trap {
     let mut entry_storage: Application;
-    block Application::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

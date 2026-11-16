@@ -11,6 +11,7 @@ use omega::language::core::I64::from_f64;
 use domain::grid;
 use domain::solver;
 use platform::decimal;
+use platform::decimal::number;
 
 machine field(value:f64) reaches ProcessExit + Console invokes Console {
  let scaled:f64=value*1000000000000.0;
@@ -29,7 +30,7 @@ machine count(value:u64 in Saturating) reaches ProcessExit + Console invokes Con
  machine failure() { Console::write_line("REJECT report count"); ProcessExit::exit_process(70); }
 }
 data Main { }
-machine Main::main(main: &mut Main) reaches ProcessExit + Console invokes Console {
+machine main(main: &mut Main) reaches ProcessExit + Console invokes Console {
  let request:ByteRead=block Console::read_byte();
  transition request { ByteRead::Byte { value } -> block ending(value) _ -> input_error() }
  machine ending(value:i32) {
@@ -105,5 +106,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console invokes Consol
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console invokes Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

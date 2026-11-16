@@ -4,7 +4,11 @@ use omega::language::core::ProcessExit;
 use omega_language_std::ByteRead;
 use omega_language_std::Console;
 use model::integrator;
+use model::integrator::Pendulum;
+use model::integrator::pendulum_project;
+use model::integrator::step;
 use report::report;
+use report::report::print_micro;
 use omega::language::core::F64::from_i32;
 use omega::language::core::F64::square_root;
 
@@ -15,7 +19,7 @@ data Main {
     initial_energy: f64;
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("NEW021 constrained pendulum; signed micro-units; dt=0.01; gravity=9.81; mass=1");
     let input: ByteRead = block Console::read_byte();
     transition input {
@@ -105,7 +109,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
         transition { _ -> project(main) }
     }
     machine project(main: &mut Main) {
-        Pendulum::project(&mut main.pendulum);
+        pendulum_project(&mut main.pendulum);
         main.initial_energy = main.pendulum.energy;
         transition { _ -> row(main) }
     }
@@ -138,7 +142,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     requires main.step >= 0 && main.step < 32
     {
         main.step = main.step + 1;
-        Pendulum::step(&mut main.pendulum);
+        step(&mut main.pendulum);
         transition { _ -> row(main) }
     }
     machine finish(main: &mut Main) {
@@ -157,5 +161,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

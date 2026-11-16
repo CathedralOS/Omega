@@ -1232,6 +1232,9 @@ impl<'a> Prover<'a> {
         {
             return Ok(proof);
         }
+        if let Some(proof) = self.saturating_subtract_order(left, right, strict) {
+            return Ok(proof);
+        }
         let (left_literal, left_proof) = self.side(left, Direction::Upper)?;
         let (right_literal, right_proof) = self.side(right, Direction::Lower)?;
         let ordered = integer
@@ -1361,6 +1364,104 @@ impl<'a> Prover<'a> {
                 premise: Box::new(carrier),
                 equalities,
             },
+        ))
+    }
+
+    /// Compare results from their checked definitions. In the strict form
+    /// a strict coordinate is useful only above the larger result's clamp.
+    fn saturating_subtract_order(
+        &mut self,
+        smaller: &ScalarTerm,
+        larger: &ScalarTerm,
+        strict: bool,
+    ) -> Option<ProofNode> {
+        let (smaller_equation, smaller_minuend, smaller_subtrahend) =
+            self.saturating_subtract_definition(smaller)?;
+        let (larger_equation, larger_minuend, larger_subtrahend) =
+            self.saturating_subtract_definition(larger)?;
+        let minuends = (smaller_minuend, larger_minuend.clone());
+        let subtrahends = (larger_subtrahend.clone(), smaller_subtrahend);
+        let mut proofs;
+        let conclusion = if strict {
+            let positive = self
+                .prove(&Proposition::LessThan(larger_subtrahend, larger_minuend))
+                .ok()?;
+            proofs = self
+                .prove(&Proposition::LessThan(
+                    minuends.0.clone(),
+                    minuends.1.clone(),
+                ))
+                .and_then(|first| {
+                    self.prove(&Proposition::LessOrEqual(
+                        subtrahends.0.clone(),
+                        subtrahends.1.clone(),
+                    ))
+                    .map(|second| vec![first, second])
+                })
+                .or_else(|_| {
+                    let second =
+                        self.prove(&Proposition::LessThan(subtrahends.0, subtrahends.1))?;
+                    let first = self.prove(&Proposition::LessOrEqual(minuends.0, minuends.1))?;
+                    Ok::<_, Unproven>(vec![first, second])
+                })
+                .ok()?;
+            proofs.push(positive);
+            Proposition::LessThan(smaller.clone(), larger.clone())
+        } else {
+            proofs = vec![
+                self.prove(&Proposition::LessOrEqual(minuends.0, minuends.1))
+                    .ok()?,
+                self.prove(&Proposition::LessOrEqual(subtrahends.0, subtrahends.1))
+                    .ok()?,
+            ];
+            Proposition::LessOrEqual(smaller.clone(), larger.clone())
+        };
+        let order = node(
+            Proposition::Conjunction(
+                proofs
+                    .iter()
+                    .map(|proof| proof.conclusion.clone())
+                    .collect(),
+            ),
+            ProofRule::ConjunctionIntroduction(proofs),
+        );
+        Some(node(
+            conclusion,
+            ProofRule::IntegerSubtractAntitone {
+                smaller: Box::new(smaller_equation),
+                larger: Box::new(larger_equation),
+                order: Box::new(order),
+            },
+        ))
+    }
+
+    fn saturating_subtract_definition(
+        &self,
+        subject: &ScalarTerm,
+    ) -> Option<(ProofNode, ScalarTerm, ScalarTerm)> {
+        let ScalarTerm::Value { id, .. } = subject else {
+            return None;
+        };
+        let index = self.definitions.get(*id)?.as_ref()?;
+        let fact = self.facts.get(self.equations[*index])?;
+        let Proposition::Equal(
+            _,
+            ScalarTerm::SaturatingIntegerSubtract {
+                scalar_type,
+                left,
+                right,
+            },
+        ) = &fact.proposition
+        else {
+            return None;
+        };
+        if scalar_type.sign() != semantic_vocabulary::IntegerSign::Unsigned {
+            return None;
+        }
+        Some((
+            fact.proof(&self.facts),
+            left.as_ref().clone(),
+            right.as_ref().clone(),
         ))
     }
 

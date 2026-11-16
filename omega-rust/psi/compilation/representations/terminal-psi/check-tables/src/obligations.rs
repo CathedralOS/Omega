@@ -583,6 +583,7 @@ mod width_inventory_tests {
 
     fn declaration(raw: u64, shape: StructuralTypeShape) -> StructuralTypeDeclaration {
         StructuralTypeDeclaration {
+            declaration_identity: Default::default(),
             quotient_carrier: None,
             id: id(raw),
             identity: terminal_psi::TerminalIdentityIndex::ABSENT,

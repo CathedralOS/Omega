@@ -236,8 +236,9 @@ mod declaration_values {
     use crate::constant::initializer_normalization;
     use crate::constant::substitution::semantic_const_name;
     use crate::lowering::expression::lower_expression_into_table;
-    use crate::preparation::generic_data::canonicalize_selected_declared_const_definition;
-    use crate::preparation::generic_data::prove_const_literal_predicates;
+    use crate::preparation::generic_data::{
+        canonicalize_selected_declared_const_definition, const_destination_requires_proof,
+    };
     use crate::tables::syntax_expressions;
     use crate::tables::syntax_items;
     use crate::tables::syntax_type_references;
@@ -356,6 +357,12 @@ mod declaration_values {
         selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
     ) -> Result<EvaluatedConstant, String> {
         use language_core::constant_value::EvaluatedConstant;
+        // A literal payload does not establish the selected declaration's
+        // predicates. Keep it pending until its ordinary initializer is
+        // checked and admitted for evaluation.
+        if const_destination_requires_proof(syntax, definition, selection) {
+            return Err("constant requires its checked initializer computation".into());
+        }
         if let Some(normalization) = &definition.normalization {
             return Ok(normalization.result_value.clone());
         }
@@ -474,6 +481,7 @@ mod declaration_values {
     ) -> Result<(), Diagnostic> {
         if definition.normalization.is_some()
             || crate::constant::requires_const_initializer_evaluation(syntax, definition)
+            || const_destination_requires_proof(syntax, definition, selection)
         {
             // Resolution retains the request and its declaration identities.
             // Only an accepted invocation can supply a computed value.
@@ -515,14 +523,6 @@ mod declaration_values {
                     ))
                     .with_source_span(definition.name.source_span())
                 })?;
-        } else {
-            prove_const_literal_predicates(syntax, definition, selection).map_err(|reason| {
-                Diagnostic::error(format!(
-                    "constant `{}` is invalid: {reason}",
-                    semantic_const_name(syntax, definition)
-                ))
-                .with_source_span(definition.name.source_span())
-            })?;
         }
         validate_scalar_initializer(syntax, definition, selection).map_err(|reason| {
             Diagnostic::error(format!(
@@ -545,6 +545,11 @@ mod declaration_values {
             && definition.normalization.is_none()
             && !has_scalar_initializer(syntax, definition)
             && !crate::constant::requires_const_initializer_evaluation(syntax, definition)
+            && !const_destination_requires_proof(
+                syntax,
+                definition,
+                lowerer.constant_selection.as_ref(),
+            )
         {
             if crate::preparation::module_normalization::module_literal_constant(
                 syntax,
@@ -5117,9 +5122,37 @@ mod substitution {
                     "resolved constant selection has no retained declaration",
                 ));
             };
+            if !declaration.is_public
+                && !program
+                    .symbols
+                    .symbol_source_span(selected)
+                    .is_some_and(|source| program.symbols.same_source_package(reference, source))
+            {
+                return Err(Diagnostic::error(format!(
+                    "constant `{}` is private to its declaring package",
+                    program.symbols.display_path(selected, "::"),
+                ))
+                .with_source_span(reference));
+            }
             if mode == crate::resolution::lowerer::ConstResolutionMode::ArgumentSelection
                 || declaration.evaluated_value.is_none()
             {
+                // Evaluation replaces this retained name by its resolved leaf.
+                // Carry the constant already selected for this use, including
+                // when earlier name binding stopped at its qualifying carrier.
+                let expressions = &mut program.tables.bodies.expressions;
+                let ExpressionNode::Name(path) = expressions.expression_mut(occurrence.expression)
+                else {
+                    unreachable!("selected_expression_constant only selects name paths");
+                };
+                path.symbol = selected;
+                let member_symbols = path.member_symbols;
+                expressions.set_name_path_member_symbol_at_offset(
+                    member_symbols,
+                    member_symbols.count() - 1,
+                    selected,
+                );
+                expressions.set_unresolved_name(occurrence.expression, Default::default());
                 selections.push(crate::resolution::lowerer::PendingConstSelection {
                     expression: occurrence.expression,
                     source_span: reference,

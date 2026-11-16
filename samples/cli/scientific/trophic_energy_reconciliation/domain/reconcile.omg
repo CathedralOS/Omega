@@ -1,3 +1,4 @@
+module domain::reconcile;
 // Recorded flows are simultaneous transfers, not iterative population dynamics.
 // A cycle conserves raw energy once per edge and creates no external supply.
 public data Web {

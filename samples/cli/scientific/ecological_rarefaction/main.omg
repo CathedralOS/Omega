@@ -6,14 +6,17 @@ use omega_language_std::ByteRead;
 use omega_language_std::Console;
 use omega_language_std::LineReadResult;
 use domain::model;
+use domain::model::Community;
+use domain::model::analyze;
 use io::report;
+use io::report::report;
 data Main {
     line: [u8; 256];
     tokens: [u64 in Wrapping; 30];
     community: Community;
 }
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
-    let result: LineReadResult = block Console::read_line(&mut main.line);
+machine main(main: &mut Main) reaches ProcessExit + Console {
+    let result: LineReadResult = block Console::read_line(&mut main.line[..]);
     transition result {
         LineReadResult::LineComplete { count } -> block eof(main, count)
         LineReadResult::EndOfInput { count } -> parse(main, count, 0, 0, 0, 0)
@@ -146,5 +149,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

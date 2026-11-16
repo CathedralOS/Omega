@@ -1,8 +1,12 @@
+module controller::search;
 use controller::model;
+use controller::model::Problem;
+use controller::model::Plan;
+use controller::model::power_three;
 // Enumerate all base-three words in numeric order, most significant digit
 // first. This is lexicographic order for -1,0,1. Strict improvement retains
 // the first equal-cost word. No pruning or heuristic can hide an optimum.
-machine optimize(problem: &Problem, plan: &mut Plan) {
+public machine optimize(problem: &Problem, plan: &mut Plan) {
     plan.candidates = power_three(problem.horizon);
     plan.feasible = 0;
     plan.boundary_rejected = 0;

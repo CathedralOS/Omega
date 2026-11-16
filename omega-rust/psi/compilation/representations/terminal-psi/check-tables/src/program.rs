@@ -64,6 +64,23 @@ impl SourceOrigin {
     }
 }
 
+/// What a cast must prove of its operand before its result exists, kept so a
+/// refusal names the kind of condition that failed. The lowered form carries
+/// only the invariant itself, which does not say whether it came from a
+/// domain or from exact narrowing.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CastCondition {
+    /// `value as +D` for a domain with predicates
+    /// (`wiki/spec/language/domains.md`, "Domain-only casts": "Has
+    /// predicates | Prove them for this value."). Holds the domain's stated
+    /// requirement, such as "domain `u64::D` requires `self > 0`".
+    DomainMembership(String),
+    /// A float narrowing whose result must equal its operand exactly. Holds
+    /// the stated condition, such as "the float value is exactly
+    /// representable in f32".
+    ExactRepresentation(String),
+}
+
 /// One machine's source correspondence: one row per lowered identity, indexed
 /// by that identity and minted in lockstep with it.
 #[derive(Debug, Clone, Default)]
@@ -80,7 +97,7 @@ pub struct MachineSources {
     /// Each cast that must establish a predicate continues in this block.
     /// Lowering retains its stated requirement for diagnostics; the lowered
     /// form carries the actual invariant and owes it on every arrival.
-    pub predicate_establishments: Vec<(BlockId, String)>,
+    pub predicate_establishments: Vec<(BlockId, CastCondition)>,
     /// The statements lowering left out because the call before them never
     /// returns, one row per such call (`lower`, `body`). The lowered form
     /// holds nothing of them, so the advisory warning about them is read
@@ -93,6 +110,11 @@ pub struct MachineSources {
     /// begin an authored arm, so the advisory warning about an arm no
     /// arrival can take is read from here.
     pub branches: Vec<Branch>,
+    /// Each authored `_` arm of a dispatch over a sum whose every declared
+    /// case an earlier arm names (`lower`, `select`). No arrival takes such
+    /// an arm, so lowering leaves it out, and the advisory warning about it
+    /// is read from here (`Elaboration::dead_wildcards`).
+    pub dead_wildcards: Vec<SourceOrigin>,
 }
 
 /// One authored arm of a transition or a value `match`, and where control
@@ -384,6 +406,18 @@ impl Elaboration {
     pub fn authored_branches(&self) -> impl Iterator<Item = (MachineId, Branch)> + '_ {
         authored_machine_sources(&self.module, &self.sources)
             .flat_map(|(machine, sources)| sources.branches.iter().map(move |row| (machine, *row)))
+    }
+
+    /// The `_` arms of this program's authored machines that no declared
+    /// case reaches, each with its machine, in machine order. Generated
+    /// machines are left out for the reason `authored_branches` gives.
+    pub fn dead_wildcards(&self) -> impl Iterator<Item = (MachineId, SourceOrigin)> + '_ {
+        authored_machine_sources(&self.module, &self.sources).flat_map(|(machine, sources)| {
+            sources
+                .dead_wildcards
+                .iter()
+                .map(move |arm| (machine, *arm))
+        })
     }
 }
 

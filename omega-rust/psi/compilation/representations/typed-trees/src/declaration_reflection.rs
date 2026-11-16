@@ -53,6 +53,24 @@ pub mod reflection {
             }
         }
 
+        /// Describe the original query's author and visibility. Consumers of
+        /// a retained schema use the same request, so another policy or helper
+        /// cannot substitute a more privileged author when the value is read.
+        pub fn schema_query_authority(
+            typed: &TypedTrees,
+            requester: SymbolHandle,
+            subject: SymbolHandle,
+        ) -> Result<SchemaQueryAuthority, String> {
+            let requester_identity = typed.normalized_hermetic_symbol_identity(requester)?;
+            Ok(
+                if typed.symbols.same_symbol_source_package(requester, subject) {
+                    SchemaQueryAuthority::OwningScope { requester_identity }
+                } else {
+                    SchemaQueryAuthority::ForeignScope { requester_identity }
+                },
+            )
+        }
+
         pub fn exact_symbol_identity(
             typed: &TypedTrees,
             symbol: SymbolHandle,
@@ -197,6 +215,24 @@ pub mod reflection {
             typed: &TypedTrees,
             values: &[crate::reflection::CallableDescription],
         ) -> Result<(), String> {
+            callable_description_sources(typed, values).map(|_| ())
+        }
+
+        /// Keep the selected operand behind each description when a later
+        /// source consumer binds it to a module declaration. The same query
+        /// checks every static argument and source revision; the description
+        /// is never parsed back into an operand or treated as a call grant.
+        pub fn callable_description_sources<'values>(
+            typed: &TypedTrees,
+            values: &'values [crate::reflection::CallableDescription],
+        ) -> Result<
+            Vec<(
+                &'values crate::reflection::CallableDescription,
+                crate::expression::StaticMachineArgument,
+                SymbolHandle,
+            )>,
+            String,
+        > {
             use crate::expression::{ExpressionNode, StaticMachineArgument};
             use crate::references::StaticArgumentCall;
             use language_core::core_vocabulary::{CoreVocabulary, ReflectionDeclaration};
@@ -210,9 +246,9 @@ pub mod reflection {
             });
             requested.dedup();
             if requested.is_empty() {
-                return Ok(());
+                return Ok(Vec::new());
             }
-            let mut matched = vec![false; requested.len()];
+            let mut matched = vec![None; requested.len()];
             let mut failures = vec![None; requested.len()];
             let mut consider = |selected: &StaticMachineArgument, author: SymbolHandle| {
                 if !typed.symbols.symbols().nodes().is_valid(selected.symbol) {
@@ -246,8 +282,8 @@ pub mod reflection {
                 match callable_description_identity(typed, selected, author) {
                     Ok(actual) => {
                         for index in first..last {
-                            if &actual == requested[index] {
-                                matched[index] = true;
+                            if &actual == requested[index] && matched[index].is_none() {
+                                matched[index] = Some((selected.clone(), author));
                             }
                         }
                     }
@@ -327,7 +363,7 @@ pub mod reflection {
                     signature.symbol,
                 );
             }
-            if let Some(index) = matched.iter().position(|found| !found) {
+            if let Some(index) = matched.iter().position(Option::is_none) {
                 let reason = failures[index]
                     .as_deref()
                     .unwrap_or("no exact declaration/application/source revision matches");
@@ -335,7 +371,15 @@ pub mod reflection {
                     "callable description is not bound to the actual source: {reason}"
                 ));
             }
-            Ok(())
+            requested
+                .into_iter()
+                .zip(matched)
+                .map(|(description, selected)| {
+                    let (selected, author) =
+                        selected.ok_or("callable source correspondence is incomplete")?;
+                    Ok((description, selected, author))
+                })
+                .collect()
         }
 
         #[derive(Debug, Clone, PartialEq)]

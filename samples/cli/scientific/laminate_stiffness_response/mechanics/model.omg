@@ -1,3 +1,4 @@
+module mechanics::model;
 // Private classical laminate model: engineering shear, centered thickness,
 // synthetic plane-stress Q=(12,4,1,2). No external numerical package.
 public data Laminate {

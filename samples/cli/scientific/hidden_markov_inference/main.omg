@@ -5,8 +5,15 @@ use omega_language_std::Console;
 use omega_language_std::LineReadResult;
 use omega::language::core::F64::from_i64;
 use domain::inference;
+use domain::inference::Model;
+use domain::inference::Inference;
+use domain::inference::infer;
 use domain::viterbi;
+use domain::viterbi::Paths;
+use domain::viterbi::viterbi;
 use io::trace;
+use io::trace::print_integer;
+use io::trace::print_number;
 data Main { model: Model; result: Inference; paths: Paths; line: [u8; 64]; path_bytes: [u8; 32]; }
 // Both lanes hold the observation count. Lane 0 is the printed path; lane 1
 // keeps an equal-length spare so the match publishes that shared runtime length.
@@ -43,10 +50,10 @@ requires count >= 1 requires count <= 16 requires window.len == count {
     }
     machine filled() { }
 }
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     transition { _ -> block probability(main, 0) }
     machine probability(main: &mut Main, field: u64) requires field < 10 {
-        let read: LineReadResult = block Console::read_line(&mut main.line);
+        let read: LineReadResult = block Console::read_line(&mut main.line[..]);
         transition read {
             LineReadResult::LineComplete { count } -> block probability_line(main, field, count)
             _ -> invalid(main)
@@ -97,7 +104,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
         transition row < 4 { true -> block distributions(main, row + 1) false -> block observations(main) }
     }
     machine observations(main: &mut Main) {
-        let read: LineReadResult = block Console::read_line(&mut main.line);
+        let read: LineReadResult = block Console::read_line(&mut main.line[..]);
         transition read {
             LineReadResult::LineComplete { count } -> block observation_line(main, count)
             _ -> invalid(main)
@@ -121,7 +128,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
         transition index < 15 { true -> block symbols(main, index + 1) false -> invalid(main) }
     }
     machine end_input(main: &mut Main) {
-        let read: LineReadResult = block Console::read_line(&mut main.line);
+        let read: LineReadResult = block Console::read_line(&mut main.line[..]);
         transition read { LineReadResult::EndOfInput { count } -> ended(main, count) _ -> invalid(main) }
     }
     machine ended(main: &mut Main, count: u64) {
@@ -180,5 +187,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

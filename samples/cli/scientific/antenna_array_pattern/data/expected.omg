@@ -1,6 +1,7 @@
+module data::expected;
 // Independently frozen cmath reference values; used only after real array evaluation.
 public data Expected { }
-public machine Expected::power(selection: i32, sample: i32) -> f64 {
+public machine expected_power(selection: i32, sample: i32) -> f64 {
     transition selection {
         0 -> case0(sample)
         1 -> case1(sample)
@@ -86,7 +87,7 @@ public machine Expected::power(selection: i32, sample: i32) -> f64 {
     }
     machine invalid() -> f64 { 0.0 }
 }
-public machine Expected::normalized(selection: i32, sample: i32) -> f64 {
+public machine normalized(selection: i32, sample: i32) -> f64 {
     transition selection {
         0 -> case0(sample)
         1 -> case1(sample)

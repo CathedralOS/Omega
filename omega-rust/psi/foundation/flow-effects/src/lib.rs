@@ -952,13 +952,6 @@ pub mod flow_effects {
                     .find(|summary| summary.machine == machine)
             }
 
-            pub fn states_for(
-                &self,
-                machine: &MachineServiceReachInference,
-            ) -> &[StateServiceReachInference] {
-                self.states.span_or_empty(machine.states)
-            }
-
             pub fn for_state(&self, state: SymbolHandle) -> Option<&StateServiceReachInference> {
                 self.states
                     .iter()

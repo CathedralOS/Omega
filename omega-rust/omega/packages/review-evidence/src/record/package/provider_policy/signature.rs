@@ -31,6 +31,14 @@ impl PackagePolicyServiceSignature {
 }
 
 impl super::PackagePolicyServiceMethod {
+    /// External completion retains its source return type without a calling result.
+    pub(crate) fn calling_result_type(&self) -> Option<&PackageReviewTypeIdentity> {
+        match self.completion {
+            semantic_vocabulary::BoundaryCompletion::NormalReturn => self.signature.result(),
+            semantic_vocabulary::BoundaryCompletion::External(_) => None,
+        }
+    }
+
     pub(super) fn validate_signature(&self) -> Result<(), &'static str> {
         let signature = &self.signature;
         let application_scope = signature
@@ -83,7 +91,7 @@ impl super::PackagePolicyServiceMethod {
                 || signature.requirement_lifetime_parameter_count
                     != calling.requirement_lifetime_parameter_count
                 || signature.static_parameters != calling.static_parameters
-                || signature.result != calling.semantic_result
+                || self.calling_result_type() != calling.semantic_result.as_ref()
                 || signature.parameters.len() != calling.semantic_parameters.len()
                 || signature
                     .parameters

@@ -1,6 +1,10 @@
+module design::output;
 use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 use design::model;
+use design::model::Request;
+use design::model::Allocation;
+use design::model::treatment;
 
 machine digit(value: i32 in Wrapping) reaches Console {
     transition value {
@@ -17,7 +21,7 @@ machine digit(value: i32 in Wrapping) reaches Console {
     machine invalid() { Console::write("?"); }
 }
 
-machine emit(request: &Request, allocation: &Allocation) reaches ProcessExit + Console {
+public machine emit(request: &Request, allocation: &Allocation) reaches ProcessExit + Console {
     Console::write_line("FEASIBLE: allocation (treatments A=0 B=1 C=2)");
     transition { _ -> scan_row(request, allocation, 0) }
     machine scan_row(request: &Request, allocation: &Allocation, subject: i32 in Wrapping) {

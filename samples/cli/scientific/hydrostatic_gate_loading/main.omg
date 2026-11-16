@@ -4,9 +4,18 @@ use omega::language::core::ProcessExit;
 // Expected output contains: HYDROSTATIC_GATE_V1 micro_units (valid input).
 // Every domain operation and all bounded scratch data are application-private.
 use geometry::profile;
+use geometry::profile::Profile;
+use geometry::profile::WetSegment;
+use geometry::profile::clip;
 use loading::pressure;
+use loading::pressure::SegmentLoad;
+use loading::pressure::integrate;
 use input::tokens;
+use input::tokens::Reader;
+use input::tokens::next;
 use output::numbers;
+use output::numbers::write_integer;
+use output::numbers::write_scaled;
 use omega_language_std::Console;
 use omega::language::core::F64::from_i64;
 
@@ -25,16 +34,16 @@ data Application {
 }
 
 data Main { }
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     let mut application: Application;
-    block Reader::next(&mut application.reader);
+    block next(&mut application.reader);
     transition application.reader.status == 1 && application.reader.value >= 2 && application.reader.value <= 8 {
         true -> block header(&mut application)
         false -> invalid()
     }
     machine header(application: &mut Application) {
         application.profile.count = application.reader.value as u64 in Wrapping;
-        block Reader::next(&mut application.reader);
+        block next(&mut application.reader);
         transition application.reader.status == 1 && application.reader.value >= 1 && application.reader.value <= 8 {
             true -> block gamma(application)
             false -> invalid()
@@ -42,7 +51,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     }
     machine gamma(application: &mut Application) {
         application.level_count = application.reader.value as u64 in Wrapping;
-        block Reader::next(&mut application.reader);
+        block next(&mut application.reader);
         transition application.reader.status == 1 && application.reader.value >= 1 && application.reader.value <= 20000 {
             true -> block hinge(application)
             false -> invalid()
@@ -50,7 +59,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     }
     machine hinge(application: &mut Application) {
         application.gamma = F64::from_i64(application.reader.value as i64);
-        block Reader::next(&mut application.reader);
+        block next(&mut application.reader);
         transition application.reader.status == 1 && application.reader.value <= 100000 {
             true -> block begin_nodes(application)
             false -> invalid()
@@ -67,7 +76,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
         }
     }
     machine elevation(application: &mut Application, index: u64 in Wrapping) {
-        block Reader::next(&mut application.reader);
+        block next(&mut application.reader);
         let node_elevation: f64 = F64::from_i64(application.reader.value as i64) / 1000.0;
         transition application.reader.status == 1 && application.reader.value <= 100000 {
             true -> block width(application, index, node_elevation)
@@ -75,7 +84,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
         }
     }
     machine width(application: &mut Application, index: u64 in Wrapping, elevation: f64) {
-        block Reader::next(&mut application.reader);
+        block next(&mut application.reader);
         transition application.reader.status == 1 && application.reader.value <= 100000 && index < 8 {
             true -> block store_node(application, index, elevation)
             false -> invalid()
@@ -103,7 +112,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
         }
     }
     machine read_level(application: &mut Application, index: u64 in Wrapping) {
-        block Reader::next(&mut application.reader);
+        block next(&mut application.reader);
         transition application.reader.status == 1 && application.reader.value <= 100000 && index < 8 {
             true -> block store_level(application, index)
             false -> invalid()
@@ -114,7 +123,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
         transition { _ -> block level(application, index + 1) }
     }
     machine trailing(application: &mut Application) {
-        block Reader::next(&mut application.reader);
+        block next(&mut application.reader);
         transition application.reader.status == 0 {
             true -> begin(application)
             false -> invalid()
@@ -200,5 +209,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

@@ -1,5 +1,10 @@
+module domain::solver;
 use domain::network;
+use domain::network::Network;
+use domain::network::residual;
+use domain::network::opposite;
 use platform::decimal;
+use platform::decimal::number;
 use omega_language_std::Console;
 
 public data Solver {

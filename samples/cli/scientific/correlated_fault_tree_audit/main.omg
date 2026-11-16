@@ -4,7 +4,11 @@ use omega::language::core::ProcessExit;
 use omega_language_std::ByteRead;
 use omega_language_std::Console;
 use domain::logic;
+use domain::logic::fails;
+use domain::logic::minimal_cut;
+use domain::logic::force_event;
 use domain::report;
+use domain::report::number;
 
 data Main {
     input: [i32; 13];
@@ -22,7 +26,7 @@ data Main {
     event: i32;
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     transition { _ -> block read(main) }
     machine read(main: &mut Main) {
         transition main.bytes >= 0 && main.bytes < 256 {
@@ -296,5 +300,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

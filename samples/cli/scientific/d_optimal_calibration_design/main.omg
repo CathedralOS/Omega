@@ -11,7 +11,7 @@ data Main {
     used: i64 in Wrapping;
     bytes: i64 in Wrapping;
 }
-machine Main::number(main: &mut Main, value: i64 in Wrapping) reaches ProcessExit + Console {
+machine number(main: &mut Main, value: i64 in Wrapping) reaches ProcessExit + Console {
     transition value < 0 { true -> negative(main, value) _ -> digits(main, value, 100000000000000000) }
     machine negative(main: &mut Main, value: i64 in Wrapping) {
         Console::write("-");
@@ -26,10 +26,10 @@ machine Main::number(main: &mut Main, value: i64 in Wrapping) reaches ProcessExi
     }
     machine done() { }
 }
-machine Main::rational(main: &mut Main, numerator: i64 in Wrapping, denominator: i64 in Wrapping) reaches ProcessExit + Console {
-    Main::number(main, numerator); Console::write("/"); Main::number(main, denominator);
+machine rational(main: &mut Main, numerator: i64 in Wrapping, denominator: i64 in Wrapping) reaches ProcessExit + Console {
+    number(main, numerator); Console::write("/"); number(main, denominator);
 }
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     main.bytes = 0; main.used = 0;
     transition { _ -> block mode(main) }
     machine mode(main: &mut Main) {
@@ -50,7 +50,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
         transition byte { ByteRead::Byte { value } -> block mode_match(main, degree, position, value) _ -> invalid(main) }
     }
     machine mode_match(main: &mut Main, degree: i64 in Wrapping, position: i64 in Wrapping, value: i32) {
-        let expected: i32 = Main::mode_character(degree, position);
+        let expected: i32 = mode_character(degree, position);
         transition main.bytes <= 512 && value == expected {
             true -> block mode_advance(main, degree, position)
             _ -> block mode_separator(main, degree, position, value)
@@ -174,7 +174,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
         transition main.design.selected[index] == 1 { true -> selected_emit(main, index) _ -> selected(main, index+1) }
     }
     machine selected_emit(main: &mut Main, index: i64 in Wrapping) {
-        Console::write(" "); Main::number(main, index);
+        Console::write(" "); number(main, index);
         transition { _ -> selected(main, index+1) }
     }
     machine information(main: &mut Main, row: i64 in Wrapping, column: i64 in Wrapping) {
@@ -197,12 +197,12 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     }
     machine information_emit(main: &mut Main, row: i64 in Wrapping, column: i64 in Wrapping, position: i64 in Wrapping) {
         let value: i64 in Wrapping = main.design.information[position];
-        Console::write(" "); Main::number(main, value);
+        Console::write(" "); number(main, value);
         transition { _ -> information(main, row, column+1) }
     }
     machine determinant(main: &mut Main) {
         let value: i64 in Wrapping = main.design.determinant;
-        Console::write("determinant "); Main::number(main, value); Console::write_byte(10);
+        Console::write("determinant "); number(main, value); Console::write_byte(10);
         transition main.design.determinant > 0 { true -> identifiable(main) _ -> singular(main) }
     }
     machine identifiable(main: &mut Main) {
@@ -233,7 +233,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     machine covariance_emit(main: &mut Main, row: i64 in Wrapping, column: i64 in Wrapping, position: i64 in Wrapping) {
         let numerator: i64 in Wrapping = main.design.covariance[position];
         let denominator: i64 in Wrapping = main.design.determinant;
-        Console::write(" "); Main::rational(main, numerator, denominator);
+        Console::write(" "); rational(main, numerator, denominator);
         transition { _ -> covariance(main, row, column+1) }
     }
     machine variances(main: &mut Main, index: i64 in Wrapping) {
@@ -242,14 +242,14 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     machine variance_emit(main: &mut Main, index: i64 in Wrapping) {
         let numerator: i64 in Wrapping = main.design.variances[index];
         let denominator: i64 in Wrapping = main.design.determinant;
-        Console::write("variance "); Main::rational(main, numerator, denominator); Console::write_byte(10);
+        Console::write("variance "); rational(main, numerator, denominator); Console::write_byte(10);
         transition { _ -> variances(main, index+1) }
     }
     machine done(main: &mut Main) { ProcessExit::exit_process(0); }
     machine singular(main: &mut Main) { Console::write_line("status non-identifiable"); ProcessExit::exit_process(3); }
     machine invalid(main: &mut Main) { Console::write_line("invalid input"); ProcessExit::exit_process(2); }
 }
-machine Main::mode_character(degree: i64 in Wrapping, position: i64 in Wrapping) -> i32 {
+machine mode_character(degree: i64 in Wrapping, position: i64 in Wrapping) -> i32 {
     transition degree == 1 { true -> linear(position) _ -> quadratic(position) }
     machine linear(position: i64 in Wrapping) -> i32 {
         transition position { 1 -> 105 2 -> 110 3 -> 101 4 -> 97 5 -> 114 _ -> -1 }
@@ -262,5 +262,5 @@ machine Main::mode_character(degree: i64 in Wrapping, position: i64 in Wrapping)
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

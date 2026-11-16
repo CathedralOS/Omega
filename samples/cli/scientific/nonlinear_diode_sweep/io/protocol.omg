@@ -1,9 +1,10 @@
+module io::protocol;
 use omega::language::core::ProcessExit;
 use omega_language_std::ByteRead;
 use omega_language_std::Console;
 use omega::language::core::I32::from_f64;
 
-data Protocol {
+public data Protocol {
     fields: [i32; 9];
     position: i32 in Wrapping;
     length: i32 in Wrapping;
@@ -16,7 +17,7 @@ data Protocol {
 // Exactly nine bounded signed decimal integers separated by spaces or tabs.
 // LF or EOF completes the record. The parser stores no more than nine values,
 // reads at most 160 bytes, and rejects rather than wrapping decimal overflow.
-machine Protocol::read(protocol: &mut Protocol) -> bool
+public machine read(protocol: &mut Protocol) -> bool
 reaches ProcessExit + Console
 blocks
 crashes Trap
@@ -143,7 +144,7 @@ crashes Trap
     machine rejected() -> bool { false }
 }
 
-machine Protocol::integer(protocol: &mut Protocol, value: i32 in Wrapping)
+public machine integer(protocol: &mut Protocol, value: i32 in Wrapping)
 reaches ProcessExit + Console {
     transition value < 0 {
         true -> negative(protocol, value)
@@ -195,7 +196,7 @@ reaches ProcessExit + Console {
 
 // Nine significant decimal digits as signed integer mantissa and power of ten.
 // All model outputs are finite, and normalization precedes the trapping cast.
-machine Protocol::number(protocol: &mut Protocol, value: f64)
+public machine number(protocol: &mut Protocol, value: f64)
 reaches ProcessExit + Console {
     transition value == 0.0 {
         true -> zero(protocol)
@@ -235,9 +236,9 @@ reaches ProcessExit + Console {
     requires scaled == scaled && scaled >= 0.0 && scaled < 1000000000.0
     {
         let mantissa: i32 = I32::from_f64(scaled);
-        Protocol::integer(protocol, mantissa as i32 in Wrapping);
+        integer(protocol, mantissa as i32 in Wrapping);
         Console::write("e");
-        Protocol::integer(protocol, exponent - 8);
+        integer(protocol, exponent - 8);
     }
     machine invalid(protocol: &mut Protocol) {
         Console::write_line("ERROR numeric: reporting value outside finite model envelope");

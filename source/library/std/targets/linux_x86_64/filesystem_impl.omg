@@ -8,7 +8,6 @@ use omega::language::core::LayoutStorage;
 use omega::language::core::FixedLayout;
 use omega::language::core::narrow_i64_to_u64_exact;
 
-
 StatLayout satisfies FixedLayout<StatRecord> {
     machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan
     reaches none
@@ -31,7 +30,8 @@ StatLayout satisfies FixedLayout<StatRecord> {
 }
 }
 
-linux_x86_64 machine posix_filesystem_encode_open_options(filesystem: &mut PosixFilesystem) {
+machine linux_x86_64_posix_encode_open_options(filesystem: &mut PosixFilesystem)
+    satisfies PosixFilesystemTarget::encode_open_options {
     filesystem.open_writable = (filesystem.open_options.write as i32) | (filesystem.open_options.append as i32);
     filesystem.open_readable = filesystem.open_options.read as i32;
     filesystem.open_creating = (filesystem.open_options.create as i32) | (filesystem.open_options.create_new as i32);
@@ -63,7 +63,8 @@ data StatView {
     value: LayoutStorage<StatRecord, StatLayout>;
 }
 
-linux_x86_64 machine posix_filesystem_decode_metadata(filesystem: &mut PosixFilesystem) -> MetadataResult {
+machine linux_x86_64_posix_decode_metadata(filesystem: &mut PosixFilesystem) -> MetadataResult
+    satisfies PosixFilesystemTarget::decode_metadata {
     let stat: &StatView = &filesystem.stat_buf[0] as &StatView;
     let blocks: i64 = stat.value.blocks;
     let blksize: i64 = stat.value.blksize;
@@ -94,14 +95,16 @@ linux_x86_64 machine posix_filesystem_decode_metadata(filesystem: &mut PosixFile
     }
 }
 
-linux_x86_64 machine posix_filesystem_permission_bits(filesystem: &PosixFilesystem) -> u32 {
+machine linux_x86_64_posix_permission_bits(filesystem: &PosixFilesystem) -> u32
+    satisfies PosixFilesystemTarget::permission_bits {
     let stat: &StatView = &filesystem.stat_buf[0] as &StatView;
     stat.value.mode & 4095
 }
 
 // Resolve an absent directory hint from the native mode without decoding
 // unrelated size/timestamp fields or following a final symlink.
-linux_x86_64 machine posix_filesystem_decode_directory_kind(filesystem: &mut PosixFilesystem) -> PosixDirectoryKind {
+machine linux_x86_64_posix_decode_directory_kind(filesystem: &mut PosixFilesystem) -> PosixDirectoryKind
+    satisfies PosixFilesystemTarget::decode_directory_kind {
     let stat: &StatView = &filesystem.stat_buf[0] as &StatView;
     let kind: u32 = stat.value.mode & 61440;
     transition kind {
@@ -110,25 +113,27 @@ linux_x86_64 machine posix_filesystem_decode_directory_kind(filesystem: &mut Pos
         _ -> PosixDirectoryKind::Other
     }
 }
-linux_x86_64 machine posix_filesystem_metadata_no_follow_flag() -> i32 { 256 }
+machine linux_x86_64_posix_metadata_no_follow_flag() -> i32
+    satisfies PosixFilesystemTarget::metadata_no_follow_flag { 256 }
 
-linux_x86_64 machine posix_filesystem_directory_type_offset() -> u64
+machine linux_x86_64_posix_directory_type_offset() -> u64
+    satisfies PosixFilesystemTarget::directory_type_offset
     ensures result >= 18 && result <= 20
 { 18 }
-linux_x86_64 machine posix_filesystem_directory_name_offset() -> u64
+machine linux_x86_64_posix_directory_name_offset() -> u64
+    satisfies PosixFilesystemTarget::directory_name_offset
     ensures result >= 19 && result <= 21
 { 19 }
-linux_x86_64 machine posix_filesystem_remove_directory_flag() -> i32 { 512 }
-linux_x86_64 machine posix_filesystem_directory_descent_flags() -> i32 { 196608 }
-
-linux_x86_64 machine FilesystemProviderDefaults::provider_defaults(defaults: &mut FilesystemProviderDefaults) {
-    FilesystemProviderDefaults::select_provider<FilesystemService, FilesystemPosixProvider>(defaults);
-}
+machine linux_x86_64_posix_remove_directory_flag() -> i32
+    satisfies PosixFilesystemTarget::remove_directory_flag { 512 }
+machine linux_x86_64_posix_directory_descent_flags() -> i32
+    satisfies PosixFilesystemTarget::directory_descent_flags { 196608 }
 
 // The PosixCanonicalLibc requirements are bound in std's Build machine.
 
 // Error numbers belong to this OS, not to a synthetic shared POSIX catalog.
-linux_x86_64 machine posix_filesystem_kind_of_stored_error_code(filesystem: &mut PosixFilesystem) -> ErrorKind {
+machine linux_x86_64_posix_kind_of_stored_error_code(filesystem: &mut PosixFilesystem) -> ErrorKind
+    satisfies PosixFilesystemTarget::kind_of_stored_error_code {
     filesystem.err_kind = match filesystem.err_code {
         2 -> ErrorKind::NotFound,
         13 -> ErrorKind::PermissionDenied,
@@ -147,4 +152,20 @@ linux_x86_64 machine posix_filesystem_kind_of_stored_error_code(filesystem: &mut
     error_kind_reconstruct(&filesystem.err_kind)
 }
 
-linux_x86_64 machine posix_filesystem_would_block_error() -> i32 { 11 }
+machine linux_x86_64_posix_would_block_error() -> i32
+    satisfies PosixFilesystemTarget::would_block_error { 11 }
+
+// The linux_x86_64 record layouts and constants. std's Build selects them for linux_x86_64.
+LinuxX8664PosixFilesystemTarget satisfies PosixFilesystemTarget {
+    PosixFilesystemTarget::encode_open_options = linux_x86_64_posix_encode_open_options;
+    PosixFilesystemTarget::decode_metadata = linux_x86_64_posix_decode_metadata;
+    PosixFilesystemTarget::permission_bits = linux_x86_64_posix_permission_bits;
+    PosixFilesystemTarget::decode_directory_kind = linux_x86_64_posix_decode_directory_kind;
+    PosixFilesystemTarget::metadata_no_follow_flag = linux_x86_64_posix_metadata_no_follow_flag;
+    PosixFilesystemTarget::directory_type_offset = linux_x86_64_posix_directory_type_offset;
+    PosixFilesystemTarget::directory_name_offset = linux_x86_64_posix_directory_name_offset;
+    PosixFilesystemTarget::remove_directory_flag = linux_x86_64_posix_remove_directory_flag;
+    PosixFilesystemTarget::directory_descent_flags = linux_x86_64_posix_directory_descent_flags;
+    PosixFilesystemTarget::kind_of_stored_error_code = linux_x86_64_posix_kind_of_stored_error_code;
+    PosixFilesystemTarget::would_block_error = linux_x86_64_posix_would_block_error;
+}
