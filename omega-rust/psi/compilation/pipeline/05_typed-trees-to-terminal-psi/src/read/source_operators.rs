@@ -83,6 +83,54 @@ impl Program<'_> {
             )
     }
 
+    /// A structural operator keeps the exact source operand type, including
+    /// its domains. Physical record metadata describes the plain carrier and
+    /// cannot stand in for a qualified source during user-operator lookup.
+    fn structural_operator_operand_reference(
+        &mut self,
+        machine: MachineId,
+        source: ExpressionHandle,
+        operand: ValueType,
+    ) -> Checked<Option<TypeReferenceHandle>> {
+        let reference = self
+            .typed
+            .expression_table
+            .constructed_value_type_reference(source);
+        if !reference.is_valid() {
+            return Ok(self.operator_operand_reference(operand));
+        }
+        let fail = |detail: &str| Refusal {
+            source_span: None,
+            machine,
+            concerns: Construct::Machine,
+            reason: RefusalReason::ForeignIdentity,
+            detail: detail.into(),
+        };
+        if !self
+            .typed
+            .type_reference_table
+            .contains_type_reference(reference)
+        {
+            return Err(fail("a formed operator retains a stale operand type"));
+        }
+        let declared = self.value_type(machine, reference)?;
+        let agrees = if declared.erased() == operand.erased() {
+            true
+        } else {
+            // A borrowed formal and an ordinary implicit reference read name
+            // the referent in the body. Normalize that same single layer for
+            // correspondence; lookup still receives the full original ref.
+            self.reference_referent(machine, declared)?
+                .is_some_and(|(referent, _)| referent.erased() == operand.erased())
+        };
+        if !agrees {
+            return Err(fail(
+                "a formed operator operand differs from its retained declared type",
+            ));
+        }
+        Ok(Some(reference))
+    }
+
     /// Publish the operation this reader actually formed. Reads, writable
     /// places and explicit view adapters share the same source association.
     pub(super) fn complete_formed_operator(
@@ -92,20 +140,47 @@ impl Program<'_> {
         value: &Expression,
     ) -> Checked<()> {
         let owner = self.symbols.get(machine).copied().unwrap_or_default();
-        match &value.kind {
-            ExpressionKind::CollectionSubslice { base, .. }
-            | ExpressionKind::CollectionView { base, .. }
-                if matches!(
-                    self.typed.expression_table.expression(expression),
-                    ExpressionNode::Indexed(_)
-                ) =>
-            {
-                let Some(ValueType::Record(record, Qualification::NONE, _)) = base.result else {
+        match (
+            &value.kind,
+            self.typed.expression_table.expression(expression),
+        ) {
+            (
+                ExpressionKind::CollectionSubslice { base, .. }
+                | ExpressionKind::CollectionView { base, .. },
+                ExpressionNode::Indexed(indexed),
+            ) => {
+                let Some(operand @ ValueType::Record(record, _, _)) = base.result else {
                     return Ok(());
                 };
-                let [collection, count] = self.collection_index_operand_types(machine, record);
-                let operands = [collection, count, count];
-                self.complete_builtin_operator(machine, owner, expression, &operands)
+                let source = indexed.collection;
+                let Some(collection) =
+                    self.structural_operator_operand_reference(machine, source, operand)?
+                else {
+                    return Ok(());
+                };
+                let [_, count] = self.collection_index_operand_types(machine, record);
+                self.complete_builtin_operator(
+                    machine,
+                    owner,
+                    expression,
+                    &[Some(collection), count, count],
+                )
+            }
+            (
+                ExpressionKind::Index { base, index } | ExpressionKind::ByteElement { base, index },
+                ExpressionNode::Indexed(indexed),
+            ) => {
+                let source = indexed.collection;
+                let collection = match base.result {
+                    Some(operand) => {
+                        self.structural_operator_operand_reference(machine, source, operand)?
+                    }
+                    None => None,
+                };
+                let index = index
+                    .result
+                    .and_then(|operand| self.operator_operand_reference(operand));
+                self.complete_builtin_operator(machine, owner, expression, &[collection, index])
             }
             _ => {
                 let operands = match &value.kind {
@@ -113,8 +188,6 @@ impl Program<'_> {
                     | ExpressionKind::ShortCircuit { left, right, .. } => {
                         [left.result, right.result]
                     }
-                    ExpressionKind::Index { base, index }
-                    | ExpressionKind::ByteElement { base, index } => [base.result, index.result],
                     _ => [None, None],
                 }
                 .map(|operand| {
