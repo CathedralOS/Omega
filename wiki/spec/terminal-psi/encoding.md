@@ -1142,8 +1142,10 @@ The shared certificate checks a closed `TwoZero : Two` judgment under its
 complete signature. Each listed declaration is a transparent type-valued
 function over the retained subject telescope. Its body reduces to the actual
 kernel `Id` constructor after those lambdas. This checks formation; it proves
-neither endpoint equality nor a runtime value correspondence. Source-bound
-receiving additionally compares the shared signature and ordered application
+neither endpoint equality nor a runtime value correspondence. Like other carried
+certificates, decoding checks only the catalog's canonical shape and does not
+run the kernel; source-bound receiving replays the signature check and the
+reduction to `Id`, and additionally compares the shared signature and ordered application
 judgments with roots supplied independently by the checked-source authority.
 Owner labels and source positions alone supply no such authority. Same-compile
 lowering encodes the completed checked plan without repeating those decisions.
