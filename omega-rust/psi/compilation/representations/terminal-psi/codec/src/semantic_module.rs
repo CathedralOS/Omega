@@ -4263,6 +4263,14 @@ mod routed_scalar_tests {
     #[test]
     fn routed_specialization_retains_guarded_acquisitions_and_exact_issuer() {
         let mut module = module();
+        // Even an empty application commits to its original callable. A
+        // placeholder hash would fail before the acquisition and issuer checks.
+        let commitment =
+            language_semantics::conformance_identity::MachineApplicationCommitment::new(
+                module.identities.text(TerminalIdentityIndex(3)).unwrap(),
+            )
+            .unwrap()
+            .finish();
         let declaration = module.machines[0].declaration.as_mut().unwrap();
         declaration.callable = TerminalIdentityIndex(2);
         declaration.specialization = Some(CheckedMachineSpecialization {
@@ -4271,7 +4279,7 @@ mod routed_scalar_tests {
             template: NominalDeclarationIdentity::new(TerminalIdentityIndex(1)),
             template_callable: TerminalIdentityIndex(3),
             template_semantic_declaration: TerminalIdentityIndex(1),
-            commitment: [9; 32],
+            commitment,
         });
         module.machines[0].closed_reach_application = Some(ClosedReachApplication {
             template_identity: TerminalIdentityIndex(1),
@@ -4288,7 +4296,7 @@ mod routed_scalar_tests {
             suspension_dependency: false.into(),
             blocking_dependency: false.into(),
             conditional_carry: Vec::new(),
-            specialization_commitment: [9; 32],
+            specialization_commitment: commitment,
             parameter_kinds: Vec::new(),
             telescope: Vec::new(),
             capture: None,
@@ -4299,6 +4307,26 @@ mod routed_scalar_tests {
         assert_eq!(
             decode_module(&encode_module(&module).unwrap()).unwrap(),
             module
+        );
+        let mut stale_commitment = module.clone();
+        stale_commitment.machines[0]
+            .declaration
+            .as_mut()
+            .unwrap()
+            .specialization
+            .as_mut()
+            .unwrap()
+            .commitment = [9; 32];
+        stale_commitment.machines[0]
+            .closed_reach_application
+            .as_mut()
+            .unwrap()
+            .specialization_commitment = [9; 32];
+        assert_eq!(
+            decode_module(&encode_raw(&stale_commitment).unwrap()),
+            Err(crate::CodecError::MalformedStructuralFoundation(
+                "machine application arguments differ from their retained commitment",
+            ))
         );
         let mut missing = module.clone();
         missing.machines[0].closed_reach_application = None;
@@ -4402,6 +4430,10 @@ mod routed_scalar_tests {
             )
             .unwrap();
         }
+        assert_eq!(
+            decode_module(&encode_module(&module).unwrap()).unwrap(),
+            module
+        );
         // A captured helper still uses the callback supplied to its method.
         // The guard names that method slot after the capture's type slot.
         let capture_commitment = {
@@ -4464,7 +4496,12 @@ mod routed_scalar_tests {
             .unwrap()
             .conditional_carry
             .clear();
-        assert!(decode_module(&encode_raw(&module).unwrap()).is_err());
+        assert_eq!(
+            decode_module(&encode_raw(&module).unwrap()),
+            Err(crate::CodecError::MalformedStructuralFoundation(
+                "closed callback contract differs from its committed bounds, dependencies, or conditional carry",
+            ))
+        );
         module = preserved.clone();
         module.machines[0]
             .closed_reach_application
@@ -4473,7 +4510,12 @@ mod routed_scalar_tests {
             .conditional_carry[0]
             .condition
             .parameters = vec![2];
-        assert!(decode_module(&encode_raw(&module).unwrap()).is_err());
+        assert_eq!(
+            decode_module(&encode_raw(&module).unwrap()),
+            Err(crate::CodecError::MalformedStructuralFoundation(
+                "published callback dependency is not a normalized term over its telescope",
+            ))
+        );
         module = preserved.clone();
         module.machines[0]
             .closed_reach_application
@@ -4481,7 +4523,12 @@ mod routed_scalar_tests {
             .unwrap()
             .conditional_carry[0]
             .subject = language_semantics::SuspensionValueOrigin::CallArgument { position: 0 };
-        assert!(decode_module(&encode_raw(&module).unwrap()).is_err());
+        assert_eq!(
+            decode_module(&encode_raw(&module).unwrap()),
+            Err(crate::CodecError::MalformedStructuralFoundation(
+                "closed callback contract differs from its committed bounds, dependencies, or conditional carry",
+            ))
+        );
         module = preserved.clone();
         if let terminal_psi::ClosedReachParameter::Machine(binding) = &mut module.machines[0]
             .closed_reach_application
@@ -4491,7 +4538,12 @@ mod routed_scalar_tests {
         {
             binding.selected_may_suspend = true;
         }
-        assert!(decode_module(&encode_raw(&module).unwrap()).is_err());
+        assert_eq!(
+            decode_module(&encode_raw(&module).unwrap()),
+            Err(crate::CodecError::MalformedStructuralFoundation(
+                "closed callback substitution differs from its published operational contract",
+            ))
+        );
         module = preserved;
         assert_eq!(
             decode_module(&encode_module(&module).unwrap()).unwrap(),
@@ -4505,7 +4557,13 @@ mod routed_scalar_tests {
             .as_mut()
             .unwrap()
             .template_callable = TerminalIdentityIndex(4);
-        assert!(decode_module(&encode_raw(&module).unwrap()).is_err());
+        let error = decode_module(&encode_raw(&module).unwrap())
+            .expect_err("another template callable cannot supply exact issuer authority");
+        assert!(
+            matches!(error, crate::CodecError::MalformedScalarReturnFoundation { ref reason, .. }
+            if reason.contains("origin authorized=false")),
+            "{error:?}"
+        );
     }
 }
 #[cfg(test)]
