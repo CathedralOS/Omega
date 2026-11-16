@@ -3794,41 +3794,73 @@ pub fn const_array_argument_matches(
     actual: semantic_vocabulary::StructuralTypeId,
     expected: semantic_vocabulary::StructuralTypeId,
 ) -> bool {
-    fn paired(
-        module: &terminal_psi::TerminalModule,
-        caller: &terminal_psi::TerminalMachine,
-        callee: &terminal_psi::TerminalMachine,
-        arguments: &[semantic_vocabulary::ValueId],
-        actual: semantic_vocabulary::StructuralTypeId,
-        expected: semantic_vocabulary::StructuralTypeId,
-        depth: usize,
-    ) -> bool {
-        use terminal_psi::{ArrayExtent, StructuralTypeShape};
-        if actual == expected {
-            return true;
+    use terminal_psi::{ArrayExtent, StructuralTypeShape};
+    if arguments.len() != callee.parameters.len() {
+        return false;
+    }
+    let mut pending = vec![(actual, expected)];
+    let mut visited = Vec::new();
+    while let Some((actual, expected)) = pending.pop() {
+        match visited.binary_search(&(actual, expected)) {
+            Ok(_) => continue,
+            Err(position) => visited.insert(position, (actual, expected)),
         }
-        if depth > 128 || arguments.len() != callee.parameters.len() {
-            return false;
-        }
+        let identical = actual == expected;
         let (Some(actual), Some(expected)) = (
             module.structural_type(actual),
             module.structural_type(expected),
         ) else {
+            if identical
+                && module
+                    .structural_referents
+                    .iter()
+                    .any(|referent| referent.id == expected && referent.abstract_opaque)
+            {
+                continue;
+            }
             return false;
         };
-        if actual.declaration_identity != expected.declaration_identity
-            || actual.owns_linear_claim != expected.owns_linear_claim
-            || actual.copyable != expected.copyable
-            || actual.no_code_affine_cleanup != expected.no_code_affine_cleanup
-            || actual.descriptor_cleanup != expected.descriptor_cleanup
-            || actual.nominal_cleanup.is_some()
-            || expected.nominal_cleanup.is_some()
-            || actual.quotient_carrier.is_some()
-            || expected.quotient_carrier.is_some()
-            || actual.scalar_restriction.is_some()
-            || expected.scalar_restriction.is_some()
-            || !actual.requires.is_empty()
-            || !expected.requires.is_empty()
+        // Equal local types still contain invocation-dependent equations in
+        // a recursive call. Inspect their selected children before accepting
+        // identity; a caller may forward a different scalar to the same N.
+        if identical {
+            pending.extend(expected.quotient_carrier.map(|child| (child, child)));
+            if let Some(restriction) = &expected.scalar_restriction {
+                pending.extend(restriction.as_structural().map(|child| (child, child)));
+            }
+        }
+        if identical && !matches!(expected.shape, StructuralTypeShape::FixedArray { .. }) {
+            match &expected.shape {
+                StructuralTypeShape::Reference { referent, .. }
+                | StructuralTypeShape::ElementView {
+                    element: referent, ..
+                } => {
+                    pending.push((*referent, *referent));
+                }
+                shape => {
+                    for (_, field) in shape.fields_with_case() {
+                        pending.extend(field.inline_carrier.map(|child| (child, child)));
+                        pending
+                            .extend(field.field_type.as_structural().map(|child| (child, child)));
+                    }
+                }
+            }
+            continue;
+        }
+        if !identical
+            && (actual.declaration_identity != expected.declaration_identity
+                || actual.owns_linear_claim != expected.owns_linear_claim
+                || actual.copyable != expected.copyable
+                || actual.no_code_affine_cleanup != expected.no_code_affine_cleanup
+                || actual.descriptor_cleanup != expected.descriptor_cleanup
+                || actual.nominal_cleanup.is_some()
+                || expected.nominal_cleanup.is_some()
+                || actual.quotient_carrier.is_some()
+                || expected.quotient_carrier.is_some()
+                || actual.scalar_restriction.is_some()
+                || expected.scalar_restriction.is_some()
+                || !actual.requires.is_empty()
+                || !expected.requires.is_empty())
         {
             return false;
         }
@@ -3845,9 +3877,7 @@ pub fn const_array_argument_matches(
         else {
             return false;
         };
-        let length = if al == el {
-            true
-        } else if let ArrayExtent::Parameter { owner, value } = el {
+        let length = if let ArrayExtent::Parameter { owner, value } = el {
             if *owner != callee.id {
                 return false;
             }
@@ -3871,11 +3901,14 @@ pub fn const_array_argument_matches(
                 ArrayExtent::Application(_) => false,
             }
         } else {
-            false
+            al == el
         };
-        length && paired(module, caller, callee, arguments, *ae, *ee, depth + 1)
+        if !length {
+            return false;
+        }
+        pending.push((*ae, *ee));
     }
-    paired(module, caller, callee, arguments, actual, expected, 0)
+    true
 }
 
 #[path = "callable_refinement.rs"]

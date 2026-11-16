@@ -377,3 +377,105 @@ fn a_const_call_cannot_bind_an_array_extent_to_another_static_input() {
         assert!(discharge(&mut form, &mut Default::default()).is_err());
     }
 }
+
+#[test]
+fn a_recursive_const_call_checks_its_extent_even_when_the_local_types_are_equal() {
+    for array in ["[u8; N]", "[[u8; N]; 2]"] {
+        let mut form = rigid_array_form(&format!(
+            "machine entry<const N: u64, const M: u64>(items: &{array}) -> u64 {{ N }}"
+        ));
+        let checked = discharge(&mut form, &mut Default::default())
+            .expect("the generic body supplying the invocation types must check");
+        assert!(
+            checked
+                .machines
+                .iter()
+                .all(|(_, machine)| machine.verdicts.iter().all(|(_, verdict)| verdict.is_ok()))
+        );
+        let owner = &form.module.machines[0];
+        let array = owner.structural_parameters[0].structural_type;
+        let mut arguments: Vec<_> = owner.parameters.iter().map(|formal| formal.id).collect();
+        assert_eq!(arguments.len(), 2);
+        let matches = |arguments: &[ValueId]| {
+            terminal_semantics::calls::const_array_argument_matches(
+                &form.module,
+                owner,
+                owner,
+                arguments,
+                array,
+                array,
+            )
+        };
+        assert!(matches(&arguments), "N forwarded to N retains its equation");
+        arguments[0] = arguments[1];
+        assert!(
+            !matches(&arguments),
+            "M cannot replace N even when caller, callee and array types are identical"
+        );
+    }
+}
+
+#[test]
+fn const_extent_correspondence_only_treats_explicit_abstract_referents_as_leaves() {
+    let mut form =
+        rigid_array_form("machine entry<const N: u64, const M: u64>(items: &[u8; N]) -> u64 { N }");
+    let unknown = semantic_vocabulary::StructuralTypeId::new(99).unwrap();
+    let agrees = |module: &terminal_psi::TerminalModule, first| {
+        let owner = &module.machines[0];
+        terminal_semantics::calls::const_array_argument_matches(
+            module,
+            owner,
+            owner,
+            &[ValueId::new(first).unwrap(), ValueId::new(2).unwrap()],
+            unknown,
+            unknown,
+        )
+    };
+    assert!(
+        !agrees(&form.module, 1),
+        "an unknown type is not an opaque leaf"
+    );
+    let mut concrete = form
+        .module
+        .structural_types
+        .iter()
+        .find(|declaration| {
+            matches!(
+                declaration.shape,
+                terminal_psi::StructuralTypeShape::FixedArray {
+                    length: terminal_psi::ArrayExtent::Parameter { .. },
+                    ..
+                }
+            )
+        })
+        .unwrap()
+        .clone();
+    form.module
+        .structural_referents
+        .push(terminal_psi::StructuralReferentIdentity {
+            id: unknown,
+            identity: concrete.identity,
+            foreign_descriptor: true,
+            abstract_opaque: false,
+        });
+    assert!(
+        !agrees(&form.module, 1),
+        "a referent row alone grants no opacity"
+    );
+    form.module
+        .structural_referents
+        .last_mut()
+        .unwrap()
+        .abstract_opaque = true;
+    assert!(agrees(&form.module, 1));
+    concrete.id = unknown;
+    form.module.structural_types.push(concrete);
+    form.module
+        .structural_types
+        .sort_unstable_by_key(|declaration| declaration.id);
+    assert!(agrees(&form.module, 1));
+    assert!(
+        !agrees(&form.module, 2),
+        "an opaque marker cannot hide a concrete extent equation"
+    );
+}
