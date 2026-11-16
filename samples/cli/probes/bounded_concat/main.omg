@@ -47,7 +47,7 @@ machine exercise(main: &mut Main) {
     copy(&mut main.text.storage, label_live(&main.label), 5);
     main.text.used = 7;
     let view: &[u8] in Ascii = live(&main.text);
-    transition view == "Room A1" && view.len == 7 {
+    transition (view as -Ascii) == "Room A1" && view.len == 7 {
         true -> pass(main)
         _ -> fail(main)
     }

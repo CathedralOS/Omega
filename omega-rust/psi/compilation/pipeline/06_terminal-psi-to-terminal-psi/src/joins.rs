@@ -962,7 +962,7 @@ mod tests {
 
     #[test]
     fn structural_only_join_snapshots_keep_every_distinct_arrival() {
-        fn judged(text: &str) -> crate::RouteVerdict {
+        fn judged(text: &str) -> Vec<crate::RouteVerdict> {
             let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
             let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
             let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
@@ -987,9 +987,9 @@ mod tests {
                 },
                 terminal_codec::TerminalPublication::Invocation,
             );
-            let mut verdicts = crate::judge_compilation(prepared.program);
-            assert_eq!(verdicts.len(), 1);
-            verdicts.remove(0).unwrap()
+            let verdicts = crate::judge_compilation(prepared.program);
+            assert!(!verdicts.is_empty(), "the real source must be checked");
+            verdicts.into_iter().map(Result::unwrap).collect()
         }
         let source = r#"
             data Cell [copy] requires value <= 2u8 { value: u8; }
@@ -1004,22 +1004,49 @@ mod tests {
         "#;
         let positive = judged(source);
         assert!(
-            matches!(positive, crate::RouteVerdict::Accepted(_)),
+            positive
+                .iter()
+                .all(|verdict| matches!(verdict, crate::RouteVerdict::Accepted(_))),
             "{positive:?}"
         );
         let changed = source.replace("result == 1u8 || result == 2u8", "result == 1u8");
         assert_ne!(source, changed);
         let negative = judged(&changed);
-        let crate::RouteVerdict::Rejected { unproved, .. } = negative else {
-            panic!("both real arrivals must remain possible: {negative:?}");
-        };
-        assert!(
-            unproved.iter().any(|failure| matches!(
-                failure.kind,
-                ObligationKind::NormalGuarantee { .. } | ObligationKind::PublishedGuarantee { .. }
-            )),
-            "the one-arrival claim must fail its actual result guarantee: {unproved:?}"
-        );
+        let mut guarantee_refused = false;
+        for verdict in negative {
+            match verdict {
+                crate::RouteVerdict::Accepted(_) => {}
+                crate::RouteVerdict::Rejected {
+                    formations,
+                    violations,
+                    unproved,
+                    unestablished,
+                    conflicts,
+                    exceeded,
+                } => {
+                    assert!(
+                        formations.is_empty()
+                            && violations.is_empty()
+                            && unestablished.is_empty()
+                            && conflicts.is_empty()
+                            && exceeded.is_empty(),
+                        "the twin must fail only its actual result guarantee"
+                    );
+                    assert!(!unproved.is_empty());
+                    assert!(
+                        unproved.iter().all(|failure| matches!(
+                            failure.kind,
+                            ObligationKind::NormalGuarantee { .. }
+                                | ObligationKind::PublishedGuarantee { .. }
+                        )),
+                        "an unrelated proof refusal is not the intended twin: {unproved:?}"
+                    );
+                    guarantee_refused = true;
+                }
+                other => panic!("an unserved or malformed program is not the twin: {other:?}"),
+            }
+        }
+        assert!(guarantee_refused, "both real arrivals must remain possible");
     }
 
     #[test]

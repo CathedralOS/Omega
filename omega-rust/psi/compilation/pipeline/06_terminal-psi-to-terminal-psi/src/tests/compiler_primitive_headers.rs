@@ -480,8 +480,15 @@ machine main() crashes Trap {
     let mut negative = judge_observed(&observed_typed(&negative_source));
     // Record both actual verdicts before either assertion, so an unserved
     // cast or observation is visible rather than counted as a store refusal.
-    eprintln!("UTF-8 store positive: {positive:?}");
-    eprintln!("UTF-8 store negative: {negative:?}");
+    for (label, verdicts) in [("positive", &positive), ("negative", &negative)] {
+        for verdict in verdicts {
+            if matches!(verdict, Ok(crate::RouteVerdict::Accepted(_))) {
+                eprintln!("UTF-8 store {label}: accepted");
+            } else {
+                eprintln!("UTF-8 store {label}: {verdict:?}");
+            }
+        }
+    }
     assert_eq!(positive.len(), 1, "one ordinary positive entry verdict");
     assert_eq!(negative.len(), 1, "one ordinary negative entry verdict");
     let accepted = match positive.remove(0) {
@@ -500,19 +507,25 @@ machine main() crashes Trap {
         }) => {
             assert!(formations.is_empty() && violations.is_empty());
             assert!(unestablished.is_empty() && conflicts.is_empty() && exceeded.is_empty());
+            assert_eq!(unproved.len(), 1, "only the whole-array invariant is owed");
+            let failure = &unproved[0];
+            assert!(matches!(
+                failure.kind,
+                terminal_check_tables::obligations::ObligationKind::DataDomain { clause: 0, .. }
+            ));
             assert!(
-                !unproved.is_empty(),
-                "the whole-array invariant must be owed"
+                failure.consumed.is_some(),
+                "the write opens an actual invariant window"
             );
+            let write_start = negative_source.find("bytes[0] = 65u8;").unwrap();
+            let write_end = write_start + "bytes[0] = 65u8;".len();
             assert!(
-                unproved.iter().all(|failure| {
-                    matches!(
-                        failure.kind,
-                        terminal_check_tables::obligations::ObligationKind::DataDomain { .. }
-                    ) && (failure.statement.contains("Utf8")
-                        || failure.statement.contains("valid_utf8"))
-                }),
-                "only the whole-array UTF-8 invariant may refuse this twin: {unproved:?}"
+                matches!(
+                    failure.site,
+                    terminal_check_tables::program::SourceOrigin::Authored(site)
+                        if site.span.start >= write_start && site.span.end <= write_end
+                ),
+                "only the authored byte write may owe this restoration: {failure:?}"
             );
         }
         other => panic!(
