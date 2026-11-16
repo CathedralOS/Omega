@@ -1,0 +1,187 @@
+{
+  "claims": [
+    {
+      "board": "TASKS.md",
+      "claimed_utc": "2026-11-15T22:59:21.603716000+00:00",
+      "expires_utc": "2026-11-17T01:34:23.161418000+00:00",
+      "item": "RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY",
+      "lease_minutes": 120,
+      "note": "Gate: RC-SOURCE-SEMANTICS | mechanism: retain stored machine selections and public contracts through checking and execution | programs sharing it: original three runtime_dyn fixtures | fix location: shared source/native pipeline. PR3352 pushed/verified0c02ff5e70de83376557322d94f660d3a366e12c including main770; scopedClippy/rules/boundarypass. Focusedcontrols18building. Actualconflictswithmain641014 are beingpreparedinexternalproposalswithoutmutatingtestsource. Originalnative/Psiacceptance remainsrequired. RootownssoleRustlane,source,PRandlanding. Replaces ticket18e852c2f04edd400000000018e80079 that currentclaims tool reports lapsed.",
+      "owner": "Codex /root, worker-3",
+      "paths": [
+        "omega-rust/psi/",
+        "omega-rust/omega/compilation/",
+        "omega-rust/omega/packages/review-evidence/",
+        "source/library/",
+        "tests/fixtures/pass/traits/runtime_dyn_*"
+      ],
+      "renewed_utc": "2026-11-16T23:34:23.161418000+00:00",
+      "ticket": "18e85a23de177c780000000018e83683"
+    },
+    {
+      "board": "OWNER_CODE_CONCERNS.md",
+      "claimed_utc": "2026-11-16T16:58:23.911754700+00:00",
+      "expires_utc": "2026-11-17T01:01:03.528113000+00:00",
+      "item": "Image publication still reads the prepared plan after selection",
+      "lease_minutes": 120,
+      "note": null,
+      "owner": "Codex execution-plan boundary",
+      "paths": [
+        "omega-rust/omega/compilation/backend/images/image-emission",
+        "omega-rust/omega/compilation/representations/selected-instructions",
+        "omega-rust/omega/compilation/native-compiler"
+      ],
+      "renewed_utc": "2026-11-16T23:01:03.528113000+00:00",
+      "ticket": "18e89505dc5f0b540000000018e8d895"
+    },
+    {
+      "board": "TASKS.md",
+      "claimed_utc": "2026-11-16T18:53:05.089562000+00:00",
+      "expires_utc": "2026-11-17T01:13:19.405049000+00:00",
+      "item": "RC-REPRESENTATIVE-PROGRAMS",
+      "lease_minutes": 120,
+      "note": null,
+      "owner": "Codex byte observations PR3746",
+      "paths": [
+        "samples/cli/probes/bounded_concat",
+        "samples/cli/basics/multiplication_table"
+      ],
+      "renewed_utc": "2026-11-16T23:13:19.405049000+00:00",
+      "ticket": "18e89b480287f9d80000000018e98b4d"
+    },
+    {
+      "board": "TASKS.md",
+      "claimed_utc": "2026-11-16T18:53:36.944163000+00:00",
+      "expires_utc": "2026-11-17T01:29:43.026158000+00:00",
+      "item": "LOWERED-FORM-CHECKER",
+      "lease_minutes": 120,
+      "note": null,
+      "owner": "Codex /root PR3764 ownership and Run/Vec takeover",
+      "paths": [
+        "omega-rust/psi/compilation",
+        "omega-rust/omega/compilation",
+        "source/library",
+        "tests/fixtures/pass/collections/run_split_merge"
+      ],
+      "renewed_utc": "2026-11-16T23:29:43.026158000+00:00",
+      "ticket": "18e89b4f6d3691480000000018e98a76"
+    },
+    {
+      "board": "TASKS.md",
+      "claimed_utc": "2026-11-16T18:54:01.806457000+00:00",
+      "expires_utc": "2026-11-17T00:52:14.800246000+00:00",
+      "item": "RC-REPRESENTATIVE-PROGRAMS",
+      "lease_minutes": 120,
+      "note": "Gate: RC-REPRESENTATIVE-PROGRAMS | mechanism: forwarded generic type classifiers through runtime reflection callbacks | programs sharing it: wire_protocol and ordinary generic helper callers | fix location: shared source application and family discovery. Takeover PR3791 a6713ead; old remote worker stopped. Preserve 13 exact bytes/all fields, both engines exit70/PASS. Actual admission E0282 contracts.rs parent index; draft not yet built or executed. Next focused compile/forwarded controls, optimized producer, unchanged program, affected lint, publication and landed replay. Local audit starts worker-4 acquisition 2026-11-16, not remote cloud interval.",
+      "owner": "Codex / wire protocol PR3791 worker-4",
+      "paths": [
+        "samples/cli/systems/wire_protocol",
+        "omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi",
+        "omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi"
+      ],
+      "renewed_utc": "2026-11-16T22:52:14.800246000+00:00",
+      "ticket": "18e89b55371f19080000000018e98abe"
+    },
+    {
+      "board": "TASKS.md",
+      "claimed_utc": "2026-11-16T19:36:58.811687000+00:00",
+      "expires_utc": "2026-11-17T01:03:52.921944000+00:00",
+      "item": "BUILD-OWNED-NATIVE-BINDINGS",
+      "lease_minutes": 120,
+      "note": null,
+      "owner": "Codex-W19",
+      "paths": [
+        "omega-rust/omega/compilation/backend/calling-conventions",
+        "omega-rust/omega/compilation/realization/provider-planning",
+        "omega-rust/omega/compilation/realization/provider-admission",
+        "omega-rust/psi/compilation/representations/typed-trees",
+        "source/library/core/external_binding.omg",
+        "samples/cli/probes/native_table_call"
+      ],
+      "renewed_utc": "2026-11-16T23:03:52.921944000+00:00",
+      "ticket": "18e89dad389a4cd00000000018e8b9a5"
+    },
+    {
+      "board": "TASKS.md",
+      "claimed_utc": "2026-11-16T19:41:43.421880745+00:00",
+      "expires_utc": "2026-11-17T01:14:22.422088643+00:00",
+      "item": "STD-CONSOLE-CHECKEDOPERATOR-REGRESSION",
+      "lease_minutes": 120,
+      "note": "Gate: representative programs | mechanism: main regression: every program using omega_language_std::Console is refused (CheckedOperator unresolved in LinuxX86ConsoleIo::read/write requires; unresolved formal shape in console_write_bytes) | programs sharing it: every Console sample (minimal hello repro) | fix location: shared. Bisecting b3f4750..d3deb345.",
+      "owner": "Claude Code / samples-collections worker-1",
+      "paths": [
+        "source/library/std/console.omg",
+        "omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/selection_questions.rs"
+      ],
+      "renewed_utc": "2026-11-16T23:14:22.422088643+00:00",
+      "ticket": "18e89def7cb12e4b0000000018e8824d"
+    },
+    {
+      "board": null,
+      "claimed_utc": "2026-11-16T21:53:14.411390864+00:00",
+      "expires_utc": "2026-11-17T00:44:01.208457867+00:00",
+      "item": "RC-REPRESENTATIVE-PROGRAMS-SIMULATION",
+      "lease_minutes": 120,
+      "note": null,
+      "owner": "Claude Code / worker-1",
+      "paths": [
+        "samples/cli/simulation/"
+      ],
+      "renewed_utc": "2026-11-16T22:44:01.208457867+00:00",
+      "ticket": "18e8a51cc0519e150000000018e88f02"
+    },
+    {
+      "board": "TASKS.md",
+      "claimed_utc": "2026-11-16T22:28:54.759437103+00:00",
+      "expires_utc": "2026-11-17T01:14:18.555897680+00:00",
+      "item": "RC-REPRESENTATIVE-PROGRAMS",
+      "lease_minutes": 120,
+      "note": "Gate: RC-REPRESENTATIVE-PROGRAMS | mechanism: group samples/cli/collections (17 runnable + 2 controls) | programs sharing it: all | fix location: shared. Landed #3836; PR #3870 open (folded nested-machine cycles, open_address_map syntax, disjoint_union_find control move). group 0 -> 0 run: std packages update stops at CheckedOperator in c_abi_fields::append (draft #3790), Console adapters (#3352 owner). matrix_multiply/heat_grid compile fully, need a lock.",
+      "owner": "Claude Code / samples-collections worker-1",
+      "paths": [
+        "samples/cli/collections"
+      ],
+      "renewed_utc": "2026-11-16T23:14:18.555897680+00:00",
+      "ticket": "18e8a70f1700f19b0000000018e8fa0a"
+    },
+    {
+      "board": "TASKS.md",
+      "claimed_utc": "2026-11-16T23:39:56.426060292+00:00",
+      "expires_utc": "2026-11-17T01:40:03.763470704+00:00",
+      "item": "MAIN-REGRESSION-LOWERED-ROUTE-GENERICS",
+      "lease_minutes": 120,
+      "note": null,
+      "owner": "Claude Code / psi-generics-regression worker-1",
+      "paths": [
+        "omega-rust/omega/compilation/compiler/tests/lowered_route_generics.rs",
+        "omega-rust/psi"
+      ],
+      "renewed_utc": "2026-11-16T23:40:03.763470704+00:00",
+      "ticket": "18e8aaef56210cd10000000018e8ad30"
+    },
+    {
+      "board": null,
+      "claimed_utc": "2026-11-16T23:40:03.086304800+00:00",
+      "expires_utc": "2026-11-17T01:40:03.086304800+00:00",
+      "item": "machine emission reads stage outputs only through representations",
+      "lease_minutes": 120,
+      "note": "Removing STAGE_CALL_ALLOWANCES rows machine-emission -> stages 05-09; image-emission/native-artifact/native-compiler stay with Codex execution-plan boundary",
+      "owner": "pi / omega pipeline firewall",
+      "paths": [
+        "omega-rust/omega/compilation/backend/machine-emission",
+        "omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes",
+        "omega-rust/omega/compilation/pipeline/06_register-homes-to-post-allocation-machine",
+        "omega-rust/omega/compilation/pipeline/07_post-allocation-machine-to-selected-form-encoding",
+        "omega-rust/omega/compilation/pipeline/08_selected-form-encoding-to-resolved-layout",
+        "omega-rust/omega/compilation/pipeline/09_resolved-layout-to-resolved-layout",
+        "omega-rust/omega/compilation/representations/machine-code",
+        "tools/xtask/src/boundary.rs"
+      ],
+      "ticket": "18e8aaf0e31c3d1c0000000018e8f62c"
+    }
+  ],
+  "legacy_version": "e313672d1ae01aec638a6c74505eb2b5400f425d",
+  "notes_pending": 35,
+  "state": "claimed",
+  "version": "49accdbf67255850dbbfe352ebe25aab0ecd3b18"
+}
