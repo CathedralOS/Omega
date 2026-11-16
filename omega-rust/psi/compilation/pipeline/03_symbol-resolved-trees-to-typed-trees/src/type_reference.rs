@@ -1017,10 +1017,42 @@ pub(crate) mod const_arguments {
                 ));
             }
             match value.decode_encoding() {
-                Some(DecodedCanonicalConstValue::Integer { value, .. }) => {
-                    Ok(Some(value.to_string()))
+                Some(
+                    DecodedCanonicalConstValue::Integer { .. }
+                    | DecodedCanonicalConstValue::Boolean(_),
+                ) => {
+                    let Some(carrier) = builtin_carrier(program, carrier, parameters, arguments)
+                    else {
+                        return Ok(None);
+                    };
+                    let primitive = match carrier {
+                        Carrier::Integer(landed) => {
+                            typed_trees::types::PrimitiveType::Integer(landed.value_carrier())
+                        }
+                        Carrier::Boolean => typed_trees::types::PrimitiveType::Bool,
+                    };
+                    let checked = program
+                        .prepare_callable_scalar_argument(
+                            primitive,
+                            &typed_trees::expression::StaticMachineArgument {
+                                symbol,
+                                ..Default::default()
+                            },
+                        )
+                        .map_err(refuse)?;
+                    match checked {
+                        typed_trees::expression::ExpressionNode::Integer(value) => value
+                            .value_bignum()
+                            .map(|value| Some(value.to_string()))
+                            .ok_or_else(|| refuse("the scalar value is not an integer")),
+                        typed_trees::expression::ExpressionNode::Boolean(value) => {
+                            Ok(Some(value.to_string()))
+                        }
+                        _ => Err(refuse(
+                            "the selected constant has no scalar materialization",
+                        )),
+                    }
                 }
-                Some(DecodedCanonicalConstValue::Boolean(value)) => Ok(Some(value.to_string())),
                 Some(
                     DecodedCanonicalConstValue::Record { .. }
                     | DecodedCanonicalConstValue::Variant { .. }
