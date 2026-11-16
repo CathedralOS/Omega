@@ -530,3 +530,78 @@ machine entry() crashes Trap {
         "the zero edge must fail the query input obligation: {unproved:?}"
     );
 }
+
+#[test]
+fn a_guarded_field_survives_a_wrapping_call_cycle_and_rejects_unguarded_twins() {
+    for (name, write, contract, alternative, accepted) in [
+        (
+            "guarded_index_cycle",
+            "input.mask = 1u32 as +Wrapping;",
+            "",
+            "0u32",
+            true,
+        ),
+        (
+            "replaced_index_cycle",
+            "input.index = 3u32 as +Wrapping;",
+            "",
+            "0u32",
+            false,
+        ),
+        (
+            "unbounded_index_cycle",
+            "input.mask = 1u32 as +Wrapping;",
+            "requires true",
+            "0u32",
+            false,
+        ),
+        (
+            "unguarded_arrival_cycle",
+            "input.mask = 1u32 as +Wrapping;",
+            "",
+            "block fetch(input)",
+            false,
+        ),
+    ] {
+        let source = format!(
+            "data Input {{ index: u32 in Wrapping; mask: u32 in Wrapping; values: [u32; 3]; }}
+            public machine entry(input: &mut Input) -> u32 requires true {{
+                transition {{ _ -> block test(input) }}
+                machine test(input: &mut Input) -> u32 {{
+                    transition input.index < 3u32 {{ true -> block fetch(input) _ -> {alternative} }}
+                }}
+                machine fetch(input: &mut Input) -> u32 {contract} {{
+                    {write}
+                    let found: u32 = input.values[input.index];
+                    input.index = input.index + 1;
+                    transition found == 0u32 {{ true -> 0u32 _ -> block test(input) }}
+                }}
+            }}"
+        );
+        let typed = super::boundary_calls::typed(&source);
+        let entry = super::boundary_calls::entry(&typed);
+        let elaboration = typed_trees_to_terminal_psi::elaborate_for(
+            &typed,
+            super::build_purpose::roster(&[entry], &[], source::DependencyScope::Product),
+            terminal_codec::TerminalPublication::Invocation,
+        )
+        .unwrap();
+        let verdict = judge(Ok(elaboration)).unwrap();
+        if accepted {
+            let RouteVerdict::Accepted(accepted) = verdict else {
+                panic!("{name}: {verdict:?}");
+            };
+            accepted.publish_invocation().unwrap();
+        } else {
+            let RouteVerdict::Rejected { unproved, .. } = verdict else {
+                panic!("{name}: {verdict:?}");
+            };
+            assert!(
+                unproved
+                    .iter()
+                    .any(|row| row.statement.contains("index is within length 3")),
+                "{name}: {unproved:?}"
+            );
+        }
+    }
+}

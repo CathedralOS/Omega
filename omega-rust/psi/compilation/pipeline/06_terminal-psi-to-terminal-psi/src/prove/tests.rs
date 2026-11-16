@@ -759,3 +759,44 @@ fn compound_constant_offsets_tighten_literal_and_chained_bounds_without_poisonin
     )
     .unwrap();
 }
+
+#[test]
+fn contradictory_strict_orders_discharge_an_unrelated_goal_with_an_admitted_certificate() {
+    use semantic_vocabulary::{IntegerType, IntegerValue};
+    let mut activity = ProofSearchActivity::default();
+    let signed = IntegerType::new(IntegerSign::Signed, 32).unwrap();
+    let scalar = ScalarType::Integer(signed);
+    let mut values = IdTable::default();
+    let [x, y, z] = [1, 2, 3].map(|raw| {
+        let id = values.push(ValueRow {
+            scalar_type: scalar,
+            origin: ValueOrigin::Operation(OperationId::new(raw).unwrap()),
+            rigid: None,
+        });
+        ScalarTerm::value(id, scalar)
+    });
+    let literal = |n: i128| {
+        ScalarTerm::integer(
+            signed,
+            IntegerValue::for_sign(IntegerSign::Signed, n).unwrap(),
+        )
+        .unwrap()
+    };
+    let context =
+        PropositionContext::from_value_types(values.iter().map(|(id, row)| (id, row.scalar_type)))
+            .unwrap();
+    let goal = Proposition::LessOrEqual(z, literal(0));
+    for (y_value, inconsistent) in [(-100, true), (10, false)] {
+        let assumptions = [
+            Proposition::LessThan(literal(0), x.clone()),
+            Proposition::LessThan(x.clone(), y.clone()),
+            Proposition::Equal(y.clone(), literal(y_value)),
+        ];
+        let result = Prover::new(&context, &assumptions, &[], &values, &mut activity).prove(&goal);
+        assert_eq!(result.is_ok(), inconsistent);
+        if let Ok(proof) = result {
+            proof_admission::accept_certificate(&context, &goal, &assumptions, &[], &proof)
+                .unwrap();
+        }
+    }
+}
