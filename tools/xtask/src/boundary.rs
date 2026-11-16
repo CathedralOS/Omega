@@ -705,13 +705,18 @@ pub fn plan_validator_call_violations(root: &Path) -> Vec<String> {
     violations
 }
 
-/// Entry points that read one input form. Each stage after register
-/// allocation's frame step keeps the form it was computed from in its output,
+/// Entry points that read one input form. The frame step and each later stage
+/// keep the form they were computed from in their output,
 /// so the next stage and final assembly reach earlier products through that
 /// one form (omega-rust/pipeline.md, "Representation-to-representation
 /// pipeline"). Each row is a file, the function it defines and how many
 /// parameters it may take; parameters past the first are configuration.
 const SINGLE_FORM_ENTRIES: &[(&str, &str, usize)] = &[
+    (
+        "omega-rust/omega/compilation/backend/machine-emission/src/function_realization.rs",
+        "stage_function_frame",
+        2,
+    ),
     (
         "omega-rust/omega/compilation/pipeline/07_post-allocation-machine-to-selected-form-encoding/src/lib.rs",
         "stage_optimized_layout_independent_selected_form_encoding",

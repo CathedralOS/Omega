@@ -230,9 +230,7 @@ impl FunctionFragmentReplayInputs {
         self.realization.allocation()
     }
 
-    pub fn machine(
-        &self,
-    ) -> &register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan {
+    pub fn machine(&self) -> &crate::AllocatedMachinePlan {
         self.realization.machine()
     }
 
@@ -283,7 +281,7 @@ impl FunctionFragmentReplayInputs {
 #[derive(Debug, Clone)]
 struct CurrentFunctionFragmentInput {
     program: ResolvedMachineProgram,
-    machine: register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan,
+    machine: crate::AllocatedMachinePlan,
     homes: selected_instructions_to_register_homes::AssignedRegisterHomes,
     environment: register_environment::ValidatedTargetRegisterEnvironment,
     exit: StagedWholeFunctionExitContract,
@@ -345,7 +343,10 @@ impl CurrentFunctionFragmentInput {
             || !matches_shared_plan(layout, replay.layout_optimization().layout())
             || !matches_shared_plan(frame, replay.fixed_frame().frame().plan())
             || !matches_shared_plan(protocol, replay.fixed_frame().protocol().plan())
-            || &self.machine != replay.machine()
+            || self.machine.effects() != replay.machine().effects()
+            || self.machine.machine() != replay.machine().machine()
+            || self.machine.optimization() != replay.machine().optimization()
+            || self.machine.custody() != replay.machine().custody()
             || &self.homes != replay.register_homes()
             || &self.environment != replay.register_environment()
             || &self.exit != replay.exit_contract()
@@ -373,9 +374,7 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
         &self.current.program
     }
 
-    pub fn machine(
-        &self,
-    ) -> &register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan {
+    pub fn machine(&self) -> &crate::AllocatedMachinePlan {
         &self.current.machine
     }
 

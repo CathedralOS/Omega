@@ -1,11 +1,12 @@
 /*
 We stage ordinary function frames and assemble the function-relative realization manifest and custody receipt across post-allocation encoding and layout.
 
-Before instruction encoding runs, `stage_function_frame` computes the function's allocated callee-saved register requirements, non-authoritative save storage, target frame geometry, and prologue/epilogue byte protocol, and joins them with the allocation and machine plan into `FramedFunction`, the form stage 07 reads. Stages 07, 08 and 09 each keep their input in their output, so `assemble_fixed_frame_realization` takes stage 09's output alone. It constructs the whole-function exit contract, verifies that all phase selections and layout roots agree across the allocation, machine plan, encoding, and layout artifacts reached through that output, and seals the `FunctionRelativeOptimizationRealizationManifest` alongside its custody receipt. Stage 02's output is not an input: fragment emission joins it and checks its pre-physical manifest against the allocation's. Retained-artifact readers and tests replay every stage join independently through `validate_fixed_frame_function_relative_realization` and wire-encode or decode the v12 realization manifest (`OMGFRM\0\0`).
+Before instruction encoding runs, `stage_function_frame` computes the function's allocated callee-saved register requirements, non-authoritative save storage, target frame geometry, and prologue/epilogue byte protocol, and keeps them with stage 06's machine plan and its retained allocation in `FramedFunction`, the form stage 07 reads. Stages 07, 08 and 09 each keep their input in their output, so `assemble_fixed_frame_realization` takes stage 09's output alone. It constructs the whole-function exit contract, verifies that all phase selections and layout roots agree across the allocation, machine plan, encoding, and layout artifacts reached through that output, and seals the `FunctionRelativeOptimizationRealizationManifest` alongside its custody receipt. Stage 02's output is not an input: fragment emission joins it and checks its pre-physical manifest against the allocation's. Retained-artifact readers and tests replay every stage join independently through `validate_fixed_frame_function_relative_realization` and wire-encode or decode the v12 realization manifest (`OMGFRM\0\0`).
 */
 
 use std::sync::Arc;
 
+use crate::AllocatedMachinePlan;
 use machine_code::{
     FramedMachineProgram, FramedMachineSource, ResolvedMachineLayout,
     ResolvedSelectedFormLayoutIdentity, SelectedFormEncodingIdentity, SelectedFunctionLayoutPolicy,
@@ -24,7 +25,6 @@ use post_allocation_machine_to_selected_form_encoding::{
     OptimizedSelectedFormEncodingError, StagedOptimizedSelectedFormEncoding,
     validate_optimized_layout_independent_selected_form_encoding,
 };
-use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
 use resolved_layout_to_resolved_layout::{
     ResolvedLayoutOptimization, ResolvedLayoutOptimizationError,
     StagedOptimizedX86BranchRelaxation, validate_resolved_layout_optimization,
@@ -165,8 +165,7 @@ optimization_core::record_views! {
 /// final assembly reaches them through the stage outputs built on it.
 #[derive(Debug)]
 pub struct FramedFunction {
-    allocation: RetainedAllocation,
-    machine: StagedOptimizedPostAllocationMachinePlan,
+    machine: AllocatedMachinePlan,
     frame: FunctionRelativeFrame,
     program: FramedMachineProgram, // What stage 07 reads, shared with the three products above.
 }
@@ -174,9 +173,14 @@ pub struct FramedFunction {
 optimization_core::record_views! {
     record FramedFunction;
     borrowed {
-        allocation: RetainedAllocation,
-        machine: StagedOptimizedPostAllocationMachinePlan,
+        machine: AllocatedMachinePlan,
         frame: FunctionRelativeFrame,
+    }
+}
+
+impl FramedFunction {
+    pub fn allocation(&self) -> &RetainedAllocation {
+        self.machine.source()
     }
 }
 
@@ -223,7 +227,7 @@ impl StagedFixedFrameFunctionRelativeRealization {
     pub fn allocation(&self) -> &RetainedAllocation {
         self.framed().allocation()
     }
-    pub fn machine(&self) -> &StagedOptimizedPostAllocationMachinePlan {
+    pub fn machine(&self) -> &AllocatedMachinePlan {
         self.framed().machine()
     }
     pub fn relaxation(&self) -> Option<&StagedOptimizedX86BranchRelaxation> {
@@ -339,19 +343,16 @@ impl std::fmt::Display for FunctionRelativeOptimizationRealizationManifestDecode
 
 impl std::error::Error for FunctionRelativeOptimizationRealizationManifestDecodeError {}
 
-/// Compute the frame for `machine` and join it with the allocation and
-/// machine plan into the form stage 07 reads. The work budget is the
-/// allocation's own.
+/// Compute the frame from `machine` and its retained allocation, using that
+/// allocation's work budget. Stage 07 reads the resulting form.
 pub fn stage_function_frame(
-    allocation: RetainedAllocation,
-    machine: StagedOptimizedPostAllocationMachinePlan,
+    machine: AllocatedMachinePlan,
     policy: TargetFrameLayoutPolicy,
 ) -> Result<FramedFunction, FunctionRelativeOptimizationRealizationError> {
-    let current = allocation.current();
+    let current = machine.source().current();
     let frame = compute_frame(&current, &machine, policy, current.budget_per_pass())?;
     let program = framed_machine_program(&current, &machine, &frame);
     Ok(FramedFunction {
-        allocation,
         machine,
         frame,
         program,
@@ -363,7 +364,7 @@ pub fn stage_function_frame(
 /// register model, a small table, is cloned.
 fn framed_machine_program(
     current: &AllocationOutput<'_>,
-    machine: &StagedOptimizedPostAllocationMachinePlan,
+    machine: &AllocatedMachinePlan,
     frame: &FunctionRelativeFrame,
 ) -> FramedMachineProgram {
     let selected = current.selected();
@@ -380,7 +381,7 @@ fn framed_machine_program(
 
 fn compute_frame(
     current: &AllocationOutput<'_>,
-    machine: &StagedOptimizedPostAllocationMachinePlan,
+    machine: &AllocatedMachinePlan,
     policy: TargetFrameLayoutPolicy,
     budget: OptimizationWorkBudget,
 ) -> Result<FunctionRelativeFrame, FunctionRelativeOptimizationRealizationError> {
@@ -416,7 +417,7 @@ fn compute_frame(
 
 fn validate_frame(
     current: &AllocationOutput<'_>,
-    machine: &StagedOptimizedPostAllocationMachinePlan,
+    machine: &AllocatedMachinePlan,
     frame: &FunctionRelativeFrame,
     policy: TargetFrameLayoutPolicy,
 ) -> Result<(), FunctionRelativeOptimizationRealizationError> {
@@ -457,7 +458,7 @@ pub fn assemble_fixed_frame_realization(
     let encoding = baseline_layout.source();
     let framed = encoding.source();
     let frame = &framed.frame;
-    let current = framed.allocation.current();
+    let current = framed.allocation().current();
     let source = current.evidence().clone();
     let selected = current.selected();
     let environment = current.register_environment();
@@ -509,7 +510,7 @@ pub(crate) fn validate_fixed_frame_function_relative_realization(
     let baseline_layout = layout_optimization.source();
     let encoding = baseline_layout.source();
     let framed = encoding.source();
-    let current = framed.allocation.current();
+    let current = framed.allocation().current();
     let source = current.evidence().clone();
     let selected = current.selected();
     let environment = current.register_environment();
@@ -598,7 +599,7 @@ fn framed_program_matches(
 #[allow(clippy::too_many_arguments)]
 fn expected_fixed_frame_manifest(
     allocation: &AllocationOutput<'_>,
-    machine: &StagedOptimizedPostAllocationMachinePlan,
+    machine: &AllocatedMachinePlan,
     encoding: &EncodedFunction,
     baseline_layout: &LaidOutFunction,
     layout_optimization: &OptimizedFunctionLayout,
@@ -745,7 +746,7 @@ fn expected_fixed_frame_manifest(
 #[allow(clippy::too_many_arguments)]
 fn fixed_frame_custody(
     source: AllocationEvidence,
-    machine: &StagedOptimizedPostAllocationMachinePlan,
+    machine: &AllocatedMachinePlan,
     requirements: &ValidatedAllocatedCalleeSavedRequirements,
     storage: &ValidatedNonAuthoritativeCalleeSaveStorage,
     frame: &ValidatedTargetFrameLayout,

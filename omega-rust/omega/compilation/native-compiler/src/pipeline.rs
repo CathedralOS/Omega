@@ -155,16 +155,16 @@ pub(crate) fn emit_target(
         })
         .map_err(OptimizedVerifiedPhysicalPipelineError::SelectedOptimization)
     }?;
-    let allocation = {
-        observation.enter(NativePipelineStage::RegisterAllocation);
-        stage_register_allocation(selected.into_selected_output())
-            .map_err(OptimizedVerifiedPhysicalPipelineError::RegisterAllocation)
-    }?;
     let machine = {
+        let allocation = {
+            observation.enter(NativePipelineStage::RegisterAllocation);
+            stage_register_allocation(selected.into_selected_output())
+                .map_err(OptimizedVerifiedPhysicalPipelineError::RegisterAllocation)
+        }?;
         observation.enter(NativePipelineStage::PostAllocationMachine);
         let current = allocation.current();
         stage_optimized_post_allocation_machine_plan(
-            allocation.facts(),
+            allocation.clone(),
             current.register_environment(),
             current.selections(),
             current.budget_per_pass(),
@@ -172,14 +172,14 @@ pub(crate) fn emit_target(
         .map_err(OptimizedVerifiedPhysicalPipelineError::PostAllocationMachine)
     }?;
     // Stage 09's selections and the work budget are configuration the
-    // allocation carries; read them before the frame step takes it.
-    let selections = allocation
+    // allocation carries; read them through stage 06 before framing takes it.
+    let selections = machine
+        .source()
         .current()
         .selections()
         .project_phase(OptimizationExecutionPhase::FunctionRelativeLayout);
-    let budget = allocation.current().budget_per_pass();
+    let budget = machine.source().current().budget_per_pass();
     let framed = machine_emission::stage_function_frame(
-        allocation,
         machine,
         machine_emission::frame_layout::TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
     )?;
