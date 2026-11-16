@@ -1,30 +1,43 @@
 /*
-We stage ordinary function frames and assemble the function-relative realization manifest and custody receipt across post-allocation encoding and layout.
+Function publication consumes the current resolved machine form, not earlier
+program graphs. Its retained instruction and contract chunks supply exact exit,
+calling and provenance facts; publication receipts bind the allocation,
+optimization and frame decisions to those current bytes.
 
-Before instruction encoding runs, `stage_function_frame` computes the function's allocated callee-saved register requirements, non-authoritative save storage, target frame geometry, and prologue/epilogue byte protocol, and keeps them with stage 06's machine plan and its retained allocation in `FramedFunction`, the form stage 07 reads. Stages 07, 08 and 09 each keep their input in their output, so `assemble_fixed_frame_realization` takes stage 09's output alone. It constructs the whole-function exit contract, verifies that all phase selections and layout roots agree across the allocation, machine plan, encoding, and layout artifacts reached through that output, and seals the `FunctionRelativeOptimizationRealizationManifest` alongside its custody receipt. Stage 02's output is not an input: fragment emission joins it and checks its pre-physical manifest against the allocation's. Retained-artifact readers and tests replay every stage join independently through `validate_fixed_frame_function_relative_realization` and wire-encode or decode the v12 realization manifest (`OMGFRM\0\0`).
+`stage_function_frame` prepares callee-save storage, frame geometry and the
+prologue/epilogue protocol before encoding. `assemble_fixed_frame_realization`
+then publishes the whole-function exit contract, manifest and custody receipt.
+Only `validate_fixed_frame_function_relative_realization` reads the original
+artifacts in `FunctionRealizationReplay`, reconstructs their correspondence and
+checks the published result. The v12 manifest wire format (`OMGFRM\0\0`) is
+unchanged.
 */
 
 use std::sync::Arc;
 
-use crate::AllocatedMachinePlan;
+use abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations;
 use machine_code::{
-    FramedMachineProgram, FramedMachineSource, ResolvedMachineLayout,
-    ResolvedSelectedFormLayoutIdentity, SelectedFormEncodingIdentity, SelectedFunctionLayoutPolicy,
-    TargetFrameLayoutIdentity, TargetFrameProtocolEncodingIdentity,
-    WholeFunctionExitContractIdentity, X86BranchRelaxationIdentity,
+    FramedMachineProgram, ResolvedMachineLayout, ResolvedSelectedFormLayoutIdentity,
+    SelectedFormEncodingIdentity, SelectedFunctionLayoutPolicy, TargetFrameLayoutIdentity,
+    TargetFrameProtocolEncodingIdentity, WholeFunctionExitContractIdentity,
+    X86BranchRelaxationIdentity,
 };
 use optimization_core::cursor::Cursor;
 use optimization_core::{
     FunctionRelativeOptimizationRealizationManifestIdentity, Optimization,
     OptimizationExecutionPhase, OptimizationSelectionIdentity, OptimizationSelections,
-    OptimizationWorkBudget, PostAllocationOptimizationManifestIdentity,
-    PrePhysicalOptimizationManifestIdentity, SelectedLoweringOptimizationCompletionIdentity,
+    PostAllocationOptimizationManifestIdentity, PrePhysicalOptimizationManifestIdentity,
+    SelectedLoweringOptimizationCompletionIdentity,
 };
-use post_allocation_machine::PostAllocationMachineOptimizationCustody;
+use post_allocation_machine::{
+    PostAllocationMachineOptimizationCustody, PostAllocationMachineProgram,
+};
 use post_allocation_machine_to_selected_form_encoding::{
     OptimizedSelectedFormEncodingError, StagedOptimizedSelectedFormEncoding,
     validate_optimized_layout_independent_selected_form_encoding,
 };
+use register_homes::AllocatedCalleeSavedRequirements;
+use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
 use resolved_layout_to_resolved_layout::{
     ResolvedLayoutOptimization, ResolvedLayoutOptimizationError,
     StagedOptimizedX86BranchRelaxation, validate_resolved_layout_optimization,
@@ -35,23 +48,20 @@ use selected_form_encoding_to_resolved_layout::{
 };
 use selected_instructions::SelectedInstructionPlanIdentity;
 use selected_instructions_to_register_homes::{
-    AllocatedCalleeSavedRequirementIdentity, AllocatedCalleeSavedRequirementPolicy,
-    AllocationEvidence, AllocationOutput, PostAllocationSelectedTransformation, RetainedAllocation,
-    SelectedProgramView, ValidatedAllocatedCalleeSavedRequirements,
-    stage_allocated_callee_saved_requirements, validate_allocated_callee_saved_requirements,
+    AllocatedCalleeSavedRequirementIdentity, RetainedAllocation, SelectedProgramView,
+    validate_allocated_callee_saved_requirements,
 };
 use target::{NativeTarget, TargetWireIdentityError};
 
 use crate::exit_contract::{
     StagedWholeFunctionExitContract, WholeFunctionExitContractError,
-    stage_whole_function_exit_contract_for_layout, validate_exit_record_for_replayed_layout,
+    stage_whole_function_exit_contract_for_layout, validate_exit_record_for_current_layout,
 };
 use crate::frame_layout::{
     NonAuthoritativeCalleeSaveStorageIdentity, NonAuthoritativeCalleeSaveStoragePolicy,
-    TargetFrameLayoutPolicy, ValidatedNonAuthoritativeCalleeSaveStorage,
-    ValidatedTargetFrameLayout, stage_non_authoritative_callee_save_storage,
-    stage_target_frame_layout, validate_non_authoritative_callee_save_storage,
-    validate_target_frame_layout,
+    TargetFrameLayoutPolicy, ValidatedTargetFrameLayout,
+    stage_non_authoritative_callee_save_storage, stage_target_frame_layout,
+    validate_non_authoritative_callee_save_storage, validate_target_frame_layout,
 };
 use crate::frame_protocol::{
     TargetFrameProtocolEncodingPolicy, ValidatedTargetFrameProtocolEncoding,
@@ -142,64 +152,25 @@ impl ValidatedFunctionRelativeOptimizationRealizationManifest {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct FunctionRelativeFrame {
-    requirements: ValidatedAllocatedCalleeSavedRequirements,
-    storage: ValidatedNonAuthoritativeCalleeSaveStorage,
-    layout: ValidatedTargetFrameLayout,
-    protocol: ValidatedTargetFrameProtocolEncoding,
-}
-
-optimization_core::record_views! {
-    record FunctionRelativeFrame;
-    borrowed {
-        requirements: ValidatedAllocatedCalleeSavedRequirements,
-        storage: ValidatedNonAuthoritativeCalleeSaveStorage,
-        layout: ValidatedTargetFrameLayout,
-        protocol: ValidatedTargetFrameProtocolEncoding,
-    }
-}
-
-/// The frame step's output, and the form stage 07 reads. It keeps the
-/// allocation and post-allocation machine plan the frame was computed for, so
-/// final assembly reaches them through the stage outputs built on it.
+/// Original artifacts are retained only for explicitly requested independent
+/// replay. Ordinary publication reads the current resolved form and receipts.
 #[derive(Debug)]
-pub struct FramedFunction {
-    machine: AllocatedMachinePlan,
-    frame: FunctionRelativeFrame,
-    program: FramedMachineProgram, // What stage 07 reads, shared with the three products above.
+pub struct FunctionRealizationReplay {
+    pub allocation: RetainedAllocation,
+    pub target_input: Arc<ValidatedOptimizedTargetOperations>,
+    pub machine: StagedOptimizedPostAllocationMachinePlan,
+    pub encoding: StagedOptimizedSelectedFormEncoding,
+    pub baseline_layout: StagedOptimizedResolvedSelectedFormLayout,
 }
 
-optimization_core::record_views! {
-    record FramedFunction;
-    borrowed {
-        machine: AllocatedMachinePlan,
-        frame: FunctionRelativeFrame,
-    }
-}
-
-impl FramedFunction {
-    pub fn allocation(&self) -> &RetainedAllocation {
-        self.machine.source()
-    }
-}
-
-impl FramedMachineSource for FramedFunction {
-    fn framed_machine(&self) -> &FramedMachineProgram {
-        &self.program
-    }
-}
-
-/// Stage 07's output for one framed function.
-pub type EncodedFunction = StagedOptimizedSelectedFormEncoding<FramedFunction>;
-/// Stage 08's output, keeping stage 07's.
-pub type LaidOutFunction = StagedOptimizedResolvedSelectedFormLayout<EncodedFunction>;
-/// Stage 09's output, keeping stage 08's: the one input final assembly takes.
-pub type OptimizedFunctionLayout = ResolvedLayoutOptimization<LaidOutFunction>;
+pub type EncodedFunction = StagedOptimizedSelectedFormEncoding;
+pub type LaidOutFunction = StagedOptimizedResolvedSelectedFormLayout;
+pub type OptimizedFunctionLayout = ResolvedLayoutOptimization;
 
 #[derive(Debug)]
 pub struct StagedFixedFrameFunctionRelativeRealization {
-    layout_optimization: OptimizedFunctionLayout, // Stage 09's output and every form before it.
+    replay: Option<FunctionRealizationReplay>,
+    layout_optimization: ResolvedLayoutOptimization,
     exit_contract: StagedWholeFunctionExitContract,
     manifest: ValidatedFunctionRelativeOptimizationRealizationManifest,
     custody: StagedFixedFrameFunctionRelativeRealizationCustodyReceipt,
@@ -215,47 +186,51 @@ optimization_core::record_views! {
 }
 
 impl StagedFixedFrameFunctionRelativeRealization {
-    pub fn baseline_layout(&self) -> &LaidOutFunction {
-        self.layout_optimization.source()
+    /// Retain original owners for an explicitly requested source audit. This
+    /// changes storage only; ordinary realization has already finished.
+    pub fn retain_replay_for_validation(mut self, replay: FunctionRealizationReplay) -> Self {
+        self.replay = Some(replay);
+        self
     }
-    pub fn encoding(&self) -> &EncodedFunction {
-        self.baseline_layout().source()
+
+    pub(crate) fn replay(
+        &self,
+    ) -> Result<&FunctionRealizationReplay, FunctionRelativeOptimizationRealizationError> {
+        self.replay
+            .as_ref()
+            .ok_or(FunctionRelativeOptimizationRealizationError::ReplayUnavailable)
     }
-    fn framed(&self) -> &FramedFunction {
-        self.encoding().source()
+
+    pub fn has_original_replay(&self) -> bool {
+        self.replay.is_some()
     }
-    pub fn allocation(&self) -> &RetainedAllocation {
-        self.framed().allocation()
-    }
-    pub fn machine(&self) -> &AllocatedMachinePlan {
-        self.framed().machine()
-    }
+
     pub fn relaxation(&self) -> Option<&StagedOptimizedX86BranchRelaxation> {
         self.layout_optimization.relaxation()
     }
     pub fn layout(&self) -> &ResolvedMachineLayout {
         self.layout_optimization.layout()
     }
-    pub(crate) fn layout_optimization(&self) -> &OptimizedFunctionLayout {
-        &self.layout_optimization
+    pub fn program(&self) -> &machine_code::ResolvedMachineProgram {
+        self.layout_optimization.program()
     }
-    pub fn requirements(&self) -> &ValidatedAllocatedCalleeSavedRequirements {
-        self.framed().frame().requirements()
+    pub fn requirements(&self) -> &AllocatedCalleeSavedRequirements {
+        &self.program().instructions.preservation
     }
-    pub fn storage(&self) -> &ValidatedNonAuthoritativeCalleeSaveStorage {
-        self.framed().frame().storage()
+    pub fn storage(&self) -> &machine_code::NonAuthoritativeCalleeSaveStoragePlan {
+        &self.program().storage
     }
-    pub fn frame(&self) -> &ValidatedTargetFrameLayout {
-        self.framed().frame().layout()
+    pub fn frame(&self) -> &machine_code::TargetFrameLayoutPlan {
+        &self.program().frame
     }
-    pub fn protocol(&self) -> &ValidatedTargetFrameProtocolEncoding {
-        self.framed().frame().protocol()
+    pub fn protocol(&self) -> &machine_code::TargetFrameProtocolEncodingPlan {
+        &self.program().protocol
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StagedFixedFrameFunctionRelativeRealizationCustodyReceipt {
-    source: AllocationEvidence,
+    source: PostAllocationOptimizationManifestIdentity,
     machine: post_allocation_machine::PostAllocationMachineIdentity,
     requirements: AllocatedCalleeSavedRequirementIdentity,
     storage: NonAuthoritativeCalleeSaveStorageIdentity,
@@ -268,6 +243,7 @@ pub struct StagedFixedFrameFunctionRelativeRealizationCustodyReceipt {
 optimization_core::record_views! {
     record StagedFixedFrameFunctionRelativeRealizationCustodyReceipt;
     shared {
+        source: PostAllocationOptimizationManifestIdentity,
         machine: post_allocation_machine::PostAllocationMachineIdentity,
         requirements: AllocatedCalleeSavedRequirementIdentity,
         storage: NonAuthoritativeCalleeSaveStorageIdentity,
@@ -275,9 +251,6 @@ optimization_core::record_views! {
         protocol: TargetFrameProtocolEncodingIdentity,
         exit_contract: WholeFunctionExitContractIdentity,
         realization: FunctionRelativeOptimizationRealizationManifestIdentity,
-    }
-    borrowed {
-        source: AllocationEvidence,
     }
 }
 
@@ -294,6 +267,8 @@ pub enum FunctionRelativeOptimizationRealizationError {
     FrameLayout(crate::frame_layout::TargetFrameLayoutError),
     FrameProtocol(crate::frame_protocol::TargetFrameProtocolEncodingError),
     StatisticsOverflow,
+    ReplayUnavailable,
+    CurrentProgram(post_allocation_machine::program_validation::PhysicalProgramValidationError),
     RootMismatch,
     ReceiptMismatch,
 }
@@ -343,55 +318,13 @@ impl std::fmt::Display for FunctionRelativeOptimizationRealizationManifestDecode
 
 impl std::error::Error for FunctionRelativeOptimizationRealizationManifestDecodeError {}
 
-/// Compute the frame from `machine` and its retained allocation, using that
-/// allocation's work budget. Stage 07 reads the resulting form.
 pub fn stage_function_frame(
-    machine: AllocatedMachinePlan,
+    program: PostAllocationMachineProgram,
     policy: TargetFrameLayoutPolicy,
-) -> Result<FramedFunction, FunctionRelativeOptimizationRealizationError> {
-    let current = machine.source().current();
-    let frame = compute_frame(&current, &machine, policy, current.budget_per_pass())?;
-    let program = framed_machine_program(&current, &machine, &frame);
-    Ok(FramedFunction {
-        machine,
-        frame,
-        program,
-    })
-}
-
-/// Share the plans the frame step joins (the allocation's selected program,
-/// the machine plan and its frame) rather than copying them; only the
-/// register model, a small table, is cloned.
-fn framed_machine_program(
-    current: &AllocationOutput<'_>,
-    machine: &AllocatedMachinePlan,
-    frame: &FunctionRelativeFrame,
-) -> FramedMachineProgram {
-    let selected = current.selected();
-    FramedMachineProgram {
-        selected: selected.shared_selected_plan(),
-        selected_identity: selected.selected_identity(),
-        optimization_unit: selected.optimization_unit_identity(),
-        work_schedule: selected.work_schedule_identity(),
-        machine: machine.machine().shared_plan(),
-        physical: current.register_environment().physical().clone(),
-        frame: frame.layout().shared_plan(),
-    }
-}
-
-fn compute_frame(
-    current: &AllocationOutput<'_>,
-    machine: &AllocatedMachinePlan,
-    policy: TargetFrameLayoutPolicy,
-    budget: OptimizationWorkBudget,
-) -> Result<FunctionRelativeFrame, FunctionRelativeOptimizationRealizationError> {
-    let environment = current.register_environment();
-    let requirements = stage_allocated_callee_saved_requirements(
-        current,
-        AllocatedCalleeSavedRequirementPolicy::AllocatedSelectedWritesIntersectAbiPreservationV1,
-        budget,
-    )
-    .map_err(FunctionRelativeOptimizationRealizationError::CalleeSavedRequirements)?;
+) -> Result<FramedMachineProgram, FunctionRelativeOptimizationRealizationError> {
+    let environment = &program.environment;
+    let requirements = program.preservation.clone();
+    let budget = requirements.plan().budget;
     let storage = stage_non_authoritative_callee_save_storage(
         &requirements,
         environment,
@@ -399,100 +332,79 @@ fn compute_frame(
         budget,
     )
     .map_err(FunctionRelativeOptimizationRealizationError::CalleeSaveStorage)?;
-    let layout = stage_target_frame_layout(machine, &requirements, &storage, environment, policy)
-        .map_err(FunctionRelativeOptimizationRealizationError::FrameLayout)?;
+    let layout = stage_target_frame_layout(
+        &program.machine,
+        &requirements,
+        &storage,
+        environment,
+        policy,
+    )
+    .map_err(FunctionRelativeOptimizationRealizationError::FrameLayout)?;
     let protocol = stage_target_frame_protocol_encoding(
         &layout,
         environment,
         TargetFrameProtocolEncodingPolicy::CanonicalFixedFrameV1,
     )
     .map_err(FunctionRelativeOptimizationRealizationError::FrameProtocol)?;
-    Ok(FunctionRelativeFrame {
-        requirements,
-        storage,
-        layout,
-        protocol,
+    Ok(FramedMachineProgram {
+        frame_identity: layout.receipt().identity(),
+        protocol_identity: protocol.receipt().identity(),
+        instructions: program,
+        storage: Arc::new(storage.into_plan()),
+        frame: layout.shared_plan(),
+        protocol: protocol.shared_plan(),
     })
 }
 
-fn validate_frame(
-    current: &AllocationOutput<'_>,
-    machine: &AllocatedMachinePlan,
-    frame: &FunctionRelativeFrame,
-    policy: TargetFrameLayoutPolicy,
-) -> Result<(), FunctionRelativeOptimizationRealizationError> {
-    if frame.layout.plan().policy != policy {
+fn validate_frame_geometry(
+    program: &machine_code::ResolvedMachineProgram,
+    requirements: &AllocatedCalleeSavedRequirements,
+) -> Result<
+    (
+        ValidatedTargetFrameLayout,
+        ValidatedTargetFrameProtocolEncoding,
+    ),
+    FunctionRelativeOptimizationRealizationError,
+> {
+    let environment = &program.instructions.environment;
+    if program.frame.policy != TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1 {
         return Err(FunctionRelativeOptimizationRealizationError::RootMismatch);
     }
-    let environment = current.register_environment();
-    let requirements =
-        validate_allocated_callee_saved_requirements(current, frame.requirements.plan().clone())
-            .map_err(FunctionRelativeOptimizationRealizationError::CalleeSavedRequirements)?;
     let storage = validate_non_authoritative_callee_save_storage(
-        &requirements,
+        requirements,
         environment,
-        frame.storage.plan().clone(),
+        (*program.storage).clone(),
     )
     .map_err(FunctionRelativeOptimizationRealizationError::CalleeSaveStorage)?;
-    let layout = validate_target_frame_layout(
-        machine,
-        &requirements,
+    let frame = validate_target_frame_layout(
+        &program.instructions.machine,
+        requirements,
         &storage,
         environment,
-        frame.layout.plan().clone(),
+        (*program.frame).clone(),
     )
     .map_err(FunctionRelativeOptimizationRealizationError::FrameLayout)?;
-    validate_target_frame_protocol_encoding(&layout, environment, frame.protocol.plan().clone())
-        .map_err(FunctionRelativeOptimizationRealizationError::FrameProtocol)?;
-    Ok(())
+    let protocol =
+        validate_target_frame_protocol_encoding(&frame, environment, (*program.protocol).clone())
+            .map_err(FunctionRelativeOptimizationRealizationError::FrameProtocol)?;
+    if frame.receipt().identity() != program.frame_identity
+        || protocol.receipt().identity() != program.protocol_identity
+    {
+        return Err(FunctionRelativeOptimizationRealizationError::RootMismatch);
+    }
+    Ok((frame, protocol))
 }
 
-/// Seal the function-relative realization from stage 09's output alone:
-/// every earlier form, and the allocation, machine plan and frame the frame
-/// step joined, are reached through it.
 pub fn assemble_fixed_frame_realization(
-    layout_optimization: OptimizedFunctionLayout,
+    layout_optimization: ResolvedLayoutOptimization,
 ) -> Result<StagedFixedFrameFunctionRelativeRealization, FunctionRelativeOptimizationRealizationError>
 {
-    let baseline_layout = layout_optimization.source();
-    let encoding = baseline_layout.source();
-    let framed = encoding.source();
-    let frame = &framed.frame;
-    let current = framed.allocation().current();
-    let source = current.evidence().clone();
-    let selected = current.selected();
-    let environment = current.register_environment();
-    let physical = environment.physical();
-    let exit_contract = stage_whole_function_exit_contract_for_layout(
-        selected,
-        &framed.machine,
-        physical,
-        encoding,
-        &layout_optimization,
-        Some((frame.layout(), frame.protocol())),
-    )
-    .map_err(FunctionRelativeOptimizationRealizationError::ExitContract)?;
-    let manifest = expected_fixed_frame_manifest(
-        &current,
-        &framed.machine,
-        encoding,
-        baseline_layout,
-        &layout_optimization,
-        frame.layout(),
-        frame.protocol(),
-        &exit_contract,
-    )?;
-    let custody = fixed_frame_custody(
-        source,
-        &framed.machine,
-        frame.requirements(),
-        frame.storage(),
-        frame.layout(),
-        frame.protocol(),
-        &exit_contract,
-        &manifest,
-    );
+    let exit_contract = stage_whole_function_exit_contract_for_layout(&layout_optimization)
+        .map_err(FunctionRelativeOptimizationRealizationError::ExitContract)?;
+    let manifest = expected_fixed_frame_manifest(&layout_optimization, &exit_contract)?;
+    let custody = fixed_frame_custody(layout_optimization.program(), &exit_contract, &manifest);
     Ok(StagedFixedFrameFunctionRelativeRealization {
+        replay: None,
         layout_optimization,
         exit_contract,
         manifest,
@@ -506,111 +418,130 @@ pub(crate) fn validate_fixed_frame_function_relative_realization(
     StagedFixedFrameFunctionRelativeRealizationCustodyReceipt,
     FunctionRelativeOptimizationRealizationError,
 > {
-    let layout_optimization = &staged.layout_optimization;
-    let baseline_layout = layout_optimization.source();
-    let encoding = baseline_layout.source();
-    let framed = encoding.source();
-    let current = framed.allocation().current();
-    let source = current.evidence().clone();
-    let selected = current.selected();
-    let environment = current.register_environment();
-    let physical = environment.physical();
-    if !framed_program_matches(
-        &framed.program,
-        &framed_machine_program(&current, &framed.machine, &framed.frame),
-    ) {
-        return Err(FunctionRelativeOptimizationRealizationError::RootMismatch);
-    }
-    validate_optimized_layout_independent_selected_form_encoding(encoding)
-        .map_err(FunctionRelativeOptimizationRealizationError::Encoding)?;
-    validate_optimized_resolved_selected_form_layout(baseline_layout)
+    let program = staged.program();
+    post_allocation_machine_to_selected_form_encoding::validate_current_selected_form_encoding(
+        &program.instructions,
+        &program.frame,
+        &program.encoding,
+    )
+    .map_err(FunctionRelativeOptimizationRealizationError::Encoding)?;
+    selected_form_encoding_to_resolved_layout::validate_current_resolved_layout(program)
         .map_err(FunctionRelativeOptimizationRealizationError::Layout)?;
-    validate_resolved_layout_optimization(
-        &current
-            .selections()
-            .project_phase(OptimizationExecutionPhase::FunctionRelativeLayout),
-        layout_optimization,
+    resolved_layout_to_resolved_layout::validate_current_layout_optimization(
+        &staged.layout_optimization,
     )
     .map_err(FunctionRelativeOptimizationRealizationError::LayoutOptimization)?;
-    validate_frame(
-        &current,
-        &framed.machine,
-        &framed.frame,
-        TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
-    )?;
-    let frame = &framed.frame;
-    validate_exit_record_for_replayed_layout(
-        selected,
-        &framed.machine,
-        physical,
-        encoding,
-        layout_optimization,
-        Some((frame.layout(), frame.protocol())),
+    let (frame, protocol) = validate_frame_geometry(program, &program.instructions.preservation)?;
+    validate_exit_record_for_current_layout(
+        &staged.layout_optimization,
+        Some((&frame, &protocol)),
         &staged.exit_contract,
     )
     .map_err(FunctionRelativeOptimizationRealizationError::ExitContract)?;
-    let manifest = expected_fixed_frame_manifest(
-        &current,
-        &framed.machine,
-        encoding,
-        baseline_layout,
-        layout_optimization,
-        frame.layout(),
-        frame.protocol(),
-        &staged.exit_contract,
-    )?;
-    let custody = fixed_frame_custody(
-        source.clone(),
-        &framed.machine,
-        frame.requirements(),
-        frame.storage(),
-        frame.layout(),
-        frame.protocol(),
-        &staged.exit_contract,
-        &manifest,
-    );
-    if &source != staged.custody.source()
-        || manifest.record != staged.manifest.record
-        || custody != staged.custody
-    {
+    let manifest =
+        expected_fixed_frame_manifest(&staged.layout_optimization, &staged.exit_contract)?;
+    let custody = fixed_frame_custody(program, &staged.exit_contract, &manifest);
+    if manifest.record != staged.manifest.record || custody != staged.custody {
         return Err(FunctionRelativeOptimizationRealizationError::ReceiptMismatch);
     }
     Ok(custody)
 }
 
-/// The framed program shares the allocation's, machine plan's and frame's
-/// plans; a pointer match settles equality without a deep comparison.
-fn framed_program_matches(
-    retained: &FramedMachineProgram,
-    expected: &FramedMachineProgram,
-) -> bool {
-    fn same<Plan: Eq>(left: &Arc<Plan>, right: &Arc<Plan>) -> bool {
-        Arc::ptr_eq(left, right) || left == right
+pub(crate) fn verify_fixed_frame_original_correspondence(
+    staged: &StagedFixedFrameFunctionRelativeRealization,
+) -> Result<
+    StagedFixedFrameFunctionRelativeRealizationCustodyReceipt,
+    FunctionRelativeOptimizationRealizationError,
+> {
+    let originals = staged.replay()?;
+    let current = originals.allocation.current();
+    let selected = current.selected();
+    let environment = current.register_environment();
+    let physical = environment.physical();
+    let replay = post_allocation_machine::program_validation::PhysicalProgramReplay {
+        selected: selected.current_program(),
+        machine: originals.machine.machine().plan(),
+        environment,
+        preservation: originals.allocation.preservation().retained(),
+        publication: originals.allocation.publication(),
+        phase: post_allocation_machine::PostAllocationMachinePhaseReceipt::from_parts(
+            originals.machine.optimization().complete_selection(),
+            originals.machine.optimization().phase_selections(),
+            originals.machine.optimization().result(),
+        ),
+    };
+    post_allocation_machine::program_validation::validate_current_program(
+        &staged.program().instructions,
+        replay,
+    )
+    .map_err(FunctionRelativeOptimizationRealizationError::CurrentProgram)?;
+    if staged.program().encoding.as_ref() != originals.encoding.program()
+        || staged.layout_optimization.baseline_identity() != originals.baseline_layout.identity()
+    {
+        return Err(FunctionRelativeOptimizationRealizationError::RootMismatch);
     }
-    same(&retained.selected, &expected.selected)
-        && same(&retained.machine, &expected.machine)
-        && same(&retained.frame, &expected.frame)
-        && retained.selected_identity == expected.selected_identity
-        && retained.optimization_unit == expected.optimization_unit
-        && retained.work_schedule == expected.work_schedule
-        && retained.physical == expected.physical
+    validate_optimized_layout_independent_selected_form_encoding(
+        post_allocation_machine_to_selected_form_encoding::SelectedFormEncodingValidation {
+            replay,
+            frame: Some(&staged.program().frame),
+            artifact: &originals.encoding,
+        },
+    )
+    .map_err(FunctionRelativeOptimizationRealizationError::Encoding)?;
+    validate_optimized_resolved_selected_form_layout(
+        selected_form_encoding_to_resolved_layout::ResolvedLayoutValidation {
+            replay,
+            pre_layout: originals.encoding.program(),
+            artifact: &originals.baseline_layout,
+        },
+    )
+    .map_err(FunctionRelativeOptimizationRealizationError::Layout)?;
+    validate_resolved_layout_optimization(
+        physical,
+        originals.baseline_layout.program(),
+        &current
+            .selections()
+            .project_phase(OptimizationExecutionPhase::FunctionRelativeLayout),
+        &staged.layout_optimization,
+    )
+    .map_err(FunctionRelativeOptimizationRealizationError::LayoutOptimization)?;
+    let requirements = validate_allocated_callee_saved_requirements(
+        &current,
+        staged.program().instructions.preservation.plan().clone(),
+    )
+    .map_err(FunctionRelativeOptimizationRealizationError::CalleeSavedRequirements)?;
+    let (frame, protocol) = validate_frame_geometry(staged.program(), requirements.retained())?;
+    validate_exit_record_for_current_layout(
+        &staged.layout_optimization,
+        Some((&frame, &protocol)),
+        &staged.exit_contract,
+    )
+    .map_err(FunctionRelativeOptimizationRealizationError::ExitContract)?;
+    let manifest =
+        expected_fixed_frame_manifest(&staged.layout_optimization, &staged.exit_contract)?;
+    let custody = fixed_frame_custody(staged.program(), &staged.exit_contract, &manifest);
+    if manifest.record != staged.manifest.record || custody != staged.custody {
+        return Err(FunctionRelativeOptimizationRealizationError::ReceiptMismatch);
+    }
+    Ok(custody)
 }
 
-#[allow(clippy::too_many_arguments)]
 fn expected_fixed_frame_manifest(
-    allocation: &AllocationOutput<'_>,
-    machine: &AllocatedMachinePlan,
-    encoding: &EncodedFunction,
-    baseline_layout: &LaidOutFunction,
-    layout_optimization: &OptimizedFunctionLayout,
-    frame: &ValidatedTargetFrameLayout,
-    protocol: &ValidatedTargetFrameProtocolEncoding,
+    layout_optimization: &ResolvedLayoutOptimization,
     exit_contract: &StagedWholeFunctionExitContract,
 ) -> Result<
     ValidatedFunctionRelativeOptimizationRealizationManifest,
     FunctionRelativeOptimizationRealizationError,
 > {
-    let selections = allocation.selections();
+    let program = layout_optimization.program();
+    let machine = &program.instructions.machine;
+    let encoding = &*program.encoding;
+    let baseline_layout = layout_optimization.baseline_identity();
+    let baseline_roots = layout_optimization.baseline_roots();
+    let frame = &program.frame;
+    let protocol = &program.protocol;
+    let facts = &program.instructions.publication;
+    let selections = facts.selections();
     validate_layout_optimization_manifest_roots(baseline_layout, layout_optimization, selections)?;
     let layout = layout_optimization.layout();
     let relaxation = layout_optimization
@@ -629,71 +560,37 @@ fn expected_fixed_frame_manifest(
     let post_allocation = selections.for_phase(OptimizationExecutionPhase::PostAllocationMachine);
     let function_relative =
         selections.for_phase(OptimizationExecutionPhase::FunctionRelativeLayout);
-
-    let post = allocation.post_allocation_manifest().record();
-    let selected = allocation.selected().selected_identity();
-    let expected_transformations = match allocation.evidence() {
-        AllocationEvidence::RegisterHomes(_) => Vec::new(),
-        AllocationEvidence::FixedViewCopies(receipt) => {
-            vec![PostAllocationSelectedTransformation::FixedViewCopy(
-                receipt.source().source().transformation(),
-            )]
-        }
-        AllocationEvidence::SelectedLowering(receipt) => {
-            receipt.source().transformations().to_vec()
-        }
-        AllocationEvidence::ActiveResidentRematerialization(receipt) => vec![
-            PostAllocationSelectedTransformation::PressureRematerialization(
-                receipt.rematerialization(),
-            ),
-        ],
-        AllocationEvidence::PreAllocation(receipt) => receipt.source().transformations().to_vec(),
-        AllocationEvidence::RuntimeSpill(identity) if *identity == post.identity => {
-            post.selected_transformations.clone()
-        }
-        _ => return Err(FunctionRelativeOptimizationRealizationError::RootMismatch),
-    };
-    let (expected_lowering_selections, expected_lowering_completion) = match allocation.evidence() {
-        AllocationEvidence::SelectedLowering(receipt) => (
-            receipt.source().phase_selections(),
-            Some(receipt.source().identity()),
-        ),
-        _ => (OptimizationSelections::default().identity(), None),
-    };
-    // Stage 02's pre-physical manifest is checked against this one where
-    // object emission joins stage 02's output (`fragment_emission`).
+    let post = facts.record();
+    let selected = machine.selected;
+    let expected_lowering_completion = post.selected_lowering_completion;
     let pre_physical = post.pre_physical;
-    let post_allocation_run = machine.optimization();
-    if selected_lowering.identity() != expected_lowering_selections
-        || post_allocation_run.complete_selection() != selections.identity()
+    let post_allocation_run = program.instructions.phase;
+    if post_allocation_run.complete_selection() != selections.identity()
         || post_allocation_run.phase_selections() != post_allocation.identity()
-        || post_allocation_run.result() != machine.machine().receipt().identity()
-        || post.selected_transformations != expected_transformations
-        || post.selected_lowering_completion != expected_lowering_completion
+        || post_allocation_run.result() != machine.identity
         || post.selected != selected
-        || machine.machine().receipt().post_allocation_manifest() != post.identity
-        || machine.machine().receipt().selected() != selected
+        || machine.post_allocation_manifest != post.identity
+        || machine.selected != selected
         || encoding.selected() != selected
-        || encoding.machine() != machine.machine().receipt().identity()
-        || baseline_layout.selected() != selected
-        || baseline_layout.machine() != machine.machine().receipt().identity()
-        || baseline_layout.pre_layout() != encoding.identity()
+        || encoding.machine() != machine.identity
+        || baseline_roots.selected != selected
+        || baseline_roots.machine != machine.identity
+        || baseline_roots.pre_layout != encoding.identity()
         || layout.selected() != selected
-        || layout.machine() != machine.machine().receipt().identity()
+        || layout.machine() != machine.identity
         || layout.pre_layout() != encoding.identity()
-        || frame.receipt().post_allocation_machine() != machine.machine().receipt().identity()
-        || protocol.receipt().frame_layout() != frame.receipt().identity()
+        || frame.post_allocation_machine != machine.identity
+        || protocol.frame_layout != program.frame_identity
         || exit_contract.contract().selected != selected
         || exit_contract.contract().post_allocation_manifest != post.identity
-        || exit_contract.contract().post_allocation_machine
-            != machine.machine().receipt().identity()
+        || exit_contract.contract().post_allocation_machine != machine.identity
         || exit_contract.contract().pre_layout != encoding.identity()
         || exit_contract.contract().resolved_layout != layout.identity()
         || exit_contract.contract().layout_custody != layout_custody
         || exit_contract.contract().frame
             != (machine_code::WholeFunctionFrameDisposition::CanonicalFixedFrameV1 {
-                layout: frame.receipt().identity(),
-                protocol: protocol.receipt().identity(),
+                layout: program.frame_identity,
+                protocol: program.protocol_identity,
             })
     {
         return Err(FunctionRelativeOptimizationRealizationError::RootMismatch);
@@ -714,11 +611,11 @@ fn expected_fixed_frame_manifest(
         pre_physical_manifest: pre_physical,
         post_allocation_manifest: post.identity,
         selected,
-        pre_allocation_machine_effects: machine.effects().identity,
-        post_allocation_machine: machine.machine().receipt().identity(),
+        pre_allocation_machine_effects: program.instructions.machine.effects,
+        post_allocation_machine: machine.identity,
         baseline_pre_layout: encoding.identity(),
         pre_layout: encoding.identity(),
-        baseline_resolved_layout: baseline_layout.identity(),
+        baseline_resolved_layout: baseline_layout,
         resolved_layout: layout.identity(),
         x86_branch_relaxation: relaxation,
         post_allocation_machine_optimization: None,
@@ -728,8 +625,8 @@ fn expected_fixed_frame_manifest(
         scope: FunctionRelativeOptimizationRealizationScope::FunctionRelativeFragmentsWithValidatedWholeFunctionExitV1,
         statistics: function_relative_statistics(layout)?,
         frame: FunctionRelativeFrameDisposition::CanonicalFixedFrameV1 {
-            layout: frame.receipt().identity(),
-            protocol: protocol.receipt().identity(),
+            layout: program.frame_identity,
+            protocol: program.protocol_identity,
         },
         machine_emission: unavailable,
         section_placement: unavailable,
@@ -745,30 +642,25 @@ fn expected_fixed_frame_manifest(
 
 #[allow(clippy::too_many_arguments)]
 fn fixed_frame_custody(
-    source: AllocationEvidence,
-    machine: &AllocatedMachinePlan,
-    requirements: &ValidatedAllocatedCalleeSavedRequirements,
-    storage: &ValidatedNonAuthoritativeCalleeSaveStorage,
-    frame: &ValidatedTargetFrameLayout,
-    protocol: &ValidatedTargetFrameProtocolEncoding,
+    program: &machine_code::ResolvedMachineProgram,
     exit_contract: &StagedWholeFunctionExitContract,
     manifest: &ValidatedFunctionRelativeOptimizationRealizationManifest,
 ) -> StagedFixedFrameFunctionRelativeRealizationCustodyReceipt {
     StagedFixedFrameFunctionRelativeRealizationCustodyReceipt {
-        source,
-        machine: machine.machine().receipt().identity(),
-        requirements: requirements.receipt().identity(),
-        storage: storage.receipt().identity(),
-        frame: frame.receipt().identity(),
-        protocol: protocol.receipt().identity(),
+        source: program.instructions.publication.record().identity,
+        machine: program.instructions.machine.identity,
+        requirements: program.instructions.preservation.identity(),
+        storage: program.frame.callee_save_storage,
+        frame: program.frame_identity,
+        protocol: program.protocol_identity,
         exit_contract: exit_contract.identity(),
         realization: manifest.record.identity,
     }
 }
 
 fn validate_layout_optimization_manifest_roots(
-    baseline_layout: &LaidOutFunction,
-    layout: &OptimizedFunctionLayout,
+    baseline_layout: ResolvedSelectedFormLayoutIdentity,
+    layout: &ResolvedLayoutOptimization,
     selections: &OptimizationSelections,
 ) -> Result<(), FunctionRelativeOptimizationRealizationError> {
     let phase = selections.project_phase(OptimizationExecutionPhase::FunctionRelativeLayout);
@@ -776,9 +668,9 @@ fn validate_layout_optimization_manifest_roots(
         return Err(FunctionRelativeOptimizationRealizationError::RootMismatch);
     }
     match layout.relaxation() {
-        None if layout.layout() == baseline_layout.program() => Ok(()),
+        None if layout.layout().identity() == baseline_layout => Ok(()),
         Some(relaxation)
-            if relaxation.source() == baseline_layout.identity()
+            if relaxation.source() == baseline_layout
                 && relaxation.output() == layout.layout().identity()
                 && relaxation.layout() == layout.layout() =>
         {

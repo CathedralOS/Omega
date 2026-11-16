@@ -1537,6 +1537,8 @@ pub mod expression {
                 }
                 self.retain_inferred_lifetime_application(copy);
                 self.static_machine_application_mut(copy)
+                    .source_record_receiver = declaration.source_record_receiver;
+                self.static_machine_application_mut(copy)
                     .binding_declaration = declaration.binding_declaration;
                 self.static_machine_application_mut(copy)
                     .conformance_selection =
@@ -2215,6 +2217,7 @@ pub mod expression {
                         let fields =
                             self.copy_struct_literal_fields(source, &literal, retain, copies);
                         self.insert(ExpressionNode::StructLiteral(TableStructLiteral {
+                            zero_omitted_fields: literal.zero_omitted_fields,
                             application_type: literal.application_type,
                             type_name: literal.type_name,
                             type_symbol: literal.type_symbol,
@@ -3159,6 +3162,7 @@ pub mod expression {
                         let fields =
                             self.insert_struct_field_span_from_tree(&struct_literal.fields);
                         self.insert(ExpressionNode::StructLiteral(TableStructLiteral {
+                            zero_omitted_fields: struct_literal.zero_omitted_fields,
                             application_type: Default::default(),
                             type_name: struct_literal.type_name.clone(),
                             type_symbol: SymbolHandle::invalid(),
@@ -3607,6 +3611,7 @@ pub mod expression {
             self.static_machine_applications
                 .insert(StaticMachineApplication {
                     callable_contract_source: StaticMachineApplicationHandle::invalid(),
+                    source_record_receiver: None,
                     registration_operation,
                     lexical_owner: SymbolHandle::invalid(),
                     inferred_lifetime_owner: SymbolHandle::invalid(),
@@ -4967,6 +4972,9 @@ pub mod expression {
         pub target_type: crate::types::TypeReferenceHandle,
         pub result_type: crate::types::TypeReferenceHandle,
         pub target_label: HandleSpan<Identifier>,
+        /// The written policy, or Exact when none was named. An Entry
+        /// preserves this even for removal; result_type records the
+        /// resulting qualification independently.
         pub domain: numerics::arithmetic::ArithmeticDomain,
         pub semantic_domain: HandleSpan<Identifier>,
         pub semantic_domain_arguments: HandleSpan<crate::types::TypeReferenceHandle>,
@@ -5223,6 +5231,11 @@ pub mod expression {
 
     #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
     pub struct StaticMachineArgument {
+        /// Forwarding keeps the author's exact declaration selection, including
+        /// its compiler-copy owner, after names lose their source coordinates.
+        pub authored_selection: Option<
+            language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId,
+        >,
         pub type_reference: crate::types::TypeReferenceHandle,
         pub path: Box<[Identifier]>,
         pub application: Option<Box<StaticSymbolApplication>>,
@@ -5325,6 +5338,8 @@ pub mod expression {
 
     #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
     pub struct TableStructLiteral {
+        /// A final source `..` requests ordinary zero values for missing runtime fields.
+        pub zero_omitted_fields: bool,
         pub application_type: crate::types::TypeReferenceHandle,
         pub type_name: Identifier,
         pub type_symbol: SymbolHandle,
@@ -5662,6 +5677,7 @@ pub mod expression {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct StructLiteral {
+        pub zero_omitted_fields: bool,
         pub type_name: Identifier,
         pub case_name: Option<Identifier>,
         pub fields: Arc<[StructLiteralField]>,

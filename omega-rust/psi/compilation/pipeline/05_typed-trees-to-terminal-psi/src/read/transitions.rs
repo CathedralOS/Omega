@@ -380,7 +380,10 @@ impl Program<'_> {
                 let members = typed.statement_table.name_path_members(path.members).len();
                 let qualified = members == 2
                     && path.head_symbol == path.receiver_symbol
-                    && self.names_requirement(path.symbol, path.receiver_symbol);
+                    && (self.names_requirement(path.symbol, path.receiver_symbol)
+                        || self
+                            .record_requirement_signature(id, path.receiver_symbol, path.symbol)?
+                            .is_some());
                 if !qualified && (members != 1 || path.receiver_symbol.is_valid()) {
                     return Err(refuse(
                         id,
@@ -398,6 +401,9 @@ impl Program<'_> {
                     id,
                     slots,
                     path.symbol,
+                    path.receiver_symbol
+                        .is_valid()
+                        .then_some(path.receiver_symbol),
                     arguments,
                     *authored_call_selection,
                     source,
@@ -407,7 +413,15 @@ impl Program<'_> {
                     let (authored, static_reach_binding) =
                         self.static_machine_target(id, path.symbol, *static_machine_parameter)?;
                     self.direct_selection(id, authored, *authored_call_selection, None)?;
-                    let call = self.call(id, slots, path.symbol, arguments, source, None)?;
+                    let call = self.call_selected(
+                        id,
+                        slots,
+                        path.symbol,
+                        arguments,
+                        source,
+                        None,
+                        static_reach_binding,
+                    )?;
                     self.retain_static_reach(id, call, static_reach_binding)?
                 };
                 crate::operational::retain(&mut call, *operational_acknowledgement, true);

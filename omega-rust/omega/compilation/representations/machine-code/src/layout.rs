@@ -19,12 +19,10 @@ use std::sync::Arc;
 
 use post_allocation_machine::{
     PostAllocationMachineIdentity, PostAllocationMachineOptimizationCustody,
-    PostAllocationMachinePlan,
 };
-use register_homes::RegisterHomePlan;
 use selected_instructions::{
-    MachineAlternativeKey, MachineEncodedEffects, PreAllocationMachineEffectPlan, SelectedBlockId,
-    SelectedInstructionId, SelectedInstructionPlan, SelectedInstructionPlanIdentity,
+    MachineAlternativeKey, MachineEncodedEffects, SelectedBlockId, SelectedInstructionId,
+    SelectedInstructionPlanIdentity,
 };
 use semantic_vocabulary::{EdgeId, MachineId};
 use target::NativeTarget;
@@ -34,7 +32,8 @@ use crate::{
     SelectedFormEncoding, SelectedFormEncodingIdentity, SelectedFormImageAddressFixup,
     SelectedFormInternalMachineFixup, SelectedFormInternalMachineFixupKind,
     SelectedFormInternalMachineFixupState, SelectedFormNormalizedForeignCallFixup,
-    TargetFrameLayoutPlan, TargetFrameProtocolEncodingPlan,
+    TargetFrameLayoutIdentity, TargetFrameLayoutPlan, TargetFrameProtocolEncodingIdentity,
+    TargetFrameProtocolEncodingPlan,
 };
 
 pub use evidence::{
@@ -55,6 +54,15 @@ pub use text_section::{
 };
 
 register_homes::identity_newtype! { pub struct ResolvedSelectedFormLayoutIdentity(pub(super) [u8; 32]); }
+
+/// Retains the exact input joins for a layout without retaining its earlier rows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ResolvedLayoutRoots {
+    pub identity: ResolvedSelectedFormLayoutIdentity,
+    pub selected: SelectedInstructionPlanIdentity,
+    pub machine: PostAllocationMachineIdentity,
+    pub pre_layout: SelectedFormEncodingIdentity,
+}
 
 const LAYOUT_SCHEMA: &[u8] = b"omega.terminal.resolved-selected-form-layout.v17";
 
@@ -177,6 +185,15 @@ pub struct ResolvedMachineLayout {
 }
 
 impl ResolvedMachineLayout {
+    pub fn roots(&self) -> ResolvedLayoutRoots {
+        ResolvedLayoutRoots {
+            identity: self.identity,
+            selected: self.selected,
+            machine: self.machine,
+            pre_layout: self.pre_layout,
+        }
+    }
+
     pub fn selected(&self) -> SelectedInstructionPlanIdentity {
         self.selected
     }
@@ -241,15 +258,36 @@ impl ResolvedMachineLayout {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ResolvedMachineProgram {
-    pub selected: Arc<SelectedInstructionPlan>,
-    pub homes: Arc<RegisterHomePlan>,
-    pub effects: Arc<PreAllocationMachineEffectPlan>,
-    pub machine: Arc<PostAllocationMachinePlan>,
-    pub encoding: Arc<SelectedFormEncoding>,
-    pub layout: Arc<ResolvedMachineLayout>,
+pub struct FramedMachineProgram {
+    pub frame_identity: TargetFrameLayoutIdentity,
+    pub protocol_identity: TargetFrameProtocolEncodingIdentity,
+    pub instructions: post_allocation_machine::PostAllocationMachineProgram,
+    pub storage: Arc<crate::NonAuthoritativeCalleeSaveStoragePlan>,
     pub frame: Arc<TargetFrameLayoutPlan>,
     pub protocol: Arc<TargetFrameProtocolEncodingPlan>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EncodedMachineProgram {
+    pub frame_identity: TargetFrameLayoutIdentity,
+    pub protocol_identity: TargetFrameProtocolEncodingIdentity,
+    pub instructions: post_allocation_machine::PostAllocationMachineProgram,
+    pub storage: Arc<crate::NonAuthoritativeCalleeSaveStoragePlan>,
+    pub frame: Arc<TargetFrameLayoutPlan>,
+    pub protocol: Arc<TargetFrameProtocolEncodingPlan>,
+    pub encoding: Arc<SelectedFormEncoding>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResolvedMachineProgram {
+    pub frame_identity: TargetFrameLayoutIdentity,
+    pub protocol_identity: TargetFrameProtocolEncodingIdentity,
+    pub instructions: post_allocation_machine::PostAllocationMachineProgram,
+    pub storage: Arc<crate::NonAuthoritativeCalleeSaveStoragePlan>,
+    pub frame: Arc<TargetFrameLayoutPlan>,
+    pub protocol: Arc<TargetFrameProtocolEncodingPlan>,
+    pub encoding: Arc<SelectedFormEncoding>,
+    pub layout: Arc<ResolvedMachineLayout>,
 }
 
 pub fn resolved_machine_layout_identity(

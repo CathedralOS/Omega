@@ -23,11 +23,11 @@ skip the question by matching the record out of a qualified type with `_`.
 Shape metadata (`data_type`) stays open: "Type/field metadata and already
 established proof facts are not new runtime reads".
 
-Who may read or write a governed value is stated by its policy's plan
-(`wiki/spec/resources/access.md`), and no pass evaluates a plan. A domain
-with a policy therefore admits no reader or writer this checker can name,
-and the use is refused by name. A domain with no policy restricts neither
-axis ("Omitting a policy, or omitting the reader or writer axis in a policy,
+The Build evaluates the policy's plan before this reader forms an operation
+(`wiki/spec/resources/access.md`). An unevaluated plan cannot justify the
+operation, so its use is refused. A complete plan stays with the value through
+lowering; the canonical judgment checks its rules against the actual memory and
+invocation. A domain with no policy restricts neither axis ("Omitting a policy, or omitting the reader or writer axis in a policy,
 adds no restriction on that axis").
 */
 
@@ -43,6 +43,8 @@ use crate::{Unserved, refuse};
 pub(super) enum Access {
     /// Reads inside it: a field, an element, a payload, its case.
     Read,
+    /// Selects storage for a shared loan without copying its contents.
+    Borrow,
     /// Stores a complete value of the same type over it.
     Replace,
     /// Changes part of it: a store into a field or an element, or an
@@ -50,9 +52,9 @@ pub(super) enum Access {
     Write,
 }
 
-/// A record whose contents the site holding it may look inside: either the
-/// machine being read was authorized for the access it does, or the record
-/// is a carrier being constructed. Only this module makes one.
+/// A record whose operation can reach canonical access checking, or a fresh
+/// carrier being constructed. Only this module makes one; the complete plan
+/// remains attached for the storage/caller judgment before execution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct Opened(StructuralTypeId);
 
@@ -95,11 +97,14 @@ impl Program<'_> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
         for domain in value_type.qualification().domains.members() {
             let definition = self.domain_theory(id, domain)?;
-            // A checked plan has no reader or writer rules, so it restricts
-            // neither; a plan nobody has run cannot be shown to permit this.
+            // Only a complete selected plan can reach operation checking.
+            // Its canonical field/caller rules remain attached to the value
+            // and are checked against actual storage before execution.
             if definition.access_unjudged() {
                 return unserved(match access {
-                    Access::Read => "read inside a value governed by an access policy",
+                    Access::Read | Access::Borrow => {
+                        "read inside a value governed by an access policy"
+                    }
                     Access::Replace => "replacement of a value governed by an access policy",
                     Access::Write => "write inside a value governed by an access policy",
                 });
@@ -234,11 +239,15 @@ impl Program<'_> {
     /// value only after its default-domain obligations hold", and "Gating
     /// propagates through containment; a zero-valid first sum case can
     /// represent emptiness without constructing a gated payload." A domain
-    /// with neither predicates nor an issuer restriction owes nothing
-    /// (domains.md: "adds no predicate or issuer obligation"), so zero is a
-    /// member; any other domain makes the type gated, and a gated value is
-    /// constructed with every field supplied.
-    pub(super) fn zero_established(&self, id: MachineId, value_type: ValueType) -> Checked<()> {
+    /// declared on a constructed field owes its predicates through the owning
+    /// data type. Issuance is separate: zero construction must be authorized by
+    /// the same exact route as an explicit domain addition.
+    pub(super) fn zero_established(
+        &mut self,
+        id: MachineId,
+        value_type: ValueType,
+        source: crate::SourceOrigin,
+    ) -> Checked<()> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Statement(what)));
         // Each type with whether it is a field of a record in the value.
         let mut pending = vec![(value_type, false)];
@@ -249,15 +258,10 @@ impl Program<'_> {
                 // zero satisfies them and keeps the window when it does not.
                 // A zeroed local that is itself the qualified scalar has no
                 // such owner.
-                let free = {
-                    let definition = self.domain_theory(id, domain)?;
-                    (contained || !has_predicates(definition))
-                        && definition.issuance()
-                            == typed_trees::domain::DomainIssuance::Unrestricted
-                };
-                if !free {
+                if !contained && has_predicates(self.domain_theory(id, domain)?) {
                     return unserved("zero-established value in a domain that must be established");
                 }
+                self.issue(id, domain, source)?;
             }
             let ValueType::Record(record, _, _) = value_type else {
                 continue;
@@ -276,7 +280,7 @@ impl Program<'_> {
                     cases
                         .first()
                         .into_iter()
-                        .flat_map(|case| case.fields.iter().map(|field| (field.value_type, false))),
+                        .flat_map(|case| case.fields.iter().map(|field| (field.value_type, true))),
                 ),
                 StorageShape::FixedArray {
                     element,

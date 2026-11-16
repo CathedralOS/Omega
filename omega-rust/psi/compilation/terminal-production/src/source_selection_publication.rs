@@ -1569,6 +1569,15 @@ impl<'source> Declarations<'source> {
                 identity: intrinsic_identity(&member, "builtin-type-member-v1:")?,
             });
         }
+        if let Some(declaration) = self.typed.symbols.fixed_core_declaration_for_symbol(symbol) {
+            // Kernel vocabulary is installed at exact root slots. It has no
+            // authored source/package and grants no invocation or proof rule.
+            let ordinal = u8::try_from(declaration.ordinal())
+                .map_err(|_| refused("fixed core declaration exceeds its closed ordinal"))?;
+            return Ok(SelectionReference::Intrinsic {
+                identity: intrinsic_identity(&ordinal, "fixed-core-declaration-v1:")?,
+            });
+        }
         match self.typed.symbols.get(symbol).kind {
             SymbolKind::Parameter
             | SymbolKind::Local
@@ -1591,6 +1600,96 @@ impl<'source> Declarations<'source> {
 #[cfg(test)]
 mod symbol_rows_tests {
     use super::*;
+
+    #[test]
+    fn fixed_kernel_references_keep_their_slots_without_authored_provenance() {
+        use symbols::{FixedCoreDeclaration, SymbolNameRef, SymbolTableBuilder};
+        let mut builder = SymbolTableBuilder::default();
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let children = builder.insert_children(
+            root,
+            symbols::builtin_type_symbols()
+                .into_iter()
+                .chain(symbols::builtin_function_symbols())
+                .chain(symbols::fixed_core_declaration_symbols())
+                .chain([(
+                    SymbolKind::MathematicalDefinition,
+                    SymbolNameRef::Static("core::Identity"),
+                )]),
+        );
+        let counterfeit = children.handle_at(children.count() - 1);
+        let typed = TypedTrees {
+            symbols: builder.finish(),
+            ..Default::default()
+        };
+        let count = typed.symbols.symbols().nodes().len();
+        let mut declarations = Declarations {
+            typed: &typed,
+            build_entry_source: None,
+            ids: SymbolRows::new(count),
+            identities: SymbolRows::new(count),
+            contracts: SymbolRows::new(count),
+            sources: Vec::new(),
+        };
+        let mut output = SelectionQuestions::default();
+        let mut identities = std::collections::BTreeSet::new();
+        for declaration in FixedCoreDeclaration::ALL {
+            let symbol = typed
+                .symbols
+                .fixed_core_declaration_symbol(declaration)
+                .unwrap();
+            let selected = declarations
+                .symbol_reference(
+                    &mut output,
+                    root,
+                    symbol,
+                    StaticArgumentRole::ValueDependency,
+                )
+                .unwrap();
+            let SelectionReference::Intrinsic { identity } = &selected else {
+                panic!("fixed vocabulary became an authored declaration");
+            };
+            assert!(identity.starts_with("fixed-core-declaration-v1:"));
+            assert!(identities.insert(identity.clone()));
+            assert_eq!(
+                declarations
+                    .symbol_reference(
+                        &mut output,
+                        root,
+                        symbol,
+                        StaticArgumentRole::ValueDependency
+                    )
+                    .unwrap(),
+                selected
+            );
+            let stale = SymbolHandle::from_parts(symbol.arena_index(), symbol.generation() + 1);
+            assert!(
+                declarations
+                    .symbol_reference(
+                        &mut output,
+                        root,
+                        stale,
+                        StaticArgumentRole::ValueDependency
+                    )
+                    .is_err()
+            );
+        }
+        let error = declarations
+            .symbol_reference(
+                &mut output,
+                root,
+                counterfeit,
+                StaticArgumentRole::ValueDependency,
+            )
+            .unwrap_err();
+        assert!(
+            error
+                .message
+                .contains("no retained source/package provenance")
+        );
+        assert!(declarations.sources.is_empty());
+        assert!(output.declarations.is_empty());
+    }
 
     #[test]
     fn source_declaration_rows_keep_symbol_generations_and_arena_bounds() {
@@ -1635,11 +1734,15 @@ machine entry() -> u64 crashes none {
     Second::pick(repeated)
 }
 "#;
+        accepted_source(TEXT, &[])
+    }
+
+    fn accepted_source(text: &str, metadata_names: &[&str]) -> AcceptedTerminalSource {
         let mut sources = source::SourceMap::default();
         let id = sources
             .add_checked_instance(
                 "selection/main.omg".into(),
-                TEXT,
+                text,
                 "selection".into(),
                 Some(semantic_vocabulary::PackageKeyIdentity::from_digest([0xc3; 32]).unwrap()),
                 source::SourceOrigin::User,
@@ -1647,7 +1750,7 @@ machine entry() -> u64 crashes none {
                 source::DependencyScope::Product,
             )
             .source_id;
-        let tokens = source_files_to_tokens::Lexer::new(TEXT).tokenize().unwrap();
+        let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
         let syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(id, &tokens).unwrap();
         let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
             syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
@@ -1666,6 +1769,27 @@ machine entry() -> u64 crashes none {
             .find(|machine| machine.name.as_str() == "entry")
             .unwrap()
             .symbol;
+        let metadata = metadata_names
+            .iter()
+            .map(|name| {
+                typed
+                    .traits()
+                    .iter()
+                    .find(|declaration| declaration.name.as_str() == *name)
+                    .expect("the fixture names its actual declaration")
+                    .symbol
+            })
+            .collect::<Vec<_>>();
+        let mut selected = metadata.clone();
+        for &symbol in &metadata {
+            let owner = typed.trait_definition_by_symbol(symbol).unwrap();
+            selected.extend(
+                typed
+                    .trait_machine_signatures(owner)
+                    .iter()
+                    .map(|signature| signature.symbol),
+            );
+        }
         let (frozen, _) = typed_trees_to_typed_trees::prepare_typed_trees(
             typed,
             &typed_trees_to_typed_trees::PreparationRequest::settled(),
@@ -1674,11 +1798,11 @@ machine entry() -> u64 crashes none {
         AcceptedTerminalSource::judge(
             Arc::new(frozen),
             typed_trees_to_terminal_psi::Compilation {
-                declaration_metadata: &[],
+                declaration_metadata: &metadata,
                 entries: &[entry],
                 subjects: &[],
                 purpose: source::DependencyScope::Product,
-                selected: &[],
+                selected: &selected,
                 bindings: &[],
                 calling: None,
                 providers: None,
@@ -1687,6 +1811,83 @@ machine entry() -> u64 crashes none {
             terminal_codec::TerminalPublication::Invocation,
         )
         .unwrap()
+    }
+
+    #[test]
+    fn requirement_overloads_keep_their_signatures_and_refuse_header_swaps() {
+        // Publish both complete headers directly. A signature-free named call
+        // would test overload selection before reaching this identity owner.
+        let source = accepted_source(
+            r#"
+boundary trait Input {
+    machine pick(value: u64) -> u64 reaches none crashes none;
+    machine pick(value: bool) -> bool reaches none crashes none;
+}
+machine entry() reaches Input {}
+"#,
+            &["Input"],
+        );
+        let module = source.module();
+        let prepared = prepare(&source, module, None).unwrap();
+        terminal_installation::selection_questions::validate_selection_questions(
+            module,
+            &prepared.questions,
+        )
+        .unwrap();
+        let typed = source.source();
+        let owner = typed
+            .traits()
+            .iter()
+            .find(|owner| owner.name.as_str() == "Input")
+            .unwrap();
+        let identities = typed
+            .trait_machine_signatures(owner)
+            .iter()
+            .map(|signature| {
+                typed
+                    .normalized_hermetic_symbol_identity(signature.symbol)
+                    .unwrap()
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(identities.len(), 2);
+        assert_ne!(identities[0], identities[1]);
+        let headers = prepared
+            .questions
+            .joins
+            .iter()
+            .filter_map(|join| match join {
+                SelectionJoin::Boundary {
+                    declaration,
+                    boundary,
+                } => Some((*declaration, *boundary)),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(headers.len(), 2);
+        assert_ne!(headers[0].0, headers[1].0);
+        for (original, other) in [(headers[0], headers[1]), (headers[1], headers[0])] {
+            let mut changed = prepared.questions.clone();
+            let joined = changed
+                .joins
+                .iter_mut()
+                .find_map(|join| match join {
+                    SelectionJoin::Boundary {
+                        declaration,
+                        boundary,
+                    } if *boundary == original.1 => Some(declaration),
+                    _ => None,
+                })
+                .unwrap();
+            *joined = other.0;
+            let error = terminal_installation::selection_questions::validate_selection_questions(
+                module, &changed,
+            )
+            .unwrap_err();
+            assert!(
+                error.contains("boundary differs from its checked semantic declaration"),
+                "{error}"
+            );
+        }
     }
 
     #[test]

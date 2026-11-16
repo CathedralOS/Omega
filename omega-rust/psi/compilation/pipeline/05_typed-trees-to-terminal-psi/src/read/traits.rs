@@ -101,7 +101,7 @@ impl Program<'_> {
         self.read_trait_schema(context, declaration).map(|_| ())
     }
 
-    fn read_trait_schema(
+    pub(super) fn read_trait_schema(
         &mut self,
         context: MachineId,
         declaration: &TraitDefinition,
@@ -266,6 +266,7 @@ impl Program<'_> {
             SourceSchema {
                 declaration: symbol,
                 requirements,
+                bindings: Vec::new(),
             },
         );
         let parents = AppliedTraitScope::abstract_scope(declaration)
@@ -295,10 +296,10 @@ impl Program<'_> {
         let scopes =
             typed_trees::service_declarations::projection::inherited_scopes(typed, scope.clone())
                 .map_err(|diagnostic| services::unavailable(context, diagnostic.message))?;
-        let mut ordinary = false;
+        let mut needs_contract_owner = false;
         for view in &scopes {
             if !view.declaration.is_boundary {
-                ordinary = true;
+                needs_contract_owner = true;
                 if view
                     .parent_scopes(typed)
                     .map_err(|reason| services::unavailable(context, reason))?
@@ -314,7 +315,13 @@ impl Program<'_> {
                 // Each parent keeps its own schema. Authenticate its supplied
                 // types in that parent's application before the existing
                 // service and Calling owners retain the inherited questions.
-                for signature in typed.trait_machine_signatures(view.declaration) {
+                let signatures = typed.trait_machine_signatures(view.declaration);
+                if !signatures.is_empty() {
+                    // The complete inherited callable surface still owes the
+                    // exact selected contract owner before publication.
+                    needs_contract_owner = true;
+                }
+                for signature in signatures {
                     typed
                         .requirement_definition_types(view, signature)
                         .ok_or_else(|| services::unavailable(
@@ -324,7 +331,7 @@ impl Program<'_> {
                 }
             }
         }
-        if ordinary {
+        if needs_contract_owner {
             let environment = scope.environment();
             if !self.boundary_parent_contracts.contains(&environment) {
                 self.boundary_parent_contracts.push(environment);

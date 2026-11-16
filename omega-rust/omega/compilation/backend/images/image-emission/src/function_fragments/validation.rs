@@ -518,7 +518,11 @@ fn validate(
             )?;
             let ordinary_rows =
                 super::structural::validate_settlement_attributions(source, placed.machine, &rows)?;
-            attribution::validate(fragment, abstracted, &ordinary_rows)?;
+            attribution::validate_current(
+                fragment,
+                source::publication_function(source, placed.machine)?,
+                &ordinary_rows,
+            )?;
             super::structural::validate_function(source, function, &rows)?;
         }
     }

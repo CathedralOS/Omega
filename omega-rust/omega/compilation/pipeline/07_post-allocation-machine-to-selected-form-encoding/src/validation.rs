@@ -48,11 +48,13 @@ use machine_code::{
     SelectedFormNormalizedForeignCallFixupKind, SelectedFormNormalizedForeignCallFixupState,
     TargetFrameLayoutPlan,
 };
-use post_allocation_machine::{PostAllocationMachineInstruction, PostAllocationMachinePlan};
+use post_allocation_machine::{
+    PostAllocationMachineInstruction, PostAllocationMachinePlan, PostAllocationMachineProgram,
+};
 use register_model::{RegisterOperandAccess, RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::{
-    CurrentSelectedProgram, MachineEncodedEffects, MachineSizeKnowledge, SelectedFunction,
-    SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
+    MachineEncodedEffects, MachineSizeKnowledge, SelectedFunction, SelectedInstruction,
+    SelectedInstructionId, SelectedInstructionKind,
 };
 use target::{Architecture, NativeTarget};
 
@@ -72,17 +74,17 @@ macro_rules! decoded_row_footprint {
 }
 
 pub(super) fn validate(
-    selected: CurrentSelectedProgram<'_>,
-    machine: &PostAllocationMachinePlan,
-    physical: &ValidatedPhysicalRegisterModel,
+    selected: &PostAllocationMachineProgram,
     frame: Option<&TargetFrameLayoutPlan>,
     artifact: &SelectedFormEncoding,
 ) -> Result<(), Error> {
+    let machine = &*selected.machine;
+    let physical = selected.physical();
     frame_address::validate_frame_root(machine, frame)?;
     if artifact.frame.as_ref() != frame {
         return Err(Error::ArtifactMismatch);
     }
-    if machine.selected != selected.identity || artifact.selected != selected.identity {
+    if artifact.selected != machine.selected {
         return Err(Error::SelectedRootMismatch);
     }
     if machine.physical_register_model != physical.identity() {
@@ -107,14 +109,14 @@ pub(super) fn validate(
 }
 
 fn validate_ordinary(
-    selected: CurrentSelectedProgram<'_>,
+    selected: &PostAllocationMachineProgram,
     machine: &PostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
     frame: Option<&TargetFrameLayoutPlan>,
     rows: &[SelectedFormEncodingRow],
     encoded: &SelectedFormEncodedRowStore,
 ) -> Result<(), Error> {
-    let target = selected.plan.target;
+    let target = selected.target;
     let mut candidate_rows = rows.iter();
     for_each_row(
         selected,
@@ -739,7 +741,12 @@ fn validate_normalized_foreign_call(
     row: &SelectedFormEncodingRow,
     encoded: &SelectedFormEncodedRowStore,
 ) -> Result<(), Error> {
-    let record = normalized_foreign_call_record(target, instruction, kind, selected_function)?;
+    let record = normalized_foreign_call_record(
+        target,
+        instruction,
+        kind,
+        &selected_function.normalized_foreign_calls,
+    )?;
     if record.call.binding.table_dispatch().is_some() {
         if !matches!(row.state, SelectedFormEncodingState::Encoded) {
             return Err(Error::ArtifactMismatch);

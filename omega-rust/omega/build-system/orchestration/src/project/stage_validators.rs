@@ -27,15 +27,22 @@ pub enum StageValidator {
     /// abstract operations they were lowered from
     /// (`native_preparation::verify_target_operation_plan_with_closed_module`).
     TargetOperationCorrespondence,
+    /// Compare fixed-frame machine output with its original allocation,
+    /// encoding and baseline layout inputs.
+    FixedFrameCorrespondence,
 }
 
 impl StageValidator {
     /// Every registered validator, in report order.
-    pub const ROSTER: &'static [Self] = &[Self::TargetOperationCorrespondence];
+    pub const ROSTER: &'static [Self] = &[
+        Self::TargetOperationCorrespondence,
+        Self::FixedFrameCorrespondence,
+    ];
 
     pub const fn name(self) -> &'static str {
         match self {
             Self::TargetOperationCorrespondence => "TargetOperationCorrespondence",
+            Self::FixedFrameCorrespondence => "FixedFrameCorrespondence",
         }
     }
 
@@ -43,6 +50,7 @@ impl StageValidator {
     pub const fn stage(self) -> &'static str {
         match self {
             Self::TargetOperationCorrespondence => "target operations",
+            Self::FixedFrameCorrespondence => "fixed-frame machine code",
         }
     }
 
@@ -58,7 +66,7 @@ impl StageValidator {
     fn inapplicable_reason(self, product: &ProjectProduct) -> Option<&'static str> {
         match (self, product) {
             (
-                Self::TargetOperationCorrespondence,
+                Self::TargetOperationCorrespondence | Self::FixedFrameCorrespondence,
                 ProjectProduct::Native {
                     destination: NativeDestination::Published,
                     ..
@@ -67,19 +75,21 @@ impl StageValidator {
             (Self::TargetOperationCorrespondence, ProjectProduct::Check) => {
                 Some("--check produces no native target operations")
             }
-            (Self::TargetOperationCorrespondence, ProjectProduct::Terminal)
-            | (Self::TargetOperationCorrespondence, ProjectProduct::Inspection { .. }) => {
+            (Self::FixedFrameCorrespondence, ProjectProduct::Check) => {
+                Some("--check produces no fixed-frame machine code")
+            }
+            (_, ProjectProduct::Terminal | ProjectProduct::Inspection { .. }) => {
                 Some("this product stops at Terminal Psi before target operations")
             }
             (
-                Self::TargetOperationCorrespondence,
+                Self::TargetOperationCorrespondence | Self::FixedFrameCorrespondence,
                 ProjectProduct::Native {
                     destination: NativeDestination::RuntimeAdmission,
                     ..
                 },
             ) => Some("runtime admission stops before target lowering"),
             (
-                Self::TargetOperationCorrespondence,
+                Self::TargetOperationCorrespondence | Self::FixedFrameCorrespondence,
                 ProjectProduct::Native {
                     destination: NativeDestination::Retained,
                     ..
@@ -199,7 +209,7 @@ impl StageValidatorRequest {
 impl StageValidator {
     fn check(self, report: Option<&compiler::CompileReport>) -> StageValidationResult {
         match self {
-            Self::TargetOperationCorrespondence => {
+            Self::TargetOperationCorrespondence | Self::FixedFrameCorrespondence => {
                 let object = report.and_then(|report| {
                     report
                         .retained_native_artifact()
@@ -215,7 +225,15 @@ impl StageValidator {
                         "this build produces no native executable",
                     );
                 };
-                match image_emission::verify_retained_target_operations(object) {
+                let checked = match self {
+                    Self::TargetOperationCorrespondence => {
+                        image_emission::verify_retained_target_operations(object)
+                    }
+                    Self::FixedFrameCorrespondence => {
+                        image_emission::verify_retained_fixed_frame(object)
+                    }
+                };
+                match checked {
                     Ok(()) => StageValidationResult::Passed,
                     Err(error) => StageValidationResult::Failed(error.to_string()),
                 }
@@ -287,7 +305,14 @@ mod tests {
         let rows = request
             .run_with(&native(), host(), |_| StageValidationResult::Passed)
             .unwrap();
-        assert_eq!(rows.len(), 1, "a named and enumerated validator runs once");
+        assert_eq!(rows.len(), StageValidator::ROSTER.len());
+        assert_eq!(
+            rows.iter()
+                .filter(|row| row.validator == StageValidator::TargetOperationCorrespondence)
+                .count(),
+            1,
+            "a named and enumerated validator runs once"
+        );
         let error =
             StageValidatorRequest::from_exact_names(["NoSuchValidator"], false).unwrap_err();
         assert!(

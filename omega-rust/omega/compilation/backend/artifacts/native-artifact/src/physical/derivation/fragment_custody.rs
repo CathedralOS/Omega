@@ -52,7 +52,7 @@ pub(super) fn fragment_normalized_foreign_rejoin<'a>(
         return Err("owned module cleanup cannot carry normalized foreign fragment custody");
     }
     let plan = publication.relocation_free_object();
-    let selected = publication.selected_plan();
+    let selected = publication.physical_program();
     let mut functions = selected
         .functions
         .iter()

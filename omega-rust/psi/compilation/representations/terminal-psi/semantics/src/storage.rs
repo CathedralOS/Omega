@@ -2367,6 +2367,26 @@ pub mod borrowed_storage {
             self
         }
 
+        /// Recover the complete captured address, including fields after a
+        /// dynamic selector. A widened region or a window has no single such
+        /// path; a dynamic coordinate must retain its formation point.
+        pub fn captured_storage_path(&self) -> Option<Vec<StructuralPathSegment>> {
+            if self.indirect || self.window.is_some() {
+                return None;
+            }
+            let mut result = Vec::new();
+            for step in self.address.as_ref()? {
+                let AddressStep::Path(path, at) = step else {
+                    return None;
+                };
+                if path.iter().any(|segment| segment.runtime_index().is_some()) && at.is_none() {
+                    return None;
+                }
+                result.extend_from_slice(path);
+            }
+            Some(result)
+        }
+
         pub fn window(start: ValueId, end: ValueId, position: Position) -> Self {
             Self::new(&[]).with_window(start, end, position)
         }
@@ -3322,8 +3342,14 @@ pub(crate) mod collection_backing {
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum CollectionExtent {
+        Parameter {
+            owner: semantic_vocabulary::MachineId,
+            value: semantic_vocabulary::ValueId,
+        },
         Fixed(u64),
-        LiveLength { capacity: u64 },
+        LiveLength {
+            capacity: u64,
+        },
         StoredLength,
     }
 
@@ -3400,6 +3426,13 @@ pub(crate) mod collection_backing {
                 length: terminal_psi::ArrayExtent::Literal(length),
             } if actual == element => Some(CollectionBacking {
                 extent: CollectionExtent::Fixed(length),
+                storage: CollectionStorage::Inline,
+            }),
+            StructuralTypeShape::FixedArray {
+                element: actual,
+                length: terminal_psi::ArrayExtent::Parameter { owner, value },
+            } if actual == element => Some(CollectionBacking {
+                extent: CollectionExtent::Parameter { owner, value },
                 storage: CollectionStorage::Inline,
             }),
             StructuralTypeShape::ByteSequence(carrier)

@@ -929,22 +929,24 @@ fn borrowed_storage_and_function_abis_bind_identity() {
     let abi = crate::LegalizedFunctionAbi {
         machine: function.machine,
         call_plan: function.call_plan.clone(),
+        entry_scalar_codecs: vec![Some(0); function.call_plan.parameters.len()],
         scalar_parameters: Vec::new(),
         structural_parameters: Vec::new(),
         scalar: None,
         mixed_structural_scalar: None,
     };
     let mut described = plan.clone();
-    described.function_abis.push(abi.clone());
+    described.function_abis = std::sync::Arc::from([abi.clone()]);
     let described_identity = legalized_operation_plan_identity(&described);
     assert_ne!(described_identity, original);
     assert_eq!(described.function_abi(function.machine), Some(&abi));
     let mut scalar = described.clone();
-    scalar.function_abis[0].scalar = Some(target_vocabulary::ScalarFunctionAbi {
-        call_plan: function.call_plan.clone(),
-        parameters: Vec::new(),
-        result: None,
-    });
+    std::sync::Arc::make_mut(&mut scalar.function_abis)[0].scalar =
+        Some(target_vocabulary::ScalarFunctionAbi {
+            call_plan: function.call_plan.clone(),
+            parameters: Vec::new(),
+            result: None,
+        });
     assert_identity_drift(described_identity, &scalar);
 }
 

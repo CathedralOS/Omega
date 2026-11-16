@@ -21,7 +21,7 @@ pub(crate) mod block_bindings {
     use std::collections::{BTreeMap, BTreeSet};
 
     use semantic_vocabulary::{
-        BlockId, ClaimId, PlaceId, StructuralPlaceKind, StructuralTypeId, ValueId,
+        BlockId, ClaimId, EdgeId, PlaceId, StructuralPlaceKind, StructuralTypeId, ValueId,
     };
     use terminal_psi::{
         StructuralAccess, StructuralAffineDiscard, StructuralArgument, StructuralMultiplicity,
@@ -335,8 +335,47 @@ pub(crate) mod block_bindings {
     }
 
     impl TerminalExecution<'_> {
+        /// A cast changes memberships on its one declared edge argument.
+        /// Both value capture and descriptor backing checks must compare the
+        /// value after that same change, while ordinary transfers retain the
+        /// source's memberships.
+        pub(crate) fn present_arrival_memberships(
+            &self,
+            edge: EdgeId,
+            parameter: &StructuralParameterDeclaration,
+            argument: &StructuralArgument,
+            mut value: TerminalStructuralValue,
+        ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
+            let changes = &self.program.catalogs.structural_qualification_changes;
+            let key = (self.current_machine, edge, parameter.position);
+            // The canonical catalog is sorted and unique by this exact key.
+            // Reuse it directly for each captured descriptor, without a new
+            // index or a repeated walk over every cast in the program.
+            let at = changes.partition_point(|change| {
+                (change.machine, change.edge, change.argument_ordinal) < key
+            });
+            if let Some(change) = changes
+                .get(at)
+                .filter(|change| (change.machine, change.edge, change.argument_ordinal) == key)
+            {
+                if changes
+                    .get(at + 1)
+                    .is_some_and(|next| (next.machine, next.edge, next.argument_ordinal) == key)
+                    || change.source != argument.place
+                    || change.destination != parameter.place
+                    || !argument.path.is_empty()
+                {
+                    return Err(malformed());
+                }
+                value.qualifications = parameter.qualifications.clone();
+                value.projected_qualifications = parameter.projected_qualifications.clone();
+            }
+            Ok(value)
+        }
+
         pub(crate) fn prepare_block_bindings(
             &self,
+            edge: EdgeId,
             target: BlockId,
             scalar_arguments: &[TerminalScalarValue],
             structural_arguments: &[StructuralArgument],
@@ -694,26 +733,14 @@ pub(crate) mod block_bindings {
                     descriptor_parameters.push(parameter.clone());
                     descriptor_arguments.push(argument.clone());
                 }
-                let mut arrived = projected_value.unwrap_or_else(|| value.clone());
+                let arrived = projected_value.unwrap_or_else(|| value.clone());
                 // An explicit structural cast (`value as +D`, `value as -D`)
                 // arrives in its destination's whole-value domains, and a
                 // reference in the domains its destination displays on its
                 // referent; the verified module already admitted the change,
                 // its issuer and its proof.
-                if self
-                    .program
-                    .catalogs
-                    .structural_qualification_changes
-                    .iter()
-                    .any(|change| {
-                        change.machine == self.current_machine
-                            && change.destination == parameter.place
-                            && change.source == argument.place
-                    })
-                {
-                    arrived.qualifications = parameter.qualifications.clone();
-                    arrived.projected_qualifications = parameter.projected_qualifications.clone();
-                }
+                let arrived =
+                    self.present_arrival_memberships(edge, parameter, argument, arrived)?;
                 resolved_arguments.push(arrived);
             }
             for parameter in &block.structural_parameters {
@@ -738,6 +765,7 @@ pub(crate) mod block_bindings {
                     descriptor_parameters,
                     descriptor_arguments,
                     &resolved_arguments,
+                    Some(edge),
                 )
                 .map_err(|error| error.in_argument_preparation("bind byte state arrivals"))?
             } else {
@@ -755,7 +783,7 @@ pub(crate) mod block_bindings {
                         values.push(value.clone());
                     }
                 }
-                self.bind_byte_sequence_arguments(&parameters, &arguments, &values)
+                self.bind_byte_sequence_arguments(&parameters, &arguments, &values, Some(edge))
                     .map_err(|error| error.in_argument_preparation("bind byte state arrivals"))?
             };
             if byte_loans
@@ -1094,6 +1122,266 @@ pub(crate) mod block_bindings {
         ) -> Option<&StructuralParameterDeclaration> {
             let machine = self.program.machines().get(&self.current_machine)?;
             terminal_semantics::arrival_parameter(machine, place)
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use crate::engine::calls::frames::tests::empty_program;
+        use crate::storage::byte_sequences::{
+            ByteSequenceView, binding::ByteSequenceBinding, storage::ByteSequenceStorage,
+        };
+
+        fn byte_arrival(
+            bytes: &[u8],
+            erase: bool,
+        ) -> (
+            TerminalExecution<'static>,
+            StructuralParameterDeclaration,
+            StructuralArgument,
+            TerminalStructuralValue,
+            EdgeId,
+        ) {
+            use semantic_vocabulary::{DomainSemanticId, StructuralDomainId};
+            use terminal_psi::{
+                Block, ByteSequenceCarrier, ByteSequencePredicate, StructuralDomainDeclaration,
+                StructuralPlaceDeclaration, StructuralQualificationChange,
+                StructuralTypeDeclaration, TerminalIdentityIndex, Terminator,
+            };
+            let mut program = empty_program();
+            let module = std::sync::Arc::get_mut(&mut program)
+                .unwrap()
+                .fixture_module_mut();
+            let structural_type = StructuralTypeId::new(1).unwrap();
+            let domain = StructuralDomainId::new(1).unwrap();
+            let source = PlaceId::new(1).unwrap();
+            let destination = PlaceId::new(2).unwrap();
+            let target = BlockId::new(2).unwrap();
+            let edge = EdgeId::new(1).unwrap();
+            let parameter = StructuralParameterDeclaration {
+                place: destination,
+                position: 0,
+                structural_type,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                access: StructuralAccess::Owned,
+                qualifications: if erase { Vec::new() } else { vec![domain] },
+                projected_qualifications: Vec::new(),
+                additional_input_qualifications: Vec::new(),
+            };
+            module.structural_types.push(StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
+                quotient_carrier: None,
+                id: structural_type,
+                identity: TerminalIdentityIndex(0),
+                owns_linear_claim: false,
+                copyable: true,
+                no_code_affine_cleanup: true,
+                descriptor_cleanup: true,
+                nominal_cleanup: None,
+                shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                    access: Some(StructuralAccess::SharedBorrow),
+                }),
+                scalar_restriction: None,
+                requires: Vec::new(),
+            });
+            module.structural_domains.push(StructuralDomainDeclaration {
+                required_memberships: Some(Vec::new()),
+                complete_predicate_theory: true,
+                predicate: None,
+                id: domain,
+                semantic_domain: DomainSemanticId::new(1).unwrap(),
+                identity: TerminalIdentityIndex(0),
+                carrier: structural_type,
+                subject_identity: TerminalIdentityIndex(0),
+                content_projection: None,
+                byte_predicate: Some(ByteSequencePredicate::NoNul),
+                establishment_routes: None,
+                access_policy: None,
+            });
+            let machine = &mut module.machines[0];
+            machine.structural_places.extend([
+                StructuralPlaceDeclaration {
+                    id: source,
+                    kind: StructuralPlaceKind::ByteSequenceLiteral {
+                        declaration_ordinal: 0,
+                        structural_type,
+                    },
+                },
+                StructuralPlaceDeclaration {
+                    id: destination,
+                    kind: StructuralPlaceKind::BlockParameter {
+                        block: target,
+                        position: 0,
+                    },
+                },
+            ]);
+            let argument = StructuralArgument::whole(source, StructuralAccess::Owned);
+            machine.blocks[0].terminator = Terminator::Jump {
+                edge,
+                target,
+                arguments: Vec::new(),
+                erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
+                structural_arguments: vec![argument.clone()],
+                cleanup_actions: Vec::new(),
+            };
+            let mut block = Block::plain(
+                target,
+                Vec::new(),
+                Terminator::ReturnUnit {
+                    edge: EdgeId::new(2).unwrap(),
+                    cleanup_actions: Vec::new(),
+                },
+            );
+            block.structural_parameters.push(parameter.clone());
+            machine.blocks.push(block);
+            module
+                .structural_qualification_changes
+                .push(StructuralQualificationChange {
+                    machine: machine.id,
+                    edge,
+                    argument_ordinal: 0,
+                    source,
+                    destination,
+                    establishments: Vec::new(),
+                });
+            let mut execution = TerminalExecution::start_with_program(
+                program,
+                &[],
+                crate::TerminalStructuralInputs::default(),
+                None,
+                None,
+            )
+            .unwrap();
+            let source_value = TerminalStructuralValue::minted(
+                37,
+                structural_type,
+                if erase { vec![domain] } else { Vec::new() },
+            );
+            execution
+                .structural_values
+                .insert(source, source_value.clone())
+                .unwrap();
+            execution
+                .byte_sequence_values
+                .insert(
+                    source,
+                    ByteSequenceBinding::Immutable(
+                        ByteSequenceView::new(ByteSequenceStorage::copy(bytes, None).unwrap())
+                            .with_descriptor_home(source_value.clone()),
+                    ),
+                )
+                .unwrap();
+            let arrived = execution
+                .present_arrival_memberships(edge, &parameter, &argument, source_value)
+                .unwrap();
+            (execution, parameter, argument, arrived, edge)
+        }
+
+        #[test]
+        fn byte_descriptor_arrivals_present_exact_cast_memberships_before_comparison() {
+            for erase in [false, true] {
+                let (execution, parameter, argument, arrived, edge) =
+                    byte_arrival(b"foo/bar", erase);
+                let (value, binding) = execution
+                    .prepare_owned_byte_descriptor_argument(
+                        &parameter,
+                        &argument,
+                        &arrived,
+                        Some(edge),
+                    )
+                    .unwrap()
+                    .unwrap();
+                assert_eq!(value, arrived);
+                assert_eq!(value.opaque_identity, 37);
+                assert_eq!(value.qualifications, parameter.qualifications);
+                assert_eq!(binding.snapshot(&execution).unwrap().bytes(), b"foo/bar");
+                assert!(
+                    execution
+                        .prepare_owned_byte_descriptor_argument(
+                            &parameter, &argument, &arrived, None,
+                        )
+                        .is_err(),
+                    "ordinary calls do not apply another edge's cast"
+                );
+                assert!(
+                    execution
+                        .prepare_owned_byte_descriptor_argument(
+                            &parameter,
+                            &argument,
+                            &arrived,
+                            Some(EdgeId::new(2).unwrap()),
+                        )
+                        .is_err(),
+                    "another edge cannot donate its membership change"
+                );
+            }
+        }
+
+        #[test]
+        fn byte_descriptor_arrival_checks_actual_bytes_identity_and_access() {
+            for invalid in 0..6 {
+                let bytes: &[u8] = if invalid == 0 {
+                    b"foo\0bar"
+                } else {
+                    b"foo/bar"
+                };
+                let (mut execution, mut parameter, mut argument, mut arrived, edge) =
+                    byte_arrival(bytes, false);
+                match invalid {
+                    0 => {}
+                    1 => arrived.opaque_identity += 1,
+                    2 => arrived.structural_type = StructuralTypeId::new(2).unwrap(),
+                    3 => argument.access = StructuralAccess::SharedBorrow,
+                    4 => {
+                        execution.byte_sequence_values.remove(&argument.place);
+                    }
+                    5 => parameter.multiplicity = StructuralMultiplicity::Affine,
+                    _ => unreachable!(),
+                }
+                assert!(
+                    execution
+                        .prepare_owned_byte_descriptor_argument(
+                            &parameter,
+                            &argument,
+                            &arrived,
+                            Some(edge),
+                        )
+                        .is_err(),
+                    "malformed case {invalid} must retain its independent check"
+                );
+            }
+        }
+
+        #[test]
+        fn byte_descriptor_arrival_requires_the_exact_unique_change_row() {
+            for invalid in 0..4 {
+                let (mut execution, parameter, argument, arrived, edge) =
+                    byte_arrival(b"foo/bar", false);
+                let module = std::sync::Arc::get_mut(&mut execution.program)
+                    .unwrap()
+                    .fixture_module_mut();
+                let changes = &mut module.structural_qualification_changes;
+                match invalid {
+                    0 => changes[0].argument_ordinal = 1,
+                    1 => changes[0].source = PlaceId::new(3).unwrap(),
+                    2 => changes[0].destination = PlaceId::new(3).unwrap(),
+                    3 => changes.push(changes[0].clone()),
+                    _ => unreachable!(),
+                }
+                assert!(
+                    execution
+                        .prepare_owned_byte_descriptor_argument(
+                            &parameter,
+                            &argument,
+                            &arrived,
+                            Some(edge),
+                        )
+                        .is_err(),
+                    "incorrect change row {invalid} cannot authorize presentation"
+                );
+            }
         }
     }
 }
@@ -2193,7 +2481,7 @@ impl TerminalExecution<'_> {
         }
         let structural_arguments = selected_arguments.as_slice();
         let bindings = self
-            .prepare_block_bindings(target, scalars, structural_arguments)
+            .prepare_block_bindings(edge, target, scalars, structural_arguments)
             .map_err(|error| {
                 error.in_argument_preparation("state arrival storage and memberships")
             })?;

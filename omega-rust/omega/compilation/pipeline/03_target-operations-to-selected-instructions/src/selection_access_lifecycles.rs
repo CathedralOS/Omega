@@ -4633,6 +4633,7 @@ pub(crate) mod tests {
         let materialize =
             crate::selection::constraints::row(catalog, constraints.keys.materialize_i64).unwrap();
         let program = LegalizedOperationPlan {
+            publication: Default::default(),
             borrowed_storage_layouts: Default::default(),
             psi: TerminalPsiIdentity {
                 vocabulary_marker: VocabularyMarker::CURRENT,
@@ -4647,7 +4648,7 @@ pub(crate) mod tests {
             entry: MachineId::new(1).unwrap(),
             scalar_functions: vec![],
             installation_operations: Vec::new(),
-            function_abis: Vec::new(),
+            function_abis: std::sync::Arc::from([]),
         };
         // This single-instruction fixture has no functions or call occurrences.
         assert!(program.scalar_functions.is_empty());

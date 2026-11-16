@@ -295,6 +295,12 @@ impl Program<'_> {
                 policy: None,
                 domains,
             };
+            // Successful clause translation completes a predicate theory,
+            // including clauses that simplify to true. Unsupported semantic
+            // definitions must not become complete from a missing proposition.
+            self.declared_domains[slot].complete_predicate_theory = self
+                .domain_theory(id, instance)?
+                .has_complete_predicate_theory();
             self.declared_domains[slot].predicate = match carrier {
                 ValueType::Scalar(scalar, _) => {
                     let (clauses, _) = self.cast_predicates(id, qualification, scalar)?;
@@ -572,6 +578,7 @@ impl Program<'_> {
                 ));
             }
             let scope = ClauseScope {
+                owner: predicate.owner,
                 result: ResultTerm::Absent("result in a domain predicate"),
                 subject: Some(DataSubject {
                     value_type: plain,

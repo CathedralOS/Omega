@@ -209,6 +209,149 @@ pub(crate) mod inline_carriers {
             )
         }
 
+        // Knowing what bytes satisfy does not establish an additional theory
+        // or install independent policy rules. Both literal and zero-default
+        // establishment must use the same pure-predicate classification.
+        #[test]
+        fn byte_literals_and_defaults_do_not_establish_extra_theory_or_access_rules() {
+            use language_semantics::reflection::{
+                DeclarationDescription, SchemaNode, SchemaNodeHandle, SchemaQueryAuthority,
+                SchemaShape, SemanticSchemaGraph,
+            };
+            use semantic_vocabulary::{
+                DomainSemanticId, IntegerSign, IntegerType, PlaceId, StructuralDomainId,
+            };
+            use terminal_psi::{
+                ByteSequencePredicate, StructuralDomainDeclaration, StructuralDomainPredicate,
+                StructuralPathQualification,
+            };
+            let (mut types, path) = fixture();
+            let array = types[1].id;
+            let element = types[2].id;
+            types[1].shape = StructuralTypeShape::FixedArray {
+                element,
+                length: terminal_psi::ArrayExtent::Literal(2),
+            };
+            types[2].shape = StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
+                IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+            ));
+            let StructuralTypeShape::Record { fields, .. } = &mut types[0].shape else {
+                panic!("record");
+            };
+            fields[0].field_type = StructuralFieldType::Structural(array);
+            fields[0].inline_carrier = None;
+            let id = StructuralDomainId::new(1).unwrap();
+            let pure = StructuralDomainDeclaration {
+                required_memberships: Some(Vec::new()),
+                complete_predicate_theory: true,
+                predicate: None,
+                id,
+                semantic_domain: DomainSemanticId::new(1).unwrap(),
+                identity: TerminalIdentityIndex(1),
+                carrier: array,
+                subject_identity: TerminalIdentityIndex(1),
+                content_projection: None,
+                byte_predicate: Some(ByteSequencePredicate::AsciiOnly),
+                establishment_routes: None,
+                access_policy: None,
+            };
+            let mut incomplete = pure.clone();
+            incomplete.complete_predicate_theory = false;
+            let mut extra = pure.clone();
+            extra.predicate = Some(StructuralDomainPredicate {
+                subject: PlaceId::new(1).unwrap(),
+                proposition: Proposition::Falsehood,
+            });
+            let root = SchemaNodeHandle::from_index(1);
+            let schema = SemanticSchemaGraph::from_nodes(
+                vec![
+                    SchemaNode::Invalid,
+                    SchemaNode::Declaration(DeclarationDescription {
+                        owner_identity: "test::Bytes".into(),
+                        identity_is_hermetic: true,
+                        name: "Bytes".into(),
+                        shape: SchemaShape::Empty,
+                        supply: "Ordinary".into(),
+                        multiplicity: "Unrestricted".into(),
+                        carry: None,
+                        type_parameters: Vec::new(),
+                        lifetime_parameters: Vec::new(),
+                        application_identity: Some("test::Bytes".into()),
+                        members: Vec::new(),
+                        retired_identities: Vec::new(),
+                    }),
+                ],
+                root,
+                SchemaQueryAuthority::OwningScope {
+                    requester_identity: "test::Bytes".into(),
+                },
+            )
+            .unwrap();
+            let mut governed = pure.clone();
+            governed.access_policy = Some(terminal_psi::StructuralDomainAccessPlan {
+                schema,
+                issuance: None,
+                readers: vec![((root, Some(Vec::new())), Vec::new())],
+                writers: Vec::new(),
+                observations: Vec::new(),
+                reach: Default::default(),
+            });
+            let mut complete_truth = pure.clone();
+            complete_truth.predicate = Some(StructuralDomainPredicate {
+                subject: PlaceId::new(1).unwrap(),
+                proposition: Proposition::Truth,
+            });
+            let mut primitive_theory = pure.clone();
+            let mut predicates = terminal_psi::ByteSequencePredicateSet::EMPTY;
+            predicates.insert(ByteSequencePredicate::AsciiOnly);
+            primitive_theory.predicate = Some(StructuralDomainPredicate {
+                subject: PlaceId::new(1).unwrap(),
+                proposition: crate::byte_predicate_requirement(
+                    predicates,
+                    terminal_psi::ByteSequencePredicateSet::EMPTY,
+                    PlaceId::new(1).unwrap(),
+                    &[],
+                ),
+            });
+            for (domain, expected, facts_available) in [
+                (pure, true, true),
+                (complete_truth, true, true),
+                (primitive_theory, true, true),
+                (incomplete, false, false),
+                (extra, false, false),
+                (governed, false, true),
+            ] {
+                assert_eq!(
+                    crate::byte_literal_qualifications_hold(
+                        std::slice::from_ref(&domain),
+                        array,
+                        &[id],
+                        &[0, 0]
+                    ),
+                    expected
+                );
+                assert_eq!(
+                    crate::zeroed_projected_byte_qualifications_hold(
+                        types.iter(),
+                        std::iter::once(&domain),
+                        types[0].id,
+                        &[StructuralPathQualification {
+                            path: path.clone(),
+                            domain: id
+                        }]
+                    ),
+                    expected
+                );
+                // Projecting a primitive fact from an already established
+                // domain is separate from establishing the complete domain.
+                assert_eq!(
+                    crate::byte_qualification_predicates_in(std::iter::once(&domain), array, &[id])
+                        .is_some(),
+                    facts_available
+                );
+            }
+        }
+
         #[test]
         fn original_field_carrier_is_exact_among_equal_contracts() {
             let (mut declarations, path) = fixture();
@@ -2724,7 +2867,9 @@ pub(crate) mod primitive_place {
                 (
                     StructuralPathSegment::FixedIndex(index),
                     StructuralTypeShape::FixedArray { element, length },
-                ) if length.literal().is_none_or(|length| *index < length) => {
+                ) if !matches!(length, terminal_psi::ArrayExtent::Parameter { .. })
+                    && length.literal().is_none_or(|length| *index < length) =>
+                {
                     step(
                         length
                             .literal()
@@ -2792,8 +2937,34 @@ pub(crate) mod primitive_place {
     pub enum RuntimeIndexGoalError {
         InvalidPath,
         OpenExtent,
+        MissingExtent,
         MissingSelector,
         UnsupportedSelector,
+    }
+
+    /// Find a live extent immediately before a projection. Only adjacent length
+    /// observations may intervene; no mutation can change the descriptor between
+    /// this measurement and the access whose bound it establishes.
+    pub fn preceding_element_view_length(
+        operations: &[terminal_psi::Operation],
+        root: semantic_vocabulary::PlaceId,
+        path: &[StructuralPathSegment],
+    ) -> Option<semantic_vocabulary::ValueId> {
+        for operation in operations.iter().rev() {
+            let terminal_psi::OperationKind::ElementViewLength { source } = &operation.kind else {
+                break;
+            };
+            if source.place == root
+                && crate::structural_paths_select_same_location(&source.path, path)
+            {
+                let result = operation.result.scalar_ref()?;
+                let count = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).ok()?);
+                return (source.access == StructuralAccess::SharedBorrow
+                    && result.scalar_type == count)
+                    .then_some(result.id);
+            }
+        }
+        None
     }
 
     /// Recover each bound from the array reached immediately before its index.
@@ -2805,12 +2976,16 @@ pub(crate) mod primitive_place {
         root: StructuralTypeId,
         path: &[StructuralPathSegment],
         values: &impl crate::ValueTypes,
+        mut measured_extent: impl FnMut(
+            &[StructuralPathSegment],
+        ) -> Option<semantic_vocabulary::ValueId>,
         mut visit: impl FnMut(ObligationId, Proposition),
     ) -> Result<(), RuntimeIndexGoalError> {
         let Some(last_index) = path.iter().rposition(|step| step.runtime_index().is_some()) else {
             return Ok(());
         };
         let mut error = RuntimeIndexGoalError::InvalidPath;
+        let mut position = 0;
         let walked = walk_primitive_projection_with_lookup(
             (declarations, &declaration),
             root,
@@ -2818,26 +2993,96 @@ pub(crate) mod primitive_place {
             plain_scalar_field,
             |_| {},
             |owner, step| {
+                let prefix = &path[..position];
+                position += 1;
                 let Some((index, obligation)) = step.runtime_index() else {
                     return true;
                 };
                 let Some(array) = owner.and_then(&declaration) else {
                     return false;
                 };
-                let StructuralTypeShape::FixedArray {
-                    length: terminal_psi::ArrayExtent::Literal(extent),
-                    ..
-                } = array.shape
-                else {
-                    error = RuntimeIndexGoalError::OpenExtent;
-                    return false;
-                };
                 let Some(carrier) = values.value_type(index) else {
                     error = RuntimeIndexGoalError::MissingSelector;
                     return false;
                 };
-                let Some(goal) = super::static_path::runtime_index_bound(index, carrier, extent)
-                else {
+                let goal = match array.shape {
+                    StructuralTypeShape::FixedArray {
+                        length: terminal_psi::ArrayExtent::Literal(extent),
+                        ..
+                    } => super::static_path::runtime_index_bound(index, carrier, extent),
+                    StructuralTypeShape::FixedArray {
+                        length: terminal_psi::ArrayExtent::Parameter { value: length, .. },
+                        ..
+                    } => {
+                        let Some(length_type) = values.value_type(length) else {
+                            error = RuntimeIndexGoalError::MissingExtent;
+                            return false;
+                        };
+                        let Some(integer) =
+                            carrier.as_integer().filter(|integer| !integer.is_address())
+                        else {
+                            error = RuntimeIndexGoalError::UnsupportedSelector;
+                            return false;
+                        };
+                        let index_term = semantic_vocabulary::ScalarTerm::value(index, carrier);
+                        let length_term =
+                            semantic_vocabulary::ScalarTerm::value(length, length_type);
+                        let upper = if carrier == length_type {
+                            Proposition::LessThan(index_term.clone(), length_term)
+                        } else {
+                            let Some(left) =
+                                semantic_vocabulary::IntegerMathTerm::embed(index_term.clone())
+                            else {
+                                return false;
+                            };
+                            let Some(right) =
+                                semantic_vocabulary::IntegerMathTerm::embed(length_term)
+                            else {
+                                return false;
+                            };
+                            Proposition::IntegerMathLessThan(left, right)
+                        };
+                        Some(if integer.sign() == IntegerSign::Signed {
+                            Proposition::Conjunction(vec![
+                                Proposition::LessOrEqual(
+                                    semantic_vocabulary::ScalarTerm::integer(
+                                        integer,
+                                        semantic_vocabulary::IntegerValue::Signed(0),
+                                    )
+                                    .expect("zero fits an integer"),
+                                    index_term,
+                                ),
+                                upper,
+                            ])
+                        } else {
+                            upper
+                        })
+                    }
+                    StructuralTypeShape::ElementView { .. } => {
+                        let count = ScalarType::Integer(
+                            IntegerType::new(IntegerSign::Unsigned, 64).expect("u64"),
+                        );
+                        let Some(length) = measured_extent(prefix) else {
+                            error = RuntimeIndexGoalError::MissingExtent;
+                            return false;
+                        };
+                        Some(length)
+                            .filter(|length| {
+                                carrier == count && values.value_type(*length) == Some(count)
+                            })
+                            .map(|length| {
+                                Proposition::LessThan(
+                                    semantic_vocabulary::ScalarTerm::value(index, count),
+                                    semantic_vocabulary::ScalarTerm::value(length, count),
+                                )
+                            })
+                    }
+                    _ => {
+                        error = RuntimeIndexGoalError::OpenExtent;
+                        return false;
+                    }
+                };
+                let Some(goal) = goal else {
                     error = RuntimeIndexGoalError::UnsupportedSelector;
                     return false;
                 };
@@ -6624,6 +6869,13 @@ pub(crate) mod zeroed_structural {
         >,
     ) -> bool {
         qualifications.all(|(path, domain)| {
+            let Some(domain) = domains.clone().find(|row| row.id == domain) else {
+                return false;
+            };
+            // Default bytes cannot establish extra theories or access rules.
+            if !domain.is_pure_predicate() {
+                return false;
+            }
             for (index, segment) in path.iter().enumerate() {
                 if let StructuralPathSegment::Case(selected) = segment {
                     let Some(parent) =
@@ -6646,7 +6898,7 @@ pub(crate) mod zeroed_structural {
                 return false;
             };
             let Some(predicates) =
-                crate::byte_qualification_predicates_in(domains.clone(), carrier.id, &[domain])
+                crate::byte_qualification_predicates_in(domains.clone(), carrier.id, &[domain.id])
             else {
                 return false;
             };
@@ -6688,14 +6940,22 @@ pub(crate) mod zeroed_structural {
         root: StructuralTypeId,
         qualifications: &[terminal_psi::StructuralPathQualification],
     ) -> bool {
-        qualifications.iter().all(|row| !row.path.is_empty())
-            && zeroed_byte_qualifications_hold(
-                types,
-                domains,
-                root,
-                qualifications
-                    .iter()
-                    .map(|row| (row.path.as_slice(), row.domain)),
-            )
+        qualifications.iter().all(|row| {
+            if row.path.is_empty() {
+                return false;
+            }
+            let Some(domain) = domains.clone().find(|domain| domain.id == row.domain) else {
+                return false;
+            };
+            // Ordinary projected memberships are judged by the structural
+            // membership owner; this query decides only byte contents.
+            domain.byte_predicate.is_none()
+                || zeroed_byte_qualifications_hold(
+                    types.clone(),
+                    std::iter::once(domain),
+                    root,
+                    std::iter::once((row.path.as_slice(), row.domain)),
+                )
+        })
     }
 }

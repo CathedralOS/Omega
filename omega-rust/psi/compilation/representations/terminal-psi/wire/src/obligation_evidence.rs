@@ -388,23 +388,41 @@ impl<'module> MachineEvidenceGoals<'module> {
         );
         // These reads execute at their owner's exact point. In particular a
         // discriminator is read once before selecting any outgoing case edge.
-        let projections = machine
-            .operations()
-            .flat_map(|operation| {
-                operation
-                    .kind
-                    .structural_projections()
-                    .into_iter()
-                    .map(move |projection| (ExecutionSite::Operation(operation.id), projection))
-            })
-            .chain(machine.blocks.iter().flat_map(|block| {
-                block
-                    .terminator
-                    .storage_uses()
-                    .into_iter()
-                    .map(move |projection| (ExecutionSite::Block(block.id), projection))
-            }));
-        for (site, projection) in projections {
+        let projections =
+            machine
+                .blocks
+                .iter()
+                .flat_map(|block| {
+                    block
+                        .operations
+                        .iter()
+                        .enumerate()
+                        .flat_map(move |(position, operation)| {
+                            operation.kind.structural_projections().into_iter().map(
+                                move |projection| {
+                                    (
+                                        ExecutionSite::Operation(operation.id),
+                                        &block.operations[..position],
+                                        projection,
+                                    )
+                                },
+                            )
+                        })
+                })
+                .chain(machine.blocks.iter().flat_map(|block| {
+                    block
+                        .terminator
+                        .storage_uses()
+                        .into_iter()
+                        .map(move |projection| {
+                            (
+                                ExecutionSite::Block(block.id),
+                                block.operations.as_slice(),
+                                projection,
+                            )
+                        })
+                }));
+        for (site, preceding, projection) in projections {
             let mut indices = projection
                 .path
                 .iter()
@@ -425,6 +443,13 @@ impl<'module> MachineEvidenceGoals<'module> {
                     root,
                     projection.path,
                     types,
+                    |prefix| {
+                        terminal_semantics::preceding_element_view_length(
+                            preceding,
+                            projection.root,
+                            prefix,
+                        )
+                    },
                     |obligation, proposition| {
                         goals.push(ExecutionEvidenceGoal {
                             site,

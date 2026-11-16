@@ -281,6 +281,8 @@ impl Program<'_> {
         }
         let expression = self.fact(id, fact)?;
         if self.states_nothing(id, expression, requirement)? {
+            let owner = self.contract_operator_owner(id, scope)?;
+            let _ = self.read_static_truth(id, owner, expression, super::types::Reading::Clause)?;
             return Ok(None);
         }
         Ok(Some((
@@ -822,7 +824,8 @@ impl Program<'_> {
                 | ExpressionNode::Unary(_)
                 | ExpressionNode::Binary(_)
         ) {
-            match self.clause_truth(expression) {
+            let owner = self.contract_operator_owner(id, scope)?;
+            match self.read_static_truth(id, owner, expression, super::types::Reading::Clause)? {
                 Some(TypeTruth::Known(truth)) => {
                     return Ok((
                         ScalarTerm::Boolean(truth),

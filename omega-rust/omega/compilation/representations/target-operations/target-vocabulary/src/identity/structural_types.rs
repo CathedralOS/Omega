@@ -18,7 +18,7 @@ use terminal_psi::{
     StructuralTypeDeclaration, StructuralTypeShape,
 };
 
-pub(super) fn encode_window_root(
+pub fn encode_window_root(
     bytes: &mut Vec<u8>,
     root: &native_vocabulary::structural_stores::StructuralWindowRoot,
 ) {
@@ -46,7 +46,7 @@ pub(super) fn encode_window_root(
     }
 }
 
-pub(super) fn encode_structural_parameter(
+pub fn encode_structural_parameter(
     bytes: &mut Vec<u8>,
     parameter: &StructuralParameterDeclaration,
 ) {
@@ -66,9 +66,9 @@ pub(super) fn encode_structural_parameter(
     encode_projected_qualifications(bytes, &parameter.additional_input_qualifications);
 }
 
-pub(super) fn encode_target_structural_parameter(
+pub fn encode_target_structural_parameter(
     bytes: &mut Vec<u8>,
-    parameter: &target_vocabulary::TargetStructuralParameter,
+    parameter: &crate::TargetStructuralParameter,
 ) {
     crate::codec_bytes::push_encoded(bytes, parameter.place.get().to_le_bytes());
     crate::codec_bytes::push_encoded(bytes, parameter.structural_type.get().to_le_bytes());
@@ -79,7 +79,7 @@ pub(super) fn encode_target_structural_parameter(
     encode_projected_qualifications(bytes, &parameter.projected_qualifications);
 }
 
-pub(super) fn encode_projected_qualifications(
+pub fn encode_projected_qualifications(
     bytes: &mut Vec<u8>,
     rows: &[terminal_psi::StructuralPathQualification],
 ) {
@@ -90,13 +90,13 @@ pub(super) fn encode_projected_qualifications(
     }
 }
 
-pub(super) fn encode_structural_argument(bytes: &mut Vec<u8>, argument: &StructuralArgument) {
+pub fn encode_structural_argument(bytes: &mut Vec<u8>, argument: &StructuralArgument) {
     crate::codec_bytes::push_encoded(bytes, argument.place.get().to_le_bytes());
     encode_structural_path(bytes, &argument.path);
     encode_access(bytes, argument.access);
 }
 
-pub(super) fn encode_reference_origin(
+pub fn encode_reference_origin(
     bytes: &mut Vec<u8>,
     origin: &terminal_psi::StructuralReferenceOrigin,
 ) {
@@ -126,9 +126,9 @@ pub(super) fn encode_reference_origin(
     encode_access(bytes, origin.access());
 }
 
-pub(super) fn encode_target_structural_argument(
+pub fn encode_target_structural_argument(
     bytes: &mut Vec<u8>,
-    argument: &target_vocabulary::TargetStructuralArgument,
+    argument: &crate::TargetStructuralArgument,
 ) {
     crate::codec_bytes::push_encoded(bytes, argument.place.get().to_le_bytes());
     encode_access(bytes, argument.access);
@@ -149,34 +149,28 @@ pub(super) fn encode_target_structural_argument(
         crate::codec_bytes::push_encoded(bytes, index.obligation.get().to_le_bytes());
     }
     match &argument.source {
-        target_vocabulary::TargetStructuralArgumentSource::StructuralHome { psi_operation } => {
+        crate::TargetStructuralArgumentSource::StructuralHome { psi_operation } => {
             bytes.push(5);
             crate::codec_bytes::push_encoded(bytes, psi_operation.get().to_le_bytes());
         }
-        target_vocabulary::TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
-            psi_operation,
-        } => {
+        crate::TargetStructuralArgumentSource::EstablishedPrimitiveLocal { psi_operation } => {
             bytes.push(4);
             crate::codec_bytes::push_encoded(bytes, psi_operation.get().to_le_bytes());
         }
-        target_vocabulary::TargetStructuralArgumentSource::BlockParameter { block, place } => {
+        crate::TargetStructuralArgumentSource::BlockParameter { block, place } => {
             bytes.push(2);
             crate::codec_bytes::push_encoded(bytes, block.get().to_le_bytes());
             crate::codec_bytes::push_encoded(bytes, place.get().to_le_bytes());
         }
-        target_vocabulary::TargetStructuralArgumentSource::Placement(placement) => {
+        crate::TargetStructuralArgumentSource::Placement(placement) => {
             bytes.push(0);
             encode_placement(bytes, placement);
         }
-        target_vocabulary::TargetStructuralArgumentSource::EstablishedByteView {
-            psi_operation,
-        } => {
+        crate::TargetStructuralArgumentSource::EstablishedByteView { psi_operation } => {
             bytes.push(1);
             crate::codec_bytes::push_encoded(bytes, psi_operation.get().to_le_bytes());
         }
-        target_vocabulary::TargetStructuralArgumentSource::EstablishedElementView {
-            psi_operation,
-        } => {
+        crate::TargetStructuralArgumentSource::EstablishedElementView { psi_operation } => {
             bytes.push(6);
             crate::codec_bytes::push_encoded(bytes, psi_operation.get().to_le_bytes());
         }
@@ -184,13 +178,13 @@ pub(super) fn encode_target_structural_argument(
     encode_placement(bytes, &argument.destination);
 }
 
-pub(super) fn encode_entry_claim(bytes: &mut Vec<u8>, claim: &EntryClaim) {
+pub fn encode_entry_claim(bytes: &mut Vec<u8>, claim: &EntryClaim) {
     crate::codec_bytes::push_encoded(bytes, claim.claim.get().to_le_bytes());
     crate::codec_bytes::push_encoded(bytes, claim.input.get().to_le_bytes());
     encode_structural_path(bytes, &claim.path);
 }
 
-pub(super) fn encode_structural_path(bytes: &mut Vec<u8>, path: &[StructuralPathSegment]) {
+pub fn encode_structural_path(bytes: &mut Vec<u8>, path: &[StructuralPathSegment]) {
     encode_len(bytes, path.len());
     for segment in path {
         encode_structural_projection(bytes, segment);
@@ -264,7 +258,7 @@ pub fn encode_structural_place(bytes: &mut Vec<u8>, place: StructuralPlaceDeclar
     }
 }
 
-pub(super) fn encode_structural_type(bytes: &mut Vec<u8>, declaration: &StructuralTypeDeclaration) {
+pub fn encode_structural_type(bytes: &mut Vec<u8>, declaration: &StructuralTypeDeclaration) {
     crate::codec_bytes::push_encoded(bytes, declaration.id.get().to_le_bytes());
     bytes.extend_from_slice(&declaration.identity.0.to_le_bytes());
     bytes.extend_from_slice(&declaration.declaration_identity.0.to_le_bytes());
@@ -350,6 +344,11 @@ pub(super) fn encode_structural_type(bytes: &mut Vec<u8>, declaration: &Structur
             bytes.push(3);
             crate::codec_bytes::push_encoded(bytes, element.get().to_le_bytes());
             match length {
+                terminal_psi::ArrayExtent::Parameter { owner, value } => {
+                    bytes.push(2);
+                    crate::codec_bytes::push_encoded(bytes, owner.get().to_le_bytes());
+                    crate::codec_bytes::push_encoded(bytes, value.get().to_le_bytes());
+                }
                 terminal_psi::ArrayExtent::Literal(length) => {
                     bytes.push(0);
                     crate::codec_bytes::push_encoded(bytes, length.to_le_bytes());
@@ -433,7 +432,7 @@ pub fn encode_authored_field_storage(
     }
 }
 
-pub(super) fn encode_structural_fields(bytes: &mut Vec<u8>, fields: &[StructuralFieldDeclaration]) {
+pub fn encode_structural_fields(bytes: &mut Vec<u8>, fields: &[StructuralFieldDeclaration]) {
     encode_len(bytes, fields.len());
     for field in fields {
         crate::codec_bytes::push_encoded(bytes, field.id.get().to_le_bytes());
@@ -451,7 +450,7 @@ pub(super) fn encode_structural_fields(bytes: &mut Vec<u8>, fields: &[Structural
     }
 }
 
-pub(super) fn encode_byte_sequence_carrier(bytes: &mut Vec<u8>, carrier: ByteSequenceCarrier) {
+pub fn encode_byte_sequence_carrier(bytes: &mut Vec<u8>, carrier: ByteSequenceCarrier) {
     match carrier {
         ByteSequenceCarrier::BorrowedView { .. } => bytes.push(1),
         ByteSequenceCarrier::BoundedView { access, capacity } => {
@@ -474,7 +473,7 @@ pub(super) fn encode_byte_sequence_carrier(bytes: &mut Vec<u8>, carrier: ByteSeq
     }
 }
 
-pub(super) fn encode_multiplicity(bytes: &mut Vec<u8>, multiplicity: StructuralMultiplicity) {
+pub fn encode_multiplicity(bytes: &mut Vec<u8>, multiplicity: StructuralMultiplicity) {
     bytes.push(match multiplicity {
         StructuralMultiplicity::Unrestricted => 1,
         StructuralMultiplicity::Affine => 2,
@@ -482,7 +481,7 @@ pub(super) fn encode_multiplicity(bytes: &mut Vec<u8>, multiplicity: StructuralM
     });
 }
 
-pub(super) fn encode_access(bytes: &mut Vec<u8>, access: StructuralAccess) {
+pub fn encode_access(bytes: &mut Vec<u8>, access: StructuralAccess) {
     bytes.push(match access {
         StructuralAccess::Owned => 1,
         StructuralAccess::SharedBorrow => 2,
@@ -491,12 +490,12 @@ pub(super) fn encode_access(bytes: &mut Vec<u8>, access: StructuralAccess) {
     });
 }
 
-pub(super) fn encode_string(bytes: &mut Vec<u8>, value: &str) {
+pub fn encode_string(bytes: &mut Vec<u8>, value: &str) {
     encode_len(bytes, value.len());
     bytes.extend_from_slice(value.as_bytes());
 }
 
-pub(super) fn encode_record_initializers(
+pub fn encode_record_initializers(
     bytes: &mut Vec<u8>,
     fields: &[terminal_psi::RecordFieldInitializer],
 ) {
@@ -746,7 +745,7 @@ mod tests {
             additional_input_qualifications: Vec::new(),
         };
         let shape = ValueShape::integer(8, 8);
-        let target = target_vocabulary::TargetStructuralParameter {
+        let target = crate::TargetStructuralParameter {
             place: semantic.place,
             structural_type: semantic.structural_type,
             multiplicity: semantic.multiplicity,
@@ -763,7 +762,7 @@ mod tests {
             encode_structural_parameter(&mut bytes, parameter);
             bytes
         };
-        let encode_target = |parameter: &target_vocabulary::TargetStructuralParameter| {
+        let encode_target = |parameter: &crate::TargetStructuralParameter| {
             let mut bytes = Vec::new();
             encode_target_structural_parameter(&mut bytes, parameter);
             bytes

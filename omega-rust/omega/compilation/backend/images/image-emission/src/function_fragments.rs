@@ -8,6 +8,7 @@ target operation is accounted for in the final native instructions.
 mod attribution {
     use super::{Error, host};
     use crate::order::strictly_increasing;
+    #[cfg(test)]
     use abstract_operations::{AbstractFunction, AbstractOperation};
     use machine_code::{
         FunctionFragment, FunctionFragmentBranchEvidence,
@@ -42,6 +43,7 @@ mod attribution {
         }
     }
 
+    #[cfg(test)]
     fn build_ordinal_index(
         source: &AbstractFunction,
     ) -> std::collections::BTreeMap<SemanticCodeSite, Option<usize>> {
@@ -92,65 +94,61 @@ mod attribution {
         index
     }
 
-    fn lookup_ordinal(
-        index: &std::collections::BTreeMap<SemanticCodeSite, Option<usize>>,
-        site: SemanticCodeSite,
-    ) -> Result<usize, Error> {
-        index.get(&site).copied().flatten().ok_or(Error::Mismatch(
-            "fragment semantic site has no unique authored ordinal",
-        ))
-    }
-
-    pub(super) fn ordinal(
+    #[cfg(test)]
+    fn test_publication(
         source: &AbstractFunction,
-        site: SemanticCodeSite,
-    ) -> Result<usize, Error> {
-        let mut matches = source
-            .operations()
-            .enumerate()
-            .filter_map(|(index, operation)| {
-                let matches = if let Some(psi_operation) = operation.psi_operation() {
-                    site == SemanticCodeSite::Operation(psi_operation)
-                } else {
-                    match operation {
-                        abstract_operations::return_or_return_unit_pattern!(psi_edge, ..)
-                        | AbstractOperation::InvokeNoNormal { psi_edge, .. }
-                        | AbstractOperation::ExternalCompletion { psi_edge, .. }
-                        | AbstractOperation::EliminateEmpty { psi_edge, .. }
-                        | AbstractOperation::Crash { psi_edge, .. }
-                        | AbstractOperation::ReturnStructural { psi_edge, .. }
-                        | AbstractOperation::Jump { psi_edge, .. } => {
-                            site == SemanticCodeSite::Edge(*psi_edge)
-                        }
-                        AbstractOperation::Conditional {
-                            when_true,
-                            when_false,
-                            ..
-                        } => {
-                            site == SemanticCodeSite::Edge(when_true.psi_edge)
-                                || site == SemanticCodeSite::Edge(when_false.psi_edge)
-                        }
-                        AbstractOperation::StructuralCase { cases, .. } => cases
-                            .iter()
-                            .any(|case| site == SemanticCodeSite::Edge(case.psi_edge)),
-                        _ => false,
-                    }
-                };
-                matches.then_some(index)
-            });
-        match (matches.next(), matches.next()) {
-            (Some(index), None) => Ok(index),
-            _ => Err(Error::Mismatch(
-                "fragment semantic site has no unique authored ordinal",
-            )),
-        }
+    ) -> Result<target_vocabulary::NativePublicationFacts, Error> {
+        let sites = build_ordinal_index(source)
+            .into_iter()
+            .map(|(site, ordinal)| {
+                let ordinal = ordinal.ok_or(Error::Mismatch(
+                    "fragment semantic site has no unique authored ordinal",
+                ))?;
+                Ok((site, u32::try_from(ordinal).map_err(|_| Error::Overflow)?))
+            })
+            .collect::<Result<Vec<_>, Error>>()?;
+        target_vocabulary::NativePublicationFacts::seal(vec![
+            target_vocabulary::NativeFunctionPublication {
+                machine: source.machine,
+                operation_count: u32::try_from(source.operations().count())
+                    .map_err(|_| Error::Overflow)?,
+                sites,
+                byte_literals: Vec::new(),
+            },
+        ])
+        .map_err(Error::Mismatch)
     }
 
-    pub(super) fn produce(
+    #[cfg(test)]
+    fn produce(
         fragment: &FunctionFragment,
         source: &AbstractFunction,
     ) -> Result<Vec<SemanticCodeAttribution>, Error> {
-        let ordinals = build_ordinal_index(source);
+        let publication = test_publication(source)?;
+        produce_current(fragment, publication.function(source.machine).unwrap())
+    }
+
+    pub(super) fn ordinal(
+        source: &target_vocabulary::NativeFunctionPublication,
+        site: SemanticCodeSite,
+    ) -> Result<usize, Error> {
+        let ordinal = source.ordinal(site).ok_or(Error::Mismatch(
+            "fragment semantic site has no unique authored ordinal",
+        ))?;
+        usize::try_from(ordinal).map_err(|_| Error::Overflow)
+    }
+
+    pub(super) fn produce_current(
+        fragment: &FunctionFragment,
+        source: &target_vocabulary::NativeFunctionPublication,
+    ) -> Result<Vec<SemanticCodeAttribution>, Error> {
+        produce_with_ordinals(fragment, |site| ordinal(source, site))
+    }
+
+    fn produce_with_ordinals(
+        fragment: &FunctionFragment,
+        mut ordinal: impl FnMut(SemanticCodeSite) -> Result<usize, Error>,
+    ) -> Result<Vec<SemanticCodeAttribution>, Error> {
         let mut rows = Vec::new();
         for instruction in fragment.instructions() {
             let offset = host(instruction.offset)?;
@@ -158,7 +156,7 @@ mod attribution {
             let mut push = |site, code_offset, byte_count| -> Result<(), Error> {
                 rows.push(SemanticCodeAttribution {
                     site,
-                    operation_ordinal: lookup_ordinal(&ordinals, site)?,
+                    operation_ordinal: ordinal(site)?,
                     code_offset,
                     byte_count,
                 });
@@ -292,17 +290,38 @@ mod attribution {
         Ok(joined)
     }
 
-    pub(super) fn validate(
+    #[cfg(test)]
+    fn validate(
         fragment: &FunctionFragment,
         source: &AbstractFunction,
         rows: &[SemanticCodeAttribution],
     ) -> Result<(), Error> {
-        let ordinals = build_ordinal_index(source);
+        let publication = test_publication(source)?;
+        validate_current(
+            fragment,
+            publication.function(source.machine).unwrap(),
+            rows,
+        )
+    }
+
+    pub(super) fn validate_current(
+        fragment: &FunctionFragment,
+        source: &target_vocabulary::NativeFunctionPublication,
+        rows: &[SemanticCodeAttribution],
+    ) -> Result<(), Error> {
+        validate_with_ordinals(fragment, rows, |site| ordinal(source, site))
+    }
+
+    fn validate_with_ordinals(
+        fragment: &FunctionFragment,
+        rows: &[SemanticCodeAttribution],
+        mut ordinal: impl FnMut(SemanticCodeSite) -> Result<usize, Error>,
+    ) -> Result<(), Error> {
         let physical = PhysicalSpans::prepare(fragment);
         let attributed = AttributionRows::new(rows);
         let mut previous_ends = std::collections::BTreeMap::new();
         for row in rows {
-            if lookup_ordinal(&ordinals, row.site)? != row.operation_ordinal
+            if ordinal(row.site)? != row.operation_ordinal
                 || previous_ends
                     .get(&row.site)
                     .is_some_and(|end| *end >= row.code_offset)
@@ -764,8 +783,9 @@ mod attribution {
     #[cfg(test)]
     mod tests {
         use super::{
-            AbstractFunction, Control, FunctionFragment, SelectedSuccessorRole,
-            SemanticCodeAttribution, SemanticCodeSite, ordinal, produce, validate,
+            AbstractFunction, Control, Error, FunctionFragment, SelectedSuccessorRole,
+            SemanticCodeAttribution, SemanticCodeSite, ordinal as current_ordinal, produce,
+            test_publication, validate,
         };
         use abstract_operations::{
             AbstractFunctionResult, AbstractOperation, IntegerArithmetic,
@@ -780,24 +800,31 @@ mod attribution {
             ScalarType, ValueId,
         };
 
+        fn ordinal(source: &AbstractFunction, site: SemanticCodeSite) -> Result<usize, Error> {
+            let publication = test_publication(source)?;
+            current_ordinal(publication.function(source.machine).unwrap(), site)
+        }
+
         fn assert_requires_unique_operation_ordinal(
             source: &mut AbstractFunction,
             operation: OperationId,
         ) {
+            let publication = test_publication(source).unwrap();
+            let current = publication.function(source.machine).unwrap();
             assert_eq!(
-                ordinal(source, SemanticCodeSite::Operation(operation)).unwrap(),
+                current_ordinal(current, SemanticCodeSite::Operation(operation)).unwrap(),
                 1
             );
             assert!(
-                ordinal(
-                    source,
+                current_ordinal(
+                    current,
                     SemanticCodeSite::Operation(OperationId::new(99).unwrap())
                 )
                 .is_err()
             );
             let repeated = source.blocks[0].operations[1].clone();
             source.blocks[0].operations.push(repeated);
-            assert!(ordinal(source, SemanticCodeSite::Operation(operation)).is_err());
+            assert!(test_publication(source).is_err());
         }
 
         #[test]
@@ -1487,7 +1514,6 @@ mod attribution {
 mod byte_literals {
     use super::{Error, source};
     use crate::{ObjectArtifact, ObjectByteLiteralAddress, ObjectByteLiteralPool, ObjectFunction};
-    use abstract_operations::AbstractOperation;
     use machine_code::PlacedImageAddress;
     use object_file::{
         ObjectPlan, RelocationOrigin, RelocationPlan, RelocationRecord, SectionKind,
@@ -1710,31 +1736,66 @@ mod byte_literals {
         if row.operation != literal.operation {
             return Err(Error::Mismatch("literal address operation changed"));
         }
-        let abstracted = source::abstract_function(source, row.machine)?;
-        let mut matches = abstracted
-            .operations()
-            .filter_map(|operation| match operation {
-                AbstractOperation::EstablishByteSequenceLiteral {
-                    psi_operation,
-                    place,
-                    bytes,
-                    ..
-                } if *psi_operation == literal.operation && place.id == literal.place => {
-                    Some(Some((Cow::Borrowed(bytes.as_slice()), 1)))
-                }
-                _ => None,
-            });
-        match (matches.next(), matches.next()) {
-            (Some(Some(octets)), None) => Ok(octets),
-            _ => Err(Error::Mismatch(
+        let current = source::publication_function(source, row.machine)?;
+        Ok((
+            Cow::Borrowed(quoted_octets(current, literal.operation, literal.place)?),
+            1,
+        ))
+    }
+
+    fn quoted_octets(
+        current: &target_vocabulary::NativeFunctionPublication,
+        operation: semantic_vocabulary::OperationId,
+        place: semantic_vocabulary::PlaceId,
+    ) -> Result<&[u8], Error> {
+        let quoted = current
+            .byte_literal(operation)
+            .filter(|quoted| quoted.place == place)
+            .ok_or(Error::Mismatch(
                 "byte-literal address names no unique retained literal",
-            )),
-        }
+            ))?;
+        Ok(quoted.bytes.as_ref())
     }
 
     #[cfg(test)]
     mod tests {
-        use super::pack_octets;
+        use super::{pack_octets, quoted_octets};
+
+        #[test]
+        fn current_literal_lookup_keeps_exact_bytes_and_refuses_another_place_or_operation() {
+            use machine_code::SemanticCodeSite;
+            use semantic_vocabulary::{MachineId, OperationId, PlaceId};
+            use target_vocabulary::{
+                NativeByteLiteral, NativeFunctionPublication, NativePublicationFacts,
+            };
+            let operation = OperationId::new(1).unwrap();
+            let place = PlaceId::new(1).unwrap();
+            let facts = NativePublicationFacts::seal(vec![NativeFunctionPublication {
+                machine: MachineId::new(1).unwrap(),
+                operation_count: 1,
+                sites: vec![(SemanticCodeSite::Operation(operation), 0)],
+                byte_literals: vec![NativeByteLiteral {
+                    operation,
+                    place,
+                    bytes: std::sync::Arc::from(b"exact\0octets".as_slice()),
+                }],
+            }])
+            .unwrap();
+            let function = &facts.functions()[0];
+            assert_eq!(
+                quoted_octets(function, operation, place).unwrap(),
+                b"exact\0octets"
+            );
+            assert!(quoted_octets(function, OperationId::new(2).unwrap(), place).is_err());
+            assert!(quoted_octets(function, operation, PlaceId::new(2).unwrap()).is_err());
+            let mut empty = function.clone();
+            empty.byte_literals[0].bytes = std::sync::Arc::from([]);
+            let empty = NativePublicationFacts::seal(vec![empty]).unwrap();
+            assert_eq!(
+                quoted_octets(&empty.functions()[0], operation, place).unwrap(),
+                b""
+            );
+        }
 
         #[test]
         fn identical_octets_share_one_entry_and_the_pool_ends_aligned() {
@@ -3535,7 +3596,7 @@ mod port_effects {
                         port: *port,
                         value: *value,
                         operation_ordinal: attribution::ordinal(
-                            function,
+                            source::publication_function(container, placed.machine)?,
                             SemanticCodeSite::Operation(*psi_operation),
                         )?,
                         code_offset,
@@ -3949,7 +4010,10 @@ mod production {
             let fragment = fragments
                 .function(placed.machine)
                 .ok_or(Error::Mismatch("missing current fragment"))?;
-            let mut rows = attribution::produce(fragment, abstracted)?;
+            let mut rows = attribution::produce_current(
+                fragment,
+                source::publication_function(source, placed.machine)?,
+            )?;
             rows.extend(super::structural::settlement_attributions(
                 source,
                 placed.machine,
@@ -4035,14 +4099,21 @@ mod production {
             relocations.push_record(record);
         }
         let artifact = ObjectArtifact {
+            installation_authority: Arc::clone(
+                source
+                    .source()
+                    .source()
+                    .source()
+                    .source()
+                    .installation_authority(),
+            ),
             program_contracts: Arc::clone(
                 &source
                     .source()
                     .source()
                     .source()
                     .source()
-                    .program()
-                    .selected
+                    .physical_program()
                     .contracts,
             ),
             projected: ProjectedObject(()),
@@ -4079,7 +4150,7 @@ pub(crate) mod replay {
     mod validation;
 
     use std::sync::Arc;
-    pub use validation::verify_retained_target_operations;
+    pub use validation::{verify_retained_fixed_frame, verify_retained_target_operations};
 
     use object_file::StagedOptimizedRelocationFreeObjectContainer;
 
@@ -4390,10 +4461,9 @@ mod source {
             .source()
             .source()
             .source()
-            .optimized_target()
-            .execution_plan()
-            .plan()
-            .profile
+            .physical_program()
+            .contracts
+            .profile()
     }
 
     mod descriptor_tables {
@@ -9869,13 +9939,11 @@ mod source {
     mod privileged_termination {
         use crate::FunctionFragmentObjectArtifactError as Error;
         use provider_admission::AdmittedInstalledEntryExecution;
-        use selected_instructions::{
-            SelectedInstructionKind as Kind, SelectedInstructionPlan, SelectedTerminator,
-        };
+        use selected_instructions::{SelectedInstructionKind as Kind, SelectedTerminator};
 
         pub(super) fn validate(
             execution: Option<&AdmittedInstalledEntryExecution>,
-            selected: &SelectedInstructionPlan,
+            selected: &post_allocation_machine::PostAllocationMachineProgram,
         ) -> Result<(), Error> {
             if let Some(execution) = execution {
                 let entry = execution.entry().entry();
@@ -9889,7 +9957,7 @@ mod source {
                     ));
                 }
             }
-            for function in &selected.functions {
+            for function in selected.functions.iter() {
                 for block in &function.blocks {
                     if block
                         .instructions
@@ -10219,7 +10287,7 @@ mod source {
             .source()
             .source()
             .source()
-            .selected_plan()
+            .physical_program()
             .function(machine)
             .ok_or(super::Error::Mismatch(
                 "constant operand has no retained function",
@@ -11919,7 +11987,6 @@ mod source {
             mod activation_residence {
                 use super::{BackingGeometry, BackingRequirement, record_selected_formation_calls};
                 use abstract_operations::AbstractOperationPlan;
-                use selected_instructions::SelectedInstructionPlan;
                 use semantic_vocabulary::{MachineId, OperationId, StructuralTypeId};
                 use terminal_psi::{
                     StructuralArgument, StructuralFieldDeclaration, StructuralTypeShape,
@@ -11953,7 +12020,7 @@ mod source {
 
                 pub(in crate::function_fragments::source) fn validate(
                     source: &AbstractOperationPlan,
-                    selected: &SelectedInstructionPlan,
+                    selected: &post_allocation_machine::PostAllocationMachineProgram,
                     targeted: &target_operations::TargetOperationPlan,
                     requirements: &[installation_evidence::InstalledInterruptStackRequirement],
                 ) -> Result<(), super::super::super::Error> {
@@ -12025,7 +12092,7 @@ mod source {
                 impl<'a> BackingGeometry<'a> {
                     pub(in crate::function_fragments::source) fn for_activation_residence(
                         abstracted: &'a AbstractOperationPlan,
-                        selected: &'a SelectedInstructionPlan,
+                        selected: &'a post_allocation_machine::PostAllocationMachineProgram,
                         targeted: &'a target_operations::TargetOperationPlan,
                         graph: &'a [DescriptorMachine],
                     ) -> Self {
@@ -13108,7 +13175,6 @@ mod source {
             pub(in crate::function_fragments::source) use activation_residence::validate as validate_activation_residence;
 
             use abstract_operations::AbstractOperationPlan;
-            use selected_instructions::SelectedInstructionPlan;
             use semantic_vocabulary::{MachineId, PlaceId};
             use terminal_psi::{AccessRamCorrespondence, StructuralAccess, StructuralArgument};
             use terminal_semantics::descriptor_lifetimes::{
@@ -13127,7 +13193,7 @@ mod source {
 
             pub(in crate::function_fragments::source) struct BackingGeometry<'a> {
                 abstracted: &'a AbstractOperationPlan,
-                selected: &'a SelectedInstructionPlan,
+                selected: &'a post_allocation_machine::PostAllocationMachineProgram,
                 targeted: &'a target_operations::TargetOperationPlan,
                 graph: &'a [DescriptorMachine],
                 analysis: DescriptorAnalysis<'a>,
@@ -13300,7 +13366,7 @@ mod source {
             impl<'a> BackingGeometry<'a> {
                 pub(in crate::function_fragments::source) fn new(
                     abstracted: &'a AbstractOperationPlan,
-                    selected: &'a SelectedInstructionPlan,
+                    selected: &'a post_allocation_machine::PostAllocationMachineProgram,
                     targeted: &'a target_operations::TargetOperationPlan,
                     graph: &'a [DescriptorMachine],
                 ) -> Self {
@@ -15777,7 +15843,7 @@ mod source {
                 .collect::<Vec<_>>();
             let emissions = source.source().source().source().source();
             let selected = emissions
-                .selected_plan()
+                .physical_program()
                 .function(machine)
                 .ok_or(Error::Mismatch("stack caller has no selected function"))?;
             let placed = text
@@ -20608,22 +20674,37 @@ mod source {
             .callable_invocations()
     }
 
-    /// The target calling contract the prepared plan records for `machine`.
-    pub(super) fn function_abi(
+    pub(super) fn publication_function(
         source: &StagedOptimizedRelocationFreeObjectContainer,
         machine: MachineId,
-    ) -> Result<&legalized_operations::LegalizedFunctionAbi, Error> {
+    ) -> Result<&target_vocabulary::NativeFunctionPublication, Error> {
         source
             .source()
             .source()
             .source()
             .source()
-            .optimized_target()
-            .execution_plan()
-            .plan()
+            .physical_program()
+            .contracts
+            .publication()
+            .function(machine)
+            .ok_or(Error::Mismatch("current function has no publication facts"))
+    }
+
+    /// The target calling contract retained by the current physical program.
+    pub(super) fn function_abi(
+        source: &StagedOptimizedRelocationFreeObjectContainer,
+        machine: MachineId,
+    ) -> Result<&target_vocabulary::function_abi::LegalizedFunctionAbi, Error> {
+        source
+            .source()
+            .source()
+            .source()
+            .source()
+            .physical_program()
+            .contracts
             .function_abi(machine)
             .ok_or(Error::Mismatch(
-                "shared function has no prepared calling contract",
+                "shared function has no current calling contract",
             ))
     }
 
@@ -21028,7 +21109,7 @@ mod source {
     ) -> Result<std::collections::BTreeMap<MachineId, u32>, Error> {
         let current = source.source().source().source().source();
         temporary_stack_bytes_for_selected_functions(
-            &current.selected_plan().functions,
+            current.physical_program().functions.iter(),
             current.encoding().rows(),
             current.encoding().encoded(),
         )
@@ -21044,15 +21125,15 @@ mod source {
         selected.function(machine).ok_or(Error::Mismatch(
             "missing selected function for temporary stack replay",
         ))?;
-        temporary_stack_bytes_for_selected_functions(selected, rows, encoded)?
+        temporary_stack_bytes_for_selected_functions(selected.iter(), rows, encoded)?
             .remove(&machine)
             .ok_or(Error::Mismatch(
                 "missing selected function for temporary stack replay",
             ))
     }
 
-    fn temporary_stack_bytes_for_selected_functions(
-        selected: &selected_instructions::SelectedFunctions,
+    fn temporary_stack_bytes_for_selected_functions<'function>(
+        selected: impl IntoIterator<Item = &'function selected_instructions::SelectedFunction>,
         rows: &[machine_code::SelectedFormEncodingRow],
         encoded: &machine_code::SelectedFormEncodedRowStore,
     ) -> Result<std::collections::BTreeMap<MachineId, u32>, Error> {
@@ -22024,7 +22105,6 @@ mod structural {
                 return Err(invalid());
             }
             let code_offset = host(span.offset)?;
-            let abstracted = source::abstract_function(container, machine)?;
             let record = BoundarySettlementRecord {
                 invocation_site: (*operation).into(),
                 boundary: *boundary,
@@ -22047,7 +22127,7 @@ mod structural {
                     home_byte_offset: offset,
                 }),
                 operation_ordinal: attribution::ordinal(
-                    abstracted,
+                    source::publication_function(container, machine)?,
                     SemanticCodeSite::Operation(*operation),
                 )?,
                 code_offset,
@@ -22110,7 +22190,6 @@ mod structural {
             let BoundaryResultRecord::Structural(produced) = &record.native_result else {
                 return Err(invalid());
             };
-            let abstracted = source::abstract_function(container, machine)?;
             let code_offset = host(span.offset)?;
             if proposed.machine != machine
                 || &produced.declaration != result_declaration(function, result.structural_type)?
@@ -22118,7 +22197,10 @@ mod structural {
                 || record.invocation_site != (*operation).into()
                 || record.boundary != *boundary
                 || record.operation_ordinal
-                    != attribution::ordinal(abstracted, SemanticCodeSite::Operation(*operation))?
+                    != attribution::ordinal(
+                        source::publication_function(container, machine)?,
+                        SemanticCodeSite::Operation(*operation),
+                    )?
                 || record.execution
                     != BoundaryExecutionRecord::CompilerBuiltin(
                         CompilerBuiltinExecution::HostedReadByte,
@@ -22441,13 +22523,13 @@ mod structural {
                 operation,
                 boundary,
                 source: value,
+                execution,
             } = located.settlement
             else {
                 return Err(Error::Mismatch("selected byte output payload"));
             };
             let function = selected(container, machine)?;
             let fragment = fragment(container, machine)?;
-            let abstracted = source::abstract_function(container, machine)?;
             let instruction = function
                 .block(located.block)
                 .and_then(|block| block.instructions.get(located.instruction_index as usize))
@@ -22486,8 +22568,7 @@ mod structural {
             let scalar_type = ScalarType::Integer(
                 IntegerType::new(IntegerSign::Signed, 32).map_err(|_| Error::Mismatch("i32"))?,
             );
-            let (execution, realization) =
-                target_settlement(container, machine, operation, boundary)?;
+            let (execution, realization) = current_settlement(execution)?;
             let settlement = BoundarySettlementRecord {
                 invocation_site: operation.into(),
                 boundary,
@@ -22512,7 +22593,7 @@ mod structural {
                 completion_provider_custody: Vec::new(),
                 native_result: BoundaryResultRecord::Unit,
                 operation_ordinal: attribution::ordinal(
-                    abstracted,
+                    source::publication_function(container, machine)?,
                     SemanticCodeSite::Operation(operation),
                 )?,
                 code_offset,
@@ -22541,6 +22622,7 @@ mod structural {
                 operation,
                 boundary,
                 source: value,
+                execution,
             } = located.settlement
             else {
                 return Err(invalid());
@@ -22581,9 +22663,7 @@ mod structural {
                 return Err(invalid());
             };
             let offset = host(span.offset)?;
-            let abstracted = source::abstract_function(container, machine)?;
-            let (execution, realization) =
-                target_settlement(container, machine, operation, boundary)?;
+            let (execution, realization) = current_settlement(execution)?;
             if settlement.execution != BoundaryExecutionRecord::from(execution)
                 || settlement.realization != realization
                 || proposed.machine != machine
@@ -22591,7 +22671,7 @@ mod structural {
                 || settlement.invocation_site != operation.into()
                 || settlement.boundary != boundary
                 || settlement.operation_ordinal
-                    != attribution::ordinal(abstracted, SemanticCodeSite::Operation(operation))?
+                    != attribution::ordinal(source::publication_function(container, machine)?, SemanticCodeSite::Operation(operation))?
                 || source_value != value
                 || instruction != row.id
                 || !matches!(scalar_type, ScalarType::Integer(integer) if integer.sign() == IntegerSign::Signed && integer.bits() == Some(32))
@@ -22613,14 +22693,11 @@ mod structural {
             Ok(())
         }
 
-        /// Who performs the byte write at `operation`, as the prepared plan
-        /// records it. Only an admitted provider or the compiler's built-in
-        /// host byte output may write a byte.
-        fn target_settlement(
-            container: &StagedOptimizedRelocationFreeObjectContainer,
-            machine: MachineId,
-            operation: semantic_vocabulary::OperationId,
-            boundary: semantic_vocabulary::BoundaryMachineId,
+        /// Read the byte writer from the current boundary contract. Only an
+        /// admitted provider or the compiler's built-in host byte output may
+        /// write a byte.
+        fn current_settlement(
+            execution: target_operations::BoundaryExecutionBinding,
         ) -> Result<
             (
                 target_operations::BoundaryExecutionBinding,
@@ -22628,54 +22705,23 @@ mod structural {
             ),
             Error,
         > {
-            use legalized_operations::LegalizedScalarInstructionKind;
             use target_operations::{
                 BoundaryExecutionBinding, BoundaryRealization, CompilerBuiltinExecution,
                 HostedWriteByteI32Realization,
             };
-            let function = container
-                .source()
-                .source()
-                .source()
-                .source()
-                .optimized_target()
-                .execution_plan()
-                .plan()
-                .scalar_functions
-                .iter()
-                .find(|function| function.machine == machine)
-                .ok_or(Error::Mismatch("missing byte output prepared function"))?;
-            let mut found = None;
-            for row in function.instructions() {
-                if row.operation != operation {
-                    continue;
-                }
-                let LegalizedScalarInstructionKind::HostedWriteByteI32 {
-                    boundary: source_boundary,
-                    execution,
-                    ..
-                } = row.kind
-                else {
-                    continue;
-                };
-                if source_boundary != boundary
-                    || found.is_some()
-                    || !matches!(
-                        execution,
-                        BoundaryExecutionBinding::AdmittedProvider(_)
-                            | BoundaryExecutionBinding::CompilerBuiltin(
-                                CompilerBuiltinExecution::HostedWriteByteI32
-                            )
+            if !matches!(
+                execution,
+                BoundaryExecutionBinding::AdmittedProvider(_)
+                    | BoundaryExecutionBinding::CompilerBuiltin(
+                        CompilerBuiltinExecution::HostedWriteByteI32
                     )
-                {
-                    return Err(Error::Mismatch("byte output target settlement custody"));
-                }
-                found = Some((
-                    execution,
-                    BoundaryRealization::HostedWriteByteI32(HostedWriteByteI32Realization),
-                ));
+            ) {
+                return Err(Error::Mismatch("byte output current settlement custody"));
             }
-            found.ok_or(Error::Mismatch("missing byte output target settlement"))
+            Ok((
+                execution,
+                BoundaryRealization::HostedWriteByteI32(HostedWriteByteI32Realization),
+            ))
         }
     }
 
@@ -23955,7 +24001,6 @@ mod structural {
             };
             let function = selected(container, machine)?;
             let fragment = fragment(container, machine)?;
-            let abstracted = source::abstract_function(container, machine)?;
             let block = function
                 .block(located.block)
                 .ok_or(Error::Mismatch("process exit block"))?;
@@ -24019,7 +24064,10 @@ mod structural {
                 completion_receipts: Vec::new(),
                 completion_provider_custody: Vec::new(),
                 native_result: BoundaryResultRecord::Unit,
-                operation_ordinal: attribution::ordinal(abstracted, SemanticCodeSite::Edge(edge))?,
+                operation_ordinal: attribution::ordinal(
+                    source::publication_function(container, machine)?,
+                    SemanticCodeSite::Edge(edge),
+                )?,
                 code_offset,
                 byte_count: span.bytes.len(),
             };
@@ -24083,7 +24131,6 @@ mod structural {
                 .text_section()
                 .function(machine)
                 .ok_or_else(invalid)?;
-            let abstracted = source::abstract_function(container, machine)?;
             let offset = host(span.offset)?;
             if located.instruction_index as usize != block.instructions.len()
                 || edge != *completion_edge
@@ -24103,7 +24150,7 @@ mod structural {
                 || proposed.settlement.execution != execution.into()
                 || proposed.settlement.boundary != boundary
                 || proposed.settlement.operation_ordinal
-                    != attribution::ordinal(abstracted, SemanticCodeSite::Edge(edge))?
+                    != attribution::ordinal(source::publication_function(container, machine)?, SemanticCodeSite::Edge(edge))?
                 || proposed.settlement.code_offset != offset
                 || proposed.settlement.byte_count != span.bytes.len()
                 || !crate::object::object_artifact::replay::boundary::runtime_scalar_custody::process_exit::bytes_are_exact(
@@ -24738,7 +24785,6 @@ mod structural {
             for placed in &source.source().text_section().functions {
                 let function = selected(source, placed.machine)?;
                 let fragment = fragment(source, placed.machine)?;
-                let abstracted = source::abstract_function(source, placed.machine)?;
                 for located in &function.boundary_settlements {
                     let actual = rows
                         .get(cursor)
@@ -24779,7 +24825,7 @@ mod structural {
                         || !row.native_result.is_unit()
                         || row.operation_ordinal
                             != attribution::ordinal(
-                                abstracted,
+                                source::publication_function(source, placed.machine)?,
                                 SemanticCodeSite::Operation(expected.operation),
                             )?
                         || row.byte_count != 0
@@ -24822,7 +24868,6 @@ mod structural {
         ) -> Result<Vec<SemanticCodeAttribution>, Error> {
             let function = selected(source, machine)?;
             let fragment = fragment(source, machine)?;
-            let abstracted = source::abstract_function(source, machine)?;
             let invalid =
                 || Error::Mismatch("settlement attribution differs from admitted operation");
             let mut sites = Vec::new();
@@ -24864,7 +24909,11 @@ mod structural {
                 };
                 if matching.next().is_some()
                     || row.byte_count != expected_byte_count
-                    || row.operation_ordinal != attribution::ordinal(abstracted, site)?
+                    || row.operation_ordinal
+                        != attribution::ordinal(
+                            source::publication_function(source, machine)?,
+                            site,
+                        )?
                 {
                     return Err(invalid());
                 }
@@ -25259,7 +25308,7 @@ mod structural {
             .source()
             .source()
             .source()
-            .selected_plan()
+            .physical_program()
             .function(machine)
             .ok_or(Error::Mismatch("function has no selected contract"))
     }
@@ -25803,7 +25852,6 @@ mod structural {
     ) -> Result<Vec<SemanticCodeAttribution>, Error> {
         let function = selected(source, machine)?;
         let fragment = fragment(source, machine)?;
-        let abstracted = source::abstract_function(source, machine)?;
         function
             .boundary_settlements
             .iter()
@@ -25817,7 +25865,10 @@ mod structural {
                 let site = semantic_code_site(row.settlement.invocation_site());
                 Ok(SemanticCodeAttribution {
                     site,
-                    operation_ordinal: attribution::ordinal(abstracted, site)?,
+                    operation_ordinal: attribution::ordinal(
+                        source::publication_function(source, machine)?,
+                        site,
+                    )?,
                     code_offset: settlement_offset(function, fragment, row)?,
                     byte_count: 0,
                 })
@@ -25831,7 +25882,6 @@ mod structural {
         for placed in &source.source().text_section().functions {
             let function = selected(source, placed.machine)?;
             let fragment = fragment(source, placed.machine)?;
-            let abstracted = source::abstract_function(source, placed.machine)?;
             for located in &function.boundary_settlements {
                 let selected_instructions::SelectedBoundarySettlementPayload::ClaimCompletion(row) =
                     &located.settlement
@@ -25872,7 +25922,7 @@ mod structural {
                             .ok_or(Error::Mismatch("completion custody"))?,
                         native_result: machine_code::BoundaryResultRecord::Unit,
                         operation_ordinal: attribution::ordinal(
-                            abstracted,
+                            source::publication_function(source, placed.machine)?,
                             SemanticCodeSite::Operation(row.operation),
                         )?,
                         code_offset: offset,

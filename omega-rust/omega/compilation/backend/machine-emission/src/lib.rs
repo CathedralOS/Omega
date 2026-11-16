@@ -41,12 +41,6 @@ pub mod native_entry_bridge;
 pub mod native_foreign_bridge;
 mod text_placement;
 
-/// Stage 06's machine plan keeps the allocation that frame planning reads.
-pub type AllocatedMachinePlan =
-    register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan<
-        selected_instructions_to_register_homes::RetainedAllocation,
-    >;
-
 pub use exit_contract::{
     WholeFunctionEntryAssumption, WholeFunctionExitContract, WholeFunctionExitContractIdentity,
     WholeFunctionExitEvidence, WholeFunctionExitLayoutCustody, WholeFunctionExitPolicy,
@@ -71,10 +65,9 @@ pub use frame_protocol::{
     TargetFrameProtocolEncodingPolicy, target_frame_protocol_encoding_identity,
 };
 pub use function_realization::{
-    EncodedFunction, FramedFunction, FunctionRelativeFrame,
-    FunctionRelativeOptimizationRealizationError, LaidOutFunction, OptimizedFunctionLayout,
-    StagedFixedFrameFunctionRelativeRealization, assemble_fixed_frame_realization,
-    stage_function_frame,
+    EncodedFunction, FunctionRealizationReplay, FunctionRelativeOptimizationRealizationError,
+    LaidOutFunction, OptimizedFunctionLayout, StagedFixedFrameFunctionRelativeRealization,
+    assemble_fixed_frame_realization, stage_function_frame,
 };
 pub use text_placement::{
     FunctionFragmentTextSectionManifest, FunctionFragmentTextSectionManifestDecodeError,

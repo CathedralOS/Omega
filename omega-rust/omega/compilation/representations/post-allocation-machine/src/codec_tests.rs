@@ -43,16 +43,16 @@ const WRITE_SEMANTICS_OFFSET: usize = 573;
 fn post_allocation_codec_pins_current_schema_at_empty_boundaries() {
     use sha2::Digest;
     let identities = [
-        "f06041c0cd07dce70fcf6ae7813cd047b09b381584d81035fb9d1e3f1b60924e",
-        "acd3db0393b1ae08dda2b3e3c8f7cd678a9ec7f1d81a66a08275af24a7dcdf34",
-        "82138b5500a01cf781f9a3a7170aab472ab162084caab3eb1ca616f9a9cb3c87",
-        "9e51b984415c9a15e7e6bc851028667977c7e919abda9dfb3f9b344f6fa91c00",
+        "e0d04b622509759717e60c6ae8d59d05ae7e790d54c4053b32f47b687776c15a",
+        "f80ceb53a2067a4138937b72500606c8360ddbaddf5a7168101837dba8010276",
+        "0965320f9e2d9255561564f047861edc02920e3e0cdfb6ad6718349d48d501fe",
+        "f0434aa450b2ffbc6ce0ac1898a199ca1beb6600d822eb5ecaa04a8996f2fe91",
     ];
     let wire_digests = [
-        "bd6fc498ca5b46236c972455fab13883fa6e759506ddfbbf27132e11bfb73609",
-        "da38c499a1b1a297557b4322f19f1718291963ebe78d5729e102f3a17fb9fc3a",
-        "56d7d970b61317e54fd5cec3b854213cc3112c94683dcf33c1c32508b712dc62",
-        "97bf5a334251947b93ce83dd803e9ac866f79a745fca34c13d288c791021f895",
+        "d464814f2253296950b7b6711ee5104a3bb2c399bae1a57297bdfb45ad9321b9",
+        "ce673894d2b5bb44aba0d6d8886dc96ddfbb0d219f84d3cc8f363b152580f5b9",
+        "eaefadc7529b321043eef3a5c333600244d44570c22d78e683d91eac015002d9",
+        "0a3074d6bf491f0074b537213f75cad9292fdbf225322e096757de6631df1421",
     ];
     let measured = (0..4)
         .map(|variant| {

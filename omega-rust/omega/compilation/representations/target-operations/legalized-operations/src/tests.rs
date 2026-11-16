@@ -152,9 +152,10 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
     let call = id::<OperationId>(1);
     let return_edge = id::<EdgeId>(1);
     LegalizedOperationPlan {
+        publication: Default::default(),
         borrowed_storage_layouts: Default::default(),
         installation_operations: Vec::new(),
-        function_abis: Vec::new(),
+        function_abis: std::sync::Arc::from([]),
         psi: TerminalPsiIdentity {
             vocabulary_marker: VocabularyMarker::CURRENT,
             program_fingerprint: SemanticFingerprint::from_bytes([7; 32]),

@@ -12,11 +12,12 @@ use machine_code::{
 use post_allocation_machine::{
     PostAllocationMachineFunction, PostAllocationMachineInstruction,
     PostAllocationMachineOptimizationCustody, PostAllocationMachinePlan,
+    PostAllocationMachineProgram,
 };
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::{
-    CurrentSelectedProgram, SelectedBlock, SelectedBlockId, SelectedFunction, SelectedInstruction,
-    SelectedInstructionId, SelectedInstructionKind, SelectedTerminator,
+    SelectedBlock, SelectedBlockId, SelectedFunction, SelectedInstruction, SelectedInstructionId,
+    SelectedInstructionKind, SelectedTerminator,
 };
 use target::Architecture;
 
@@ -33,15 +34,16 @@ use crate::{
 type PreLayoutRows<'a> = std::slice::Iter<'a, SelectedFormEncodingRow>;
 
 pub(crate) fn validate(
-    selected: CurrentSelectedProgram<'_>,
-    machine: &PostAllocationMachinePlan,
-    physical: &ValidatedPhysicalRegisterModel,
+    selected: &PostAllocationMachineProgram,
     pre_layout: &SelectedFormEncoding,
     artifact: &ResolvedMachineLayout,
+    allow_x86_short: bool,
 ) -> Result<(), Error> {
-    let selected_plan = selected.plan;
+    let selected_plan = selected;
+    let machine = &*selected.machine;
+    let physical = selected.physical();
     let machine_plan = machine;
-    if pre_layout.selected() != selected.identity
+    if pre_layout.selected() != machine.selected
         || pre_layout.machine() != machine.identity
         || selected_plan.target != machine_plan.target
         || selected_plan.target.architecture != physical.model().architecture
@@ -50,7 +52,7 @@ pub(crate) fn validate(
     {
         return Err(Error::RootMismatch);
     }
-    let expected_policy = select(selected_plan)?;
+    let expected_policy = select(&selected_plan.functions)?;
     validate_roots(
         selected,
         machine,
@@ -66,23 +68,24 @@ pub(crate) fn validate(
         pre_layout,
         expected_policy,
         artifact,
+        allow_x86_short,
     )?;
     validate_identity(artifact)
 }
 
 fn validate_roots(
-    selected: CurrentSelectedProgram<'_>,
+    selected: &PostAllocationMachineProgram,
     machine: &PostAllocationMachinePlan,
     pre_layout: &SelectedFormEncoding,
     optimization: Option<PostAllocationMachineOptimizationCustody>,
     policy: SelectedFunctionLayoutPolicy,
     artifact: &ResolvedMachineLayout,
 ) -> Result<(), Error> {
-    if artifact.selected() != selected.identity
+    if artifact.selected() != machine.selected
         || artifact.machine() != machine.identity
         || artifact.pre_layout() != pre_layout.identity()
         || artifact.post_allocation_machine_optimization() != optimization
-        || artifact.target() != selected.plan.target
+        || artifact.target() != selected.target
         || artifact.policy() != policy
     {
         return Err(Error::ArtifactMismatch);
@@ -107,14 +110,15 @@ fn validate_identity(artifact: &ResolvedMachineLayout) -> Result<(), Error> {
 }
 
 fn validate_ordinary(
-    selected: CurrentSelectedProgram<'_>,
+    selected: &PostAllocationMachineProgram,
     machine: &PostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
     pre_layout: &SelectedFormEncoding,
     policy: SelectedFunctionLayoutPolicy,
     artifact: &ResolvedMachineLayout,
+    allow_x86_short: bool,
 ) -> Result<(), Error> {
-    let selected_plan = selected.plan;
+    let selected_plan = selected;
     let machine_plan = machine;
     if artifact.functions().len() != selected_plan.functions.len() {
         return Err(Error::ArtifactMismatch);
@@ -135,6 +139,7 @@ fn validate_ordinary(
             &mut pre_rows,
             candidate,
             pre_layout.encoded(),
+            allow_x86_short,
         )?;
     }
     if pre_rows.next().is_some() {
@@ -153,6 +158,7 @@ fn validate_function(
     pre_rows: &mut PreLayoutRows<'_>,
     candidate: &ResolvedSelectedFunctionLayout,
     encoded: &SelectedFormEncodedRowStore,
+    allow_x86_short: bool,
 ) -> Result<(), Error> {
     if selected.machine != machine.machine
         || selected.machine != candidate.machine
@@ -173,7 +179,11 @@ fn validate_function(
     if candidate.blocks.len() != ordered.len() {
         return Err(Error::ArtifactMismatch);
     }
-    let layout = derive_plan(architecture, &ordered, &pre_rows)?;
+    let layout = if allow_x86_short && architecture == Architecture::X86_64 {
+        current_x86_spans(&ordered, candidate)?
+    } else {
+        derive_plan(architecture, &ordered, &pre_rows)?
+    };
     if candidate.byte_count != layout.function_size {
         return Err(Error::ArtifactMismatch);
     }
@@ -211,6 +221,7 @@ fn validate_function(
                 candidate_row,
                 layout.widened_branches.contains(&instruction.id),
                 encoded,
+                allow_x86_short,
             )?;
             instruction_offset = instruction_offset
                 .checked_add(
@@ -229,6 +240,43 @@ fn validate_function(
         }
     }
     Ok(())
+}
+
+// A relaxed x86 layout admits two exact conditional widths. Accumulate its
+// actual row widths, then independently decode every row and verify each edge
+// against these offsets. This checks the current result without retaining or
+// reconstructing the earlier near-branch layout.
+fn current_x86_spans(
+    ordered: &[&SelectedBlock],
+    candidate: &ResolvedSelectedFunctionLayout,
+) -> Result<crate::ordinary::LayoutPlan, Error> {
+    let mut layout = crate::ordinary::LayoutPlan {
+        block_offsets: BTreeMap::new(),
+        block_sizes: BTreeMap::new(),
+        instruction_offsets: BTreeMap::new(),
+        function_size: 0,
+        widened_branches: std::collections::BTreeSet::new(),
+    };
+    for (block, claimed) in ordered.iter().zip(&candidate.blocks) {
+        if claimed.block != block.id || claimed.instructions.len() != block.instructions.len() + 1 {
+            return Err(Error::ArtifactMismatch);
+        }
+        let start = layout.function_size;
+        layout.block_offsets.insert(block.id, start);
+        for (instruction, row) in instructions(block).zip(&claimed.instructions) {
+            if row.instruction != instruction.id {
+                return Err(Error::ArtifactMismatch);
+            }
+            layout.function_size = layout
+                .function_size
+                .checked_add(u64::try_from(row.bytes.len()).map_err(|_| Error::OffsetOverflow)?)
+                .ok_or(Error::OffsetOverflow)?;
+        }
+        layout
+            .block_sizes
+            .insert(block.id, layout.function_size - start);
+    }
+    Ok(layout)
 }
 
 fn collect_pre_layout_rows<'a>(
@@ -327,10 +375,31 @@ fn validate_row(
     candidate: &ResolvedSelectedFormRow,
     widened: bool,
     encoded: &SelectedFormEncodedRowStore,
+    allow_x86_short: bool,
 ) -> Result<(), Error> {
+    let short_branch = allow_x86_short
+        && architecture == Architecture::X86_64
+        && candidate.bytes.len() == 2
+        && conditional_branch_descriptor(block)
+            .is_some_and(|branch| branch.terminator.id == instruction.id);
+    let mut expected_alternative = machine.alternative.key;
+    if short_branch
+        && (machine.alternative.key.variant != 0
+            || !declared_size_matches(machine.alternative.size, 6))
+    {
+        return Err(Error::ArtifactMismatch);
+    }
+    if short_branch
+        && !matches!(
+            instruction.kind,
+            SelectedInstructionKind::ConditionalBranchNonZero
+        )
+    {
+        expected_alternative.variant = 1;
+    }
     if candidate.instruction != instruction.id
-        || candidate.alternative != pre.alternative
-        || candidate.alternative != machine.alternative.key
+        || pre.alternative != machine.alternative.key
+        || candidate.alternative != expected_alternative
         || candidate.offset != expected_offset
     {
         return Err(Error::ArtifactMismatch);
@@ -418,6 +487,7 @@ fn validate_row(
             physical,
             candidate,
             widened,
+            short_branch,
         ),
         _ => Err(Error::ArtifactMismatch),
     }
@@ -434,7 +504,14 @@ fn validate_branch(
     physical: &ValidatedPhysicalRegisterModel,
     candidate: &ResolvedSelectedFormRow,
     widened: bool,
+    short_branch: bool,
 ) -> Result<(), Error> {
+    if candidate.internal_machine_fixup.is_some()
+        || candidate.normalized_foreign_call_fixup.is_some()
+        || candidate.image_address_fixup.is_some()
+    {
+        return Err(Error::ArtifactMismatch);
+    }
     if let SelectedTerminator::Jump {
         instruction: jump,
         successor,
@@ -519,7 +596,9 @@ fn validate_branch(
     let fallthrough_offset = *block_offsets
         .get(&when_fallthrough.block)
         .ok_or(Error::ArtifactMismatch)?;
-    let branch_size = if widened {
+    let branch_size = if short_branch {
+        2
+    } else if widened {
         8
     } else {
         branch_size(architecture)
@@ -538,9 +617,14 @@ fn validate_branch(
         Architecture::X86_64 => {
             let decoded = match predicate {
                 ResolvedConditionalBranchPredicate::NonZeroV1 => {
-                    isa_x86_64::validate_x86_64_selected_nonzero_branch_form(
+                    let validate = if short_branch {
+                        isa_x86_64::validate_x86_64_selected_short_nonzero_branch_form
+                    } else {
+                        isa_x86_64::validate_x86_64_selected_nonzero_branch_form
+                    };
+                    validate(
                         physical,
-                        machine.alternative.key,
+                        candidate.alternative,
                         displacement,
                         &candidate.bytes,
                     )
@@ -548,7 +632,7 @@ fn validate_branch(
                 ResolvedConditionalBranchPredicate::U64LessThanV1 => {
                     isa_x86_64::validate_x86_64_selected_u64_less_than_branch_form(
                         physical,
-                        machine.alternative.key,
+                        candidate.alternative,
                         displacement,
                         &candidate.bytes,
                     )
@@ -556,7 +640,7 @@ fn validate_branch(
                 ResolvedConditionalBranchPredicate::I64LessThanV1 => {
                     isa_x86_64::validate_x86_64_selected_i64_less_than_branch_form(
                         physical,
-                        machine.alternative.key,
+                        candidate.alternative,
                         displacement,
                         &candidate.bytes,
                     )
@@ -593,7 +677,7 @@ fn validate_branch(
         return Err(Error::ArtifactMismatch);
     }
     if u64::try_from(candidate.bytes.len()).ok() != Some(branch_size)
-        || !declared_size_matches(machine.alternative.size, branch_size)
+        || (!short_branch && !declared_size_matches(machine.alternative.size, branch_size))
     {
         return Err(Error::ArtifactMismatch);
     }
@@ -906,10 +990,192 @@ mod tests {
             &mut iter,
             &produced,
             &encoded,
+            false,
         )
         .unwrap();
         assert!(iter.next().is_none());
         produced
+    }
+
+    #[test]
+    fn current_x86_short_rows_require_selection_exact_bytes_and_successors() {
+        use super::validate_row;
+        use machine_code::{ResolvedConditionalBranchEvidence, ResolvedConditionalBranchPredicate};
+        let physical = isa_x86_64::validated_x86_64_physical_register_model();
+        for predicate in [
+            ResolvedConditionalBranchPredicate::NonZeroV1,
+            ResolvedConditionalBranchPredicate::U64LessThanV1,
+            ResolvedConditionalBranchPredicate::I64LessThanV1,
+        ] {
+            let (kind, family) = match predicate {
+                ResolvedConditionalBranchPredicate::NonZeroV1 => (
+                    SelectedInstructionKind::ConditionalBranchNonZero,
+                    MachineAlternativeFamily::ConditionalBranchNonZero,
+                ),
+                ResolvedConditionalBranchPredicate::U64LessThanV1 => (
+                    SelectedInstructionKind::ConditionalBranchU64LessThan,
+                    MachineAlternativeFamily::ConditionalBranchU64LessThan,
+                ),
+                ResolvedConditionalBranchPredicate::I64LessThanV1 => (
+                    SelectedInstructionKind::ConditionalBranchI64LessThan,
+                    MachineAlternativeFamily::ConditionalBranchI64LessThan,
+                ),
+            };
+            let instruction = instruction(0, kind);
+            let terminator = match predicate {
+                ResolvedConditionalBranchPredicate::NonZeroV1 => {
+                    SelectedTerminator::ConditionalBranch {
+                        instruction: instruction.clone(),
+                        when_nonzero: successor(2),
+                        when_zero: successor(1),
+                    }
+                }
+                ResolvedConditionalBranchPredicate::U64LessThanV1 => {
+                    SelectedTerminator::ConditionalBranchU64LessThan {
+                        instruction: instruction.clone(),
+                        when_less: successor(2),
+                        when_not_less: successor(1),
+                    }
+                }
+                ResolvedConditionalBranchPredicate::I64LessThanV1 => {
+                    SelectedTerminator::ConditionalBranchI64LessThan {
+                        instruction: instruction.clone(),
+                        when_less: successor(2),
+                        when_not_less: successor(1),
+                    }
+                }
+            };
+            let block = block(0, terminator);
+            let near_key = MachineAlternativeKey { family, variant: 0 };
+            let short_key = MachineAlternativeKey {
+                family,
+                variant: u32::from(predicate != ResolvedConditionalBranchPredicate::NonZeroV1),
+            };
+            let near = match predicate {
+                ResolvedConditionalBranchPredicate::NonZeroV1 => {
+                    isa_x86_64::encode_x86_64_selected_nonzero_branch_form(physical, near_key, 1)
+                }
+                ResolvedConditionalBranchPredicate::U64LessThanV1 => {
+                    isa_x86_64::encode_x86_64_selected_u64_less_than_branch_form(
+                        physical, near_key, 1,
+                    )
+                }
+                ResolvedConditionalBranchPredicate::I64LessThanV1 => {
+                    isa_x86_64::encode_x86_64_selected_i64_less_than_branch_form(
+                        physical, near_key, 1,
+                    )
+                }
+            }
+            .unwrap();
+            let short = match predicate {
+                ResolvedConditionalBranchPredicate::NonZeroV1 => {
+                    isa_x86_64::encode_x86_64_selected_short_nonzero_branch_form(
+                        physical, short_key, 1,
+                    )
+                }
+                ResolvedConditionalBranchPredicate::U64LessThanV1 => {
+                    isa_x86_64::encode_x86_64_selected_u64_less_than_branch_form(
+                        physical, short_key, 1,
+                    )
+                }
+                ResolvedConditionalBranchPredicate::I64LessThanV1 => {
+                    isa_x86_64::encode_x86_64_selected_i64_less_than_branch_form(
+                        physical, short_key, 1,
+                    )
+                }
+            }
+            .unwrap();
+            let alternative = MachineAlternative {
+                key: near_key,
+                applicability: MachineAlternativeApplicability::Always,
+                size: MachineSizeKnowledge::ExactBytes(6),
+                latency: MachineLatencyKnowledge::StableBaselineUnavailable,
+                encoded: near.footprint().encoded.clone(),
+            };
+            let machine = machine_row(&instruction, &alternative);
+            let pre = SelectedFormEncodingRow {
+                instruction: instruction.id,
+                alternative: near_key,
+                machine_disposition: SelectedFormMachineDisposition::RetainedV1,
+                state: SelectedFormEncodingState::DeferredControl {
+                    reason: DeferredControlEncodingReason::RequiresResolvedBranchLayout,
+                },
+                address: None,
+                code: Default::default(),
+                footprint: Default::default(),
+            };
+            let row = machine_code::ResolvedSelectedFormRow {
+                instruction: instruction.id,
+                alternative: short_key,
+                offset: 0,
+                bytes: short.bytes().to_vec(),
+                branch: Some(Box::new(ResolvedBranchEvidence::Conditional(
+                    ResolvedConditionalBranchEvidence {
+                        predicate,
+                        source_block: block.id,
+                        when_taken_edge: successor(2).psi_edge,
+                        when_taken_block: successor(2).block,
+                        when_taken_offset: 3,
+                        when_fallthrough_edge: successor(1).psi_edge,
+                        when_fallthrough_block: successor(1).block,
+                        when_fallthrough_offset: 2,
+                        byte_displacement: 1,
+                        decoded_register_reads: short.footprint().register_reads.clone(),
+                        decoded_effects: short.footprint().encoded.clone(),
+                    },
+                ))),
+                internal_machine_fixup: None,
+                normalized_foreign_call_fixup: None,
+                image_address_fixup: None,
+            };
+            let offsets = [(successor(1).block, 2), (successor(2).block, 3)]
+                .into_iter()
+                .collect();
+            let encoded = machine_code::SelectedFormEncodedRowStore::new();
+            let check = |row, allowed| {
+                validate_row(
+                    Architecture::X86_64,
+                    &block,
+                    &instruction,
+                    &machine,
+                    &pre,
+                    physical,
+                    0,
+                    &offsets,
+                    row,
+                    false,
+                    &encoded,
+                    allowed,
+                )
+            };
+            check(&row, true).unwrap();
+            assert!(
+                check(&row, false).is_err(),
+                "baseline validation cannot admit a relaxed row"
+            );
+            let mut changed = row.clone();
+            changed.bytes[1] = 2;
+            assert!(
+                check(&changed, true).is_err(),
+                "branch displacement is decoded independently"
+            );
+            let mut changed = row.clone();
+            let Some(ResolvedBranchEvidence::Conditional(branch)) = changed.branch.as_deref_mut()
+            else {
+                unreachable!()
+            };
+            branch.when_taken_edge = successor(1).psi_edge;
+            assert!(
+                check(&changed, true).is_err(),
+                "equal offsets do not authorize another edge"
+            );
+            let mut changed = row.clone();
+            changed.alternative.variant = 9;
+            assert!(
+                check(&changed, true).is_err(),
+                "only the exact short alternative is admitted"
+            );
+        }
     }
 
     #[test]

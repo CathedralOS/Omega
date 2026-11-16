@@ -16,13 +16,13 @@ use super::{
     encode_scalar_type,
 };
 use crate::LegalizedNormalizedForeignCall;
-use calling_conventions::encode_state_plan_identity;
-use target::ForeignLocatorCandidate;
-use target_vocabulary::{
+use crate::{
     NormalizedForeignCallBinding, TargetUnitScalarArgumentSource, TargetUnitScalarHomeRequirement,
 };
+use calling_conventions::encode_state_plan_identity;
+use target::ForeignLocatorCandidate;
 
-pub(super) fn encode(bytes: &mut Vec<u8>, call: &LegalizedNormalizedForeignCall) {
+pub fn encode(bytes: &mut Vec<u8>, call: &LegalizedNormalizedForeignCall) {
     crate::codec_bytes::push_encoded(bytes, call.boundary.get().to_le_bytes());
     encode_external_execution(bytes, call.provider_execution);
     encode_call_binding(bytes, &call.binding);
@@ -38,40 +38,34 @@ pub(super) fn encode(bytes: &mut Vec<u8>, call: &LegalizedNormalizedForeignCall)
     }
     encode_len(bytes, call.structural_indices.len());
     for indices in &call.structural_indices {
-        super::scalar_graph::encode_runtime_indices(bytes, indices);
+        super::encode_runtime_indices(bytes, indices);
     }
     match &call.result {
-        target_vocabulary::TargetBoundaryResult::Scalar(home) => {
+        crate::TargetBoundaryResult::Scalar(home) => {
             bytes.push(1);
             encode_scalar_home(bytes, home);
         }
-        target_vocabulary::TargetBoundaryResult::Unit => bytes.push(0),
-        target_vocabulary::TargetBoundaryResult::Structural(home) => {
+        crate::TargetBoundaryResult::Unit => bytes.push(0),
+        crate::TargetBoundaryResult::Structural(home) => {
             bytes.push(2);
             match &home.origin {
-                target_vocabulary::TargetStructuralHomeOrigin::OperationResult {
-                    operation,
-                    result,
-                } => {
+                crate::TargetStructuralHomeOrigin::OperationResult { operation, result } => {
                     bytes.push(0);
                     crate::codec_bytes::push_encoded(bytes, operation.get().to_le_bytes());
                     super::structural::encode_operation_result(bytes, result);
                 }
-                target_vocabulary::TargetStructuralHomeOrigin::BlockParameter {
-                    block,
-                    declaration,
-                } => {
+                crate::TargetStructuralHomeOrigin::BlockParameter { block, declaration } => {
                     bytes.push(1);
                     crate::codec_bytes::push_encoded(bytes, block.get().to_le_bytes());
                     super::structural_types::encode_structural_parameter(bytes, declaration);
                 }
             }
             match &home.layout {
-                target_vocabulary::TargetStructuralHomeLayout::Aggregate(shape) => {
+                crate::TargetStructuralHomeLayout::Aggregate(shape) => {
                     bytes.push(0);
                     encode_shape(bytes, *shape);
                 }
-                target_vocabulary::TargetStructuralHomeLayout::Sum(layout) => {
+                crate::TargetStructuralHomeLayout::Sum(layout) => {
                     bytes.push(1);
                     encode_layout(bytes, layout);
                 }
@@ -92,7 +86,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, call: &LegalizedNormalizedForeignCall)
 
 pub fn encode_native_callback_argument(
     bytes: &mut Vec<u8>,
-    callback: &target_vocabulary::TargetNativeCallbackArgument,
+    callback: &crate::TargetNativeCallbackArgument,
 ) {
     crate::codec_bytes::push_encoded(bytes, callback.terminal_operation.get().to_le_bytes());
     crate::codec_bytes::push_encoded(bytes, (callback.placement_index as u64).to_le_bytes());
@@ -142,9 +136,9 @@ pub fn encode_call_binding(bytes: &mut Vec<u8>, binding: &NormalizedForeignCallB
 // keeps both its selected operand and the independently admitted call origin.
 pub fn encode_call_mechanism(
     bytes: &mut Vec<u8>,
-    mechanism: &target_vocabulary::NormalizedForeignCallMechanism,
+    mechanism: &crate::NormalizedForeignCallMechanism,
 ) {
-    use target_vocabulary::NormalizedForeignCallMechanism;
+    use crate::NormalizedForeignCallMechanism;
     let contribution = match mechanism {
         NormalizedForeignCallMechanism::HostedImport {
             locator,
@@ -233,17 +227,14 @@ pub fn encode_call_mechanism(
     crate::codec_bytes::push_encoded(bytes, contribution.alignment().to_le_bytes());
 }
 
-pub(super) fn encode_foreign_execution(
-    bytes: &mut Vec<u8>,
-    execution: target_vocabulary::NormalizedForeignExecution,
-) {
+pub fn encode_foreign_execution(bytes: &mut Vec<u8>, execution: crate::NormalizedForeignExecution) {
     match execution {
-        target_vocabulary::NormalizedForeignExecution::ProviderPlan { report, commitment } => {
+        crate::NormalizedForeignExecution::ProviderPlan { report, commitment } => {
             bytes.push(0);
             bytes.extend_from_slice(&report.to_le_bytes());
             bytes.extend_from_slice(&commitment);
         }
-        target_vocabulary::NormalizedForeignExecution::NativeBinding(binding) => {
+        crate::NormalizedForeignExecution::NativeBinding(binding) => {
             bytes.push(1);
             bytes.extend_from_slice(&binding);
         }
@@ -296,7 +287,7 @@ fn encode_scalar_home(bytes: &mut Vec<u8>, home: &TargetUnitScalarHomeRequiremen
     encode_shape(bytes, home.shape);
 }
 
-pub(super) fn encode_scalar_source(bytes: &mut Vec<u8>, source: TargetUnitScalarArgumentSource) {
+pub fn encode_scalar_source(bytes: &mut Vec<u8>, source: TargetUnitScalarArgumentSource) {
     match source {
         TargetUnitScalarArgumentSource::IeeeFloatImmediate {
             defining_operation,

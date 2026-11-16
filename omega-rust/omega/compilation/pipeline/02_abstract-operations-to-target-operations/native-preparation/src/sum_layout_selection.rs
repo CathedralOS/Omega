@@ -3739,7 +3739,7 @@ fn select(name: &str, plan: &AbstractOperationPlan, target: TargetOperationPlan)
         &provider_admission::installed_interrupt_helpers::bind_installations(
             &interrupts,
             None,
-            &[],
+            Vec::new(),
         ),
         &environment,
     )
@@ -4012,6 +4012,7 @@ fn target_plan(
         })
         .collect();
     TargetOperationPlan {
+        publication: crate::capture_source_publication(plan).unwrap(),
         psi: plan.psi,
         target: HOST(),
         profile: None,

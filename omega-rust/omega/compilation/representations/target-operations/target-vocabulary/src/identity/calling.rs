@@ -15,16 +15,16 @@ use super::{
     encode_scalar_type,
 };
 use crate::{
+    BoundaryExecutionBinding, BoundaryRealization, BoundarySettlementBinding,
+    BoundarySettlementRealization, CompilerBuiltinExecution,
+};
+use crate::{
     LegalizedBoundarySettlement, LegalizedScalarArgument, LegalizedScalarCall,
     LegalizedStructuralContract,
 };
 use calling_conventions::{
     CallPlan, CallbackMaterialization, CallingPolicy, EntryControl, IndirectPointerLocation,
     NativePlace, SystemVEightbyteClass, ValueClass, ValueLocation, ValuePlacement, ValueShape,
-};
-use target_vocabulary::{
-    BoundaryExecutionBinding, BoundaryRealization, BoundarySettlementBinding,
-    BoundarySettlementRealization, CompilerBuiltinExecution,
 };
 
 pub fn encode_call_plan(bytes: &mut Vec<u8>, plan: &CallPlan) {
@@ -88,12 +88,12 @@ pub fn encode_call_plan(bytes: &mut Vec<u8>, plan: &CallPlan) {
     }
 }
 
-pub(crate) fn encode_callback_materialization(bytes: &mut Vec<u8>, row: &CallbackMaterialization) {
+pub fn encode_callback_materialization(bytes: &mut Vec<u8>, row: &CallbackMaterialization) {
     crate::codec_bytes::push_encoded(bytes, row.binder.get().to_le_bytes());
     encode_native_place(bytes, &row.destination);
 }
 
-pub(crate) fn encode_native_place(bytes: &mut Vec<u8>, destination: &NativePlace) {
+pub fn encode_native_place(bytes: &mut Vec<u8>, destination: &NativePlace) {
     match destination {
         NativePlace::Parameter(parameter) => {
             bytes.push(1);
@@ -160,7 +160,7 @@ pub fn encode_placement(bytes: &mut Vec<u8>, placement: &ValuePlacement) {
     }
 }
 
-pub(crate) fn encode_indirect_pointer(bytes: &mut Vec<u8>, pointer: IndirectPointerLocation) {
+pub fn encode_indirect_pointer(bytes: &mut Vec<u8>, pointer: IndirectPointerLocation) {
     match pointer {
         IndirectPointerLocation::Register(register) => {
             bytes.push(1);
@@ -197,14 +197,14 @@ pub fn encode_shape(bytes: &mut Vec<u8>, shape: ValueShape) {
     crate::codec_bytes::push_encoded(bytes, shape.alignment.to_le_bytes());
 }
 
-pub(crate) fn encode_eightbyte_class(bytes: &mut Vec<u8>, class: SystemVEightbyteClass) {
+pub fn encode_eightbyte_class(bytes: &mut Vec<u8>, class: SystemVEightbyteClass) {
     bytes.push(match class {
         SystemVEightbyteClass::Integer => 1,
         SystemVEightbyteClass::Sse => 2,
     });
 }
 
-pub(super) fn encode_call(bytes: &mut Vec<u8>, call: &LegalizedScalarCall) {
+pub fn encode_call(bytes: &mut Vec<u8>, call: &LegalizedScalarCall) {
     encode_access_call_bindings(bytes, &call.access_bindings);
     encode_option(bytes, call.structural_result.as_ref(), |bytes, result| {
         super::structural::encode_operation_result(bytes, result)
@@ -250,7 +250,7 @@ pub(super) fn encode_call(bytes: &mut Vec<u8>, call: &LegalizedScalarCall) {
                 bytes.push(1);
                 encode_structural_argument(bytes, semantic);
                 encode_target_structural_argument(bytes, target);
-                super::scalar_graph::encode_runtime_indices(bytes, indices);
+                super::encode_runtime_indices(bytes, indices);
             }
         }
     }
@@ -362,7 +362,7 @@ pub fn encode_boundary_execution_identity(
             bytes.push(11);
             super::structural::encode_external_execution(
                 bytes,
-                target_vocabulary::ExternalExecutionBinding::NativeBinding(native),
+                crate::ExternalExecutionBinding::NativeBinding(native),
             );
         }
         BoundaryExecutionBinding::CompilerBuiltin(
@@ -384,7 +384,7 @@ pub fn encode_boundary_execution_identity(
     }
 }
 
-pub(super) fn encode_binding(bytes: &mut Vec<u8>, binding: &BoundarySettlementBinding) {
+pub fn encode_binding(bytes: &mut Vec<u8>, binding: &BoundarySettlementBinding) {
     crate::codec_bytes::push_encoded(bytes, binding.boundary.get().to_le_bytes());
     encode_boundary_execution_identity(bytes, binding.execution);
     match &binding.realization {

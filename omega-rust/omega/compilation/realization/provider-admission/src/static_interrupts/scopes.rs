@@ -330,19 +330,21 @@ pub(super) fn prepare(
             }
         }
         scopes.push(AdmittedInstalledInterruptScope {
-            service: registration.service,
-            operation: operation.id,
-            boundary: *boundary,
-            arguments,
-            table_type,
-            context_type,
-            validator,
-            work,
-            completion,
-            acknowledgement_application,
-            fatal_entries,
-            anchor,
-            installation_assumptions,
+            facts: std::sync::Arc::new(bound_installations::BoundInterruptInstallation {
+                service: registration.service,
+                operation: operation.id,
+                boundary: *boundary,
+                arguments,
+                table_type,
+                context_type,
+                validator,
+                work,
+                completion,
+                acknowledgement_application,
+                fatal_entries,
+                context_anchor: anchor,
+                installation_assumptions,
+            }),
         });
     }
     Ok(scopes)

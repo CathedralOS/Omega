@@ -161,6 +161,7 @@ fn native_fixture_admission_does_not_upgrade_a_package_check() {
     let product = CompilationProduct::Native(products::NativeProductRequest {
         installation_assumptions: Vec::new(),
         retain_native_inputs: false,
+        retain_native_stage_inputs: false,
         image: Default::default(),
         private_entry_ram: Vec::new(),
         terminal_authority_policy:

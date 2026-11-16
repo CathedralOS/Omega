@@ -137,6 +137,13 @@ fn validate_call_owners(
                         return Err("reference invocation has a different source operation".into());
                     }
                 }
+                DescriptorInvocationOwner::InvokeNoNormal(edge) => {
+                    if usize::try_from(ordinal).ok() != Some(body.operations.len())
+                        || !matches!(body.terminator, terminal_psi::Terminator::InvokeNoNormal { edge: actual, .. } if actual == edge)
+                    {
+                        return Err("reference invocation has a different source terminator".into());
+                    }
+                }
                 DescriptorInvocationOwner::Cleanup {
                     edge,
                     action_ordinal,

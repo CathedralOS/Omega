@@ -12,10 +12,12 @@ path = "src/lib.rs"
 test-support = []
 
 [dependencies]
+target-vocabulary = { path = "../../../representations/target-operations/target-vocabulary" }
 verified-optimization-input = { path = "../../../representations/abstract-operations/verified-optimization-input" }
 language-core = { path = "../../../../../psi/foundation/language-core" }
 provider-admission = { path = "../../../realization/provider-admission" }
 register-model = { path = "../../register-model" }
+post-allocation-machine = { path = "../../../representations/post-allocation-machine" }
 machine-emission = { path = "../../machine-emission" }
 runtime-abi = { path = "../../runtime/runtime-abi" }
 arena = { path = "../../../../../psi/foundation/arena" }

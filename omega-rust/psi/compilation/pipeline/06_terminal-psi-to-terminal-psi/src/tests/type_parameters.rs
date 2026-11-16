@@ -512,9 +512,9 @@ fn an_empty_generic_schema_retains_its_real_binder_without_an_entry() {
     ));
 }
 
-/// These calls publish ordinary contracts without executable bodies in the
-/// generic form. Their scalar and owned-record results have no borrowed
-/// frontier; the byte-view input must nevertheless retain its exact backing.
+/// Applied source bodies infer their effects while retaining their public
+/// contracts. Their scalar and owned-record results have no borrowed frontier;
+/// the byte-view input nevertheless retains its exact backing.
 #[test]
 fn generic_calls_without_borrowed_results_keep_their_public_storage_contract() {
     let source = super::boundary_calls::typed(
@@ -533,11 +533,122 @@ fn generic_calls_without_borrowed_results_keep_their_public_storage_contract() {
         super::boundary_calls::entry(&source),
     )
     .unwrap();
+    for applied in &form.applications {
+        assert!(!form.requirements.contains(applied));
+        assert!(
+            form.module
+                .machine(*applied)
+                .is_some_and(|body| !body.blocks.is_empty())
+        );
+    }
     let verdict = judge(Ok(form)).unwrap();
     assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
 }
 
-/// A contract-only call with mutable access still writes. Its caller may
+#[test]
+fn type_applied_recursion_reuses_its_exact_instance_and_refuses_changing_types() {
+    let program = r#"
+        machine entry<T>(remaining: u64) -> u64
+        requires remaining > 0u64
+        terminates by remaining
+        {
+            transition remaining > 1u64 {
+                true -> entry<T>(remaining - 1u64)
+                false -> 0u64
+            }
+        }
+    "#;
+    let source = super::boundary_calls::typed(program);
+    let form = typed_trees_to_terminal_psi::elaborate_generic(
+        &source,
+        super::boundary_calls::entry(&source),
+    )
+    .unwrap();
+    assert_eq!(
+        form.module.machines.len(),
+        1,
+        "the recursive tuple reuses its root"
+    );
+    let verdict = judge(Ok(form)).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+
+    let changing = program.replace("entry<T>(remaining - 1u64)", "entry<u32>(remaining - 1u64)");
+    let source = super::boundary_calls::typed(&changing);
+    let refused = typed_trees_to_terminal_psi::elaborate_generic(
+        &source,
+        super::boundary_calls::entry(&source),
+    )
+    .unwrap_err();
+    assert!(
+        refused
+            .detail
+            .contains("recursive generic type application changes its arguments"),
+        "{refused:?}"
+    );
+}
+
+#[test]
+fn a_real_helper_cannot_supply_an_unresolved_requirements_service_reach() {
+    let call = |callee| {
+        returns(Expression {
+            call_context: None,
+            kind: ExpressionKind::Call {
+                required_contract: None,
+                static_reach_binding: None,
+                callee: id::<MachineId>(callee).into(),
+                arguments: Vec::new(),
+                designated: None,
+            },
+            result: Some(u32_value()),
+            source: nowhere(),
+        })
+    };
+    let mut bodies = IdTable::default();
+    let mut signatures = IdTable::default();
+    for position in 1..=3 {
+        bodies.push(Body {
+            slots: Vec::new(),
+            statements: match position {
+                1 => vec![call(2)],
+                2 => vec![call(3)],
+                _ => Vec::new(),
+            },
+        });
+        signatures.push(Signature {
+            operational: Default::default(),
+            parameters: Vec::new(),
+            erased: Vec::new(),
+            borrowed: Vec::new(),
+            result: Some(u32_value()),
+            requires: Vec::new(),
+            ensures: Vec::new(),
+            reaches: if position == 1 {
+                typed_trees_to_terminal_psi::Ceiling::Authored(Vec::new())
+            } else {
+                typed_trees_to_terminal_psi::Ceiling::Inferred
+            },
+            invokes: typed_trees_to_terminal_psi::Ceiling::Authored(Vec::new()),
+            crashes: CrashCeiling::DeclaredNone,
+            termination: typed_trees_to_terminal_psi::Termination::Silent,
+            ranking: None,
+        });
+    }
+    let refused = typed_trees_to_terminal_psi::lower_generic(
+        id(1),
+        &bodies,
+        &signatures,
+        &IdTable::default(),
+        &[id(3)],
+    )
+    .unwrap_err();
+    assert_eq!(refused.reason, RefusalReason::Unsupported);
+    assert_eq!(
+        refused.detail,
+        "machine reach ceiling over a requirement that defers its reach"
+    );
+}
+
+/// A call with mutable access still writes. Its caller may
 /// prove the published postcondition, but cannot retain the old scalar fact.
 #[test]
 fn a_generic_call_does_not_preserve_a_mutable_inputs_old_value() {

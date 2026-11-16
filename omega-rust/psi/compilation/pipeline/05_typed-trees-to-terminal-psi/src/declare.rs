@@ -1038,6 +1038,34 @@ fn const_argument(
     else {
         return Err("an application's value binding belongs to another binder kind");
     };
+    if let Some(required) =
+        typed.static_record_schema(type_reference, typed.symbols.get(binder).parent)
+    {
+        let operand = typed.static_operand_from_type_reference(reference)?;
+        if operand.application.is_some()
+            || operand.evidence_projection.is_some()
+            || operand.const_literal.is_some()
+        {
+            return Err("an application's record argument changed its exact named operand");
+        }
+        let selected = typed
+            .conformance_by_symbol(operand.symbol)
+            .ok_or("an application's record argument has no exact named value")?;
+        let actual =
+            typed_trees::trait_definition::AppliedTraitScope::from_conformance(typed, selected)
+                .ok_or("an application's record argument lost its complete schema application")?;
+        if !required.same_application(typed, &actual) {
+            return Err("an application's record argument has another declared schema");
+        }
+        let sources =
+            source::source_identity::toolchain_source_identities(typed.symbols.source_files())
+                .map_err(|_| "an application's record argument lost its exact source registry")?;
+        return typed.canonical_operation_record_value(operand.symbol, &sources);
+    }
+    if typed.primitive_type_reference(type_reference).is_none() {
+        let operand = typed.static_operand_from_type_reference(reference)?;
+        return typed.canonical_aggregate_argument(type_reference, &operand);
+    }
     let carrier = typed
         .type_identity_text(typed.package_qualified_type_identity(type_reference))
         .filter(|text| !text.is_empty())
@@ -2465,8 +2493,8 @@ pub(crate) fn intrinsic_boundary_source(
             return Err("intrinsic has no exact entry");
         };
         let (declaration, signature) = typed
-            .bodyless_declaration(symbol)?
-            .ok_or("intrinsic has no bodyless signature")?;
+            .bodyless_machine_signature(symbol)?
+            .ok_or("intrinsic has no exact bodyless machine header")?;
         // The authored machine owns the contracts; its sole generated state
         // supplies the entry identity and runtime telescope independently.
         if declaration != machine.symbol || signature.symbol != declaration {

@@ -1230,6 +1230,7 @@ fn a_case_value_pattern_cannot_discard_its_applied_type() {
     // value-pattern literal for the same case must preserve any application.
     let head = typed.expression_table.insert(ExpressionNode::StructLiteral(
         typed_trees::expression::TableStructLiteral {
+            zero_omitted_fields: false,
             application_type: plain,
             type_name: type_name.clone(),
             type_symbol: owner,

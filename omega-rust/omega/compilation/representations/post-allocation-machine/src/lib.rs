@@ -10,9 +10,9 @@ instruction to its unique applicable `MachineAlternative` and materialize
 explicit physical register-unit footprints (`storage_units`, `read_units`,
 `write_units`, `implicit_unit_uses`, `implicit_unit_defs`, and `implicit_unit_clobbers`).
 We store that post-allocation machine program, its domain-separated content
-identity (`omega.terminal-postallocation-machine.v26`), its descriptive target
+identity (`omega.terminal-postallocation-machine.v27`), its descriptive target
 cost model (`TargetCostModel`), and its self-authenticating wire framing
-(`OMGPMX\0\0` v27).
+(`OMGPMX\0\0` v28).
 */
 
 /*
@@ -36,11 +36,14 @@ pub mod evidence;
 pub mod identity;
 pub mod instructions;
 pub mod operands;
+pub mod program;
+pub mod program_validation;
+pub use program::{PhysicalFunction, PostAllocationMachineProgram};
 
 pub(crate) use codec::PostAllocationMachineDecodeError;
 pub use control_flow::{PostAllocationMachineBlock, PostAllocationMachineFunction};
 pub use costs::{TargetCostModelIdentity, target_cost_model};
-pub use evidence::PostAllocationMachineOptimizationCustody;
+pub use evidence::{PostAllocationMachineOptimizationCustody, PostAllocationMachinePhaseReceipt};
 pub use identity::{PostAllocationMachineIdentity, post_allocation_machine_identity};
 pub use instructions::{
     MachineAlternativeChoiceRule, PhysicalAddressOperation, PostAllocationMachineInstruction,

@@ -37,6 +37,9 @@ impl Program<'_> {
                 Unserved::Statement("call occurrence does not name a call statement"),
             ));
         };
+        if call.runtime_call.is_none() {
+            self.bound_target(id, call.target_symbol)?;
+        }
         let source = self.authored_node(
             id,
             typed_trees::SourceNode::Statement(handle),
@@ -396,7 +399,15 @@ impl Program<'_> {
                 return unserved("uninitialized local without a declared type");
             }
             let value_type = self.local_type(id, local.type_reference)?;
-            self.zero_established(id, value_type)?;
+            let source = self
+                .typed
+                .symbols
+                .symbol_provenance_source_span(local.symbol)
+                .map_or(
+                    SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent),
+                    SourceOrigin::of,
+                );
+            self.zero_established(id, value_type, source)?;
             let home = match value_type {
                 ValueType::Rigid(_) => return unserved("local of a rigid type"),
                 // Its home would be declared with the identity of a
@@ -433,7 +444,7 @@ impl Program<'_> {
                 Statement::Declare {
                     slot: slots.len(),
                     home,
-                    source: SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent),
+                    source,
                 },
             ));
         }

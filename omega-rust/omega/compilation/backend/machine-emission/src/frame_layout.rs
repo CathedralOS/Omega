@@ -9,7 +9,6 @@ First, we map each function's modified ABI-preserved register units through the 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
-use crate::AllocatedMachinePlan;
 use crate::count_where;
 use crate::digest_encoder::DomainDigestEncoder;
 pub use machine_code::{
@@ -23,21 +22,22 @@ pub use machine_code::{
 };
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 use post_allocation_machine::PostAllocationMachineIdentity;
+use post_allocation_machine::PostAllocationMachinePlan;
 pub use register_environment::FrameAbiPreservationConvention;
 use register_environment::{
     ValidatedTargetRegisterEnvironment, selected_abi_preservation,
     selected_preservation_storage_catalog,
+};
+use register_homes::{
+    AllocatedCalleeSavedRequirementIdentity, AllocatedCalleeSavedRequirementPlan,
+    AllocatedCalleeSavedRequirements, AllocatedCalleeSavedUnitRequirement,
+    FunctionAllocatedCalleeSavedRequirements, encode_callee_saved_modification_witness_identity,
 };
 use register_model::{
     PhysicalRegisterModelIdentity, PreservationStorageCatalogIdentity, PreservationStorageGroupId,
     RegisterUnitId, TargetRegisterEnvironmentIdentity, ValidatedPreservationStorageCatalog,
 };
 use selected_instructions::{FrameStorageSlotId, LocalStorageSlotId, MachineAlternativeFamily};
-use selected_instructions_to_register_homes::{
-    AllocatedCalleeSavedRequirementIdentity, AllocatedCalleeSavedRequirementPlan,
-    AllocatedCalleeSavedUnitRequirement, FunctionAllocatedCalleeSavedRequirements,
-    ValidatedAllocatedCalleeSavedRequirements, encode_callee_saved_modification_witness_identity,
-};
 use target::{Architecture, NativeTarget, ObjectFormat};
 
 pub(crate) const MAX_FRAME_BYTES: u64 = i32::MAX as u64;
@@ -124,6 +124,9 @@ pub struct ValidatedNonAuthoritativeCalleeSaveStorage {
 }
 
 impl ValidatedNonAuthoritativeCalleeSaveStorage {
+    pub fn into_plan(self) -> NonAuthoritativeCalleeSaveStoragePlan {
+        self.plan
+    }
     pub const fn plan(&self) -> &NonAuthoritativeCalleeSaveStoragePlan {
         &self.plan
     }
@@ -397,7 +400,7 @@ pub(crate) fn committed_extent(row: &FunctionTargetFrameLayout) -> Option<u64> {
 }
 
 pub(crate) fn stage_non_authoritative_callee_save_storage(
-    source: &ValidatedAllocatedCalleeSavedRequirements,
+    source: &AllocatedCalleeSavedRequirements,
     environment: &ValidatedTargetRegisterEnvironment,
     policy: NonAuthoritativeCalleeSaveStoragePolicy,
     budget: OptimizationWorkBudget,
@@ -413,14 +416,14 @@ pub(crate) fn stage_non_authoritative_callee_save_storage(
 }
 
 pub(crate) fn validate_non_authoritative_callee_save_storage(
-    source: &ValidatedAllocatedCalleeSavedRequirements,
+    source: &AllocatedCalleeSavedRequirements,
     environment: &ValidatedTargetRegisterEnvironment,
     candidate: NonAuthoritativeCalleeSaveStoragePlan,
 ) -> Result<ValidatedNonAuthoritativeCalleeSaveStorage, NonAuthoritativeCalleeSaveStorageError> {
     let source_plan = source.plan();
     let catalog = selected_preservation_storage_catalog(environment)
         .map_err(|_| NonAuthoritativeCalleeSaveStorageError::UnsupportedTargetCatalog)?;
-    if candidate.callee_saved_requirements != source.receipt().identity()
+    if candidate.callee_saved_requirements != source.identity()
         || candidate.register_environment != environment.identity()
         || candidate.physical_register_model != environment.physical().identity()
         || candidate.preservation_storage_catalog != catalog.identity()
@@ -454,7 +457,7 @@ pub(crate) fn validate_non_authoritative_callee_save_storage(
 }
 
 fn admit_storage_plan(
-    source: &ValidatedAllocatedCalleeSavedRequirements,
+    source: &AllocatedCalleeSavedRequirements,
     environment: &ValidatedTargetRegisterEnvironment,
     policy: NonAuthoritativeCalleeSaveStoragePolicy,
     budget: OptimizationWorkBudget,
@@ -495,7 +498,7 @@ fn admit_storage_plan(
         });
     }
     Ok(NonAuthoritativeCalleeSaveStoragePlan {
-        callee_saved_requirements: source.receipt().identity(),
+        callee_saved_requirements: source.identity(),
         register_environment: environment.identity(),
         physical_register_model: environment.physical().identity(),
         preservation_storage_catalog: catalog.identity(),
@@ -822,8 +825,8 @@ fn seal_storage(
 }
 
 pub(crate) fn stage_target_frame_layout(
-    machine: &AllocatedMachinePlan,
-    requirements: &ValidatedAllocatedCalleeSavedRequirements,
+    machine: &PostAllocationMachinePlan,
+    requirements: &AllocatedCalleeSavedRequirements,
     storage: &ValidatedNonAuthoritativeCalleeSaveStorage,
     environment: &ValidatedTargetRegisterEnvironment,
     policy: TargetFrameLayoutPolicy,
@@ -833,14 +836,14 @@ pub(crate) fn stage_target_frame_layout(
 }
 
 pub(crate) fn validate_target_frame_layout(
-    machine: &AllocatedMachinePlan,
-    requirements: &ValidatedAllocatedCalleeSavedRequirements,
+    machine: &PostAllocationMachinePlan,
+    requirements: &AllocatedCalleeSavedRequirements,
     storage: &ValidatedNonAuthoritativeCalleeSaveStorage,
     environment: &ValidatedTargetRegisterEnvironment,
     candidate: TargetFrameLayoutPlan,
 ) -> Result<ValidatedTargetFrameLayout, TargetFrameLayoutError> {
-    if candidate.post_allocation_machine != machine.machine().receipt().identity()
-        || candidate.callee_saved_requirements != requirements.receipt().identity()
+    if candidate.post_allocation_machine != machine.identity
+        || candidate.callee_saved_requirements != requirements.identity()
         || candidate.callee_save_storage != storage.receipt().identity()
         || candidate.register_environment != environment.identity()
         || candidate.physical_register_model != environment.physical().identity()
@@ -895,13 +898,13 @@ fn seal_frame_layout(plan: &TargetFrameLayoutPlan) -> TargetFrameLayoutReceipt {
 }
 
 fn derive_frame_layout(
-    machine: &AllocatedMachinePlan,
-    requirements: &ValidatedAllocatedCalleeSavedRequirements,
+    machine: &PostAllocationMachinePlan,
+    requirements: &AllocatedCalleeSavedRequirements,
     storage: &ValidatedNonAuthoritativeCalleeSaveStorage,
     environment: &ValidatedTargetRegisterEnvironment,
     policy: TargetFrameLayoutPolicy,
 ) -> Result<TargetFrameLayoutPlan, TargetFrameLayoutError> {
-    let machine_plan = machine.machine().plan();
+    let machine_plan = machine;
     let requirement_plan = requirements.plan();
     let storage_plan = storage.plan();
     if machine_plan.target != environment.target()
@@ -913,7 +916,7 @@ fn derive_frame_layout(
         || requirement_plan.register_environment != environment.identity()
         || requirement_plan.physical_register_model != environment.physical().identity()
         || requirement_plan.target != environment.target()
-        || storage_plan.callee_saved_requirements != requirements.receipt().identity()
+        || storage_plan.callee_saved_requirements != requirements.identity()
         || storage_plan.register_environment != environment.identity()
         || storage_plan.physical_register_model != environment.physical().identity()
         || storage_plan.target != environment.target()
@@ -971,8 +974,8 @@ fn derive_frame_layout(
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(TargetFrameLayoutPlan {
-        post_allocation_machine: machine.machine().receipt().identity(),
-        callee_saved_requirements: requirements.receipt().identity(),
+        post_allocation_machine: machine.identity,
+        callee_saved_requirements: requirements.identity(),
         callee_save_storage: storage.receipt().identity(),
         register_environment: environment.identity(),
         physical_register_model: environment.physical().identity(),
@@ -1258,14 +1261,14 @@ fn align_to_residue(
 }
 
 fn validate_frame_layout_plan(
-    machine: &AllocatedMachinePlan,
-    requirements: &ValidatedAllocatedCalleeSavedRequirements,
+    machine: &PostAllocationMachinePlan,
+    requirements: &AllocatedCalleeSavedRequirements,
     storage: &ValidatedNonAuthoritativeCalleeSaveStorage,
     environment: &ValidatedTargetRegisterEnvironment,
     candidate: &TargetFrameLayoutPlan,
 ) -> Result<(), TargetFrameLayoutError> {
     use TargetFrameLayoutError as Error;
-    let current = machine.machine().plan();
+    let current = machine;
     let required = requirements.plan();
     let saved = storage.plan();
     if current.target != environment.target()
@@ -1277,7 +1280,7 @@ fn validate_frame_layout_plan(
         || required.register_environment != environment.identity()
         || required.physical_register_model != environment.physical().identity()
         || required.target != environment.target()
-        || saved.callee_saved_requirements != requirements.receipt().identity()
+        || saved.callee_saved_requirements != requirements.identity()
         || saved.register_environment != environment.identity()
         || saved.physical_register_model != environment.physical().identity()
         || saved.target != environment.target()

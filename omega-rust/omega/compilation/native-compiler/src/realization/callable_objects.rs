@@ -16,6 +16,7 @@ pub(super) struct CallableObjectProduct {
 }
 
 pub(super) struct CallableTargetProduct {
+    pub retain_native_stage_inputs: bool,
     pub code: terminal_codec::RetainedTerminalCode,
     pub coverage: boundary_applications::TerminalBoundaryApplicationCoverage,
     pub target: abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations,
@@ -31,6 +32,7 @@ pub(super) fn prepare_callable_object(
     selections: &optimization_core::PostTerminalOptimizationSelections,
     budget: optimization_core::OptimizationWorkBudget,
     artifact: &terminal_codec::CanonicalTerminalArtifact,
+    retain_native_stage_inputs: bool,
 ) -> Result<CallableTargetProduct, Vec<Diagnostic>> {
     let observation = crate::observations::NativePipelineObservation::new(
         admission.providers.profile,
@@ -95,6 +97,7 @@ pub(super) fn prepare_callable_object(
             .clone(),
     );
     Ok(CallableTargetProduct {
+        retain_native_stage_inputs,
         code: artifact.retain_code(),
         coverage: admission
             .boundary_application_coverage
@@ -114,8 +117,11 @@ pub(super) fn prepare_callable_object(
 
 pub(super) fn emit_prepared_callable_object(
     prepared: CallableTargetProduct,
+    execution: Option<terminal_psi_to_abstract_operations::AdmittedInstalledEntryExecution>,
+    requirements: Vec<installation_evidence::InstalledInterruptStackRequirement>,
 ) -> Result<CallableObjectProduct, Vec<Diagnostic>> {
     let CallableTargetProduct {
+        retain_native_stage_inputs,
         code,
         coverage,
         target: optimized_target,
@@ -123,13 +129,21 @@ pub(super) fn emit_prepared_callable_object(
         authority,
         observation,
     } = prepared;
-    let projection =
-        pipeline::emit_target(optimized_target, &observation).map_err(|error| match error {
-            BodyEmissionError::Physical(error) => {
-                realization_error("callable physical pipeline", error)
-            }
-            BodyEmissionError::Object(diagnostics) => diagnostics,
-        })?;
+    let installations =
+        pipeline::bound_installations(&optimized_target, execution, requirements)
+            .map_err(|reason| realization_error("callable installation binding", reason))?;
+    let projection = pipeline::emit_target(
+        optimized_target,
+        installations,
+        &observation,
+        retain_native_stage_inputs,
+    )
+    .map_err(|error| match error {
+        BodyEmissionError::Physical(error) => {
+            realization_error("callable physical pipeline", error)
+        }
+        BodyEmissionError::Object(diagnostics) => diagnostics,
+    })?;
     let projection = projection
         .with_semantic_source(code, coverage)
         .map_err(|reason| realization_error("callable physical evidence", reason))?;
@@ -147,8 +161,18 @@ pub(super) fn emit_callable_object(
     selections: &optimization_core::PostTerminalOptimizationSelections,
     budget: optimization_core::OptimizationWorkBudget,
     artifact: &terminal_codec::CanonicalTerminalArtifact,
+    retain_native_stage_inputs: bool,
 ) -> Result<CallableObjectProduct, Vec<Diagnostic>> {
-    emit_prepared_callable_object(prepare_callable_object(
-        admitted, admission, selections, budget, artifact,
-    )?)
+    emit_prepared_callable_object(
+        prepare_callable_object(
+            admitted,
+            admission,
+            selections,
+            budget,
+            artifact,
+            retain_native_stage_inputs,
+        )?,
+        None,
+        Vec::new(),
+    )
 }

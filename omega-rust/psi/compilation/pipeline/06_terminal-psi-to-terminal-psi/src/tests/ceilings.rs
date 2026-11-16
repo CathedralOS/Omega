@@ -481,12 +481,12 @@ machine entry() invokes Missing {}
     );
 }
 
-// The required public ceiling is independent of the supplied body.
-#[test]
-fn a_supplied_callable_outside_the_required_ceiling_is_refused() {
-    let program = |required: &str, supplied: &str| {
-        format!(
-            r#"
+fn callable_witness(
+    required: &str,
+    supplied: &str,
+) -> terminal_check_tables::Checked<terminal_check_tables::program::Elaboration> {
+    let program = format!(
+        r#"
 boundary trait Output {{}}
 boundary trait Handler {{}}
 boundary trait Console {{
@@ -497,27 +497,32 @@ trait Sink {{
 }}
 machine supplied(value: u32) {supplied} {{ Console::write(value); }}
 "#
-        )
-    };
+    );
+    let typed = typed(&program);
+    let requirement = typed
+        .trait_machine_signatures
+        .iter()
+        .find(|(_, signature)| signature.name.as_str() == "put")
+        .unwrap()
+        .1;
+    let machine = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "supplied")
+        .unwrap()
+        .symbol;
+    typed_trees_to_terminal_psi::elaborate_callable_witness(
+        &typed,
+        requirement,
+        typed_trees_to_terminal_psi::CallableDeclaration::Machine(machine),
+    )
+}
+
+// The required public ceiling is independent of the supplied body.
+#[test]
+fn a_supplied_callable_outside_the_required_ceiling_is_refused() {
     let refine = |required: &str, supplied: &str| {
-        let typed = typed(&program(required, supplied));
-        let requirement = typed
-            .trait_machine_signatures
-            .iter()
-            .find(|(_, signature)| signature.name.as_str() == "put")
-            .unwrap()
-            .1;
-        let machine = typed
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == "supplied")
-            .unwrap()
-            .symbol;
-        let witness = typed_trees_to_terminal_psi::elaborate_callable_witness(
-            &typed,
-            requirement,
-            typed_trees_to_terminal_psi::CallableDeclaration::Machine(machine),
-        )?;
+        let witness = callable_witness(required, supplied)?;
         crate::prove_callable_refinement(witness, &mut crate::ProofSearchActivity::default())
     };
     let inside = "reaches Output crashes none invokes Handler";
@@ -532,4 +537,29 @@ machine supplied(value: u32) {supplied} {{ Console::write(value); }}
         refused.detail,
         "supplied callable enters a callback outside the required invokes ceiling"
     );
+}
+
+#[test]
+fn a_callable_witness_keeps_exact_service_declarations_for_its_abstract_ceilings() {
+    let inside = "reaches Output crashes none invokes Handler";
+    let mut witness = callable_witness(inside, inside).unwrap();
+    assert_eq!(witness.module.services.len(), 2);
+    assert!(
+        witness
+            .module
+            .services
+            .iter()
+            .all(|service| { witness.module.identities.text(service.identity).is_some() })
+    );
+    // Removing the declarations must remain a foreign-identity refusal; the
+    // logical witness cannot bypass service admission because it has no body.
+    witness.module.services.clear();
+    let refused =
+        crate::prove_callable_refinement(witness, &mut crate::ProofSearchActivity::default())
+            .unwrap_err();
+    assert_eq!(
+        refused.reason,
+        terminal_check_tables::RefusalReason::ForeignIdentity
+    );
+    assert_eq!(refused.detail, "published row names an undeclared service");
 }

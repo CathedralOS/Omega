@@ -10,26 +10,28 @@ and [stack provisioning](../../../../../wiki/spec/resources/storage.md).
 
 ## Function realization
 
-[Fixed-frame realization](src/function_realization.rs) is the
-single entry for admitted allocation histories, including identity
-execution.
+[Fixed-frame realization](src/function_realization.rs) consumes the current
+physical program. Allocation carries its settled preservation requirements and
+publication facts forward; frame planning adds storage, geometry and protocol
+rows. Stages 07–09 retain those rows with the current encoding and layout.
+Assembly reads stage 09's output alone to publish the whole-function exit
+contract and manifest.
 
-It reads the allocation as produced, derives frame evidence, runs
-selected-form encoding, baseline layout and this phase's layout selection, and stages the whole-function exit contract. The kept result holds
-every replay input. Its validator rebuilds and checks them together for
-retained-artifact readers and tests; the stage never runs it on its
-own fresh output, picks another machine or reruns allocation.
+Current-artifact validation checks bytes, frame geometry, exit effects and
+publication roots without retaining allocation or earlier layout graphs.
+`FixedFrameCorrespondence` additionally compares the result with original
+inputs, retained only when requested. Missing originals refuse that audit;
+they never suppress the mandatory final-artifact checks.
 
 Layout and exit-contract code computes each result once. Their separate
 validators serve explicit checks, retained-artifact readers and tests;
 assembling a function does not replay the layout or exit record it just made.
 ABI, frame and exact-input identity matching stays part of construction. The final artifact must still pass machine-state admission.
 
-Within one fixed-frame validation, checking the exit record reuses the
-layout replay already done on the same read-only inputs. Encoding is still
-checked against the actual frame, and layout against the source's phase
-selections. Every requested replay reads its whole input; no result is
-cached across calls or reused for another artifact.
+Exit validation uses the current function contracts and physical choices.
+Encoding is checked against the actual frame, and layout against the retained
+phase selection. Original-input audits also compare full publication and
+preservation records, not just their claimed hashes.
 
 Encoding and layout are separate pipeline stages. Each target's encoder
 produces bytes; independent validation uses that target's decoder and exact
@@ -37,7 +39,7 @@ instruction effects. Layout fixes labels, canonical order, spans, offsets,
 fixups, predicates, and taken/fallthrough successors. An x86 relative branch uses
 its instruction end as displacement origin; AArch64 uses the instruction
 address. Branch relaxation starts from a complete baseline layout and keeps
-evidence for both the baseline and the chosen layout. An instruction rule
+the baseline's exact identity joins and evidence for the chosen layout. An instruction rule
 must not hand-assemble bytes or decide meaning from a size estimate.
 
 ## Frame responsibilities

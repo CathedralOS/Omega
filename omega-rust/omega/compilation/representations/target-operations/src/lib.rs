@@ -35,6 +35,7 @@ pub struct TargetOperationPlan {
     pub functions: Vec<TargetFunction>,
     pub native_callback_arguments: Vec<TargetNativeCallbackArgument>, // Admission-retained callback custody rows joined to their registrar by Terminal operation and entry plan.
     pub borrowed_storage_layouts: runtime_abi::NativeBorrowedStorageLayouts, // Native storage geometry of borrowed boundary inputs and owned roots reached by foreign calls.
+    pub publication: target_vocabulary::NativePublicationFacts,
 }
 
 impl TargetOperationPlan {

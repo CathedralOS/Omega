@@ -213,6 +213,59 @@ pub struct StaticRequirementSchema {
 pub struct StaticSchemaQuestion {
     pub declaration: SymbolHandle,
     pub requirements: Vec<StaticRequirementSchema>,
+    /// Source-only const values checked under this complete declared schema.
+    pub bindings: Vec<StaticRecordBinding>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StaticRecordBinding {
+    pub parameter: SymbolHandle,
+    pub owner: SymbolHandle,
+    pub application: String,
+    pub members: Vec<StaticRecordMember>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StaticRecordMember {
+    pub declaring_trait: SymbolHandle,
+    pub requirement: SymbolHandle,
+    pub signature: SymbolHandle,
+    pub application: String,
+    pub instances: Vec<StaticRecordRequirementInstance>,
+}
+
+impl StaticRecordBinding {
+    /// Look up one already prepared logical instance; no source selection is inferred.
+    pub fn instance(
+        &self,
+        parameter: SymbolHandle,
+        application: &str,
+        declaring_trait: SymbolHandle,
+        requirement: SymbolHandle,
+        arguments: &[semantic_vocabulary::ScalarTerm],
+    ) -> Option<MachineId> {
+        if self.parameter != parameter || self.application != application {
+            return None;
+        }
+        let mut matching = self
+            .members
+            .iter()
+            .filter(|member| {
+                member.declaring_trait == declaring_trait && member.requirement == requirement
+            })
+            .flat_map(|member| &member.instances)
+            .filter(|instance| instance.arguments == arguments);
+        match (matching.next(), matching.next()) {
+            (Some(instance), None) => Some(instance.machine),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StaticRecordRequirementInstance {
+    pub machine: MachineId,
+    pub arguments: Vec<semantic_vocabulary::ScalarTerm>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -243,4 +296,58 @@ pub struct StaticProviderCandidate<Declaration = terminal_psi::NominalDeclaratio
     pub source_requirement: String,
     pub source_candidate: String,
     pub package: Option<PackageKeyIdentity>,
+}
+
+#[cfg(test)]
+mod static_record_instance_tests {
+    use super::*;
+
+    #[test]
+    fn exact_static_record_instances_do_not_cross_receiver_application_or_requirement() {
+        let symbol = |n| SymbolHandle::from_parts(n, 1);
+        let machine = |n| MachineId::new(n).unwrap();
+        let binding = |parameter, instance| StaticRecordBinding {
+            parameter: symbol(parameter),
+            owner: symbol(1),
+            application: "Ops<u32>".into(),
+            members: vec![StaticRecordMember {
+                declaring_trait: symbol(2),
+                requirement: symbol(3),
+                signature: symbol(3),
+                application: "Ops<u32>".into(),
+                instances: vec![StaticRecordRequirementInstance {
+                    machine: machine(instance),
+                    arguments: Vec::new(),
+                }],
+            }],
+        };
+        let first = binding(4, 11);
+        let mut second = binding(5, 12);
+        assert_eq!(
+            first.instance(symbol(4), "Ops<u32>", symbol(2), symbol(3), &[]),
+            Some(machine(11))
+        );
+        assert_eq!(
+            second.instance(symbol(5), "Ops<u32>", symbol(2), symbol(3), &[]),
+            Some(machine(12))
+        );
+        assert_eq!(
+            first.instance(symbol(5), "Ops<u32>", symbol(2), symbol(3), &[]),
+            None
+        );
+        assert_eq!(
+            first.instance(symbol(4), "Ops<u64>", symbol(2), symbol(3), &[]),
+            None
+        );
+        assert_eq!(
+            first.instance(symbol(4), "Ops<u32>", symbol(2), symbol(9), &[]),
+            None
+        );
+        let repeated = second.members[0].instances[0].clone();
+        second.members[0].instances.push(repeated);
+        assert_eq!(
+            second.instance(symbol(5), "Ops<u32>", symbol(2), symbol(3), &[]),
+            None
+        );
+    }
 }

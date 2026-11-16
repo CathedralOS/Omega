@@ -351,6 +351,7 @@ pub(crate) mod patterns {
                         })
                         .collect::<Vec<_>>();
                     ExpressionNode::StructLiteral(TableStructLiteral {
+                        zero_omitted_fields: struct_literal.zero_omitted_fields,
                         application_type: struct_literal.application_type,
                         constructor_name: struct_literal.constructor_name,
                         fields: exprs(syntax_trees).insert_struct_fields(struct_fields),

@@ -573,12 +573,14 @@ pub(crate) mod expression {
             use crate::expressions::expression::domain_membership::{
                 lower_case_membership_expression, lower_domain_membership_expression,
             };
-            use crate::expressions::expression::lower_static_machine_argument;
             use crate::expressions::expression::name_paths::{
                 lower_name_path_members_into_table, lower_table_name_path_node_into_table,
             };
             use crate::expressions::expression::native_code_layout::lower_request;
             use crate::expressions::expression::operators::lower_binary_operator;
+            use crate::expressions::expression::{
+                lower_static_machine_argument, lower_static_machine_argument_with_occurrences,
+            };
             use crate::expressions::proposition::is_proposition_call_target;
             use crate::lowerer::name::lower_name;
             use crate::type_reference::lower_type_reference_into_trees_with_exposure;
@@ -1356,6 +1358,10 @@ pub(crate) mod expression {
                                         self.source.authored_expression_exposure(expression),
                                         symbols::SymbolHandle::invalid(),
                                         &call.machine_arguments,
+                                        &self
+                                            .source
+                                            .authored_selection_occurrences(expression)
+                                            .collect::<Vec<_>>(),
                                     )?;
                                 return Ok(self.target().insert(
                                     typed::expression::ExpressionNode::Call(
@@ -1632,6 +1638,10 @@ pub(crate) mod expression {
                                     } else {
                                         &call.machine_arguments
                                     },
+                                    &self
+                                        .source
+                                        .authored_selection_occurrences(expression)
+                                        .collect::<Vec<_>>(),
                                 )?
                             };
                             let requirement_application = if call.requirement_application.is_valid()
@@ -1816,11 +1826,15 @@ pub(crate) mod expression {
                                         "declaration path lost its owned static application",
                                     )
                                 })?;
-                                let selected = lower_static_machine_argument(
+                                let selected = lower_static_machine_argument_with_occurrences(
                                     self.program,
                                     self.target_trees,
                                     self.source.authored_expression_exposure(expression),
                                     selected,
+                                    &self
+                                        .source
+                                        .authored_selection_occurrences(expression)
+                                        .collect::<Vec<_>>(),
                                 )?;
                                 lowered.static_application =
                                     self.target().insert_static_member(selected);
@@ -1866,6 +1880,7 @@ pub(crate) mod expression {
                             Ok(self.target().insert(
                                 typed::expression::ExpressionNode::StructLiteral(
                                     typed::expression::TableStructLiteral {
+                                        zero_omitted_fields: struct_literal.zero_omitted_fields,
                                         application_type,
                                         type_name: lower_name(&struct_literal.type_name),
                                         type_symbol: struct_literal.type_symbol,
@@ -3643,6 +3658,18 @@ pub(crate) mod expression {
         exposure: Option<SelectionExposure>,
         argument: &resolved::expression::StaticMachineArgument,
     ) -> Result<typed::expression::StaticMachineArgument, Diagnostic> {
+        lower_static_machine_argument_with_occurrences(program, target, exposure, argument, &[])
+    }
+
+    pub(crate) fn lower_static_machine_argument_with_occurrences(
+        program: Option<&resolved::SymbolResolvedTrees>,
+        target: &mut typed::TypedTrees,
+        exposure: Option<SelectionExposure>,
+        argument: &resolved::expression::StaticMachineArgument,
+        occurrences: &[language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId],
+    ) -> Result<typed::expression::StaticMachineArgument, Diagnostic> {
+        let authored_selection =
+            static_machine_argument_selection(target, exposure, argument, occurrences)?;
         let type_reference = if argument.type_reference.is_valid() {
             let program = program.ok_or_else(|| {
                 Diagnostic::error("structural static type argument requires its resolved program")
@@ -3657,6 +3684,7 @@ pub(crate) mod expression {
             typed::types::TypeReferenceHandle::invalid()
         };
         let mut selected = typed::expression::StaticMachineArgument {
+            authored_selection,
             type_reference,
             path: argument
                 .path
@@ -3682,8 +3710,13 @@ pub(crate) mod expression {
                                         "qualified static member has no owning resolved record",
                                     )
                                 })?;
-                            let member =
-                                lower_static_machine_argument(program, target, exposure, source)?;
+                            let member = lower_static_machine_argument_with_occurrences(
+                                program,
+                                target,
+                                exposure,
+                                source,
+                                occurrences,
+                            )?;
                             target.expression_table.insert_static_member(member)
                         } else {
                             arena::Handle::invalid()
@@ -3698,7 +3731,13 @@ pub(crate) mod expression {
                             .arguments
                             .iter()
                             .map(|argument| {
-                                lower_static_machine_argument(program, target, exposure, argument)
+                                lower_static_machine_argument_with_occurrences(
+                                    program,
+                                    target,
+                                    exposure,
+                                    argument,
+                                    occurrences,
+                                )
                             })
                             .collect::<Result<Vec<_>, Diagnostic>>()?
                             .into_boxed_slice(),
@@ -3757,6 +3796,77 @@ pub(crate) mod expression {
         Ok(selected)
     }
 
+    fn static_machine_argument_selection(
+        target: &typed::TypedTrees,
+        exposure: Option<SelectionExposure>,
+        argument: &resolved::expression::StaticMachineArgument,
+        occurrences: &[language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId],
+    ) -> Result<
+        Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId>,
+        Diagnostic,
+    > {
+        use language_semantics::declaration_selection::AuthoredDeclarationSelectionKind as Kind;
+        if !argument.symbol.is_valid()
+            || !matches!(
+                target.symbols.get(argument.symbol).kind,
+                symbols::SymbolKind::Machine | symbols::SymbolKind::State
+            )
+        {
+            return Ok(None);
+        }
+        let Some(exposure) = exposure else {
+            return Ok(None);
+        };
+        let Some((first, last)) = argument.path.first().zip(argument.path.last()) else {
+            return Ok(None);
+        };
+        if !first.is_source_backed() || !last.is_source_backed() {
+            return Ok(None);
+        }
+        let first = first.source_span();
+        let last = last.source_span();
+        if first.source_id != last.source_id || first.span.start >= last.span.end {
+            return Err(Diagnostic::error(
+                "static machine argument has no single authored occurrence",
+            ));
+        }
+        let span = source::SourceSpan::new(
+            first.source_id,
+            source::Span::new(first.span.start, last.span.end),
+        );
+        let ledger = target.authored_declaration_selections();
+        let mut attached = occurrences.iter().copied().filter(|occurrence| {
+            ledger.get(*occurrence).is_some_and(|selection| {
+                selection.source_span() == span
+                    && selection.exposure() == exposure
+                    && selection.kind() == Kind::StaticArgument
+            })
+        });
+        let selected = attached.next();
+        if attached.next().is_some() {
+            return Err(Diagnostic::error(
+                "static machine argument has ambiguous attached selections",
+            )
+            .with_source_span(span));
+        }
+        selected.map_or_else(
+            || {
+                match ledger.source_coordinate_occurrence(span, exposure, Kind::StaticArgument) {
+                    Ok(occurrence) => Ok(Some(occurrence)),
+                    // A selected declaration path also uses this operand form.
+                    // Only an actual static argument owns StaticArgument custody.
+                    Err(language_semantics::declaration_selection::AuthoredDeclarationSelectionCoordinateError::Missing) => Ok(None),
+                    Err(reason) => Err(
+                        Diagnostic::error(format!(
+                            "static machine argument lost its authored selection: {reason}"
+                        ))
+                        .with_source_span(span)),
+                }
+            },
+            |occurrence| Ok(Some(occurrence)),
+        )
+    }
+
     pub(crate) fn lower_fact_expression(
         lowerer: &mut Lowerer,
         expression: resolved::expression::ExpressionHandle,
@@ -3768,5 +3878,78 @@ pub(crate) mod expression {
             expression,
             lowerer.admits_contract_policy_operators,
         )
+    }
+    #[cfg(test)]
+    mod static_selection_tests {
+        use super::*;
+        use language_semantics::declaration_selection::{
+            AuthoredDeclarationSelectionKind as Kind, AuthoredDeclarationSelections,
+            CompilerDerivedSelectionPartition,
+        };
+        use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+
+        #[test]
+        fn a_static_argument_keeps_its_exact_compiler_copy_selection() {
+            let mut symbols = SymbolTableBuilder::default();
+            let callback =
+                symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("callback"));
+            let mut target = typed::TypedTrees {
+                symbols: symbols.finish(),
+                ..Default::default()
+            };
+            let span = source::SourceSpan::new(Default::default(), source::Span::new(10, 18));
+            let mut ledger = AuthoredDeclarationSelections::default();
+            let copies = [1, 2].map(|partition| {
+                ledger
+                    .record_resolved_in_partition(
+                        span,
+                        SelectionExposure::PrivateImplementation,
+                        Kind::StaticArgument,
+                        Some(CompilerDerivedSelectionPartition::from_compiler_ordinal(
+                            partition,
+                        )),
+                        callback,
+                    )
+                    .unwrap()
+            });
+            target.retain_authored_declaration_selections(ledger);
+            let argument = resolved::expression::StaticMachineArgument {
+                symbol: callback,
+                path: Box::from([resolved::name::DiagnosticName::from_str("callback", span)]),
+                ..Default::default()
+            };
+            for occurrence in copies {
+                let selected = lower_static_machine_argument_with_occurrences(
+                    None,
+                    &mut target,
+                    Some(SelectionExposure::PrivateImplementation),
+                    &argument,
+                    &[occurrence],
+                )
+                .unwrap();
+                assert_eq!(selected.authored_selection, Some(occurrence));
+            }
+            assert!(
+                lower_static_machine_argument(
+                    None,
+                    &mut target,
+                    Some(SelectionExposure::PrivateImplementation),
+                    &argument,
+                )
+                .is_err(),
+                "source coordinates cannot choose between compiler copies"
+            );
+            assert!(
+                lower_static_machine_argument_with_occurrences(
+                    None,
+                    &mut target,
+                    Some(SelectionExposure::PrivateImplementation),
+                    &argument,
+                    &copies,
+                )
+                .is_err(),
+                "two attached owners cannot issue one argument's authority"
+            );
+        }
     }
 }

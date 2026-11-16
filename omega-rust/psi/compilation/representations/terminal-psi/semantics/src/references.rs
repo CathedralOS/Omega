@@ -420,6 +420,9 @@ pub(crate) mod reference_completion {
             .structural_place_type(descriptor.root)
             .and_then(|ty| borrowed_descriptor_shape(module, ty, &descriptor.path));
         let view = view_shape.is_some();
+        // Every immutable literal or empty arrival supplies shared permission.
+        // Their identities may differ, but no arrival may introduce mutable,
+        // local, provider or unresolved backing into this owner-backed case.
         if view_shape.as_ref().is_some_and(|shape| {
             shape.is_shared_readable_byte_view()
                 || matches!(
@@ -432,19 +435,25 @@ pub(crate) mod reference_completion {
         }) && analysis
             .source_origins(machine.id, at, descriptor)
             .is_some_and(|origins| {
-                matches!(
-                    origins.as_slice(),
-                    [crate::descriptor_results::DescriptorCallOrigin::Empty]
-                )
+                !origins.is_empty()
+                    && origins.iter().all(|origin| match origin {
+                        crate::descriptor_results::DescriptorCallOrigin::Empty => true,
+                        crate::descriptor_results::DescriptorCallOrigin::Literal {
+                            machine: owner,
+                            place,
+                        } => module
+                            .machine(*owner)
+                            .and_then(|machine| machine.structural_place(*place))
+                            .is_some_and(|place| {
+                                matches!(place.kind,
+                                    semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral {
+                                        structural_type, ..
+                                    } if module.structural_type(structural_type)
+                                        .is_some_and(|ty| ty.shape.is_shared_readable_byte_view()))
+                            }),
+                        _ => false,
+                    })
             })
-        {
-            return Ok(BorrowedLoanSource::Owner);
-        }
-        if view && let Some(origins) = analysis.source_origins(machine.id, at, descriptor)
-            && let [crate::descriptor_results::DescriptorCallOrigin::Literal { machine: owner, place }] = origins.as_slice()
-            && module.machine(*owner).and_then(|machine| machine.structural_place(*place))
-                .is_some_and(|place| matches!(place.kind, semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral { structural_type, .. }
-                    if module.structural_type(structural_type).is_some_and(|ty| ty.shape.is_shared_readable_byte_view())))
         {
             return Ok(BorrowedLoanSource::Owner);
         }
@@ -4213,6 +4222,9 @@ pub(crate) mod reference_storage_geometry {
                             return Err(StorageGeometryError::InvalidRecordStorage(root));
                         };
                         let element_count = match length {
+                            terminal_psi::ArrayExtent::Parameter { .. } => {
+                                return Err(StorageGeometryError::UnresolvedLayout(array));
+                            }
                             terminal_psi::ArrayExtent::Literal(count) => *count,
                             terminal_psi::ArrayExtent::Application(application) => {
                                 (self.extents)(*application)?
@@ -4367,6 +4379,7 @@ pub(crate) mod reference_storage_geometry {
             }
             StructuralTypeShape::FixedArray { element, length } => {
                 let length = match length {
+                    terminal_psi::ArrayExtent::Parameter { .. } => None,
                     terminal_psi::ArrayExtent::Literal(length) => Some(*length),
                     terminal_psi::ArrayExtent::Application(application) => extents(*application)?,
                 };

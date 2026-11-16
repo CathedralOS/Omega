@@ -510,3 +510,114 @@ impl Program<'_> {
         Ok(prepared.completed_applications.len() != before)
     }
 }
+
+#[cfg(test)]
+mod inherited_contract_owner_tests {
+    use super::*;
+    use source::{SourceMap, SourceOrigin, SourceSpan, Span};
+    use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+    use typed_trees::name::Identifier;
+    use typed_trees::signature::StateSignature;
+    use typed_trees::trait_definition::{TraitDefinition, TraitRequirement};
+
+    #[test]
+    fn inherited_callable_parents_require_completion_of_the_exact_application() {
+        let mut sources = SourceMap::default();
+        let source = sources
+            .add_with_metadata(
+                "parents/main.omg".into(),
+                "Child Parent Other".into(),
+                "parents".into(),
+                semantic_vocabulary::PackageKeyIdentity::from_digest([9; 32]),
+                SourceOrigin::User,
+            )
+            .source_id;
+        let mut symbols = SymbolTableBuilder::with_sources(Some(Arc::new(sources)));
+        let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let declarations = symbols.insert_children(
+            root,
+            [(0, 5), (6, 12), (13, 18)].map(|(start, end)| {
+                (
+                    SymbolKind::Trait,
+                    SymbolNameRef::Source(SourceSpan::new(source, Span::new(start, end))),
+                )
+            }),
+        );
+        let child = declarations.handle_at(0);
+        let parent = declarations.handle_at(1);
+        let other = declarations.handle_at(2);
+        let requirement = symbols
+            .insert_children(
+                parent,
+                [(SymbolKind::State, SymbolNameRef::Static("enter"))],
+            )
+            .handle_at(0);
+        let mut typed = TypedTrees {
+            symbols: symbols.finish(),
+            ..Default::default()
+        };
+        let unit = typed
+            .type_reference_table
+            .insert(typed_trees::types::TypeReferenceNode::Unit);
+        let machines = typed.trait_machine_signatures.insert_many([StateSignature {
+            symbol: requirement,
+            name: Identifier::from("enter"),
+            return_type: unit,
+            ..Default::default()
+        }]);
+        typed.push_trait_definition(TraitDefinition {
+            symbol: parent,
+            name: Identifier::from("Parent"),
+            is_boundary: true,
+            machines,
+            ..Default::default()
+        });
+        let parents = typed.trait_requirements.insert_many([TraitRequirement {
+            symbol: parent,
+            name: Identifier::from("Parent"),
+            ..Default::default()
+        }]);
+        typed.push_trait_definition(TraitDefinition {
+            symbol: child,
+            name: Identifier::from("Child"),
+            is_boundary: true,
+            requires: parents,
+            ..Default::default()
+        });
+        typed.push_trait_definition(TraitDefinition {
+            symbol: other,
+            name: Identifier::from("Other"),
+            is_boundary: true,
+            requires: parents,
+            ..Default::default()
+        });
+        let scope =
+            AppliedTraitScope::abstract_scope(typed.trait_definition_by_symbol(child).unwrap());
+        let identity = application_identity(&typed, &scope).unwrap();
+        let other_scope =
+            AppliedTraitScope::abstract_scope(typed.trait_definition_by_symbol(other).unwrap());
+        let other_identity = application_identity(&typed, &other_scope).unwrap();
+        let context = MachineId::new(1).unwrap();
+        let mut program = Program::new(&typed, false);
+        program
+            .require_boundary_parent_contract(context, &scope)
+            .unwrap();
+        assert_eq!(program.boundary_parent_contracts.len(), 1);
+        let mut policies = SourceCallingPolicies::default();
+        for wrong in [
+            None,
+            Some((other, other_scope.argument_owner, other_identity.clone())),
+            Some((child, other, identity.clone())),
+            Some((child, scope.argument_owner, other_identity)),
+        ] {
+            policies.completed_applications = wrong.into_iter().collect();
+            let refused = program
+                .require_complete_boundary_parent_contracts(context, &policies)
+                .expect_err("another completed application cannot supply the inherited contract");
+            assert_eq!(
+                refused.detail,
+                "boundary parent contract has no admitted contract owner"
+            );
+        }
+    }
+}

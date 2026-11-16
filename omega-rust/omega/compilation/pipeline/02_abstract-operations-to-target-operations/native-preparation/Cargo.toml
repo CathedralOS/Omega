@@ -9,6 +9,8 @@ name = "native_preparation"
 path = "src/lib.rs"
 
 [dependencies]
+native-vocabulary = { path = "../../../representations/native-vocabulary" }
+runtime-abi = { path = "../../../backend/runtime/runtime-abi" }
 provider-admission = { path = "../../../realization/provider-admission" }
 language-core = { path = "../../../../../psi/foundation/language-core" }
 calling-conventions = { path = "../../../backend/calling-conventions" }
@@ -19,6 +21,7 @@ target = { path = "../../../backend/target" }
 abstract-operations = { path = "../../../representations/abstract-operations" }
 legalized-operations = { path = "../../../representations/target-operations/legalized-operations" }
 target-operations = { path = "../../../representations/target-operations" }
+target-vocabulary = { path = "../../../representations/target-operations/target-vocabulary" }
 semantic-vocabulary = { path = "../../../../../psi/foundation/semantic-vocabulary" }
 terminal-psi = { path = "../../../../../psi/compilation/representations/terminal-psi" }
 terminal-semantics = { path = "../../../../../psi/compilation/representations/terminal-psi/semantics" }

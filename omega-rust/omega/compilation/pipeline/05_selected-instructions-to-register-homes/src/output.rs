@@ -72,11 +72,13 @@ pub(crate) mod current {
         evidence: AllocationEvidence,
         selections: OptimizationSelections,
         budget: OptimizationWorkBudget,
+        publication: Arc<register_homes::AllocationPublicationFacts>,
     }
 
     impl CurrentAllocation {
         pub(crate) fn capture(
             source: &AllocationOutput<'_>,
+            publication: Arc<register_homes::AllocationPublicationFacts>,
         ) -> Result<Self, MachineEffectStageError> {
             let effects =
                 analyze_machine_effects(source.selected(), source.register_environment())?;
@@ -97,11 +99,18 @@ pub(crate) mod current {
                 evidence: source.evidence().clone(),
                 selections: source.selections().clone(),
                 budget: source.budget_per_pass(),
+                publication,
             })
         }
 
-        pub(crate) fn facts(&self) -> AllocatedProgramFacts<'_> {
+        pub(crate) fn facts<'a>(
+            &'a self,
+            preservation: &'a register_homes::AllocatedCalleeSavedRequirements,
+        ) -> AllocatedProgramFacts<'a> {
             AllocatedProgramFacts {
+                publication: &self.publication,
+                preservation,
+                environment: &self.environment,
                 selected: self.selected.current_program(),
                 effects: &self.effects,
                 ranges: self.ranges.plan(),
@@ -110,8 +119,11 @@ pub(crate) mod current {
                 legality_identity: self.legality.receipt().identity(),
                 homes: self.homes.plan(),
                 homes_identity: self.homes.receipt().identity(),
-                manifest: self.manifest.record(),
             }
+        }
+
+        pub(crate) fn publication(&self) -> &Arc<register_homes::AllocationPublicationFacts> {
+            &self.publication
         }
 
         pub(crate) fn view(&self) -> AllocationOutput<'_> {
@@ -210,6 +222,7 @@ pub(crate) mod retained {
     #[derive(Debug, Clone)]
     pub struct RetainedAllocation {
         current: Arc<super::current::CurrentAllocation>,
+        requirements: crate::ValidatedAllocatedCalleeSavedRequirements,
     }
 
     impl RetainedAllocation {
@@ -222,7 +235,15 @@ pub(crate) mod retained {
         }
 
         pub fn facts(&self) -> register_homes::AllocatedProgramFacts<'_> {
-            self.current.facts()
+            self.current.facts(self.requirements.retained())
+        }
+
+        pub fn preservation(&self) -> &crate::ValidatedAllocatedCalleeSavedRequirements {
+            &self.requirements
+        }
+
+        pub fn publication(&self) -> &Arc<register_homes::AllocationPublicationFacts> {
+            self.current.publication()
         }
 
         fn capture(
@@ -230,19 +251,80 @@ pub(crate) mod retained {
             runtime_spill_prefix_selection: Option<optimization_core::Optimization>,
         ) -> Result<Self, AllocationAdmissionError> {
             validate_recovery_selection(current, runtime_spill_prefix_selection)?;
+            let publication = capture_publication_facts(current)?;
+            // Recovery has finished changing instructions and homes. Derive the
+            // preservation facts here, once, before physical lowering starts.
+            let requirements = crate::stage_allocated_callee_saved_requirements(
+                current,
+                crate::AllocatedCalleeSavedRequirementPolicy::AllocatedSelectedWritesIntersectAbiPreservationV1,
+                current.budget_per_pass(),
+            )
+            .map_err(AllocationAdmissionError::Preservation)?;
             Ok(Self {
+                requirements,
                 current: Arc::new(
-                    super::current::CurrentAllocation::capture(current)
+                    super::current::CurrentAllocation::capture(current, publication)
                         .map_err(AllocationAdmissionError::MachineEffects)?,
                 ),
             })
         }
     }
 
-    impl register_homes::AllocatedProgramSource for RetainedAllocation {
-        fn allocation_facts(&self) -> register_homes::AllocatedProgramFacts<'_> {
-            self.facts()
+    fn capture_publication_facts(
+        current: &AllocationOutput<'_>,
+    ) -> Result<Arc<register_homes::AllocationPublicationFacts>, AllocationAdmissionError> {
+        use super::AllocationEvidence;
+        use crate::PostAllocationSelectedTransformation;
+        use optimization_core::{OptimizationExecutionPhase, OptimizationSelections};
+
+        let post = current.post_allocation_manifest().record();
+        let expected_transformations = match current.evidence() {
+            AllocationEvidence::RegisterHomes(_) => Vec::new(),
+            AllocationEvidence::FixedViewCopies(receipt) => {
+                vec![PostAllocationSelectedTransformation::FixedViewCopy(
+                    receipt.source().source().transformation(),
+                )]
+            }
+            AllocationEvidence::SelectedLowering(receipt) => {
+                receipt.source().transformations().to_vec()
+            }
+            AllocationEvidence::ActiveResidentRematerialization(receipt) => vec![
+                PostAllocationSelectedTransformation::PressureRematerialization(
+                    receipt.rematerialization(),
+                ),
+            ],
+            AllocationEvidence::PreAllocation(receipt) => {
+                receipt.source().transformations().to_vec()
+            }
+            AllocationEvidence::RuntimeSpill(identity) if *identity == post.identity => {
+                post.selected_transformations.clone()
+            }
+            _ => return Err(AllocationAdmissionError::PublicationMismatch),
+        };
+        let (lowering, completion) = match current.evidence() {
+            AllocationEvidence::SelectedLowering(receipt) => (
+                receipt.source().phase_selections(),
+                Some(receipt.source().identity()),
+            ),
+            _ => (OptimizationSelections::default().identity(), None),
+        };
+        if post.selected_transformations != expected_transformations
+            || post.selected_lowering_completion != completion
+            || current
+                .selections()
+                .for_phase(OptimizationExecutionPhase::SelectedLowering)
+                .identity()
+                != lowering
+        {
+            return Err(AllocationAdmissionError::PublicationMismatch);
         }
+        Ok(Arc::new(
+            register_homes::AllocationPublicationFacts::retain(
+                post.clone(),
+                current.selections().clone(),
+                current.budget_per_pass(),
+            ),
+        ))
     }
 
     macro_rules! retained_allocation_from_staged {
@@ -356,7 +438,7 @@ pub(crate) mod retained {
                 .find("validate_recovery_selection(current")
                 .expect("the recovery-selection check");
             let owned = capture
-                .find("CurrentAllocation::capture(current)")
+                .find("CurrentAllocation::capture(current, publication)")
                 .expect("the owned current facts");
             assert!(policy < owned);
             assert_eq!(
@@ -480,7 +562,9 @@ pub enum AllocationEvidence {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AllocationAdmissionError {
     SelectionMismatch,
+    PublicationMismatch,
     MachineEffects(selected_instruction_analyses::MachineEffectStageError),
+    Preservation(crate::AllocatedCalleeSavedRequirementError),
 }
 
 stage_error_display!(AllocationAdmissionError, "allocation admission failed");

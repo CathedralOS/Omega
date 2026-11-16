@@ -10,6 +10,10 @@ owners, structural homes, value expressions). They are defined here, apart
 from `TargetOperationPlan` and its control graph in `target-operations`, so a
 form after the plan can name a record without being able to name stage 02's
 working program.
+
+Prepared, selected and physical forms also share structural contracts, closed
+scalar operands and function calling contracts here. Their canonical encoders
+belong with these records; this crate contains no prepared instruction graph.
 */
 
 pub use calling_conventions::MachineRegister;
@@ -71,4 +75,31 @@ pub use storage::{
     ScalarParameterLocation, TargetStructuralHomeLayout, TargetStructuralHomeOrigin,
     TargetStructuralHomeRequirement, TargetUnitScalarHomeRequirement,
     TargetUnitWriteOnlyPrimitiveStoreSource,
+};
+
+pub mod arithmetic;
+mod call_validation;
+pub use arithmetic::{SaturatingCarrier, SaturatingOperation, TrappingForm, TrappingOperation};
+pub use call_validation::{LegalizedCallSourceError, LegalizedScalarCallShapeError};
+pub mod call_contracts;
+pub use call_contracts::{
+    LegalizedBoundarySettlement, LegalizedCallUnitParameter, LegalizedStructuralContract,
+};
+pub mod scalar_operands;
+pub use scalar_operands::{
+    LegalizedDescriptorOrigin, LegalizedNormalizedForeignCall, LegalizedRuntimeIndexOperand,
+    LegalizedScalarArgument, LegalizedScalarCall, LegalizedStructuralCasePayload,
+    LegalizedValueDefinition,
+};
+pub mod function_abi;
+pub use function_abi::LegalizedFunctionAbi;
+pub mod publication;
+pub(crate) use optimization_core::codec_bytes;
+pub use publication::{NativeByteLiteral, NativeFunctionPublication, NativePublicationFacts};
+pub mod identity;
+pub use identity::{
+    encode_access_call_bindings, encode_call_binding, encode_call_plan, encode_external_execution,
+    encode_hosted_read_byte_identity, encode_integer, encode_locator,
+    encode_machine_function_identity, encode_native_callback_argument, encode_placement,
+    encode_provider_execution, encode_register, encode_scalar_type, encode_shape, encode_work,
 };

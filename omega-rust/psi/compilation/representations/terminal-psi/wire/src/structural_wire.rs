@@ -2005,6 +2005,11 @@ pub(crate) mod structural_type_wire {
                 writer.u8(2);
                 writer.id(*element);
                 match length {
+                    ArrayExtent::Parameter { .. } => {
+                        return Err(CodecError::MalformedStructuralFoundation(
+                            "an array extent is still a rigid const input",
+                        ));
+                    }
                     ArrayExtent::Literal(length) => {
                         writer.u8(0);
                         writer.u64(*length);
