@@ -137,12 +137,14 @@ pub(crate) fn unproved(
                     owner(names, site)
                 ),
             };
-            if let Some(extent) =
-                indexed_extent(&elaboration.module, machine, execution, obligation)
-            {
-                format!("{statement}: cannot prove index is within length {extent}")
-            } else {
-                statement
+            match indexed_extent(&elaboration.module, machine, execution, obligation) {
+                Some((Some(index), extent)) => {
+                    format!("{statement}: cannot prove index `{index}` is within length {extent}")
+                }
+                Some((None, extent)) => {
+                    format!("{statement}: cannot prove index is within length {extent}")
+                }
+                None => statement,
             }
         }
         ObligationKind::DataDomain { clause, .. } => format!(
@@ -363,13 +365,14 @@ fn crash_coverage(
 
 /// Name the exact array whose projection owns the failed bound. A single
 /// operation can index several arrays, so the operation alone cannot identify
-/// the extent.
+/// the extent. The index comes back too when it is a constant, so the message
+/// can say which index fell outside (`values[8]` into `[i32; 8]`).
 fn indexed_extent(
     module: &TerminalModule,
     machine: MachineId,
     site: ExecutionSite,
     obligation: ObligationId,
-) -> Option<u64> {
+) -> Option<(Option<u64>, u64)> {
     let lowered = module.machine(machine)?;
     let projections = match site {
         ExecutionSite::Operation(operation) => {
@@ -378,10 +381,15 @@ fn indexed_extent(
         ExecutionSite::Block(block) => lowered.block(&block)?.terminator.storage_uses(),
     };
     projections.into_iter().find_map(|projection| {
-        let position = projection.path.iter().position(|step| {
-            step.runtime_index()
-                .is_some_and(|(_, owner)| owner == obligation)
-        })?;
+        let (position, index) =
+            projection
+                .path
+                .iter()
+                .enumerate()
+                .find_map(|(position, step)| match step.runtime_index() {
+                    Some((index, owner)) if owner == obligation => Some((position, index)),
+                    _ => None,
+                })?;
         let root = lowered.structural_place_type(projection.root).or_else(|| {
             lowered
                 .block_structural_parameters()
@@ -397,7 +405,10 @@ fn indexed_extent(
             StructuralTypeShape::FixedArray {
                 length: ArrayExtent::Literal(extent),
                 ..
-            } => Some(extent),
+            } => Some((
+                terminal_semantics::constant_runtime_index(lowered, index),
+                extent,
+            )),
             _ => None,
         }
     })
