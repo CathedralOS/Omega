@@ -52,6 +52,9 @@ mod ranking_defaults_tests;
 #[cfg(test)]
 mod qualified_operator_home_tests;
 
+#[cfg(test)]
+mod run_custody_headers_tests;
+
 pub(crate) use contracts_and_signatures::{contracts, signatures};
 
 pub(crate) mod expressions {
