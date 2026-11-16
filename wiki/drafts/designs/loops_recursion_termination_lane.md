@@ -107,16 +107,18 @@ the constructs of the later ones as `Unsupported` with a detail naming them.
 
 | Slice | Serves | Refuses until later |
 | --- | --- | --- |
-| 1. Productive cycles (built, `#2367`) | Self and mutual recursion in terminal position between scalar machines; head blocks, back edges, `requires` as the head's invariant, `ArrivalInvariant` proved on every arrival; outcomes (normal completion, crash routes) of a component as one fixed point | a call of a member outside terminal position; a record formal on a cycle; `ensures` on a member; a termination promise on or over a cycle; an authored guarded crash route on a member; an `[erased]` binding or a value of a type parameter in a member |
+| 1. Productive cycles (built, `#2367`) | Self and mutual recursion in terminal position between scalar machines; head blocks, back edges, `requires` as the head's invariant, `ArrivalInvariant` proved on every arrival; outcomes (normal completion, crash routes) of a component as one fixed point | a call of a member outside terminal position; a record formal on a cycle; a termination promise on or over a cycle; an authored guarded crash route on a member; an `[erased]` binding or a value of a type parameter in a member |
 | 2. Witness by identity | A ranking witness reaches the typed trees twice: as text (`RankingWitness::subjects: Vec<String>`) and as typed expressions (`RankingExpressionCustody`, with the view as a `RankingViewId`). The reader takes subjects, view arguments and range from the custody only, and refuses a witness that has none as a spelling; it never resolves the text. If some witness form has no custody, the repair goes to the stage that dropped it (standing rule: identity is fixed upstream) | |
 | 3. Natural descent | `terminates by x` and `-> Nat::Descending` on a scalar formal; `ranked_scc`, `WellFoundedness`, `RankComparison`, the every-cycle-descends judgment; the published `Termination` term and a promise checked against it | other views, rank ranges, measures, lexicographic ranks |
 | 4. Guarantees across a cycle | `ensures` on members: each return in the fused graph proves the entered machine's clause, using a member's clause only where the specification lets a recursive contract be cited | |
 | 5. Other views | `Nat::IncreasingTo`, `Nat::BoundedDistance` (control flow: "one exact subtraction over parameters and integer constants"), `in lower..=upper`, declared `measure`s, lexicographic products | `Slice::Length` (collections lane) |
 | 6. Storage across a back edge | Record formals on a cycle as structural block parameters; the write log across a back edge | references on a cycle (references lane) |
 
-Slice 4's rule needs care and may end as an owner question: the
-specification ties citing a recursive contract to "strict descent at the
-exact edge", which an unranked productive loop does not have.
+A fused graph proves its entry machine's `ensures` at every normal return
+using the ordinary return obligations. Each member is also checked as its
+own entry. An internal jump contributes no guarantee to the proof. Citing
+a recursive contract as an induction hypothesis is a separate judgment
+and requires strict descent at the exact edge.
 
 Out of the lane altogether: non-tail recursion, which is "valid in
 proof/compile-time use and rejects runtime lowering" and belongs to the

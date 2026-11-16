@@ -374,12 +374,6 @@ fn what_the_lane_does_not_serve_yet_on_a_cycle_is_refused_by_name() {
         refused(vec![(tested, plain())]),
         "call recursion outside a terminal position"
     );
-    let mut ensured = plain();
-    ensured.ensures = vec![Proposition::LessOrEqual(zero(), value(2))];
-    assert_eq!(
-        refused(vec![countdown(ensured)]),
-        "contract ensures on a call cycle"
-    );
     let mut promised = plain();
     promised.termination = Termination::Promised;
     assert_eq!(
