@@ -135,6 +135,19 @@ When you take a program that does not compile, you own every fix it needs until
 it compiles, runs, and is merged to `main`, not just the first fix. If it is
 hard, investigate further; do not give up or change what "done" means.
 
+**Outcome ownership experiment (owner-authorized, 2026-11-15).** We are testing
+whether checkpoint merges let attention leave unfinished programs. Keep the
+original program and its specified result as the assignment through those
+merges. After each checkpoint lands, run that program on the landed source and
+follow its next failure, including a pre-existing failure in another stage.
+Small PRs remain useful checkpoints; they do not complete the assignment or
+release its claim. If the session must stop, record the source revision,
+original acceptance, current failure and next action in the existing task or PR,
+and name the receiving session when one accepts the handoff. Without a receiver,
+report the outcome as unfinished. Evaluate this experiment from session records:
+time to the original result, repeated investigation and ownership gaps; a single
+run can reveal loop failures but cannot establish a throughput improvement.
+
 That includes fixes in other compiler stages, the bundled library, or anything
 else the program depends on, all made in your own worktree. Do not split the
 work into one task per stage, and do not wait for another session to supply a
@@ -243,9 +256,10 @@ beside that test.
    When running with subagents, the coordinator runs Step 1 (triage from
    `TASKS.md`, worktree creation, and claim registration) and dispatches workers immediately so each worker owns
    Steps 2–5 (all `omega-rust/` source reading, root-cause tracing, repair,
-   validation, and PR) in its own context window. After landing or
-   handing off a slice, continue the next requirement of the same capability on
-   the warm worktree.
+   validation, and PR) in its own context window. After landing a checkpoint,
+   return to the original program and follow its next failure on
+   the warm worktree. An unfinished handoff preserves the original acceptance
+   and names the receiving session when one has accepted it.
    Acquisition starts a stable model-audit interval automatically. Before a new
    outcome on a clean warm slot, run `mbx xtask worktree begin`; it changes only
    that slot's audit boundary, never its source, cache or pool lease. Keep one
