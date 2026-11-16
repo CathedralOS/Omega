@@ -2368,6 +2368,7 @@ pub(crate) mod primitive_store_memberships {
                 copyable: true,
                 no_code_affine_cleanup: true,
                 descriptor_cleanup: false,
+                nominal_cleanup: None,
                 shape,
                 scalar_restriction: None,
                 requires: Vec::new(),
