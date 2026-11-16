@@ -602,6 +602,8 @@ machine write_number(ticket: &mut Ticket in Stamped) { ticket.number = 41; }
         let main = typed.realized_machine_named("main").unwrap().symbol;
         let entries = [main];
         let request = terminal_production::TerminalSourceCompilation {
+            calling: None,
+            providers: None,
             declaration_metadata: &[],
             entries: &entries,
             subjects: &[],

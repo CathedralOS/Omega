@@ -946,7 +946,9 @@ pub mod domain {
         /// definitions need their own translation before the theory is complete;
         /// issuer and access rules are checked independently.
         pub fn has_complete_predicate_theory(&self) -> bool {
-            self.operators.is_empty()
+            (self.predicate_presence == language_semantics::DomainPredicatePresence::Absent
+                || !self.facts.is_empty())
+                && self.operators.is_empty()
                 && self.alias.is_none()
                 && self.classification.is_none()
                 && self.semantic_roles.is_empty()
@@ -988,7 +990,10 @@ pub mod domain {
         );
         definition.predicate_presence = language_semantics::DomainPredicatePresence::Present;
         assert!(!definition.has_complete_empty_theory());
-        assert!(definition.has_complete_predicate_theory());
+        assert!(
+            !definition.has_complete_predicate_theory(),
+            "a declared predicate without retained clauses is unavailable, not true"
+        );
         definition.predicate_presence = language_semantics::DomainPredicatePresence::Absent;
         definition.alias = Some(DomainAliasDefinition {
             constituents: Vec::new(),
