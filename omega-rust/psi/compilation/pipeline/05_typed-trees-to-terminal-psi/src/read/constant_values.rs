@@ -240,6 +240,18 @@ impl Program<'_> {
                 return Err(unserved("constant lost its retained initializer entry"));
             }
             let retained = self.typed.tables.machines.get(constant.evaluation_entry);
+            if !self
+                .typed
+                .symbols
+                .symbols()
+                .nodes()
+                .is_valid(retained.symbol)
+                || self.typed.symbols.get(retained.symbol).generated_from != constant.symbol
+            {
+                return Err(unserved(
+                    "constant initializer belongs to another declaration",
+                ));
+            }
             let actual = self
                 .typed
                 .machine_by_symbol(retained.symbol)

@@ -1104,25 +1104,46 @@ fn literal_constant_predicates_use_checked_initializers() {
 
     // A canonical payload is not a proof receipt. Losing the exact
     // initializer must restore the refusal, even though the payload remains.
-    let constant = frontier
-        .typed
+    let original = frontier.typed.clone();
+    let mut typed = frontier.typed.clone().into_inner();
+    let constant = typed
         .tables
         .const_declarations
         .iter()
         .find_map(|(handle, declaration)| {
-            (frontier.typed.symbols.name(declaration.symbol) == "UNUSED").then_some(handle)
+            (typed.symbols.name(declaration.symbol) == "UNUSED").then_some(handle)
         })
         .expect("the unused constant declaration");
-    frontier
-        .typed
+    typed
         .tables
         .const_declarations
         .get_mut(constant)
         .evaluation_entry = Default::default();
+    frontier.typed = typed.into();
     let (_, verdict) = route_verdict(&frontier);
     assert!(
         matches!(verdict, Ok(RouteVerdict::FallBack(ref refusal))
         if refusal.detail.contains("constant of data with requires needs its default-domain proof")),
+        "{verdict:?}"
+    );
+
+    // The other initializer returns the same value in the same carrier.
+    // It still cannot replace this declaration's computation custody.
+    let mut typed = original.into_inner();
+    let other = typed
+        .const_declarations()
+        .iter()
+        .find(|declaration| typed.symbols.name(declaration.symbol) == "COMPUTED")
+        .expect("the computed declaration")
+        .clone();
+    let declaration = typed.tables.const_declarations.get_mut(constant);
+    declaration.evaluation_entry = other.evaluation_entry;
+    declaration.evaluation_expression = other.evaluation_expression;
+    frontier.typed = typed.into();
+    let (_, verdict) = route_verdict(&frontier);
+    assert!(
+        matches!(verdict, Ok(RouteVerdict::FallBack(ref refusal))
+        if refusal.detail.contains("constant initializer belongs to another declaration")),
         "{verdict:?}"
     );
 }
