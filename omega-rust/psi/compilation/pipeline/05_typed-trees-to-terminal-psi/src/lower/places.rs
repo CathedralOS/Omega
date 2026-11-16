@@ -1450,72 +1450,43 @@ impl<'a> Lowering<'a> {
     fn touch_selected(&mut self, place: ExactPlaceId) -> Checked<()> {
         for position in 0..self.selected.len() {
             let chosen = &self.selected[position];
-            if !chosen.parameters.is_empty() && self.may_overlap(chosen.place, place)? {
+            if !chosen.parameters.is_empty() && self.may_touch(chosen.place, place)? {
                 self.selected[position].parameters.clear();
             }
         }
         Ok(())
     }
 
-    /// Whether `a` and `b` can name some of the same storage. Distinct roots
-    /// are distinct storage; a reference capture shares its original's root.
-    /// Below the common ancestor, different fields or literal indexes are
-    /// disjoint, unless a shallower step selects different cases of one sum,
-    /// whose payloads share storage. Runtime indexes may be equal, and a
-    /// place behind a stored reference may alias anything.
-    fn may_overlap(&self, a: ExactPlaceId, b: ExactPlaceId) -> Checked<bool> {
-        let parent = |place: ExactPlaceId| -> Checked<Option<(ExactPlaceId, Segment)>> {
+    /// The root and segments that reach `place`, root first.
+    fn lineage(&self, mut place: ExactPlaceId) -> Checked<(PlaceId, Vec<Segment>)> {
+        let mut segments = Vec::new();
+        loop {
             let row = self
                 .tables
                 .places
                 .get(place)
                 .ok_or_else(|| self.internal("an exact place has no row"))?;
-            Ok(match row.origin {
-                PlaceOrigin::Root(_) => None,
-                PlaceOrigin::Projection { parent, segment } => Some((parent, segment)),
-            })
-        };
-        let depth = |mut place: ExactPlaceId| -> Checked<usize> {
-            let mut depth = 0;
-            while let Some((up, _)) = parent(place)? {
-                place = up;
-                depth += 1;
-            }
-            Ok(depth)
-        };
-        let (mut a, mut b) = (a, b);
-        let (mut a_depth, mut b_depth) = (depth(a)?, depth(b)?);
-        let mut disjoint = false;
-        while a_depth != b_depth {
-            let deeper = if a_depth > b_depth { &mut a } else { &mut b };
-            let Some((up, segment)) = parent(*deeper)? else {
-                return Err(self.internal("an exact place is shallower than its depth"));
-            };
-            if segment == Segment::Referent {
-                return Ok(true);
-            }
-            *deeper = up;
-            if a_depth > b_depth {
-                a_depth -= 1;
-            } else {
-                b_depth -= 1;
+            match row.origin {
+                PlaceOrigin::Root(root) => {
+                    segments.reverse();
+                    return Ok((root, segments));
+                }
+                PlaceOrigin::Projection { parent, segment } => {
+                    segments.push(segment);
+                    place = parent;
+                }
             }
         }
-        while a != b {
-            let (Some((a_up, a_segment)), Some((b_up, b_segment))) = (parent(a)?, parent(b)?)
-            else {
-                return Ok(false);
-            };
-            match (a_segment, b_segment) {
-                (Segment::Referent, _) | (_, Segment::Referent) => return Ok(true),
-                (Segment::Field(x), Segment::Field(y)) if x != y => disjoint = true,
-                (Segment::FixedIndex(x), Segment::FixedIndex(y)) if x != y => disjoint = true,
-                (Segment::Case(x), Segment::Case(y)) if x != y => disjoint = false,
-                _ => {}
-            }
-            (a, b) = (a_up, b_up);
-        }
-        Ok(!disjoint)
+    }
+
+    /// Whether a write to `place` may change `subject`, by the checker's own
+    /// relation: distinct roots are distinct storage, and beneath one root
+    /// `place_paths::may_overlap` decides.
+    fn may_touch(&self, subject: ExactPlaceId, place: ExactPlaceId) -> Checked<bool> {
+        let (subject_root, subject_path) = self.lineage(subject)?;
+        let (root, path) = self.lineage(place)?;
+        Ok(subject_root == root
+            && terminal_semantics::storage::place_paths::may_overlap(&subject_path, &path))
     }
 
     /// Register a demanded scalar leaf. Logical identities are allocated in
