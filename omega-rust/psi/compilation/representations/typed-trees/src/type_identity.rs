@@ -8416,6 +8416,23 @@ impl TypedTrees {
             return Ok(identity);
         }
         let path = self.symbols.display_path(symbol, "::");
+        // Overloads share a source path but are different declarations. Keep
+        // the existing callable signature with that path, so selecting one
+        // overload cannot name another declaration with different parameters.
+        let path = if self.symbols.get(symbol).kind == symbols::SymbolKind::Machine {
+            let machine = self
+                .machine_declaration_for_lexical_scope(symbol)
+                .ok_or("a machine identity has no retained declaration")?;
+            let callable = self
+                .machine_callable_identity_text(machine)
+                .ok_or("a machine declaration has no complete callable identity")?;
+            compound(
+                CoordinateTag::Declaration,
+                [atom(CoordinateTag::Path, &path), callable],
+            )
+        } else {
+            path
+        };
         if let Some(package) = self.symbols.symbol_package_identity(symbol) {
             let mut owner = String::with_capacity(64);
             use std::fmt::Write as _;
