@@ -566,7 +566,6 @@ name until the slice that serves it:
 | a witness without resolved typed subjects | `contract ranking subjects have no resolved expressions` |
 | a termination promise that reaches a cycle with a member lacking a measure | `contract termination promise over a call cycle` |
 | `terminates` under a progress premise | `contract termination under a progress premise` |
-| `ensures` on a member | `contract ensures on a call cycle` |
 | a `crashes Cause` clause with a route guard on a member | `contract guarded crash route on a call cycle` |
 | an `[erased]` formal or local in a member | `machine erased binding on a call cycle` |
 | a formal, result or local of a type parameter in a member | `machine value of a type parameter on a call cycle` |
