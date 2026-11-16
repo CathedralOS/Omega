@@ -858,9 +858,7 @@ pub(crate) fn defer_unbound_calls(
                         && program
                             .domain_definition(owner)
                             .and_then(|domain| {
-                                typed_trees::byte_predicates::byte_slice_domain_predicate(
-                                    program, domain,
-                                )
+                                typed_trees::byte_predicates::byte_domain_predicate(program, domain)
                             })
                             .is_some_and(|(predicate, _)| predicate == handle)
                     {
