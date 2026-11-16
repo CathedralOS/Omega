@@ -236,7 +236,7 @@ machine entry() reaches Child {}
                 entries: &[entry],
                 subjects: &[],
                 purpose: source::DependencyScope::Product,
-                selected: &[],
+                selected: &[child],
                 bindings: &[],
                 supplies: &[],
             },
