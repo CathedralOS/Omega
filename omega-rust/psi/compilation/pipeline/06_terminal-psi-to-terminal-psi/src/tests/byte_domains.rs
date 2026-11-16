@@ -233,6 +233,48 @@ fn a_formal_in_a_byte_domain_requires_its_predicate_of_the_bytes_passed() {
     );
 }
 
+fn sliced_cast(predicate: &str, source_domain: &str, bytes: &str) -> String {
+    format!(
+        r#"
+domain [u8]::Text requires {predicate}(self);
+machine length(text: &[u8] in Text) -> u64 {{ text.len }}
+machine prefix_length(text: &[u8]{source_domain}, end: u64) -> u64
+requires end <= text.len {{
+    let prefix: &[u8] = &text[0..end];
+    length(prefix as +Text)
+}}
+machine build_entry() {{
+    let measured: u64 = prefix_length({bytes}, 1);
+}}
+"#
+    )
+}
+
+#[test]
+fn a_subslice_cast_requires_the_exact_backing_to_preserve_its_predicate() {
+    assert_eq!(
+        verdict(&sliced_cast("no_nul", " in Text", r#""pl" as +Text"#)),
+        "accepted"
+    );
+    for source in [
+        sliced_cast("no_nul", "", r#""\x00l""#),
+        sliced_cast("valid_utf8", " in Text", r#""é" as +Text"#),
+    ] {
+        let Ok(RouteVerdict::Rejected { unproved, .. }) = judge_build(&source) else {
+            panic!("the cast must be rejected: {source}");
+        };
+        assert!(
+            unproved.iter().any(|obligation| {
+                matches!(obligation.kind, ObligationKind::ArrivalInvariant { .. })
+                    && obligation
+                        .detail
+                        .contains("the source does not establish the byte predicate for this slice")
+            }),
+            "{unproved:?}"
+        );
+    }
+}
+
 /// A fixed byte array in a byte domain, `bytes: [u8; 3] in Text`.
 ///
 /// The array's length is in its type, so the domain's one clause is a

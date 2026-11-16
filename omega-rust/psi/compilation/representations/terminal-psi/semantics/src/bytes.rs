@@ -806,7 +806,17 @@ pub(crate) mod byte_sequence_predicates {
                     {
                         return None;
                     }
-                    byte_parameter_predicates(module, parameter)
+                    let mut predicates = byte_parameter_predicates(module, parameter)?;
+                    if matches!(place.kind, StructuralPlaceKind::Parameter { .. })
+                        && parameter.access == StructuralAccess::SharedBorrow
+                        && module.structural_types.iter().any(|declaration| {
+                            declaration.id == parameter.structural_type
+                                && declaration.shape.is_shared_readable_byte_view()
+                        })
+                    {
+                        shared_entry_byte_predicates(machine, source, &mut predicates);
+                    }
+                    Some(predicates)
                 }
                 StructuralPlaceKind::ByteSequenceLiteral { .. } => {
                     let mut producers =
@@ -871,19 +881,25 @@ pub(crate) mod byte_sequence_predicates {
                         );
                     }
                     let declared = byte_result_predicates(module, machine, source)?;
-                    if let OperationKind::StructuralLeafCopy {
-                        source: backing,
-                        path,
-                    } = &operation.kind
+                    let copy = match &operation.kind {
+                        OperationKind::MoveStructuralValue { source } => {
+                            Some((source.place, source.path.as_slice()))
+                        }
+                        OperationKind::StructuralLeafCopy { source, path } => {
+                            Some((*source, path.as_slice()))
+                        }
+                        _ => None,
+                    };
+                    if let Some((backing, path)) = copy
                         && module.structural_types.iter().any(|declaration| {
                             declaration.id == structural_type
                                 && declaration.shape.is_borrowed_byte_view()
                         })
                     {
                         let captured = if path.is_empty() {
-                            source_predicates(module, machine, *backing, work, memo)?
+                            source_predicates(module, machine, backing, work, memo)?
                         } else {
-                            let (root, access) = byte_field_root(machine, *backing)?;
+                            let (root, access) = byte_field_root(machine, backing)?;
                             if access == StructuralAccess::WriteOnlyBorrow {
                                 return None;
                             }
@@ -934,6 +950,37 @@ pub(crate) mod byte_sequence_predicates {
             machine.structural_places.len().saturating_add(1),
             &mut Vec::new(),
         )
+    }
+
+    // An entry fact remains true of the same shared descriptor. Only a
+    // required positive atom establishes a predicate over its whole backing.
+    fn shared_entry_byte_predicates(
+        machine: &TerminalMachine,
+        source: PlaceId,
+        predicates: &mut ByteSequencePredicateSet,
+    ) {
+        use semantic_vocabulary::{Proposition, ScalarTerm};
+
+        let mut required = machine.contract.requires.iter().collect::<Vec<_>>();
+        while let Some(clause) = required.pop() {
+            match clause {
+                Proposition::Conjunction(parts) => required.extend(parts),
+                Proposition::Equal(ScalarTerm::Boolean(true), term)
+                | Proposition::Equal(term, ScalarTerm::Boolean(true)) => {
+                    if let ScalarTerm::ByteSequencePredicate {
+                        predicate,
+                        root,
+                        path,
+                    } = term
+                        && *root == source
+                        && path.is_empty()
+                    {
+                        predicates.insert(*predicate);
+                    }
+                }
+                _ => {}
+            }
+        }
     }
 
     pub fn indexed_byte_store_goal(

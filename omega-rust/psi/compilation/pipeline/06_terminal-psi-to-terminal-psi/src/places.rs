@@ -4017,6 +4017,19 @@ impl<'a> Storage<'a> {
                         Vec::new(),
                     ));
                 }
+                StructuralPlaceKind::BlockParameter { .. }
+                    if self
+                        .declaration(self.root_type(place, concerns).map_err(refused)?, concerns)
+                        .map_err(refused)?
+                        .shape
+                        .is_shared_readable_byte_view() =>
+                {
+                    return Ok(ScalarTerm::byte_sequence_predicate(
+                        predicate,
+                        place,
+                        Vec::new(),
+                    ));
+                }
                 StructuralPlaceKind::OperationResult { producer, .. } => {
                     match &self.operation(producer, concerns).map_err(refused)?.kind {
                         OperationKind::MoveStructuralValue { source } if source.path.is_empty() => {
@@ -4024,6 +4037,22 @@ impl<'a> Storage<'a> {
                         }
                         OperationKind::StructuralLeafCopy { source, path } if path.is_empty() => {
                             place = *source;
+                        }
+                        OperationKind::ByteSequenceSubslice { .. } => {
+                            let mut required = terminal_psi::ByteSequencePredicateSet::EMPTY;
+                            required.insert(predicate);
+                            if terminal_semantics::byte_sequence_source_predicates(
+                                self.module,
+                                self.lowered,
+                                place,
+                            )
+                            .is_some_and(|known| known.implies(required))
+                            {
+                                return Ok(ScalarTerm::Boolean(true));
+                            }
+                            return Err(crate::Unbound::Unproved(
+                                "the source does not establish the byte predicate for this slice",
+                            ));
                         }
                         _ => {
                             return Err(crate::Unbound::Unsupported(
