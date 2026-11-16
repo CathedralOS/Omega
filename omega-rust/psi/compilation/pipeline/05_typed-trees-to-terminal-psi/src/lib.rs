@@ -935,6 +935,9 @@ fn finish_logical_witness<'source>(
         Some(program.typed),
         Some(&program),
     )?;
+    // Abstract ceilings still name real applied services. Retain their exact
+    // declarations without deriving executable reach from the synthetic body.
+    witness.program.reach.names = services.publish(entry, &mut witness.program.module)?;
     witness.source.records = program.source_record_correspondence(entry)?;
     witness.program.machines = program.symbols;
     witness.program.names = program.names;

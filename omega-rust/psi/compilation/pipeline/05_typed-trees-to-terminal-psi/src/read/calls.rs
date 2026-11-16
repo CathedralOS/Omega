@@ -828,7 +828,7 @@ impl<'t> Program<'t> {
                 slots,
                 call.target_symbol,
                 arguments,
-                SourceOrigin::of(call.source_span),
+                source,
                 None,
                 static_reach_binding,
             )

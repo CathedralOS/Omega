@@ -184,7 +184,11 @@ impl ServiceMap {
             termination: source.termination.clone(),
         })
     }
-    fn publish(&self, context: MachineId, module: &mut TerminalModule) -> Checked<Vec<String>> {
+    pub(crate) fn publish(
+        &self,
+        context: MachineId,
+        module: &mut TerminalModule,
+    ) -> Checked<Vec<String>> {
         if !module.services.is_empty() {
             return Err(unavailable(
                 context,
