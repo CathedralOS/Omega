@@ -2160,6 +2160,21 @@ impl<'a> Storage<'a> {
                         .kernel_proposition()
                         .map_err(crate::semantics_refusal(self.machine, id));
                 }
+                if let OperationKind::EstablishElementView {
+                    region:
+                        terminal_psi::ElementViewRegion::WholeRepresentation {
+                            obligation: owned, ..
+                        },
+                    ..
+                } = operation.kind
+                {
+                    if owned != obligation {
+                        return Err(
+                            self.foreign(concerns, "representation view owns another obligation")
+                        );
+                    }
+                    return self.representation_count_goal(operation);
+                }
                 if let OperationKind::ByteSequenceSubslice {
                     obligation: owned, ..
                 }

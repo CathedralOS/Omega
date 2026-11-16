@@ -204,6 +204,11 @@ impl Program<'_> {
                     element,
                     qualification,
                     ..
+                }
+                | StorageShape::ElementView {
+                    element,
+                    qualification,
+                    access: Some(terminal_psi::StructuralAccess::SharedBorrow),
                 } => pending.push(self.storage_value_type(id, *element, *qualification)?),
                 StorageShape::PrimitiveScalar { .. } => {}
                 _ => {

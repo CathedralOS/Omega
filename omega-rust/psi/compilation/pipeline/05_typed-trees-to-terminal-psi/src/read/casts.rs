@@ -8,7 +8,8 @@ or borrowed restoration obligations.
 Carrier casts start with an unqualified operand and perform an exact scalar
 conversion before adding a policy. Float widening uses the authenticated Core
 conversion whose entire input format is exactly representable in its result.
-Storage recasts and unserved anonymous operands refuse here.
+Shared collection recasts borrow their complete payload through the collection
+view operation. Other storage recasts and unserved anonymous operands refuse here.
 */
 
 use semantic_vocabulary::{MachineId, ScalarType};
@@ -32,7 +33,79 @@ impl Program<'_> {
             return self.domain_entry(id, slots, cast, entry, source);
         }
         if cast.form.is_recast() {
-            return unserved("storage view outside reference formation");
+            use crate::StorageShape;
+            use terminal_psi::{ByteSequenceCarrier, StructuralAccess};
+            if cast.form.recast_access() != Some(language_core::ReferenceAccess::Shared)
+                || !cast.target_type.is_valid()
+                || cast.semantic_domain_symbol.is_valid()
+                || !cast.semantic_domain.is_empty()
+            {
+                return unserved("storage view outside reference formation");
+            }
+            let target = self.value_type(id, cast.target_type)?;
+            let ValueType::Record(row, Qualification::NONE, _) = target else {
+                return unserved("collection recast without a plain shared view destination");
+            };
+            let element = match self.data_type(id, row)?.shape {
+                StorageShape::ElementView {
+                    element,
+                    qualification: Qualification::NONE,
+                    access: Some(StructuralAccess::SharedBorrow),
+                } => element,
+                StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                    access: Some(StructuralAccess::SharedBorrow),
+                }) => {
+                    let declared = super::bytes::source_byte_view(
+                        self.typed,
+                        cast.target_type,
+                        self.lifetime_owner,
+                        id,
+                    )?
+                    .ok_or_else(|| {
+                        refuse(
+                            id,
+                            Construct::Machine,
+                            Unserved::Type("collection recast lost its declared byte element"),
+                        )
+                    })?;
+                    let value = self.value_type(id, declared.element_type)?;
+                    self.storage_type(id, declared.element_type, value)?
+                }
+                _ => return unserved("collection recast without a plain shared view destination"),
+            };
+            let operand = self.expression(id, slots, cast.value, None)?;
+            let Some(ValueType::Record(actual, Qualification::NONE, _)) = operand.result else {
+                return unserved("collection recast without an unqualified source descriptor");
+            };
+            if !matches!(
+                self.data_type(id, actual)?.shape,
+                StorageShape::ElementView {
+                    qualification: Qualification::NONE,
+                    access: Some(StructuralAccess::SharedBorrow),
+                    ..
+                }
+            ) {
+                return unserved("collection recast without an established shared element view");
+            }
+            self.representation_read_authorized(id, &operand)?;
+            let outer = self.loan_regions(id, slots, &operand)?;
+            let mut tuple = self.region_tuple(outer).to_vec();
+            let nested = self.collection_element_regions(id, row, target.regions())?;
+            tuple.extend_from_slice(self.region_tuple(nested));
+            return Ok(Expression {
+                call_context: None,
+                kind: ExpressionKind::ArrayView {
+                    base: Box::new(operand),
+                    access: language_core::ReferenceAccess::Shared,
+                    element,
+                },
+                result: Some(ValueType::Record(
+                    row,
+                    Qualification::NONE,
+                    self.intern_regions(tuple),
+                )),
+                source,
+            });
         }
         if cast.semantic_domain_symbol.is_valid() || !cast.semantic_domain.is_empty() {
             return unserved("cast naming a domain");

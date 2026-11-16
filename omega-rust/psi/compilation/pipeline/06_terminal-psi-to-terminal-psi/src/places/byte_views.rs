@@ -178,7 +178,7 @@ impl Storage<'_> {
     pub(super) fn array_view_formation(
         &self,
         operation: &Operation,
-    ) -> Checked<terminal_semantics::CollectionExtent> {
+    ) -> Checked<terminal_semantics::ElementViewRegionGeometry> {
         use terminal_psi::{ByteSequenceCarrier, ElementViewRegion, StructuralPathQualification};
         let concerns = Construct::Operation(operation.id);
         let (destination, source, element, region, access, multiplicity) = match &operation.kind {
@@ -216,7 +216,10 @@ impl Storage<'_> {
             .ok_or_else(|| self.foreign(concerns, "array view has no descriptor result"))?;
         if destination != result.place
             || source.access != access
-            || region != ElementViewRegion::WholeCollection
+            || !matches!(
+                region,
+                ElementViewRegion::WholeCollection | ElementViewRegion::WholeRepresentation { .. }
+            )
             || result.multiplicity != multiplicity
             || !result.qualifications.is_empty()
             || !result.projected_qualifications.is_empty()
@@ -275,12 +278,70 @@ impl Storage<'_> {
             &source.path,
         )
         .ok_or_else(|| self.foreign(concerns, "array view lost its captured storage"))?;
-        let backing =
-            terminal_semantics::collection_backing(self.types.iter(), selected.id, element)
-                .ok_or_else(|| {
-                    self.foreign(concerns, "collection view changes its element type")
-                })?;
-        let actual = self.collection_backing_source(source, 0, element, concerns)?;
+        let geometry = terminal_semantics::element_view_region_geometry(
+            self.types.iter(),
+            selected.id,
+            element,
+            region,
+            access,
+        )
+        .ok_or_else(|| {
+            self.unsupported(
+                concerns,
+                "collection view lacks compatible element representations and exact tiling",
+            )
+        })?;
+        let (backing, source_element) = match &geometry {
+            terminal_semantics::ElementViewRegionGeometry::WholeCollection(backing) => {
+                (*backing, element)
+            }
+            terminal_semantics::ElementViewRegionGeometry::WholeRepresentation {
+                backing, ..
+            } => {
+                let StructuralTypeShape::ElementView {
+                    element: source_element,
+                    ..
+                } = selected.shape
+                else {
+                    return Err(self.unsupported(
+                        concerns,
+                        "representation view needs its captured source descriptor",
+                    ));
+                };
+                let ElementViewRegion::WholeRepresentation { source_length, .. } = region else {
+                    return Err(self.foreign(concerns, "representation view has another region"));
+                };
+                let (block, after) = self
+                    .graph
+                    .locate(ProgramPoint::AfterOperation(operation.id))?;
+                let measurement = after
+                    .checked_sub(2)
+                    .and_then(|position| self.block(block).ok()?.operations.get(position));
+                let mut measured = self.argument(source, concerns)?;
+                measured
+                    .segments
+                    .push(terminal_check_tables::bindings::Segment::Extent);
+                if !measurement.is_some_and(|measurement| {
+                    self.read_leaf(measurement)
+                        .is_ok_and(|leaf| leaf.as_ref() == Some(&measured))
+                        && measurement.result.scalar_ref().is_some_and(|value| {
+                            value.id == source_length && value.scalar_type == count_type()
+                        })
+                }) {
+                    return Err(self.unsupported(
+                        concerns,
+                        "representation view needs its source's immediately preceding length",
+                    ));
+                }
+                (*backing, source_element)
+            }
+            terminal_semantics::ElementViewRegionGeometry::RepresentationBytes { .. } => {
+                return Err(
+                    self.foreign(concerns, "collection formation has another region geometry")
+                );
+            }
+        };
+        let actual = self.collection_backing_source(source, 0, source_element, concerns)?;
         let (whole, projected) = StructuralPathQualification::select_restorable(
             &actual.qualifications,
             &actual.projected_qualifications,
@@ -303,20 +364,21 @@ impl Storage<'_> {
         }
         if backing.storage == terminal_semantics::CollectionStorage::Borrowed {
             if !self.descriptor_access(source.place, &source.path, concerns, access)?
-                || !terminal_semantics::descriptor_reborrow_shapes_match(
-                    &selected.shape,
-                    source.access,
-                    Some(access),
-                    &self.declaration(result.structural_type, concerns)?.shape,
-                    access,
-                )
+                || region == ElementViewRegion::WholeCollection
+                    && !terminal_semantics::descriptor_reborrow_shapes_match(
+                        &selected.shape,
+                        source.access,
+                        Some(access),
+                        &self.declaration(result.structural_type, concerns)?.shape,
+                        access,
+                    )
             {
                 return Err(self.unsupported(
                     concerns,
                     "collection view needs its exact plain backing and access",
                 ));
             }
-            return Ok(backing.extent);
+            return Ok(geometry);
         }
         if !matches!(selected.shape, StructuralTypeShape::FixedArray { element: actual, .. } if actual == element)
         {
@@ -357,7 +419,37 @@ impl Storage<'_> {
                 "array view needs its whole plain backing without qualification loss",
             ));
         }
-        Ok(terminal_semantics::CollectionExtent::Fixed(window.length))
+        Ok(geometry)
+    }
+
+    pub(super) fn representation_count_goal(
+        &self,
+        operation: &Operation,
+    ) -> Checked<semantic_vocabulary::Proposition> {
+        let concerns = Construct::Operation(operation.id);
+        let OperationKind::EstablishElementView {
+            region: terminal_psi::ElementViewRegion::WholeRepresentation { source_length, .. },
+            ..
+        } = operation.kind
+        else {
+            return Err(self.foreign(
+                concerns,
+                "representation count requested for another operation",
+            ));
+        };
+        let terminal_semantics::ElementViewRegionGeometry::WholeRepresentation {
+            source,
+            target,
+            ..
+        } = self.array_view_formation(operation)?
+        else {
+            return Err(self.foreign(concerns, "representation count has another geometry"));
+        };
+        terminal_semantics::whole_representation_count_goal(
+            source_length,
+            source.size / target.size,
+        )
+        .ok_or_else(|| self.foreign(concerns, "representation count has no exact fit goal"))
     }
 
     /// `left == right` over two byte views, a `ByteSequenceEqual`.
@@ -887,7 +979,69 @@ impl Storage<'_> {
                 }
                 OperationKind::EstablishElementView { source, .. }
                 | OperationKind::EstablishMutableElementView { source, .. } => {
-                    match self.array_view_formation(self.operation(producer, concerns)?)? {
+                    let geometry =
+                        self.array_view_formation(self.operation(producer, concerns)?)?;
+                    let extent = match geometry {
+                        terminal_semantics::ElementViewRegionGeometry::WholeCollection(backing) => {
+                            backing.extent
+                        }
+                        terminal_semantics::ElementViewRegionGeometry::WholeRepresentation {
+                            source,
+                            target,
+                            ..
+                        } => {
+                            if (!self.current_extent(producer, trace)?
+                                || !self.current_extent(producer, &history)?)
+                                && self.repeated_extent(producer)?
+                            {
+                                return Ok(None);
+                            }
+                            let OperationKind::EstablishElementView {
+                                region:
+                                    terminal_psi::ElementViewRegion::WholeRepresentation {
+                                        source_length,
+                                        ..
+                                    },
+                                ..
+                            } = self.operation(producer, concerns)?.kind
+                            else {
+                                return Err(self.foreign(
+                                    concerns,
+                                    "representation extent has another producer",
+                                ));
+                            };
+                            let factor = ScalarTerm::integer(
+                                integer,
+                                IntegerValue::Unsigned((source.size / target.size) as u128),
+                            )
+                            .map_err(|error| {
+                                self.foreign(
+                                    concerns,
+                                    &format!("invalid representation factor: {error:?}"),
+                                )
+                            })?;
+                            return ScalarTerm::exact_integer_multiply(
+                                integer,
+                                ScalarTerm::value(source_length, scalar),
+                                factor,
+                            )
+                            .map(Some)
+                            .map_err(|error| {
+                                self.foreign(
+                                    concerns,
+                                    &format!("invalid representation extent: {error:?}"),
+                                )
+                            });
+                        }
+                        terminal_semantics::ElementViewRegionGeometry::RepresentationBytes {
+                            ..
+                        } => {
+                            return Err(
+                                self.foreign(concerns, "collection extent has another geometry")
+                            );
+                        }
+                    };
+                    match extent {
                         terminal_semantics::CollectionExtent::Fixed(length) => {
                             ScalarTerm::integer(integer, IntegerValue::Unsigned(length as u128))
                         }

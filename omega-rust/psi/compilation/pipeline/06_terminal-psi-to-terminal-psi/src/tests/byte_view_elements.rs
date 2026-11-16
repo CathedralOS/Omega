@@ -1389,3 +1389,60 @@ requires position < bytes.len {
         "the first view's bound cannot establish a bound on its sibling"
     );
 }
+
+#[test]
+fn a_shared_collection_recast_keeps_payload_geometry_and_count_fit() {
+    let source = r#"
+        machine build_entry(pixels: &[i32])
+        requires pixels.len <= 4611686018427387903u64 {
+            let bytes: &[u8] = pixels as &[u8];
+            use_length(bytes.len);
+        }
+        machine use_length(length: u64) {}
+    "#;
+    let accepted = match judge_build(source).unwrap() {
+        RouteVerdict::Accepted(accepted) => accepted,
+        other => panic!("the bounded pixel payload must form a byte view: {other:?}"),
+    };
+    assert_eq!(
+        accepted
+            .elaboration
+            .module
+            .machines
+            .iter()
+            .flat_map(|machine| machine.operations())
+            .filter(|operation| matches!(
+                operation.kind,
+                OperationKind::EstablishElementView {
+                    region: terminal_psi::ElementViewRegion::WholeRepresentation { .. },
+                    ..
+                }
+            ))
+            .count(),
+        1
+    );
+    accepted.publish_invocation().unwrap();
+
+    let unbounded = source.replace("requires pixels.len <= 4611686018427387903u64", "");
+    let RouteVerdict::Rejected { unproved, .. } = judge_build(&unbounded).unwrap() else {
+        panic!("a representation count without its fit bound must refuse");
+    };
+    assert!(
+        unproved
+            .iter()
+            .any(|row| matches!(row.kind, ObligationKind::OperationSafety { .. })),
+        "{unproved:?}"
+    );
+
+    let mutable = source.replace("pixels as &[u8]", "pixels as &mut [u8]");
+    assert_eq!(
+        verdict(&mutable),
+        "storage view outside reference formation"
+    );
+    let restricted = source.replace("[u8]", "[bool]");
+    let refusal = verdict(&restricted);
+    assert!(
+        refusal.contains("compatible element representations and exact tiling"),
+        "{refusal}"
+    );
+}

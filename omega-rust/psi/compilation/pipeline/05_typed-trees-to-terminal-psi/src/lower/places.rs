@@ -1921,8 +1921,37 @@ impl<'a> Lowering<'a> {
                 access,
                 element,
             } => {
-                let captured = continuing!(self.capture_place(base));
-                let lent = self.captured_loan(base, *access, captured, None)?;
+                // A descriptor recast measures its captured payload before changing
+                // the element presentation. The count proof belongs to that
+                // observation, and the loan retains the same backing.
+                let representation = matches!(base.result,
+                    Some(ValueType::Record(source, _, _))
+                        if matches!(self.record_type(source)?.shape,
+                            StorageShape::ElementView { element: actual, .. } if actual != *element));
+                let lent = if representation {
+                    continuing!(self.lend(base, *access))
+                } else {
+                    let captured = continuing!(self.capture_place(base));
+                    self.captured_loan(base, *access, captured, None)?
+                };
+                let source_length = if representation {
+                    let ValueType::Record(source_record, _, _) = base
+                        .result
+                        .ok_or_else(|| self.internal("a collection view has no source type"))?
+                    else {
+                        return Err(self.internal("a collection view has no source record"));
+                    };
+                    let at = Located {
+                        root: lent.argument.0,
+                        path: lent.argument.1.clone(),
+                        place: lent.place,
+                        record: source_record,
+                        fresh: false,
+                    };
+                    Some(self.measured_view(&at, expression.source)?.2)
+                } else {
+                    None
+                };
                 let operation = self.operation_identity(expression.source);
                 let before = self.here()?;
                 self.obligation(
@@ -1950,7 +1979,21 @@ impl<'a> Lowering<'a> {
                     },
                     record,
                 )?;
-                let region = terminal_psi::ElementViewRegion::WholeCollection;
+                let region = if let Some(source_length) = source_length {
+                    let obligation = self.obligation(
+                        ObligationKind::OperationSafety {
+                            site: ExecutionSite::Operation(operation),
+                        },
+                        before,
+                        expression.source,
+                    );
+                    terminal_psi::ElementViewRegion::WholeRepresentation {
+                        source_length,
+                        obligation,
+                    }
+                } else {
+                    terminal_psi::ElementViewRegion::WholeCollection
+                };
                 let kind = match access {
                     language_core::ReferenceAccess::Shared => OperationKind::EstablishElementView {
                         destination: root,

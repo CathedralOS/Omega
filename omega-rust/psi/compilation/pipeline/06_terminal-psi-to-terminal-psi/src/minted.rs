@@ -564,6 +564,21 @@ pub(crate) fn follow_the_lowered_form(
                     }
                 }
             }
+            if let terminal_psi::OperationKind::EstablishElementView {
+                region: terminal_psi::ElementViewRegion::WholeRepresentation { obligation, .. },
+                ..
+            } = operation.kind
+            {
+                minted.claim(
+                    obligation,
+                    ObligationKind::OperationSafety {
+                        site: terminal_check_tables::obligations::ExecutionSite::Operation(
+                            operation.id,
+                        ),
+                    },
+                    before,
+                )?;
+            }
             // A byte read owes its index bound, as an indexed projection
             // does (byte_views.md, `ByteSequenceRead`).
             if let terminal_psi::OperationKind::ByteSequenceRead { obligation, .. }
