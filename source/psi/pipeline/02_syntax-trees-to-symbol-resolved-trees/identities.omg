@@ -27,6 +27,7 @@ public data MemberIdentity [copy] {
     name: IdentifierSpan;
     has_identity: bool;
     identity: SourceSpan;
+    identity_literal: u64 in Trapping;
 }
 
 // An identity literal's value, or not `valid` when the literal has a suffix
@@ -171,7 +172,7 @@ crashes Trap
     }
 
     machine value(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: IdentityScope, offset: u64 in Trapping, identity: MemberIdentity) {
-        let decoded: IdentityValue = identity_value(sources, identity.identity);
+        let decoded: IdentityValue = identity_value(syntax, identity.has_identity, identity.identity_literal);
         transition decoded.valid {
             true -> prior(resolver, sources, syntax, scope, offset, identity, decoded.value, 0)
             _ -> reject(resolver, ResolveDiagnosticCode::InvalidStableIdentity, identity.identity)
@@ -206,7 +207,7 @@ crashes Trap
         earlier: u64 in Trapping
     ) {
         let earlier_identity: MemberIdentity = resolver_member_identity(syntax, scope, earlier);
-        let earlier_value: IdentityValue = identity_value(sources, earlier_identity.identity);
+        let earlier_value: IdentityValue = identity_value(syntax, earlier_identity.has_identity, earlier_identity.identity_literal);
         transition earlier_value.value == decoded {
             true -> reject(resolver, ResolveDiagnosticCode::DuplicateStableIdentity, identity.identity)
             _ -> prior(resolver, sources, syntax, scope, offset, identity, decoded, earlier + 1)
@@ -236,7 +237,7 @@ crashes Trap
     machine retired_value(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees,
         scope: IdentityScope, offset: u64 in Trapping, retired: RetiredIdentity)
     {
-        let decoded: IdentityValue = identity_value(sources, retired.identity);
+        let decoded: IdentityValue = identity_value(syntax, true, retired.identity_literal);
         transition decoded.valid {
             true -> retired_live(resolver, sources, syntax, scope, offset, retired, decoded.value, 0)
             _ -> reject(resolver, ResolveDiagnosticCode::InvalidStableIdentity, retired.identity)
@@ -258,7 +259,7 @@ crashes Trap
         decoded: u64 in Trapping, live: u64 in Trapping)
     {
         let member: MemberIdentity = resolver_member_identity(syntax, scope, live);
-        let value: IdentityValue = identity_value(sources, member.identity);
+        let value: IdentityValue = identity_value(syntax, member.has_identity, member.identity_literal);
         transition value.value == decoded {
             true -> reject(resolver, ResolveDiagnosticCode::DuplicateStableIdentity, retired.identity)
             _ -> retired_live(resolver, sources, syntax, scope, offset, retired, decoded, live + 1)
@@ -291,7 +292,7 @@ crashes Trap
         scope: IdentityScope, offset: u64 in Trapping, retired: RetiredIdentity,
         decoded: u64 in Trapping, prior: u64 in Trapping, previous: RetiredIdentity)
     {
-        let value: IdentityValue = identity_value(sources, previous.identity);
+        let value: IdentityValue = identity_value(syntax, true, previous.identity_literal);
         transition value.value == decoded {
             true -> reject(resolver, ResolveDiagnosticCode::DuplicateStableIdentity, retired.identity)
             _ -> retired_prior(resolver, sources, syntax, scope, offset, retired, decoded, prior + 1)
@@ -316,158 +317,46 @@ crashes Trap
 
     machine field(syntax: &SyntaxTrees, handle: u64 in Trapping) -> MemberIdentity {
         let field: DataField = syntax_trees_field(syntax, handle);
-        MemberIdentity { name: field.name, has_identity: field.has_identity, identity: field.identity }
+        MemberIdentity { name: field.name, has_identity: field.has_identity, identity: field.identity, identity_literal: field.identity_literal }
     }
 
     machine payload_field(syntax: &SyntaxTrees, handle: u64 in Trapping) -> MemberIdentity {
         let field: DataField = syntax_trees_payload_field(syntax, handle);
-        MemberIdentity { name: field.name, has_identity: field.has_identity, identity: field.identity }
+        MemberIdentity { name: field.name, has_identity: field.has_identity, identity: field.identity, identity_literal: field.identity_literal }
     }
 
     machine data_case(syntax: &SyntaxTrees, handle: u64 in Trapping) -> MemberIdentity {
         let data_case: DataCase = syntax_trees_data_case(syntax, handle);
-        MemberIdentity { name: data_case.name, has_identity: data_case.has_identity, identity: data_case.identity }
+        MemberIdentity { name: data_case.name, has_identity: data_case.has_identity, identity: data_case.identity, identity_literal: data_case.identity_literal }
     }
 }
 
-// The value of an identity literal: decimal digits, or `0x`, `0o` or `0b`
-// and digits of that base, with `_` separators. Any other byte, a suffix
-// included, or a value past `u64` leaves it invalid.
-machine identity_value(sources: &SourceSet, literal: SourceSpan) -> IdentityValue
+// The value of an identity literal, as the lexer decoded it: digits of any
+// base with `_` separators. A member without an identity, a suffix, a based
+// literal with no digits, or a value past `u64` leaves it invalid with value
+// zero.
+machine identity_value(syntax: &SyntaxTrees, present: bool, literal: u64 in Trapping) -> IdentityValue
 crashes Trap
 {
-    let first: u8 = source_set_byte_or_nul(sources, literal.source, literal.span.start);
-    let second: u8 = source_set_byte_or_nul(sources, literal.source, literal.span.start + 1);
-    let prefixed: bool = first == 48 && literal.span.start + 1 < literal.span.end;
-    transition prefixed {
-        true -> prefix(sources, literal, second)
-        _ -> digits(sources, literal, literal.span.start, 10, 0, false)
+    transition present {
+        true -> decoded(syntax, literal)
+        _ -> invalid()
     }
 
-    machine prefix(sources: &SourceSet, literal: SourceSpan, second: u8) -> IdentityValue {
-        let hexadecimal: bool = second == 120 || second == 88;
-        let octal: bool = second == 111 || second == 79;
-        let binary: bool = second == 98 || second == 66;
-        transition hexadecimal {
-            true -> digits(sources, literal, literal.span.start + 2, 16, 0, false)
-            _ -> octal_prefix(sources, literal, octal, binary)
-        }
-    }
-
-    machine octal_prefix(sources: &SourceSet, literal: SourceSpan, octal: bool, binary: bool) -> IdentityValue {
-        transition octal {
-            true -> digits(sources, literal, literal.span.start + 2, 8, 0, false)
-            _ -> binary_prefix(sources, literal, binary)
-        }
-    }
-
-    machine binary_prefix(sources: &SourceSet, literal: SourceSpan, binary: bool) -> IdentityValue {
-        transition binary {
-            true -> digits(sources, literal, literal.span.start + 2, 2, 0, false)
-            _ -> digits(sources, literal, literal.span.start, 10, 0, false)
-        }
-    }
-
-    machine digits(
-        sources: &SourceSet,
-        literal: SourceSpan,
-        index: u64 in Trapping,
-        radix: u64 in Trapping,
-        value: u64 in Trapping,
-        any: bool
-    ) -> IdentityValue {
-        transition index < literal.span.end {
-            true -> digit(sources, literal, index, radix, value, any)
-            _ -> finish(value, any)
-        }
-    }
-
-    machine digit(
-        sources: &SourceSet,
-        literal: SourceSpan,
-        index: u64 in Trapping,
-        radix: u64 in Trapping,
-        value: u64 in Trapping,
-        any: bool
-    ) -> IdentityValue {
-        let byte: u8 = source_set_byte_or_nul(sources, literal.source, index);
-        let decoded: u64 in Trapping = resolver_digit_value(byte);
-        transition byte == 95 {
-            true -> digits(sources, literal, index + 1, radix, value, any)
-            _ -> radix_digit(sources, literal, index, radix, value, decoded)
-        }
-    }
-
-    machine radix_digit(
-        sources: &SourceSet,
-        literal: SourceSpan,
-        index: u64 in Trapping,
-        radix: u64 in Trapping,
-        value: u64 in Trapping,
-        decoded: u64 in Trapping
-    ) -> IdentityValue {
-        transition decoded < radix {
-            true -> accumulate(sources, literal, index, radix, value, decoded)
+    machine decoded(syntax: &SyntaxTrees, literal: u64 in Trapping) -> IdentityValue {
+        let decoded: IntegerLiteral = syntax_trees_integer_literal(syntax, literal);
+        transition decoded.exact && !decoded.empty_digits && decoded.suffix == IntegerSuffix::None {
+            true -> valid((decoded.magnitude as -Wrapping) as +Trapping)
             _ -> invalid()
         }
     }
 
-    // `value * radix + decoded` stays within `u64` exactly when `value` is
-    // at most `(u64::MAX - decoded) / radix`.
-    machine accumulate(
-        sources: &SourceSet,
-        literal: SourceSpan,
-        index: u64 in Trapping,
-        radix: u64 in Trapping,
-        value: u64 in Trapping,
-        decoded: u64 in Trapping
-    ) -> IdentityValue {
-        transition value <= (18446744073709551615 - decoded) / radix {
-            true -> digits(sources, literal, index + 1, radix, value * radix + decoded, true)
-            _ -> invalid()
-        }
-    }
-
-    machine finish(value: u64 in Trapping, any: bool) -> IdentityValue {
-        IdentityValue { valid: any, value: value }
+    machine valid(value: u64 in Trapping) -> IdentityValue {
+        IdentityValue { valid: true, value: value }
     }
 
     machine invalid() -> IdentityValue {
         IdentityValue { valid: false, value: 0 }
-    }
-}
-
-// A digit byte's value in bases up to 16; any other byte is 16, which no
-// base admits.
-machine resolver_digit_value(byte: u8) -> u64 in Trapping {
-    let decimal: bool = byte >= 48 && byte <= 57;
-    let lower: bool = byte >= 97 && byte <= 102;
-    let upper: bool = byte >= 65 && byte <= 70;
-    transition decimal {
-        true -> offset(byte, 48)
-        _ -> letter(byte, lower, upper)
-    }
-
-    machine letter(byte: u8, lower: bool, upper: bool) -> u64 in Trapping {
-        transition lower {
-            true -> offset(byte, 87)
-            _ -> upper_letter(byte, upper)
-        }
-    }
-
-    machine upper_letter(byte: u8, upper: bool) -> u64 in Trapping {
-        transition upper {
-            true -> offset(byte, 55)
-            _ -> other()
-        }
-    }
-
-    machine offset(byte: u8, base: u64 in Trapping) -> u64 in Trapping {
-        (byte as u64 in Trapping) - base
-    }
-
-    machine other() -> u64 in Trapping {
-        16
     }
 }
 
