@@ -3,8 +3,8 @@
 /*
 We implement the canonical binary wire codec (`PSITERM\0`), cryptographic domain fingerprinting
 (`SemanticFingerprint`, `TerminalPsiIdentity`), and receiving structural-foundation validation for
-`TerminalModule` and its companion sections (`TerminalArtifactManifest`, `TerminalDebugMap`,
-`OptimizationExecutionReceipt`, and `TerminalTraceV1`), together with the canonical encoders of
+`TerminalModule` and its companion sections (`TerminalArtifactManifest`, `TerminalDebugMap`
+and `OptimizationExecutionReceipt`), together with the canonical encoders of
 Terminal vocabulary (propositions, crash routes, access and quotient catalogs) that native forms
 use for their own identities.
 
