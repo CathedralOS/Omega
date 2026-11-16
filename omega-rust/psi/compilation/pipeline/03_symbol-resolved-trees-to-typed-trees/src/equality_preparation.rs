@@ -480,12 +480,14 @@ impl Preparation<'_> {
             {
                 continue;
             }
-            let selected = self.selection(field.type_reference, site).map_err(|error| {
-                Diagnostic::error(format!(
-                    "field `{}` of `{owner}` is not Equatable: {}",
-                    field.name, error.message
-                ))
-            })?;
+            let selected = self
+                .selection(field.type_reference, site)
+                .map_err(|error| {
+                    Diagnostic::error(format!(
+                        "field `{}` of `{owner}` is not Equatable: {}",
+                        field.name, error.message
+                    ))
+                })?;
             if selected.synthesized {
                 let site = self.declaration_site(selected.conformance);
                 self.validate(field.type_reference, site, visiting)?;
@@ -985,7 +987,10 @@ mod tests {
         let site = preparation.declaration_site(family[0].selection.conformance);
         for row in &family {
             assert_eq!(
-                preparation.selection(row.application, site).unwrap().conformance,
+                preparation
+                    .selection(row.application, site)
+                    .unwrap()
+                    .conformance,
                 row.selection.conformance
             );
         }

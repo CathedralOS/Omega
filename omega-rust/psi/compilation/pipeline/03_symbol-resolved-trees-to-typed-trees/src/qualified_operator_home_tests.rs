@@ -33,7 +33,7 @@ pub(crate) fn checked_with_equality(
 }
 
 /* `packages` with the bundled `Equatable` declaration as an ambient toolchain
-   package ahead of `units`; import positions index `units`. */
+package ahead of `units`; import positions index `units`. */
 pub(crate) fn packages_with_equality(
     units: &[(u8, &str, &str)],
     dependencies: &[(u8, &str, u8)],
