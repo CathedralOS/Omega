@@ -38,7 +38,6 @@ use terminal_psi::{
 };
 
 use crate::scalar_qualifications::{IssuerRoute, issuer_route_authorizes};
-use crate::substitution::clauses::ClauseBindings;
 
 /// The one rule a lowered structural value breaks, and in which machine.
 #[derive(Debug, Clone, PartialEq, Eq)]
