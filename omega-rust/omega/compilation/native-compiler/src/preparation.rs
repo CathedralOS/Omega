@@ -1,21 +1,25 @@
-// Prepare native work before the application completes its scalar demand.
-// `prepare` binds explicit platform installation assumptions to the retained
-// artifact and proposal, prepares independent component calls, admits private
-// entry RAM initializers against target layouts, and constructs the root and
-// component `NativeScalarCompletion` demands.
+// Select native work and list the scalar values it needs before any Omega stage
+// runs. `prepare` binds explicit platform installation assumptions to the
+// retained artifact and proposal, admits independent component calls and
+// private entry RAM initializers against target layouts, chooses the root and
+// component executions with their provider demand, and constructs the root and
+// component `NativeScalarCompletion` demands. Every step reads the retained
+// Terminal product and its native proposal; `compile` then runs Omega 00 to 09
+// once, front to back, with the completed values as input.
 
 use crate::{NativeCompileRequest, NativeScalarCompletion};
 use diagnostics::Diagnostic;
 use image_emission::ExecutableImageEmissionRequest;
 use installation_evidence::InstallationEnvironmentAssumption;
 use terminal_installation::admit_target_layouts;
-use terminal_psi_to_abstract_operations::{PreparedNativeWork, RetainedTerminalArtifact};
+use terminal_psi_to_abstract_operations::{PreparedNativeExecution, RetainedTerminalArtifact};
 
 pub struct PreparedNativeCompilation<'input> {
     pub(crate) retained: &'input RetainedTerminalArtifact,
     pub(crate) request: NativeCompileRequest<'input>,
     pub(crate) recovery: ExecutableImageEmissionRequest,
-    pub(crate) work: PreparedNativeWork<'input>,
+    pub(crate) execution: PreparedNativeExecution,
+    pub(crate) private_entry_ram: Vec<terminal_installation::CheckedPrivateEntryRamRecipe>,
     pub(crate) scalars: NativeScalarCompletion<'input>,
     pub(crate) components: Vec<crate::components::PreparedComponent<'input>>,
 }
@@ -91,26 +95,23 @@ pub fn prepare<'input>(
             .iter()
             .flat_map(|component| &component.calls)
             .collect::<Vec<_>>();
-        let work = terminal_psi_to_abstract_operations::prepare_native_execution_with_components(
-            proposal,
-            retained.authorization(),
-            &recipes,
-            &calls,
-        )?
-        .with_evidence(retained.evidence().cloned())?;
+        let execution = proposal
+            .prepare_native_execution(retained.authorization(), &calls)?
+            .with_operation_evidence(artifact, retained.evidence().cloned())?;
         let scalars = NativeScalarCompletion::new(
             artifact,
             proposal,
-            work.scalar_application_demand().iter().copied(),
+            execution.scalar_application_demand(proposal.target_profile())?,
         );
-        Ok((work, scalars, components))
+        Ok((execution, recipes, scalars, components))
     })();
     match result {
-        Ok((work, scalars, components)) => Ok(PreparedNativeCompilation {
+        Ok((execution, private_entry_ram, scalars, components)) => Ok(PreparedNativeCompilation {
             retained,
             request,
             recovery,
-            work,
+            execution,
+            private_entry_ram,
             scalars,
             components,
         }),

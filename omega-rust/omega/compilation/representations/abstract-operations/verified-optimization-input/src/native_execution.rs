@@ -17,6 +17,28 @@ pub struct PreparedNativeExecution {
 }
 
 impl TerminalNativeRealizationProposal {
+    /// Choose what the program entry executes natively and settle its provider
+    /// demand. Component calls replace the local implementations they name.
+    pub fn prepare_native_execution(
+        &self,
+        authorization: &terminal_installation::AuthorizedTerminalArtifact,
+        components: &[&crate::AdmittedNativeComponentCall<'_>],
+    ) -> Result<PreparedNativeExecution, Vec<Diagnostic>> {
+        let scope = self.execution_scope(authorization.artifact(), components)?;
+        self.prepare_native_provider_demand(authorization, scope)
+    }
+
+    /// Choose what one separately emitted callable executes natively and
+    /// settle its provider demand.
+    pub fn prepare_native_callable_execution(
+        &self,
+        authorization: &terminal_installation::AuthorizedTerminalArtifact,
+        entry: terminal_psi::TargetMachineCallable,
+    ) -> Result<PreparedNativeExecution, Vec<Diagnostic>> {
+        let scope = self.callable_execution_scope(authorization.artifact(), entry, None)?;
+        self.prepare_native_provider_demand(authorization, scope)
+    }
+
     pub fn execution_scope(
         &self,
         artifact: &terminal_codec::CanonicalTerminalArtifact,
@@ -381,6 +403,29 @@ impl TerminalNativeRealizationProposal {
 }
 
 impl PreparedNativeExecution {
+    /// The scalar applications this execution reads under `profile`'s admitted
+    /// layouts. The caller completes exactly these before native lowering
+    /// starts; Omega 00 refuses a completion that leaves one without a value.
+    pub fn scalar_application_demand(
+        &self,
+        profile: target::TargetProfile,
+    ) -> Result<Vec<semantic_vocabulary::ScalarApplicationId>, Vec<Diagnostic>> {
+        let fail = |reason: String| diagnostics::error_in_context("native scalar demand", reason);
+        profile.admit_address_representation().map_err(fail)?;
+        let artifact = self.authorization.artifact();
+        let targets =
+            terminal_installation::terminal_target_context(artifact.view(), profile.target_name());
+        let facts = profile
+            .layout_target_facts()
+            .ok_or_else(|| fail("selected native target has no representation facts".into()))?;
+        let layouts =
+            terminal_installation::admit_target_layouts(artifact.view(), &targets, &facts)
+                .map_err(|error| fail(error.to_string()))?;
+        self.scope
+            .scalar_application_demand(artifact.semantic_module(), &layouts)
+            .map_err(fail)
+    }
+
     pub const fn authorization(&self) -> &terminal_installation::AuthorizedTerminalArtifact {
         &self.authorization
     }

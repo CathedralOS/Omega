@@ -4,8 +4,10 @@ The application first calls
 [prepare](src/preparation.rs) with the retained Terminal Psi and a
 `NativeCompileRequest` (component calls, imports, image ownership and policy).
 Preparation selects native work and lists the scalar values each artifact
-needs. The application computes them outside this crate, then passes
-the same `PreparedNativeCompilation` to [compile](src/compile.rs). Compilation
+needs. It reads only the retained Terminal product and its native proposal;
+no Omega stage runs yet. The application computes the values outside this
+crate, then passes the same `PreparedNativeCompilation` to
+[compile](src/compile.rs), which runs Omega 00 to 09 once, in order. Compilation
 needs every scalar before emitting any component or root image; it does not
 call an evaluator, reopen source or repeat preparation. Failures return
 the original image request and diagnostics.
