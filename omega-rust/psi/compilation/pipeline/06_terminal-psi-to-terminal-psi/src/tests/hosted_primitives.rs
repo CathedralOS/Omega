@@ -103,8 +103,8 @@ fn hosted_primitive_retains_distinct_source_and_public_completion() {
     for (original, replacement) in [
         ("ProcessExit::exit_process", "ProcessExit::fake_process"),
         (
-            "toolchain::ProcessExitPrimitive",
-            "toolchain::ProcessExitPrimitivf",
+            "toolchain::declaration(path(ProcessExitPrimitive)",
+            "toolchain::declaration(path(ProcessExitPrimitivf)",
         ),
         (
             r"path\(ProcessExitPrimitive\)",

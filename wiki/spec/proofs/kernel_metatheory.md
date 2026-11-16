@@ -359,7 +359,12 @@ identity on neutral values.
 Fixed scalar literal magnitudes have shared signed binary definitions over
 `zero`, `double`, `odd` and `negate`. Discreteness derives adjacent-literal
 order from five fixed arithmetic laws, then uses mixed transitivity with
-the inclusive premise. These laws remain assumptions with exact statements;
+the inclusive premise. Its strict-to-nonstrict form and its open
+`a < b ⊢ a + 1 <= b` form are not derived; they denote rule-instance
+decisions, as do the four provisional float rules (`IeeeFloatOrderChain`,
+`FloatMeaningNormalization`, `FloatIntegerConversion`, `IntegerFloatExact`)
+and `IntegerPowerOfTwoOrder`, which have no IEEE model or power of two in
+the core to derive from. These laws remain assumptions with exact statements;
 this establishes neither their consistency nor receiver approval. Larger
 closed values retain opaque exact-value interning. Exact scalar subtraction
 has a compositional denotation over the shared integer carrier, including

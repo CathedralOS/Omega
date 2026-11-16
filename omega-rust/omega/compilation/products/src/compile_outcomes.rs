@@ -110,6 +110,10 @@ pub enum CompilerRequestOutcome {
     Complete,
     Reject,
     Incomplete(ExceededProvision),
+    /// The compiler detected a defect in itself, such as its own stage output
+    /// failing an independent validator. It says nothing about the source and
+    /// grants no artifact authority.
+    InternalFailure,
 }
 
 impl CompilerRequestOutcome {
@@ -132,6 +136,7 @@ impl CompilerRequestOutcome {
             Self::Complete => 0,
             Self::Reject => 1,
             Self::Incomplete(_) => 2,
+            Self::InternalFailure => 3,
         }
     }
 }
