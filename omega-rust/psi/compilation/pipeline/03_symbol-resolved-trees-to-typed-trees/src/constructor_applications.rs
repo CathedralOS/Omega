@@ -27,7 +27,9 @@ pub(crate) fn prepare(
         let needs_owner = match program.expression_table.expression(expression) {
             ExpressionNode::Borrow(_) | ExpressionNode::Call(_) => true,
             ExpressionNode::Cast(cast) => cast.form.is_recast(),
-            ExpressionNode::Indexed(_) => true,
+            ExpressionNode::Indexed(indexed) => {
+                program.expression_table.range_node(indexed.index).is_some()
+            }
             _ => false,
         };
         if !needs_owner {
@@ -55,24 +57,12 @@ pub(crate) fn prepare(
         }
 
         if let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) {
-            let collection_expression = indexed.collection;
-            let range = program.expression_table.range_node(indexed.index).is_some();
-            let Some(collection) = crate::typing_queries::declared_expression_type(
-                program,
-                caller,
-                collection_expression,
-            ) else {
+            let collection = indexed.collection;
+            let Some(collection) =
+                crate::typing_queries::declared_expression_type(program, caller, collection)
+            else {
                 continue;
             };
-            // The selected source occurrence owns the operand's complete type,
-            // including domains, reference access and applied field arguments.
-            // A physical carrier row cannot reconstruct that declaration later.
-            program
-                .expression_table
-                .set_constructed_value_type_reference(collection_expression, collection);
-            if !range {
-                continue;
-            }
             // A bare range observes the actual collection's elements,
             // not one element. Retain its shared view before ordinary callers
             // and borrow formations ask for its type. A selected user operator
@@ -282,6 +272,40 @@ pub(crate) fn prepare(
         }
     }
     Ok(())
+}
+
+/// Index and range lookup consumes the operand's complete declared type, not
+/// its storage carrier. Run after application views and casts are normalized:
+/// a template field has no applied type to retain during constructor inference.
+pub(crate) fn retain_indexed_operand_types(program: &mut TypedTrees, frontier: usize) {
+    let operands = program
+        .expression_table
+        .expression_entries()
+        .filter_map(|(expression, node)| {
+            if expression.arena_index() as usize <= frontier {
+                return None;
+            }
+            let ExpressionNode::Indexed(indexed) = node else {
+                return None;
+            };
+            Some((expression, indexed.collection))
+        })
+        .collect::<Vec<_>>();
+    let owners = typed_trees::references::collect_program_operand_owners(program);
+    let mut declared = crate::typing_queries::DeclaredExpressionTypes::default();
+    for (expression, collection) in operands {
+        let Some(owner) = expression_owner(program, &owners, expression) else {
+            continue;
+        };
+        let Some(reference) = declared.get(program, owner, collection) else {
+            continue;
+        };
+        // Keep the original reference, qualifiers and applied arguments. This
+        // supplies neither implicit borrowing nor an operator-selection result.
+        program
+            .expression_table
+            .set_constructed_value_type_reference(collection, reference);
+    }
 }
 
 fn expression_owner(

@@ -41,7 +41,7 @@ data Main {
 }
 
 machine exercise(main: &mut Main) {
-    main.hits = 0;
+    main.hits = 0 as +Wrapping;
     main.label = Label { storage: [65u8, 49u8, 0u8, 0u8], used: 2 };
     copy(&mut main.text.storage, "Room ", 0);
     copy(&mut main.text.storage, label_live(&main.label), 5);
@@ -51,8 +51,8 @@ machine exercise(main: &mut Main) {
         true -> pass(main)
         _ -> fail(main)
     }
-    machine pass(main: &mut Main) { main.hits = 1; }
-    machine fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: &mut Main) { main.hits = 1 as +Wrapping; }
+    machine fail(main: &mut Main) { main.hits = (-1) as +Wrapping; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

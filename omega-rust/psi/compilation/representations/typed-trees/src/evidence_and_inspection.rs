@@ -22,14 +22,26 @@ pub mod evidence {
                 return None;
             }
             let call = program.expression_table.call_node(expression)?;
+            // Optional handles have one exact absent sentinel. A partial or
+            // stale handle is present malformed custody, not an omitted input.
+            if !program
+                .symbols
+                .symbols()
+                .nodes()
+                .is_valid(call.target_symbol)
+                || (call.receiver != ExpressionHandle::invalid()
+                    && !program.expression_table.expression_is_valid(call.receiver))
+            {
+                return None;
+            }
             if !program.call_has_no_runtime_receiver_for_target(call)
                 || call.runtime_call.is_some()
                 || !call.machine_arguments.is_empty()
                 || !call.evidence_arguments.is_empty()
-                || call.requirement_application.is_valid()
-                || call.exact_coercion_target.is_valid()
-                || call.build_selection.is_valid()
-                || call.static_machine_parameter.is_valid()
+                || call.requirement_application != Default::default()
+                || call.exact_coercion_target != Default::default()
+                || call.build_selection != Default::default()
+                || call.static_machine_parameter != Default::default()
                 || call.static_requirement_dispatch.is_some()
                 || call.quotient_operation.is_some()
                 || call.private_layout_operation.is_some()
@@ -61,7 +73,13 @@ pub mod evidence {
                     return None;
                 }
             }
-            if call.authored_machine_application.is_valid() {
+            if call.authored_machine_application != Default::default() {
+                if !program
+                    .expression_table
+                    .static_machine_application_is_valid(call.authored_machine_application)
+                {
+                    return None;
+                }
                 let application = program
                     .expression_table
                     .static_machine_application(call.authored_machine_application);
@@ -71,8 +89,8 @@ pub mod evidence {
                     || !application.bindings.is_empty()
                     || !application.lifetime_bindings.is_empty()
                     || application.conformance_selection.is_some()
-                    || application.callable_contract_source.is_valid()
-                    || (application.registration_operation.is_valid()
+                    || application.callable_contract_source != Default::default()
+                    || (application.registration_operation != SymbolHandle::invalid()
                         && !names_target(application.registration_operation))
                 {
                     return None;

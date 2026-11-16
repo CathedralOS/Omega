@@ -359,13 +359,29 @@ impl<'a> Storage<'a> {
                 "a collection view cannot discard an enclosing qualification",
             )
         })?;
-        if !whole.is_empty()
+        // A shared byte view observes the qualified backing without moving
+        // its default or granting it to the descriptor. The storage windows
+        // still require that backing's predicates at this read. Keep routed,
+        // projected and mutable qualifications outside this admission.
+        let shared_predicate_backing = access == StructuralAccess::SharedBorrow
+            && !typed
+            && whole.iter().all(|id| {
+                self.module
+                    .structural_domains
+                    .binary_search_by_key(id, |domain| domain.id)
+                    .ok()
+                    .and_then(|index| self.module.structural_domains.get(index))
+                    .is_some_and(|domain| {
+                        domain.carrier == selected.id && domain.is_pure_predicate()
+                    })
+            });
+        if (!whole.is_empty() && !shared_predicate_backing)
             || !projected.is_empty()
             || !actual.additional_input_qualifications.is_empty()
         {
             return Err(self.unsupported(
                 concerns,
-                "collection view needs its whole plain backing without qualification loss",
+                "collection view needs plain backing or an exact pure predicate shared byte backing",
             ));
         }
         if backing.storage == terminal_semantics::CollectionStorage::Borrowed {

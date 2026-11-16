@@ -485,7 +485,18 @@ fn declared_field_type(
     let field = fields
         .next()
         .ok_or_else(|| crate::unavailable_judgment("assignment field declaration"))?;
-    if fields.next().is_some() || (selected.is_valid() && selected != field.symbol) {
+    if fields.next().is_some() {
+        return Err(crate::unavailable_judgment("assignment field identity"));
+    }
+    if selected != SymbolHandle::invalid()
+        && (!program.symbols.symbols().nodes().is_valid(selected)
+            || program
+                .data_constructor_field(carrier, data.symbol, selected)
+                .is_none_or(|applied| applied.symbol != field.symbol))
+    {
+        // A template field and its actual applied field have different binder
+        // coordinates. Only the canonical declaration/application mapping may
+        // connect them; a same-spelled foreign field cannot supply this type.
         return Err(crate::unavailable_judgment("assignment field identity"));
     }
     collection_field_type(program, carrier, field.symbol)
@@ -2018,6 +2029,71 @@ mod tests {
     }
 
     #[test]
+    fn applied_projection_accepts_only_its_original_or_actual_field() {
+        let program = crate::qualified_operator_home_tests::checked(&[(
+            "main.omg",
+            r#"
+            data Buffer<T> { storage: [T; 4]; }
+            data Foreign { storage: [u8; 4]; }
+            machine bytes(buffer: &Buffer<u8>) -> u8 { buffer.storage[0u64] }
+        "#,
+        )])
+        .unwrap();
+        let declaration = program
+            .machines()
+            .iter()
+            .find(|row| row.name.as_str() == "bytes")
+            .unwrap();
+        let state = program.machine_states(declaration).first().unwrap();
+        let reference = program.state_parameters(state)[0].type_reference;
+        let carrier = program
+            .type_reference_table
+            .peeled_type_reference(reference);
+        let applied = program.closed_data_field_definition(carrier).unwrap();
+        let field = |data| {
+            program
+                .data_members(data)
+                .iter()
+                .filter_map(typed_trees::data::DataMember::as_field)
+                .next()
+                .unwrap()
+        };
+        let actual = field(applied);
+        let template = program
+            .data_definitions()
+            .iter()
+            .find(|row| row.name.as_str() == "Buffer" && row.generic_instance.is_none())
+            .unwrap();
+        let original = field(template);
+        assert_ne!(
+            original.symbol, actual.symbol,
+            "the real generic application owns distinct field coordinates"
+        );
+        for selected in [original.symbol, actual.symbol, SymbolHandle::invalid()] {
+            assert_eq!(
+                declared_field_type(&program, reference, "storage", selected).unwrap(),
+                actual.type_reference
+            );
+        }
+        let foreign = program
+            .data_definitions()
+            .iter()
+            .find(|row| row.name.as_str() == "Foreign")
+            .unwrap();
+        for selected in [
+            field(foreign).symbol,
+            SymbolHandle::from_parts(1, 0),
+            SymbolHandle::from_parts(0, 1),
+            SymbolHandle::from_parts(actual.symbol.arena_index(), actual.symbol.generation() + 1),
+        ] {
+            assert!(
+                declared_field_type(&program, reference, "storage", selected).is_err(),
+                "an unrelated or malformed field cannot supply the applied projection"
+            );
+        }
+    }
+
+    #[test]
     fn primitive_byte_domain_calls_keep_their_exact_builtin_meaning() {
         use typed_trees::byte_predicates::{ByteSequencePredicate, primitive_byte_slice_domain};
         use typed_trees::domain::ProofFact;
@@ -2168,7 +2244,7 @@ mod tests {
         }
 
         for (index, generation) in [(0, 1), (1, 0)] {
-            for malformed in [
+            for (case, malformed) in [
                 TableCallExpression {
                     target_symbol: SymbolHandle::from_parts(index, generation),
                     ..original.clone()
@@ -2197,13 +2273,16 @@ mod tests {
                     static_machine_parameter: SymbolHandle::from_parts(index, generation),
                     ..original.clone()
                 },
-            ] {
+            ]
+            .into_iter()
+            .enumerate()
+            {
                 let mut wrong = program.clone();
                 *call_mut(&mut wrong, expression) = malformed;
                 assert_eq!(
                     primitive_byte_slice_domain(&wrong, symbol),
                     None,
-                    "present malformed metadata is not exact absence"
+                    "present malformed metadata is not exact absence: handle=({index},{generation}), field={case}"
                 );
                 assert!(
                     complete_byte_domain_selection(
