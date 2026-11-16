@@ -1245,9 +1245,32 @@ mod tests {
 
     #[test]
     fn intrinsic_casts_keep_operand_selections_and_target_dependencies_without_a_domain() {
-        use language_core::{ReferenceAccess, cast_form::CastForm};
-        for form in [CastForm::Value, CastForm::Recast(ReferenceAccess::Shared)] {
-            let (typed, owner, target, _) = cast_source(form);
+        use language_core::{
+            ReferenceAccess,
+            cast_form::{CastEntry, CastEntryKind, CastForm},
+        };
+        use numerics::arithmetic::ArithmeticDomain;
+        let policy_entry = CastForm::Entry(CastEntry {
+            kind: CastEntryKind::Add,
+            first: true,
+            after_carrier: false,
+        });
+        for (form, policy) in [
+            (CastForm::Value, ArithmeticDomain::Exact),
+            (
+                CastForm::Recast(ReferenceAccess::Shared),
+                ArithmeticDomain::Exact,
+            ),
+            (policy_entry, ArithmeticDomain::Wrapping),
+            (policy_entry, ArithmeticDomain::Saturating),
+            (policy_entry, ArithmeticDomain::Trapping),
+        ] {
+            let (mut typed, owner, target, expression) = cast_source(form);
+            let ExpressionNode::Cast(cast) = typed.expression_table.expression_mut(expression)
+            else {
+                panic!("the source fixture owns one cast");
+            };
+            cast.domain = policy;
             let captured = capture(
                 &typed,
                 &DeclarationSelection::from_symbols([owner]),
@@ -1285,7 +1308,7 @@ mod tests {
         .expect("a declared semantic domain keeps its exact dependency");
         assert!(captured.dependencies.iter().any(|row| row.target == target));
         assert!(captured.dependencies.iter().any(|row| row.target == domain));
-        for malformed in 0..6 {
+        for malformed in 0..7 {
             let (mut typed, owner, _, expression) = cast_source(CastForm::Value);
             let mut domain_name = arena::HandleSpan::empty();
             typed
@@ -1317,7 +1340,16 @@ mod tests {
                     })
                 }
                 4 => cast.semantic_domain_symbol = SymbolHandle::from_parts(9_999, 1),
-                _ => cast.target_type = missing_type,
+                5 => cast.target_type = missing_type,
+                _ => {
+                    cast.semantic_domain = domain_name;
+                    cast.domain = numerics::arithmetic::ArithmeticDomain::Wrapping;
+                    cast.form = CastForm::Entry(CastEntry {
+                        kind: CastEntryKind::Add,
+                        first: true,
+                        after_carrier: false,
+                    });
+                }
             }
             let refused = capture(
                 &typed,

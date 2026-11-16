@@ -3371,14 +3371,16 @@ pub fn visit_expression(
             if retained.derived_declaration_references() {
                 visit_type_reference(program, retained, cast.result_type);
             }
-            // Intrinsic conversions and recasts name no semantic domain.
+            // Intrinsic conversions, recasts and built-in arithmetic-policy
+            // entries name no semantic domain. Exact supplies no policy entry.
             // Marked domain casts still report a missing or stale coordinate
             // so source admission can refuse their incomplete provenance.
             if cast.semantic_domain_symbol.is_valid()
                 || !cast.semantic_domain.is_empty()
                 || !cast.semantic_domain_arguments.is_empty()
                 || cast.semantic_domain_id != language_semantics::SemanticDomainId::NULL
-                || cast.form.entry().is_some()
+                || (cast.form.entry().is_some()
+                    && cast.domain == numerics::arithmetic::ArithmeticDomain::Exact)
             {
                 visit_symbol(retained, cast.semantic_domain_symbol);
             }
