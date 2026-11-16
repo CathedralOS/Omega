@@ -1689,6 +1689,226 @@ machine entry() -> u64 crashes none {
         .unwrap()
     }
 
+    fn closed_requirement_formed_in_build(
+        calls_build: bool,
+    ) -> (
+        typed_trees::FrozenTypedTrees,
+        typed_trees::static_applications::StaticMachineApplicationHandle,
+    ) {
+        use language_semantics::declaration_selection::{
+            ProductDeclarationOperand,
+            product_operands::{
+                ProductStaticApplication, ProductStaticOperand, ProductStaticOperandGraph,
+            },
+        };
+        const BUILD: &str = "public machine build() { let four: u64 = 4; }";
+        let product = format!(
+            r#"
+boundary trait Probe {{
+    machine take<const Limit: u64>(value: u32) -> u32
+    reaches none requires value <= Limit crashes none;
+}}
+machine entry() -> u32 crashes none {{
+    {}
+    let first: u32 = Probe::take<4>(3);
+    let second: u32 = Probe::take<8>(7);
+    first
+}}
+"#,
+            if calls_build { "build();" } else { "" }
+        );
+        let package = semantic_vocabulary::PackageKeyIdentity::from_digest([0xc4; 32]).unwrap();
+        let mut sources = source::SourceMap::default();
+        let mut syntax = None;
+        let mut build_source = None;
+        for (path, text, scope) in [
+            ("scope/build.omg", BUILD, source::DependencyScope::Build),
+            (
+                "scope/main.omg",
+                product.as_str(),
+                source::DependencyScope::Product,
+            ),
+        ] {
+            let id = sources
+                .add_checked_instance(
+                    path.into(),
+                    text,
+                    "scope".into(),
+                    Some(package),
+                    source::SourceOrigin::User,
+                    source::SourceResolutionStratum::Base,
+                    scope,
+                )
+                .source_id;
+            if scope == source::DependencyScope::Build {
+                build_source = Some(id);
+            }
+            let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
+            match &mut syntax {
+                None => {
+                    syntax = Some(
+                        tokens_to_syntax_trees::parse_syntax_trees_with_id(id, &tokens).unwrap(),
+                    )
+                }
+                Some(syntax) => {
+                    tokens_to_syntax_trees::parse(syntax, id, &tokens).unwrap();
+                }
+            }
+        }
+        let mut request =
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax.unwrap());
+        request.sources = Some(Arc::new(sources));
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(request).unwrap();
+        let mut program =
+            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+        let author = program.realized_machine_named("build").unwrap().symbol;
+        let (literal, span) = program
+            .expression_table
+            .iter_expressions()
+            .find_map(|(expression, node)| {
+                let typed_trees::expression::ExpressionNode::Integer(value) = node else {
+                    return None;
+                };
+                let span = program.expression_table.source_span(expression);
+                (Some(span.source_id) == build_source && value.value_u64() == Some(4))
+                    .then(|| (value.clone(), span))
+            })
+            .unwrap();
+        let mut graph = ProductStaticOperandGraph::default();
+        let value = graph.operands.insert(ProductStaticOperand {
+            integer: Some(literal),
+            ..Default::default()
+        });
+        let arguments = graph.static_arguments.insert_many([value]);
+        let application = graph.applications.insert(ProductStaticApplication {
+            arguments,
+            ..Default::default()
+        });
+        graph.root = graph.operands.insert(ProductStaticOperand {
+            application,
+            ..Default::default()
+        });
+        let operand = ProductDeclarationOperand {
+            path: "Probe::take".into(),
+            source_span: span,
+            application: Some(Arc::new(graph)),
+        };
+        let input = program.clone();
+        let lookups = typed_trees::product_operand::ProductSourceLookups::new(&input);
+        let prepared = typed_trees_to_typed_trees::prepare_product_requirement_operand(
+            &mut program,
+            &lookups,
+            &operand,
+            author,
+            None,
+        )
+        .unwrap();
+        let application = program
+            .closed_requirement_application(prepared.closed_requirement.unwrap())
+            .unwrap()
+            .application;
+        assert_eq!(
+            program
+                .static_machine_application(application)
+                .lexical_owner,
+            author
+        );
+        let (program, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+            program,
+            &typed_trees_to_typed_trees::PreparationRequest::settled(),
+        )
+        .unwrap();
+        (program, application)
+    }
+
+    fn accept_formation_program(
+        program: typed_trees::FrozenTypedTrees,
+    ) -> Result<AcceptedTerminalSource, Vec<Diagnostic>> {
+        let entry = program.realized_machine_named("entry").unwrap().symbol;
+        let package = program.symbols.symbol_package_identity(entry).unwrap();
+        AcceptedTerminalSource::judge(
+            Arc::new(program),
+            typed_trees_to_terminal_psi::Compilation {
+                declaration_metadata: &[],
+                entries: &[entry],
+                subjects: &[Some(package)],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                calling: None,
+                providers: None,
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Invocation,
+        )
+    }
+
+    #[test]
+    fn static_formation_scope_is_metadata_not_a_product_selection() {
+        let (program, _) = closed_requirement_formed_in_build(false);
+        let source = accept_formation_program(program).unwrap();
+        let prepared = prepare(&source, source.module(), None).unwrap();
+        terminal_installation::selection_questions::validate_selection_questions(
+            source.module(),
+            &prepared.questions,
+        )
+        .unwrap();
+        let (build, _) = prepared
+            .questions
+            .declarations
+            .iter()
+            .find(|(_, row)| row.name == "build" && row.purpose == SelectionPurpose::Build)
+            .expect("formation source stays in the captured inventory");
+        assert!(
+            !prepared
+                .questions
+                .questions
+                .iter()
+                .any(
+                    |(_, question)| question.purpose == SelectionPurpose::Product
+                        && question.selected == SelectionReference::Declaration(build)
+                )
+        );
+
+        // An actual authored reference still cannot select Build code in Product.
+        let (program, _) = closed_requirement_formed_in_build(true);
+        let source = accept_formation_program(program).unwrap();
+        let prepared = prepare(&source, source.module(), None).unwrap();
+        let refused = terminal_installation::selection_questions::validate_selection_questions(
+            source.module(),
+            &prepared.questions,
+        )
+        .unwrap_err();
+        assert!(
+            refused.contains("wrong Build/Product source context"),
+            "{refused}"
+        );
+
+        for owner in [
+            SymbolHandle::invalid(),
+            SymbolHandle::from_parts(u32::MAX, 1),
+        ] {
+            let (program, application) = closed_requirement_formed_in_build(false);
+            let mut program = program.into_inner();
+            program
+                .expression_table
+                .static_machine_application_mut(application)
+                .lexical_owner = owner;
+            let refusal = match accept_formation_program(program.into()) {
+                Err(errors) => format!("{errors:?}"),
+                Ok(source) => match prepare(&source, source.module(), None) {
+                    Err(error) => format!("{error:?}"),
+                    Ok(_) => panic!("a malformed formation owner must refuse"),
+                },
+            };
+            assert!(
+                refusal.contains("closed requirement identity")
+                    || refusal.contains("static application formation owner"),
+                "{refusal}"
+            );
+        }
+    }
+
     #[test]
     fn describing_a_formal_does_not_make_its_argument_value_visible() {
         let source = named_calls();
