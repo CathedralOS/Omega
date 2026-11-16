@@ -75,6 +75,13 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### macOS arm64 packs a record stack argument at its natural alignment instead of a whole 8-byte slot
+- Category: A verdict with nothing behind it
+- Where: [Darwin stack packing](omega-rust/omega/compilation/backend/calling-conventions/src/plans/call_plan_evaluation.rs#L767), [ValueShape](omega-rust/omega/compilation/backend/calling-conventions/src/plans/vocabulary.rs#L144), [clang cross-check](omega-rust/omega/compilation/backend/calling-conventions/src/tests/clang_crosscheck.rs)
+- Saw: `DarwinAapcs64` packs every stack argument at its natural alignment, records included. AAPCS64 B.5 rounds a Composite Type's size up to a multiple of 8 and C.14 rounds the stack address up to "the larger of 8 or the Natural Alignment of the argument's type"; Apple's packing covers the scalars its document shows, and clang keeps B.5 and C.14 for non-HFA records on Apple targets. So after eight register arguments, `{i16,i8}` goes at sp+2 under Omega and at sp+8 under clang, and every later stack argument shifts. The clang cross-check finds 24 of its 1,440 macOS signatures with this cause. `ValueShape` gives a small record and a scalar of the same size the same `Integer` class, so the evaluator cannot tell them apart; the fix needs the shape to say it is a record.
+- Cost: Default-ABI imports and callbacks on macOS arm64 that pass a small non-float record on the stack exchange wrong values. Delete the `DarwinRecordStackSlot` entry in `KNOWN_MISMATCHES` with the fix.
+- Reported: 2026-11-16, Claude Code, while turning the ABI pilot into a maintained clang cross-check
+
 ### encoding.md tag tables still omit tags the codec decodes
 - Category: The documents disagree
 - Where: [structural type shapes](wiki/spec/terminal-psi/encoding.md#L2089), [byte-sequence carriers](wiki/spec/terminal-psi/encoding.md#L2108), [structural field types](wiki/spec/terminal-psi/encoding.md#L2122), [structural path segments](wiki/spec/terminal-psi/encoding.md#L2152), [canonical path segments](wiki/spec/terminal-psi/encoding.md#L2176), [structural decoders](omega-rust/psi/compilation/representations/terminal-psi/wire/src/structural_wire.rs#L208), [tag-table test](omega-rust/psi/compilation/representations/terminal-psi/wire/src/spec_tag_tables.rs)
