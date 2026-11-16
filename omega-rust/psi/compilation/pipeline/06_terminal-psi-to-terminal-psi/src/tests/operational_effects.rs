@@ -890,7 +890,11 @@ fn proof_only_template_commitments_bind_guarantees_and_open_bounds() {
             .find(|machine| machine.name.as_str() == "relay")
             .unwrap()
             .symbol;
-        let frozen: typed_trees::FrozenTypedTrees = typed.into();
+        let (frozen, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+            typed,
+            &typed_trees_to_typed_trees::PreparationRequest::settled(),
+        )
+        .expect("the same source must complete ordinary typed preparation");
         let prepared = typed_trees_to_terminal_psi::prepare_compilation(
             &frozen,
             typed_trees_to_terminal_psi::Compilation {
@@ -912,6 +916,9 @@ fn proof_only_template_commitments_bind_guarantees_and_open_bounds() {
                 prepared.program
             );
         };
+        let closure = prepared
+            .closure
+            .unwrap_or_else(|refusal| panic!("template contract preparation: {refusal:?}"));
         let forms = prepared
             .forms
             .iter()
@@ -931,7 +938,6 @@ fn proof_only_template_commitments_bind_guarantees_and_open_bounds() {
                 closed_reach
             );
         }
-        let closure = prepared.closure.unwrap();
         let commitments = closure
             .names
             .iter()
