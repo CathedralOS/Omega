@@ -227,6 +227,12 @@ pub fn derive_selected_intrinsic_settlement_proposals<'a>(
             )));
             continue;
         };
+        let Some(callable) = boundary.declaration.as_ref() else {
+            diagnostics.push(Diagnostic::error(format!(
+                "compiler-builtin `{requirement}` has no checked callable declaration"
+            )));
+            continue;
+        };
         // The selected direct call already records its declaration and target
         // implementation. Validate that evidence here instead of asking an
         // external provider to supply it again.
@@ -259,7 +265,7 @@ pub fn derive_selected_intrinsic_settlement_proposals<'a>(
             selected_external_execution(
                 external_providers,
                 identities,
-                &boundary.owner,
+                &callable.source.machine,
                 &plans[selected_row.plan_index],
                 selected_row.row,
                 selected_row.execution,

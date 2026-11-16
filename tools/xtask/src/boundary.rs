@@ -300,6 +300,8 @@ pub fn forbidden_rules() -> Vec<Rule> {
             owners: vec![TRUST_MODEL],
             forbidden: vec![
                 "omega-rust/psi/compilation/build-time-evaluation",
+                "omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi",
+                "omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi",
                 "omega-rust/psi/compilation/terminal-installation",
                 "omega-rust/psi/compilation/representations/terminal-psi",
                 "omega-rust/omega/compilation/backend/target",

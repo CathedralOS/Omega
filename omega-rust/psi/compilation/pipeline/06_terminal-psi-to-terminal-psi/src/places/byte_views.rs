@@ -26,7 +26,7 @@ fn count_type() -> ScalarType {
     )
 }
 
-impl Storage<'_> {
+impl<'a> Storage<'a> {
     fn descriptor_access(
         &self,
         root: PlaceId,
@@ -622,6 +622,7 @@ impl Storage<'_> {
     /// overlapping writes may not reuse its earlier observation.
     pub(crate) fn rank_descriptor_kept(
         &self,
+        references: &mut super::DescriptorAnalysis<'a>,
         source: &StructuralArgument,
         block: semantic_vocabulary::BlockId,
         from: usize,
@@ -629,7 +630,7 @@ impl Storage<'_> {
     ) -> Checked<bool> {
         let concerns = Construct::Block(block);
         let raw = self.argument(source, concerns)?;
-        let descriptor = self.backing(&raw, block, from, concerns)?;
+        let descriptor = self.backing(references, &raw, block, from, concerns)?;
         // Every pointer binding crossed on the way to the descriptor must
         // remain frozen too; a stable old destination cannot authenticate a
         // later observation through a rebound reference.
@@ -640,7 +641,7 @@ impl Storage<'_> {
                     root: raw.root,
                     segments: raw.segments[..position].to_vec(),
                 };
-                prefixes.push(self.backing(&prefix, block, from, concerns)?);
+                prefixes.push(self.backing(references, &prefix, block, from, concerns)?);
             }
         }
         let mut leaf = descriptor.clone();
@@ -654,7 +655,12 @@ impl Storage<'_> {
                 .iter()
                 .any(|prefix| super::overlap(&row.lineage, prefix))
                 || super::overlap(&row.lineage, &descriptor)
-                    && !self.call_preserves_extent(super::Asked::Contents(&leaf), row, concerns)?
+                    && !self.call_preserves_extent(
+                        references,
+                        super::Asked::Contents(&leaf),
+                        row,
+                        concerns,
+                    )?
             {
                 return Ok(false);
             }
@@ -758,7 +764,11 @@ impl Storage<'_> {
         Ok(())
     }
 
-    pub(super) fn subslice(&self, operation: &Operation) -> Checked<()> {
+    pub(super) fn subslice(
+        &self,
+        references: &mut super::DescriptorAnalysis<'a>,
+        operation: &Operation,
+    ) -> Checked<()> {
         use terminal_semantics::descriptor_results::DescriptorCallOrigin;
         let (source, typed) = match &operation.kind {
             OperationKind::ByteSequenceSubslice { source, .. } => (source, false),
@@ -856,9 +866,7 @@ impl Storage<'_> {
         let position = u32::try_from(after - 1).map_err(|_| {
             self.foreign(concerns, "a subslice position exceeds its descriptor graph")
         })?;
-        let origins = self
-            .references
-            .borrow_mut()
+        let origins = references
             .source_origins(self.machine, (block, position), &location)
             .filter(|origins| !origins.is_empty())
             .ok_or_else(|| {
@@ -1000,6 +1008,7 @@ impl Storage<'_> {
     /// this length observation onto that producer, not an equal-sized view.
     pub(super) fn extent_equation(
         &self,
+        references: &mut super::DescriptorAnalysis<'a>,
         tables: &terminal_check_tables::MachineTables,
         measurement: &Operation,
         producer: OperationId,
@@ -1010,6 +1019,7 @@ impl Storage<'_> {
             return Err(self.foreign(concerns, "a length measurement has no scalar result"));
         };
         let Some(extent) = self.extent_contents(
+            references,
             tables,
             producer,
             ProgramPoint::AfterOperation(measurement.id),
@@ -1048,6 +1058,7 @@ impl Storage<'_> {
     /// it does not manufacture a length measurement or its bounds evidence.
     pub(super) fn extent_contents(
         &self,
+        references: &mut super::DescriptorAnalysis<'a>,
         tables: &terminal_check_tables::MachineTables,
         producer: OperationId,
         at: ProgramPoint,
@@ -1128,10 +1139,10 @@ impl Storage<'_> {
                             let (block, after) =
                                 self.graph.locate(ProgramPoint::AfterOperation(producer))?;
                             match self.reaching(
+                                references,
                                 tables,
                                 super::Asked::Contents(&leaf),
-                                block,
-                                after - 1,
+                                (block, after - 1),
                                 &mut history,
                                 concerns,
                             )? {

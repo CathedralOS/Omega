@@ -1,71 +1,36 @@
-/*
-Terminal Psi's canonical forms for the propositions this crate builds, one
-route each, shared by authored clauses, published crash routes, crash site
-guards and crash continuations substituted with a call's actuals. The codec
-refuses anything else (`terminal-codec` `semantic_module.rs`:
-`validate_canonical_proposition` and `crash_routes_are_canonical`). Order
-comes from the codec's own keys or the vocabulary's derived order, never from
-a printed form.
-*/
+//! Source diagnostics around the shared canonical contract operations.
 
 use semantic_vocabulary::{CrashCause, MachineId, Proposition, ScalarTerm, ValueId};
-use terminal_check_tables::{Checked, Construct};
+use terminal_check_tables::{Checked, Construct, Refusal, RefusalReason};
 use terminal_psi::{CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard};
 
-use crate::{Unserved, refuse};
+pub(crate) use terminal_codec::contract_forms::RepeatedClauses as Repeated;
 
-/// What a repeated conjunct means where it arises.
-#[derive(Clone, Copy)]
-pub(crate) enum Repeated {
-    /// An authored clause list: a repeat cannot be held in canonical order
-    /// ("strictly increase"), so it is refused as authored.
-    Refuse,
-    /// A conjunction made by substitution or path collection: `P && P` is
-    /// `P`, so a repeat is kept once.
-    Merge,
-}
-
-/// `left == right` with its operands in canonical order.
-pub(crate) fn equal(left: ScalarTerm, right: ScalarTerm, id: MachineId) -> Checked<Proposition> {
-    let key = |term: &ScalarTerm| {
-        terminal_codec::canonical_scalar_term_order_key(term).map_err(|_| {
-            refuse(
-                id,
-                Construct::Machine,
-                Unserved::Contract("unencodable term"),
-            )
-        })
-    };
-    if key(&left)? <= key(&right)? {
-        Ok(Proposition::Equal(left, right))
-    } else {
-        Ok(Proposition::Equal(right, left))
+fn refusal(id: MachineId, detail: String) -> Refusal {
+    Refusal {
+        source_span: None,
+        reason: RefusalReason::Unsupported,
+        machine: id,
+        concerns: Construct::Machine,
+        detail: format!("contract {detail}"),
     }
 }
 
-/// Sorts propositions into Terminal Psi's canonical order.
+pub(crate) fn equal(left: ScalarTerm, right: ScalarTerm, id: MachineId) -> Checked<Proposition> {
+    terminal_codec::contract_forms::equal(left, right).map_err(|detail| refusal(id, detail))
+}
+
 pub(crate) fn clauses(
     propositions: Vec<Proposition>,
     repeated: Repeated,
     id: MachineId,
 ) -> Checked<Vec<Proposition>> {
-    associated_clauses(
-        propositions
-            .into_iter()
-            .map(|proposition| (proposition, ()))
-            .collect(),
-        repeated,
-        id,
-    )
-    .map(|rows| {
-        rows.into_iter()
-            .map(|(proposition, ())| proposition)
-            .collect()
-    })
+    terminal_codec::contract_forms::clauses(propositions, repeated)
+        .map_err(|detail| refusal(id, detail))
 }
 
-/// Keep a clause's source description beside it while fixing canonical order.
-/// Associated payloads never participate in proposition identity or ordering.
+/// Keep a clause's source description beside its canonical proposition.
+/// Associated data never participates in proposition identity or ordering.
 pub(crate) fn associated_clauses<T>(
     propositions: Vec<(Proposition, T)>,
     repeated: Repeated,
@@ -73,26 +38,13 @@ pub(crate) fn associated_clauses<T>(
 ) -> Checked<Vec<(Proposition, T)>> {
     let mut keyed = Vec::with_capacity(propositions.len());
     for (proposition, associated) in propositions {
-        let key = terminal_codec::canonical_proposition_order_key(&proposition).map_err(|_| {
-            refuse(
-                id,
-                Construct::Machine,
-                Unserved::Contract("unencodable proposition"),
-            )
-        })?;
+        let key = terminal_codec::canonical_proposition_order_key(&proposition)
+            .map_err(|_| refusal(id, "unencodable proposition".into()))?;
         keyed.push((key, proposition, associated));
     }
     keyed.sort_by(|left, right| left.0.cmp(&right.0));
-    let repeats = keyed.windows(2).any(|pair| pair[0].0 == pair[1].0);
-    match repeated {
-        Repeated::Refuse if repeats => {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Contract("duplicate clause"),
-            ));
-        }
-        Repeated::Refuse | Repeated::Merge => {}
+    if matches!(repeated, Repeated::Refuse) && keyed.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+        return Err(refusal(id, "duplicate clause".into()));
     }
     keyed.dedup_by(|later, earlier| later.0 == earlier.0);
     Ok(keyed
@@ -101,57 +53,17 @@ pub(crate) fn associated_clauses<T>(
         .collect())
 }
 
-/// A conjunction in canonical form: flattened, ordered, a repeat kept once,
-/// and a single conjunct standing alone.
 pub(crate) fn conjunction(conjuncts: Vec<Proposition>, id: MachineId) -> Checked<Proposition> {
-    let mut flat = Vec::with_capacity(conjuncts.len());
-    for conjunct in conjuncts {
-        match conjunct {
-            Proposition::Conjunction(inner) => flat.extend(inner),
-            other => flat.push(other),
-        }
-    }
-    let mut ordered = clauses(flat, Repeated::Merge, id)?;
-    match ordered.len() {
-        0 => Ok(Proposition::Truth),
-        1 => Ok(ordered.remove(0)),
-        _ => Ok(Proposition::Conjunction(ordered)),
-    }
+    terminal_codec::contract_forms::conjunction(conjuncts).map_err(|detail| refusal(id, detail))
 }
 
-/// Crash routes in canonical form: one bucket per cause in increasing cause
-/// order, alternatives strictly increasing, and `Truth` alone when any
-/// alternative is `Truth` (it permits every other alternative).
 pub(crate) fn routes(
     alternatives: impl IntoIterator<Item = (CrashCause, CrashRouteGuard)>,
 ) -> Vec<CrashRouteBucket> {
-    let mut alternatives: Vec<_> = alternatives.into_iter().collect();
-    alternatives.sort();
-    alternatives.dedup();
-    let mut buckets: Vec<CrashRouteBucket> = Vec::new();
-    for (cause, guard) in alternatives {
-        match buckets.last_mut() {
-            Some(bucket) if bucket.cause == cause => bucket.alternatives.push(guard),
-            Some(_) | None => buckets.push(CrashRouteBucket {
-                cause,
-                alternatives: vec![guard],
-            }),
-        }
-    }
-    for bucket in &mut buckets {
-        if bucket.alternatives.contains(&CrashRouteGuard::Truth) {
-            bucket.alternatives = vec![CrashRouteGuard::Truth];
-        }
-    }
-    buckets
+    terminal_codec::contract_forms::routes(alternatives)
 }
 
-/// A callee's published routes at one call: every formal replaced by the
-/// actual at its position. calls_and_outcomes.md: "Surviving crash routes are
-/// derived from the pinned callee contract using exact actuals. ... Empty or
-/// untranslated continuation rows cannot erase a crash." No route is dropped
-/// here; disproving one is the checker's work.
-pub(crate) fn substituted_routes(
+pub fn substituted_routes(
     routes: &[CrashRouteBucket],
     actuals: &[ValueId],
     values: &semantic_vocabulary::IdTable<ValueId, terminal_check_tables::values::ValueRow>,
@@ -177,9 +89,6 @@ pub(crate) fn substituted_routes(
     Ok(self::routes(alternatives))
 }
 
-/// Restate a clause with the same checked traversal used for call obligations.
-/// The bindings replace scalar formal identities simultaneously; they cannot
-/// resolve a structural observation without a captured entry value.
 pub(crate) fn substitute(
     proposition: &Proposition,
     actuals: &[ValueId],
@@ -189,9 +98,8 @@ pub(crate) fn substitute(
     substitute_parameters(proposition, actuals, &[], values, id)
 }
 
-/// A loop header restates a source contract over its own parameter identities.
-/// Storage terms remain observations of that header's live parameters; they
-/// introduce no facts until every incoming edge proves the predicate.
+/// Restate a loop header's contract over its actual scalar and storage formals.
+/// Each incoming edge still owes the resulting predicate.
 pub(crate) fn substitute_parameters(
     proposition: &Proposition,
     actuals: &[ValueId],
@@ -207,7 +115,7 @@ pub(crate) fn substitute_parameters(
             values,
         },
     )
-    .map_err(|detail| refuse(id, Construct::Machine, Unserved::Contract(detail)))?;
+    .map_err(|detail| refusal(id, detail.into()))?;
     canonical_clause(substituted, id)
 }
 
@@ -315,6 +223,9 @@ impl terminal_semantics::substitution::clauses::ClauseBindings for ScalarFormals
                 path,
                 format,
             },
+            semantic_vocabulary::ScalarType::Callable(_) => {
+                return Err("clause restatement cannot observe a callable scalar field");
+            }
         })
     }
 

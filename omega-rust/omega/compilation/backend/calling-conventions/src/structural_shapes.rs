@@ -164,6 +164,11 @@ fn collect_field_leaves(
         .field_shape(field, owner)
         .map_err(|_| InvalidStructuralShape)?;
     match field {
+        StructuralFieldType::RefinedScalar(refinement)
+            if matches!(refinement.carrier(), ScalarType::IeeeFloat(_)) =>
+        {
+            leaves.push((base_offset, leaf.byte_size, true));
+        }
         StructuralFieldType::Scalar(ScalarType::IeeeFloat(_))
         | StructuralFieldType::IeeeFloat(_) => {
             leaves.push((base_offset, leaf.byte_size, true));

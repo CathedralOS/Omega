@@ -77,7 +77,7 @@ fn equal_selectors_do_not_share_bounds_between_different_extents() {
         ))],
     );
     let mut elaboration = elaborate_over(vec![program], &array_types());
-    let result = discharge(&mut elaboration).unwrap();
+    let result = discharge(&mut elaboration, &mut crate::ProofSearchActivity::default()).unwrap();
     let actual = verdicts(&elaboration, &result, 1, safety);
     assert_eq!(actual.len(), 2);
     assert_kernel_checked(&elaboration, 1, actual[0].0, certificate(actual[0].1));
@@ -117,7 +117,8 @@ fn every_bound_in_a_long_short_circuit_guard_reaches_its_array_read() {
             vec![guarded(guard, read), returns(unsigned(0))],
         );
         let mut elaboration = elaborate_over(vec![program], &array_types());
-        let result = discharge(&mut elaboration).unwrap();
+        let result =
+            discharge(&mut elaboration, &mut crate::ProofSearchActivity::default()).unwrap();
         let obligations = verdicts(&elaboration, &result, 1, safety);
         assert_eq!(obligations.len(), selector_count);
         for (position, (obligation, verdict)) in obligations.into_iter().enumerate() {

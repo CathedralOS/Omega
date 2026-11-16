@@ -12,12 +12,8 @@
 // the result against the specialization's own goal and hypotheses.
 
 use super::*;
-use crate::prove::SEARCHES;
+use crate::ProofSearchActivity;
 use crate::reverify_specialization;
-
-fn searches() -> usize {
-    SEARCHES.with(std::cell::Cell::get)
-}
 
 fn below(left: ScalarTerm, right: ScalarTerm) -> Proposition {
     Proposition::LessOrEqual(left, right)
@@ -39,7 +35,7 @@ fn checked_once(
 ) -> (typed_trees_to_terminal_psi::Elaboration, Discharge) {
     let mut form = lower(vec![machine]).unwrap();
     form.value_parameters.push(rigid);
-    let found = discharge(&mut form).unwrap();
+    let found = discharge(&mut form, &mut Default::default()).unwrap();
     (form, found)
 }
 
@@ -55,11 +51,20 @@ fn carried(
     usize,
 ) {
     let mut consumer = lower(vec![specialization]).unwrap();
-    let generic = crate::prepare_replay(form).unwrap();
-    let mut replay = crate::prepare_replay(&mut consumer).unwrap();
-    let before = searches();
-    let verdicts = reverify_specialization(&generic, found, id(1), &mut replay, id(1), &[]);
-    let started = searches() - before;
+    let mut activity = ProofSearchActivity::default();
+    let generic = crate::prepare_replay(form, &mut activity).unwrap();
+    let mut replay = crate::prepare_replay(&mut consumer, &mut activity).unwrap();
+    let before = activity.started();
+    let verdicts = reverify_specialization(
+        &generic,
+        found,
+        id(1),
+        &mut replay,
+        id(1),
+        &[],
+        &mut activity,
+    );
+    let started = activity.started() - before;
     (consumer, verdicts, started)
 }
 
@@ -304,11 +309,20 @@ fn actual_width_carry_refuses_a_foreign_owner_or_disagreeing_value_carriers() {
         .get_mut(id(2))
         .unwrap()
         .scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap());
-    let generic = crate::prepare_replay(&mut form).unwrap();
-    let mut replay = crate::prepare_replay(&mut consumer).unwrap();
-    let before = searches();
-    let moved = reverify_specialization(&generic, &found, id(1), &mut replay, id(1), &[]);
-    assert_eq!(searches(), before);
+    let mut activity = ProofSearchActivity::default();
+    let generic = crate::prepare_replay(&mut form, &mut activity).unwrap();
+    let mut replay = crate::prepare_replay(&mut consumer, &mut activity).unwrap();
+    let before = activity.started();
+    let moved = reverify_specialization(
+        &generic,
+        &found,
+        id(1),
+        &mut replay,
+        id(1),
+        &[],
+        &mut activity,
+    );
+    assert_eq!(activity.started(), before);
     assert!(
         moved.is_err(),
         "one width binder was accepted at two widths"
@@ -406,7 +420,7 @@ fn width_questions_are_exact_and_cannot_move_after_the_entry() {
 #[test]
 fn a_width_body_needs_its_own_positive_width_proof() {
     let mut valid = width_form_without_discharge(true);
-    let found = discharge(&mut valid).unwrap();
+    let found = discharge(&mut valid, &mut crate::ProofSearchActivity::default()).unwrap();
     assert!(
         verdicts(&valid, &found, 1, |kind| matches!(
             kind,
@@ -416,7 +430,7 @@ fn a_width_body_needs_its_own_positive_width_proof() {
         .all(|(_, verdict)| verdict.is_ok())
     );
     let mut missing = width_form_without_discharge(false);
-    let found = discharge(&mut missing).unwrap();
+    let found = discharge(&mut missing, &mut crate::ProofSearchActivity::default()).unwrap();
     let questions = verdicts(&missing, &found, 1, |kind| {
         matches!(kind, ObligationKind::IntegerWidthPositive { .. })
     });

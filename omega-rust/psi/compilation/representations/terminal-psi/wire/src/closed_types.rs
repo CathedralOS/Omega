@@ -6,13 +6,16 @@
 
 use std::collections::BTreeMap;
 
-use semantic_vocabulary::{ClosedIntegerType, ClosedScalarType, IntegerType, ScalarType};
+use semantic_vocabulary::{
+    CallableContractId, ClosedIntegerType, ClosedScalarType, IntegerType, ScalarType,
+};
 
 use crate::CodecError;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ClosedTypeCatalog {
     integers: BTreeMap<IntegerType, ClosedIntegerType>,
+    callables: Vec<CallableContractId>,
 }
 
 impl ClosedTypeCatalog {
@@ -37,11 +40,32 @@ impl ClosedTypeCatalog {
             ))
     }
 
+    /// Membership comes from the exact module catalog at complete encoding.
+    pub(crate) fn record_callables(&mut self, module: &terminal_psi::TerminalModule) {
+        self.callables = module
+            .callables
+            .contracts
+            .iter()
+            .filter(|contract| module.callables.contract(contract.id).is_some())
+            .map(|contract| contract.id)
+            .collect();
+        self.callables.sort_unstable();
+        self.callables.dedup();
+    }
+
     pub fn scalar(&self, scalar: ScalarType) -> Result<ClosedScalarType, CodecError> {
         Ok(match scalar {
             ScalarType::Boolean => ClosedScalarType::Boolean,
             ScalarType::Integer(integer) => ClosedScalarType::Integer(self.integer(integer)?),
             ScalarType::IeeeFloat(format) => ClosedScalarType::IeeeFloat(format),
+            ScalarType::Callable(contract) => {
+                self.callables.binary_search(&contract).map_err(|_| {
+                    CodecError::MalformedStructuralFoundation(
+                        "callable contract is not retained by this closed module",
+                    )
+                })?;
+                ClosedScalarType::Callable(contract)
+            }
         })
     }
 }

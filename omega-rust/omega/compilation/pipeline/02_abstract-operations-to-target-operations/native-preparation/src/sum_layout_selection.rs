@@ -486,6 +486,11 @@ fn retained_interrupt_geometry_does_not_authorize_an_unassociated_helper() {
         .unwrap();
     let module = TerminalModule::for_entry(plan.entry);
     let interrupts = provider_admission::AdmittedInstalledInterruptCohort::empty(plan.psi);
+    let callable_invocations = crate::PreparedCallableInvocations::new(
+        &unit,
+        &terminal_semantics::callable_values::CallableInvocationRoots::new(),
+    )
+    .unwrap();
     let evidence = crate::PreparationEvidence {
         optimization_unit: unit.identity,
         work_schedule: unit.work_schedule,
@@ -502,6 +507,7 @@ fn retained_interrupt_geometry_does_not_authorize_an_unassociated_helper() {
         &target,
         evidence,
         origins,
+        &callable_invocations,
         &interrupts,
         fixture_types(),
     )
@@ -534,6 +540,7 @@ fn retained_interrupt_geometry_does_not_authorize_an_unassociated_helper() {
         &target,
         evidence,
         origins,
+        &callable_invocations,
         &interrupts,
         fixture_types(),
     )
@@ -1941,6 +1948,9 @@ fn retained_element_view_reads_use_the_exact_descriptor_index_and_leaf() {
                     )),
                     ScalarType::IeeeFloat(format) => {
                         read!(TargetScalarExpression::IeeeFloatElementViewRead, format)
+                    }
+                    ScalarType::Callable(_) => {
+                        unreachable!("the test inputs contain only numbers and booleans")
                     }
                 };
                 TargetUnitOperation::ScalarDefinition {
@@ -3695,6 +3705,17 @@ fn select(name: &str, plan: &AbstractOperationPlan, target: TargetOperationPlan)
     }
     let module = TerminalModule::for_entry(plan.entry);
     let interrupts = provider_admission::AdmittedInstalledInterruptCohort::empty(plan.psi);
+    let callable_program =
+        optimization_unit_semantics::callable_values::optimized_callable_values(&unit)
+            .unwrap_or_else(|reason| panic!("{name}: callable projection {reason}"));
+    assert!(
+        callable_program
+            .bodies
+            .iter()
+            .all(|(_, body)| body.invocations.is_empty()),
+        "{name}: the sum-layout fixture has no call occurrences"
+    );
+    let callable_roots = terminal_semantics::callable_values::CallableInvocationRoots::new();
     let prepared = crate::legalization::legalize_target_operations(
         &target,
         plan,
@@ -3705,6 +3726,7 @@ fn select(name: &str, plan: &AbstractOperationPlan, target: TargetOperationPlan)
             target_context: None,
             module: &module,
         },
+        &callable_roots,
         &interrupts,
         fixture_types(),
     )
@@ -3870,6 +3892,7 @@ fn plan(
         structural_types: types.into(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
+        callables: Default::default(),
         dynamic_dispatch: Default::default(),
         identities: names.build(),
         functions: vec![function],

@@ -10,8 +10,11 @@ use terminal_semantics::descriptor_results::{
     DescriptorCallOrigin, DescriptorSlotKind, DescriptorSourceOrigin,
 };
 
-impl Storage<'_> {
-    pub(super) fn byte_payload_writes(&mut self) -> Checked<()> {
+impl<'a> Storage<'a> {
+    pub(super) fn byte_payload_writes(
+        &mut self,
+        references: &mut super::DescriptorAnalysis<'a>,
+    ) -> Checked<()> {
         let mut writes = Vec::new();
         for block in &self.lowered.blocks {
             for (position, operation) in block.operations.iter().enumerate() {
@@ -20,7 +23,7 @@ impl Storage<'_> {
                 if let OperationKind::ByteSequenceWrite { destination, .. } = operation.kind {
                     let destination = self.stored_at(destination, &[], concerns)?;
                     descriptors = self.byte_payload_descriptors(&destination, concerns)?;
-                } else if operation.kind.declared_invocation().is_some() {
+                } else if crate::call_contracts::operation_inputs(operation).is_some() {
                     // Most calls have no mutable byte descriptor. Inventory
                     // actual operands once before requesting their frame.
                     for argument in operation
@@ -66,9 +69,12 @@ impl Storage<'_> {
                 let cut = u32::try_from(position)
                     .map_err(|_| self.foreign(concerns, "payload write cut exceeds u32"))?;
                 for descriptor in descriptors {
-                    for backing in
-                        self.byte_payload_backings(&descriptor, (block.id, cut), concerns)?
-                    {
+                    for backing in self.byte_payload_backings(
+                        references,
+                        &descriptor,
+                        (block.id, cut),
+                        concerns,
+                    )? {
                         writes.push(Logged {
                             captured: descriptor.clone(),
                             lineage: backing,
@@ -140,6 +146,7 @@ impl Storage<'_> {
 
     fn byte_payload_backings(
         &self,
+        references: &mut super::DescriptorAnalysis<'a>,
         descriptor: &Lineage,
         at: terminal_semantics::descriptor_lifetimes::DescriptorPosition,
         concerns: Construct,
@@ -147,9 +154,7 @@ impl Storage<'_> {
         let location = descriptor.descriptor_location().ok_or_else(|| {
             self.unsupported(concerns, "byte payload has no exact descriptor location")
         })?;
-        let origins = self
-            .references
-            .borrow_mut()
+        let origins = references
             .symbolic_source_origins(self.machine, at, &location)
             .filter(|origins| !origins.is_empty())
             .ok_or_else(|| {

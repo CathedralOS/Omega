@@ -42,6 +42,7 @@ mod expression_lowering;
 mod expression_meanings;
 mod lowerer;
 mod operator_calls;
+mod runtime_callables;
 mod statement_lowering;
 mod type_reference;
 mod typing_queries;

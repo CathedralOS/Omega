@@ -864,6 +864,15 @@ pub(crate) mod initializer_dependencies {
                         self.queue_type(expansion);
                         self.queue_type(application);
                     }
+                    TypeReference::Callable { contract, .. } => {
+                        let row = self
+                            .program
+                            .tables
+                            .declarations
+                            .runtime_callable_contracts
+                            .get(*contract);
+                        self.signature(&row.signature)?;
+                    }
                     TypeReference::Reference(reference) => self.type_child(reference.referee)?,
                     TypeReference::Slice(reference) => self.type_child(reference.element_type)?,
                     TypeReference::FixedArray(array) => {
@@ -1071,12 +1080,7 @@ pub(crate) mod initializer_dependencies {
                         TypeParameterKind::Machine {
                             contract: MachineParameterContract::Structural(signature),
                         } => {
-                            self.contracts(signature.contracts)?;
-                            self.type_parameters(signature.type_parameters)?;
-                            self.state_parameters(signature.parameters)?;
-                            if let Some(reference) = &signature.return_type {
-                                self.queue_type(reference);
-                            }
+                            self.signature(signature)?;
                         }
                         TypeParameterKind::Proposition { contract } => {
                             self.state_parameters(contract.parameters)?;
@@ -1087,6 +1091,28 @@ pub(crate) mod initializer_dependencies {
                     }
                 }
                 Ok(())
+            }
+
+            fn signature(
+                &mut self,
+                signature: &'program symbol_resolved_trees::signature::StateSignature,
+            ) -> Result<(), String> {
+                let previous = self.lexical_owner;
+                self.lexical_owner = signature.symbol;
+                let result = (|| {
+                    self.contracts(signature.contracts)?;
+                    self.type_parameters(signature.type_parameters)?;
+                    self.state_parameters(signature.parameters)?;
+                    if let Some(reference) = &signature.return_type {
+                        self.queue_type(reference);
+                    }
+                    for bound in &signature.conformance_bounds {
+                        self.type_arguments(bound.arguments)?;
+                    }
+                    Ok(())
+                })();
+                self.lexical_owner = previous;
+                result
             }
 
             pub(super) fn state_parameters(
@@ -2037,10 +2063,62 @@ pub(crate) mod initializer_dependencies {
                         super::selected_expression_constant(program, expression)
                     {
                         self.constant(selected, reference)?;
-                    } else if let ExpressionNode::Name(path) = table.expression(expression)
-                        && program.symbols.get(path.symbol).kind == SymbolKind::Variant
-                    {
-                        self.type_declaration(program.symbols.get(path.symbol).parent)?;
+                    } else if let ExpressionNode::Name(path) = table.expression(expression) {
+                        match program.symbols.get(path.symbol).kind {
+                            SymbolKind::Variant => {
+                                self.type_declaration(program.symbols.get(path.symbol).parent)?
+                            }
+                            SymbolKind::Machine | SymbolKind::State => {
+                                // Taking code needs its exact body available,
+                                // without publishing an invocation or provider edge.
+                                let symbol = program.symbols.get(path.symbol);
+                                let direct = if symbol.kind == SymbolKind::Machine {
+                                    Some(path.symbol)
+                                } else if program.symbols.get(symbol.parent).kind
+                                    == SymbolKind::Machine
+                                {
+                                    Some(symbol.parent)
+                                } else {
+                                    None
+                                };
+                                let owner = if let Some(owner) = direct {
+                                    Some(owner)
+                                } else if let Some(conformance) = program
+                                    .conformances
+                                    .iter()
+                                    .find(|conformance| conformance.symbol == path.head_symbol)
+                                {
+                                    let mut rows = conformance
+                                        .rows
+                                        .iter()
+                                        .filter(|row| row.requirement == path.symbol);
+                                    if let Some(row) = rows.next() {
+                                        if rows.next().is_some() {
+                                            return Err("named code dependency has ambiguous implementation rows".into());
+                                        }
+                                        Some(if row.source.owns_realization() {
+                                            crate::symbols::owned_conformance_realization(
+                                                program, row,
+                                            )
+                                            .map_err(str::to_owned)?
+                                        } else {
+                                            row.realization_machine
+                                        })
+                                    } else {
+                                        None
+                                    }
+                                } else {
+                                    None
+                                };
+                                if let Some(owner) = owner.filter(|owner| owner.is_valid())
+                                    && self.follow_dependencies
+                                    && !self.available_machines.contains(&owner)
+                                {
+                                    self.available_machines.push(owner);
+                                }
+                            }
+                            _ => {}
+                        }
                     }
                 }
                 ExpressionNode::TypeExpression(reference)

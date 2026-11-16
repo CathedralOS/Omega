@@ -185,6 +185,7 @@ pub fn emit_fragment_object(
         image_emission::FunctionFragmentObjectArtifactRequest {
             replay: std::sync::Arc::clone(&source),
             dynamic_dispatch: &plan.dynamic_dispatch,
+            callables: &plan.callables,
         },
     )
     .map_err(|error| native_artifact_error("fragment object publication", error))?;

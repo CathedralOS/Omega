@@ -527,8 +527,8 @@ pub(crate) mod vocabulary {
         }
 
         pub const fn get(self) -> u16 {
-            // Float conversions retain integer inputs, results and exactness.
-            139
+            // Combined callable/source identities, typed conversions and owned cleanup.
+            142
         }
     }
 }

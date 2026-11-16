@@ -298,6 +298,13 @@ fn mentions(
         })
     };
     match table.type_reference(reference) {
+        // Callable clauses and signature types can name the mapped binder.
+        TypeReferenceNode::Callable { .. } => {
+            typed_trees::references::type_reference_inputs(program, reference)
+                .symbols
+                .into_iter()
+                .any(named)
+        }
         TypeReferenceNode::Named { symbol, .. } => named(*symbol),
         TypeReferenceNode::Reference { referee, .. } => mentions(program, *referee, map),
         TypeReferenceNode::Constrained { base_type, .. } => mentions(program, *base_type, map),

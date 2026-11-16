@@ -1469,6 +1469,7 @@ pub(crate) mod reference_origins {
                 sources: &'declaration [StructuralReferenceResultSource],
             },
             Requirement(&'declaration TerminalDynamicSlot),
+            Callable(&'declaration terminal_psi::TerminalCallableContract),
         }
 
         pub enum ReferenceCallOrigin {
@@ -1626,6 +1627,9 @@ pub(crate) mod reference_origins {
                 }
                 ReferenceCallContract::Requirement(slot) => {
                     return bind_public_reference_call_results(types, slot, arguments);
+                }
+                ReferenceCallContract::Callable(contract) => {
+                    return bind_public_reference_call_results(types, contract, arguments);
                 }
             }
             Ok(results)
@@ -3624,6 +3628,9 @@ pub(crate) mod reference_storage_geometry {
             Some(scalar)
         })?;
         match scalar {
+            // Code references keep their contract and custody; numeric fragments
+            // cannot represent that association.
+            ScalarType::Callable(_) => None,
             ScalarType::Boolean => Some(1),
             ScalarType::Integer(integer) => Some(u64::from(integer.bits()?)),
             ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => Some(32),
@@ -6091,6 +6098,7 @@ pub(crate) mod reference_views {
                     .then(|| u8::try_from(bits / 8).ok())
                     .flatten()
             }
+            ScalarType::Callable(_) => Some(8),
             ScalarType::Boolean => Some(1),
             ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => Some(4),
             ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64) => Some(8),

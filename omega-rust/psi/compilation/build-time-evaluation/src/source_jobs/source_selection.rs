@@ -175,6 +175,9 @@ mod tests {
         );
         let request = typed.realized_machine_named("request").unwrap().symbol;
         let compilation = terminal_production::TerminalSourceCompilation {
+            calling: None,
+            providers: None,
+
             declaration_metadata: &[],
             entries: &[request],
             subjects: &[],

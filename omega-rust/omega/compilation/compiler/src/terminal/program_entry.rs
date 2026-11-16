@@ -1,7 +1,5 @@
-// Build selects an exact source machine, while the receipt belongs to the
-// published artifact. Join those owners through the accepted elaboration's
-// correspondence; neither a display name nor the module's first root selects
-// an application's entry (entry_roots.md, "Source selection is not invocation").
+//! Bind an executable receipt to the accepted module's exact target entry.
+//! Source choices and complete entry contracts were normalized before judgment.
 
 use crate::CheckedCompilation;
 use diagnostics::Diagnostic;
@@ -14,27 +12,16 @@ pub(crate) fn prepare_entry_metadata(
     custody: &mut crate::execution_settlement::SelectedProviderCustody,
     inputs: Option<&package_compilation::PackageCompilationInputs>,
 ) -> Result<(), Vec<Diagnostic>> {
-    let publication = &custody.terminal_publication;
-    publication
-        .require_source_owner(custody.source_inspection.program())
-        .map_err(|error| vec![error])?;
-    let original = publication.accepted()?;
-    let profile = custody
-        .execution
-        .target_profile()
-        .unwrap_or_else(target::TargetProfile::host);
-    let selected = provider_planning::program_entry::selected_program_entry_machine(
-        &custody.build.config.root_bindings,
-        Some(profile),
-    )?
-    .ok_or_else(|| {
+    let profile = custody.execution.target_profile().ok_or_else(|| {
         vec![Diagnostic::error(
-            "executable product has no selected program entry",
+            "executable entry metadata requires an explicit deployment target",
         )]
     })?;
+    let publication = &custody.terminal_publication;
+    let accepted = publication.accepted()?;
     let declaration = package_compilation::selected_program_entry_boundary(
-        original.source(),
-        selected.slot,
+        accepted.source(),
+        profile.program_entry_slot(),
         inputs,
         custody.sources.exact_toolchain_sources(),
     )?;
@@ -47,50 +34,46 @@ pub(crate) fn prepare_entry_metadata(
             "entry declaration was not prepared in the shared product roster",
         )]);
     }
-    // Folded constants depend on this target's settled plans. Retain that
-    // product separately while reusing source preparation and judgment when
-    // the selected entry needs no target-derived constants.
-    let module = original.module();
+    let module = accepted.module();
+    let root = module
+        .program_entry_contract(profile.target_name())
+        .map_err(|reason| vec![Diagnostic::error(reason)])?
+        .entry;
     let folded = backend_plan::folded_constant_dependencies(
         module,
         profile.target_name(),
         custody.execution.plans().plans(),
-        &[checked_entry_machine(original, selected.machine_symbol)?],
+        &[root],
     )
     .map_err(|reason| vec![Diagnostic::error(reason)])?;
-    if !folded.dependencies.is_empty() {
-        let mut replacement = publication.with_declaration_metadata(&[])?;
-        replacement.retain_folded_constants(folded)?;
-        custody.terminal_publication = std::sync::Arc::new(replacement);
+    if folded.dependencies.is_empty() {
+        return Ok(());
     }
+    // Provider input preparation may already have published the shared portable
+    // judgment. Bind target-specific folded facts to a fresh judgment of the
+    // same normalized roster and exact source, before its own artifact exists.
+    let mut replacement = products::ProductTerminalPublication::judge(
+        std::sync::Arc::clone(accepted.source()),
+        publication.roster()?.clone(),
+        publication.optimizations().clone(),
+    )?;
+    let final_module = replacement.accepted()?.module();
+    let final_root = final_module
+        .program_entry_contract(profile.target_name())
+        .map_err(|reason| vec![Diagnostic::error(reason)])?
+        .entry;
+    let folded = backend_plan::folded_constant_dependencies(
+        final_module,
+        profile.target_name(),
+        custody.execution.plans().plans(),
+        &[final_root],
+    )
+    .map_err(|reason| vec![Diagnostic::error(reason)])?;
+    replacement.retain_folded_constants(folded)?;
+    custody.terminal_publication = std::sync::Arc::new(replacement);
     Ok(())
 }
 
-fn checked_entry_machine(
-    accepted: &source_compiler::AcceptedTerminalSource,
-    symbol: symbols::SymbolHandle,
-) -> Result<semantic_vocabulary::MachineId, Vec<Diagnostic>> {
-    let mut machines = accepted
-        .closure()
-        .elaboration
-        .machines
-        .iter()
-        .filter_map(|(machine, source)| (*source == symbol).then_some(machine));
-    let machine = machines.next().ok_or_else(|| {
-        vec![Diagnostic::error(
-            "selected program entry is absent from its accepted source closure",
-        )]
-    })?;
-    if machines.next().is_some() {
-        return Err(vec![Diagnostic::error(
-            "selected program entry has competing accepted machine correspondences",
-        )]);
-    }
-    Ok(machine)
-}
-
-/// Prepare the selected target's entry receipt on its already published code.
-/// Calling plans and installation authority remain separate admissions.
 pub fn prepare_program_entry(
     checked: &CheckedCompilation,
 ) -> Result<(SelectedProgramEntrySignature, ProducedTerminalApplication), Vec<Diagnostic>> {
@@ -98,45 +81,12 @@ pub fn prepare_program_entry(
     publication
         .require_source_owner(checked.source_inspection().program())
         .map_err(|error| vec![error])?;
-    let accepted = publication.accepted()?;
-    let profile = checked
-        .execution()
-        .target_profile()
-        .unwrap_or_else(target::TargetProfile::host);
-    let selected = provider_planning::program_entry::selected_program_entry_machine(
-        &checked.build().config.root_bindings,
-        Some(profile),
-    )?
-    .ok_or_else(|| {
-        vec![Diagnostic::error(
-            "selected target has no bound program entry",
-        )]
-    })?;
-
-    let machine = checked_entry_machine(accepted, selected.machine_symbol)?;
+    let selected = checked.selected_program_entry()?;
     let program = publication.require_published(publication.optimizations())?;
-    let module = program.artifact().semantic_module();
-    if module != accepted.module() {
-        return Err(vec![Diagnostic::error(
-            "published program entry differs from its accepted module",
-        )]);
-    }
-    let signature = SelectedProgramEntrySignature::from_module_entry(
-        selected.slot,
-        module,
-        machine,
-        selected.machine_name,
-    )
-    .map_err(|reason| vec![Diagnostic::error(format!("program entry: {reason}"))])?;
-    let root = terminal_psi::PreparedNominalRoot::new(
-        signature.declaration(),
-        selected.machine_name,
-        None,
-    )
-    .map_err(|reason| vec![Diagnostic::error(reason.to_string())])?;
+    let signature = selected.source_signature().clone();
     let application = program.attach_application(
         &TerminalApplicationCustody::prepare(
-            Ok(root),
+            selected.nominal_root(),
             Some(signature.identity().bytes()),
             Some(TerminalCompositionRoots::default()),
         ),

@@ -335,8 +335,7 @@ fn a_private_helper_that_returns_nothing_receives_its_inferred_input() {
             ExpressionKind::Call {
                 required_contract: None,
                 static_reach_binding: None,
-                source_call: None,
-                callee: semantic_vocabulary::TargetMachineCallable::Machine(id(2)),
+                callee: id::<MachineId>(2).into(),
                 arguments: vec![slot(0, u32_type())],
                 designated: None,
             },

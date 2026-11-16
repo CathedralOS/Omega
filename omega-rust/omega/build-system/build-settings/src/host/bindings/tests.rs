@@ -85,6 +85,8 @@ fn produce(build: &str) -> source_compiler::ProducedTerminalProgram {
             subjects: &[Some(package)],
             purpose: source::DependencyScope::Build,
             selected: &[],
+            calling: None,
+            providers: None,
             bindings: &[],
             supplies: &[],
         },

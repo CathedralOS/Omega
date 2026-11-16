@@ -85,13 +85,14 @@ pub(crate) fn infer(
     scope: &mut crate::ReplayScope<'_>,
     unreached: &mut crate::Unreached,
     inhabitation: &terminal_semantics::inhabitation::Inhabitation,
+    activity: &mut crate::ProofSearchActivity,
 ) -> Checked<()> {
     let elaboration = scope.source();
     if elaboration.local_results.is_empty() {
         return Ok(());
     }
     for id in callees_first(elaboration)? {
-        summarize(scope, id, unreached, inhabitation)?;
+        summarize(scope, id, unreached, inhabitation, activity)?;
     }
     Ok(())
 }
@@ -296,6 +297,7 @@ fn summarize(
     id: MachineId,
     unreached: &mut crate::Unreached,
     inhabitation: &terminal_semantics::inhabitation::Inhabitation,
+    activity: &mut crate::ProofSearchActivity,
 ) -> Checked<()> {
     let elaboration = scope.source();
     let module = &elaboration.module;
@@ -303,6 +305,11 @@ fn summarize(
     let TerminalMachineResult::Scalar(declared) = &lowered.result else {
         return Ok(());
     };
+    // Callable values cross the result boundary with their contract type.
+    // They have no mathematical equality to strengthen with a body summary.
+    if matches!(declared.scalar_type, ScalarType::Callable(_)) {
+        return Ok(());
+    }
     let result = ScalarTerm::value(declared.id, declared.scalar_type);
     let exits: Vec<(EdgeId, ValueId)> = lowered
         .blocks
@@ -327,7 +334,7 @@ fn summarize(
         &mut scratch,
         inhabitation,
     )?;
-    let references = prepared.references(&module.structural_types);
+    let mut references = prepared.references(&module.structural_types);
     let storage = crate::places::Storage::new(
         id,
         lowered,
@@ -336,7 +343,7 @@ fn summarize(
         &prepared.graph,
         &scratch,
         &prepared.types,
-        &references,
+        &mut references,
     )?;
     let declared_joins = joins::prepare(
         lowered,
@@ -346,6 +353,8 @@ fn summarize(
         &prepared.context,
         &module.scalar_block_invariants,
         &storage,
+        &mut references,
+        activity,
     )?;
 
     let beyond = unreached.values(lowered, &scratch);
@@ -367,6 +376,8 @@ fn summarize(
         },
         &mut scratch,
         &mut decided,
+        activity,
+        &mut references,
     )?;
     // The identities the summary's rows take once it is added: its published
     // row, then one guarantee per return.
@@ -410,6 +421,7 @@ fn summarize(
                 &known.assumptions,
                 &known.axioms,
                 &scratch.values,
+                activity,
             );
             // A caller's goal on this result then depends on an operation
             // the integer rules do not reach, whatever is described of it.
@@ -475,13 +487,14 @@ fn summarize(
             ProgramPoint::Edge(*edge),
             goal,
             &beyond,
+            activity,
         )
         .is_err()
         {
             return Ok(());
         }
     }
-    scope.summarize(id, summary, &exits)
+    scope.summarize(id, summary, &exits, activity)
 }
 
 pub(super) fn publish(
@@ -489,6 +502,7 @@ pub(super) fn publish(
     id: MachineId,
     summary: Proposition,
     exits: &[(EdgeId, ValueId)],
+    activity: &mut crate::ProofSearchActivity,
 ) -> Checked<()> {
     let lowered = terminal_machine(&elaboration.module.machines, id, id)?;
     let entry = lowered.entry;
@@ -500,7 +514,7 @@ pub(super) fn publish(
         obligation: ObligationId::new(1).expect("nonzero diagnostic identity"),
         proposition: summary.clone(),
     });
-    crate::formation::contract(&elaboration.module, id, &proposed)?;
+    crate::formation::contract(&elaboration.module, id, &proposed, activity)?;
     let tables = elaboration
         .tables
         .machines

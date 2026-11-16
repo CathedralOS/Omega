@@ -259,7 +259,7 @@ impl Program<'_> {
             id,
             data,
             application.as_ref(),
-            self.descriptor_storage,
+            self.type_purpose,
             members,
             |variant| typed.data_payload_fields(variant),
         )?;
@@ -267,6 +267,47 @@ impl Program<'_> {
             same(source.declaration, &source.application).then_some(record)
         });
         if let Some(record) = known {
+            // A description cannot authorize a later value use, including
+            // use of a plain outer record containing an address or linear child.
+            if self.type_purpose == super::storage_metadata::TypePurpose::Value
+                && self.value_records.binary_search(&record).is_err()
+            {
+                if self
+                    .resolving
+                    .iter()
+                    .any(|(owner, retained)| same(*owner, retained))
+                {
+                    return Err(refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Type("data application that contains itself"),
+                    ));
+                }
+                record_shape_for(
+                    id,
+                    data,
+                    application.as_ref(),
+                    self.type_purpose,
+                    typed.data_members(data),
+                    |variant| typed.data_payload_fields(variant),
+                )?;
+                self.resolving.push((symbol, application.clone()));
+                let enclosing = std::mem::replace(&mut self.lifetime_owner, symbol);
+                let read = (|| {
+                    if let Some(application) = &application {
+                        for (_, argument) in &application.substitutions {
+                            self.value_type(id, *argument)?;
+                        }
+                    }
+                    self.declared_members(id, typed.data_members(data))
+                })();
+                self.lifetime_owner = enclosing;
+                self.resolving.pop();
+                read?;
+                if let Err(position) = self.value_records.binary_search(&record) {
+                    self.value_records.insert(position, record);
+                }
+            }
             if let Some(application) = &application {
                 self.record_application(id, record, application.reference)?;
             }
@@ -524,6 +565,12 @@ impl Program<'_> {
             .get_mut(record)
             .ok_or_else(|| unserved("record identity"))?
             .requires = requires;
+        self.admitted_declarations.include(symbol);
+        if self.type_purpose == super::storage_metadata::TypePurpose::Value
+            && let Err(position) = self.value_records.binary_search(&record)
+        {
+            self.value_records.insert(position, record);
+        }
         if let Some(selection) = data.cleanup_selection {
             if data.generic_instance.is_some() {
                 return Err(unserved("nominal cleanup on an applied data type"));
@@ -633,7 +680,7 @@ impl Program<'_> {
         // A field that names lifetime-parameterised data without its
         // lifetime arguments, directly or behind a reference, is refused
         // where its regions are asked for (`regions::Elision::Members`).
-        let value_type = self.qualified_view_type(id, field.type_reference)?;
+        let value_type = self.value_type(id, field.type_reference)?;
         // Stored byte and typed views keep the region of their actual source
         // type (lifetimes.md: "storage that remains valid for its use"). The
         // shared view owner keys the type by that region in this declaration;
@@ -1242,7 +1289,8 @@ impl Program<'_> {
                 }
                 literal.case_symbol?
             }
-            ExpressionNode::Indexed(_)
+            ExpressionNode::MachineValue(_)
+            | ExpressionNode::Indexed(_)
             | ExpressionNode::TypeExpression(_)
             | ExpressionNode::Match(_)
             | ExpressionNode::SavedSubject(_)
@@ -1405,16 +1453,21 @@ fn record_shape<'m>(
     members: &'m [DataMember],
     payload: impl Fn(&'m typed_trees::data::DataVariant) -> &'m [DataField],
 ) -> Checked<()> {
-    record_shape_for(id, data, application, false, members.into(), |variant| {
-        payload(variant).into()
-    })
+    record_shape_for(
+        id,
+        data,
+        application,
+        super::storage_metadata::TypePurpose::Value,
+        members.into(),
+        |variant| payload(variant).into(),
+    )
 }
 
 fn record_shape_for<'m>(
     id: MachineId,
     data: &DataDefinition,
     application: Option<&typed_trees::SourceTypeApplication>,
-    descriptor_storage: bool,
+    purpose: super::storage_metadata::TypePurpose,
     members: arena::RootRows<'m, DataMember>,
     payload: impl Fn(&'m typed_trees::data::DataVariant) -> arena::RootRows<'m, DataField>,
 ) -> Checked<()> {
@@ -1445,7 +1498,7 @@ fn record_shape_for<'m>(
     // Descriptor mode may retain a linear claim's geometry. Executable
     // linear disposition and carry still need their own checked projections.
     if data.properties.multiplicity == language_semantics::Multiplicity::Linear
-        && !descriptor_storage
+        && purpose == super::storage_metadata::TypePurpose::Value
     {
         return unserved("data with custody");
     }

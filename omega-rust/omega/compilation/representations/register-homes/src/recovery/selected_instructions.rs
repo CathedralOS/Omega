@@ -321,6 +321,9 @@ pub(super) fn decode_kind(
         },
         232 => SelectedInstructionKind::ImageAddress {
             reference: match cursor.byte()? {
+                5 => SelectedImageAddressReference::MachineDescriptor {
+                    descriptor: decode_id(cursor, semantic_vocabulary::MachineDescriptorId::new)?,
+                },
                 4 => SelectedImageAddressReference::PrivateFunction {
                     identity: function_identity::MachineFunctionIdentity::from_bytes(
                         cursor.array()?,

@@ -247,10 +247,9 @@ impl RoutePublication {
 pub enum PublicationError {
     /// A conditional installation refinement is a proof problem, not a program.
     InstallationReachRefinement,
-    /// The module retains an open source binder, an opaque rigid value,
-    /// a static-value formal or an abstract requirement: a generic check
-    /// form, which is never encoded (generics.md, "Generic bodies use the
-    /// abstract requirement envelope").
+    /// The closure retains abstract requirements, logical-frame envelopes,
+    /// open source binders, static-value formals or opaque rigid values.
+    /// These generic check forms are never executable source programs.
     GenericCheckForm,
     /// A machine of the module has no declaration identity, for the reason
     /// given (`Elaboration::undeclared`). product.md: "Source-produced
@@ -305,6 +304,7 @@ impl AcceptedClosure {
             return Err(PublicationError::InstallationReachRefinement);
         }
         if !self.elaboration.requirements.is_empty()
+            || !self.elaboration.check_form_envelopes.is_empty()
             || !self.elaboration.generic_binders.is_empty()
             || self
                 .elaboration
@@ -520,9 +520,13 @@ impl UnprovedObligation {
     /// consumption point, and `opening_diagnostic` names the write.
     pub fn reject_diagnostic(&self) -> Diagnostic {
         let diagnostic = Diagnostic::error(self.message());
-        match self.consumed.map_or(self.site, |consumed| consumed.site) {
-            SourceOrigin::Authored(span) => diagnostic.with_source_span(span),
-            SourceOrigin::Unpositioned(_) => diagnostic,
+        match self
+            .consumed
+            .map_or(self.site, |consumed| consumed.site)
+            .span()
+        {
+            Some(span) => diagnostic.with_source_span(span),
+            None => diagnostic,
         }
     }
 
@@ -534,9 +538,9 @@ impl UnprovedObligation {
             "this write opens the invariant window: it is not shown to keep {}",
             describe_kind(self.kind)
         ));
-        Some(match self.site {
-            SourceOrigin::Authored(span) => diagnostic.with_source_span(span),
-            SourceOrigin::Unpositioned(_) => diagnostic,
+        Some(match self.site.span() {
+            Some(span) => diagnostic.with_source_span(span),
+            None => diagnostic,
         })
     }
 }
@@ -572,9 +576,9 @@ impl UnestablishedUse {
     /// The `Reject` diagnostic.
     pub fn reject_diagnostic(&self) -> Diagnostic {
         let diagnostic = Diagnostic::error(self.message());
-        match self.site {
-            Some(SourceOrigin::Authored(span)) => diagnostic.with_source_span(span),
-            Some(SourceOrigin::Unpositioned(_)) | None => diagnostic,
+        match self.site.and_then(SourceOrigin::span) {
+            Some(span) => diagnostic.with_source_span(span),
+            None => diagnostic,
         }
     }
 }
@@ -634,15 +638,18 @@ impl ExceededReach {
             crate::ceilings::Axis::Entries => {
                 format!("{} (synchronous invocation)", self.statement)
             }
+            crate::ceilings::Axis::Suspension => format!("{} (suspension)", self.statement),
+            crate::ceilings::Axis::Blocking => format!("{} (blocking)", self.statement),
+            crate::ceilings::Axis::Termination => format!("{} (termination)", self.statement),
         }
     }
 
     /// The `Reject` diagnostic.
     pub fn reject_diagnostic(&self) -> Diagnostic {
         let diagnostic = Diagnostic::error(self.message());
-        match self.site {
-            Some(SourceOrigin::Authored(span)) => diagnostic.with_source_span(span),
-            Some(SourceOrigin::Unpositioned(_)) | None => diagnostic,
+        match self.site.and_then(SourceOrigin::span) {
+            Some(span) => diagnostic.with_source_span(span),
+            None => diagnostic,
         }
     }
 }
@@ -652,18 +659,29 @@ fn exceeded_reach(
     excess: crate::ceilings::Excess,
 ) -> Checked<ExceededReach> {
     let module = &elaboration.module;
-    let services = |row: &[semantic_vocabulary::ServiceId]| {
+    let permissions = |row: &[crate::ceilings::Permission]| {
         if row.is_empty() {
             return "none".to_owned();
         }
         row.iter()
-            .map(|service| {
-                module
+            .map(|entry| match entry {
+                crate::ceilings::Permission::Entry(
+                    terminal_psi::TerminalCallableInvocation::Parameter(position),
+                ) => {
+                    format!("parameter {}", u64::from(*position) + 1)
+                }
+                crate::ceilings::Permission::Entry(
+                    terminal_psi::TerminalCallableInvocation::Service(service),
+                ) => module
                     .services
                     .iter()
                     .find(|declaration| declaration.id == *service)
                     .and_then(|declaration| module.identities.text(declaration.identity))
                     .unwrap_or("an unnamed service")
+                    .to_owned(),
+                crate::ceilings::Permission::MaySuspend => "suspension".to_owned(),
+                crate::ceilings::Permission::MayBlock => "blocking".to_owned(),
+                crate::ceilings::Permission::MayDiverge => "nontermination".to_owned(),
             })
             .collect::<Vec<_>>()
             .join(" + ")
@@ -677,22 +695,26 @@ fn exceeded_reach(
             .unwrap_or("a machine")
     };
     let callee = match excess.callee {
-        semantic_vocabulary::TargetMachineCallable::Machine(callee) => machine_name(callee),
-        semantic_vocabulary::TargetMachineCallable::Boundary(callee) => module
+        terminal_check_tables::edges::Callee::Declared(
+            semantic_vocabulary::TargetMachineCallable::Machine(callee),
+        ) => machine_name(callee).to_owned(),
+        terminal_check_tables::edges::Callee::Declared(
+            semantic_vocabulary::TargetMachineCallable::Boundary(callee),
+        ) => module
             .boundary_machine(callee)
             .and_then(|declaration| module.identities.text(declaration.identity))
-            .unwrap_or("a boundary requirement"),
+            .unwrap_or("a boundary requirement")
+            .to_owned(),
+        terminal_check_tables::edges::Callee::Selected { callable } => {
+            format!("evaluated callable value {}", callable.get())
+        }
     };
-    let ceiling = module
-        .machine(excess.machine)
-        .map(|machine| match excess.axis {
-            crate::ceilings::Axis::Reach => machine.published_service_ceiling.as_slice(),
-            crate::ceilings::Axis::Entries => machine.published_synchronous_entries.as_slice(),
-        })
-        .unwrap_or_default();
-    let verb = match excess.axis {
-        crate::ceilings::Axis::Reach => "reaches",
-        crate::ceilings::Axis::Entries => "invokes",
+    let ceiling_description = match excess.axis {
+        crate::ceilings::Axis::Reach => format!("reaches `{}`", permissions(&excess.ceiling)),
+        crate::ceilings::Axis::Entries => format!("invokes `{}`", permissions(&excess.ceiling)),
+        crate::ceilings::Axis::Suspension => "permits no suspension".to_owned(),
+        crate::ceilings::Axis::Blocking => "permits no blocking".to_owned(),
+        crate::ceilings::Axis::Termination => "guarantees termination".to_owned(),
     };
     let site = match elaboration.sources.get(excess.machine) {
         Some(sources) => Some(source_of(sources, excess.machine, excess.at)?),
@@ -704,11 +726,10 @@ fn exceeded_reach(
         at: excess.at,
         site,
         statement: format!(
-            "machine `{}` {verb} `{}` but its call of `{callee}` contributes `{}`, which adds `{}`",
+            "machine `{}` {ceiling_description} but its call of `{callee}` contributes `{}`, which adds `{}`",
             machine_name(excess.machine),
-            services(ceiling),
-            services(&excess.contributes),
-            services(&excess.outside),
+            permissions(&excess.contributes),
+            permissions(&excess.outside),
         ),
     })
 }
@@ -739,9 +760,9 @@ impl ConflictingUse {
     /// The `Reject` diagnostic.
     pub fn reject_diagnostic(&self) -> Diagnostic {
         let diagnostic = Diagnostic::error(self.message());
-        match self.site {
-            SourceOrigin::Authored(span) => diagnostic.with_source_span(span),
-            SourceOrigin::Unpositioned(_) => diagnostic,
+        match self.site.span() {
+            Some(span) => diagnostic.with_source_span(span),
+            None => diagnostic,
         }
     }
 }
@@ -772,14 +793,13 @@ fn conflict_statement(
         .and_then(|callee| elaboration.names.get(callee))
         .map(|names| names.machine.clone())
         .filter(|state| !state.is_empty());
-    let lender = match site {
-        SourceOrigin::Authored(span) => elaboration
+    let lender = site.span().and_then(|span| {
+        elaboration
             .names
             .get(machine)
             .and_then(|names| names.lender(span, conflict.position))
-            .map(str::to_owned),
-        SourceOrigin::Unpositioned(_) => None,
-    };
+            .map(str::to_owned)
+    });
     let how = match conflict.conflict {
         crate::LoanConflict::TwiceExclusive => "as mutable more than once",
         crate::LoanConflict::ExclusiveAndShared => "as both mutable and read-only",
@@ -879,10 +899,20 @@ pub(crate) fn judge_owing(
     elaborated: Checked<Elaboration>,
     applied: AppliedContracts,
 ) -> Checked<RouteVerdict> {
-    // One verdict for one closure: the machines refused after the first
-    // are reported only by a whole compilation (`judge_compilation`).
+    judge_owing_with_activity(
+        elaborated,
+        applied,
+        &mut crate::ProofSearchActivity::default(),
+    )
+}
+
+fn judge_owing_with_activity(
+    elaborated: Checked<Elaboration>,
+    applied: AppliedContracts,
+    activity: &mut crate::ProofSearchActivity,
+) -> Checked<RouteVerdict> {
     let mut further = Vec::new();
-    match examine(elaborated, &[], &mut further) {
+    match examine(elaborated, &[], activity, &mut further) {
         Ok(examined) => conclude(examined, applied, &mut further),
         Err(decided) => decided,
     }
@@ -909,6 +939,7 @@ struct Examined {
 fn examine(
     elaborated: Checked<Elaboration>,
     carried: &[crate::Carried<'_>],
+    activity: &mut crate::ProofSearchActivity,
     further: &mut Vec<Refusal>,
 ) -> Result<Examined, Checked<RouteVerdict>> {
     let mut elaboration = match elaborated {
@@ -1072,7 +1103,7 @@ fn examine(
     if let Some(first) = unsupported.verdict(Roster::of(&elaboration), further) {
         return Err(Ok(RouteVerdict::FallBack(first)));
     }
-    match crate::discharge_carrying(&mut elaboration, carried) {
+    match crate::discharge_carrying(&mut elaboration, carried, activity) {
         Ok(discharged) => Ok(Examined {
             elaboration,
             discharged,
@@ -1291,11 +1322,7 @@ fn conclude(
     if let Some(first) = unsupported.verdict(Roster::of(&elaboration), further) {
         return Ok(RouteVerdict::FallBack(first));
     }
-    let exceeded = match crate::ceilings::judge(
-        &elaboration.module,
-        &elaboration.tables,
-        elaboration.installation_bound_refinement,
-    ) {
+    let exceeded = match crate::ceilings::judge(&elaboration) {
         Ok(found) => found
             .into_iter()
             .map(|excess| exceeded_reach(&elaboration, excess))
@@ -1331,6 +1358,12 @@ fn conclude(
                 }
             },
         );
+    }
+    if let Err(refused) = crate::external_providers::publish(&mut elaboration) {
+        return fall_back_or_defect(refused);
+    }
+    if let Err(refused) = crate::static_contracts::publish(&mut elaboration) {
+        return fall_back_or_defect(refused);
     }
     let applications = &mut elaboration.module.scalar_applications;
     let mut pending = Vec::new();
@@ -1410,6 +1443,13 @@ pub enum CompilationRefusal {
 pub fn judge_compilation(
     input: terminal_check_tables::compilation::TerminalCompilation,
 ) -> Vec<Result<RouteVerdict, CompilationRefusal>> {
+    judge_compilation_with_activity(input, &mut crate::ProofSearchActivity::default())
+}
+
+pub(crate) fn judge_compilation_with_activity(
+    input: terminal_check_tables::compilation::TerminalCompilation,
+    activity: &mut crate::ProofSearchActivity,
+) -> Vec<Result<RouteVerdict, CompilationRefusal>> {
     use terminal_check_tables::compilation::TerminalCompilation;
     let prepared = match input {
         TerminalCompilation::FormationFailures(formations) => {
@@ -1427,7 +1467,7 @@ pub fn judge_compilation(
         }
         TerminalCompilation::Prepared(prepared) => prepared,
     };
-    match crate::callable_arrivals::check(prepared.arrivals) {
+    match crate::callable_arrivals::check(prepared.arrivals, activity) {
         Ok(unproved) if unproved.is_empty() => {}
         Ok(unproved) => {
             let verdict = if unproved
@@ -1447,17 +1487,22 @@ pub fn judge_compilation(
             };
             return vec![Ok(verdict)];
         }
-        Err(refused) => return vec![judge(Err(refused)).map_err(CompilationRefusal::Elaboration)],
+        Err(refused) => {
+            return vec![
+                judge_owing_with_activity(Err(refused), AppliedContracts::Undecided, activity)
+                    .map_err(CompilationRefusal::Elaboration),
+            ];
+        }
     }
     let mut further = Vec::new();
-    let forms = examine_generic_forms(prepared.forms, &mut further);
+    let forms = examine_generic_forms(prepared.forms, activity, &mut further);
     // A selection borrows the same discharge that later decides its witness's
     // verdict. Several selections may name one witness; none owns a second
     // copy to prove independently.
     let examined_witnesses: Vec<_> = prepared
         .witnesses
         .into_iter()
-        .map(|witness| examine(witness, &[], &mut further))
+        .map(|witness| examine(witness, &[], activity, &mut further))
         .collect();
     let closure_verdict = match prepared.closure {
         Ok(closure) => {
@@ -1469,12 +1514,14 @@ pub fn judge_compilation(
                 &examined_witnesses,
             );
             let carried = carried(&closure, &forms, &witnesses, &prepared.specializations);
-            match examine(Ok(closure), &carried, &mut further) {
+            match examine(Ok(closure), &carried, activity, &mut further) {
                 Ok(examined) => conclude(examined, AppliedContracts::Undecided, &mut further),
                 Err(decided) => decided,
             }
         }
-        Err(refused) => judge(Err(refused)),
+        Err(refused) => {
+            judge_owing_with_activity(Err(refused), AppliedContracts::Undecided, activity)
+        }
     };
     let mut verdicts = vec![closure_verdict.map_err(CompilationRefusal::Elaboration)];
     verdicts.extend(forms.into_iter().map(|form| {
@@ -1693,6 +1740,7 @@ fn carried<'a>(
 /// left undecided, and would otherwise be accepted unjudged.
 fn examine_generic_forms(
     forms: Vec<terminal_check_tables::compilation::GenericForms>,
+    activity: &mut crate::ProofSearchActivity,
     further: &mut Vec<Refusal>,
 ) -> Vec<GenericForm> {
     let cyclic: Vec<_> = (0..forms.len())
@@ -1713,12 +1761,16 @@ fn examine_generic_forms(
         }
         match form.forms {
             Ok(forms) => examined.extend(forms.into_iter().map(|form| {
-                match examine(Ok(form), &[], further) {
+                match examine(Ok(form), &[], activity, further) {
                     Ok(examined) => GenericForm::Examined { template, examined },
                     Err(decided) => GenericForm::Decided(decided),
                 }
             })),
-            Err(refused) => examined.push(GenericForm::Decided(judge(Err(refused)))),
+            Err(refused) => examined.push(GenericForm::Decided(judge_owing_with_activity(
+                Err(refused),
+                AppliedContracts::Undecided,
+                activity,
+            ))),
         }
     }
     examined

@@ -172,7 +172,7 @@ fn calls_with(argument: u128) -> (typed_trees_to_terminal_psi::Elaboration, Disc
     let mut elaboration =
         typed_trees_to_terminal_psi::lower_bodies(id(1), &bodies, &signatures, &IdTable::default())
             .unwrap();
-    let result = discharge(&mut elaboration).unwrap();
+    let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
     (elaboration, result)
 }
 
@@ -221,12 +221,14 @@ fn a_closed_arithmetic_disequality_has_a_kernel_checked_contradiction() {
     let context = PropositionContext::from_value_types(std::iter::empty()).unwrap();
     let values = IdTable::default();
     for endpoint in [15, 16] {
+        let mut activity = crate::ProofSearchActivity::default();
         let assumptions = [Proposition::Disjunction(vec![
             Proposition::LessThan(sum.clone(), literal(endpoint)),
             Proposition::LessThan(literal(endpoint), sum.clone()),
         ])];
         let goal = Proposition::Falsehood;
-        let proof = crate::prove::Prover::new(&context, &assumptions, &[], &values).prove(&goal);
+        let proof = crate::prove::Prover::new(&context, &assumptions, &[], &values, &mut activity)
+            .prove(&goal);
         if endpoint == 15 {
             proof_admission::check_certificate(&context, &goal, &assumptions, &[], &proof.unwrap())
                 .unwrap();

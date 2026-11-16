@@ -6,6 +6,8 @@
 //! settled supply on into the selected execution a product reads and check
 //! the produced program's target-local conditions against it.
 
+#[path = "support/fixture_package_inputs.rs"]
+mod fixture_package_inputs;
 #[path = "support/unbuilt_frontier.rs"]
 mod unbuilt_frontier;
 
@@ -37,18 +39,38 @@ fn package() -> semantic_vocabulary::PackageKeyIdentity {
     semantic_vocabulary::PackageKeyIdentity::from_digest([1; 32]).unwrap()
 }
 
+/// An accepted fixture keeps the same publication used by provider execution.
+struct AcceptedFixture {
+    publication: Arc<products::ProductTerminalPublication>,
+}
+
+impl std::ops::Deref for AcceptedFixture {
+    type Target = AcceptedTerminalSource;
+
+    fn deref(&self) -> &Self::Target {
+        self.publication
+            .accepted()
+            .expect("the fixture publication accepted")
+    }
+}
+
 /// The accepted module of `program`'s `main` and the defaults `supplied`
 /// declares. `supplied` stands for the target package: it is a toolchain
 /// source of the same compilation, so the checker judges the program's own
 /// declarations and reads the boundary trait only where the program calls
 /// it.
-fn accepted(
-    supplied: &str,
-    program: &str,
-) -> (Arc<AcceptedTerminalSource>, Vec<TargetProviderDefaults>) {
+fn accepted(supplied: &str, program: &str) -> (AcceptedFixture, Vec<TargetProviderDefaults>) {
     let (source, defaults, roster) = judged(supplied, program);
+    let publication = products::ProductTerminalPublication::judge(
+        source,
+        roster,
+        optimization_core::OptimizationSelections::default(),
+    )
+    .expect("the exact roster accepts");
     (
-        roster.judge(source).expect("the exact roster accepts"),
+        AcceptedFixture {
+            publication: Arc::new(publication),
+        },
         defaults,
     )
 }
@@ -130,19 +152,6 @@ fn judged(
     (Arc::new(frozen), defaults, roster)
 }
 
-/// The supplied publication. These sources defer no default's layout, so the
-/// judgment never asks for another preparation.
-fn supplied_product(
-    source: compiler::ProductSupplySource<'_>,
-) -> Result<compiler::SuppliedProduct, Vec<diagnostics::Diagnostic>> {
-    match compiler::judge_supplied_product(source)? {
-        compiler::SupplyJudgment::Supplied(product) => Ok(product),
-        compiler::SupplyJudgment::PrepareLayouts(layouts) => {
-            panic!("no default's layout was deferred: {layouts:?}")
-        }
-    }
-}
-
 /// What a product of one target reads after its source is checked.
 #[derive(Debug)]
 struct Supplied {
@@ -179,27 +188,91 @@ fn supplied_on(
 ) -> Result<Supplied, String> {
     let (source, mut defaults, roster) = judged(supplied, program);
     key(&mut defaults);
+    supplied_product(source, defaults, roster, target, &[])
+}
+
+/// Judge the actual source supply, bind its chosen target's normalization to
+/// that same frozen owner, and rejudge the same roster before execution uses it.
+/// Refused provider bodies remain the supply judgment's original diagnostic.
+fn supplied_product(
+    source: Arc<typed_trees::FrozenTypedTrees>,
+    defaults: Vec<TargetProviderDefaults>,
+    roster: products::ProductRoster,
+    target: &str,
+    native_bindings: &[provider_planning::native_bindings::NativeBuildSupply],
+) -> Result<Supplied, String> {
     let original = Arc::new(
         products::ProductTerminalPublication::judge(
-            source,
+            Arc::clone(&source),
             roster,
             optimization_core::OptimizationSelections::default(),
         )
         .map_err(first)?,
     );
-    let product = supplied_product(compiler::ProductSupplySource {
+    let mut product = match compiler::judge_supplied_product(compiler::ProductSupplySource {
         publication: Arc::clone(&original),
         build: &[],
-        native_bindings: &[],
+        native_bindings,
         defaults: &defaults,
         layout_deferred: &[],
         layout_prepared: &[],
     })
+    .map_err(first)?
+    {
+        compiler::SupplyJudgment::Supplied(product) => product,
+        compiler::SupplyJudgment::PrepareLayouts(layouts) => {
+            panic!("no fixture layout was deferred: {layouts:?}")
+        }
+    };
+    let mut roster = product.roster().map_err(first)?.clone();
+    let prepared = compiler::prepare_supplied_target(compiler::TargetSupplySource {
+        publication: &product,
+        build: &[],
+        native_bindings,
+        defaults: &defaults,
+        target: Some(target),
+    })
     .map_err(first)?;
+    let mut chosen = Vec::new();
+    for requirement in prepared.requirements() {
+        if let Some(selection) = requirement.chosen().and_then(|supply| supply.checked())
+            && !chosen.contains(selection)
+        {
+            chosen.push(selection.clone());
+        }
+    }
+    if !chosen.is_empty()
+        && !roster
+            .normalization
+            .providers
+            .iter()
+            .any(|row| row.target == target)
+    {
+        let profile = target::TargetProfile::from_canonical_target_name(target)
+            .map_err(|diagnostic| diagnostic.message)?;
+        let choices = compiler::prepare_provider_choices(&source, &[profile], &chosen, &[], &[])
+            .map_err(first)?;
+        roster.selected.extend(choices.declaration_roots);
+        let normalization = Arc::make_mut(&mut roster.normalization);
+        normalization.providers.extend(choices.selections);
+        for application in choices.calling_applications {
+            if !normalization.calling.applications.contains(&application) {
+                normalization.calling.applications.push(application);
+            }
+        }
+        product = Arc::new(
+            products::ProductTerminalPublication::judge(
+                Arc::clone(&source),
+                roster,
+                optimization_core::OptimizationSelections::default(),
+            )
+            .map_err(first)?,
+        );
+    }
     let supply = compiler::prepare_supplied_target(compiler::TargetSupplySource {
         publication: &product,
         build: &[],
-        native_bindings: &[],
+        native_bindings,
         defaults: &defaults,
         target: Some(target),
     })
@@ -258,7 +331,7 @@ fn a_publication_judges_its_exact_roster_including_predeclared_supplies() {
     assert!(message.contains("crash"), "{message}");
     // The global queue must mint B's own publication too: A cannot stand in
     // for the newly chosen provider's body and refinement obligations.
-    let error = supplied_product(compiler::ProductSupplySource {
+    let error = compiler::judge_supplied_product(compiler::ProductSupplySource {
         publication: Arc::new(original),
         build: &[],
         native_bindings: &[],
@@ -673,15 +746,15 @@ fn a_native_binding_supplies_only_its_reached_requirement() {
         ProductTarget::LinuxX86_64,
         package(),
     );
-    let publication = supplied_product(compiler::ProductSupplySource {
-        publication: original,
-        build: &[],
-        native_bindings: std::slice::from_ref(&native),
-        defaults: &defaults,
-        layout_deferred: &[],
-        layout_prepared: &[],
-    })
-    .unwrap();
+    let publication = supplied_product(
+        Arc::clone(original.accepted().unwrap().source()),
+        defaults.clone(),
+        original.roster().unwrap().clone(),
+        "windows_x86_64",
+        std::slice::from_ref(&native),
+    )
+    .expect("the actual checked neighbor and native supply share one judged source")
+    .publication;
     assert!(
         publication
             .roster()
@@ -744,7 +817,7 @@ fn a_native_binding_supplies_only_its_reached_requirement() {
             .rows
             .is_empty()
     );
-    let other_plans = plans(accepted, &other).unwrap();
+    let other_plans = plans(&publication, &other).unwrap();
     let [other_plan] = other_plans.as_slice() else {
         panic!("the other target retains its exact checked default plan")
     };
@@ -770,20 +843,10 @@ fn a_native_binding_supplies_only_its_reached_requirement() {
         SupplyAuthority::NativeBinding
     );
     assert!(
-        plans(accepted, &settled).unwrap().is_empty(),
+        plans(&publication, &settled).unwrap().is_empty(),
         "a native leaf has no checked-provider plan"
     );
-    let execution = selected_dispatch::SelectedExecution::settle(
-        Some(target::TargetProfile::LinuxX64),
-        &settled,
-        SupplyPlanning {
-            module: accepted.module(),
-            schemas: &[],
-            installation_requirements: &[],
-        },
-    )
-    .unwrap();
-    let normalized = execution.native_bindings();
+    let normalized = settled.native_bindings(accepted.module()).unwrap();
     let [row] = normalized.rows.as_slice() else {
         panic!("the chosen leaf retains one receipt")
     };
@@ -887,15 +950,23 @@ fn profile() -> target::TargetProfile {
 /// The provider plans of `settled`, formed over the module and slot schemas
 /// of `accepted` as a product of the target forms them.
 fn plans(
-    accepted: &AcceptedTerminalSource,
+    publication: &products::ProductTerminalPublication,
     settled: &SettledTargetSupply,
 ) -> Result<Vec<effects::provider_plan::ProviderPlan>, String> {
+    if settled.requirements().is_empty() {
+        return settled
+            .realize_no_demand()
+            .map(|realized| realized.provider_declarations().to_vec())
+            .map_err(first);
+    }
+    let accepted = publication.accepted().map_err(first)?;
     let schemas = compiler::settled_slot_schemas(accepted, settled);
     settled
         .plans(SupplyPlanning {
             module: accepted.module(),
             schemas: &schemas,
-            installation_requirements: &[],
+            execution: execution_inputs(publication, settled)?,
+            installation_requirements: &accepted.installation_reach_requirements(),
         })
         .map_err(first)
 }
@@ -903,9 +974,17 @@ fn plans(
 /// The selected execution a product of `profile` forms from `settled`.
 fn execution(
     profile: Option<target::TargetProfile>,
-    accepted: &AcceptedTerminalSource,
+    publication: &products::ProductTerminalPublication,
     settled: &SettledTargetSupply,
 ) -> Result<selected_dispatch::SelectedExecution, String> {
+    if settled.requirements().is_empty() {
+        return selected_dispatch::SelectedExecution::from_realization(
+            profile,
+            settled.realize_no_demand().map_err(first)?,
+        )
+        .map_err(first);
+    }
+    let accepted = publication.accepted().map_err(first)?;
     let schemas = compiler::settled_slot_schemas(accepted, settled);
     selected_dispatch::SelectedExecution::settle(
         profile,
@@ -913,8 +992,49 @@ fn execution(
         SupplyPlanning {
             module: accepted.module(),
             schemas: &schemas,
-            installation_requirements: &[],
+            execution: execution_inputs(publication, settled)?,
+            installation_requirements: &accepted.installation_reach_requirements(),
         },
+    )
+    .map_err(first)
+}
+
+/// Seal the fixture's actual source consumption, then use the product's one
+/// publication/calling/native/permission producer. No Build or imported package
+/// was executed by this fixture, so source sealing records that exact absence.
+fn execution_inputs(
+    publication: &products::ProductTerminalPublication,
+    settled: &SettledTargetSupply,
+) -> Result<provider_planning::target_supply::TargetSupplyExecutionInputs, String> {
+    let accepted = publication.accepted().map_err(first)?;
+    let source = accepted.source();
+    let sources = package_compilation::BuildSourceCustody {
+        source_file_count: source.symbols.source_files().count(),
+        build_execution_profile: None,
+        generated_source_custody: Vec::new(),
+        base_source_consumption_commitment: None,
+    }
+    .seal(source, None)
+    .map_err(first)?;
+    let target = settled
+        .target()
+        .ok_or_else(|| "nonempty provider supply lost its deployment target".to_owned())?;
+    let profile =
+        target::TargetProfile::from_canonical_target_name(target).map_err(|error| error.message)?;
+    let mut reached = settled
+        .requirements()
+        .iter()
+        .map(|requirement| requirement.reached.boundary)
+        .collect::<Vec<_>>();
+    reached.sort_unstable();
+    reached.dedup();
+    compiler::prepare_provider_execution_inputs(
+        publication,
+        &sources,
+        &[], // This fixture executes no Build or dependency-native supplies.
+        profile,
+        &reached,
+        &mut source_compiler::UnmeasuredProduction,
     )
     .map_err(first)
 }
@@ -961,7 +1081,7 @@ fn a_module_that_reaches_nothing_checks_against_its_settled_execution() {
         .unwrap()
         .settle()
         .unwrap();
-    let execution = execution(Some(profile()), &accepted, &settled)
+    let execution = execution(Some(profile()), &accepted.publication, &settled)
         .expect("a supply that demands nothing settles");
     assert_eq!(execution.target_profile(), Some(profile()));
     assert!(execution.plans().plans().is_empty());
@@ -992,7 +1112,7 @@ fn a_module_that_reaches_nothing_checks_against_its_settled_execution() {
 }
 
 /// A second program with a different accepted module.
-fn accepted_other() -> (Arc<AcceptedTerminalSource>, Vec<TargetProviderDefaults>) {
+fn accepted_other() -> (AcceptedFixture, Vec<TargetProviderDefaults>) {
     accepted(
         &format!("{SLOT}{PROVIDERS}{NATIVE_DEFAULT}"),
         "machine helper() {\n}\nmachine main() {\n    helper();\n}\n",
@@ -1012,7 +1132,7 @@ fn a_reached_requirement_forms_no_selected_execution_without_its_judged_provider
         .settle()
         .unwrap();
     assert_eq!(
-        execution(Some(profile()), &accepted, &settled)
+        execution(Some(profile()), &accepted.publication, &settled)
             .map(|execution| execution.plans().plans().len()),
         Err(
             "provider settlement for `linux_x86_64`: `Service::go` is supplied by `Native`, which the accepted module does not hold as a judged provider"
@@ -1035,7 +1155,7 @@ fn a_module_that_reaches_no_boundary_requirement_has_nothing_to_settle() {
     let prepared = prepare(&accepted, &[], &defaults).unwrap();
     assert!(prepared.demands_nothing());
     let settled = prepared.settle().unwrap();
-    assert_eq!(plans(&accepted, &settled), Ok(Vec::new()));
+    assert_eq!(plans(&accepted.publication, &settled), Ok(Vec::new()));
 }
 
 #[test]
@@ -1047,7 +1167,7 @@ fn unscoped_supply_keeps_pure_programs_targetless_and_refuses_provider_demands()
     let prepared = prepare_for_target(&accepted, &[], &[], &defaults, None).unwrap();
     assert_eq!(prepared.target(), None);
     let settled = prepared.settle().unwrap();
-    let execution = execution(None, &accepted, &settled).unwrap();
+    let execution = execution(None, &accepted.publication, &settled).unwrap();
     assert_eq!(execution.target_profile(), None);
     let artifact = produced(&accepted);
     assert!(
@@ -1058,7 +1178,7 @@ fn unscoped_supply_keeps_pure_programs_targetless_and_refuses_provider_demands()
             )
             .is_none()
     );
-    assert!(self::execution(Some(profile()), &accepted, &settled).is_err());
+    assert!(self::execution(Some(profile()), &accepted.publication, &settled).is_err());
 
     let (reached, defaults) =
         self::accepted(&format!("{SLOT}{PROVIDERS}{NATIVE_DEFAULT}"), REACHES);
@@ -1097,7 +1217,7 @@ fn a_reached_requirement_settles_to_its_one_declared_default() {
         "Native"
     );
     assert_eq!(
-        plans(&accepted, &settled),
+        plans(&accepted.publication, &settled),
         Err(
             "provider settlement for `linux_x86_64`: `Service::go` is supplied by `Native`, which the accepted module does not hold as a judged provider"
                 .to_owned()
@@ -1115,7 +1235,8 @@ fn whole_slot() -> (
     Arc<products::ProductTerminalPublication>,
     SettledTargetSupply,
 ) {
-    let target = supplied_target(&format!("{WHOLE_SLOT}{NATIVE_DEFAULT}"), REACHES)
+    let (source, defaults, roster) = judged(&format!("{WHOLE_SLOT}{NATIVE_DEFAULT}"), REACHES);
+    let target = supplied_product(source, defaults, roster, TARGET, &[])
         .expect("the provider refines both requirements");
     assert!(target.rejudged, "the chosen provider was judged");
     let settled = target.supply.settle().expect("one default is chosen");
@@ -1140,12 +1261,43 @@ fn a_chosen_provider_forms_one_plan_for_its_whole_slot() {
     assert_eq!(module.boundary_machines.len(), 2);
     assert_eq!(module.provider_candidates.len(), 2);
 
-    let execution = execution(Some(profile()), accepted, &settled)
+    let execution = execution(Some(profile()), &publication, &settled)
         .expect("the chosen provider's plan covers its slot");
     let [plan] = execution.plans().plans() else {
         panic!("one provider is chosen: {:?}", execution.plans().plans());
     };
-    assert_eq!(plan.provider_type, "Native");
+    let [choice] = module.provider_selections.as_slice() else {
+        panic!("the accepted source selected exactly one whole-slot provider");
+    };
+    assert_eq!(choice.target, TARGET);
+    let provider_identity = module
+        .identities
+        .text(choice.provider_identity)
+        .expect("the accepted choice retains its canonical provider identity");
+    assert_eq!(plan.provider_type, provider_identity);
+    assert_eq!(
+        plan.application_identity(),
+        choice.provider_application.map(|application| {
+            module
+                .identities
+                .text(application)
+                .expect("the accepted choice retains its exact provider application")
+        })
+    );
+    assert_eq!(plan.provider_type_package_identity, choice.provider_package);
+    assert!(module.provider_candidates.iter().all(|candidate| {
+        candidate.provider_identity == choice.provider_identity
+            && candidate.provider_declaration.identity() == choice.provider_declaration
+    }));
+    assert_eq!(
+        settled.requirements()[0]
+            .supply
+            .checked()
+            .expect("the chosen whole-slot supply is checked")
+            .provider_type
+            .authored_path,
+        "Native"
+    );
     assert_eq!(plan.target, TARGET);
     for candidate in &module.provider_candidates {
         assert_eq!(
@@ -1223,7 +1375,7 @@ fn a_whole_slot_keeps_each_members_exact_calling_declaration() {
         );
     }
     let settled = target.supply.settle().unwrap();
-    let execution = execution(Some(profile()), accepted, &settled).unwrap();
+    let execution = execution(Some(profile()), &target.publication, &settled).unwrap();
     let plan = &execution.plans().plans()[0];
     let program = provider_planning::calling_policy_plans::CallingProgram {
         artifact: produced(accepted),
@@ -1296,7 +1448,7 @@ data NativeDefaults {{}}
     assert_eq!(target.supply.requirements().len(), 1);
     let accepted = target.publication.accepted().unwrap();
     let settled = target.supply.settle().unwrap();
-    let execution = execution(Some(profile()), accepted, &settled).unwrap();
+    let execution = execution(Some(profile()), &target.publication, &settled).unwrap();
     let artifact = produced(accepted);
     let proposal = execution
         .provider_proposal(
@@ -1380,7 +1532,9 @@ fn a_plan_is_refused_by_the_requirement_it_does_not_bind() {
         .plans(SupplyPlanning {
             module: &missing,
             schemas: &schemas,
-            installation_requirements: &[],
+            execution: execution_inputs(&publication, &settled)
+                .expect("retain execution inputs from the actual accepted publication"),
+            installation_requirements: &accepted.installation_reach_requirements(),
         })
         .map_err(first)
         .unwrap_err();
@@ -1389,7 +1543,7 @@ fn a_plan_is_refused_by_the_requirement_it_does_not_bind() {
         "{refused}"
     );
 
-    let mut crossed = plans(accepted, &settled).expect("the plan covers its slot");
+    let mut crossed = plans(&publication, &settled).expect("the plan covers its slot");
     let rows = &mut crossed[0].rows;
     let machines = rows
         .iter()
@@ -1482,4 +1636,125 @@ fn supply_is_ranked_by_authority_and_keyed_by_target() {
             .unwrap_err(),
         "boundary requirement `Service::go` has no provider on target `linux_x86_64`: the Build selects none and the target package declares no default"
     );
+}
+
+/// Real dependency Build execution supplies the raw Console write binding.
+/// The receiver must keep its complete checked method and reject a locator
+/// receipt or Calling identity associated with any other requirement.
+#[test]
+fn a_completed_plain_binding_keeps_its_receipt_and_calling_identity() {
+    let workspace = fixture_package_inputs::repo_root()
+        .join("build")
+        .join(format!(
+            "omega-plain-boundary-native-receipts-{}",
+            std::process::id()
+        ));
+    let _ = std::fs::remove_dir_all(&workspace);
+    std::fs::create_dir_all(&workspace).unwrap();
+    let main = workspace.join("main.omg");
+    std::fs::write(
+        &main,
+        r#"
+use omega_language_std::Console;
+machine main() reaches Console crashes none { Console::write_byte(65); }
+"#,
+    )
+    .unwrap();
+    let standard = fixture_package_inputs::bundled_standard_library_root();
+    let standard = standard
+        .to_string_lossy()
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"");
+    std::fs::write(
+        workspace.join("build.omg"),
+        format!(
+            r#"
+machine build(builder: &mut Build) {{
+    Build::application(builder, "plain_boundary_native_receipts");
+    let standard: DependencyRegistration = Build::dependency(builder,
+        dependency::from_source(Source::Path {{ location: "{standard}" }}));
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+}}
+"#
+        ),
+    )
+    .unwrap();
+    let profile = target::TargetProfile::host_if_supported().expect("hosted owner control");
+    std::thread::scope(|scope| {
+        compiler::checked::spawn_compile_worker(scope, || {
+            let mut prepared = fixture_package_inputs::reviewed_repository_fixture_package_inputs(
+                &main, Some(profile.target_name()),
+            )?;
+            let checked = fixture_package_inputs::check_fixture(
+                &mut prepared, profile.target_name(), Default::default(),
+            )?;
+            let accepted = checked.terminal_publication().accepted()?;
+            let module = accepted.module();
+            let realization = checked.execution().realization();
+            let mut leaves = realization.direct_boundary_leaves().iter().filter(|leaf|
+                matches!(&leaf.execution, backend_plan::DirectBoundaryExecution::Foreign(Ok(binding))
+                    if binding.method == "write"));
+            let leaf = leaves.next().expect("the actual Console wrapper reaches its raw write");
+            assert!(leaves.next().is_none(), "one target has one exact raw write");
+            let mut boundaries = module.boundary_machines.iter().filter(|boundary|
+                module.identities.text(boundary.identity)
+                    == Some(leaf.satisfied_requirement_identity.as_str()));
+            let boundary = boundaries.next().expect("the original raw requirement is retained");
+            assert!(boundaries.next().is_none());
+            let schema = backend_plan::DirectBoundaryLeaf::declared_schema(module, boundary.id)
+                .expect("the raw requirement retains its complete public schema");
+            assert_eq!(leaf.satisfied_schema.declaration.as_ref(), schema.surface.as_ref());
+            let formals = boundary.scalar_contract_parameters().unwrap();
+            let count = formals.last().expect("the raw count is the last scalar formal");
+            let count = semantic_vocabulary::ScalarTerm::value(count.id, count.scalar_type);
+            fn bounds_count_at_four(
+                clause: &semantic_vocabulary::Proposition,
+                count: &semantic_vocabulary::ScalarTerm,
+            ) -> bool {
+                match clause {
+                    semantic_vocabulary::Proposition::LessOrEqual(left, right) =>
+                        left == count && right.integer_value().is_some_and(|(_, value)| matches!(value,
+                            semantic_vocabulary::IntegerValue::Unsigned(4)
+                                | semantic_vocabulary::IntegerValue::Signed(4))),
+                    semantic_vocabulary::Proposition::Conjunction(clauses) =>
+                        clauses.iter().any(|clause| bounds_count_at_four(clause, count)),
+                    _ => false,
+                }
+            }
+            assert!(boundary.scalar_requires.iter().any(|clause| bounds_count_at_four(clause, &count)),
+                "the actual count <= 4 requirement must remain on the checked boundary");
+            leaf.validate_plain_execution(module, realization.evaluated_native_bindings(),
+                realization.evaluated_binding_identities()).unwrap();
+
+            let source = accepted.closure().elaboration.boundaries.get(boundary.id)
+                .expect("the binding has its exact source correspondence");
+            let supply = checked.build().config.native_bindings.iter().find(|supply|
+                supply.selection.requirement == *source
+                    && supply.selection.target.canonical_name() == profile.target_name())
+                .expect("the dependency Build produced the actual selected locator");
+            let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
+            let wrong = provider_planning::native_bindings::normalize_native_binding(
+                supply, "wrong-requirement-for-the-same-completed-locator", &mut identities,
+            ).unwrap();
+            let refusal = leaf.validate_plain_execution(module, &[wrong], &identities.build())
+                .expect_err("a completed locator for another requirement is not this supply");
+            assert!(refusal.contains("unique completed Build locator receipt"), "{refusal}");
+
+            let mut wrong = leaf.clone();
+            let backend_plan::DirectBoundaryExecution::Foreign(Ok(binding)) = &mut wrong.execution else {
+                panic!("the selected plain leaf is foreign")
+            };
+            binding.calling_applications.first_mut().expect("actual Calling result")
+                .abi.requirement_identity.push_str("::wrong");
+            let refusal = wrong.validate_plain_execution(module,
+                realization.evaluated_native_bindings(), realization.evaluated_binding_identities())
+                .expect_err("an unrelated Calling ABI cannot execute this requirement");
+            assert!(refusal.contains("public declaration ABI"), "{refusal}");
+            Ok::<(), Vec<diagnostics::Diagnostic>>(())
+        }).unwrap().join().unwrap()
+    }).unwrap_or_else(|refused| panic!("completed plain binding: {refused:?}"));
+    std::fs::remove_dir_all(workspace).unwrap();
 }

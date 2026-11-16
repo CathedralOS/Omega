@@ -70,6 +70,8 @@ fn run(text: &str) -> Result<terminal_interpreter::TerminalExecutionStatus, Stri
             selected: &[],
             bindings: &[],
             supplies: &[],
+            calling: None,
+            providers: None,
         },
         terminal_codec::TerminalPublication::Invocation,
     );

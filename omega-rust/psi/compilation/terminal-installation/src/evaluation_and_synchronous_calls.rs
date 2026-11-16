@@ -4,6 +4,7 @@ call-graph closure (`synchronous_calls`).
 */
 
 pub(crate) mod compiler_evaluation {
+    use crate::declaration_selection::require_declaration_selection as require_selection;
     use semantic_vocabulary::compiler_evaluation::{
         CompilerEvaluationDeclaration, CompilerEvaluationEffects, DeclarationCustody,
         DeclarationSelectionAuthority, require_compiler_evaluation_floor,
@@ -1530,35 +1531,6 @@ pub(crate) mod compiler_evaluation {
         require_selection(requester.0, owner.0, authority)
     }
 
-    fn require_selection(
-        requester: DeclarationCustody,
-        owner: DeclarationCustody,
-        authority: Option<&dyn DeclarationSelectionAuthority>,
-    ) -> Result<(), String> {
-        let Some(request) =
-            semantic_vocabulary::compiler_evaluation::declaration_authority_request(
-                requester, owner,
-            )
-            .map_err(str::to_owned)?
-        else {
-            return Ok(());
-        };
-        if request.requester == request.owner
-            || authority.is_some_and(|authority| {
-                authority.allows_declaration_selection(request.requester, request.owner)
-            })
-        {
-            return Ok(());
-        }
-        let authority = authority
-            .ok_or("build-time invocation has no direct dependency selection authority")?;
-        Err(format!(
-            "build-time invocation selects package {} from package {} without direct dependency authority",
-            authority.package_label(request.owner),
-            authority.package_label(request.requester),
-        ))
-    }
-
     #[test]
     fn closed_contract_custody_never_substitutes_for_a_package_edge() {
         struct AllowPackages;
@@ -1927,8 +1899,10 @@ pub(crate) mod synchronous_calls {
             installation_requirements: &[BoundaryMachineId],
         ) -> Result<SynchronousCallClosure<'module>, String> {
             let mut pending: Vec<_> = roots.into_iter().collect();
+            let roots = pending.clone();
             let mut machines = Vec::new();
             let mut boundaries = BTreeSet::new();
+            let mut callable_reach = None;
             while let Some(callable) = pending.pop() {
                 if !visited.insert(callable) {
                     continue;
@@ -1963,6 +1937,83 @@ pub(crate) mod synchronous_calls {
                 );
                 for block in &body.blocks {
                     for operation in &block.operations {
+                        if matches!(operation.kind, OperationKind::CallMachine { .. }) {
+                            // Resolve code values from the original entries, so
+                            // a helper's formal keeps its caller's selection.
+                            // Starting each helper as a root would lose it.
+                            if callable_reach.is_none() {
+                                use terminal_semantics::callable_values::{
+                                    CallableBoundaryImplementation, reachable_callable_invocations,
+                                    terminal_callable_values_with_boundary_implementations,
+                                };
+                                let mut implementations = Vec::new();
+                                for boundary in &self.module.boundary_machines {
+                                    if let (Some(machine), _) = self.boundary_call(boundary.id)? {
+                                        implementations.push(CallableBoundaryImplementation {
+                                            boundary: boundary.id,
+                                            machine,
+                                        });
+                                    }
+                                }
+                                let program =
+                                    terminal_callable_values_with_boundary_implementations(
+                                        self.module,
+                                        &implementations,
+                                    )
+                                    .map_err(str::to_owned)?;
+                                let mut entries = Vec::with_capacity(roots.len());
+                                for root in &roots {
+                                    match *root {
+                                        TargetMachineCallable::Machine(machine) => {
+                                            entries.push(machine)
+                                        }
+                                        TargetMachineCallable::Boundary(boundary) => {
+                                            if installation_requirements
+                                                .binary_search(&boundary)
+                                                .is_err()
+                                                && let Some(machine) =
+                                                    self.boundary_callee(boundary)?
+                                            {
+                                                entries.push(machine);
+                                            }
+                                        }
+                                    }
+                                }
+                                callable_reach = Some(
+                                    reachable_callable_invocations(&program, entries)
+                                        .map_err(str::to_owned)?,
+                                );
+                            }
+                            let reached = callable_reach
+                                .as_ref()
+                                .ok_or("synchronous computed call lost its entry flow")?;
+                            let site = semantic_vocabulary::CallableInvocationSite::Invocation(
+                                semantic_vocabulary::InvocationSite::Operation(operation.id),
+                            );
+                            if let Some(invocation) = reached.site(machine, site) {
+                                if let terminal_semantics::callable_values::ReachedCallableTarget::Callable(values) = &invocation.target {
+                                    for ceiling in &values.unresolved_ceilings {
+                                        let contract = self.module.callables.contract(*ceiling)
+                                            .ok_or("synchronous computed call has no exact contract")?;
+                                        if !contract.envelope.invocations.is_empty() {
+                                            return Err("synchronous computed call has unresolved advertised arrivals".into());
+                                        }
+                                    }
+                                }
+                                pending.extend(
+                                    invocation
+                                        .selected_machines
+                                        .iter()
+                                        .copied()
+                                        .map(TargetMachineCallable::Machine),
+                                );
+                            } else if !reached.reached_machines.contains(&machine) {
+                                return Err(
+                                    "synchronous computed call has no exact incoming actual flow"
+                                        .into(),
+                                );
+                            }
+                        }
                         if let OperationKind::CallDynamic {
                             interface,
                             slot,

@@ -6,7 +6,10 @@
 //! call keeps its interface on the jump that reuses its frame. Inferred
 //! contracts are the least fixed point of those same call envelopes.
 
-use semantic_vocabulary::{ContractId, MachineId, TargetMachineCallable};
+use semantic_vocabulary::{
+    CallableContractId, ContractId, InvocationSite, MachineId, TargetMachineCallable,
+};
+use terminal_check_tables::edges::Callee;
 use terminal_check_tables::{Checked, Construct, RefusalReason};
 use terminal_psi::{CallAcknowledgement, CallOrigin, CallSite, TerminalMachine, Terminator};
 
@@ -15,7 +18,8 @@ use crate::{Elaboration, refusal};
 #[derive(Clone, Copy)]
 struct Call {
     site: CallSite,
-    callee: TargetMachineCallable,
+    callee: Callee,
+    contract: Option<CallableContractId>,
     required_contract: Option<ContractId>,
     acknowledgement: CallAcknowledgement,
     tail: bool,
@@ -58,87 +62,60 @@ fn calls(elaboration: &Elaboration, machine: &TerminalMachine) -> Checked<Vec<Ca
             .ok()
             .map(|position| &machine.call_formations[position])
     };
-    let mut blocks: Vec<_> = machine.blocks.iter().collect();
-    blocks.sort_unstable_by_key(|block| block.id);
+    let tables = elaboration
+        .tables
+        .machines
+        .get(machine.id)
+        .ok_or_else(|| malformed("operational caller has no invocation tables"))?;
+    let invocation = |site| -> Checked<_> {
+        let mut rows = tables
+            .invocations
+            .iter()
+            .filter(|(_, row)| row.site == site);
+        let (Some((id, row)), None) = (rows.next(), rows.next()) else {
+            return Err(malformed(
+                "operational call has no unique exact invocation row",
+            ));
+        };
+        crate::call_contracts::invocation(&elaboration.module, machine, tables, id, row)
+    };
+    let tails = crate::call_contracts::TailCallSites::new(machine);
     let mut calls = Vec::new();
     for block in &machine.blocks {
         for operation in &block.operations {
-            if let Some(inputs) = operation.declared_invocation() {
+            let site = InvocationSite::Operation(operation.id);
+            if crate::call_contracts::inputs_at(machine, site)?.is_some() {
+                let actual = invocation(site)?;
                 calls.push(Call {
                     site: CallSite::Operation(operation.id),
-                    callee: inputs.callee,
-                    required_contract: inputs.required_contract,
+                    callee: actual.inputs.callee,
+                    contract: actual.inputs.contract,
+                    required_contract: actual.inputs.required_contract,
                     acknowledgement: CallAcknowledgement::default(),
                     tail: false,
                 });
             }
         }
-        if let Some((_, inputs)) = block.terminator.declared_invocation() {
+        if let Some(site) = crate::call_contracts::terminator_site(&block.terminator) {
+            let actual = invocation(site)?;
             calls.push(Call {
                 site: CallSite::Edge(block.terminator.edge()),
-                callee: inputs.callee,
-                required_contract: inputs.required_contract,
+                callee: actual.inputs.callee,
+                contract: actual.inputs.contract,
+                required_contract: actual.inputs.required_contract,
                 acknowledgement: CallAcknowledgement::default(),
                 tail: false,
             });
-        } else if let Terminator::Jump {
-            edge,
-            target,
-            arguments,
-            structural_arguments,
-            erased_arguments,
-            erased_proof_arguments,
-            ..
-        } = &block.terminator
+        } else if let Terminator::Jump { edge, .. } = &block.terminator
             && let Some(row) = formation(CallSite::Edge(*edge))
             && let Some(callee) = row.tail_callee
         {
-            let callee = elaboration
-                .module
-                .machine(callee)
-                .ok_or_else(|| malformed("tail call names an unavailable machine"))?;
-            let head = blocks
-                .binary_search_by_key(target, |block| block.id)
-                .ok()
-                .map(|position| blocks[position])
-                .ok_or_else(|| malformed("tail call names an unavailable loop head"))?;
-            // Reusing the frame still calls the same interface. Both argument
-            // lanes must match its formals, including access and qualifications;
-            // ordinary arrival and borrow checking judge the actual transfer.
-            if !erased_arguments.is_empty()
-                || !erased_proof_arguments.is_empty()
-                || !callee.erased_scalar_formals.is_empty()
-                || head.parameters.len() != arguments.len()
-                || head.parameters.len() != callee.parameters.len()
-                || head
-                    .parameters
-                    .iter()
-                    .zip(&callee.parameters)
-                    .any(|(actual, formal)| actual.value_type() != formal.value_type())
-                || head.structural_parameters.len() != structural_arguments.len()
-                || head.structural_parameters.len() != callee.structural_parameters.len()
-                || head
-                    .structural_parameters
-                    .iter()
-                    .zip(&callee.structural_parameters)
-                    .any(|(actual, formal)| {
-                        actual.position != formal.position
-                            || actual.structural_type != formal.structural_type
-                            || actual.multiplicity != formal.multiplicity
-                            || actual.access != formal.access
-                            || actual.qualifications != formal.qualifications
-                            || actual.projected_qualifications != formal.projected_qualifications
-                            || actual.additional_input_qualifications
-                                != formal.additional_input_qualifications
-                    })
-            {
-                return Err(malformed(
-                    "tail call's loop head does not carry its callable's formals",
-                ));
-            }
+            let tail =
+                crate::call_contracts::tail_call(&elaboration.module, &tails, callee, *edge)?;
             calls.push(Call {
                 site: row.site,
-                callee: callee.id.into(),
+                callee: Callee::Declared(tail.callee.id.into()),
+                contract: None,
                 required_contract: None,
                 acknowledgement: CallAcknowledgement::default(),
                 tail: true,
@@ -153,7 +130,7 @@ fn calls(elaboration: &Elaboration, machine: &TerminalMachine) -> Checked<Vec<Ca
         let call = &mut calls[position];
         if row
             .tail_callee
-            .is_some_and(|callee| call.callee != callee.into())
+            .is_some_and(|callee| call.callee != Callee::Declared(callee.into()))
             || (row.tail_callee.is_some() && !matches!(row.site, CallSite::Edge(_)))
         {
             return Err(malformed(
@@ -190,10 +167,10 @@ pub(crate) fn judge(elaboration: &Elaboration) -> Checked<()> {
         .map(|(machine, _)| declared(machine).map(|bound| bound.unwrap_or(false)))
         .collect();
     let envelope = |call: &Call, summaries: &[[bool; 2]], caller, site| -> Checked<[bool; 2]> {
-        if let (TargetMachineCallable::Machine(body), Some(required)) =
+        if let (Callee::Declared(TargetMachineCallable::Machine(body)), Some(required)) =
             (call.callee, call.required_contract)
         {
-            let contract = module
+            module
                 .invocation_machine_contract(body, Some(required))
                 .ok_or_else(|| {
                     fault(
@@ -202,22 +179,44 @@ pub(crate) fn judge(elaboration: &Elaboration) -> Checked<()> {
                         "selected call has no matching public operational contract",
                     )
                 })?;
-            return Ok([contract.published_may_suspend, contract.published_may_block]);
+            let envelope = module
+                .callables
+                .declaration_envelope(required)
+                .ok_or_else(|| {
+                    fault(
+                        caller,
+                        site,
+                        "selected public contract has no complete operational envelope",
+                    )
+                })?;
+            return Ok([envelope.suspends, envelope.blocks]);
         }
         match call.callee {
-            TargetMachineCallable::Machine(id) => index(id)
+            Callee::Declared(TargetMachineCallable::Machine(id)) => index(id)
                 .map(|position| summaries[position])
                 .ok_or_else(|| fault(caller, site, "operational callee is unavailable")),
-            TargetMachineCallable::Boundary(id) => module
-                .boundary_machine(id)
-                .and_then(|boundary| boundary.declaration.as_ref())
-                .map(|declaration| {
-                    [
-                        declaration.source.published_may_suspend,
-                        declaration.source.published_may_block,
-                    ]
-                })
-                .ok_or_else(|| fault(caller, site, "boundary has no checked operational contract")),
+            Callee::Declared(TargetMachineCallable::Boundary(id)) => module
+                .callables
+                .boundary_envelope(id)
+                .map(|envelope| [envelope.suspends, envelope.blocks])
+                .ok_or_else(|| {
+                    fault(
+                        caller,
+                        site,
+                        "boundary has no complete operational contract",
+                    )
+                }),
+            Callee::Selected { .. } => call
+                .contract
+                .and_then(|contract| module.callables.contract(contract))
+                .map(|contract| [contract.envelope.suspends, contract.envelope.blocks])
+                .ok_or_else(|| {
+                    fault(
+                        caller,
+                        site,
+                        "selected call has no complete operational contract",
+                    )
+                }),
         }
     };
     loop {

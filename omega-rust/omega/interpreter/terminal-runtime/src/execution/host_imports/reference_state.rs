@@ -11,9 +11,9 @@ use calling_conventions::{BoundaryCallingApplication, CallSignature, ValueShape}
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
 use target_operations::NormalizedForeignCallBinding;
 use terminal_interpreter::{
-    TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalEffectResult,
-    TerminalImportAdapter, TerminalImportSignature, TerminalProgram, TerminalReferencePayload,
-    TerminalReferenceResult, TerminalScalarAggregateValue, TerminalScalarValue,
+    TerminalAggregateValue, TerminalEffect, TerminalEffectHandler, TerminalEffectRejection,
+    TerminalEffectResult, TerminalImportAdapter, TerminalImportSignature, TerminalProgram,
+    TerminalReferencePayload, TerminalReferenceResult, TerminalScalarValue,
 };
 use terminal_psi::{
     BoundaryMachineDeclaration, BoundaryMachineResult, StructuralAccess, StructuralTypeShape,
@@ -217,11 +217,11 @@ fn scalar_state(
 ) -> Result<TerminalReferenceResult, TerminalRuntimeError> {
     let path = super::native_word::scalar_payload_path(program, referent, scalar)?;
     Ok(TerminalReferenceResult {
-        referent: TerminalReferencePayload::ScalarAggregate(TerminalScalarAggregateValue {
-            structural_type: referent,
-            result_case: None,
-            fields: vec![(path, value)],
-        }),
+        referent: TerminalReferencePayload::Aggregate(TerminalAggregateValue::from_scalars(
+            referent,
+            None,
+            vec![(path, value)],
+        )),
         references: Vec::new(),
     })
 }
@@ -264,17 +264,19 @@ fn locale_view(
                 field.id,
             )],
             TerminalReferenceResult {
-                referent: TerminalReferencePayload::ScalarAggregate(TerminalScalarAggregateValue {
-                    structural_type: *nested,
-                    result_case: None,
-                    fields: vec![(
-                        path,
-                        TerminalScalarValue::Integer {
-                            scalar_type: byte,
-                            value: IntegerValue::Unsigned(46),
-                        },
-                    )],
-                }),
+                referent: TerminalReferencePayload::Aggregate(
+                    TerminalAggregateValue::from_scalars(
+                        *nested,
+                        None,
+                        vec![(
+                            path,
+                            TerminalScalarValue::Integer {
+                                scalar_type: byte,
+                                value: IntegerValue::Unsigned(46),
+                            },
+                        )],
+                    ),
+                ),
                 references: Vec::new(),
             },
         ));

@@ -72,7 +72,8 @@ impl ClosedTerminalModule {
 mod tests {
     use super::*;
     use semantic_vocabulary::{
-        IntegerSign, IntegerType, MachineId, ScalarType, StructuralTypeId, ValueId, WidthParameter,
+        CallableContractId, ClosedScalarType, IntegerSign, IntegerType, MachineId, ScalarType,
+        StructuralTypeId, ValueId, WidthParameter,
     };
     use terminal_psi::{
         StructuralTypeDeclaration, StructuralTypeShape, TerminalIdentityTableBuilder,
@@ -108,6 +109,80 @@ mod tests {
             requires: Vec::new(),
         });
         module
+    }
+
+    #[test]
+    fn closed_callable_membership_follows_the_retained_catalog_through_encoding() {
+        use semantic_vocabulary::ContractId;
+        use terminal_psi::{
+            BoundaryMachineResult, MachineContract, TerminalCallableContract,
+            TerminalCallableEnvelope, TerminalCallableTermination, TerminalMachineResult,
+        };
+
+        let integer = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
+        let contract = CallableContractId::new(1).unwrap();
+        let foreign = CallableContractId::new(2).unwrap();
+        let mut module = module(integer);
+        let mut identities = TerminalIdentityTableBuilder::default();
+        identities.intern("closed_width_test");
+        let identity = identities.intern("closed_callable_unit");
+        module.identities = identities.build();
+        module.callables.contracts.push(TerminalCallableContract {
+            id: contract,
+            identity,
+            scalar_parameters: Vec::new(),
+            parameter_order: Vec::new(),
+            structural_parameters: Vec::new(),
+            result: BoundaryMachineResult::Unit,
+            proof_result: TerminalMachineResult::Unit,
+            entry_claim_paths: Vec::new(),
+            result_claim_paths: Vec::new(),
+            result_reference_regions: Vec::new(),
+            proof: MachineContract::empty(ContractId::new(1).unwrap()),
+            evidence_contract: Vec::new(),
+            envelope: TerminalCallableEnvelope {
+                service_reach: Vec::new(),
+                invocations: Vec::new(),
+                suspends: false,
+                blocks: false,
+                termination: TerminalCallableTermination::NotGuaranteed,
+            },
+        });
+        let closed = ClosedTerminalModule::new(module).unwrap();
+        let decoded = ClosedTerminalModule::from_semantic_bytes(closed.semantic_bytes()).unwrap();
+        assert_eq!(closed.identity(), decoded.identity());
+        assert_eq!(closed.semantic_bytes(), decoded.semantic_bytes());
+        for publication in [&closed, &decoded] {
+            assert!(publication.module().callables.contract(contract).is_some());
+            assert_eq!(
+                publication
+                    .closed_types()
+                    .scalar(ScalarType::Callable(contract))
+                    .unwrap(),
+                ClosedScalarType::Callable(contract),
+            );
+            assert!(
+                publication
+                    .closed_types()
+                    .scalar(ScalarType::Callable(foreign))
+                    .is_err()
+            );
+            assert_eq!(
+                publication
+                    .closed_types()
+                    .integer(integer)
+                    .unwrap()
+                    .as_checking(),
+                integer
+            );
+        }
+        let without_contract = ClosedTerminalModule::new(self::module(integer)).unwrap();
+        assert!(
+            without_contract
+                .closed_types()
+                .scalar(ScalarType::Callable(contract))
+                .is_err()
+        );
     }
 
     #[test]
