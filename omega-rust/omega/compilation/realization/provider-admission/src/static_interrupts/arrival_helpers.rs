@@ -814,8 +814,7 @@ impl<'a> Calls<'a> {
                         normal_return: matches!(
                             invocation.site,
                             InvocationSite::Operation(_) | InvocationSite::Cleanup { .. }
-                        )
-                            && callee.result == TerminalMachineResult::Unit
+                        ) && callee.result == TerminalMachineResult::Unit
                             && invocation.inputs.crash_continuations.is_empty(),
                     });
                 }
