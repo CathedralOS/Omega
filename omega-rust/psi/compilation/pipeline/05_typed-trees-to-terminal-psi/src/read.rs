@@ -102,7 +102,7 @@ pub(crate) struct Program<'t> {
     /// Publication assigns portable identities to the prepared definitions.
     pub predicate_definitions: Vec<Option<PredicateDefinition>>,
     typed: &'t TypedTrees,
-    named_captures: crate::NamedCaptures,
+    shared: crate::SharedReading,
     /// Irreversible storage-description phase, entered after the body closure.
     descriptor_storage: bool,
     /// The typed-tree machine of each discovered `MachineId`.
@@ -360,7 +360,7 @@ impl<'t> Program<'t> {
             typed,
             rigid,
             source::DependencyScope::Product,
-            crate::named_captures(typed),
+            crate::shared_reading(typed),
         )
     }
 
@@ -368,7 +368,7 @@ impl<'t> Program<'t> {
         typed: &'t TypedTrees,
         rigid: bool,
         purpose: source::DependencyScope,
-        captures: crate::NamedCaptures,
+        shared: crate::SharedReading,
     ) -> Self {
         Self {
             publication: terminal_codec::TerminalPublication::Portable,
@@ -378,7 +378,7 @@ impl<'t> Program<'t> {
                 .take(typed.mathematical_definitions().len())
                 .collect(),
             typed,
-            named_captures: captures,
+            shared,
             descriptor_storage: false,
             symbols: IdTable::default(),
             signatures: IdTable::default(),

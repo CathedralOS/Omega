@@ -1182,7 +1182,7 @@ pub(crate) fn projected_arrival(
     projection: &[ParameterOccurrence],
     model: Option<&CallableAddressModel>,
     source: SourceOrigin,
-    captures: crate::NamedCaptures,
+    captures: crate::SharedReading,
 ) -> Checked<CallableArrivalWitness> {
     let entry = MachineId::new(1).expect("nonzero identity");
     let callee = MachineId::new(2).expect("nonzero identity");

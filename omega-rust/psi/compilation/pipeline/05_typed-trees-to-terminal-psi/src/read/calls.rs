@@ -454,7 +454,8 @@ impl<'t> Program<'t> {
             ));
         }
         let capture = self
-            .named_captures
+            .shared
+            .captures
             .get(self.typed, call)
             .map_err(unserved)?
             .ok_or_else(|| unserved("named map body has no prepared capture"))?;
