@@ -340,7 +340,7 @@ impl Lowering<'_> {
                         .ok_or_else(|| self.internal("a cast has no result type"))?
                         .qualification(),
                     &[],
-                    "",
+                    None,
                     source,
                 )
                 .map(|value| Reached::Value(Value::Scalar(value)))
@@ -360,7 +360,7 @@ impl Lowering<'_> {
                         .ok_or_else(|| self.internal("a cast has no result type"))?
                         .qualification(),
                     clauses,
-                    stated,
+                    Some(stated),
                     source,
                 )
                 .map(|value| Reached::Value(Value::Scalar(value)))
