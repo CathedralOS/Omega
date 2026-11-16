@@ -88,6 +88,13 @@ mod budget {
                     self.count(left.path().len())?;
                     self.count(right.path().len())?;
                 }
+                Proposition::FloatIntegerConversion(clause) => {
+                    self.scalar(&clause.source, depth + 1)?;
+                    self.scalar(&clause.result, depth + 1)?;
+                }
+                Proposition::IeeeFloatIntegerExact { source, .. } => {
+                    self.scalar(source, depth + 1)?
+                }
                 Proposition::FloatMeaningEqual(clause) => {
                     self.count(clause.values.len())?;
                     for value in &clause.values {
@@ -258,6 +265,15 @@ mod value_equalities {
                     if mathematical_equality && left > right {
                         std::mem::swap(left, right);
                     }
+                }
+                Proposition::FloatIntegerConversion(clause) => {
+                    clause.source =
+                        self.scalar(&clause.source, budget, depth + 1, &mut Vec::new())?;
+                    clause.result =
+                        self.scalar(&clause.result, budget, depth + 1, &mut Vec::new())?;
+                }
+                Proposition::IeeeFloatIntegerExact { source, .. } => {
+                    *source = self.scalar(source, budget, depth + 1, &mut Vec::new())?;
                 }
                 Proposition::FloatMeaningEqual(clause) => {
                     *clause = clause.map_sources(|source| {

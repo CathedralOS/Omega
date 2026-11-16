@@ -113,6 +113,32 @@ pub fn substitute_clause<Error: From<&'static str>>(
             }
             Proposition::FloatMeaningEqual(mapped)
         }
+        Proposition::FloatIntegerConversion(clause) => {
+            clause
+                .validate()
+                .map_err(|error| Error::from(error.description()))?;
+            let mut mapped = clause.clone();
+            mapped.source = substitute_clause_term(&clause.source, bindings)?;
+            mapped.result = substitute_clause_term(&clause.result, bindings)?;
+            mapped
+                .validate()
+                .map_err(|error| Error::from(error.description()))?;
+            bindings.validate_float_meaning_source(&mapped.source)?;
+            Proposition::FloatIntegerConversion(mapped)
+        }
+        Proposition::IeeeFloatIntegerExact { source, target } => {
+            let mapped = substitute_clause_term(source, bindings)?;
+            if mapped.scalar_type() != source.scalar_type() {
+                return Err(Error::from(
+                    "exact float integer cast substitution changes its source format",
+                ));
+            }
+            bindings.validate_float_meaning_source(&mapped)?;
+            Proposition::IeeeFloatIntegerExact {
+                source: mapped,
+                target: *target,
+            }
+        }
         Proposition::Truth => Proposition::Truth,
         Proposition::Falsehood => Proposition::Falsehood,
         // An opaque proposition has no bindable scalar or storage name.

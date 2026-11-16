@@ -40,6 +40,7 @@ impl AcceptedProofRule {
             Self::PredicateDenotation
             | Self::IeeeFloatOrderChain
             | Self::FloatMeaningNormalization
+            | Self::FloatIntegerConversion
             | Self::IntegerOrderDiscreteness
             | Self::IntegerSubtractOrder
             | Self::IntegerAddOrder
@@ -70,6 +71,7 @@ impl AcceptedProofRule {
                 | Self::IntegerPowerOfTwoOrder
                 | Self::IeeeFloatOrderChain
                 | Self::FloatMeaningNormalization
+                | Self::FloatIntegerConversion
         )
     }
 
@@ -92,9 +94,10 @@ impl AcceptedProofRule {
 mod tests {
     use super::{AcceptedProofRule, ProofRuleFoundation};
 
-    const ALL: [AcceptedProofRule; 33] = [
+    const ALL: [AcceptedProofRule; 34] = [
         AcceptedProofRule::IeeeFloatOrderChain,
         AcceptedProofRule::FloatMeaningNormalization,
+        AcceptedProofRule::FloatIntegerConversion,
         AcceptedProofRule::Primitive,
         AcceptedProofRule::SemanticAxiom,
         AcceptedProofRule::Assumption,
@@ -183,6 +186,7 @@ mod tests {
                         | AcceptedProofRule::IntegerPowerOfTwoOrder
                         | AcceptedProofRule::IeeeFloatOrderChain
                         | AcceptedProofRule::FloatMeaningNormalization
+                        | AcceptedProofRule::FloatIntegerConversion
                 ),
                 "{rule:?} provisional marking changed"
             );

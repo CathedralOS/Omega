@@ -7153,6 +7153,9 @@ mod elaboration {
                         }
                         Children::slice(children)
                     }
+                    FloatIntegerConversion { premise, computed } => {
+                        Children::fixed([Some(premise), computed.as_deref(), None])
+                    }
                     IeeeFloatOrderChain(children) | FloatMeaningNormalization(children) => {
                         Children::slice(children)
                     }
@@ -7724,6 +7727,24 @@ mod elaboration {
             operands: &mut walk::ChildEvidence<'_>,
         ) -> Result<TermHandle, BoundedDenotationError> {
             match &proof.rule {
+                ProofRule::FloatIntegerConversion { premise, computed } => {
+                    crate::check_float_integer_conversion(
+                        self.context,
+                        &proof.conclusion,
+                        &premise.conclusion,
+                        computed.as_ref().map(|proof| &proof.conclusion),
+                    )
+                    .map_err(|error| {
+                        certificate!(ProofError::FloatIntegerConversion(Box::new(error)))
+                    })?;
+                    let _ = operands.take(premise);
+                    if let Some(computed) = computed {
+                        let _ = operands.take(computed);
+                    }
+                    Err(BoundedDenotationError::Unsupported(
+                        "float integer conversion in the mathematical core",
+                    ))
+                }
                 ProofRule::FloatMeaningNormalization(premises) => {
                     crate::check_float_meaning_normalization(
                         &proof.conclusion,

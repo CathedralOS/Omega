@@ -32,6 +32,7 @@ We neither parse nor judge a program, and we depend on `compiler_storage` and
 
 pub mod atomic;
 pub mod core_vocabulary;
+pub mod float_operations;
 pub mod inline_assembly;
 pub mod sealed_intrinsics;
 mod source_semantics;

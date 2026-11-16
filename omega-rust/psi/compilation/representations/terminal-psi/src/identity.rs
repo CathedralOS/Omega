@@ -519,7 +519,7 @@ pub(crate) mod vocabulary {
 
         pub const fn get(self) -> u16 {
             // Boundary declarations retain their complete service contract.
-            136
+            137
         }
     }
 }

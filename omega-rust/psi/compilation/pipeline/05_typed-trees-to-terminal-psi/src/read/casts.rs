@@ -169,6 +169,42 @@ impl Program<'_> {
                 operand,
                 source,
             )?
+        } else if let (Some(ScalarType::IeeeFloat(from)), Some(ScalarType::Integer(to))) =
+            (source_type.scalar(), target.scalar())
+        {
+            use language_semantics::numeric_intrinsics::{NumericIntrinsic, NumericType};
+            let carrier = semantic_vocabulary::fixed_integer_type(to)
+                .map_err(|detail| refuse(id, Construct::Machine, Unserved::Expression(detail)))?;
+            let source_term = semantic_vocabulary::ScalarTerm::value(
+                semantic_vocabulary::ValueId::new(1).expect("fixed predicate formal"),
+                ScalarType::IeeeFloat(from),
+            );
+            let operand = Expression {
+                result: operand.result,
+                kind: ExpressionKind::Establish {
+                    operand: Box::new(operand),
+                    clauses: vec![semantic_vocabulary::Proposition::IeeeFloatIntegerExact {
+                        source: source_term,
+                        target: to,
+                    }],
+                    stated: format!("the float value is exactly representable in {carrier}"),
+                },
+                call_context: None,
+                source,
+            };
+            self.exact_numeric_conversion(
+                id,
+                NumericIntrinsic::Conversion {
+                    source: match from {
+                        semantic_vocabulary::IeeeFloatFormat::Binary32 => NumericType::F32,
+                        semantic_vocabulary::IeeeFloatFormat::Binary64 => NumericType::F64,
+                    },
+                    target: NumericType::Integer(carrier),
+                    domain: ArithmeticDomain::Exact,
+                },
+                operand,
+                source,
+            )?
         } else {
             let (Some(ScalarType::Integer(from)), Some(carrier @ ScalarType::Integer(to))) =
                 (source_type.scalar(), target.scalar())

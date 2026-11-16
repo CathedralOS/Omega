@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 276`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 277`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -1004,6 +1004,12 @@ pub(crate) mod canonical_order {
                         clause
                             .validate()
                             .map_err(CodecError::MalformedStructuralFoundation)?;
+                    }
+                    Proposition::FloatIntegerConversion(_)
+                    | Proposition::IeeeFloatIntegerExact { .. } => {
+                        proposition
+                            .validate()
+                            .map_err(CodecError::MalformedProposition)?;
                     }
                     Proposition::Truth | Proposition::Falsehood | Proposition::Atom(_) => {}
                     Proposition::Equal(left, right) => {
@@ -4771,7 +4777,7 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Marker 272 retains each structural value's explicit qualification changes
 // (`value as +D`, `value as -D`) and their issuer routes. A 271 artifact has no
 // row a qualified structural parameter could have arrived through.
-pub(crate) const FORMAT_MARKER: u16 = 276;
+pub(crate) const FORMAT_MARKER: u16 = 277;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

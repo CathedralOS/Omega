@@ -722,3 +722,138 @@ fn exact_float_narrowing_uses_a_prior_guarantee_and_refuses_precision_loss() {
         .unwrap_or_else(|panic| std::panic::resume_unwind(panic));
     });
 }
+
+#[test]
+fn exact_float_integer_casts_require_integrality_and_keep_the_converter_contract() {
+    std::thread::scope(|scope| {
+        compiler::checked::spawn_compile_worker(scope, || {
+            use language_semantics::numeric_intrinsics::{NumericIntrinsic, NumericType};
+            use numerics::float_semantics::{FloatSemanticOperation, FloatSemanticValueKind};
+            use numerics::{arithmetic::ArithmeticDomain, integer_carrier::FixedInteger};
+            use semantic_vocabulary::{IeeeFloatFormat, Proposition, ScalarType};
+            let main = repository().join("tests/fixtures/run/float/exact_integer_cast/main.omg");
+            let checked = orchestration::check_source(
+                &mut compiler::CompilationSession::default(),
+                compiler::CheckedCompileRequest::new(&main, Some("macos_arm64")),
+            )
+            .result
+            .unwrap_or_else(|failure| panic!("{:?}", failure.into_diagnostics()));
+            let publication = checked
+                .terminal_publication()
+                .accepted()
+                .unwrap()
+                .closure()
+                .publish()
+                .unwrap();
+            let reopened = terminal_codec::ClosedTerminalModule::from_semantic_bytes(
+                publication.artifact.semantic_bytes(),
+            )
+            .unwrap();
+            let module = reopened.module();
+            for source in [NumericType::F32, NumericType::F64] {
+                let meaning = NumericIntrinsic::Conversion {
+                    source,
+                    target: NumericType::Integer(FixedInteger::signed(32)),
+                    domain: ArithmeticDomain::Exact,
+                };
+                let boundary = module
+                    .boundary_machines
+                    .iter()
+                    .find(|row| row.numeric_intrinsic == Some(meaning))
+                    .unwrap();
+                terminal_semantics::numeric_primitives::validate_boundary(module, boundary)
+                    .unwrap();
+                assert_eq!(
+                    boundary.scalar_requires.len(),
+                    3,
+                    "keep every authored converter precondition"
+                );
+                let [Proposition::FloatIntegerConversion(relation)] =
+                    boundary.scalar_ensures.as_slice()
+                else {
+                    panic!("the whole integer-result graph must survive publication")
+                };
+                relation.validate().unwrap();
+                assert_eq!(
+                    relation.source.scalar_type(),
+                    ScalarType::IeeeFloat(if source == NumericType::F32 {
+                        IeeeFloatFormat::Binary32
+                    } else {
+                        IeeeFloatFormat::Binary64
+                    })
+                );
+                let saturating = FloatSemanticOperation::from_source_identity(
+                    "FloatSemantics",
+                    "to_i32_saturating",
+                    &[FloatSemanticValueKind::Meaning],
+                    FloatSemanticValueKind::Integer(FixedInteger::signed(32)),
+                )
+                .unwrap();
+                for mutation in 0..3 {
+                    let mut changed = module.clone();
+                    let row = changed
+                        .boundary_machines
+                        .iter_mut()
+                        .find(|row| row.id == boundary.id)
+                        .unwrap();
+                    match mutation {
+                        0 => {
+                            row.scalar_requires.remove(0);
+                        }
+                        1 => {
+                            let Proposition::FloatIntegerConversion(relation) =
+                                &mut row.scalar_ensures[0]
+                            else {
+                                unreachable!()
+                            };
+                            relation.operation = saturating.contract_identity();
+                            relation.validate().unwrap();
+                        }
+                        2 => {
+                            row.numeric_intrinsic = Some(NumericIntrinsic::Conversion {
+                                source,
+                                target: NumericType::Integer(FixedInteger::signed(7)),
+                                domain: ArithmeticDomain::Exact,
+                            });
+                            assert_eq!(
+                                terminal_semantics::numeric_primitives::validate_boundary(
+                                    &changed,
+                                    changed
+                                        .boundary_machines
+                                        .iter()
+                                        .find(|row| row.id == boundary.id)
+                                        .unwrap()
+                                )
+                                .unwrap_err(),
+                                "numeric primitive is outside the authored Core operation roster"
+                            );
+                        }
+                        _ => unreachable!(),
+                    }
+                    let error = receiving_error(changed);
+                    assert!(error.contains("MalformedStructuralFoundation"), "{error}");
+                }
+            }
+            let invalid =
+                repository().join("tests/fixtures/fail/float/exact_integer_cast/main.omg");
+            let diagnostics = orchestration::check_source(
+                &mut compiler::CompilationSession::default(),
+                compiler::CheckedCompileRequest::new(&invalid, Some("macos_arm64")),
+            )
+            .result
+            .expect_err("a finite interval does not establish integrality")
+            .into_diagnostics();
+            assert_eq!(diagnostics.len(), 2, "{diagnostics:?}");
+            assert!(
+                diagnostics.iter().all(|row| row
+                    .message
+                    .contains("cannot prove the required condition of this cast")
+                    && row.message.contains("exactly representable in i32")),
+                "{diagnostics:?}"
+            );
+        })
+        .unwrap()
+        .join()
+        .unwrap_or_else(|panic| std::panic::resume_unwind(panic));
+    });
+}

@@ -1948,7 +1948,8 @@ impl<'t> Program<'t> {
             erased: Vec::new(),
             borrowed: Vec::new(),
             result,
-            requires: Vec::new(),
+            requires: terminal_semantics::numeric_primitives::requires(meaning)
+                .map_err(unavailable)?,
             ensures,
             crashes: CrashCeiling::DeclaredNone,
             reaches: crate::Ceiling::Authored(Vec::new()),
