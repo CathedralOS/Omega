@@ -90,7 +90,6 @@ impl<'source> Program<'source> {
                 let identity = typed
                     .product_operand_application_identity(application)
                     .map_err(|reason| services::unavailable(context, reason))?
-                    .and_then(|identity| typed.type_identity_text(identity))
                     .filter(|identity| !identity.is_empty())
                     .ok_or_else(|| {
                         services::unavailable(
