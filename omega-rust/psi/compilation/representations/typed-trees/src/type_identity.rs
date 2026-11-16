@@ -8438,6 +8438,56 @@ impl TypedTrees {
         }
     }
 
+    /// The nearest actual callable scopes a declaration and its descendants.
+    /// Keep this outside type-name qualification: computing a callable key
+    /// already uses that qualifier. Nested machine keys retain the full outer
+    /// callable, and raw closed/derived nominal identities stay authoritative.
+    pub fn declaration_callable_scope_identity(
+        &self,
+        symbol: SymbolHandle,
+    ) -> Result<Option<String>, &'static str> {
+        let mut current = symbol;
+        let mut visited = Vec::new();
+        while current.is_valid() {
+            if !self.symbols.symbols().nodes().is_valid(current) {
+                return Err("source declaration has a stale callable scope");
+            }
+            if visited.contains(&current) {
+                return Err("source declaration has a cyclic callable scope");
+            }
+            visited.push(current);
+            if let Some(machine) = self.machine_by_symbol(current) {
+                return self
+                    .machine_callable_identity_text(machine)
+                    .filter(|identity| !identity.is_empty())
+                    .map(Some)
+                    .ok_or("source machine has no complete callable identity");
+            }
+            if let Some(operator) = self.operator_definition_by_symbol(current) {
+                let identity = if operator.is_boundary {
+                    self.boundary_operator_requirement_callable_identity(operator)
+                } else {
+                    self.operator_callable_identity(operator)
+                };
+                return identity
+                    .is_valid()
+                    .then(|| self.callable_identity_text(identity))
+                    .filter(|identity| !identity.is_empty())
+                    .map(Some)
+                    .ok_or("source operator has no complete callable identity");
+            }
+            let parent = self.symbols.get(current).parent;
+            if let Some((owner, requirement)) = self.trait_machine_signature(current) {
+                let identity = self.trait_requirement_callable_identity_text(owner, requirement);
+                return (!identity.is_empty())
+                    .then_some(Some(identity))
+                    .ok_or("source requirement has no complete callable identity");
+            }
+            current = parent;
+        }
+        Ok(None)
+    }
+
     fn closed_requirement_declaration_identity(
         &self,
         symbol: SymbolHandle,

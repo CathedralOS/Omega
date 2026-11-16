@@ -1,11 +1,9 @@
-//! Retain source answers while the numeric catalog supplies its full contract.
+//! Record which operators the numeric source contracts use.
 //!
-//! Input and crash predicates use the ordinary clause reader and must equal
-//! the catalog predicates. Guarantees keep the catalog's complete meaning graph;
-//! answering a source equality selects that operator, not the truth of an
-//! arbitrary semantic equation. Its operands retain their actual declaration
-//! types, including the result policy, without interpreting FloatMeaning as a
-//! runtime scalar or authorizing a bodyless invocation.
+//! Input and crash clauses must match the catalog predicates. Reading an
+//! ensures clause checks operand types and selects its actual operators; it
+//! does not prove that equality. The catalog keeps the complete normal-result
+//! meaning and result policy. Opaque mathematical types remain type references.
 
 use semantic_vocabulary::{MachineId, ValueId};
 use terminal_check_tables::{Checked, Construct};

@@ -332,9 +332,15 @@ pub fn validate_selection_questions(
                     .boundary_machine(*boundary)
                     .and_then(|row| row.declaration.as_ref())
                     .ok_or("source selection boundary has no checked declaration")?;
-                if module.identities.text(row.source.semantic_declaration)
-                    != Some(source.identity.as_str())
-                {
+                let nominal = module
+                    .identities
+                    .text(row.source.semantic_declaration)
+                    .ok_or("source boundary has no checked nominal identity")?;
+                let callable = module
+                    .identities
+                    .text(row.source.callable)
+                    .ok_or("source boundary has no checked callable identity")?;
+                if declaration_identity(nominal, Some(callable))? != source.identity {
                     return Err(
                         "source selection boundary differs from its checked semantic declaration"
                             .into(),
@@ -382,7 +388,14 @@ pub fn validate_selection_questions(
         if !origins[start..end].iter().any(|((_, id), head)| {
             *head == machine.entry
                 && packet.declarations.get(*id).is_some_and(|row| {
-                    module.identities.text(checked.semantic_declaration)
+                    module
+                        .identities
+                        .text(checked.semantic_declaration)
+                        .zip(module.identities.text(checked.callable))
+                        .and_then(|(nominal, callable)| {
+                            declaration_identity(nominal, Some(callable)).ok()
+                        })
+                        .as_deref()
                         == Some(row.identity.as_str())
                 })
         }) {

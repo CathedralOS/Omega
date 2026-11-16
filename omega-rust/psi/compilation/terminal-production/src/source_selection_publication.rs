@@ -10,7 +10,7 @@ use semantic_vocabulary::compiler_evaluation::DeclarationCustody;
 use semantic_vocabulary::source_selections::{
     BuildCallSite, SelectionBindingKind, SelectionDeclaration, SelectionForm, SelectionJoin,
     SelectionNode, SelectionOccurrence, SelectionProductDesignation, SelectionPurpose,
-    SelectionQuestion, SelectionQuestions, SelectionReference, SelectionRole,
+    SelectionQuestion, SelectionQuestions, SelectionReference, SelectionRole, declaration_identity,
 };
 use semantic_vocabulary::{
     CallableInvocationSite, ContractId, InvocationSite, MachineId, SelectionDeclarationId,
@@ -1175,7 +1175,14 @@ impl<'source> Declarations<'source> {
                 .identities
                 .text(declaration.semantic_declaration)
                 .ok_or_else(|| refused("checked machine declaration lost its semantic identity"))?;
-            identities.insert(symbol, identity.to_owned())?;
+            let callable = module
+                .identities
+                .text(declaration.callable)
+                .ok_or_else(|| refused("checked machine lost its full callable identity"))?;
+            identities.insert(
+                symbol,
+                declaration_identity(identity, Some(callable)).map_err(refused)?,
+            )?;
         }
         for (boundary, symbol) in elaboration.boundaries.iter() {
             let declaration = module
@@ -1186,7 +1193,14 @@ impl<'source> Declarations<'source> {
                 .identities
                 .text(declaration.source.semantic_declaration)
                 .ok_or_else(|| refused("checked boundary lost its semantic identity"))?;
-            identities.insert(*symbol, identity.to_owned())?;
+            let callable = module
+                .identities
+                .text(declaration.source.callable)
+                .ok_or_else(|| refused("checked boundary lost its full callable identity"))?;
+            identities.insert(
+                *symbol,
+                declaration_identity(identity, Some(callable)).map_err(refused)?,
+            )?;
         }
         // Prepare this association once. Only an admitted contract's meaning
         // is normalized, so unrelated generic contracts never become work.
@@ -1288,10 +1302,15 @@ impl<'source> Declarations<'source> {
         if let Some(identity) = self.identities.get(&symbol) {
             return Ok(identity.clone());
         }
-        let identity = self
+        let nominal = self
             .typed
             .normalized_hermetic_symbol_identity(symbol)
             .map_err(refused)?;
+        let scope = self
+            .typed
+            .declaration_callable_scope_identity(symbol)
+            .map_err(refused)?;
+        let identity = declaration_identity(&nominal, scope.as_deref()).map_err(refused)?;
         self.identities.insert(symbol, identity.clone())?;
         Ok(identity)
     }
@@ -1634,11 +1653,15 @@ machine entry() -> u64 crashes none {
     Second::pick(repeated)
 }
 "#;
+        accepted_source(TEXT)
+    }
+
+    fn accepted_source(text: &str) -> AcceptedTerminalSource {
         let mut sources = source::SourceMap::default();
         let id = sources
             .add_checked_instance(
                 "selection/main.omg".into(),
-                TEXT,
+                text,
                 "selection".into(),
                 Some(semantic_vocabulary::PackageKeyIdentity::from_digest([0xc3; 32]).unwrap()),
                 source::SourceOrigin::User,
@@ -1646,7 +1669,7 @@ machine entry() -> u64 crashes none {
                 source::DependencyScope::Product,
             )
             .source_id;
-        let tokens = source_files_to_tokens::Lexer::new(TEXT).tokenize().unwrap();
+        let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
         let syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(id, &tokens).unwrap();
         let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
             syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
@@ -1686,6 +1709,116 @@ machine entry() -> u64 crashes none {
             terminal_codec::TerminalPublication::Invocation,
         )
         .unwrap()
+    }
+
+    #[test]
+    fn overloads_and_nested_declarations_keep_their_callable_owner() {
+        let source = accepted_source(
+            r#"
+machine same(value: f32) -> u32 crashes none {
+    machine helper() -> u32 crashes none { 1 }
+    helper()
+}
+machine same(value: f64) -> u32 crashes none {
+    machine helper() -> u32 crashes none { 2 }
+    helper()
+}
+machine entry() -> u32 crashes none {
+    let first: u32 = same(1f32);
+    same(1f64)
+}
+"#,
+        );
+        let module = source.module();
+        let prepared = prepare(&source, module, None).unwrap();
+        terminal_installation::selection_questions::validate_selection_questions(
+            module,
+            &prepared.questions,
+        )
+        .unwrap();
+        let mut declarations = Declarations::new(&source, module).unwrap();
+        let typed = source.source();
+        for name in ["same", "helper"] {
+            let machines = typed
+                .machines()
+                .iter()
+                .filter(|machine| machine.name.as_str() == name)
+                .collect::<Vec<_>>();
+            assert_eq!(machines.len(), 2);
+            let first = declarations.identity(machines[0].symbol).unwrap();
+            let second = declarations.identity(machines[1].symbol).unwrap();
+            assert_ne!(first, second, "{name} lost its exact overload owner");
+            // The state belongs to that same actual callable, even though its
+            // nominal display path is shared by the overloads.
+            let scopes = machines
+                .iter()
+                .map(|machine| {
+                    let state = typed.machine_states(machine).first().unwrap();
+                    let scope = typed
+                        .declaration_callable_scope_identity(state.symbol)
+                        .unwrap()
+                        .unwrap();
+                    assert_eq!(
+                        scope,
+                        typed
+                            .declaration_callable_scope_identity(machine.symbol)
+                            .unwrap()
+                            .unwrap()
+                    );
+                    if let Some(parameter) = typed.state_parameters(state).first() {
+                        assert_eq!(
+                            scope,
+                            typed
+                                .declaration_callable_scope_identity(parameter.symbol)
+                                .unwrap()
+                                .unwrap()
+                        );
+                    }
+                    scope
+                })
+                .collect::<Vec<_>>();
+            assert_ne!(scopes[0], scopes[1]);
+        }
+        let mut changed = prepared.questions.clone();
+        let SelectionJoin::Machine {
+            declaration,
+            machine,
+            ..
+        } = changed
+            .joins
+            .iter()
+            .find(|join| matches!(join, SelectionJoin::Machine { .. }))
+            .unwrap()
+        else {
+            unreachable!()
+        };
+        let checked = module
+            .machines
+            .iter()
+            .find(|row| row.id == *machine)
+            .unwrap()
+            .declaration
+            .as_ref()
+            .unwrap();
+        let nominal = module
+            .identities
+            .text(checked.semantic_declaration)
+            .unwrap();
+        changed.declarations.get_mut(*declaration).unwrap().identity =
+            declaration_identity(nominal, None).unwrap();
+        assert!(
+            terminal_installation::selection_questions::validate_selection_questions(
+                module, &changed,
+            )
+            .is_err()
+        );
+
+        let scoped = declaration_identity("a", Some("b")).unwrap();
+        assert_ne!(declaration_identity(&scoped, None).unwrap(), scoped);
+        assert_ne!(
+            declaration_identity("a|scope=some:1:b", None).unwrap(),
+            declaration_identity("a", Some("b")).unwrap()
+        );
     }
 
     #[test]
