@@ -65,11 +65,9 @@ pub use frame_protocol::{
     TargetFrameProtocolEncodingPolicy, target_frame_protocol_encoding_identity,
 };
 pub use function_realization::{
-    EncodedFunction, FixedFrameRealizationInput, FramedFunction, FunctionRealizationReplay,
-    FunctionRelativeFrame, FunctionRelativeOptimizationRealizationError,
-    FunctionRelativePublicationReceipts, LaidOutFunction, OptimizedFunctionLayout,
-    StagedFixedFrameFunctionRelativeRealization, assemble_fixed_frame_realization,
-    stage_function_frame,
+    EncodedFunction, FunctionRealizationReplay, FunctionRelativeOptimizationRealizationError,
+    LaidOutFunction, OptimizedFunctionLayout, StagedFixedFrameFunctionRelativeRealization,
+    assemble_fixed_frame_realization, stage_function_frame,
 };
 pub use text_placement::{
     FunctionFragmentTextSectionManifest, FunctionFragmentTextSectionManifestDecodeError,

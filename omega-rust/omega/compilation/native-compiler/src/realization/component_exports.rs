@@ -14,6 +14,7 @@ use terminal_psi_to_abstract_operations::provider_admission::{
 };
 
 pub struct ComponentExportRequest<'input> {
+    pub retain_native_inputs: bool,
     pub accepted_package_permissions: &'input TerminalAuthorityPermissionPolicy,
     pub terminal_authority_policy: &'input TerminalAuthorityPolicy,
     pub receiving_permissions: &'input Option<TerminalAuthorityPermissionPolicy>,
@@ -177,6 +178,7 @@ pub fn emit_component_exports<'input>(
             selections,
             crate::request::native_optimization_budget(),
             artifact,
+            request.retain_native_inputs,
         )?;
         let runtime = projection.runtime;
         let authority = projection.authority;

@@ -97,6 +97,7 @@ pub(crate) fn emit_components<'input>(
     components: Vec<PreparedComponent<'input>>,
     terminal_authority_policy: &TerminalAuthorityPolicy,
     receiving_permissions: &Option<TerminalAuthorityPermissionPolicy>,
+    retain_native_inputs: bool,
 ) -> Result<Vec<EmittedComponent<'input>>, Vec<Diagnostic>> {
     let mut emitted = Vec::new();
     for component in components {
@@ -111,6 +112,7 @@ pub(crate) fn emit_components<'input>(
             work,
             scalars.native_input()?,
             ComponentExportRequest {
+                retain_native_inputs,
                 accepted_package_permissions: component.accepted_package_permissions,
                 terminal_authority_policy,
                 receiving_permissions,

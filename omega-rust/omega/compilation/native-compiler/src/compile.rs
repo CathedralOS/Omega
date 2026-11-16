@@ -79,6 +79,7 @@ fn produce(
             prepared_components,
             &request.terminal_authority_policy,
             &request.terminal_authority_permission_policy,
+            request.retain_native_inputs,
         )?;
         let components = emitted_components
             .iter()
@@ -115,6 +116,7 @@ fn produce(
             request.installation_assumptions,
         );
         let realization = crate::request::NativeRealizationRequest {
+            retain_native_inputs: request.retain_native_inputs,
             observation: &observation,
             proposal,
             execution: &execution,

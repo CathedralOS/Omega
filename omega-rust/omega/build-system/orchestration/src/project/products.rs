@@ -19,9 +19,11 @@ pub(crate) fn compile(
                 snapshot: request.build_snapshot.as_ref(),
                 verify: request.verify,
                 timings: request.timings,
-                product: request
-                    .product
-                    .to_compilation_product(&request.optimization_rollback, targets),
+                product: request.product.to_compilation_product(
+                    &request.optimization_rollback,
+                    targets,
+                    !request.stage_validators.is_empty(),
+                ),
             },
             resolved.builds,
             session,
@@ -100,6 +102,7 @@ impl ProjectProduct {
         &self,
         optimization_rollback: &compiler::OptimizationRollback,
         targets: &[TargetProfile],
+        retain_native_inputs: bool,
     ) -> compiler::CompilationProduct {
         match self {
             Self::Check => compiler::CompilationProduct::Check,
@@ -119,7 +122,7 @@ impl ProjectProduct {
                     .filter(|row| targets.contains(&row.profile()))
                     .cloned()
                     .collect(),
-                retain_native_inputs: false,
+                retain_native_inputs,
                 image: destination.image_demand(),
                 private_entry_ram: private_entry_ram.clone(),
                 terminal_authority_policy:
@@ -161,6 +164,7 @@ fn compile_standalone_reports(
         )
         .with_private_entry_ram(private_entry_ram.to_vec())
         .with_native_image_demand(native_image);
+    compilation = compilation.with_retained_native_inputs(!request.stage_validators.is_empty());
     if let Some(snapshot) = &request.build_snapshot {
         compilation = compilation.with_build_snapshot(snapshot.clone());
     }

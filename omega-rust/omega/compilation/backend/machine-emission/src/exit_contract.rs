@@ -1,7 +1,7 @@
 /*
 We construct whole-function exit contracts from the current machine layout, checking ABI preservation, stack disposition and exit effects while recording their evidence. The producer joins exact input identities and computes the contract once; it does not replay layout stages or the record it just produced.
 
-Retained-artifact validation calls `validate_exit_record_for_replayed_layout` after separately validating the layout and optimization. That path checks the stored contract independently, including callee-saved and link-register effects, returns, process exits and authored crashes. Production and replay retain distinct entrypoints.
+Artifact validation calls `validate_exit_record_for_current_layout` after separately validating the layout and optimization. That path checks the stored contract independently, including callee-saved and link-register effects, returns, process exits and authored crashes. Original-input correspondence is checked separately from these current-output obligations.
 */
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -23,8 +23,6 @@ pub use machine_code::{
     WholeFunctionReturnMechanism, WholeFunctionReturnValueEvidence,
 };
 use post_allocation_machine::{PhysicalOperandFootprint, PostAllocationMachineInstruction};
-use post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
-use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
 use register_model::{
     PreservationConvention, RegisterOperandAccess, RegisterUnitId, RegisterViewId,
     ValidatedPhysicalRegisterModel,
@@ -38,7 +36,6 @@ use selected_instructions::{
     SelectedBlockId, SelectedCallTarget, SelectedInstruction, SelectedInstructionId,
     SelectedInstructionKind, SelectedTerminator,
 };
-use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 use semantic_vocabulary::{EdgeId, MachineId};
 use target::{Architecture, NativeTarget, ObjectFormat};
 
@@ -109,10 +106,10 @@ enum EntryAssumptionKind {
 }
 
 struct ValidationInputs<'a> {
-    selected: &'a selected_instructions::SelectedInstructionPlan,
+    selected: &'a post_allocation_machine::PostAllocationMachineProgram,
     machine: &'a post_allocation_machine::PostAllocationMachinePlan,
     physical: &'a ValidatedPhysicalRegisterModel,
-    encoding: &'a StagedOptimizedSelectedFormEncoding,
+    encoding: &'a SelectedFormEncoding,
     layout: &'a ResolvedMachineLayout,
     frame: Option<(
         &'a ValidatedTargetFrameLayout,
@@ -139,12 +136,7 @@ pub(crate) fn stage_whole_function_exit_contract_for_layout(
     })
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn validate_exit_record_for_replayed_layout<S: ValidatedSelectedAnalysis>(
-    selected: &S,
-    machine: &StagedOptimizedPostAllocationMachinePlan,
-    physical: &ValidatedPhysicalRegisterModel,
-    encoding: &StagedOptimizedSelectedFormEncoding,
+pub(crate) fn validate_exit_record_for_current_layout(
     layout: &ResolvedLayoutOptimization,
     frame: Option<(
         &ValidatedTargetFrameLayout,
@@ -152,16 +144,21 @@ pub(crate) fn validate_exit_record_for_replayed_layout<S: ValidatedSelectedAnaly
     )>,
     contract: &StagedWholeFunctionExitContract,
 ) -> Result<(), WholeFunctionExitContractError> {
-    validate_exit_record(
-        selected,
-        machine,
-        physical,
-        encoding,
-        layout.layout(),
-        layout_custody(layout),
+    let program = layout.program();
+    let custody = layout_custody(layout);
+    validate_layout_custody(&program.encoding, &program.layout, custody)?;
+    let inputs = ValidationInputs {
+        selected: &program.instructions,
+        machine: &program.instructions.machine,
+        physical: program.instructions.physical(),
+        encoding: &program.encoding,
+        layout: &program.layout,
         frame,
-        contract.contract(),
-    )
+        contract: contract.contract(),
+    };
+    let context = check_validation_context(&inputs, custody)?;
+    check_ordinary_exit_roster(&inputs, &context)?;
+    require_artifact(contract.identity() == contract.contract().recomputed_identity())
 }
 
 fn layout_custody(layout: &ResolvedLayoutOptimization) -> WholeFunctionExitLayoutCustody {
@@ -636,38 +633,6 @@ fn require_artifact(condition: bool) -> Result<(), WholeFunctionExitContractErro
         .ok_or(WholeFunctionExitContractError::ArtifactMismatch)
 }
 
-#[allow(clippy::too_many_arguments)]
-fn validate_exit_record<S: ValidatedSelectedAnalysis>(
-    selected: &S,
-    machine: &StagedOptimizedPostAllocationMachinePlan,
-    physical: &ValidatedPhysicalRegisterModel,
-    encoding: &StagedOptimizedSelectedFormEncoding,
-    layout: &ResolvedMachineLayout,
-    custody: WholeFunctionExitLayoutCustody,
-    frame: Option<(
-        &ValidatedTargetFrameLayout,
-        &ValidatedTargetFrameProtocolEncoding,
-    )>,
-    contract: &WholeFunctionExitContract,
-) -> Result<(), WholeFunctionExitContractError> {
-    validate_layout_custody(encoding.program(), layout, custody)?;
-    if selected.selected_identity() != machine.machine().plan().selected {
-        return Err(WholeFunctionExitContractError::RootMismatch);
-    }
-    let inputs = ValidationInputs {
-        selected: selected.selected_plan(),
-        machine: machine.machine().plan(),
-        physical,
-        encoding,
-        layout,
-        frame,
-        contract,
-    };
-    let context = check_validation_context(&inputs, custody)?;
-    check_ordinary_exit_roster(&inputs, &context)?;
-    require_artifact(contract.identity == contract.recomputed_identity())
-}
-
 fn check_validation_context(
     inputs: &ValidationInputs<'_>,
     custody: WholeFunctionExitLayoutCustody,
@@ -692,7 +657,7 @@ fn check_validation_context(
     {
         return Err(WholeFunctionExitContractError::RootMismatch);
     }
-    if encoding.program().frame.as_ref() != frame.map(|(frame, _)| frame.plan()) {
+    if encoding.frame.as_ref() != frame.map(|(frame, _)| frame.plan()) {
         return Err(WholeFunctionExitContractError::RootMismatch);
     }
     let (mut policy, convention, stack_name, link_name, entry) =
@@ -806,7 +771,7 @@ fn check_ordinary_exit_roster(
             .functions
             .iter()
             .map(|function| (function.machine, &function.blocks)),
-        encoding.program(),
+        encoding,
     )?;
     let encoded = encoding.encoded();
     let layout_rows = unique_layout_rows(layout)?;

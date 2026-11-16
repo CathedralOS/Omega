@@ -2,6 +2,29 @@
 
 use crate::function_fragments::source;
 
+/// Compare the current fixed-frame output with retained original allocation,
+/// encoding and layout inputs. Missing originals refuse this explicit audit.
+pub fn verify_retained_fixed_frame(
+    artifact: &crate::ObjectArtifact,
+) -> Result<(), diagnostics::Diagnostic> {
+    for private in &artifact.private_functions {
+        verify_retained_fixed_frame(&private.body)?;
+    }
+    let replay = artifact.fragment_replay.as_ref().ok_or_else(|| {
+        diagnostics::Diagnostic::error(
+            "fixed-frame audit requires retained current artifact custody",
+        )
+    })?;
+    replay
+        .0
+        .source()
+        .source()
+        .source()
+        .source()
+        .verify_original_correspondence()
+        .map_err(|error| diagnostics::Diagnostic::error(error.to_string()))
+}
+
 pub fn verify_retained_target_operations(
     artifact: &crate::ObjectArtifact,
 ) -> Result<(), diagnostics::Diagnostic> {

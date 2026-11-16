@@ -209,6 +209,7 @@ struct RequestedDestination {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct CompilePolicy {
+    retain_native_inputs: bool,
     native_image: NativeImageDemand,
     private_entry_ram: Vec<PrivateEntryRamInitialization>,
     installation_assumptions: Vec<crate::InstallationEnvironmentAssumption>,
@@ -222,6 +223,7 @@ struct CompilePolicy {
 impl Default for CompilePolicy {
     fn default() -> Self {
         Self {
+            retain_native_inputs: false,
             native_image: NativeImageDemand::Emit,
             private_entry_ram: Vec::new(),
             installation_assumptions: Vec::new(),
@@ -280,6 +282,12 @@ impl CompileRequest {
 
     pub fn with_native_image_demand(mut self, demand: NativeImageDemand) -> Self {
         self.policy.native_image = demand;
+        self
+    }
+
+    /// Retain original native-stage inputs for independent correspondence audits.
+    pub fn with_retained_native_inputs(mut self, retain: bool) -> Self {
+        self.policy.retain_native_inputs = retain;
         self
     }
 
@@ -515,7 +523,7 @@ impl ValidatedTargetCompilation {
 
     pub fn into_native_product_request(self) -> NativeProductRequest {
         NativeProductRequest {
-            retain_native_inputs: false,
+            retain_native_inputs: self.policy.retain_native_inputs,
             image: self.policy.native_image,
             private_entry_ram: self.policy.private_entry_ram.clone(),
             installation_assumptions: self.installation_assumptions,
@@ -525,6 +533,35 @@ impl ValidatedTargetCompilation {
                 .terminal_authority_permission_policy
                 .clone(),
             optimization_rollback: self.policy.optimization_rollback.clone(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod native_retention_tests {
+    use super::{CompileRequest, RequestedCompileProduct, TargetProfile};
+
+    #[test]
+    fn original_native_inputs_are_retained_only_on_request() {
+        for requested in [false, true] {
+            let request = CompileRequest::for_targets(
+                "unchanged.omg".into(),
+                "build".into(),
+                vec![Some(TargetProfile::WindowsX64)],
+            )
+            .with_requested_product(RequestedCompileProduct::NativeArtifact);
+            let request = if requested {
+                request.with_retained_native_inputs(true)
+            } else {
+                request
+            };
+            let (_, targets) = request.validate_for_execution().unwrap().into_parts();
+            let product = targets
+                .into_iter()
+                .next()
+                .unwrap()
+                .into_native_product_request();
+            assert_eq!(product.retain_native_inputs, requested);
         }
     }
 }

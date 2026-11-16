@@ -161,6 +161,11 @@ for stage validation. Default compilation retains the existing
 [verification placement](../../../omega-rust/pipeline.md#verification-placement).
 Full source-to-executable correspondence requires separate justification.
 
+`FixedFrameCorrespondence` compares current fixed-frame output with its original
+allocation, instruction encoding and baseline layout. The request retains those
+inputs for that audit; default compilation does not. Current-artifact byte,
+frame, exit and machine-state checks remain required without the originals.
+
 ## Required acceptance
 
 Exercise redundant and required markers independently on both axes, generic

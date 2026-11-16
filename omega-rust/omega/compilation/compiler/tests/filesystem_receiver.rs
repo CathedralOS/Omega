@@ -250,6 +250,7 @@ fn windows_canonicalize_receiver() {
         let mut prepared_native = native_compiler::prepare(
             &retained,
             native_compiler::NativeCompileRequest {
+                retain_native_inputs: false,
                 private_entry_ram: &[],
                 installation_assumptions: &[],
                 optimization_selections: &optimizations,

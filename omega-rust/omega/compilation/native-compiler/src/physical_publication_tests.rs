@@ -32,6 +32,7 @@ fn authorize_fixture(
 
 fn emit_body<'execution>(
     mut admitted: terminal_psi_to_abstract_operations::AdmittedNativeRealization<'execution>,
+    retain_native_inputs: bool,
     inspect_target: impl FnOnce(
         &abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations,
     ),
@@ -65,15 +66,16 @@ fn emit_body<'execution>(
     });
     inspect_target(&target);
     let installations = crate::pipeline::bound_installations(&target, None, Vec::new()).unwrap();
-    let projection = crate::pipeline::emit_target(target, installations, &observation)
-        .unwrap_or_else(|error| match error {
-            crate::pipeline::BodyEmissionError::Physical(error) => {
-                panic!("constant emission: {error}")
-            }
-            crate::pipeline::BodyEmissionError::Object(errors) => {
-                panic!("constant object: {errors:?}")
-            }
-        });
+    let projection =
+        crate::pipeline::emit_target(target, installations, &observation, retain_native_inputs)
+            .unwrap_or_else(|error| match error {
+                crate::pipeline::BodyEmissionError::Physical(error) => {
+                    panic!("constant emission: {error}")
+                }
+                crate::pipeline::BodyEmissionError::Object(errors) => {
+                    panic!("constant object: {errors:?}")
+                }
+            });
     (projection, admitted.providers)
 }
 
@@ -585,7 +587,7 @@ fn check_publication(through_boundary: bool) {
         &admission,
     )
     .expect("canonical constant admits without provider authority");
-    let (projection, providers) = emit_body(admitted, |target| {
+    let (projection, providers) = emit_body(admitted, through_boundary, |target| {
         check_published_plan(target, bootstrap_entry);
         if !through_boundary {
             reject_changed_entry_literal(target, bootstrap_entry);
@@ -613,6 +615,13 @@ fn check_publication(through_boundary: bool) {
     .expect("publish actual emitted object");
     image_emission::verify_retained_target_operations(&published.object)
         .expect("independent target audit accepts the emitted object's retained source");
+    let audit = image_emission::verify_retained_fixed_frame(&published.object);
+    if through_boundary {
+        audit.expect("explicitly retained originals admit the fixed-frame correspondence audit");
+    } else {
+        let error = audit.expect_err("default publication retains no original allocation graph");
+        assert!(error.to_string().contains("ReplayUnavailable"), "{error}");
+    }
     let requested = native_artifact::RequestedNativeArtifact::emit_admitted(
         profile.native_target(),
         artifact,

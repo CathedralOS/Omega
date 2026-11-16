@@ -138,6 +138,7 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
     let mut prepared_native = native_compiler::prepare(
         &retained,
         native_compiler::NativeCompileRequest {
+            retain_native_inputs: false,
             installation_assumptions: &[],
             private_entry_ram: &[],
             optimization_selections: &optimizations,
