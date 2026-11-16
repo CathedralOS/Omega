@@ -53,6 +53,9 @@ pub struct NativeCompileRequest<'request> {
     pub image_request: ExecutableImageEmissionRequest,
     pub imports: &'request [SourceEvaluatedImportSettlement<'request>],
     pub components: &'request [crate::ComponentCompilation<'request>],
+    /// The scalar values the program entry reads, completed before compiling
+    /// (`build_settings::scalar_completion::complete_native`).
+    pub scalars: Option<&'request terminal_installation::AdmittedScalarApplications>,
 }
 
 impl NativeCompileRequest<'_> {
