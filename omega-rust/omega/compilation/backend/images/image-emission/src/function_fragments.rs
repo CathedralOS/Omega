@@ -10164,12 +10164,578 @@ mod source {
     use machine_code::{FunctionFragmentEmissionPlan, FunctionTargetFrameLayout};
     use object_file::StagedOptimizedRelocationFreeObjectContainer;
     use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId};
+    // Pair the existing block-owned rosters once. This keeps no-code events and
+    // their annotations exact without searching the whole target graph per use.
+    mod correspondence {
+        use super::Error;
+        use abstract_operations::{AbstractBlock, AbstractFunction, AbstractOperation};
+        use optimization_unit::{OptimizationBlock, PsiOptimizationFunction};
+        use target_operations::{
+            TargetControlBlock, TargetFunction, TargetInstruction, TargetUnitOperation,
+        };
+
+        #[derive(Clone, Copy)]
+        pub(super) struct Operation<'a> {
+            pub(super) block: &'a TargetControlBlock,
+            pub(super) instruction: Option<&'a TargetInstruction>,
+        }
+
+        fn validate_block(
+            source: &AbstractBlock,
+            target: &TargetControlBlock,
+            canonical: &OptimizationBlock,
+        ) -> Result<(), Error> {
+            let invalid =
+                || Error::Mismatch("image instruction rosters differ from canonical source");
+            let (terminal, body) = source.operations.split_last().ok_or_else(invalid)?;
+            let (canonical_terminal, canonical_body) =
+                canonical.nodes.split_last().ok_or_else(invalid)?;
+            let body_len = target
+                .operations
+                .iter()
+                .position(|row| matches!(row.kind, TargetUnitOperation::CleanupCall { .. }))
+                .unwrap_or(target.operations.len());
+            let (ordinary, cleanup) = target.operations.split_at(body_len);
+            if source.block != target.block
+                || source.block != canonical.id
+                || source.structural_parameters != canonical.structural_parameters
+                || source.structural_parameters != target.structural_parameters
+                || source.parameters.len() != canonical.parameters.len()
+                || source.parameters.len() != target.parameters.len()
+                || source
+                    .parameters
+                    .iter()
+                    .zip(&canonical.parameters)
+                    .zip(&target.parameters)
+                    .any(|((source, canonical), target)| {
+                        source.value != canonical.value
+                            || source.scalar_type != canonical.scalar_type
+                            || source.value != target.value
+                            || source.scalar_type != target.scalar_type
+                    })
+                || body.len() != body_len
+                || body.len() != canonical_body.len()
+                || terminal != &canonical_terminal.operation
+                || target.terminator_metadata.work != canonical_terminal.work
+                || target.terminator_metadata.effect != canonical_terminal.effect
+                || target.terminator_metadata.ownership != canonical_terminal.ownership
+                || cleanup.iter().any(|row| {
+                    row.source.is_some()
+                        || !matches!(row.kind, TargetUnitOperation::CleanupCall { .. })
+                })
+            {
+                return Err(invalid());
+            }
+            for ((source, canonical), target) in body.iter().zip(canonical_body).zip(ordinary) {
+                let retained = target.source.as_ref().ok_or_else(invalid)?;
+                let result = match canonical.definitions.as_slice() {
+                    [] => None,
+                    [result] => Some(*result),
+                    _ => return Err(invalid()),
+                };
+                if source != &canonical.operation
+                    || super::aggregate_results::instruction_operation(&target.kind)
+                        .is_some_and(|operation| operation != retained.operation)
+                    || Some(retained.operation) != source.psi_operation()
+                    || retained.result != result
+                    || retained.metadata.work != canonical.work
+                    || retained.metadata.effect != canonical.effect
+                    || retained.metadata.ownership != canonical.ownership
+                {
+                    return Err(invalid());
+                }
+            }
+            Ok(())
+        }
+
+        fn block_operations<'a>(
+            source: &'a AbstractBlock,
+            target: &'a TargetControlBlock,
+        ) -> impl Iterator<Item = (&'a AbstractOperation, Operation<'a>)> {
+            // The constructor checked these exact body bounds and rosters.
+            let body_len = source.operations.len() - 1;
+            source.operations[..body_len]
+                .iter()
+                .zip(&target.operations[..body_len])
+                .map(move |(source, instruction)| {
+                    (
+                        source,
+                        Operation {
+                            block: target,
+                            instruction: Some(instruction),
+                        },
+                    )
+                })
+                .chain(std::iter::once((
+                    &source.operations[body_len],
+                    Operation {
+                        block: target,
+                        instruction: None,
+                    },
+                )))
+        }
+
+        pub(super) struct Function<'a> {
+            source: &'a AbstractFunction,
+            target: &'a TargetFunction,
+        }
+
+        impl<'a> Function<'a> {
+            pub(super) fn new(
+                source: &'a AbstractFunction,
+                target: &'a TargetFunction,
+                canonical: &PsiOptimizationFunction,
+            ) -> Result<Self, Error> {
+                if source.machine != target.machine
+                    || source.machine != canonical.machine
+                    || source.entry != target.graph.entry
+                    || source.entry != canonical.entry
+                    || source.blocks.is_empty()
+                    || source.blocks.len() != canonical.blocks.len()
+                    || source.blocks.len() != target.graph.blocks.len()
+                    || source
+                        .blocks
+                        .windows(2)
+                        .any(|pair| pair[0].block >= pair[1].block)
+                {
+                    return Err(Error::Mismatch("image function block rosters differ"));
+                }
+                for ((source, target), canonical) in source
+                    .blocks
+                    .iter()
+                    .zip(&target.graph.blocks)
+                    .zip(&canonical.blocks)
+                {
+                    validate_block(source, target, canonical)?;
+                }
+                Ok(Self { source, target })
+            }
+
+            pub(super) fn operations(
+                &self,
+            ) -> impl Iterator<Item = (&'a AbstractOperation, Operation<'a>)> + '_ {
+                self.source
+                    .blocks
+                    .iter()
+                    .zip(&self.target.graph.blocks)
+                    .flat_map(|(source, target)| block_operations(source, target))
+            }
+        }
+        #[cfg(test)]
+        mod tests {
+            use super::*;
+            use abstract_operations::AbstractFunctionResult;
+            use calling_conventions::{CallSignature, CallingPolicy, evaluate_call_plan};
+            use optimization_unit::{
+                EffectLink, OptimizationNode, OwnershipEvent, PsiProvenance, WorkSettlement,
+            };
+            use semantic_vocabulary::PsiSemanticId;
+            use target_operations::{
+                TargetControlGraph, TargetControlTerminator, TargetInstructionSource,
+                TargetOperationMetadata,
+            };
+            use terminal_psi::{StructuralAccess, StructuralArgument, StructuralPathSegment};
+
+            fn id<T: PsiSemanticId>(raw: u64) -> T {
+                T::new(raw).unwrap()
+            }
+
+            #[derive(Clone)]
+            struct Fixture {
+                source: AbstractFunction,
+                canonical: PsiOptimizationFunction,
+                target: TargetFunction,
+                selected: selected_instructions::SelectedFunction,
+            }
+
+            impl Fixture {
+                fn new() -> Self {
+                    let block = id(1);
+                    let operations =
+                        [1, 2].map(|raw| AbstractOperation::DecomposeStructuralValue {
+                            psi_operation: id(raw),
+                            subject: StructuralArgument {
+                                place: id(raw + 10),
+                                path: vec![],
+                                access: StructuralAccess::Owned,
+                            },
+                        });
+                    let terminal = AbstractOperation::ReturnUnit {
+                        psi_edge: id(3),
+                        cleanup_actions: vec![],
+                    };
+                    let mut nodes: Vec<_> = operations
+                        .iter()
+                        .map(|operation| OptimizationNode {
+                            operation: operation.clone(),
+                            provenance: vec![],
+                            work: vec![WorkSettlement {
+                                site: PsiProvenance::Operation(operation.psi_operation().unwrap()),
+                                units: 1,
+                            }],
+                            effect: EffectLink {
+                                input: 0,
+                                output: 0,
+                            },
+                            definitions: vec![],
+                            uses: vec![],
+                            successors: vec![],
+                            ownership: vec![],
+                        })
+                        .collect();
+                    nodes.push(OptimizationNode {
+                        operation: terminal.clone(),
+                        provenance: vec![],
+                        work: vec![],
+                        effect: EffectLink {
+                            input: 0,
+                            output: 0,
+                        },
+                        definitions: vec![],
+                        uses: vec![],
+                        successors: vec![],
+                        ownership: vec![],
+                    });
+                    let metadata = |node: &OptimizationNode| TargetOperationMetadata {
+                        work: node.work.clone(),
+                        effect: node.effect,
+                        ownership: node.ownership.clone(),
+                    };
+                    let instructions = nodes[..2]
+                        .iter()
+                        .map(|node| {
+                            let AbstractOperation::DecomposeStructuralValue {
+                                psi_operation,
+                                subject,
+                            } = &node.operation
+                            else {
+                                unreachable!()
+                            };
+                            TargetInstruction {
+                                source: Some(TargetInstructionSource {
+                                    operation: *psi_operation,
+                                    result: None,
+                                    metadata: metadata(node),
+                                }),
+                                kind: TargetUnitOperation::DecomposeStructuralValue {
+                                    psi_operation: *psi_operation,
+                                    subject: subject.clone(),
+                                },
+                            }
+                        })
+                        .collect();
+                    let mut source_operations = operations.to_vec();
+                    source_operations.push(terminal);
+                    let source = AbstractFunction {
+                        machine: id(1),
+                        attachment: None,
+                        entry: block,
+                        parameters: vec![],
+                        structural_parameters: vec![],
+                        result: AbstractFunctionResult::Unit,
+                        entry_claims: vec![],
+                        block_entry_claims: vec![],
+                        published_service_ceiling: vec![],
+                        blocks: vec![AbstractBlock {
+                            block,
+                            structural_parameters: vec![],
+                            parameters: vec![],
+                            operations: source_operations,
+                        }],
+                    };
+                    let target = TargetFunction {
+                        machine: source.machine,
+                        attachment: None,
+                        scalar_abi: None,
+                        mixed_structural_scalar_abi: None,
+                        structural_contract: None,
+                        provenance: Default::default(),
+                        graph: TargetControlGraph {
+                            structural_types: vec![].into(),
+                            call_plan: evaluate_call_plan(
+                                CallingPolicy::native_for_target(target::NativeTarget::linux_x64()),
+                                &CallSignature {
+                                    parameters: vec![],
+                                    result: None,
+                                },
+                            )
+                            .unwrap(),
+                            scalar_parameters: vec![],
+                            parameters: vec![],
+                            entry: block,
+                            blocks: vec![TargetControlBlock {
+                                block,
+                                parameters: vec![],
+                                structural_parameters: vec![],
+                                operations: instructions,
+                                terminator: TargetControlTerminator::Return {
+                                    psi_edge: id(3),
+                                    cleanup_actions: vec![],
+                                },
+                                terminator_metadata: metadata(&nodes[2]),
+                            }],
+                        },
+                    };
+                    let canonical = PsiOptimizationFunction {
+                        machine: source.machine,
+                        attachment: None,
+                        entry: block,
+                        parameters: vec![],
+                        structural_parameters: vec![],
+                        structural_places: vec![],
+                        result: AbstractFunctionResult::Unit,
+                        declared_places: Default::default(),
+                        entry_claim_declarations: vec![],
+                        block_entry_claims: vec![],
+                        content_entry_claims: vec![],
+                        verified_contract: None,
+                        evidence_contract_lanes: vec![],
+                        entry_claims: Default::default(),
+                        published_service_ceiling: vec![],
+                        declared_service_reach: vec![],
+                        facts: vec![],
+                        blocks: vec![OptimizationBlock {
+                            id: block,
+                            structural_parameters: vec![],
+                            parameters: vec![],
+                            nodes,
+                        }],
+                    };
+                    let selected = selected_instructions::SelectedFunction {
+                        machine: source.machine,
+                        attachment: None,
+                        provenance: Default::default(),
+                        structural: None,
+                        local_storage_slots: vec![],
+                        outgoing_arguments: vec![],
+                        calls: vec![],
+                        normalized_foreign_calls: vec![],
+                        memory_accesses: vec![],
+                        boundary_settlements: vec![],
+                        entry_block: selected_instructions::SelectedBlockId(0),
+                        virtual_registers: vec![],
+                        blocks: vec![].into(),
+                    };
+                    Self {
+                        source,
+                        canonical,
+                        target,
+                        selected,
+                    }
+                }
+
+                fn aggregate_rows_match(&self) -> bool {
+                    let Ok(correspondence) =
+                        Function::new(&self.source, &self.target, &self.canonical)
+                    else {
+                        return false;
+                    };
+                    let mut addresses = super::super::placed_reference::AddressReplay::new(
+                        &self.target,
+                        &self.selected,
+                    );
+                    correspondence
+                        .operations()
+                        .filter(|(source, _)| source.psi_operation().is_some())
+                        .all(|(source, matched)| {
+                            super::super::aggregate_results::operation(
+                                source,
+                                &self.target,
+                                &self.selected,
+                                matched,
+                                &mut addresses,
+                            )
+                        })
+                }
+            }
+
+            #[test]
+            fn image_correspondence_retains_no_code_rows_and_exact_block_positions() {
+                let fixture = Fixture::new();
+                let correspondence =
+                    Function::new(&fixture.source, &fixture.target, &fixture.canonical).unwrap();
+                let rows: Vec<_> = correspondence.operations().collect();
+                assert_eq!(rows.len(), 3);
+                for (position, (source, target)) in rows[..2].iter().enumerate() {
+                    assert_eq!(source.psi_operation(), Some(id(position as u64 + 1)));
+                    assert_eq!(target.block.block, fixture.source.entry);
+                    assert_eq!(
+                        target.instruction,
+                        Some(&fixture.target.graph.blocks[0].operations[position])
+                    );
+                    assert!(
+                        target
+                            .instruction
+                            .unwrap()
+                            .source
+                            .as_ref()
+                            .unwrap()
+                            .result
+                            .is_none()
+                    );
+                }
+                assert!(rows[2].1.instruction.is_none());
+                assert!(fixture.aggregate_rows_match());
+                assert_eq!(fixture.selected.instructions().count(), 0);
+            }
+
+            #[test]
+            fn image_correspondence_rejects_roster_subject_and_metadata_tampering() {
+                let fixture = Fixture::new();
+                for mutation in 0..21 {
+                    let mut changed = fixture.clone();
+                    let rows = &mut changed.target.graph.blocks[0].operations;
+                    match mutation {
+                        0 => {
+                            rows.remove(0);
+                        }
+                        1 => {
+                            rows.insert(0, rows[0].clone());
+                        }
+                        2 => rows.swap(0, 1),
+                        3..=5 => {
+                            let TargetUnitOperation::DecomposeStructuralValue {
+                                psi_operation,
+                                subject,
+                            } = &mut rows[0].kind
+                            else {
+                                unreachable!()
+                            };
+                            match mutation {
+                                3 => subject.place = id(99),
+                                4 => subject.path.push(StructuralPathSegment::Field(
+                                    terminal_psi::TerminalIdentityIndex(1),
+                                )),
+                                5 => *psi_operation = id(99),
+                                _ => unreachable!(),
+                            }
+                        }
+                        6 => rows[0].source.as_mut().unwrap().operation = id(99),
+                        7 => rows[0].source.as_mut().unwrap().metadata.work[0].units += 1,
+                        8 => rows[0].source.as_mut().unwrap().metadata.effect.output = 1,
+                        9 => rows[0]
+                            .source
+                            .as_mut()
+                            .unwrap()
+                            .metadata
+                            .ownership
+                            .push(OwnershipEvent::ClaimTransfer(vec![id(99)])),
+                        10 => {
+                            rows[0].source.as_mut().unwrap().result =
+                                Some(optimization_unit::ValueDefinition {
+                                    value: id(99),
+                                    scalar_type: semantic_vocabulary::ScalarType::Boolean,
+                                    site: optimization_unit::ValueDefinitionSite::Node {
+                                        block: id(1),
+                                        node: 0,
+                                    },
+                                })
+                        }
+                        11 => changed.canonical.blocks[0].nodes.swap(0, 1),
+                        12 => changed.source.blocks[0].block = id(99),
+                        13 => changed.target.graph.blocks[0].block = id(99),
+                        14 => changed.target.machine = id(99),
+                        15 => rows[0].source = None,
+                        16 => {
+                            changed.target.graph.blocks[0]
+                                .terminator_metadata
+                                .effect
+                                .output = 1
+                        }
+                        17 => changed.source.blocks[0].operations.swap(0, 1),
+                        18 => changed.target.graph.entry = id(99),
+                        19 => {
+                            changed.source.blocks.push(changed.source.blocks[0].clone());
+                            changed
+                                .target
+                                .graph
+                                .blocks
+                                .push(changed.target.graph.blocks[0].clone());
+                            changed
+                                .canonical
+                                .blocks
+                                .push(changed.canonical.blocks[0].clone());
+                        }
+                        20 => rows[1].kind = rows[0].kind.clone(),
+                        _ => unreachable!(),
+                    }
+                    assert!(!changed.aggregate_rows_match(), "mutation {mutation}");
+                }
+            }
+
+            #[test]
+            fn image_correspondence_rejects_ordinary_rows_after_cleanup_suffix() {
+                let fixture = Fixture::new();
+                let cleanup = TargetInstruction {
+                    source: None,
+                    kind: TargetUnitOperation::CleanupCall {
+                        owner: target_operations::CallSiteOwner::CleanupAction {
+                            edge: id(3),
+                            action_ordinal: 0,
+                        },
+                        callee: id(4),
+                        arguments: vec![],
+                        call_plan: fixture.target.graph.call_plan.clone(),
+                        requirement_obligations: vec![],
+                    },
+                };
+                let mut changed = fixture.clone();
+                changed.target.graph.blocks[0]
+                    .operations
+                    .push(cleanup.clone());
+                changed.target.graph.blocks[0]
+                    .operations
+                    .push(fixture.target.graph.blocks[0].operations[0].clone());
+                assert!(!changed.aggregate_rows_match());
+                let mut changed = fixture.clone();
+                let mut annotated_cleanup = cleanup;
+                annotated_cleanup.source =
+                    fixture.target.graph.blocks[0].operations[0].source.clone();
+                changed.target.graph.blocks[0]
+                    .operations
+                    .push(annotated_cleanup);
+                assert!(!changed.aggregate_rows_match());
+            }
+        }
+    }
+
     mod aggregate_results {
         use abstract_operations::{
             AbstractFunction, AbstractOperation, AbstractStructuralCallResult,
         };
         use selected_instructions::{SelectedFunction, SelectedTerminator};
         use target_operations::{TargetControlTerminator, TargetFunction, TargetUnitOperation};
+
+        // Every target row this family queries must bind its own operation ID
+        // to the checked annotation. A duplicate hidden in another source slot
+        // then fails before the per-operation predicates run.
+        pub(super) fn instruction_operation(
+            row: &TargetUnitOperation,
+        ) -> Option<semantic_vocabulary::OperationId> {
+            match row {
+                TargetUnitOperation::DecomposeStructuralValue { psi_operation, .. }
+                | TargetUnitOperation::EstablishActivationClaim { psi_operation, .. }
+                | TargetUnitOperation::EstablishCase { psi_operation, .. }
+                | TargetUnitOperation::EstablishNativeCodeLayout { psi_operation, .. }
+                | TargetUnitOperation::EstablishRecord { psi_operation, .. }
+                | TargetUnitOperation::EstablishReference { psi_operation, .. }
+                | TargetUnitOperation::EstablishScalarArray { psi_operation, .. }
+                | TargetUnitOperation::EstablishStructuralArray { psi_operation, .. }
+                | TargetUnitOperation::EstablishStructuralLocal { psi_operation, .. }
+                | TargetUnitOperation::EstablishTrivialAffineLocal { psi_operation, .. }
+                | TargetUnitOperation::EstablishZeroedStructural { psi_operation, .. }
+                | TargetUnitOperation::MergeActivationClaim { psi_operation, .. }
+                | TargetUnitOperation::ReleaseActivationClaim { psi_operation, .. }
+                | TargetUnitOperation::ReleaseReference { psi_operation, .. }
+                | TargetUnitOperation::SplitActivationClaim { psi_operation, .. }
+                | TargetUnitOperation::StoreStructuralField { psi_operation, .. }
+                | TargetUnitOperation::StructuralCaseMembership { psi_operation, .. }
+                | TargetUnitOperation::StructuralLeafCopy { psi_operation, .. } => {
+                    Some(*psi_operation)
+                }
+                _ => None,
+            }
+        }
 
         pub(super) fn header(
             source: &AbstractFunction,
@@ -10214,12 +10780,15 @@ mod source {
             source: &AbstractOperation,
             target: &TargetFunction,
             selected: &SelectedFunction,
+            matched: super::correspondence::Operation<'_>,
             addresses: &mut super::placed_reference::AddressReplay<'_>,
         ) -> bool {
             let graph = &target.graph;
+            let retained = matched.instruction.map(|row| &row.kind);
+            let block = matched.block;
             match source {
                 AbstractOperation::EstablishActivationClaim { psi_operation, result, bound, committed, backing_type, established_case, rejected_case } => {
-                    graph.operations().filter(|row| matches!(row,
+                    retained.is_some_and(|row| matches!(row,
                         TargetUnitOperation::EstablishActivationClaim {
                             psi_operation: retained, result_home, bound: retained_bound,
                             committed: retained_committed, backing_type: retained_backing,
@@ -10232,18 +10801,18 @@ mod source {
                                     && integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed)
                             && retained_backing == backing_type && retained_established == established_case
                             && retained_rejected == rejected_case
-                    )).count() == 1
+                    ))
                         && selected.instructions().any(|row| row.provenance.operations.contains(psi_operation))
                 }
                 AbstractOperation::ReleaseActivationClaim { psi_operation, source, claim } => {
-                    graph.operations().filter(|row| matches!(row,
+                    retained.is_some_and(|row| matches!(row,
                         TargetUnitOperation::ReleaseActivationClaim { psi_operation: retained, source: retained_source, claim: retained_claim }
                         if retained == psi_operation && retained_source == source && retained_claim == claim
-                    )).count() == 1
+                    ))
                         && selected.instructions().any(|row| row.provenance.operations.contains(psi_operation))
                 }
                 AbstractOperation::SplitActivationClaim { psi_operation, result, source, claim, bound_at, committed_at, covered_case, rejected_case } => {
-                    graph.operations().filter(|row| matches!(row,
+                    retained.is_some_and(|row| matches!(row,
                         TargetUnitOperation::SplitActivationClaim {
                             psi_operation: retained, result_home, source: retained_source, claim: retained_claim,
                             bound_at: retained_bound, committed: retained_committed, covered_case: retained_covered,
@@ -10253,11 +10822,11 @@ mod source {
                             && retained_source == source && retained_claim == claim
                             && retained_bound == bound_at && retained_committed.source_value() == *committed_at
                             && retained_covered == covered_case && retained_rejected == rejected_case
-                    )).count() == 1
+                    ))
                         && selected.instructions().any(|row| row.provenance.operations.contains(psi_operation))
                 }
                 AbstractOperation::MergeActivationClaim { psi_operation, result, lower, upper, lower_claim, upper_claim, covered_case, rejected_case } => {
-                    graph.operations().filter(|row| matches!(row,
+                    retained.is_some_and(|row| matches!(row,
                         TargetUnitOperation::MergeActivationClaim {
                             psi_operation: retained, result_home, lower: retained_lower, upper: retained_upper,
                             lower_claim: retained_lower_claim, upper_claim: retained_upper_claim,
@@ -10267,19 +10836,22 @@ mod source {
                             && retained_lower == lower && retained_upper == upper
                             && retained_lower_claim == lower_claim && retained_upper_claim == upper_claim
                             && retained_covered == covered_case && retained_rejected == rejected_case
-                    )).count() == 1
+                    ))
                         && selected.instructions().any(|row| row.provenance.operations.contains(psi_operation))
                 }
                 AbstractOperation::StructuralCaseMembership { psi_operation, result, source, path, case } => {
-                    let target_rows = addresses.case_operations(*psi_operation);
-                    let mut observations = target_rows.into_iter().filter_map(|row| match row {
-                        TargetUnitOperation::StructuralCaseMembership { psi_operation: retained, result: retained_result, source: retained_source, path: retained_path, case: retained_case, tag_byte_offset, .. }
-                            if retained == psi_operation && retained_result == result && retained_source == source && retained_path == path && retained_case == case => Some(*tag_byte_offset),
-                        _ => None,
-                    });
-                    let Some(tag_byte_offset) = observations.next() else { return false; };
+                    let Some(TargetUnitOperation::StructuralCaseMembership {
+                        psi_operation: retained_operation, result: retained_result,
+                        source: retained_source, path: retained_path, case: retained_case,
+                        tag_byte_offset, ..
+                    }) = retained else { return false; };
+                    if retained_operation != psi_operation || retained_result != result
+                        || retained_source != source || retained_path != path || retained_case != case
+                    {
+                        return false;
+                    }
+                    let tag_byte_offset = *tag_byte_offset;
                     result.scalar_type == semantic_vocabulary::ScalarType::Boolean
-                        && observations.next().is_none()
                         && {
                         let instructions = addresses.operation_instructions(*psi_operation);
                         instructions.into_iter().filter(|row|
@@ -10296,10 +10868,10 @@ mod source {
                         }
                 }
                 AbstractOperation::EstablishNativeCodeLayout { psi_operation, result, machine } => {
-                    graph.operations().filter(|row| matches!(row,
+                    retained.is_some_and(|row| matches!(row,
                         TargetUnitOperation::EstablishNativeCodeLayout { psi_operation: retained, result_home, machine: selected_machine }
                         if retained == psi_operation && result_home.operation_result() == Some((*psi_operation, result))
-                            && selected_machine == machine)).count() == 1
+                            && selected_machine == machine))
                         && selected.instructions().filter(|row| {
                             row.provenance.operations.contains(psi_operation)
                                 && matches!(row.kind, selected_instructions::SelectedInstructionKind::ImageAddress {
@@ -10308,27 +10880,27 @@ mod source {
                         }).count() == 1
                 }
                 AbstractOperation::EstablishRecord { psi_operation, result, fields } => {
-                    graph.operations().filter(|row| matches!(row,
+                    retained.is_some_and(|row| matches!(row,
                         TargetUnitOperation::EstablishRecord { psi_operation: retained, result_home, fields: retained_fields }
-                        if psi_operation == retained && result_home.operation_result() == Some((*psi_operation, result)) && fields == retained_fields)).count() == 1
+                        if psi_operation == retained && result_home.operation_result() == Some((*psi_operation, result)) && fields == retained_fields))
                 }
                 AbstractOperation::MoveStructuralValue { psi_operation, result, source }
                 | AbstractOperation::TransformContent { psi_operation, result, source, .. } => {
-                    graph.operations().filter(|row| matches!(row,
+                    retained.is_some_and(|row| matches!(row,
                         TargetUnitOperation::StructuralLeafCopy { psi_operation: retained, result_home, source: retained_source, path: abstract_operations::StructuralCopyPath::Ordinary(retained_path), .. }
                             if retained == psi_operation && result_home.operation_result() == Some((*psi_operation, result))
                                 && *retained_source == source.place && *retained_path == source.path
-                    )).count() == 1
+                    ))
                 }
                 AbstractOperation::StructuralLeafCopy { psi_operation, result, source, path } => {
-                    graph.operations().filter(|row| matches!(row,
+                    retained.is_some_and(|row| matches!(row,
                         TargetUnitOperation::StructuralLeafCopy { psi_operation: retained, result_home, source: retained_source, path: retained_path, .. }
                             if retained == psi_operation && result_home.operation_result() == Some((*psi_operation, result))
                                 && retained_source == source && retained_path == path
-                    )).count() == 1
+                    ))
                 }
                 AbstractOperation::MoveStructuralField { psi_operation, result, source, path, field } => {
-                    graph.operations().filter(|row| match row {
+                    retained.is_some_and(|row| match row {
                         TargetUnitOperation::StructuralLeafCopy { psi_operation: retained, result_home, source: retained_source, path: abstract_operations::StructuralCopyPath::Ordinary(retained_path), indices, .. }
                             if retained == psi_operation && result_home.operation_result() == Some((*psi_operation, result))
                                 && *retained_source == source.place() => {
@@ -10345,10 +10917,10 @@ mod source {
                             }
                         }
                         _ => false,
-                    }).count() == 1
+                    })
                 }
                 AbstractOperation::StoreStructuralField { psi_operation, destination, path, field, value, .. } => {
-                    graph.operations().filter(|row| match row {
+                    retained.is_some_and(|row| match row {
                         TargetUnitOperation::StoreStructuralField { psi_operation: retained, destination: retained_destination, path: retained_path, field: retained_field, value: retained_value, indices, .. }
                             if retained == psi_operation && retained_destination == destination && retained_path == path
                                 && retained_field == field && *retained_value == value.place => {
@@ -10356,31 +10928,31 @@ mod source {
                                 matches!(segment, terminal_psi::StructuralPathSegment::RuntimeIndex { .. })).count()
                         }
                         _ => false,
-                    }).count() == 1
+                    })
                 }
                 AbstractOperation::DecomposeStructuralValue { psi_operation, subject } => {
-                    graph.operations().filter(|row| matches!(row,
+                    retained.is_some_and(|row| matches!(row,
                         TargetUnitOperation::DecomposeStructuralValue { psi_operation: retained, subject: retained_subject }
                             if retained == psi_operation && retained_subject == subject
-                    )).count() == 1
+                    ))
                 }
                 AbstractOperation::EstablishTrivialAffineLocal { psi_operation, place, structural_type } => {
-                    graph.operations().filter(|row| matches!(row,
+                    retained.is_some_and(|row| matches!(row,
                         TargetUnitOperation::EstablishTrivialAffineLocal { psi_operation: retained, place: retained_place, structural_type: retained_type }
                             if retained == psi_operation && retained_place == place && retained_type == structural_type
-                    )).count() == 1
+                    ))
                 }
                 AbstractOperation::EstablishZeroedStructural { psi_operation, result } => {
-                    graph.operations().filter(|row| matches!(row,
+                    retained.is_some_and(|row| matches!(row,
                         TargetUnitOperation::EstablishZeroedStructural { psi_operation: retained, result_home }
                             if retained == psi_operation && result_home.operation_result() == Some((*psi_operation, result))
-                    )).count() == 1
+                    ))
                 }
                 AbstractOperation::EstablishStructuralLocal { psi_operation, result } => {
-                    graph.operations().filter(|row| matches!(row,
+                    retained.is_some_and(|row| matches!(row,
                         TargetUnitOperation::EstablishStructuralLocal { psi_operation: retained, result_home }
                             if retained == psi_operation && result_home.operation_result() == Some((*psi_operation, result))
-                    )).count() == 1
+                    ))
                 }
                 AbstractOperation::EstablishStructuralArray { psi_operation, result, elements } => {
                     graph.structural_types.iter().any(|declaration|
@@ -10390,35 +10962,35 @@ mod source {
                                     if u64::try_from(elements.len()).ok() == Some(length))
                                 || matches!(declaration.shape,
                                     terminal_psi::StructuralTypeShape::ElementView { access: None, .. })))
-                        && graph.operations().filter(|row| matches!(row,
+                        && retained.is_some_and(|row| matches!(row,
                             TargetUnitOperation::EstablishStructuralArray { psi_operation: retained, result_home, elements: retained_elements }
                                 if retained == psi_operation && result_home.operation_result() == Some((*psi_operation, result))
                                     && retained_elements == elements
-                        )).count() == 1
+                        ))
                 }
                 AbstractOperation::EstablishScalarArray { psi_operation, result, elements } => {
-                    graph.operations().filter(|row| matches!(row,
+                    retained.is_some_and(|row| matches!(row,
                         TargetUnitOperation::EstablishScalarArray { psi_operation: retained, result_home, elements: retained_elements }
                             if retained == psi_operation && result_home.operation_result() == Some((*psi_operation, result)) && retained_elements == elements
-                    )).count() == 1
+                    ))
                 }
                 AbstractOperation::EstablishCase { psi_operation, result, result_case, fields } => {
-                    graph.operations().filter(|row| matches!(row,
+                    retained.is_some_and(|row| matches!(row,
                         TargetUnitOperation::EstablishCase { psi_operation: retained, result_home, result_case: retained_case, fields: retained_fields }
                             if retained == psi_operation && result_home.operation_result() == Some((*psi_operation, result)) && retained_case == result_case && retained_fields == fields
-                    )).count() == 1
+                    ))
                 }
                 AbstractOperation::EstablishReference { psi_operation, result, source, storage } => {
-                    graph.operations().filter(|row| matches!(row,
+                    retained.is_some_and(|row| matches!(row,
                         TargetUnitOperation::EstablishReference { psi_operation: retained, result_home, source: retained_source, storage: retained_storage, .. }
                         if retained == psi_operation && result_home.operation_result() == Some((*psi_operation, result)) && retained_source == source && retained_storage == storage
-                    )).count() == 1
+                    ))
                 }
                 AbstractOperation::ReleaseReference { psi_operation, source, path } => {
-                    graph.operations().filter(|row| matches!(row,
+                    retained.is_some_and(|row| matches!(row,
                         TargetUnitOperation::ReleaseReference { psi_operation: retained, source: retained_source, path: retained_path }
                         if retained == psi_operation && retained_source == source && retained_path == path
-                    )).count() == 1
+                    ))
                 }
                 AbstractOperation::CallStructural {
                     psi_operation,
@@ -10434,13 +11006,13 @@ mod source {
                 }
                 AbstractOperation::ReturnStructural { psi_edge, source, trivial_affine_locals, cleanup_actions: expected_cleanup, .. } => {
                     trivial_affine_locals.is_empty()
-                        && graph.blocks.iter().filter(|block| matches!(&block.terminator,
+                        && matches!(&block.terminator,
                             TargetControlTerminator::ReturnStructural { psi_edge: retained, source: home, cleanup_actions }
                                 if retained == psi_edge && match home {
                                     target_operations::TargetStructuralReturnSource::Home(home) => home.place() == *source,
                                     target_operations::TargetStructuralReturnSource::Parameter(parameter) => parameter.place == *source,
                                     target_operations::TargetStructuralReturnSource::SharedDescriptor { place } => *place == *source,
-                                } && cleanup_actions == expected_cleanup && super::control_flow::return_cleanup_calls_match(cleanup_actions, block.operations(), &graph.structural_types, *psi_edge))).count() == 1
+                                } && cleanup_actions == expected_cleanup && super::control_flow::return_cleanup_calls_match(cleanup_actions, block.operations(), &graph.structural_types, *psi_edge))
                         && selected.blocks.iter().filter(|block| matches!(&block.terminator,
                             SelectedTerminator::Return { psi_return_edge, instruction }
                                 if psi_return_edge == psi_edge && (matches!(instruction.kind, selected_instructions::SelectedInstructionKind::ReturnAggregate { .. } | selected_instructions::SelectedInstructionKind::ReturnScalar)
@@ -13535,31 +14107,14 @@ mod source {
         struct AddressInputs<'a> {
             selected: SelectedAddressInputs<'a>,
             homes: super::structural_homes::HomeInputs<'a>,
-            case_operations: Vec<(OperationId, &'a TargetUnitOperation)>,
             source_values: Option<Vec<(ValueId, semantic_vocabulary::ScalarType)>>,
         }
 
         impl<'a> AddressInputs<'a> {
             fn new(target: &'a TargetFunction, selected: &'a SelectedFunction) -> Self {
-                let mut case_operations: Vec<_> = target
-                    .graph
-                    .operations()
-                    .filter_map(|row| {
-                        if let TargetUnitOperation::StructuralCaseMembership {
-                            psi_operation, ..
-                        } = row
-                        {
-                            Some((*psi_operation, row))
-                        } else {
-                            None
-                        }
-                    })
-                    .collect();
-                case_operations.sort_by_key(|(operation, _)| *operation);
                 Self {
                     selected: SelectedAddressInputs::new(selected),
                     homes: super::structural_homes::HomeInputs::new(target, selected),
-                    case_operations,
                     source_values: None,
                 }
             }
@@ -13634,16 +14189,6 @@ mod source {
                 operation: OperationId,
             ) -> Vec<&'a SelectedInstruction> {
                 operation_rows(&self.inputs().selected.operation_instructions, operation)
-                    .iter()
-                    .map(|(_, row)| *row)
-                    .collect()
-            }
-
-            pub(super) fn case_operations(
-                &mut self,
-                operation: OperationId,
-            ) -> Vec<&'a TargetUnitOperation> {
-                operation_rows(&self.inputs().case_operations, operation)
                     .iter()
                     .map(|(_, row)| *row)
                     .collect()
@@ -20172,7 +20717,9 @@ mod source {
             } else if parameter_abi(targeted).is_some() {
                 return Err(Error::Mismatch("unexpected parameter/result ABI"));
             }
-            for (operation_ordinal, operation) in abstracted.operations().enumerate() {
+            let correspondence = correspondence::Function::new(abstracted, targeted, declaration)?;
+            for (operation_ordinal, (operation, matched)) in correspondence.operations().enumerate()
+            {
                 let admitted = match operation {
                     AbstractOperation::ReadSegmentSelector { .. }
                     | AbstractOperation::ReadTaskRegister { .. }
@@ -20302,7 +20849,7 @@ mod source {
                         result: AbstractStructuralCallResult::Structural { .. },
                         ..
                     }
-                    | AbstractOperation::ReturnStructural { .. } => aggregate_results::operation(operation, targeted, selected, &mut addresses),
+                    | AbstractOperation::ReturnStructural { .. } => aggregate_results::operation(operation, targeted, selected, matched, &mut addresses),
                     AbstractOperation::EstablishPrimitiveLocal { .. }
                     | AbstractOperation::PrimitiveLocalStore { .. } => {
                         super::structural::primitive_operation_retained(abstracted, selected, operation)
