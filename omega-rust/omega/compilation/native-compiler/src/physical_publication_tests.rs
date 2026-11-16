@@ -234,6 +234,7 @@ fn check_published_plan(
                 claims: Vec::new(),
                 owned_places: Vec::new(),
                 partial_custody: Vec::new(),
+                nominal_partitions: Vec::new(),
             },
         ));
     }

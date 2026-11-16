@@ -760,7 +760,7 @@ pub(crate) mod input_site {
                                     edge,
                                     value: LegalizedScalarReturnValue::Unit,
                                     work: Vec::new(),
-                                    effect: optimization_unit::EffectLink {
+                                    effect: native_vocabulary::provenance::EffectLink {
                                         input: 0,
                                         output: 1,
                                     },
