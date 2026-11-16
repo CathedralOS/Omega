@@ -107,3 +107,42 @@ fn a_data_only_subject_needs_no_placeholder_machine() {
     assert!(accepted.elaboration.module.machines.is_empty());
     assert_eq!(accepted.elaboration.module.structural_types.len(), 1);
 }
+
+#[test]
+fn capacity_guards_reach_the_original_addition_operands() {
+    let source = r#"
+machine cap(length: u64, position: u64) -> u64
+requires position < length {
+    transition length - position > 4294967295 {
+        true -> receive(length, position + 4294967295)
+        false -> position
+    }
+}
+machine advance(length: u64, position: u64, count: i64) -> u64
+requires position <= length, count >= 0 {
+    let written: u64 = count as u64;
+    transition written <= length - position {
+        true -> receive(length, position + written)
+        false -> position
+    }
+}
+machine receive(length: u64, next: u64) -> u64
+requires next <= length { next }
+"#;
+    let accepted = judged(source, false);
+    assert!(
+        matches!(accepted, RouteVerdict::Accepted(_)),
+        "{accepted:?}"
+    );
+
+    let different_literal = source.replace("position + 4294967295", "position + 4294967297");
+    let rejected = judged(&different_literal, false);
+    let RouteVerdict::Rejected { unproved, .. } = rejected else {
+        panic!("{rejected:?}");
+    };
+    assert!(
+        unproved
+            .iter()
+            .any(|row| matches!(row.kind, ObligationKind::OperationSafety { .. }))
+    );
+}
