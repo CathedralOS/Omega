@@ -190,8 +190,8 @@ pub fn float_integer_failure_condition(
             right,
         });
     }
-    failures.sort();
-    failures.dedup();
+    // Consumers canonicalize compound clauses with their wire owner after
+    // binding actual sources. Rust enum order is not canonical wire order.
     Ok(Proposition::Disjunction(failures))
 }
 

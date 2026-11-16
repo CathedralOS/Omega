@@ -796,7 +796,7 @@ impl<'a> Prover<'a> {
     /// search is tried last, so a reachable point pays for it only when its
     /// goal is otherwise unproved.
     fn unreachable(&mut self, goal: &Proposition) -> Option<ProofNode> {
-        if let Some(absurd) = self.refute_closed_mathematical(goal) {
+        if let Some(absurd) = self.refute_closed_relation(goal) {
             return Some(absurd);
         }
         let mut orders: Vec<ProofNode> = self
@@ -842,10 +842,10 @@ impl<'a> Prover<'a> {
             .find_map(|taken| self.refute_guard(taken, goal))
     }
 
-    /// A closed false mathematical assumption also makes a path unreachable.
+    /// A closed false scalar or mathematical assumption makes a path unreachable.
     /// Retain its exact value equations in the proof; the kernel independently
     /// evaluates the negated comparison and checks the transport back.
-    fn refute_closed_mathematical(&mut self, goal: &Proposition) -> Option<ProofNode> {
+    fn refute_closed_relation(&mut self, goal: &Proposition) -> Option<ProofNode> {
         for index in 0..self.facts.len() {
             if self.facts[index].axiom.is_some()
                 || !matches!(
@@ -853,6 +853,7 @@ impl<'a> Prover<'a> {
                     Proposition::IntegerMathEqual(..)
                         | Proposition::IntegerMathLessThan(..)
                         | Proposition::IntegerMathLessOrEqual(..)
+                        | Proposition::ScalarIeeeFloatComparison { .. }
                 )
             {
                 continue;

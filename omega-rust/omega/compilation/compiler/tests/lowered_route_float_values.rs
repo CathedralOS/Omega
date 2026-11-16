@@ -1467,3 +1467,153 @@ fn saturating_float_integer_conversions_keep_the_result_policy_and_total_contrac
         .unwrap_or_else(|panic| std::panic::resume_unwind(panic));
     });
 }
+
+#[test]
+fn trapping_float_integer_bad_inputs_crash_at_the_named_boundary() {
+    let Some(profile) = target::TargetProfile::host_if_supported() else {
+        return;
+    };
+    std::thread::scope(|scope| {
+        compiler::checked::spawn_compile_worker(scope, || {
+            use language_semantics::numeric_intrinsics::{NumericIntrinsic, NumericType};
+            use numerics::{arithmetic::ArithmeticDomain, integer_carrier::FixedInteger};
+            let fixture = repository().join("tests/fixtures/run/float/trapping_integer_conversion");
+            let kept = std::fs::read_to_string(fixture.join("main.omg")).unwrap();
+            let (helpers, _) = kept.split_once("machine main() crashes Trap {").unwrap();
+            // These derived programs permit the live route rather than asking
+            // crashes-none helpers to admit invalid arguments.
+            let helpers = helpers
+                .lines()
+                .filter(|line| !line.starts_with("//"))
+                .map(|line| {
+                    if line.starts_with("requires ") {
+                        "requires true"
+                    } else if line == "crashes none {" {
+                        "crashes Trap {"
+                    } else {
+                        line
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join("\n");
+            let nonce = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos();
+            let root = std::env::temp_dir().join(format!(
+                "omega-trapping-integer-runtime-{}-{nonce}",
+                std::process::id()
+            ));
+            std::fs::create_dir(&root).unwrap();
+            for (name, helper, input, source, target) in [
+                ("nan", "signed32", "0.0f32 / 0.0f32", NumericType::F32, FixedInteger::signed(32)),
+                ("overflow", "signed64", "2147483648.0f64", NumericType::F64, FixedInteger::signed(32)),
+                ("negative", "unsigned32", "-1.0f32", NumericType::F32, FixedInteger::unsigned(32)),
+                ("infinity", "unsigned64", "1.0f64 / 0.0f64", NumericType::F64, FixedInteger::unsigned(32)),
+            ] {
+                let directory = root.join(name);
+                std::fs::create_dir(&directory).unwrap();
+                let main = directory.join("main.omg");
+                // Normal completion deliberately exits successfully. No
+                // fallback Trap could conceal saturation or an unchecked call.
+                std::fs::write(
+                    &main,
+                    format!(
+                        "{helpers}\nmachine main() crashes Trap {{\n    let observed: {target} = {helper}({input});\n}}\n"
+                    ),
+                )
+                .unwrap();
+                std::fs::copy(fixture.join("build.omg"), directory.join("build.omg")).unwrap();
+                let output = directory.join("output");
+                let request = compiler::CompileRequest::for_targets(
+                    main,
+                    output.clone(),
+                    vec![Some(profile)],
+                )
+                .with_requested_product(compiler::RequestedCompileProduct::NativeArtifact);
+                let report = orchestration::compile_sources(
+                    &mut compiler::CompilationSession::default(),
+                    request,
+                )
+                .and_then(compiler::CompileOutcomes::into_single_report)
+                .unwrap_or_else(|diagnostics| panic!("{name}: {diagnostics:?}"));
+                let artifact = report.retained_native_artifact().unwrap().psi_artifact();
+                let reloaded =
+                    terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
+                        .unwrap();
+                let meaning = NumericIntrinsic::Conversion {
+                    source,
+                    target: NumericType::Integer(target),
+                    domain: ArithmeticDomain::Trapping,
+                };
+                let boundary = reloaded
+                    .semantic_module()
+                    .boundary_machines
+                    .iter()
+                    .find(|boundary| boundary.numeric_intrinsic == Some(meaning))
+                    .unwrap()
+                    .id;
+                let observation =
+                    terminal_runtime::execute(terminal_runtime::TerminalRuntimeRequest {
+                        native_image: report.retained_native_artifact(),
+                        entry: None,
+                        filesystem: Default::default(),
+                        native_services: Default::default(),
+                        native_provider: None,
+                        x86_flags: None,
+                        memory_ordering: None,
+                        provider_proposal: None,
+                        artifact: &reloaded,
+                        target: Some(profile.target_name()),
+                        provisions: report.runtime_provisions(),
+                        work_budget: 100_000,
+                        domain_exit:
+                            terminal_runtime::TerminalDomainExitDelegation::IsolatedContainingDomain,
+                        standard_input: None,
+                        clock: None,
+                    })
+                    .unwrap_or_else(|error| panic!("{name}: {error:?}"));
+                assert!(
+                    matches!(
+                        observation.status,
+                        terminal_interpreter::TerminalExecutionStatus::Crashed(ref crash)
+                            if crash.cause == semantic_vocabulary::CrashCause::Trap
+                                && matches!(
+                                    crash.site,
+                                    terminal_interpreter::TerminalCrashSite::BoundaryCall {
+                                        boundary: actual, ..
+                                    } if actual == boundary
+                                )
+                    ),
+                    "{name}: {:?}",
+                    observation.status
+                );
+                let published = products::publication::publish_compilation(report, &output).unwrap();
+                let observed = std::process::Command::new(
+                    published.checked_native_executable_path().unwrap(),
+                )
+                .output()
+                .unwrap();
+                #[cfg(unix)]
+                {
+                    use std::os::unix::process::ExitStatusExt;
+                    let signal = match profile.native_target().architecture {
+                        target::Architecture::Aarch64 => 5,
+                        target::Architecture::X86_64 => 4,
+                    };
+                    assert_eq!(observed.status.signal(), Some(signal), "{name}: {observed:?}");
+                }
+                #[cfg(windows)]
+                assert_eq!(
+                    observed.status.code().map(|code| code as u32),
+                    Some(0xc000001d),
+                    "{name}: {observed:?}"
+                );
+            }
+            std::fs::remove_dir_all(root).unwrap();
+        })
+        .unwrap()
+        .join()
+        .unwrap_or_else(|panic| std::panic::resume_unwind(panic));
+    });
+}

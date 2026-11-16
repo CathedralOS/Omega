@@ -3,6 +3,89 @@ use semantic_vocabulary::{IntegerSign, OperationId};
 use terminal_check_tables::values::{ValueOrigin, ValueRow};
 
 #[test]
+fn false_ieee_assumptions_use_checked_contradiction_with_the_actual_equation() {
+    use semantic_vocabulary::{IeeeFloatComparisonKind, IeeeFloatFormat, IeeeFloatValue};
+    for format in [IeeeFloatFormat::Binary32, IeeeFloatFormat::Binary64] {
+        let scalar = ScalarType::IeeeFloat(format);
+        let mut values = IdTable::default();
+        let value = values.push(ValueRow {
+            scalar_type: scalar,
+            origin: ValueOrigin::Operation(OperationId::new(1).unwrap()),
+            rigid: None,
+        });
+        let value = ScalarTerm::value(value, scalar);
+        let [zero, quarter, nan] = match format {
+            IeeeFloatFormat::Binary32 => {
+                [0, 0x3e80_0000, 0x7fc0_0042].map(IeeeFloatValue::Binary32)
+            }
+            IeeeFloatFormat::Binary64 => {
+                [0, 0x3fd0_0000_0000_0000, 0x7ff8_0000_0000_0042].map(IeeeFloatValue::Binary64)
+            }
+        }
+        .map(ScalarTerm::IeeeFloatLiteral);
+        let comparison = |kind, left, right| Proposition::ScalarIeeeFloatComparison {
+            kind,
+            format,
+            left,
+            right,
+        };
+        let unordered = comparison(
+            IeeeFloatComparisonKind::NotEqual,
+            value.clone(),
+            value.clone(),
+        );
+        let invalid = Proposition::Disjunction(vec![
+            unordered.clone(),
+            comparison(IeeeFloatComparisonKind::LessThan, value.clone(), zero),
+        ]);
+        let excludes_invalid = Proposition::Implication {
+            premise: Box::new(invalid),
+            conclusion: Box::new(Proposition::Falsehood),
+        };
+        let context = PropositionContext::from_value_types(
+            values.iter().map(|(id, row)| (id, row.scalar_type)),
+        )
+        .unwrap();
+        for (literal, excludes) in [(quarter, true), (nan, false)] {
+            let axioms = [Proposition::Equal(value.clone(), literal)];
+            let result = Prover::new(&context, &[], &axioms, &values).prove(&excludes_invalid);
+            assert_eq!(result.is_ok(), excludes);
+            if let Ok(proof) = result {
+                let accepted = proof_admission::accept_certificate(
+                    &context,
+                    &excludes_invalid,
+                    &[],
+                    &axioms,
+                    &proof,
+                )
+                .unwrap();
+                assert!(accepted.assumptions.is_empty());
+                assert_eq!(accepted.semantic_axioms.len(), 1);
+                assert_eq!(accepted.semantic_axioms[0].index, 0);
+            }
+            let assumptions = [Proposition::Truth, unordered.clone()];
+            let result = Prover::new(&context, &assumptions, &axioms, &values)
+                .prove(&Proposition::Falsehood);
+            assert_eq!(result.is_ok(), excludes);
+            if let Ok(proof) = result {
+                let accepted = proof_admission::accept_certificate(
+                    &context,
+                    &Proposition::Falsehood,
+                    &assumptions,
+                    &axioms,
+                    &proof,
+                )
+                .unwrap();
+                assert_eq!(accepted.assumptions.len(), 1);
+                assert_eq!(accepted.assumptions[0].index, 1);
+                assert_eq!(accepted.semantic_axioms.len(), 1);
+                assert_eq!(accepted.semantic_axioms[0].index, 0);
+            }
+        }
+    }
+}
+
+#[test]
 fn a_later_named_result_can_bound_the_same_expression_more_tightly() {
     let integer = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
     let scalar_type = ScalarType::Integer(integer);

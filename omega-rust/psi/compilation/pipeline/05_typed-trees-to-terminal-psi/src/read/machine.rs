@@ -2045,8 +2045,18 @@ impl<'t> Program<'t> {
                 .map_err(unavailable)?,
             ensures,
             crashes: {
-                let routes = terminal_semantics::numeric_primitives::crash_routes(meaning)
+                let mut routes = terminal_semantics::numeric_primitives::crash_routes(meaning)
                     .map_err(unavailable)?;
+                for route in &mut routes {
+                    for guard in &mut route.alternatives {
+                        if let CrashRouteGuard::Predicate(predicate) = guard {
+                            *predicate = CrashPredicateTerm::new(canonical::canonical_clause(
+                                predicate.proposition().clone(),
+                                id,
+                            )?);
+                        }
+                    }
+                }
                 if routes.is_empty() {
                     CrashCeiling::DeclaredNone
                 } else {

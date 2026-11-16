@@ -559,7 +559,8 @@ pub fn validate_boundary(
         "result lifetime declaration"
     );
     require!(
-        boundary.crash_routes == expected_crashes && boundary.scalar_requires == expected_requires,
+        crash_routes_match(&boundary.crash_routes, &expected_crashes)
+            && boundary.scalar_requires == expected_requires,
         "formation and crash clauses"
     );
     require!(
@@ -585,6 +586,34 @@ pub fn validate_boundary(
         "service and entry ceilings"
     );
     Ok(())
+}
+
+/// Wire ingress owns canonical ordering. Compare the complete guarded
+/// contract semantically here, preserving causes, route shape and every leaf.
+fn crash_routes_match(
+    actual: &[terminal_psi::CrashRouteBucket],
+    expected: &[terminal_psi::CrashRouteBucket],
+) -> bool {
+    actual.len() == expected.len()
+        && actual.iter().zip(expected).all(|(actual, expected)| {
+            actual.cause == expected.cause
+                && actual.alternatives.len() == expected.alternatives.len()
+                && actual.alternatives.iter().zip(&expected.alternatives).all(
+                    |(actual, expected)| match (actual, expected) {
+                        (
+                            terminal_psi::CrashRouteGuard::Truth,
+                            terminal_psi::CrashRouteGuard::Truth,
+                        ) => true,
+                        (
+                            terminal_psi::CrashRouteGuard::Predicate(actual),
+                            terminal_psi::CrashRouteGuard::Predicate(expected),
+                        ) => actual
+                            .proposition()
+                            .same_commutative_predicate(expected.proposition()),
+                        _ => false,
+                    },
+                )
+        })
 }
 
 fn coordinates(
