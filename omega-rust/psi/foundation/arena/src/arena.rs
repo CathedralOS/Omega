@@ -521,6 +521,19 @@ pub struct Arena<T> {
     rewrite_revision: u64, // Monotonic counter bumped on non-append rewrites and frees.
 }
 
+impl<T> From<Arena<T>> for crate::RootedArena<T> {
+    fn from(arena: Arena<T>) -> Self {
+        Self::from_storage_parts(
+            arena.dummy,
+            arena.items,
+            (!arena.implicit_slot_metadata)
+                .then(|| *arena.slot_metadata.expect("explicit arena slots")),
+            arena.fresh_generation,
+            arena.fresh,
+        )
+    }
+}
+
 impl<T> Arena<T> {
     pub fn storage_view(&self) -> ArenaStorageView<'_, T> {
         ArenaStorageView {
@@ -530,6 +543,17 @@ impl<T> Arena<T> {
             fresh_generation: self.fresh_generation,
             fresh: self.fresh,
         }
+    }
+
+    #[cfg(test)]
+    pub(super) fn storage_allocation_bytes(&self) -> usize {
+        self.items.capacity() * std::mem::size_of::<T>()
+            + self.slot_metadata.as_ref().map_or(0, |slots| {
+                std::mem::size_of::<ArenaSlotStorage>()
+                    + slots.generations.capacity() * std::mem::size_of::<u32>()
+                    + slots.occupied.capacity() * std::mem::size_of::<bool>()
+                    + slots.free_indices.capacity() * std::mem::size_of::<u32>()
+            })
     }
 
     pub fn from_storage(
@@ -1174,6 +1198,14 @@ impl<T: Default> Arena<T> {
     }
 
     pub fn free(&mut self, handle: Handle<T>) -> bool {
+        self.retire_with_replacement(handle, T::default)
+    }
+
+    pub(super) fn retire_with_replacement(
+        &mut self,
+        handle: Handle<T>,
+        replacement: impl FnOnce() -> T,
+    ) -> bool {
         let index = self.index_from_valid_handle(handle);
 
         if index == invalid_index() {
@@ -1181,7 +1213,7 @@ impl<T: Default> Arena<T> {
         }
         self.bump_rewrite_revision();
 
-        let replacement = T::default();
+        let replacement = replacement();
         self.materialize_slot_metadata();
         self.items[index] = replacement;
         self.slot_metadata_mut().occupied[index] = false;

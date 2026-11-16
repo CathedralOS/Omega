@@ -114,7 +114,7 @@ macro_rules! typed_tree_table {
             } )?
 
             $( #[ $inline ] )?
-            pub fn $get(&self) -> &[$ty] {
+            pub fn $get(&self) -> arena::RootRows<'_, $ty> {
                 self.tables
                     .$field
                     .span_or_empty(self.roots.$field)
@@ -1381,9 +1381,9 @@ pub struct TypedTreeTables {
     pub product_operand_applications: Arena<ProductOperandApplication>,
     authored_declaration_selections:
         language_semantics::declaration_selection::AuthoredDeclarationSelections,
-    pub const_declarations: Arena<crate::constant::ConstDeclaration>,
+    pub const_declarations: arena::RootedArena<crate::constant::ConstDeclaration>,
     pub data_definitions: DataDefinitionTable,
-    pub type_aliases: Arena<crate::type_aliases::TypeAliasDefinition>,
+    pub type_aliases: arena::RootedArena<crate::type_aliases::TypeAliasDefinition>,
     pub data_application_definitions: Arena<DataApplicationView>,
     pub data_type_parameters: TypeParameterTable,
     pub declared_type_equations: Arena<machine::DeclaredTypeEquation>,
@@ -1393,23 +1393,23 @@ pub struct TypedTreeTables {
     pub domain_definitions: SpelledDeclarationTable<domain::DomainDefinition>,
     pub proof_facts: Arena<domain::ProofFact>,
     proof_fact_source_spans: Vec<Option<source::SourceSpan>>,
-    pub propositions: Arena<proposition::PropositionDefinition>,
+    pub propositions: arena::RootedArena<proposition::PropositionDefinition>,
     pub proposition_binders: Arena<proposition::PropositionBinder>,
-    pub mathematical_definitions: Arena<mathematical::MathematicalDefinition>,
+    pub mathematical_definitions: arena::RootedArena<mathematical::MathematicalDefinition>,
     pub mathematical_parameters: Arena<mathematical::MathematicalParameter>,
     pub mathematical_types: Arena<mathematical::MathematicalType>,
     pub domain_path_members: Arena<crate::name::Identifier>,
     pub operator_path_members: Arena<crate::name::Identifier>,
     pub machines: MachineDeclarationTable,
-    pub measures: Arena<measure::MeasureDefinition>,
+    pub measures: arena::RootedArena<measure::MeasureDefinition>,
     pub measure_path_members: Arena<crate::name::Identifier>,
     pub operators: SpelledDeclarationTable<crate::operator::OperatorDefinition>,
     pub machine_owned_data: Arena<machine::OwnedData>,
     pub machine_trait_conformances: Arena<machine::TraitConformance>,
     pub machine_states: Arena<crate::state::State>,
     pub state_parameters: Arena<signature::StateParameter>,
-    pub traits: Arena<trait_definition::TraitDefinition>,
-    pub conformances: Arena<trait_definition::Conformance>,
+    pub traits: arena::RootedArena<trait_definition::TraitDefinition>,
+    pub conformances: arena::RootedArena<trait_definition::Conformance>,
     pub trait_requirements: Arena<trait_definition::TraitRequirement>,
     pub trait_machine_signatures: Arena<signature::StateSignature>,
     pub(crate) applied_callable_signatures: callable_applications::AppliedCallableTable,
@@ -1424,7 +1424,7 @@ pub struct TypedTreeTables {
     pub expression_table: expression::ExpressionTable,
     pub statement_table: crate::statement::StatementTable,
     pub type_reference_table: types::TypeReferenceTable,
-    pub wire_schemas: Arena<wire::WireSchema>,
+    pub wire_schemas: arena::RootedArena<wire::WireSchema>,
     pub wire_members: Arena<wire::WireMember>,
 }
 

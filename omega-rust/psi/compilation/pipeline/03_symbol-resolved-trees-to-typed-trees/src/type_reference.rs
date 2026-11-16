@@ -324,7 +324,7 @@ pub(crate) mod domain_constraints {
 
     fn spell_domain_range(
         source: &SymbolResolvedTrees,
-        definitions: &[DomainDefinition],
+        definitions: arena::RootRows<'_, DomainDefinition>,
         index: &mut typed_trees::declaration_index::DomainCandidateIndex,
         range: std::ops::Range<usize>,
     ) {

@@ -243,7 +243,9 @@ impl<T: Record + 'static> Record for Arc<T> {
                 return input.shared::<Self>(identity);
             }
             input.begin_shared(identity)?;
-            input.allocate(std::mem::size_of::<T>() + 2 * std::mem::size_of::<usize>())?;
+            let allocation = crate::shared_allocation_bytes(std::alloc::Layout::new::<T>())
+                .ok_or_else(|| input.error("shared allocation layout overflow"))?;
+            input.allocate(allocation)?;
             let value = Arc::new(T::read(input)?);
             input.finish_shared(identity, value)
         })
@@ -268,7 +270,11 @@ impl Record for Arc<str> {
         }
         input.begin_shared(identity)?;
         let value = String::read(input)?;
-        input.allocate(value.len() + 2 * std::mem::size_of::<usize>())?;
+        let layout = std::alloc::Layout::array::<u8>(value.len())
+            .ok()
+            .and_then(crate::shared_allocation_bytes)
+            .ok_or_else(|| input.error("shared text allocation layout overflow"))?;
+        input.allocate(layout)?;
         input.finish_shared(identity, Arc::<str>::from(value))
     }
 }
@@ -296,13 +302,11 @@ impl<T: Record + 'static> Record for Arc<[T]> {
         }
         input.begin_shared(identity)?;
         let values = Vec::<T>::read(input)?;
-        input.allocate(
-            values
-                .len()
-                .checked_mul(std::mem::size_of::<T>())
-                .and_then(|bytes| bytes.checked_add(2 * std::mem::size_of::<usize>()))
-                .ok_or_else(|| input.error("shared slice allocation overflow"))?,
-        )?;
+        let allocation = std::alloc::Layout::array::<T>(values.len())
+            .ok()
+            .and_then(crate::shared_allocation_bytes)
+            .ok_or_else(|| input.error("shared slice allocation layout overflow"))?;
+        input.allocate(allocation)?;
         input.finish_shared(identity, Arc::<[T]>::from(values))
     }
 }
