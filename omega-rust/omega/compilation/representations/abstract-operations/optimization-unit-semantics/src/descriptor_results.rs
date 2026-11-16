@@ -1696,7 +1696,7 @@ fn adapt(
                     {
                         return None;
                     }
-                    step.inputs = vec![location(subject.place, &subject.path, None)?];
+                    step.replace_value_inputs([location(subject.place, &subject.path, None)?]);
                 }
                 O::ReleaseReference { source, path, .. } => {
                     let source = location(*source, path, None)?;
@@ -3356,7 +3356,10 @@ mod owned_cleanup_graph_tests {
         );
         let consumer = graphs.iter().find(|graph| graph.id == machine(2)).unwrap();
         let decomposition = &consumer.flow[&(block(1), 0)];
-        assert_eq!(decomposition.inputs, [DescriptorLocation::whole(place(1))]);
+        assert_eq!(
+            decomposition.observed_inputs().cloned().collect::<Vec<_>>(),
+            [DescriptorLocation::whole(place(1))]
+        );
         assert!(decomposition.definitions.is_empty());
         assert!(decomposition.derivations.is_empty());
         assert!(!consumer.payload_invalidations.contains_key(&(block(1), 0)));

@@ -127,7 +127,7 @@ fn validate_call_owners(
             .block(&block)
             .ok_or("reference call mapping lost its source block")?;
         let mut owners = BTreeSet::new();
-        for call in calls {
+        for call in calls.iter().flatten() {
             if !owners.insert(call.owner) {
                 return Err("reference call mapping repeats one executable owner".into());
             }

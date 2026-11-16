@@ -601,7 +601,7 @@ pub(crate) mod input_site {
                     // This cut locates static storage and preceding producers;
                     // it is not a pre-action content or authority snapshot.
                     // Runtime argument copies execute in exact roster order.
-                    let owner = target_operations::CallSiteOwner::CleanupAction {
+                    let owner = target_vocabulary::CallSiteOwner::CleanupAction {
                         edge,
                         action_ordinal,
                     };
@@ -646,7 +646,7 @@ pub(crate) mod input_site {
         if position != block.instructions.len() {
             return None;
         }
-        let owner = target_operations::CallSiteOwner::CleanupAction {
+        let owner = target_vocabulary::CallSiteOwner::CleanupAction {
             edge,
             action_ordinal,
         };
@@ -714,7 +714,7 @@ pub(crate) mod input_site {
             LegalizedScalarReturn, LegalizedScalarReturnValue,
         };
         use semantic_vocabulary::{EdgeId, MachineId, ObligationId};
-        use target_operations::{CallSiteOwner, NativeCallOrigin, NativeCallTarget};
+        use target_vocabulary::{CallSiteOwner, NativeCallOrigin, NativeCallTarget};
 
         #[test]
         fn cleanup_lookup_keeps_action_requirements_and_rejects_duplicate_owners() {
@@ -1846,7 +1846,7 @@ pub(crate) fn validate(
             target_vocabulary::CallSiteOwner::ExternalCompletion(edge) => {
                 semantic_vocabulary::InvocationSite::ExternalCompletion(edge)
             }
-            target_operations::CallSiteOwner::CleanupAction {
+            target_vocabulary::CallSiteOwner::CleanupAction {
                 edge,
                 action_ordinal,
             } => {
