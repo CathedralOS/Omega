@@ -252,7 +252,16 @@ impl Storage<'_> {
         let typed = match self.declaration(result.structural_type, concerns)?.shape {
             StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
                 access: Some(declared),
-            }) if declared == access => false,
+            }) if declared == access
+                && terminal_semantics::collection_backing(
+                    self.types.iter(),
+                    result.structural_type,
+                    element,
+                )
+                .is_some() =>
+            {
+                false
+            }
             StructuralTypeShape::ElementView {
                 element: declared,
                 access: Some(declared_access),

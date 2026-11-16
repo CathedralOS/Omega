@@ -26,6 +26,7 @@ pub(crate) fn prepare(
         infer(program, expression, &mut Vec::new())?;
         let needs_owner = match program.expression_table.expression(expression) {
             ExpressionNode::Borrow(_) | ExpressionNode::Call(_) => true,
+            ExpressionNode::Cast(cast) => cast.form.is_recast(),
             ExpressionNode::Indexed(indexed) => {
                 program.expression_table.range_node(indexed.index).is_some()
             }
@@ -115,6 +116,29 @@ pub(crate) fn prepare(
             program
                 .expression_table
                 .set_constructed_value_type_reference(expression, view);
+            continue;
+        }
+        if let ExpressionNode::Cast(cast) = program.expression_table.expression(expression)
+            && let Some(access) = cast.form.recast_access()
+        {
+            // The parser keeps the referent and written access separately.
+            // Retain their complete reference type before a consumer asks for
+            // the result, without borrowing authority from its destination.
+            let referee = cast.target_type;
+            let reference = program
+                .type_reference_table
+                .insert(TypeReferenceNode::Reference {
+                    referee,
+                    access,
+                    lifetime: None,
+                });
+            program
+                .type_reference_table
+                .retain_operand_lifetime_owner(reference, caller)
+                .map_err(Diagnostic::error)?;
+            program
+                .expression_table
+                .set_constructed_value_type_reference(expression, reference);
             continue;
         }
         if let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression) {

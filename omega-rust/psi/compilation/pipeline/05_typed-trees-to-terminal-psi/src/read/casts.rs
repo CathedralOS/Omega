@@ -25,6 +25,7 @@ impl Program<'_> {
         &mut self,
         id: MachineId,
         slots: &[Slot],
+        expression: typed_trees::expression::ExpressionHandle,
         cast: &TableCastExpression,
         source: SourceOrigin,
     ) -> Checked<Expression> {
@@ -42,7 +43,31 @@ impl Program<'_> {
             {
                 return unserved("storage view outside reference formation");
             }
-            let target = self.value_type(id, cast.target_type)?;
+            let reference = self
+                .typed
+                .expression_table
+                .constructed_value_type_reference(expression);
+            if !self
+                .typed
+                .type_reference_table
+                .contains_type_reference(reference)
+            {
+                return unserved("collection recast without its written reference type");
+            }
+            let typed_trees::types::TypeReferenceNode::Reference {
+                referee, access, ..
+            } = self.typed.type_reference_table.type_reference(reference)
+            else {
+                return unserved("collection recast without its written reference type");
+            };
+            let target_identity = self.typed.normalized_type_identity(cast.target_type);
+            if Some(*access) != cast.form.recast_access()
+                || !target_identity.is_valid()
+                || self.typed.normalized_type_identity(*referee) != target_identity
+            {
+                return unserved("collection recast has another written target or access");
+            }
+            let target = self.value_type(id, reference)?;
             let ValueType::Record(row, Qualification::NONE, _) = target else {
                 return unserved("collection recast without a plain shared view destination");
             };
@@ -57,7 +82,7 @@ impl Program<'_> {
                 }) => {
                     let declared = super::bytes::source_byte_view(
                         self.typed,
-                        cast.target_type,
+                        reference,
                         self.lifetime_owner,
                         id,
                     )?

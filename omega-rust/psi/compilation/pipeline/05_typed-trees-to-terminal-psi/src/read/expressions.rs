@@ -539,7 +539,9 @@ impl<'t> Program<'t> {
                 return self.array_literal(id, slots, *elements, array_type, source);
             }
             ExpressionNode::Atomic(atomic) => return self.atomic_load(id, slots, atomic, source),
-            ExpressionNode::Cast(cast) => return self.cast(id, slots, cast, source),
+            ExpressionNode::Cast(cast) => {
+                return self.cast(id, slots, handle, cast, source);
+            }
             ExpressionNode::Float(literal) => {
                 let value = self.float_literal(id, literal, expected_scalar)?;
                 (

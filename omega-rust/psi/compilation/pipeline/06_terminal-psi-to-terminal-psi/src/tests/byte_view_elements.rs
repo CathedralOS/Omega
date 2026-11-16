@@ -1423,6 +1423,59 @@ fn a_shared_collection_recast_keeps_payload_geometry_and_count_fit() {
     );
     accepted.publish_invocation().unwrap();
 
+    // The byte result alone cannot authenticate the operation's element.
+    // Replacing only that element must not reinterpret a four-byte count
+    // as a byte descriptor while leaving the result declaration unchanged.
+    let typed = super::build_purpose::frontier_of("machine product_entry() {}", source);
+    let entry = super::build_purpose::symbol(&typed, "build_entry");
+    let mut changed = typed_trees_to_terminal_psi::elaborate_for(
+        &typed,
+        super::build_purpose::roster(
+            &[entry],
+            &[Some(super::build_purpose::package())],
+            source::DependencyScope::Build,
+        ),
+        terminal_codec::TerminalPublication::Invocation,
+    )
+    .unwrap();
+    let wrong_element = changed
+        .module
+        .structural_types
+        .iter()
+        .find_map(|row| {
+            matches!(row.shape, terminal_psi::StructuralTypeShape::PrimitiveScalar(
+            ScalarType::Integer(integer)) if integer.bits() == Some(32)
+                && integer.sign() == semantic_vocabulary::IntegerSign::Signed)
+            .then_some(row.id)
+        })
+        .unwrap();
+    let formation = changed
+        .module
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| {
+            matches!(
+                operation.kind,
+                OperationKind::EstablishElementView {
+                    region: terminal_psi::ElementViewRegion::WholeRepresentation { .. },
+                    ..
+                }
+            )
+        })
+        .unwrap();
+    let OperationKind::EstablishElementView { element, .. } = &mut formation.kind else {
+        unreachable!()
+    };
+    *element = wrong_element;
+    let refusal = judge(Ok(changed)).unwrap();
+    assert!(
+        matches!(refusal, RouteVerdict::FallBack(ref refusal)
+        if refusal.detail.contains("array view changes its descriptor type, access or ownership")),
+        "{refusal:?}"
+    );
+
     let unbounded = source.replace("requires pixels.len <= 4611686018427387903u64", "");
     let RouteVerdict::Rejected { unproved, .. } = judge_build(&unbounded).unwrap() else {
         panic!("a representation count without its fit bound must refuse");
