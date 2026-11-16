@@ -138,14 +138,50 @@ impl<'t> Program<'t> {
                 )
             })? = true;
         }
+        let mut subjects = self.symbols.map(|_, _| false);
         for &id in &self.subject_machines {
+            *subjects.get_mut(id).ok_or_else(|| {
+                refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Machine("verification subject without a machine"),
+                )
+            })? = true;
+        }
+        // A nested helper can be named only from its declaring machine's
+        // scope. An unchecked dependency body can hide a caller there, so
+        // mark every lexical scope that still contains a deferred body.
+        let mut incomplete_scopes = symbols::SymbolMap::default();
+        for machine in self.typed.machines().iter() {
+            if machine.body_status != MachineBodyStatus::Deferred {
+                continue;
+            }
+            let mut scope = self.typed.symbols.get(machine.symbol).parent;
+            while let Some(enclosing) = self.typed.machine_by_symbol(scope) {
+                if incomplete_scopes.insert(scope, ()).is_some() {
+                    break;
+                }
+                scope = self.typed.symbols.get(enclosing.symbol).parent;
+            }
+        }
+        for (id, symbol) in self.symbols.iter() {
             if fixed.get(id) == Some(&true) {
                 continue;
             }
-            let symbol = terminal_check_tables::row(&self.symbols, id, id, Construct::Machine)?;
             let Some(machine) = self.typed.machine_by_symbol(*symbol) else {
                 continue;
             };
+            if subjects.get(id) != Some(&true) {
+                let scope = self.typed.symbols.get(*symbol).parent;
+                if incomplete_scopes.contains_key(&scope)
+                    || self
+                        .typed
+                        .machine_by_symbol(scope)
+                        .is_none_or(|owner| owner.body_status != MachineBodyStatus::Complete)
+                {
+                    continue;
+                }
+            }
             let contracts = span(
                 |span| self.typed.signature_contracts.span(span),
                 machine.contracts,
