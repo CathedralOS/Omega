@@ -4418,6 +4418,7 @@ pub(crate) mod engine {
             identity: MachineId,
         ) -> Result<Option<Vec<(DescriptorPosition, usize)>>, &'static str> {
             if self.prepare_states(identity).is_none() {
+                eprintln!("ACCESS_FRAME_TRACE {identity:?}: no completed replay state");
                 return Ok(None);
             }
             let machine = self
@@ -4449,11 +4450,17 @@ pub(crate) mod engine {
                     continue;
                 };
                 let Some(invocation) = invocation else {
+                    eprintln!(
+                        "ACCESS_FRAME_TRACE {identity:?} {position:?}: unresolved invocation"
+                    );
                     return Ok(None);
                 };
                 // Public and provider calls need their retained interface
                 // effect owner. A possible private implementation is not it.
                 let Some(callee) = invocation.callee() else {
+                    eprintln!(
+                        "ACCESS_FRAME_TRACE {identity:?} {position:?}: interface invocation {invocation:?}"
+                    );
                     return Ok(None);
                 };
                 self.prepare_access_frame(callee)?;
@@ -4464,6 +4471,9 @@ pub(crate) mod engine {
                     .and_then(|summary| summary.storage_frame.accesses.as_ref())
                     .is_some_and(|accesses| accesses.as_ref().is_some());
                 if !complete {
+                    eprintln!(
+                        "ACCESS_FRAME_TRACE {identity:?} {position:?}: incomplete callee {callee:?}"
+                    );
                     return Ok(None);
                 }
             }
