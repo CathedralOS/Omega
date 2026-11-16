@@ -116,7 +116,17 @@ fn prepared(text: &str) -> typed_trees::FrozenTypedTrees {
                     );
                 }
             }
-            for contract in typed.signature_contracts.span_or_empty(machine.contracts) {
+            let entry_contracts = typed
+                .machine_states
+                .span_or_empty(machine.states)
+                .iter()
+                .flat_map(|entry| typed.signature_contracts.span_or_empty(entry.contracts));
+            for contract in typed
+                .signature_contracts
+                .span_or_empty(machine.contracts)
+                .iter()
+                .chain(entry_contracts)
+            {
                 for fact in typed.proof_facts.span_or_empty(contract.facts) {
                     let typed_trees::domain::ProofFact::Expression(root) = fact else {
                         eprintln!("unserved signature fact {fact:?}");

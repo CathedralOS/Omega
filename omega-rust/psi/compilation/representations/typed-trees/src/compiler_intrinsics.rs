@@ -4,10 +4,12 @@
 
 use crate::TypedTrees;
 use crate::data::TypeParameterKind;
-use crate::domain::ProofFact;
+use crate::domain::{ProofFact, ProofMembershipFact};
 use crate::machine::Machine;
 use crate::signature::{SignatureContract, SignatureContractKind};
-use crate::type_identity::constraint_identity::{atom, compound};
+use crate::type_identity::constraint_identity::{
+    atom, compound, normalized_compiler_domain_identity,
+};
 use crate::type_identity::identity_context::{
     TypeIdentityContext, TypeIdentityQualification, normalize_index_expression,
     normalize_type_reference,
@@ -89,6 +91,9 @@ enum Tag {
     Projection,
     Attachment,
     Owner,
+    Membership,
+    Value,
+    Domain,
 }
 
 impl Spelled for Tag {
@@ -119,6 +124,9 @@ impl Spelled for Tag {
             Self::Projection => "progress-projection",
             Self::Attachment => "attachment",
             Self::Owner => "owner",
+            Self::Membership => "membership",
+            Self::Value => "value",
+            Self::Domain => "domain",
         }
     }
 }
@@ -441,13 +449,16 @@ fn contracts<'a>(
                 .ok_or("compiler primitive schema: stale contract fact roster")?
                 .iter()
                 .map(|fact| {
-                    let ProofFact::Expression(expression) = fact else {
-                        return Err("compiler primitive schema: unsupported contract proof form");
+                    let expression = match fact {
+                        ProofFact::Expression(expression) => {
+                            if !expression.is_valid() {
+                                return Err("compiler primitive schema: missing contract expression");
+                            }
+                            normalize_index_expression(program, *expression, context)
+                        }
+                        ProofFact::Membership(membership) => membership_schema(program, membership, context)?,
+                        ProofFact::Proposition(_) => return Err("compiler primitive schema: unsupported proposition contract proof form"),
                     };
-                    if !expression.is_valid() {
-                        return Err("compiler primitive schema: missing contract expression");
-                    }
-                    let expression = normalize_index_expression(program, *expression, context);
                     if context.invalid_application.is_some_and(Cell::get) {
                         return Err(
                             "compiler primitive schema: open or unserved contract expression",
@@ -459,6 +470,92 @@ fn contracts<'a>(
             Ok(compound(Tag::Contract, std::iter::once(kind).chain(facts)))
         })
         .collect()
+}
+
+// Qualified formals retain ordinary membership requirements on the entry.
+// Describe their actual subject and domain application with the same owners
+// used by expression and qualified-type normalization, without granting the
+// membership, selecting an issuer, or treating its authored path as identity.
+fn membership_schema(
+    program: &TypedTrees,
+    membership: &ProofMembershipFact,
+    context: &TypeIdentityContext<'_>,
+) -> Result<String, &'static str> {
+    if !program
+        .expression_table
+        .expression_is_valid(membership.value)
+    {
+        return Err("compiler primitive schema: stale membership subject");
+    }
+    if !program
+        .symbols
+        .symbols()
+        .nodes()
+        .is_valid(membership.domain_symbol)
+        || program.symbols.get(membership.domain_symbol).kind != symbols::SymbolKind::Domain
+        || program
+            .domain_definition(membership.domain_symbol)
+            .is_none()
+    {
+        return Err("compiler primitive schema: unresolved membership domain declaration");
+    }
+    schema_span(
+        |span| program.domain_path_members.span(span),
+        membership.domain,
+    )
+    .ok_or("compiler primitive schema: stale membership spelling roster")?;
+    let arguments = program
+        .type_reference_table
+        .type_reference_handles(membership.domain_arguments);
+    if arguments.len() != membership.domain_arguments.len()
+        || (membership.domain_arguments.is_empty()
+            && membership.domain_arguments != arena::HandleSpan::empty())
+    {
+        return Err("compiler primitive schema: stale membership argument roster");
+    }
+    let retained = program
+        .domain_arguments_for_instance(membership.domain_symbol, membership.semantic_domain)
+        .ok_or("compiler primitive schema: membership lost its retained domain application")?;
+    if retained.len() != arguments.len() {
+        return Err("compiler primitive schema: membership changed its domain argument roster");
+    }
+    for (actual, retained) in arguments.iter().zip(retained) {
+        if !program.contains_type_reference(*actual) || !program.contains_type_reference(*retained)
+        {
+            return Err("compiler primitive schema: stale membership argument type");
+        }
+        if normalize_type_reference(program, *actual, context)
+            != normalize_type_reference(program, *retained, context)
+        {
+            return Err(
+                "compiler primitive schema: membership changed its retained domain arguments",
+            );
+        }
+    }
+    let subject = normalize_index_expression(program, membership.value, context);
+    let domain = normalized_compiler_domain_identity(
+        program,
+        &crate::types::DomainConstraint {
+            // The resolved declaration and retained application supply meaning;
+            // the spelling and authored-selection coordinates stay source metadata.
+            name: crate::name::Identifier::from(program.symbols.name(membership.domain_symbol)),
+            symbol: membership.domain_symbol,
+            arguments: arguments.to_vec(),
+            semantic_id: membership.semantic_domain,
+            ..Default::default()
+        },
+        context,
+    );
+    if context.invalid_application.is_some_and(Cell::get) {
+        return Err("compiler primitive schema: open membership subject or domain application");
+    }
+    Ok(compound(
+        Tag::Membership,
+        [
+            compound(Tag::Value, [subject]),
+            compound(Tag::Domain, [domain]),
+        ],
+    ))
 }
 
 // This is an interface description, never termination evidence. The caller
@@ -542,6 +639,7 @@ mod tests {
         program: TypedTrees,
         owner: SymbolHandle,
         other_owner: SymbolHandle,
+        domains: [SymbolHandle; 2],
         element: arena::Handle<TypeParameter>,
         extent: arena::Handle<TypeParameter>,
         result: ExpressionHandle,
@@ -561,12 +659,33 @@ mod tests {
                     (SymbolKind::Machine, SymbolNameRef::Static("view")),
                     (SymbolKind::Data, SymbolNameRef::Static("Owner")),
                     (SymbolKind::Data, SymbolNameRef::Static("OtherOwner")),
+                    (
+                        SymbolKind::Domain,
+                        SymbolNameRef::Static("MembershipDomain"),
+                    ),
+                    (
+                        SymbolKind::Domain,
+                        SymbolNameRef::Static("OtherMembershipDomain"),
+                    ),
                 ]),
             );
             let u64_symbol = roots.handle_at(BuiltinTypeAtom::U64.ordinal() as u32);
             let machine = roots.handle_at(BuiltinTypeAtom::ALL.len() as u32);
             let owner = roots.handle_at(BuiltinTypeAtom::ALL.len() as u32 + 1);
             let other_owner = roots.handle_at(BuiltinTypeAtom::ALL.len() as u32 + 2);
+            let domains = [
+                roots.handle_at(BuiltinTypeAtom::ALL.len() as u32 + 3),
+                roots.handle_at(BuiltinTypeAtom::ALL.len() as u32 + 4),
+            ];
+            let domain_parameters = domains.map(|domain| {
+                builder.insert_children(
+                    domain,
+                    [
+                        (SymbolKind::TypeParameter, SymbolNameRef::Static("Left")),
+                        (SymbolKind::TypeParameter, SymbolNameRef::Static("Right")),
+                    ],
+                )
+            });
             let children = builder.insert_children(
                 machine,
                 [
@@ -600,6 +719,29 @@ mod tests {
                 program.push_data_definition(crate::data::DataDefinition {
                     symbol,
                     name: Identifier::generated(name),
+                    ..Default::default()
+                });
+            }
+            let unit = program.type_reference_table.insert(TypeReferenceNode::Unit);
+            for (domain, parameters) in domains.into_iter().zip(domain_parameters) {
+                let name = Identifier::from(program.symbols.name(domain));
+                let semantic_id = program.semantic_domains.intern(name.as_str());
+                let parameters = parameters
+                    .handles()
+                    .map(|symbol| TypeParameter {
+                        symbol,
+                        name: Identifier::from(program.symbols.name(symbol)),
+                        kind: TypeParameterKind::Type,
+                        ..Default::default()
+                    })
+                    .collect::<Vec<_>>();
+                let type_parameters = program.data_type_parameters.insert_many(parameters);
+                program.push_domain_definition(crate::domain::DomainDefinition {
+                    symbol: domain,
+                    name,
+                    type_parameters,
+                    target_type: unit,
+                    semantic_id,
                     ..Default::default()
                 });
             }
@@ -729,6 +871,7 @@ mod tests {
                 program,
                 owner,
                 other_owner,
+                domains,
                 element: type_parameters.handle_at(0),
                 extent: type_parameters.handle_at(1),
                 result,
@@ -740,9 +883,154 @@ mod tests {
             Self::new(["Element", "Count", "backing", "other", "items"])
         }
 
+        fn memberships(names: [&'static str; 5]) -> (Self, arena::HandleSpan<ProofFact>) {
+            let mut fixture = Self::new(names);
+            let program = &mut fixture.program;
+            let entry = program.machines()[0].states.start();
+            let formal = program.state_parameters(program.machine_states.get(entry))[0].clone();
+            let parameter = program.data_type_parameters.get(fixture.element).clone();
+            let element = program
+                .type_reference_table
+                .insert(TypeReferenceNode::Named {
+                    symbol: parameter.symbol,
+                    name: parameter.name.clone(),
+                });
+            let TypeParameterKind::Const {
+                type_reference: u64_type,
+            } = program.data_type_parameters.get(fixture.extent).kind
+            else {
+                unreachable!()
+            };
+            let arguments = vec![element, u64_type];
+            let mut facts = Vec::new();
+            for domain in fixture.domains {
+                let semantic = program
+                    .retain_domain_application(domain, formal.type_reference, &arguments)
+                    .unwrap();
+                let contract = program.parameter_domain_membership_contract(
+                    formal.symbol,
+                    formal.name.clone(),
+                    domain,
+                    "DiagnosticAlias",
+                    arguments.clone(),
+                    semantic,
+                );
+                facts.extend_from_slice(program.proof_facts.span(contract.facts).unwrap());
+            }
+            let facts = program.proof_facts.insert_many(facts);
+            let state_contracts = program.machine_states.get(entry).contracts;
+            let mut contracts = program
+                .signature_contracts
+                .span(state_contracts)
+                .unwrap()
+                .to_vec();
+            contracts.push(SignatureContract {
+                kind: SignatureContractKind::Requires,
+                facts,
+                ..Default::default()
+            });
+            program.machine_states.get_mut(entry).contracts =
+                program.signature_contracts.insert_many(contracts);
+            (fixture, facts)
+        }
+
         fn text(&self) -> Option<String> {
             let schema = normalized_schema(&self.program, &self.program.machines()[0])?;
             self.program.type_identity_text(schema)
+        }
+    }
+
+    #[test]
+    fn membership_schemas_keep_the_subject_owner_arguments_and_fact_order() {
+        let names = ["Element", "Count", "backing", "other", "items"];
+        let (fixture, _) = Fixture::memberships(names);
+        let original = fixture
+            .text()
+            .expect("implicit qualified-formal memberships normalize");
+        assert_eq!(
+            Some(original.clone()),
+            Fixture::memberships(["T", "N", "scope", "spare", "values"])
+                .0
+                .text()
+        );
+        for fault in 0..5 {
+            let (mut changed, facts) = Fixture::memberships(names);
+            let ProofFact::Membership(mut first) =
+                changed.program.proof_facts.get(facts.handle_at(0)).clone()
+            else {
+                unreachable!()
+            };
+            let ProofFact::Membership(second) =
+                changed.program.proof_facts.get(facts.handle_at(1)).clone()
+            else {
+                unreachable!()
+            };
+            match fault {
+                0 => {
+                    first.domain_symbol = second.domain_symbol;
+                    first.semantic_domain = second.semantic_domain;
+                }
+                1 => first.value = changed.result,
+                2 => {
+                    let mut arguments = changed
+                        .program
+                        .type_reference_table
+                        .type_reference_handles(first.domain_arguments)
+                        .to_vec();
+                    arguments.reverse();
+                    let entry = changed
+                        .program
+                        .machine_states(&changed.program.machines()[0])[0]
+                        .clone();
+                    let carrier = changed.program.state_parameters(&entry)[0].type_reference;
+                    first.semantic_domain = changed
+                        .program
+                        .retain_domain_application(first.domain_symbol, carrier, &arguments)
+                        .unwrap();
+                    first.domain_arguments = changed
+                        .program
+                        .type_reference_table
+                        .insert_type_reference_handles(arguments);
+                }
+                3 => {
+                    *changed.program.proof_facts.get_mut(facts.handle_at(0)) =
+                        ProofFact::Membership(second);
+                    *changed.program.proof_facts.get_mut(facts.handle_at(1)) =
+                        ProofFact::Membership(first);
+                    assert_ne!(
+                        Some(&original),
+                        changed.text().as_ref(),
+                        "membership fact order"
+                    );
+                    continue;
+                }
+                4 => {
+                    let mut arguments = changed
+                        .program
+                        .type_reference_table
+                        .type_reference_handles(first.domain_arguments)
+                        .to_vec();
+                    arguments.reverse();
+                    first.domain_arguments = changed
+                        .program
+                        .type_reference_table
+                        .insert_type_reference_handles(arguments);
+                }
+                _ => unreachable!(),
+            }
+            *changed.program.proof_facts.get_mut(facts.handle_at(0)) = ProofFact::Membership(first);
+            if fault == 4 {
+                assert!(
+                    changed.text().is_none(),
+                    "changed explicit arguments cannot borrow a retained application"
+                );
+            } else {
+                assert_ne!(
+                    Some(&original),
+                    changed.text().as_ref(),
+                    "membership mutation {fault}"
+                );
+            }
         }
     }
 
