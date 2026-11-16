@@ -129,17 +129,6 @@ framework or a list of unimplemented features.
 - Cost: Adding a domain to a module silently changes what an imported domain spelling means in its sibling files, with different predicates and authority. Delete both local tiers, refuse two visible candidates naming both owners, and flip the test.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/modules.md
 
-### Three kernel rules accept more forms than their audited rows say
-- Category: The documents disagree
-- Where: [open-term fallback](omega-rust/psi/compilation/proof-admission/src/integer_rules.rs#L224), [exact-op lift](omega-rust/psi/compilation/proof-admission/src/kernel.rs#L252), [strict carrier bound](omega-rust/psi/compilation/proof-admission/src/kernel.rs#L45), [open discreteness](omega-rust/psi/compilation/proof-admission/src/proof.rs#L1634), [inward discreteness](omega-rust/psi/compilation/proof-admission/src/proof.rs#L1666)
-- Saw: [classicality.md](wiki/spec/proofs/classicality.md) and [integer_certificates.md](wiki/spec/terminal-psi/integer_certificates.md) describe narrower rules than the code accepts:
-  - `Primitive(ClosedIntegerRelation)` is documented as re-deciding "closed integer relations ... over closed data", but `compare_integer_math_terms` falls back to ring normalization of open terms, so it accepts `x < x + 1` and open distributivity with no premises, and it lifts `ExactIntegerAdd`, multiply and shift-left into total mathematical operations, so u8 `x < x +! 1` is accepted although `x +! 1` traps at 255.
-  - `IntegerCarrierBound` is documented as "Exactly `MIN <= value` or `value <= MAX` ... No strict, compound, or narrower bound", but it also accepts an address `a < R` where `R` evaluates to `MAX + 1`, including compound and open terms.
-  - `IntegerOrderDiscreteness` is documented as an outward literal-adjacency step with no address carrier, but it also accepts the inward `a < c ⊢ a <= c - 1` and open `a < b ⊢ a + 1 <= b` with no literal or carrier check.
-- Cost: Reviewers checking the rows approve a smaller trusted surface than the kernel has; the extra forms appear sound but are unaudited, and the discreteness ones also skip the core. Document every accepted form with its core status, or restrict the code to the rows; decide explicitly whether exact operations are read as total.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/proofs/classicality.md
-
-
 ### A shared byte view of an array gives its elements different addresses in the Psi interpreter
 - Category: Re-deriving
 - Where: [shared view is a snapshot](omega-rust/psi/interpreter/src/boundary_inputs.rs#L1403), [shared reborrow snapshot](omega-rust/psi/interpreter/src/storage_bytes_and_views.rs#L1017), [fresh namespace](omega-rust/psi/interpreter/src/storage_bytes_and_views.rs#L3003), [view element address](omega-rust/psi/interpreter/src/storage_bytes_and_views.rs#L3077), [array element address](omega-rust/psi/interpreter/src/storage_primitives.rs#L6016)
