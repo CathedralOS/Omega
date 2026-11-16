@@ -685,8 +685,11 @@ fn a_retained_type_parameter_stays_open_and_keeps_its_selected_declaration() {
     );
     let operand = super::Operand::read(
         &mut program,
-        forward.parameter,
-        &TypeParameterKind::Type,
+        &TypeParameter {
+            symbol: forward.parameter,
+            kind: TypeParameterKind::Type,
+            ..Default::default()
+        },
         &selected,
     )
     .unwrap_or_else(|_| panic!("an open type parameter can be passed to another generic body"));
@@ -1535,7 +1538,7 @@ fn an_already_bound_tuple_keeps_even_an_unused_parameter() {
         .iter()
         .zip(&actual)
         .map(|(parameter, argument)| {
-            super::Operand::read(&mut program, parameter.symbol, &parameter.kind, argument)
+            super::Operand::read(&mut program, parameter, argument)
                 .unwrap_or_else(|_| panic!("closed argument"))
         })
         .collect::<Vec<_>>();
@@ -2416,8 +2419,11 @@ fn copied_statement_applications_rewrite_structural_type_operands() {
     };
     let operand = Operand::read(
         program,
-        source.relay.parameter,
-        &TypeParameterKind::Type,
+        &TypeParameter {
+            symbol: source.relay.parameter,
+            kind: TypeParameterKind::Type,
+            ..Default::default()
+        },
         &argument(source.byte, "u8"),
     )
     .unwrap();

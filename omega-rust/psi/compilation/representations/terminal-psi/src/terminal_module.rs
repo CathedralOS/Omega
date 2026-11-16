@@ -1315,6 +1315,18 @@ impl TerminalModule {
         self.machines.iter().flat_map(|machine| &machine.blocks)
     }
 
+    /// Whether any block can end the whole process (`ProcessExit`) instead of
+    /// returning to its caller. A native host sees such an end only as an exit
+    /// status, which a normal return can also produce.
+    pub fn can_end_the_process(&self) -> bool {
+        self.blocks().any(|block| {
+            matches!(
+                block.terminator,
+                crate::Terminator::ExternalCompletion { .. }
+            )
+        })
+    }
+
     pub fn operations(&self) -> impl Iterator<Item = &Operation> + '_ {
         self.machines
             .iter()

@@ -71,6 +71,9 @@ pub struct LegalizedOperationPlan {
     /// values; the plan carries it so nothing reads stage 02's working form.
     pub borrowed_storage_layouts: runtime_abi::NativeBorrowedStorageLayouts,
     pub publication: target_vocabulary::NativePublicationFacts,
+    /// Preparation fills this before sealing. A partial, unsealed operation
+    /// model can omit query output; instruction selection cannot consume it.
+    pub execution: Option<target_vocabulary::NativeExecutionFacts>,
 }
 
 impl LegalizedOperationPlan {
@@ -102,27 +105,29 @@ impl LegalizedOperationPlan {
 pub struct PreparedExecutionPlan {
     plan: LegalizedOperationPlan,
     receipt: PreparationReceipt,
-    callable_invocations:
-        std::sync::Arc<terminal_semantics::callable_values::ReachableCallableInvocations>,
-    /// Exact independently prepared summaries, sorted by activated entry.
-    entry_invocations: Vec<(
-        MachineId,
-        std::sync::Arc<terminal_semantics::callable_values::ReachableCallableInvocations>,
-    )>,
+    // The same immutable owner also lives in `plan` and its canonical identity.
+    // Keeping this reference makes the sealed input's query result unconditional.
+    execution: target_vocabulary::NativeExecutionFacts,
 }
 
 impl PreparedExecutionPlan {
     pub fn seal(
         plan: LegalizedOperationPlan,
         validator: OptimizationValidatorIdentity,
-        callable_invocations: std::sync::Arc<
-            terminal_semantics::callable_values::ReachableCallableInvocations,
-        >,
-        entry_invocations: Vec<(
-            MachineId,
-            std::sync::Arc<terminal_semantics::callable_values::ReachableCallableInvocations>,
-        )>,
-    ) -> Self {
+    ) -> Result<Self, &'static str> {
+        let execution = plan
+            .execution
+            .as_ref()
+            .ok_or("execution plan has no prepared callable facts")?
+            .clone();
+        let roots = execution.roots();
+        if roots.psi != plan.psi
+            || roots.optimization_unit != plan.optimization_unit
+            || roots.work_schedule != plan.work_schedule
+            || roots.entry != plan.entry
+        {
+            return Err("callable facts differ from the execution plan's preparation roots");
+        }
         let receipt = PreparationReceipt {
             identity: legalized_operation_plan_identity(&plan),
             validator,
@@ -131,12 +136,11 @@ impl PreparedExecutionPlan {
             target: plan.target,
             function_count: plan.scalar_functions.len(),
         };
-        Self {
+        Ok(Self {
             plan,
             receipt,
-            callable_invocations,
-            entry_invocations,
-        }
+            execution,
+        })
     }
 
     pub const fn plan(&self) -> &LegalizedOperationPlan {
@@ -147,12 +151,16 @@ impl PreparedExecutionPlan {
         self.receipt
     }
 
+    pub const fn execution_facts(&self) -> &target_vocabulary::NativeExecutionFacts {
+        &self.execution
+    }
+
     /// Actual invocation facts prepared from this plan's optimized unit,
     /// schedule and entry before instruction selection begins.
     pub fn callable_invocations(
         &self,
     ) -> &terminal_semantics::callable_values::ReachableCallableInvocations {
-        &self.callable_invocations
+        self.execution.callable_invocations()
     }
 
     /// Retain the exact prepared entry roster when carrying this publication.
@@ -162,7 +170,7 @@ impl PreparedExecutionPlan {
         MachineId,
         std::sync::Arc<terminal_semantics::callable_values::ReachableCallableInvocations>,
     )] {
-        &self.entry_invocations
+        self.execution.entry_callable_invocations()
     }
 
     /// Lookup only: every root's input-sensitive summary was prepared before
@@ -179,19 +187,13 @@ impl PreparedExecutionPlan {
         {
             return None;
         }
-        if entry == self.plan.entry {
-            return Some(&self.callable_invocations);
-        }
-        let position = self
-            .entry_invocations
-            .binary_search_by_key(&entry, |(entry, _)| *entry)
-            .ok()?;
-        Some(&self.entry_invocations[position].1)
+        self.execution.callable_invocations_from(entry)
     }
 
     /// Whether the plan still hashes to the identity it was sealed under.
     pub fn is_intact(&self) -> bool {
         legalized_operation_plan_identity(&self.plan) == self.receipt.identity
+            && self.plan.execution.as_ref() == Some(&self.execution)
             && self.receipt.optimization_unit == self.plan.optimization_unit
             && self.receipt.work_schedule == self.plan.work_schedule
             && self.receipt.target == self.plan.target
