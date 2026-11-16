@@ -2424,32 +2424,25 @@ pub(crate) mod construction_destinations {
 
             let mut symbols = SymbolTableBuilder::default();
             let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
-            symbols.insert_children(
+            let declarations = symbols.insert_children(
                 root,
                 symbols::builtin_type_symbols()
                     .into_iter()
-                    .chain(symbols::builtin_function_symbols()),
+                    .chain(symbols::builtin_function_symbols())
+                    .chain([
+                        (SymbolKind::Machine, SymbolNameRef::Static("caller")),
+                        (SymbolKind::Machine, SymbolNameRef::Static("callee")),
+                        (SymbolKind::Machine, SymbolNameRef::Static("bystander")),
+                        (
+                            SymbolKind::MathematicalDefinition,
+                            SymbolNameRef::Static("measure"),
+                        ),
+                        (SymbolKind::Module, SymbolNameRef::Static("foreign")),
+                    ]),
             );
-            let declarations = symbols.insert_children(
-                root,
-                [
-                    (SymbolKind::Machine, SymbolNameRef::Static("caller")),
-                    (SymbolKind::Machine, SymbolNameRef::Static("callee")),
-                    (SymbolKind::Machine, SymbolNameRef::Static("bystander")),
-                    (
-                        SymbolKind::MathematicalDefinition,
-                        SymbolNameRef::Static("measure"),
-                    ),
-                ],
-            );
-            let [caller, callee, bystander, measure] =
-                [0, 1, 2, 3].map(|position| declarations.handle_at(position));
-            let foreign = symbols
-                .insert_children(
-                    root,
-                    [(SymbolKind::Module, SymbolNameRef::Static("foreign"))],
-                )
-                .start();
+            let offset = symbols::BUILTIN_TYPE_COUNT + symbols::BuiltinFunction::COUNT;
+            let [caller, callee, bystander, measure, foreign] = [0, 1, 2, 3, 4]
+                .map(|position| declarations.handle_at(u32::try_from(offset + position).unwrap()));
             let same_spelling = symbols
                 .insert_children(
                     foreign,
