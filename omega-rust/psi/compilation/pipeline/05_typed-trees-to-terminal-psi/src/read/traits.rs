@@ -289,11 +289,11 @@ impl Program<'_> {
                 "boundary parent contract has no boundary owner",
             ));
         }
-        let mut ordinary = false;
+        let mut needs_contract_owner = false;
         scope
             .try_visit(typed, &mut |view| {
                 if !view.declaration.is_boundary {
-                    ordinary = true;
+                    needs_contract_owner = true;
                     if view
                         .parent_scopes(typed)?
                         .iter()
@@ -304,14 +304,15 @@ impl Program<'_> {
                 } else if view.declaration.symbol != scope.declaration.symbol
                     && !typed.trait_machine_signatures(view.declaration).is_empty()
                 {
-                    return Err(
-                        "boundary schema needs its inherited callable requirement projection",
-                    );
+                    // The selected Calling owner projects the complete applied
+                    // schema, including inherited callable requirements. Defer
+                    // to that owner and require its exact completion below.
+                    needs_contract_owner = true;
                 }
                 Ok(())
             })
             .map_err(|reason| services::unavailable(context, reason))?;
-        if ordinary {
+        if needs_contract_owner {
             let environment = scope.environment();
             if !self.boundary_parent_contracts.contains(&environment) {
                 self.boundary_parent_contracts.push(environment);
