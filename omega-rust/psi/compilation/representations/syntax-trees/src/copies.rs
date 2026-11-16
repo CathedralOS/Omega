@@ -872,6 +872,7 @@ pub(crate) mod body_copies {
                 }),
                 ExpressionNode::StructLiteral(struct_literal) => {
                     ExpressionNode::StructLiteral(TableStructLiteral {
+                        zero_omitted_fields: struct_literal.zero_omitted_fields,
                         application_type: self
                             .copy_type_reference_handle(other, struct_literal.application_type),
                         constructor_name: struct_literal.constructor_name.clone(),

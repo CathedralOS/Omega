@@ -1206,7 +1206,7 @@ impl Program<'_> {
             .collect();
         let authored = self.typed.expression_table.struct_fields(literal.fields);
         let mut seen = vec![false; declared.len()];
-        let mut fields = Vec::with_capacity(authored.len());
+        let mut fields = Vec::with_capacity(declared.len());
         for field in authored {
             if !field.field_symbol.is_valid() {
                 return Err(spelling("record literal field without a symbol"));
@@ -1243,7 +1243,17 @@ impl Program<'_> {
             fields.push((position, operand));
         }
         if seen.contains(&false) {
-            return Err(typing("record literal misses a field"));
+            if !literal.zero_omitted_fields {
+                return Err(typing("record literal misses a field"));
+            }
+            // Authored operands stay in their original evaluation order. Each
+            // missing operand is an ordinary zero value, and the final record
+            // or selected case still owes its complete default domain.
+            for (position, (present, field_type)) in seen.iter().zip(&declared).enumerate() {
+                if !present {
+                    fields.push((position, self.zero_value(id, *field_type, source)?));
+                }
+            }
         }
         Ok(Expression {
             call_context: None,
@@ -1254,6 +1264,56 @@ impl Program<'_> {
             result: Some(result),
             source,
         })
+    }
+
+    /// Form zero through the existing zero-storage owner, then establish each
+    /// declared qualification through the same operation as an explicit cast.
+    /// Zero bits alone never grant membership, an issuer route, or backing.
+    pub(super) fn zero_value(
+        &mut self,
+        id: MachineId,
+        result: ValueType,
+        source: SourceOrigin,
+    ) -> Checked<Expression> {
+        let plain = result
+            .qualified(crate::body::Qualification::NONE)
+            .ok_or_else(|| {
+                refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Expression("zero of a rigid type"),
+                )
+            })?;
+        self.zero_established(id, plain)?;
+        let mut operand = Expression {
+            call_context: None,
+            kind: ExpressionKind::Zero,
+            result: Some(plain),
+            source,
+        };
+        let mut qualification = crate::body::Qualification::NONE;
+        for domain in result.qualification().domains.members() {
+            qualification.domains = qualification.domains.with(domain).ok_or_else(|| {
+                refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Expression("zero qualification set is too large"),
+                )
+            })?;
+            let qualified = plain
+                .qualified(qualification)
+                .expect("plain value has a carrier");
+            operand = self.add_domain(id, operand, qualified, domain, source)?;
+        }
+        if operand.result != Some(result) {
+            operand = Expression {
+                call_context: None,
+                kind: ExpressionKind::Requalify(Box::new(operand)),
+                result: Some(result),
+                source,
+            };
+        }
+        Ok(operand)
     }
 
     /// The case an expression names when it stands where a case is

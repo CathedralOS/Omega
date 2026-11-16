@@ -3368,6 +3368,11 @@ pub(crate) mod identity_context {
                 ))
                 .chain(
                     literal
+                        .zero_omitted_fields
+                        .then(|| atom(Label::Kind, "zero-omitted-fields")),
+                )
+                .chain(
+                    literal
                         .case_name
                         .as_ref()
                         .map(|case| atom(Label::Case, case.as_str())),
@@ -5318,6 +5323,7 @@ pub(crate) mod package_policy_reading_tests {
                         value,
                     }]);
             let literal = fixture.expression(ExpressionNode::StructLiteral(TableStructLiteral {
+                zero_omitted_fields: false,
                 application_type: Default::default(),
                 type_name: Identifier::generated("Record"),
                 type_symbol: fixture.symbol("Record"),

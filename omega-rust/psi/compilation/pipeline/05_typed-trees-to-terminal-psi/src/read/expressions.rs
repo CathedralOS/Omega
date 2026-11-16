@@ -695,7 +695,10 @@ impl<'t> Program<'t> {
                 return self.record_literal(id, slots, handle, literal, source);
             }
             ExpressionNode::String(bytes) => return self.byte_literal(id, bytes, expected, source),
-            ExpressionNode::ZeroValue(_) => return unserved("zero value"),
+            ExpressionNode::ZeroValue(reference) => {
+                let value_type = self.value_type(id, *reference)?;
+                return self.zero_value(id, value_type, source);
+            }
         };
         Ok(Expression {
             call_context: None,
@@ -1654,7 +1657,8 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
                 | ExpressionKind::ByteElement { .. }
             | ExpressionKind::CollectionView { .. }
             | ExpressionKind::CollectionSubslice { .. }
-                | ExpressionKind::Boolean(_)
+                | ExpressionKind::Zero
+        | ExpressionKind::Boolean(_)
                 | ExpressionKind::MachineValue { .. }
                 | ExpressionKind::Slot(_)
                 | ExpressionKind::Array { .. }

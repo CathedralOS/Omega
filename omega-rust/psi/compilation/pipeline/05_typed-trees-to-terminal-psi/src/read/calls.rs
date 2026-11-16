@@ -3807,6 +3807,7 @@ impl Touches<'_> {
             | ExpressionKind::ScalarApplication { .. }
             | ExpressionKind::ByteLiteral(_)
             | ExpressionKind::MachineValue { .. }
+            | ExpressionKind::Zero
             | ExpressionKind::Boolean(_) => Ok(false),
             ExpressionKind::Not(operand)
             | ExpressionKind::BitwiseNot(operand)

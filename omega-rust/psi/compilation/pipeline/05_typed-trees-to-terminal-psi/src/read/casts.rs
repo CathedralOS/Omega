@@ -476,81 +476,94 @@ impl Program<'_> {
         if let Some(domain) = domain {
             match entry.kind {
                 CastEntryKind::Add => {
-                    self.issue(id, domain, source)?;
-                    // "Has predicates | Prove them for this value."
-                    let (clauses, stated) = match (
-                        result,
-                        crate::body::DomainSet::EMPTY.with(domain),
-                    ) {
-                        (ValueType::Scalar(carrier, _), Some(domains)) => self.cast_predicates(
-                            id,
-                            Qualification {
-                                policy: None,
-                                domains,
-                            },
-                            carrier,
-                        )?,
-                        // Primitive byte qualifications remain structural
-                        // memberships. Lowering states them on the produced
-                        // descriptor and the receiver checks the actual
-                        // literal bytes; no scalar proof substitutes for it.
-                        (ValueType::Record(row, _, _), Some(_))
-                            if matches!(operand.kind, ExpressionKind::ByteLiteral(_))
-                                && self.is_view(id, row)?
-                                && typed_trees::byte_predicates::domain_byte_predicate(
-                                    self.typed,
-                                    domain.declaration,
-                                )
-                                .is_some() =>
-                        {
-                            (Vec::new(), String::new())
-                        }
-                        // An array or record, or a reference displaying a
-                        // domain on its referent (`&text as +Terminated`):
-                        // the clauses are stated over the plain value at one
-                        // structural subject, which lowering binds to the
-                        // cast's result (`record_cast_predicates`).
-                        (ValueType::Record(..), Some(domains))
-                            if super::authority::has_predicates(
-                                self.domain_theory(id, domain)?,
-                            ) =>
-                        {
-                            self.record_cast_predicates(
-                                id,
-                                Qualification {
-                                    policy: None,
-                                    domains,
-                                },
-                                result,
-                            )?
-                        }
-                        _ if super::authority::has_predicates(self.domain_theory(id, domain)?) => {
-                            return unserved(
-                                "cast that adds a domain with predicates to a value of a type parameter",
-                            );
-                        }
-                        _ => (Vec::new(), String::new()),
-                    };
-                    if !clauses.is_empty() {
-                        return Ok(Expression {
-                            call_context: None,
-                            kind: ExpressionKind::Establish {
-                                operand: Box::new(operand),
-                                clauses,
-                                stated:
-                                    terminal_check_tables::program::CastCondition::DomainMembership(
-                                        stated,
-                                    ),
-                            },
-                            result: Some(result),
-                            source,
-                        });
-                    }
+                    return self.add_domain(id, operand, result, domain, source);
                 }
                 _ => {
                     self.domain_removal(id, domain, operand_type)?;
                 }
             }
+        }
+        Ok(Expression {
+            call_context: None,
+            kind: ExpressionKind::Requalify(Box::new(operand)),
+            result: Some(result),
+            source,
+        })
+    }
+
+    /// Add one selected domain to an existing value. Both explicit casts and
+    /// zero construction use its issuance check and prove the actual predicates
+    /// before publishing the qualified result.
+    pub(super) fn add_domain(
+        &mut self,
+        id: MachineId,
+        operand: Expression,
+        result: ValueType,
+        domain: crate::body::DomainInstance,
+        source: SourceOrigin,
+    ) -> Checked<Expression> {
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
+        self.issue(id, domain, source)?;
+        // "Has predicates | Prove them for this value."
+        let (clauses, stated) = match (result, crate::body::DomainSet::EMPTY.with(domain)) {
+            (ValueType::Scalar(carrier, _), Some(domains)) => self.cast_predicates(
+                id,
+                Qualification {
+                    policy: None,
+                    domains,
+                },
+                carrier,
+            )?,
+            // Primitive byte qualifications remain structural
+            // memberships. Lowering states them on the produced
+            // descriptor and the receiver checks the actual
+            // literal bytes; no scalar proof substitutes for it.
+            (ValueType::Record(row, _, _), Some(_))
+                if matches!(operand.kind, ExpressionKind::ByteLiteral(_))
+                    && self.is_view(id, row)?
+                    && typed_trees::byte_predicates::domain_byte_predicate(
+                        self.typed,
+                        domain.declaration,
+                    )
+                    .is_some() =>
+            {
+                (Vec::new(), String::new())
+            }
+            // An array or record, or a reference displaying a
+            // domain on its referent (`&text as +Terminated`):
+            // the clauses are stated over the plain value at one
+            // structural subject, which lowering binds to the
+            // cast's result (`record_cast_predicates`).
+            (ValueType::Record(..), Some(domains))
+                if super::authority::has_predicates(self.domain_theory(id, domain)?) =>
+            {
+                self.record_cast_predicates(
+                    id,
+                    Qualification {
+                        policy: None,
+                        domains,
+                    },
+                    result,
+                )?
+            }
+            _ if super::authority::has_predicates(self.domain_theory(id, domain)?) => {
+                return unserved(
+                    "cast that adds a domain with predicates to a value of a type parameter",
+                );
+            }
+            _ => (Vec::new(), String::new()),
+        };
+        if !clauses.is_empty() {
+            return Ok(Expression {
+                call_context: None,
+                kind: ExpressionKind::Establish {
+                    operand: Box::new(operand),
+                    clauses,
+                    stated: terminal_check_tables::program::CastCondition::DomainMembership(stated),
+                },
+                result: Some(result),
+                source,
+            });
         }
         Ok(Expression {
             call_context: None,
