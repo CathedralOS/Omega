@@ -37,7 +37,7 @@ impl Storage<'_> {
         else {
             return Ok(None);
         };
-        let root_type = self.root_type(operand.source().place, concerns)?;
+        let root_type = self.root_type(operand.source(), concerns)?;
         let Some(Proposition::Equal(
             result,
             ScalarTerm::ByteSequencePredicate {
