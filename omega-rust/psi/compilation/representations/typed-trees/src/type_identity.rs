@@ -6437,13 +6437,59 @@ pub(crate) mod portable_machine_applications {
         symbol: SymbolHandle,
         exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     ) -> Result<language_semantics::const_value::CanonicalConstValue, String> {
+        let missing_exact_owner = Cell::new(false);
+        let result = portable_operation_record_value_under_owner_policy(
+            program,
+            symbol,
+            exact_toolchain_sources,
+            &missing_exact_owner,
+        )?;
+        if missing_exact_owner.get() {
+            return Err("static record lost its exact operand or owner identity".into());
+        }
+        Ok(result)
+    }
+
+    /// Compute a record value for an operand named inside a larger identity.
+    /// The record's toolchain owners follow the enclosing identity's own rule:
+    /// when the enclosing request requires exact toolchain owners, a missing
+    /// one is reported to that request, which then refuses exactly as it does
+    /// for its other names. When it does not require them, the record names
+    /// toolchain declarations with the same plain owner its other names use.
+    /// Every other loss of identity still refuses the record.
+    pub(crate) fn portable_operation_record_value_in_context(
+        program: &TypedTrees,
+        symbol: SymbolHandle,
+        context: &TypeIdentityContext<'_>,
+    ) -> Result<language_semantics::const_value::CanonicalConstValue, String> {
+        let missing_exact_owner = Cell::new(false);
+        let result = portable_operation_record_value_under_owner_policy(
+            program,
+            symbol,
+            context.exact_toolchain_sources,
+            &missing_exact_owner,
+        )?;
+        if missing_exact_owner.get()
+            && let Some(missing) = context.missing_exact_nominal_owner
+        {
+            missing.set(true);
+        }
+        Ok(result)
+    }
+
+    fn portable_operation_record_value_under_owner_policy(
+        program: &TypedTrees,
+        symbol: SymbolHandle,
+        exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
+        missing_exact_owner: &Cell<bool>,
+    ) -> Result<language_semantics::const_value::CanonicalConstValue, String> {
         let projection = PortableMachineApplications::default();
         let invalid = Cell::new(false);
         let context = TypeIdentityContext {
             portable_machine_applications: Some(&projection),
             qualification: TypeIdentityQualification::PackageQualified,
             exact_toolchain_sources,
-            missing_exact_nominal_owner: Some(&invalid),
+            missing_exact_nominal_owner: Some(missing_exact_owner),
             invalid_application: Some(&invalid),
             encountered_elided_regions: Some(&invalid),
             invalid_index_argument: Some(&invalid),
@@ -7895,10 +7941,8 @@ pub(crate) mod substitution {
         {
             return match context.portable_machine_applications {
                 Some(projection) => projection.record_value(program, symbol, context),
-                None => super::portable_machine_applications::portable_operation_record_value(
-                    program,
-                    symbol,
-                    context.exact_toolchain_sources,
+                None => super::portable_machine_applications::portable_operation_record_value_in_context(
+                    program, symbol, context,
                 ),
             }
             .ok()
