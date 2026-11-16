@@ -9,13 +9,12 @@ name = "legalized_operations"
 path = "src/lib.rs"
 
 [dependencies]
+native-vocabulary = { path = "../../native-vocabulary" }
 language-core = { path = "../../../../../psi/foundation/language-core" }
 calling-conventions = { path = "../../../backend/calling-conventions" }
 function-identity = { path = "../../../../foundation/function-identity" }
 optimization-core = { path = "../../../../foundation/optimization-core" }
-optimization-unit = { path = "../../abstract-operations/optimization-unit" }
 target = { path = "../../../backend/target" }
-abstract-operations = { path = "../../abstract-operations" }
 target-operations = { path = ".." }
 semantic-vocabulary = { path = "../../../../../psi/foundation/semantic-vocabulary" }
 terminal-psi = { path = "../../../../../psi/compilation/representations/terminal-psi" }

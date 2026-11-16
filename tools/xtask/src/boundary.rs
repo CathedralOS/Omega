@@ -388,6 +388,79 @@ pub fn stale_allowance_violations(
     Ok(violations)
 }
 
+/// Earlier executable program forms: the abstract program, the optimization
+/// unit, and the unit's independent semantic checker (all under this path).
+const EARLIER_PROGRAM_FORMS: &str =
+    "omega-rust/omega/compilation/representations/abstract-operations";
+
+/// Representations that instruction selection reads or writes, and the leaf
+/// vocabulary they share. Instruction selection is handed only the prepared
+/// execution plan; if one of these crates could reach an earlier program form,
+/// so could selection, one dependency away. The check follows every production
+/// edge, so a new path through a helper crate is caught too.
+const SELECTION_REPRESENTATIONS: &[&str] = &[
+    "omega-rust/omega/compilation/representations/native-vocabulary",
+    "omega-rust/omega/compilation/representations/target-operations",
+    "omega-rust/omega/compilation/representations/target-operations/legalized-operations",
+    "omega-rust/omega/compilation/representations/selected-instructions",
+    "omega-rust/omega/compilation/representations/selected-instructions/analyses",
+];
+
+/// Report each of `roots` that can reach a crate under `forbidden` through
+/// production dependencies, with the chain that reaches it. Dev-dependencies
+/// are ignored; optional dependencies count, since a feature can enable them.
+pub fn transitive_forbidden_violations(
+    metadata: &Metadata,
+    roots: &[&str],
+    forbidden: &str,
+    reason: &str,
+) -> Result<Vec<String>, String> {
+    let root = Path::new(&metadata.workspace_root);
+    let mut packages: BTreeMap<String, &Package> = BTreeMap::new();
+    for package in &metadata.packages {
+        if let Some(parent) = Path::new(&package.manifest_path).parent() {
+            packages.insert(normalize_relative(root, parent)?, package);
+        }
+    }
+    let mut violations = Vec::new();
+    for &start in roots {
+        let Some(&first) = packages.get(start) else {
+            return Err(format!("{start} is absent from the workspace"));
+        };
+        let mut pending = vec![(start.to_owned(), vec![first.name.clone()])];
+        let mut visited = BTreeSet::new();
+        while let Some((directory, chain)) = pending.pop() {
+            if !visited.insert(directory.clone()) {
+                continue;
+            }
+            if under(&directory, &[forbidden]) {
+                violations.push(format!("{}: {reason}", chain.join(" -> ")));
+                continue;
+            }
+            let Some(&package) = packages.get(&directory) else {
+                continue;
+            };
+            for dependency in &package.dependencies {
+                if dependency.kind.as_deref() == Some("dev") {
+                    continue;
+                }
+                let Some(dep_path) = &dependency.path else {
+                    continue;
+                };
+                let rel = normalize_relative(root, Path::new(dep_path))?;
+                let mut next = chain.clone();
+                next.push(
+                    packages
+                        .get(&rel)
+                        .map_or_else(|| dependency.name.clone(), |package| package.name.clone()),
+                );
+                pending.push((rel, next));
+            }
+        }
+    }
+    Ok(violations)
+}
+
 pub fn dependency_violations(
     metadata: &Metadata,
     entrance_path: &str,
@@ -629,6 +702,12 @@ pub fn run(args: &[String]) -> Result<(), u8> {
     let check_all = || -> Result<Vec<String>, String> {
         let mut violations = representation_spelling_violations(&root);
         violations.extend(plan_validator_call_violations(&root));
+        violations.extend(transitive_forbidden_violations(
+            &metadata,
+            SELECTION_REPRESENTATIONS,
+            EARLIER_PROGRAM_FORMS,
+            "a representation instruction selection reads or writes reaches an earlier program form; move the shared leaf type to native-vocabulary",
+        )?);
         violations.extend(psi_omega_dependency_violations(&metadata)?);
         violations.extend(dependency_violations(
             &metadata,
@@ -760,6 +839,41 @@ mod tests {
                 "{owner} -> {dependency}: {violations:?}"
             );
         }
+    }
+
+    #[test]
+    fn selection_representations_cannot_reach_earlier_forms_through_any_crate() {
+        let plan =
+            "omega-rust/omega/compilation/representations/target-operations/legalized-operations";
+        let helper = "omega-rust/omega/compilation/backend/helper";
+        let unit =
+            "omega-rust/omega/compilation/representations/abstract-operations/optimization-unit";
+        let reaches = |kind: Option<&str>| Metadata {
+            workspace_root: "/repo".to_owned(),
+            packages: vec![
+                pkg("legalized-operations", plan, &[("helper", helper, None)]),
+                pkg("helper", helper, &[("optimization-unit", unit, kind)]),
+                pkg("optimization-unit", unit, &[]),
+            ],
+        };
+        let violations =
+            transitive_forbidden_violations(&reaches(None), &[plan], EARLIER_PROGRAM_FORMS, "no")
+                .unwrap();
+        assert_eq!(
+            violations,
+            vec!["legalized-operations -> helper -> optimization-unit: no".to_owned()]
+        );
+        assert!(
+            transitive_forbidden_violations(
+                &reaches(Some("dev")),
+                &[plan],
+                EARLIER_PROGRAM_FORMS,
+                "no"
+            )
+            .unwrap()
+            .is_empty(),
+            "a test-only edge is not a production path"
+        );
     }
 
     #[test]

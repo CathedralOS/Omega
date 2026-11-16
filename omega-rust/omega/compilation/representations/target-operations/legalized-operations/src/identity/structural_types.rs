@@ -20,19 +20,25 @@ use terminal_psi::{
 
 pub(super) fn encode_window_root(
     bytes: &mut Vec<u8>,
-    root: &abstract_operations::StructuralWindowRoot,
+    root: &native_vocabulary::structural_stores::StructuralWindowRoot,
 ) {
     match root {
-        abstract_operations::StructuralWindowRoot::Parameter(parameter) => {
+        native_vocabulary::structural_stores::StructuralWindowRoot::Parameter(parameter) => {
             bytes.push(0);
             encode_structural_parameter(bytes, parameter);
         }
-        abstract_operations::StructuralWindowRoot::OwnedResult { producer, result } => {
+        native_vocabulary::structural_stores::StructuralWindowRoot::OwnedResult {
+            producer,
+            result,
+        } => {
             bytes.push(1);
             crate::codec_bytes::push_encoded(bytes, producer.get().to_le_bytes());
             super::structural::encode_operation_result(bytes, result);
         }
-        abstract_operations::StructuralWindowRoot::OwnedBlockParameter { block, parameter } => {
+        native_vocabulary::structural_stores::StructuralWindowRoot::OwnedBlockParameter {
+            block,
+            parameter,
+        } => {
             bytes.push(2);
             crate::codec_bytes::push_encoded(bytes, block.get().to_le_bytes());
             encode_structural_parameter(bytes, parameter);
@@ -513,9 +519,13 @@ fn encode_scalar_restriction(bytes: &mut Vec<u8>, field_type: &StructuralFieldTy
     match field_type {
         StructuralFieldType::RefinedScalar(refinement) => {
             bytes.push(9);
-            let identity = optimization_unit::scalar_refinement_identity_bytes(refinement);
-            encode_len(bytes, identity.len());
-            bytes.extend_from_slice(&identity);
+            // A refinement is its carrier and its predicate, each bound by its
+            // canonical encoding.
+            super::encode_scalar_type(bytes, refinement.carrier());
+            let predicate = terminal_codec::canonical_proposition_order_key(refinement.predicate())
+                .expect("canonical refinement predicate");
+            encode_len(bytes, predicate.len());
+            bytes.extend_from_slice(&predicate);
         }
         StructuralFieldType::AtomicBoundedInteger(bounds) => {
             bytes.push(10);

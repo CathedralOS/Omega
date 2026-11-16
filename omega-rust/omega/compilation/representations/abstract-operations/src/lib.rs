@@ -19,7 +19,6 @@ authorized Psi product; neither copied evidence nor these data records grant
 execution authority.
 */
 
-pub(crate) use optimization_core::codec_bytes;
 use semantic_vocabulary::{BoundaryMachineId, MachineId, StructuralTypeId};
 use terminal_psi::{
     BoundaryMachineDeclaration, ProviderCandidateConformance, StructuralTypeDeclaration,
@@ -90,13 +89,12 @@ pub use control_flow::{
     AbstractStructuralCasePayloadBinding, AbstractStructuralCaseSuccessor, AbstractSuccessor,
 };
 pub mod values;
-pub use values::{
-    AbstractFunctionResult, AbstractParameter, AbstractResult, ValueBinding, binding_arguments,
-};
-mod integer_arithmetic;
-pub use integer_arithmetic::{
+pub use native_vocabulary::integer_arithmetic::{
     IntegerArithmetic, IntegerArithmeticOperator, IntegerOverflowPolicy, IntegerShiftDirection,
     IntegerShiftPolicy,
+};
+pub use values::{
+    AbstractFunctionResult, AbstractParameter, AbstractResult, ValueBinding, binding_arguments,
 };
 pub mod operations;
 pub use native_vocabulary::structural_stores::{

@@ -10,13 +10,12 @@ row's private declaration.
 */
 
 use crate::{AbstractFunction, AbstractResult};
-use semantic_vocabulary::{MachineId, ScalarType, StructuralDomainId, StructuralTypeId, ValueId};
+use semantic_vocabulary::{ScalarType, StructuralDomainId, StructuralTypeId};
 use terminal_psi::{
     BoundaryMachineResult, BoundaryStructuralResultDeclaration as ResultDeclaration,
-    OutcomeSpecificCallEvidence, StructuralAccess, StructuralArgument, StructuralMultiplicity,
+    OutcomeSpecificCallEvidence, StructuralArgument, StructuralMultiplicity,
     StructuralOperationResult, StructuralParameterDeclaration as ParameterDeclaration,
     StructuralPathQualification, StructuralResultDeclaration, TerminalDynamicSlot,
-    TerminalDynamicStructuralFormal as StructuralFormal,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -60,105 +59,9 @@ impl AbstractStructuralCallResult {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum AbstractCallTarget {
-    Machine(MachineId),
-    Dynamic {
-        selector: ValueId,
-        interface: u32,
-        slot: u32,
-    },
-}
+pub use native_vocabulary::calls::AbstractCallTarget;
 
-impl AbstractCallTarget {
-    pub const fn machine(self) -> Option<MachineId> {
-        match self {
-            Self::Machine(machine) => Some(machine),
-            Self::Dynamic { .. } => None,
-        }
-    }
-
-    pub const fn selector(self) -> Option<ValueId> {
-        match self {
-            Self::Machine(_) => None,
-            Self::Dynamic { selector, .. } => Some(selector),
-        }
-    }
-
-    pub fn canonical_bytes(self) -> Vec<u8> {
-        let mut bytes = Vec::new();
-        match self {
-            Self::Machine(machine) => {
-                bytes.push(0);
-                crate::codec_bytes::push_encoded(&mut bytes, machine.get().to_le_bytes());
-            }
-            Self::Dynamic {
-                selector,
-                interface,
-                slot,
-            } => {
-                bytes.push(1);
-                crate::codec_bytes::push_encoded(&mut bytes, selector.get().to_le_bytes());
-                crate::codec_bytes::push_encoded(&mut bytes, interface.to_le_bytes());
-                crate::codec_bytes::push_encoded(&mut bytes, slot.to_le_bytes());
-            }
-        }
-        bytes
-    }
-}
-
-impl From<MachineId> for AbstractCallTarget {
-    fn from(machine: MachineId) -> Self {
-        Self::Machine(machine)
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct StructuralCallFormal<'declaration> {
-    pub position: u32,
-    pub structural_type: StructuralTypeId,
-    pub multiplicity: StructuralMultiplicity,
-    pub access: StructuralAccess,
-    pub qualifications: &'declaration [StructuralDomainId],
-    pub projected_qualifications: &'declaration [StructuralPathQualification],
-    pub additional_input_qualifications: &'declaration [StructuralPathQualification],
-}
-
-impl<'declaration> From<&'declaration ParameterDeclaration> for StructuralCallFormal<'declaration> {
-    fn from(parameter: &'declaration ParameterDeclaration) -> Self {
-        Self {
-            position: parameter.position,
-            structural_type: parameter.structural_type,
-            multiplicity: parameter.multiplicity,
-            access: parameter.access,
-            qualifications: &parameter.qualifications,
-            projected_qualifications: &parameter.projected_qualifications,
-            additional_input_qualifications: &parameter.additional_input_qualifications,
-        }
-    }
-}
-
-impl<'declaration> From<&'declaration StructuralFormal> for StructuralCallFormal<'declaration> {
-    fn from(parameter: &'declaration StructuralFormal) -> Self {
-        Self {
-            position: parameter.position,
-            structural_type: parameter.structural_type,
-            multiplicity: parameter.multiplicity,
-            access: parameter.access,
-            qualifications: &parameter.qualifications,
-            projected_qualifications: &[],
-            additional_input_qualifications: &[],
-        }
-    }
-}
-
-impl<'declaration> From<&StructuralCallFormal<'declaration>>
-    for StructuralCallFormal<'declaration>
-{
-    fn from(parameter: &StructuralCallFormal<'declaration>) -> Self {
-        *parameter
-    }
-}
+pub use native_vocabulary::calls::StructuralCallFormal;
 
 #[derive(Debug, Clone, Copy)]
 pub struct StructuralCallResult<'declaration> {

@@ -5,8 +5,10 @@ Keeping `ReferenceRoot` alongside `TargetReferenceOrigin` and view/scalar expres
 */
 
 use crate::ScalarParameterLocation;
-use abstract_operations::{IntegerArithmetic, IntegerShiftDirection, IntegerShiftPolicy};
 use calling_conventions::{ValuePlacement, ValueShape};
+use native_vocabulary::integer_arithmetic::{
+    IntegerArithmetic, IntegerShiftDirection, IntegerShiftPolicy,
+};
 use semantic_vocabulary::{
     BlockId, IntegerType, IntegerValue, ObligationId, OperationId, PlaceId, ScalarType,
     StructuralFieldId, StructuralTypeId, ValueId,

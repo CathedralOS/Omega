@@ -216,7 +216,7 @@ pub fn record(
             result: completion,
             callbacks: Vec::new(),
         },
-        effect: optimization_unit::EffectLink {
+        effect: native_vocabulary::provenance::EffectLink {
             input: 1,
             output: 2,
         },

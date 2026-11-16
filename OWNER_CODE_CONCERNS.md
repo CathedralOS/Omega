@@ -83,12 +83,33 @@ framework or a list of unimplemented features.
 - Reported: 2026-11-15, Codex, while measuring continuation construction and body completion.
 
 
-### The execution plan and selected form still depend on the abstract-program crates
+### Instruction selection reaches earlier forms through installation authority and the module codec
 - Category: knowledge crossing a boundary
-- Where: [plan manifest](omega-rust/omega/compilation/representations/target-operations/legalized-operations/Cargo.toml), [selected-instructions manifest](omega-rust/omega/compilation/representations/selected-instructions/Cargo.toml), [retained types](omega-rust/omega/compilation/representations/target-operations/legalized-operations/src/lib.rs), [selection boundary rule](tools/xtask/src/boundary.rs)
-- Saw: Instruction selection no longer depends on `abstract-operations`, `optimization-unit` or `terminal-codec`, and `check-boundary` enforces that. The representations it reads and writes still do: `legalized-operations` uses `optimization_unit::{access_view_catalog_identity_bytes, scalar_refinement_identity_bytes}`, `OwnershipFrontierFact` and `abstract_operations::CompletionClaimSource`, and both it and `selected-instructions` list those crates. Structural declarations in the plan still state leaf scalars in the checking form, so the plan carries `RetainedIntegerTypes` to close them, with an `Unsealed` case for plans built without a module. Stage 03 also names about forty leaf types from `target-operations`.
-- Cost: Selection can still reach the earlier program containers through the crates of its own input. Move the identity encoders and the remaining leaf records to `native-vocabulary`, close the leaf scalars of structural declarations during preparation, then drop the dependencies and extend the boundary rule to the two representation crates.
-- Reported: 2026-11-16, Claude Code, while moving preparation of the execution plan from stage 03 to stage 02.
+- Where: [provider-admission manifest](omega-rust/omega/compilation/realization/provider-admission/Cargo.toml), [authority types](omega-rust/omega/compilation/realization/provider-admission/src/model.rs), [codec](omega-rust/psi/compilation/representations/terminal-psi/codec/src/lib.rs), [boundary rules](tools/xtask/src/boundary.rs)
+- Saw: `check-boundary` now proves that no representation selection reads or writes (`target-operations`, `legalized-operations`, `selected-instructions` and its analyses, `native-vocabulary`) can reach `abstract-operations` through any production dependency. Stage 03 itself still can, through `provider-admission`: the installation authority it is handed (`AdmittedInstalledInterruptCohort`, `AdmittedInstalledEntryExecution` and the scopes, entries and helpers inside them) is defined in the admission crate, which depends on `abstract-operations` throughout. Separately, the plan crates, `selected-instructions` and `native-vocabulary` depend on `terminal-codec` for canonical encoders (propositions, crash routes, access catalogs), and that crate also defines `ClosedTerminalModule`, so stage 03 reaches the sealed module's type one hop away. Structural declarations in the plan still state leaf scalars in the checking form, so the plan carries `RetainedIntegerTypes` to close them, with an `Unsealed` case for plans built without a module.
+- Cost: Stage 03 is held to the boundary only by its direct-dependency rule. Move the installed-interrupt and installed-entry authority records to a crate below admission and have admission produce them; split the canonical vocabulary encoders from the sealed-module types in the codec, or have the plan carry the encoded bytes; close structural leaf scalars during preparation. Then put stage 03 under the transitive rule too.
+- Reported: 2026-11-16, Claude Code, while making the selection representations unable to reach the abstract program.
+
+### Instruction selection depends on stage 02's working form
+- Category: knowledge crossing a boundary
+- Where: [stage 03 manifest](omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/Cargo.toml), [target-operations](omega-rust/omega/compilation/representations/target-operations/src/lib.rs)
+- Saw: Stage 03 names about forty leaf types from `target-operations` (structural argument sources, call-site owners, installation call roles, boundary execution bindings, normalized-foreign-call mechanisms, case pointer slots), because the prepared plan embeds them. `target-operations` also holds `TargetOperationPlan`, stage 02's whole working graph, so stage 03 can name a second complete program form.
+- Cost: A future change can make selection read target operations again without any check failing. Move the leaf types the plan embeds into `legalized-operations` or `native-vocabulary`, then forbid stage 03 the `target-operations` crate.
+- Reported: 2026-11-16, Claude Code, while auditing the stage 02 to stage 03 boundary.
+
+### Stages 04 to 09 are not held to their inputs
+- Category: knowledge crossing a boundary
+- Where: [stage 04 manifest](omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/Cargo.toml), [stage 05 manifest](omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/Cargo.toml), [driver](omega-rust/omega/compilation/native-compiler/src/pipeline.rs)
+- Saw: Stages 04 and 05 declare `isa-x86_64`, `isa-aarch64`, `terminal-psi`, `abstract-operations`, `target-operations`, `legalized-operations`, `terminal-codec` and `calling-conventions` and use them little or not at all outside tests. Stages 07 and 08 are each handed the selected program, the machine plan and the register model instead of one input form, and `assemble_fixed_frame_realization` takes the products of stages 02 through 09 at once. Only the adjacent-stage rule applies to these stages.
+- Cost: Unused edges make the dependency graph misleading and make the next shortcut free. Remove the unused dependencies, give stages 07 and 08 one input each, and extend the transitive rule stage by stage.
+- Reported: 2026-11-16, Claude Code, while auditing the native pipeline after the stage 02 to stage 03 repair.
+
+### Bound installations are attached to stage 02's output
+- Category: knowledge crossing a boundary
+- Where: [stage 02 output](omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/lib.rs), [driver](omega-rust/omega/compilation/native-compiler/src/realization/object_emission.rs)
+- Saw: The driver resolves handler stacks and the installed entry, then calls `with_installed_stack_requirements` and `with_installed_entry_execution` on `ValidatedOptimizedTargetOperations`, stage 02's output. Stage 03 checks the binding, but the authority travels inside stage 02's container instead of beside the plan, and the surviving-installations list is validated against the target operations rather than derived independently.
+- Cost: The plan's container changes after the stage that produced it has finished. Make the bound installations a value the driver holds next to the plan and passes to selection.
+- Reported: 2026-11-16, Claude Code, while auditing the stage 02 to stage 03 boundary.
 
 ### Image emission still reads the target operations stage 02 keeps as a working form
 - Category: knowledge crossing a boundary
