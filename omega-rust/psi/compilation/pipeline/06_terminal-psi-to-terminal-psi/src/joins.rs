@@ -119,9 +119,6 @@ pub(crate) fn prepare(
     Ok(declared)
 }
 
-/// How deep a definition may unfold into another before it is left alone.
-const UNFOLD_DEPTH: usize = 64;
-
 /// The arguments an edge passes to its destination, and that destination.
 fn arrival(lowered: &TerminalMachine, edge: EdgeId) -> Option<(BlockId, &[ValueId])> {
     fn successor(successor: &SuccessorEdge, edge: EdgeId) -> Option<(BlockId, &[ValueId])> {
@@ -232,27 +229,6 @@ fn available_value(
         }
         _ => false,
     }
-}
-
-/// `term` with each defined value replaced by its definition, recursively.
-pub(crate) fn unfold(
-    term: &ScalarTerm,
-    definitions: &[(ValueId, &ScalarTerm)],
-    depth: usize,
-) -> ScalarTerm {
-    if depth > UNFOLD_DEPTH {
-        return term.clone();
-    }
-    if let ScalarTerm::Value { id, .. } = term
-        && let Some((_, definition)) = definitions.iter().find(|(subject, _)| subject == id)
-    {
-        return unfold(definition, definitions, depth + 1);
-    }
-    let mut unfolded = term.clone();
-    for operand in unfolded.operands_mut() {
-        *operand = unfold(operand, definitions, depth + 1);
-    }
-    unfolded
 }
 
 pub(crate) fn connective(mut parts: Vec<Proposition>, conjunction: bool) -> Proposition {

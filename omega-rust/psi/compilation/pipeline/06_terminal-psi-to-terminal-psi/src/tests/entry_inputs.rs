@@ -123,6 +123,19 @@ fn private_inputs_cross_an_omitted_helper_chain() {
         .expect("the proved input contract must encode canonically");
 }
 
+fn judge_source_arrivals(source: &str, expected_private: usize) -> RouteVerdict {
+    let typed = super::boundary_calls::typed(source);
+    let entry = super::boundary_calls::entry(&typed);
+    let elaboration = typed_trees_to_terminal_psi::elaborate_for(
+        &typed,
+        super::build_purpose::roster(&[entry], &[], source::DependencyScope::Product),
+        terminal_codec::TerminalPublication::Invocation,
+    )
+    .unwrap();
+    assert_eq!(elaboration.private_inputs.len(), expected_private);
+    judge(Ok(elaboration)).unwrap()
+}
+
 #[test]
 fn view_extent_facts_follow_only_the_guarded_input_across_private_arrivals() {
     let source = r#"
@@ -141,24 +154,7 @@ OTHER_BODY
         let source = source
             .replace("INPUT", input)
             .replace("OTHER_BODY", other_body);
-        let typed = super::boundary_calls::typed(&source);
-        let entry = super::boundary_calls::entry(&typed);
-        let elaboration = typed_trees_to_terminal_psi::elaborate_for(
-            &typed,
-            typed_trees_to_terminal_psi::Compilation {
-                declaration_metadata: &[],
-                entries: &[entry],
-                subjects: &[],
-                purpose: source::DependencyScope::Product,
-                selected: &[],
-                bindings: &[],
-                supplies: &[],
-            },
-            terminal_codec::TerminalPublication::Invocation,
-        )
-        .unwrap();
-        assert_eq!(elaboration.private_inputs.len(), expected_private);
-        judge(Ok(elaboration)).unwrap()
+        judge_source_arrivals(&source, expected_private)
     };
     let verdict = judge_input("bytes", "", 2);
     let RouteVerdict::Accepted(accepted) = verdict else {
@@ -187,6 +183,47 @@ OTHER_BODY
         unproved
             .iter()
             .any(|row| row.machine == id(3) && safety(&row.kind))
+    );
+}
+
+#[test]
+fn private_arrival_retains_a_guard_on_the_computed_argument() {
+    let source = r#"
+machine entry(bytes: &[u8], index: u64) -> u8 {
+    transition index < bytes.len { true -> lead(bytes, index) false -> 255u8 }
+    machine lead(bytes: &[u8], index: u64) -> u8 {
+        let first: u8 = bytes[index];
+        transition first > 0 && first < 128 {
+            true -> first
+            false -> following(bytes, index, first)
+        }
+    }
+    machine following(bytes: &[u8], index: u64, first: u8) -> u8 {
+        let next: u64 = index + 1;
+        transition first >= 194 && first <= 244 && next < bytes.len {
+            true -> fetch(bytes, first, INPUT)
+            false -> 255u8
+        }
+    }
+    machine fetch(bytes: &[u8], first: u8, index: u64) -> u8 {
+        bytes[index]
+    }
+}
+"#;
+    let verdict = judge_source_arrivals(&source.replace("INPUT", "next"), 3);
+    let RouteVerdict::Accepted(accepted) = verdict else {
+        panic!("the checked computed index reaches the helper: {verdict:?}");
+    };
+    accepted.publish_invocation().unwrap();
+
+    let verdict = judge_source_arrivals(&source.replace("INPUT", "bytes.len"), 3);
+    let RouteVerdict::Rejected { unproved, .. } = verdict else {
+        panic!("the original guard does not justify a different index: {verdict:?}");
+    };
+    assert!(
+        unproved
+            .iter()
+            .any(|row| row.machine == id(4) && safety(&row.kind))
     );
 }
 
