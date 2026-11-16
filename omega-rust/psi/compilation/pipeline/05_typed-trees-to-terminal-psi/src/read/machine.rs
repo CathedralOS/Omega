@@ -2870,7 +2870,7 @@ impl<'t> Program<'t> {
     // own, so the diagnostic leads to the file, line and column even inside
     // a dependency. The innermost declaration read places the refusal; an
     // outer one only adds its name.
-    fn read_failure_at(
+    pub(crate) fn read_failure_at(
         &self,
         mut refusal: terminal_check_tables::Refusal,
         declaration: SymbolHandle,

@@ -824,7 +824,12 @@ fn finish_reading_into<'source>(
         binder_reach.push(program.application_binders(next)?);
     }
     program.finish_declarations(diagnostic)?;
-    let components = components::components(&bodies, &mut program.signatures)?;
+    let components = components::components(&bodies, &mut program.signatures).map_err(
+        |refusal| match program.symbols.get(refusal.machine).copied() {
+            Some(symbol) => program.read_failure_at(refusal, symbol, "the call component"),
+            None => refusal,
+        },
+    )?;
     let private_inputs = program.private_input_contracts(entry, diagnostic)?;
     program.begin_declaration_storage(diagnostic, bodies.len())?;
     let declarations = program.declaration_metadata.clone();
