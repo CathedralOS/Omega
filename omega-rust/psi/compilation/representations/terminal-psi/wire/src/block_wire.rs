@@ -1422,7 +1422,7 @@ pub(crate) fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError>
     })
 }
 
-fn decode_operation(reader: &mut Reader<'_>) -> Result<Operation, CodecError> {
+pub(crate) fn decode_operation(reader: &mut Reader<'_>) -> Result<Operation, CodecError> {
     let operation_id = reader.id("OperationId")?;
     let static_reach_binding = if reader.boolean()? {
         Some(reader.u32()?)

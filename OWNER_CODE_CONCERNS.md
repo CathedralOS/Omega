@@ -75,20 +75,6 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-### encoding.md tag tables still omit tags the codec decodes
-- Category: The documents disagree
-- Where: [structural type shapes](wiki/spec/terminal-psi/encoding.md#L2089), [byte-sequence carriers](wiki/spec/terminal-psi/encoding.md#L2108), [structural field types](wiki/spec/terminal-psi/encoding.md#L2122), [structural path segments](wiki/spec/terminal-psi/encoding.md#L2152), [canonical path segments](wiki/spec/terminal-psi/encoding.md#L2176), [structural decoders](omega-rust/psi/compilation/representations/terminal-psi/wire/src/structural_wire.rs#L208), [tag-table test](omega-rust/psi/compilation/representations/terminal-psi/wire/src/spec_tag_tables.rs)
-- Saw: The page says a tag absent from a closed-sum table rejects. A spec-table pilot fed every byte value to each decoder and found five tables missing tags the codec accepts:
-  - structural type shapes: 12 (refined `PrimitiveScalar`), 16 (`AtomicCell`) and 19 (`Opaque`) appear nowhere on the page;
-  - byte-sequence carriers: 3 `BoundedView` (access plus `u64` capacity);
-  - structural field types: 9 `RefinedScalar` and 10 `AtomicBoundedInteger`;
-  - canonical path segments: 4 `Referent`, though the summary row at L458 lists it;
-  - structural path segments: 7 `Case`, 8 `RepresentationView` and 10 `AllElements`.
-
-  The scalar-field-carrier path table (L561) lists 1–2 while its summary row (L460) lists 1–4. `spec_tag_tables.rs` checks only 7 of the page's 82 marked tag tables, so none of these was caught.
-- Cost: Encoders and refusal tests written from the page miss valid forms. Add the missing rows, decide the L561 table, and extend `spec_tag_tables.rs` to every marked tag table so the next drift fails the test.
-- Reported: 2026-11-16, Claude Code, while piloting a spec-table drift check
-
 ### Three more portable filesystem calls mean different things on Windows and POSIX
 - Category: One idea, several implementations
 - Where: [Windows timestamp range](source/library/std/targets/windows_x86_64/filesystem/metadata.omg#L110), [Windows directory name limit](source/library/std/targets/windows_x86_64/windows_filesystem_directory_entry.omg#L140), [Windows transfer limit](source/library/std/targets/windows_x86_64/windows_filesystem_transfer.omg#L78), [pilot diff](https://github.com/CathedralOS/Omega/tree/work/pilot-library-cross-target)
@@ -135,17 +121,6 @@ framework or a list of unimplemented features.
 - Saw: [applications and specialization](wiki/spec/language/generics.md) says "Every application validates the complete argument tuple, including kinds, ranges, and constraints of unused parameters", and [property declarations](wiki/spec/language/ownership.md) says every use of `T` receives the property fixed by the declaration and application. `Operand::read` binds a type argument through `named_type` without reading `TypeParameter::bounds`, `generate` checks only callable binders, and the checker re-checks the generated copy as a closed machine. So `machine keep<T [copy]>(x: T) -> T { x }` called as `keep<Token>(t)` with a non-`[copy]` `Token` is accepted. Three other application paths refuse any non-default bound as unjudged; machine specialization is the one that skips it.
 - Cost: A `[copy]` bound in a generic API is not enforced at its callers. Compare the argument's multiplicity and carry with the binder's bounds in `Operand::read`, and refuse bounds it cannot judge, as the other paths do.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/generics.md
-
-### Three kernel rules accept more forms than their audited rows say
-- Category: The documents disagree
-- Where: [open-term fallback](omega-rust/psi/compilation/proof-admission/src/integer_rules.rs#L224), [exact-op lift](omega-rust/psi/compilation/proof-admission/src/kernel.rs#L252), [strict carrier bound](omega-rust/psi/compilation/proof-admission/src/kernel.rs#L45), [open discreteness](omega-rust/psi/compilation/proof-admission/src/proof.rs#L1634), [inward discreteness](omega-rust/psi/compilation/proof-admission/src/proof.rs#L1666)
-- Saw: [classicality.md](wiki/spec/proofs/classicality.md) and [integer_certificates.md](wiki/spec/terminal-psi/integer_certificates.md) describe narrower rules than the code accepts:
-  - `Primitive(ClosedIntegerRelation)` is documented as re-deciding "closed integer relations ... over closed data", but `compare_integer_math_terms` falls back to ring normalization of open terms, so it accepts `x < x + 1` and open distributivity with no premises, and it lifts `ExactIntegerAdd`, multiply and shift-left into total mathematical operations, so u8 `x < x +! 1` is accepted although `x +! 1` traps at 255.
-  - `IntegerCarrierBound` is documented as "Exactly `MIN <= value` or `value <= MAX` ... No strict, compound, or narrower bound", but it also accepts an address `a < R` where `R` evaluates to `MAX + 1`, including compound and open terms.
-  - `IntegerOrderDiscreteness` is documented as an outward literal-adjacency step with no address carrier, but it also accepts the inward `a < c ⊢ a <= c - 1` and open `a < b ⊢ a + 1 <= b` with no literal or carrier check.
-- Cost: Reviewers checking the rows approve a smaller trusted surface than the kernel has; the extra forms appear sound but are unaudited, and the discreteness ones also skip the core. Document every accepted form with its core status, or restrict the code to the rows; decide explicitly whether exact operations are read as total.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/proofs/classicality.md
-
 
 ### A shared byte view of an array gives its elements different addresses in the Psi interpreter
 - Category: Re-deriving
