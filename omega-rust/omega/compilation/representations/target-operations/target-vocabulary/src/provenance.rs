@@ -1,9 +1,7 @@
-// Terminal Psi provenance, call-site ownership, and admitted boundary origin facts.
+// Terminal Psi provenance, call-site ownership, and the program entry origin.
 // Ordinary calls belong to Terminal operations, nominal cleanup calls retain their ownership edge and action ordinal, external completions own their terminal edge, and static-interrupt installation helpers keep the source operation alongside their distinct `Validate` or `Work` role.
 
-use installation_evidence::InstalledAssumedBindingEvidence;
 use semantic_vocabulary::{EdgeId, InvocationSite, OperationId};
-use terminal_installation::TerminalTargetContext;
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct TerminalPsiProvenance {
@@ -77,14 +75,6 @@ impl From<InvocationSite> for CallSiteOwner {
             },
         }
     }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct BoundaryOriginFacts<'input> {
-    pub program_entry: Option<ProgramEntryOrigin>,
-    pub assumed_bindings: &'input [InstalledAssumedBindingEvidence],
-    pub target_context: Option<&'input TerminalTargetContext>,
-    pub module: &'input terminal_psi::TerminalModule,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

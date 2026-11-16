@@ -1634,8 +1634,12 @@ and `flow-effects`, for example). Within both halves:
   implementation refuses.
 - Psi `compilation/proof-admission/` — the independent mathematical checker.
 - Terminal companion packages live under `compilation/representations/terminal-psi/`:
-  `codec/`, `semantics/` and `work/`. Representation data and candidate
-  production stay independent of checking.
+  `wire/`, `codec/`, `semantics/` and `work/`. `wire/` holds the canonical
+  encoding and the vocabulary encoders native forms use for their identities;
+  `codec/` adds the sealed module (`ClosedTerminalModule`) and the artifact
+  envelope and re-exports `wire/`. No form after stage 02's preparation may
+  reach `codec/` (`mbx xtask check-boundary`). Representation data and
+  candidate production stay independent of checking.
 - Psi `compilation/terminal-production/` — keeps the exact frozen source from
   before checking and publishes the accepted module, its evidence and its real
   companions. Omega consumers supply product policy and observation, read the

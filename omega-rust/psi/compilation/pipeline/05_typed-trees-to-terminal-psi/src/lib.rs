@@ -864,6 +864,10 @@ fn finish_reading_into<'source>(
         program.resolve_scalar_applications(diagnostic)?;
         program.finish_cleanup_selections()?;
         if binder_reach.len() == program.symbols.len() {
+            program.prepare_calling_policy_roots(diagnostic)?;
+            if binder_reach.len() != program.symbols.len() {
+                continue;
+            }
             if predicates_prepared {
                 break;
             }

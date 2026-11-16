@@ -38,37 +38,31 @@ pub(crate) fn prepare_entry_metadata(
         inputs,
         custody.sources.exact_toolchain_sources(),
     )?;
-    let mut replacement = publication.with_declaration_metadata(&[declaration])?;
-    let accepted = replacement.accepted()?;
-    // Storage metadata cannot admit another body. Keep the same boundary
-    // declarations for the settled execution; per-target reach remains owned
-    // by the shared demand walk.
-    if original
-        .boundary_requirements_declared()
-        .map_err(|error| vec![error])?
-        != accepted
-            .boundary_requirements_declared()
-            .map_err(|error| vec![error])?
+    if !publication
+        .roster()?
+        .declaration_metadata
+        .contains(&declaration)
     {
         return Err(vec![Diagnostic::error(
-            "declaration metadata changed the product's boundary declarations",
+            "entry declaration was not prepared in the shared product roster",
         )]);
     }
-    // The added descriptor can change local artifact coordinates. Form
-    // the folded plan commitment from the final checked module and its
-    // exact entry, immediately before this publication is shared.
-    let module = accepted.module();
+    // Folded constants depend on this target's settled plans. Retain that
+    // product separately while reusing source preparation and judgment when
+    // the selected entry needs no target-derived constants.
+    let module = original.module();
     let folded = backend_plan::folded_constant_dependencies(
         module,
         profile.target_name(),
         custody.execution.plans().plans(),
-        &[checked_entry_machine(accepted, selected.machine_symbol)?],
+        &[checked_entry_machine(original, selected.machine_symbol)?],
     )
     .map_err(|reason| vec![Diagnostic::error(reason)])?;
     if !folded.dependencies.is_empty() {
+        let mut replacement = publication.with_declaration_metadata(&[])?;
         replacement.retain_folded_constants(folded)?;
+        custody.terminal_publication = std::sync::Arc::new(replacement);
     }
-    custody.terminal_publication = std::sync::Arc::new(replacement);
     Ok(())
 }
 

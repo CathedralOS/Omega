@@ -66,7 +66,7 @@ pub(super) fn decode_parameter(
 pub(super) fn encode_type(
     bytes: &mut Vec<u8>,
     declaration: &StructuralTypeDeclaration,
-) -> Result<(), terminal_codec::CodecError> {
+) -> Result<(), terminal_wire::CodecError> {
     bytes.push(u8::from(declaration.quotient_carrier.is_some()));
     if let Some(carrier) = declaration.quotient_carrier {
         crate::codec_bytes::push_encoded(bytes, carrier.get().to_le_bytes());
@@ -366,7 +366,7 @@ fn decode_authored_field_storage(
 fn encode_cases(
     bytes: &mut Vec<u8>,
     cases: &[StructuralCaseDeclaration],
-) -> Result<(), terminal_codec::CodecError> {
+) -> Result<(), terminal_wire::CodecError> {
     length(bytes, cases.len());
     for case in cases {
         crate::codec_bytes::push_encoded(bytes, case.declaration_identity.0.to_le_bytes());
@@ -393,7 +393,7 @@ fn decode_cases(
 fn encode_fields(
     bytes: &mut Vec<u8>,
     fields: &[StructuralFieldDeclaration],
-) -> Result<(), terminal_codec::CodecError> {
+) -> Result<(), terminal_wire::CodecError> {
     length(bytes, fields.len());
     for field in fields {
         crate::codec_bytes::push_encoded(bytes, field.id.get().to_le_bytes());
@@ -567,7 +567,7 @@ pub(super) fn decode_semantic_argument(
 pub(super) fn encode_target_argument(
     bytes: &mut Vec<u8>,
     argument: &TargetStructuralArgument,
-) -> Result<(), terminal_codec::CodecError> {
+) -> Result<(), terminal_wire::CodecError> {
     crate::codec_bytes::push_encoded(bytes, argument.place.get().to_le_bytes());
     encode_access(bytes, argument.access);
     encode_path(bytes, &argument.path);
@@ -875,7 +875,7 @@ pub(super) fn decode_projected(
 fn encode_bounded_integer(
     bytes: &mut Vec<u8>,
     bounds: BoundedIntegerType,
-) -> Result<(), terminal_codec::CodecError> {
+) -> Result<(), terminal_wire::CodecError> {
     encode_scalar(bytes, ScalarType::Integer(bounds.integer_type()))?;
     encode_integer(bytes, bounds.minimum());
     encode_integer(bytes, bounds.maximum());
@@ -897,13 +897,12 @@ fn decode_bounded_integer(
 fn encode_scalar_restriction(
     bytes: &mut Vec<u8>,
     field_type: &StructuralFieldType,
-) -> Result<(), terminal_codec::CodecError> {
+) -> Result<(), terminal_wire::CodecError> {
     match field_type {
         StructuralFieldType::RefinedScalar(refinement) => {
             bytes.push(9);
             encode_scalar(bytes, refinement.carrier())?;
-            let predicate =
-                terminal_codec::canonical_proposition_order_key(refinement.predicate())?;
+            let predicate = terminal_wire::canonical_proposition_order_key(refinement.predicate())?;
             length(bytes, predicate.len());
             bytes.extend_from_slice(&predicate);
         }
@@ -961,7 +960,7 @@ fn decode_scalar_restriction(
         9 => {
             let carrier = decode_scalar(cursor)?;
             let length = cursor.length()?;
-            let predicate = terminal_codec::decode_canonical_proposition(cursor.take(length)?)
+            let predicate = terminal_wire::decode_canonical_proposition(cursor.take(length)?)
                 .map_err(|_| FixedViewCopyDecodeError::InvalidScalarRefinement)?;
             StructuralFieldType::RefinedScalar(
                 semantic_vocabulary::ScalarRefinement::new(carrier, predicate)
@@ -1021,12 +1020,12 @@ mod tests {
     };
     use crate::recovery::structural_calls::{decode_provider, encode_provider};
     use semantic_vocabulary::{BoundaryMachineId, MachineId, StructuralDomainId};
-    use terminal_codec::canonical_proposition_order_key;
     use terminal_psi::{
         NominalDeclarationIdentity, ProviderCandidateConformance, ProviderParameterRefinement,
         ProviderRefinement, ProviderSignature, ProviderSignatureParameter,
         ReferenceOriginProjection, StructuralDomainRequirement, TerminalIdentityIndex,
     };
+    use terminal_wire::canonical_proposition_order_key;
 
     #[test]
     fn nominal_cleanup_selection_round_trip_binds_declaration_and_target() {

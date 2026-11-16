@@ -38,8 +38,8 @@ use semantic_vocabulary::{
     IntegerValue, MachineId, ObligationId, OperationId, ScalarType, StructuralTypeId, ValueId,
     WorkScheduleIdentity,
 };
-use terminal_codec::CodecError;
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
+use terminal_wire::CodecError;
 
 use crate::codec_bytes::Envelope;
 use crate::digest_encoder::content_identity;
@@ -855,7 +855,7 @@ mod tests {
                     &mut bytes,
                     ScalarType::Integer(IntegerType::parameterized(IntegerSign::Unsigned, parameter)),
                 ),
-                Err(terminal_codec::CodecError::IntegerWidthClosure(
+                Err(terminal_wire::CodecError::IntegerWidthClosure(
                     IntegerWidthClosureError::Parameter(actual)
                 )) if actual == parameter
             ));

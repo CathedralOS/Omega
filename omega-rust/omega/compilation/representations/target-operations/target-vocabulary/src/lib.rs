@@ -29,8 +29,7 @@ pub mod case_slots;
 pub use case_slots::TargetCasePointerSlot;
 pub mod provenance;
 pub use provenance::{
-    BoundaryOriginFacts, CallSiteOwner, InstallationCallRole, ProgramEntryOrigin,
-    TerminalPsiProvenance,
+    CallSiteOwner, InstallationCallRole, ProgramEntryOrigin, TerminalPsiProvenance,
 };
 pub mod boundary;
 mod descriptor_input;

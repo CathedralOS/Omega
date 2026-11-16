@@ -322,7 +322,7 @@ impl CheckingCompilation {
         }
         let runtime_policy = std::sync::Arc::clone(&self.realization.runtime_policy);
         let checked = self.realization.into_checked_compilation()?;
-        let mut accounting = checked.source_completion_accounting().clone();
+        let accounting = checked.source_completion_accounting().clone();
         let report = (|| {
             admit_permissions(
                 &checked,
@@ -348,7 +348,6 @@ impl CheckingCompilation {
                         &produced.program,
                         self.package_inputs.as_ref(),
                         &signature,
-                        &mut accounting,
                     )?;
                     let (terminal, _, _) = crate::terminal::prepare_native_application(
                         &checked,
@@ -384,7 +383,6 @@ impl CheckingCompilation {
                         &produced.program,
                         self.package_inputs.as_ref(),
                         &signature,
-                        &mut accounting,
                     )?;
                     let (terminal, accepted_package_permissions, retained_native_inputs) =
                         crate::terminal::prepare_native_application(

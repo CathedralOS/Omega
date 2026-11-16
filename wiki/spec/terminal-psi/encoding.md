@@ -1534,9 +1534,11 @@ preceding layouts independently used marker 282; neither supplies this
 combined schema, and both reject before payload interpretation.
 
 Vocabulary marker 138 distinguishes the new predicates. The native terminal-input
-record uses `OMGNTI33` and rejects `OMGNTI32`. The separate in-memory proof-system
-marker is 8; its conversion rule fingerprints every checked child, without
-adding a stored certificate decoder or changing the `PSICORE` envelope.
+record uses `OMGNTI34` and rejects `OMGNTI33` and earlier schemas. Calling
+applications retain an optional exact semantic formal for dispatch-only table
+use, replacing the former omitted-prefix count. The separate in-memory
+proof-system marker is 8; its conversion rule fingerprints every checked child,
+without adding a stored certificate decoder or changing the `PSICORE` envelope.
 
 Semantic format marker 282 adds proposition tag 22, `IntegerIeeeFloatExact`. Its source retains the complete integer scalar term, including signedness, width, value or storage version; its target is a permanent IEEE format. Vocabulary marker 139 distinguishes this predicate. The native terminal-input record uses `OMGNTI34`; old records reject. Proof-system marker 9 separately records the provisional representability rule and its fingerprint tag 32.
 

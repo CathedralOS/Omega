@@ -1865,30 +1865,30 @@ fn recovery_preserves_complete_placement_catalog_and_its_identity() {
 fn standalone_catalogs_reject_truncation_and_trailing_bytes() {
     let catalog = catalog();
     let lifecycle =
-        terminal_codec::encode_access_lifecycle_catalog(catalog.access_lifecycles()).unwrap();
-    let views = terminal_codec::encode_access_view_catalog(catalog.access_views()).unwrap();
+        terminal_wire::encode_access_lifecycle_catalog(catalog.access_lifecycles()).unwrap();
+    let views = terminal_wire::encode_access_view_catalog(catalog.access_views()).unwrap();
     for end in 0..lifecycle.len() {
         assert!(
-            terminal_codec::decode_access_lifecycle_catalog(&lifecycle[..end]).is_err(),
+            terminal_wire::decode_access_lifecycle_catalog(&lifecycle[..end]).is_err(),
             "truncated lifecycle catalog accepted at {end}"
         );
     }
     for end in 0..views.len() {
         assert!(
-            terminal_codec::decode_access_view_catalog(&views[..end]).is_err(),
+            terminal_wire::decode_access_view_catalog(&views[..end]).is_err(),
             "truncated view catalog accepted at {end}"
         );
     }
     let mut trailing = lifecycle;
     trailing.push(0);
     assert_eq!(
-        terminal_codec::decode_access_lifecycle_catalog(&trailing),
-        Err(terminal_codec::CodecError::TrailingBytes(1))
+        terminal_wire::decode_access_lifecycle_catalog(&trailing),
+        Err(terminal_wire::CodecError::TrailingBytes(1))
     );
     let mut trailing = views;
     trailing.push(0);
     assert_eq!(
-        terminal_codec::decode_access_view_catalog(&trailing),
-        Err(terminal_codec::CodecError::TrailingBytes(1))
+        terminal_wire::decode_access_view_catalog(&trailing),
+        Err(terminal_wire::CodecError::TrailingBytes(1))
     );
 }

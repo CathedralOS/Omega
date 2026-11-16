@@ -2416,7 +2416,7 @@ pub(crate) mod call_origin {
 
     pub(crate) fn validate_boundary_origins(
         native: &TargetOperationPlan,
-        input: target_operations::BoundaryOriginFacts<'_>,
+        input: crate::BoundaryOriginFacts<'_>,
     ) -> Result<(), LegalizationError> {
         let profile = input
             .target_context

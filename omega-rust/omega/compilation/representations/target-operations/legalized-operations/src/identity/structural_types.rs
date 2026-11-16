@@ -527,7 +527,7 @@ fn encode_scalar_restriction(bytes: &mut Vec<u8>, field_type: &StructuralFieldTy
             // A refinement is its carrier and its predicate, each bound by its
             // canonical encoding.
             super::encode_scalar_type(bytes, refinement.carrier());
-            let predicate = terminal_codec::canonical_proposition_order_key(refinement.predicate())
+            let predicate = terminal_wire::canonical_proposition_order_key(refinement.predicate())
                 .expect("canonical refinement predicate");
             encode_len(bytes, predicate.len());
             bytes.extend_from_slice(&predicate);

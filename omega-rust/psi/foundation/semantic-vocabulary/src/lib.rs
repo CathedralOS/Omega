@@ -26,6 +26,9 @@ projections; `proof_applications.rs` owns proof-application verification.
 
 #![forbid(unsafe_code)]
 
+mod declaration_descriptions;
+pub use declaration_descriptions::{FieldInfoDescription, ParameterDescription};
+
 // Call obligations and runtime lowering use the same two declaration
 // namespaces. Keeping this existing target identity in the shared vocabulary
 // lets check tables name a boundary without depending on the artifact crate.

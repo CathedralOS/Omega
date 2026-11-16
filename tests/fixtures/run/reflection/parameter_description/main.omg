@@ -1,0 +1,22 @@
+// Expected exit: 0
+// The table follows a scalar argument. Reflection must retain its exact
+// formal identity and distinguish it from the address field it will read.
+
+use omega::language::core::reflect;
+use omega::language::core::reflect::ParameterInfo;
+use omega::language::core::reflect::FieldInfo;
+
+data Table { padding: u64; invoke: addr; }
+boundary trait Query {
+    machine invoke(seed: u64, table: &Table) -> u64 reaches none crashes none;
+}
+machine complete() { }
+machine fail() crashes Trap { crash Trap; }
+machine main() crashes Trap {
+    let parameter: ParameterInfo = reflect::parameter(Query::invoke::table);
+    let field: FieldInfo = reflect::field(Table::invoke);
+    transition parameter.declaration_position == 1u64 && field.declaration_position == 1u64 {
+        true -> complete()
+        false -> fail()
+    }
+}
