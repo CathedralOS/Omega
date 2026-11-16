@@ -2065,10 +2065,20 @@ mod tests {
             .find(|row| row.name.as_str() == "Buffer" && row.generic_instance.is_none())
             .unwrap();
         let original = field(template);
-        assert_ne!(
-            original.symbol, actual.symbol,
-            "the real generic application owns distinct field coordinates"
+        let TypeReferenceNode::FixedArray {
+            element_type,
+            length,
+        } = program
+            .type_reference_table
+            .type_reference(actual.type_reference)
+        else {
+            panic!("the actual generic field has a closed array carrier");
+        };
+        assert_eq!(
+            program.primitive_type_reference(*element_type),
+            Some(PrimitiveType::U8)
         );
+        assert_eq!(*length, typed_trees::types::FixedArrayLength::Literal(4));
         for selected in [original.symbol, actual.symbol, SymbolHandle::invalid()] {
             assert_eq!(
                 declared_field_type(&program, reference, "storage", selected).unwrap(),
