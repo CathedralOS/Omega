@@ -16,6 +16,7 @@ before admitting any transformation.
 mod codec_tests;
 mod fixed_view_copy_codec;
 mod program_contracts;
+mod publication;
 mod selected_blocks;
 mod selected_instructions;
 mod structural_calls;

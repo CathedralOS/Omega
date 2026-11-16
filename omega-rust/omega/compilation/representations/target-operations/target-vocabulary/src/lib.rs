@@ -93,7 +93,9 @@ pub use scalar_operands::{
 };
 pub mod function_abi;
 pub use function_abi::LegalizedFunctionAbi;
+pub mod publication;
 pub(crate) use optimization_core::codec_bytes;
+pub use publication::{NativeByteLiteral, NativeFunctionPublication, NativePublicationFacts};
 pub mod identity;
 pub use identity::{
     encode_access_call_bindings, encode_call_binding, encode_call_plan, encode_external_execution,

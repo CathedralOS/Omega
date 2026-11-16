@@ -737,6 +737,7 @@ pub(crate) mod construction {
                     target.borrowed_storage_layouts.clone(),
                     target.profile,
                     std::sync::Arc::clone(&target.function_abis),
+                    target.publication.clone(),
                 )
                 .map_err(SelectedInstructionError::custody_because)?,
             ),

@@ -198,6 +198,8 @@ pub(crate) use legalized_operations::structural_inputs;
 
 mod callable_invocations;
 pub use callable_invocations::PreparedCallableInvocations;
+mod publication;
+pub use publication::capture_source_publication;
 
 /// What stage 02 knows about the program's boundary origins while it prepares
 /// the plan: the program entry, the installed assumed bindings, the target

@@ -624,16 +624,32 @@ mod tests {
             scalar: None,
             mixed_structural_scalar: None,
         };
-        for (profile, abis) in [
+        let cases: [(
+            Option<target::TargetProfile>,
+            Arc<[target_vocabulary::function_abi::LegalizedFunctionAbi]>,
+        ); 2] = [
             (Some(target::TargetProfile::WindowsX64), Arc::from([])),
             (None, Arc::from([abi])),
-        ] {
+        ];
+        for (profile, abis) in cases {
             let mut changed = original.clone();
+            let publication = target_vocabulary::NativePublicationFacts::seal(
+                abis.iter()
+                    .map(|abi| target_vocabulary::NativeFunctionPublication {
+                        machine: abi.machine,
+                        operation_count: 0,
+                        sites: Vec::new(),
+                        byte_literals: Vec::new(),
+                    })
+                    .collect(),
+            )
+            .unwrap();
             changed.contracts = Arc::new(
                 selected_instructions::SelectedProgramContracts::new(
                     Default::default(),
                     profile,
                     abis,
+                    publication,
                 )
                 .unwrap(),
             );

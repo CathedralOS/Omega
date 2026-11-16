@@ -1245,6 +1245,7 @@ dependencies = [
  "target",
  "target-operations",
  "target-operations-to-selected-instructions",
+ "target-vocabulary",
  "terminal-codec",
  "terminal-installation",
  "terminal-psi",
