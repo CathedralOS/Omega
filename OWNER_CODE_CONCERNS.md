@@ -75,6 +75,13 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Entry selection rebuilds catalogs and repeats signature searches
+- Category: Verifying costs more than writing
+- Where: [entry-profile loop](omega-rust/omega/compilation/compiler/src/checked/checking/source_checking.rs#L261), [entry contract selection](omega-rust/omega/packages/package-compilation/src/source/source_imports/entry_contract_seed.rs#L184), [source correspondence](omega-rust/psi/compilation/representations/typed-trees/src/service_declarations.rs#L497)
+- Saw: Each bound entry profile independently prepares the full service catalog for the same typed source owner and source registry. Correspondence validation then scans the inherited signature set for every projected method, deriving candidate callable identities before interning them. The unique-match case exhausts that scan, so M methods over R signatures require M×R candidate visits. The original Console binding replay43 took 329.112s before its next refusal. A brief sample at 5m06s caught this catalog/correspondence work; only two samples were captured, so its share of total time is unknown. Raw evidence remains in claim `18e85a23de177c780000000018e83683`.
+- Cost: Entry checks repeat whole-catalog preparation and identity normalization. Reuse one exact-owner catalog across the bound-profile loop, then prepare an exact callable/package identity census once per inherited declaration set. Preserve source authentication, complete applications, missing and ambiguous requirement refusals. Validate with the unchanged Console program and refusal controls, measuring catalog preparations and identity derivations under the same optimized producer.
+- Reported: 2026-11-16, Codex, while carrying the original Console binding and stored-machine programs through checking and execution
+
 ### Native compilation stops halfway for Build's constant evaluator
 - Category: knowledge crossing a boundary
 - Where: [native completion](omega-rust/omega/build-system/orchestration/src/compile/native_completion.rs#L123), [scalar completion](omega-rust/omega/compilation/native-compiler/src/scalar_completion.rs), [Build's completer](omega-rust/omega/build-system/build-settings/src/activation/scalar_completion.rs#L20)

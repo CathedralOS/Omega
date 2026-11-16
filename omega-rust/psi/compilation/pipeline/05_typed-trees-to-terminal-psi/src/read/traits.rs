@@ -289,6 +289,10 @@ impl Program<'_> {
                 "boundary parent contract has no boundary owner",
             ));
         }
+        // Record ordinary parent obligations here. Boundary parents keep their
+        // callable declarations in their own schemas. prepare_calling_policies
+        // projects the full inherited interface; publication later checks that
+        // this exact application completed.
         let mut ordinary = false;
         scope
             .try_visit(typed, &mut |view| {
@@ -301,12 +305,6 @@ impl Program<'_> {
                     {
                         return Err("ordinary contract trait inherits a boundary service");
                     }
-                } else if view.declaration.symbol != scope.declaration.symbol
-                    && !typed.trait_machine_signatures(view.declaration).is_empty()
-                {
-                    return Err(
-                        "boundary schema needs its inherited callable requirement projection",
-                    );
                 }
                 Ok(())
             })
