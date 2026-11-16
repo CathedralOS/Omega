@@ -80,12 +80,12 @@ framework or a list of unimplemented features.
 - Cost: Check a named predicate under its own formal inputs through the same term formation as an inline contract. Pin the overflow refusal even when the predicate is unused, admit the wrapping control, and preserve the nonzero-divisor obligation. Replace the governance assertion's old `carrier arithmetic in a clause term` expectation with the actual totality refusal.
 - Reported: 2026-11-15, Claude Code and Codex, while testing refusal locations and comparing overflow controls.
 
-### Literal declaration validation still judges selected predicates in syntax
+### Static arguments still judge selected predicates in syntax
 - Category: one idea, several implementations
-- Where: [literal predicate discharge](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_const_evaluation.rs#L3570), [checked destination handoff](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_generic_data.rs#L3704)
-- Saw: Record/case and nested constrained-member predicates still reach `ProveSyntax`, which approximates selected operators from spellings and parameter carriers. Computed initializers use checked evaluation. The duplicate judgment was identified by inspection.
-- Cost: Literal and computed initializers use separate judgments for the same declaration-dependent obligations. The [EARLY-TERMINAL-JOBS handoff](TASKS.md#early-terminal-jobs) owns the repair and its acceptance checks.
-- Reported: 2026-11-15, Codex, while verifying the owner's upstream source-review handoff.
+- Where: [index canonicalization](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_const_evaluation.rs#L5838), [receiving carrier refusal](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/type_reference.rs#L882)
+- Saw: Structural const arguments still reach `ProveSyntax`, which approximates selected operators from spellings and parameter carriers. At `20e51a433b772` on Windows x86-64, `omega --check` refuses [the receiving-application program](tests/fixtures/pass/constants/receiving_application/main.omg): "a record or case const argument is not typed against its declared data type".
+- Cost: Index encoding duplicates part of predicate judgment. Route these arguments through ordinary checked evaluation with their selected receiving declaration, carrier and substitutions before publishing their identity. [EARLY-TERMINAL-JOBS](TASKS.md#early-terminal-jobs) owns the remaining handoff and its acceptance checks.
+- Reported: 2026-11-15, Codex, while separating declaration initializer evaluation from static argument admission.
 
 ### Completing selected bodies copies the retained typed program
 - Category: re-deriving

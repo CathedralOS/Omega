@@ -230,16 +230,7 @@ impl Program<'_> {
         {
             return Err(unserved("constant has no materialized initializer"));
         }
-        let materialized =
-            self.expression(id, &[], constant.materialized_initializer, Some(carrier))?;
-        if materialized.result != Some(carrier)
-            || !self.constant_agrees(id, &value, &materialized)?
-        {
-            return Err(unserved(
-                "constant encoding and materialized carrier differ",
-            ));
-        }
-        if constant.evaluation_entry.is_valid() {
+        let initializer = if constant.evaluation_entry.is_valid() {
             if !self
                 .typed
                 .tables
@@ -249,6 +240,18 @@ impl Program<'_> {
                 return Err(unserved("constant lost its retained initializer entry"));
             }
             let retained = self.typed.tables.machines.get(constant.evaluation_entry);
+            if !self
+                .typed
+                .symbols
+                .symbols()
+                .nodes()
+                .is_valid(retained.symbol)
+                || self.typed.symbols.get(retained.symbol).generated_from != constant.symbol
+            {
+                return Err(unserved(
+                    "constant initializer belongs to another declaration",
+                ));
+            }
             let actual = self
                 .typed
                 .machine_by_symbol(retained.symbol)
@@ -278,6 +281,22 @@ impl Program<'_> {
                     "constant initializer differs from its retained computation",
                 ));
             }
+            // Reading an expression checks its carrier and selections; its
+            // construction obligations are discharged only in a machine body.
+            // Root this exact initializer even when the constant is reached
+            // from a dependency rather than through the subject's machines.
+            Some(self.machine(actual.symbol)?)
+        } else {
+            None
+        };
+        let materialized =
+            self.expression(id, &[], constant.materialized_initializer, Some(carrier))?;
+        if materialized.result != Some(carrier)
+            || !self.constant_agrees(id, &value, &materialized, initializer)?
+        {
+            return Err(unserved(
+                "constant encoding and materialized carrier differ",
+            ));
         }
         Ok(())
     }
@@ -294,6 +313,7 @@ impl Program<'_> {
         id: MachineId,
         value: &DecodedCanonicalConstValue,
         materialized: &Expression,
+        initializer: Option<MachineId>,
     ) -> Checked<bool> {
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Declaration(what));
         let qualification = match materialized.result {
@@ -368,7 +388,7 @@ impl Program<'_> {
                     return Ok(false);
                 }
                 for (value, element) in values.iter().zip(elements) {
-                    if !self.constant_agrees(id, value, element)? {
+                    if !self.constant_agrees(id, value, element, initializer)? {
                         return Ok(false);
                     }
                 }
@@ -384,6 +404,7 @@ impl Program<'_> {
                 None,
                 fields,
                 operands,
+                initializer,
             )?,
             (
                 DecodedCanonicalConstValue::Variant {
@@ -402,6 +423,7 @@ impl Program<'_> {
                 Some((*case, case_name)),
                 fields,
                 operands,
+                initializer,
             )?,
             _ => false,
         })
@@ -415,6 +437,7 @@ impl Program<'_> {
         case: Option<(usize, &str)>,
         fields: &[(String, DecodedCanonicalConstValue)],
         operands: &[(usize, Expression)],
+        initializer: Option<MachineId>,
     ) -> Checked<bool> {
         let Some(ValueType::Record(record, ..)) = result else {
             return Ok(false);
@@ -435,8 +458,12 @@ impl Program<'_> {
         // the cast reader judged with that domain's predicate, so a row
         // whose clauses all come from field domains holds once every field
         // operand carries exactly its declared qualification (checked
-        // below). Authored clauses still need their own proof.
-        if !row.requires.is_empty() && !declaration.requires_facts.is_empty() {
+        // below). Authored clauses are discharged in the exact retained
+        // initializer body, rooted above and judged with ordinary constructors.
+        if !row.requires.is_empty()
+            && !declaration.requires_facts.is_empty()
+            && initializer.is_none()
+        {
             return Err(refuse(
                 id,
                 Construct::Machine,
@@ -480,7 +507,7 @@ impl Program<'_> {
             let (Some((_, value)), None) = (named.next(), named.next()) else {
                 return Ok(false);
             };
-            if !self.constant_agrees(id, value, operand)? {
+            if !self.constant_agrees(id, value, operand, initializer)? {
                 return Ok(false);
             }
         }
