@@ -5044,9 +5044,6 @@ impl CallObservations<'_, '_> {
             return None;
         }
         let row = self.call.tables.values.get(value)?;
-        let ValueOrigin::StorageContent { place, .. } = row.origin else {
-            return None;
-        };
         if row.scalar_type != scalar_type {
             return None;
         }
@@ -5056,7 +5053,24 @@ impl CallObservations<'_, '_> {
             .get_mut(value)?;
         let projection = *slot.get_or_insert_with(|| {
             let call = self.call;
-            let recorded = lineage(call.storage.machine, &call.tables.places, place).ok()?;
+            let recorded = match row.origin {
+                ValueOrigin::StorageContent { place, .. } => {
+                    lineage(call.storage.machine, &call.tables.places, place).ok()?
+                }
+                ValueOrigin::Operation(operation) => {
+                    let operation = call.storage.operation(operation, call.concerns).ok()?;
+                    let leaf = call.storage.read_leaf(operation).ok()??;
+                    let (block, after) = call
+                        .storage
+                        .graph
+                        .locate(ProgramPoint::AfterOperation(operation.id))
+                        .ok()?;
+                    call.storage
+                        .backing(&leaf, block, after.checked_sub(1)?, call.concerns)
+                        .ok()?
+                }
+                _ => return None,
+            };
             let (formal, path) = formal_observation_path(&self.readable, &recorded)?;
             let root = call.callee_formals[formal].place;
             let held = call
@@ -5191,6 +5205,12 @@ impl crate::Bindings for AtCall<'_, '_> {
 pub(crate) struct AtJoin<'s, 'a> {
     inputs: AtCall<'s, 'a>,
     renaming: &'s [(ValueId, ValueId)],
+}
+
+impl<'a> AtJoin<'_, 'a> {
+    pub(crate) fn observations(&self) -> CallObservations<'_, 'a> {
+        self.inputs.observations()
+    }
 }
 
 impl crate::Bindings for AtJoin<'_, '_> {

@@ -419,6 +419,30 @@ impl Program<'_> {
             let right = self.term(id, scope, binary.right, expected)?;
             (left, right)
         };
+        // Core policy comparisons have the same exact declared signatures
+        // as executable comparisons. Plain cross-carrier comparisons keep
+        // their separately specified mathematical-value relation below.
+        let policy_qualified = |value_type| {
+            matches!(value_type,
+            ValueType::Scalar(_, qualification) if qualification.policy.is_some())
+        };
+        if policy_qualified(left_type) || policy_qualified(right_type) {
+            super::expressions::binary_selection(
+                id,
+                comparison,
+                Some(left_type),
+                Some(right_type),
+                (
+                    self.wholly_anonymous(binary.left),
+                    self.wholly_anonymous(binary.right),
+                ),
+                None,
+                (
+                    SourceOrigin::of(typed.expression_table.source_span(binary.left)),
+                    SourceOrigin::of(typed.expression_table.source_span(binary.right)),
+                ),
+            )?;
+        }
         let left_type = self.clause_operand_type(id, left_type)?;
         let right_type = self.clause_operand_type(id, right_type)?;
         // Integers of different types compare by their exact values ("The

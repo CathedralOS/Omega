@@ -508,7 +508,7 @@ fn validate_transfers(module: &TerminalModule) -> Result<(), ScalarQualification
                             "scalar field read differs from its declared qualification",
                         );
                     }
-                } else if qualified && !policy_result(module, &declared, operation)? {
+                } else if qualified {
                     return malformed(
                         "ordinary scalar operation cannot establish a declared domain",
                     );
@@ -848,90 +848,6 @@ fn storage_type_qualifications(
         .find(|row| row.structural_type == tip.id)
         .map_or(ScalarQualificationSetId::ZERO, |row| {
             row.value_type.qualifications
-        }))
-}
-
-fn policy_result(
-    module: &TerminalModule,
-    values: &ScalarValues<'_>,
-    operation: &terminal_psi::Operation,
-) -> Result<bool, ScalarQualificationError> {
-    use numerics::arithmetic::ArithmeticDomain::{Saturating, Trapping, Wrapping};
-    use terminal_psi::{OperationKind as Kind, TrappingIntegerOperation};
-    let Some(result) = operation.result.scalar_ref() else {
-        return Ok(false);
-    };
-    let semantic_vocabulary::ScalarType::Integer(_) = result.scalar_type else {
-        return Ok(false);
-    };
-    let (policy, first, second) = match &operation.kind {
-        Kind::WrappingIntegerAdd { left, right }
-        | Kind::WrappingIntegerSubtract { left, right }
-        | Kind::WrappingIntegerMultiply { left, right }
-        | Kind::WrappingIntegerDivide { left, right, .. }
-        | Kind::WrappingIntegerRemainder { left, right, .. } => {
-            (Some(Wrapping), *left, Some(*right))
-        }
-        Kind::SaturatingIntegerAdd { left, right }
-        | Kind::SaturatingIntegerSubtract { left, right }
-        | Kind::SaturatingIntegerMultiply { left, right }
-        | Kind::SaturatingIntegerDivide { left, right, .. }
-        | Kind::SaturatingIntegerRemainder { left, right, .. } => {
-            (Some(Saturating), *left, Some(*right))
-        }
-        Kind::WrappingIntegerShiftLeft { value, .. }
-        | Kind::WrappingIntegerShiftRight { value, .. } => (Some(Wrapping), *value, None),
-        Kind::ExactIntegerShiftRight { value, .. } => (Some(Saturating), *value, None),
-        Kind::TrappingInteger { operation } => match operation {
-            TrappingIntegerOperation::Add { left, right }
-            | TrappingIntegerOperation::Subtract { left, right }
-            | TrappingIntegerOperation::Multiply { left, right }
-            | TrappingIntegerOperation::Divide { left, right }
-            | TrappingIntegerOperation::Remainder { left, right } => {
-                (Some(Trapping), *left, Some(*right))
-            }
-            TrappingIntegerOperation::ShiftLeft { value, .. }
-            | TrappingIntegerOperation::ShiftRight { value, .. } => (Some(Trapping), *value, None),
-            TrappingIntegerOperation::Convert { .. } => return Ok(false),
-        },
-        Kind::IntegerBitwiseNot { operand } => (None, *operand, None),
-        Kind::IntegerBitwiseAnd { left, right }
-        | Kind::IntegerBitwiseOr { left, right }
-        | Kind::IntegerBitwiseXor { left, right } => (None, *left, Some(*right)),
-        _ => return Ok(false),
-    };
-    let operands = [
-        Some(values.get(first)?),
-        second.map(|id| values.get(id)).transpose()?,
-    ];
-    let carries_policy = |operand| same_type(result, operand);
-    // A policy arithmetic overload carries the qualification from one or both
-    // operands. Its plain partner stays plain and must have the same carrier.
-    if !operands.into_iter().flatten().any(carries_policy)
-        || !operands.into_iter().flatten().all(|operand| {
-            carries_policy(operand)
-                || (operand.scalar_type == result.scalar_type && operand.qualifications.is_empty())
-        })
-    {
-        return Ok(false);
-    }
-    let domains = qualification_domains(module, result.qualifications).ok_or(
-        ScalarQualificationError::MalformedStructuralFoundation(
-            "policy result has an absent qualification set",
-        ),
-    )?;
-    Ok(domains.len() == 1
-        && scalar_domain(module, domains[0]).is_some_and(|domain| {
-            domain.predicate.is_none()
-                && domain.establishment_routes.is_none()
-                && domain.has_no_required_memberships()
-                && [Wrapping, Saturating, Trapping]
-                    .into_iter()
-                    .filter(|candidate| policy.is_none_or(|policy| policy == *candidate))
-                    .any(|policy| {
-                        arithmetic_policy_identity(policy)
-                            == module.identities.text(domain.identity)
-                    })
         }))
 }
 

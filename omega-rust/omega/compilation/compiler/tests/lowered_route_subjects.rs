@@ -1831,3 +1831,208 @@ fn an_empty_record_is_a_record_with_no_field() {
     }
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }
+
+#[test]
+fn a_primitive_result_cannot_replace_a_policy_establishment_edge() {
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    for policy in ["Wrapping", "Saturating", "Trapping"] {
+        let source = format!(
+            "machine main() -> u32 in {policy} {{ (1u32 as +{policy}) | (2u32 as +{policy}) }}"
+        );
+        let frontier = unbuilt_frontier::staged_frontier("policy-establishment-edge", &source);
+        let entry = unbuilt_frontier::program_machine(&frontier.typed, "main").unwrap();
+        let mut lowered = elaborate_closure(&frontier.typed, entry).unwrap();
+        terminal_semantics::scalar_qualifications::validate(&lowered.module).unwrap();
+        let (machine, result) = lowered
+            .module
+            .machines
+            .iter()
+            .find_map(|machine| {
+                machine.operations().find_map(|operation| {
+                    matches!(
+                        operation.kind,
+                        terminal_psi::OperationKind::IntegerBitwiseOr { .. }
+                    )
+                    .then(|| (machine.id, operation.result.scalar_ref().unwrap().id))
+                })
+            })
+            .unwrap();
+        let coercion = lowered
+            .module
+            .scalar_qualifications
+            .coercions
+            .iter()
+            .find(|row| row.machine == machine && row.source == result)
+            .copied()
+            .unwrap();
+        let body = lowered
+            .module
+            .machines
+            .iter_mut()
+            .find(|body| body.id == machine)
+            .unwrap();
+        let qualified = terminal_semantics::scalar_qualifications::values(body)
+            .find(|value| value.id == coercion.destination)
+            .unwrap()
+            .qualifications;
+        for operation in body
+            .blocks
+            .iter_mut()
+            .flat_map(|block| &mut block.operations)
+        {
+            if let terminal_psi::OperationResult::Scalar(value) = &mut operation.result
+                && value.id == result
+            {
+                assert!(value.qualifications.is_empty());
+                value.qualifications = qualified;
+            }
+        }
+        // The forged primitive now supplies the same qualified type directly.
+        // Erase the explicit membership-change row so an equal-set transfer
+        // cannot be the reason this malformed module is refused.
+        lowered
+            .module
+            .scalar_qualifications
+            .coercions
+            .retain(|row| row.machine != machine || row.source != result);
+        let error =
+            terminal_semantics::scalar_qualifications::validate(&lowered.module).unwrap_err();
+        assert!(
+            format!("{error:?}")
+                .contains("ordinary scalar operation cannot establish a declared domain"),
+            "{error:?}"
+        );
+    }
+}
+
+#[test]
+fn a_guarded_array_index_survives_only_writes_to_separate_fields() {
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    for (name, write, expected) in [
+        ("guarded_index_unchanged", "", Verdict::Accepted(3)),
+        (
+            "guarded_index_sibling",
+            "input.mask = 1u32 as +Wrapping;",
+            Verdict::Accepted(3),
+        ),
+        (
+            "guarded_index_replaced",
+            "input.index = 3u32 as +Wrapping;",
+            Verdict::Rejected,
+        ),
+    ] {
+        let source = format!(
+            "data Input {{ index: u32 in Wrapping; mask: u32 in Wrapping; values: [u32; 3]; }}\n\
+            machine fetch(input: &mut Input) -> u32 {{ {write} input.values[input.index] }}\n\
+            public machine spare(input: &mut Input) -> u32 requires true {{\n\
+                transition input.index < 3u32 {{ true -> fetch(input) false -> 0u32 }}\n\
+            }}"
+        );
+        assert_eq!(verdict_on_unused(name, &source), expected, "{name}");
+    }
+}
+
+#[test]
+fn a_guarded_array_index_survives_a_terminal_call_cycle() {
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    for (name, write, contract, alternative, accepted) in [
+        (
+            "guarded_index_cycle",
+            "input.mask = 1u32 as +Wrapping;",
+            "",
+            "0u32",
+            true,
+        ),
+        (
+            "replaced_index_cycle",
+            "input.index = 3u32 as +Wrapping;",
+            "",
+            "0u32",
+            false,
+        ),
+        (
+            "unbounded_index_cycle",
+            "input.mask = 1u32 as +Wrapping;",
+            "requires true",
+            "0u32",
+            false,
+        ),
+        (
+            "unguarded_arrival_cycle",
+            "input.mask = 1u32 as +Wrapping;",
+            "",
+            "block fetch(input)",
+            false,
+        ),
+    ] {
+        let source = format!("data Input {{ index: u32 in Wrapping; mask: u32 in Wrapping; values: [u32; 3]; }}
+            public machine spare(input: &mut Input) -> u32 requires true {{
+                transition {{ _ -> block test(input) }}
+                machine test(input: &mut Input) -> u32 {{
+                    transition input.index < 3u32 {{ true -> block fetch(input) _ -> {alternative} }}
+                }}
+                machine fetch(input: &mut Input) -> u32 {contract} {{
+                    {write}
+                    let found: u32 = input.values[input.index];
+                    input.index = input.index + 1;
+                    transition found == 0u32 {{ true -> 0u32 _ -> block test(input) }}
+                }}
+            }}");
+        let frontier = staged_unused(name, &source);
+        let verdict = route_verdict(&frontier).1;
+        if accepted {
+            assert!(
+                matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+                "{name}: {verdict:?}"
+            );
+        } else {
+            let Ok(RouteVerdict::Rejected { unproved, .. }) = verdict else {
+                panic!("{name}: {verdict:?}");
+            };
+            assert!(
+                unproved
+                    .iter()
+                    .any(|row| row.statement.contains("index is within length 3")),
+                "{name}: {unproved:?}"
+            );
+        }
+    }
+    // A recursive caller's guard is not the whole input envelope when an
+    // ordinary caller can also enter this total helper without that guard.
+    for (name, entry) in [
+        (
+            "ordinary_and_recursive_arrivals",
+            "transition { _ -> block fetch(input) }",
+        ),
+        (
+            "narrow_ordinary_arrival",
+            "transition input.index == 0u32 { true -> block fetch(input) _ -> 0u32 }",
+        ),
+    ] {
+        let source = format!(
+            "data Input {{ index: u32 in Wrapping; }}
+            public machine spare(input: &mut Input) -> u32 requires true {{
+                {entry}
+                machine test(input: &mut Input) -> u32 {{
+                    transition input.index < 3u32 {{ true -> block fetch(input) _ -> 0u32 }}
+                }}
+                machine fetch(input: &mut Input) -> u32 {{
+                    input.index = input.index + 1;
+                    transition input.index == 0u32 {{ true -> 0u32 _ -> block test(input) }}
+                }}
+            }}"
+        );
+        let frontier = staged_unused(name, &source);
+        let verdict = route_verdict(&frontier).1;
+        assert!(
+            matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+            "{name}: {verdict:?}"
+        );
+    }
+}
