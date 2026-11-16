@@ -6811,6 +6811,21 @@ impl crate::Bindings for Observed<'_, '_> {
     }
 }
 
+/// An operation that invokes a machine, a callable or a boundary.
+fn is_call(kind: &OperationKind) -> bool {
+    kind.module_invocation().is_some()
+        || kind.callable_invocation().is_some()
+        || matches!(kind, OperationKind::BoundaryCall { .. })
+}
+
+/// A loan through which the callee may write.
+fn exclusive(access: StructuralAccess) -> bool {
+    matches!(
+        access,
+        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+    )
+}
+
 #[cfg(test)]
 mod observation_tests {
     use super::*;
@@ -7536,19 +7551,4 @@ machine entry(choose: bool, v: u32) -> u32 requires v < 50u32 {
             );
         }
     }
-}
-
-/// An operation that invokes a machine, a callable or a boundary.
-fn is_call(kind: &OperationKind) -> bool {
-    kind.module_invocation().is_some()
-        || kind.callable_invocation().is_some()
-        || matches!(kind, OperationKind::BoundaryCall { .. })
-}
-
-/// A loan through which the callee may write.
-fn exclusive(access: StructuralAccess) -> bool {
-    matches!(
-        access,
-        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-    )
 }
