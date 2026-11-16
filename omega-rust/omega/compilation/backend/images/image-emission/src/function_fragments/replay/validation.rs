@@ -25,6 +25,32 @@ pub fn verify_retained_fixed_frame(
         .map_err(|error| diagnostics::Diagnostic::error(error.to_string()))
 }
 
+/// Replay each body's retained Omega 04 rewrite run against the record its
+/// allocated program carries. Returns whether any body had a run to check;
+/// `false` means no selected-instruction rewrite phase produced this artifact.
+pub fn verify_retained_selected_optimization(
+    artifact: &crate::ObjectArtifact,
+) -> Result<bool, diagnostics::Diagnostic> {
+    let mut checked = false;
+    for private in &artifact.private_functions {
+        checked |= verify_retained_selected_optimization(&private.body)?;
+    }
+    let replay = artifact.fragment_replay.as_ref().ok_or_else(|| {
+        diagnostics::Diagnostic::error(
+            "selected-instruction rewrite audit requires retained pipeline input",
+        )
+    })?;
+    let ran = replay
+        .0
+        .source()
+        .source()
+        .source()
+        .source()
+        .verify_selected_optimization_replay()
+        .map_err(|error| diagnostics::Diagnostic::error(error.to_string()))?;
+    Ok(checked || ran)
+}
+
 pub fn verify_retained_target_operations(
     artifact: &crate::ObjectArtifact,
 ) -> Result<(), diagnostics::Diagnostic> {

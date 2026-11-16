@@ -266,12 +266,12 @@ pub use recovery::{
     FixedViewCopy, FixedViewCopyDecodeError, FixedViewCopyDestination, FixedViewCopyPlan,
     FixedViewCopyPolicy, FixedViewCopySourceEvidence, FunctionRecoveryClassification,
     FunctionSpillChoices, NoAdmittedRecoveryReason, PressureContender,
-    PressureRecoveryClassification, PressureResident, RecoveryClassification,
-    RecoveryClassificationDecodeError, RecoveryClassificationIdentity, RecoveryClassificationPlan,
-    RecoveryClassificationPolicy, RecoveryFutureUse, RecoveryVictimRole, SpillChoice,
-    SpillChoiceDecodeError, SpillChoiceIdentity, SpillChoicePlan, SpillChoicePolicy,
-    classification, fixed_view_copy, fixed_view_copy_identity, recovery_classification_identity,
-    spill_choice, spill_choice_identity,
+    PressureRecoveryClassification, PressureRematerializationPolicy, PressureResident,
+    RecoveryClassification, RecoveryClassificationDecodeError, RecoveryClassificationIdentity,
+    RecoveryClassificationPlan, RecoveryClassificationPolicy, RecoveryFutureUse,
+    RecoveryVictimRole, SpillChoice, SpillChoiceDecodeError, SpillChoiceIdentity, SpillChoicePlan,
+    SpillChoicePolicy, classification, fixed_view_copy, fixed_view_copy_identity,
+    recovery_classification_identity, spill_choice, spill_choice_identity,
 };
 
 use std::sync::Arc;

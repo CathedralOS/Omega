@@ -1,0 +1,14 @@
+// Expected exit: 0
+// Few values are live at once, so allocation needs no spill. The program
+// stays in main's first block so the narrow optimization rules the build
+// selects can reason about it.
+machine main() crashes Trap {
+    let k: u64 in Wrapping = 7u64 as u64 in Wrapping;
+    let a: u64 in Wrapping = k + 1;
+    let b: u64 in Wrapping = k + 2;
+    let c: u64 in Wrapping = a + b + 0;
+    let value: u64 in Wrapping = c + k;
+    transition value == 24 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

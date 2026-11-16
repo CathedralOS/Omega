@@ -28,6 +28,7 @@ use register_homes_to_post_allocation_machine::{
 };
 use resolved_layout_to_resolved_layout::execute_resolved_layout_optimization;
 use selected_form_encoding_to_resolved_layout::stage_optimized_resolved_selected_form_layout;
+use selected_instruction_analyses::SelectedOptimizationRecord;
 use selected_instructions_to_register_homes::stage_register_allocation;
 use selected_instructions_to_selected_instructions::{
     SelectedInstructionOptimizationError, SelectedOptimizationInput, optimize_selected_instructions,
@@ -170,12 +171,20 @@ pub(crate) fn emit_target(
             register_environment: selected.register_environment().clone(),
             selections: selected.selections().clone(),
             budget_per_pass: selected.budget_per_pass(),
+            record: SelectedOptimizationRecord::default(),
         })
         .map_err(OptimizedVerifiedPhysicalPipelineError::SelectedOptimization)
     }?;
+    // A validator request keeps Omega 04's completed run as replay evidence;
+    // a default compile drops it here and allocation never sees it.
+    let (selected, selected_optimization) = if retain_native_stage_inputs {
+        selected.retain_replay_for_validation()
+    } else {
+        (selected.into_allocation_input(), None)
+    };
     let allocation = {
         observation.enter(NativePipelineStage::RegisterAllocation);
-        stage_register_allocation(selected.into_selected_output())
+        stage_register_allocation(selected)
             .map_err(OptimizedVerifiedPhysicalPipelineError::RegisterAllocation)
     }?;
     let machine = {
@@ -219,9 +228,13 @@ pub(crate) fn emit_target(
             machine,
             encoding,
             baseline_layout: layout,
+            selected_optimization: selected_optimization.map(|run| {
+                Box::new(run)
+                    as Box<dyn selected_instruction_analyses::RetainedSelectedOptimizationRun>
+            }),
         })
     } else {
-        drop((allocation, machine, encoding, layout));
+        drop((allocation, machine, encoding, layout, selected_optimization));
         realization
     };
     let physical = StagedOptimizedFunctionFragmentEmissionSource::new(
