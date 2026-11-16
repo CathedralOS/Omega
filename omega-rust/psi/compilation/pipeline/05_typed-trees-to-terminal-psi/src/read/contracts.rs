@@ -1874,6 +1874,65 @@ impl Program<'_> {
     }
 }
 
+/// Inspect only evaluated source bodies. Signature and type metadata may
+/// describe other callable families without invoking their classifiers.
+#[derive(Default)]
+struct PartitionCalls {
+    calls: Vec<(
+        SymbolHandle,
+        typed_trees::static_applications::StaticMachineApplicationHandle,
+    )>,
+}
+
+impl Extend<SymbolHandle> for PartitionCalls {
+    fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, _: T) {}
+}
+
+impl typed_trees::references::TypedReferences for PartitionCalls {
+    fn derived_declaration_references(&self) -> bool {
+        false
+    }
+    fn callable_signature_contents(&mut self, _: &typed_trees::signature::StateSignature) -> bool {
+        false
+    }
+    fn type_reference(&mut self, _: TypeReferenceHandle) -> bool {
+        false
+    }
+    fn proof_fact(&mut self, _: arena::Handle<ProofFact>) -> bool {
+        false
+    }
+    fn call_arguments(
+        &mut self,
+        _: &typed_trees::TypedTrees,
+        call: typed_trees::references::StaticArgumentCall<'_>,
+    ) -> bool {
+        let direct = match call {
+            typed_trees::references::StaticArgumentCall::Expression(_, call) => {
+                call.runtime_call.is_none()
+                    && !call.static_machine_parameter.is_valid()
+                    && call.static_requirement_dispatch.is_none()
+            }
+            typed_trees::references::StaticArgumentCall::Statement(call) => {
+                call.runtime_call.is_none()
+                    && !call.static_machine_parameter.is_valid()
+                    && call.static_requirement_dispatch.is_none()
+            }
+        };
+        if direct {
+            let target = match call {
+                typed_trees::references::StaticArgumentCall::Expression(_, call) => {
+                    call.target_symbol
+                }
+                typed_trees::references::StaticArgumentCall::Statement(call) => call.target_symbol,
+            };
+            if call.application().is_valid() {
+                self.calls.push((target, call.application()));
+            }
+        }
+        false
+    }
+}
+
 impl Program<'_> {
     /// Complete alternatives for one type binder. A finite family names
     /// them in a requirement such as `requires T == u32 || T == u64`.
@@ -2002,72 +2061,178 @@ impl Program<'_> {
                 })
                 .collect()),
             None => {
-                // Static guards partition one open binder into their closed
-                // cases and an opaque remainder. All cases are checked, even
-                // when no current consumer selects one of them.
-                let (_, state) = self.declaration(id, symbol)?;
-                let statements = self.typed.statement_table.statements(state.statement_nodes);
-                let mut pending = statements
-                    .iter()
-                    .filter_map(|statement| {
-                        let typed_trees::statement::StatementNode::Transition(transition) =
-                            statement
-                        else {
-                            return None;
-                        };
-                        match transition.guard {
-                            typed_trees::statement::TransitionGuardNode::When(guard) => Some(guard),
-                            _ => None,
-                        }
-                    })
-                    .collect::<Vec<_>>();
+                // Follow exact plain type forwarding as well as local guards.
+                // The mapping names root binders, not spelling or the callee's
+                // declaration ordinal. A closed argument has no root binder.
+                let mut instances = vec![(
+                    symbol,
+                    (0..parameters.len()).map(Some).collect::<Vec<_>>(),
+                    None,
+                )];
+                let mut visited = symbols::SymbolMap::<Vec<usize>>::default();
+                visited.insert(symbol, vec![0]);
+                let mut active = symbols::SymbolMap::<usize>::default();
+                let mut pending_instances = vec![(0, true)];
                 let mut selected = None;
                 let mut listed = Vec::new();
-                while let Some(expression) = pending.pop() {
-                    match table.expression(expression) {
-                        ExpressionNode::Unary(unary)
-                            if unary.operator == UnaryOperator::LogicalNot =>
-                        {
-                            pending.push(unary.operand)
-                        }
-                        ExpressionNode::Binary(binary)
-                            if matches!(
-                                binary.operator,
-                                BinaryOperator::And | BinaryOperator::Or
-                            ) =>
-                        {
-                            pending.push(binary.left);
-                            pending.push(binary.right);
-                        }
-                        ExpressionNode::Binary(binary)
-                            if binary.operator == BinaryOperator::Equal
-                                && operand(binary.left).is_some()
-                                && operand(binary.right).is_some() =>
-                        {
-                            let Some((position, reference)) = parameters
-                                .iter()
-                                .enumerate()
-                                .find_map(|(position, parameter)| {
-                                    alternative(parameter, expression)
-                                        .map(|reference| (position, reference))
-                                })
+                while let Some((instance, entering)) = pending_instances.pop() {
+                    let (owner, mapping, parent) = &instances[instance];
+                    let owner = *owner;
+                    if !entering {
+                        active.remove(&owner);
+                        continue;
+                    }
+                    if parent.is_some_and(|parent| {
+                        parent >= instance || active.get(&instances[parent].0) != Some(&parent)
+                    }) {
+                        return unserved("static partition has an invalid introducing caller");
+                    }
+                    let mapping = mapping.clone();
+                    active.insert(owner, instance);
+                    pending_instances.push((instance, false));
+                    let (current, state) = self.declaration(id, owner)?;
+                    let current_parameters = self.typed.machine_type_parameters(current);
+                    if current_parameters.len() != mapping.len() {
+                        return unserved("static partition lost its forwarded binder roster");
+                    }
+                    let statements = self.typed.statement_table.statements(state.statement_nodes);
+                    let mut pending = statements
+                        .iter()
+                        .filter_map(|statement| {
+                            let typed_trees::statement::StatementNode::Transition(transition) =
+                                statement
                             else {
-                                return unserved(
-                                    "static partition needs a binder and a closed type",
-                                );
+                                return None;
                             };
-                            if selected.is_some_and(|selected| selected != position) {
-                                return unserved("static partition over independent type binders");
+                            match transition.guard {
+                                typed_trees::statement::TransitionGuardNode::When(guard) => {
+                                    Some(guard)
+                                }
+                                _ => None,
                             }
-                            selected = Some(position);
-                            let identity = self.typed.normalized_type_identity(reference);
-                            if !listed.iter().any(|known| {
-                                self.typed.normalized_type_identity(*known) == identity
-                            }) {
-                                listed.push(reference);
+                        })
+                        .collect::<Vec<_>>();
+                    while let Some(expression) = pending.pop() {
+                        match table.expression(expression) {
+                            ExpressionNode::Unary(unary)
+                                if unary.operator == UnaryOperator::LogicalNot =>
+                            {
+                                pending.push(unary.operand)
                             }
+                            ExpressionNode::Binary(binary)
+                                if matches!(
+                                    binary.operator,
+                                    BinaryOperator::And | BinaryOperator::Or
+                                ) =>
+                            {
+                                pending.push(binary.left);
+                                pending.push(binary.right);
+                            }
+                            ExpressionNode::Binary(binary)
+                                if binary.operator == BinaryOperator::Equal
+                                    && operand(binary.left).is_some()
+                                    && operand(binary.right).is_some() =>
+                            {
+                                let Some((position, reference)) = current_parameters
+                                    .iter()
+                                    .enumerate()
+                                    .find_map(|(position, parameter)| {
+                                        alternative(parameter, expression)
+                                            .map(|reference| (position, reference))
+                                    })
+                                else {
+                                    return unserved(
+                                        "static partition needs a binder and a closed type",
+                                    );
+                                };
+                                let Some(position) = mapping[position] else {
+                                    continue;
+                                };
+                                if selected.is_some_and(|selected| selected != position) {
+                                    return unserved(
+                                        "static partition over independent type binders",
+                                    );
+                                }
+                                selected = Some(position);
+                                let identity = self.typed.normalized_type_identity(reference);
+                                if !listed.iter().any(|known| {
+                                    self.typed.normalized_type_identity(*known) == identity
+                                }) {
+                                    listed.push(reference);
+                                }
+                            }
+                            _ => {}
                         }
-                        _ => {}
+                    }
+                    let mut calls = PartitionCalls::default();
+                    typed_trees::references::visit_machine(self.typed, &mut calls, current);
+                    for (target, application) in calls.calls {
+                        let Some((callee, arguments)) =
+                            self.type_argument_references(id, owner, target, application)?
+                        else {
+                            continue;
+                        };
+                        let mut forwarded = Vec::with_capacity(arguments.len());
+                        for argument in arguments {
+                            if let typed_trees::types::TypeReferenceNode::Named { symbol, .. } =
+                                types.type_reference(argument)
+                                && let Some(position) = current_parameters
+                                    .iter()
+                                    .position(|parameter| parameter.symbol == *symbol)
+                            {
+                                forwarded.push(mapping[position]);
+                                continue;
+                            }
+                            let inputs = typed_trees::references::type_reference_inputs(
+                                self.typed, argument,
+                            );
+                            if inputs.symbols.iter().any(|symbol| {
+                                current_parameters
+                                    .iter()
+                                    .any(|parameter| parameter.symbol == *symbol)
+                            }) {
+                                return unserved(
+                                    "static partition cannot invert a constructed type argument",
+                                );
+                            }
+                            // Use the same closed-carrier admission as guard
+                            // alternatives; no physical layout stands for a type.
+                            if self.scalar_type(id, argument).is_err() {
+                                let Some(data) = self.typed.closed_data_definition(argument) else {
+                                    return unserved(
+                                        "static partition forwards neither a binder nor a closed type",
+                                    );
+                                };
+                                super::source_records::source_application(
+                                    self.typed, data, argument, id,
+                                )?;
+                            }
+                            forwarded.push(None);
+                        }
+                        if forwarded.iter().all(Option::is_none) {
+                            continue;
+                        }
+                        if visited.get(&callee).is_some_and(|known| {
+                            known
+                                .iter()
+                                .any(|instance| instances[*instance].1 == forwarded)
+                        }) {
+                            continue;
+                        }
+                        // Keep the body's existing expansion boundary: exact
+                        // recurrence reuses its tuple; a new mapping cannot
+                        // re-enter a template on its introducing ancestry.
+                        // The scoped index makes this check independent of
+                        // the number of unrelated declarations already seen.
+                        if active.contains_key(&callee) {
+                            return unserved(
+                                "recursive static partition forwarding changes its arguments",
+                            );
+                        }
+                        let next = instances.len();
+                        instances.push((callee, forwarded, Some(instance)));
+                        visited.entry(callee).or_default().push(next);
+                        pending_instances.push((next, true));
                     }
                 }
                 let Some(position) = selected else {

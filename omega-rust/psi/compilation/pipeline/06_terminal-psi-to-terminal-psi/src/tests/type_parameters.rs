@@ -691,3 +691,156 @@ fn a_generic_call_does_not_preserve_a_mutable_inputs_old_value() {
         }
     }
 }
+
+/// Renaming and permuting binders across calls does not hide a complete
+/// classifier. Nominal applications retain every source type argument.
+#[test]
+fn a_forwarded_classifier_partitions_its_callers_exact_type_binder() {
+    let source = super::boundary_calls::typed(
+        r#"
+        data Choice [copy] { selected: bool; }
+        data Marker { value: u32; }
+        data Tag<T> { value: u32; }
+        machine classify<First, Second>() -> Choice {
+            transition {
+                Second == u32 || Second == i32 || Second == bool -> Choice { selected: true }
+                Second == Marker -> Choice { selected: false }
+                Second == Tag<u32> -> Choice { selected: true }
+                Second == Tag<u64> -> Choice { selected: false }
+                _ -> Choice { selected: false }
+            }
+        }
+        machine relay<Left, Right>() -> Choice { classify<Right, Left>() }
+        machine entry<Unused, Item>() -> Choice { relay<Item, Unused>() }
+    "#,
+    );
+    let forms = typed_trees_to_terminal_psi::elaborate_generic_forms(
+        &source,
+        &[super::boundary_calls::entry(&source)],
+    )
+    .expect("the callee's source partition follows its exact forwarded binder");
+    assert_eq!(
+        forms.len(),
+        7,
+        "six distinct closed types and the opaque remainder"
+    );
+    for form in forms {
+        assert_eq!(form.applications.len(), 2);
+        let verdict = judge(Ok(form)).unwrap();
+        assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+    }
+}
+
+#[test]
+fn a_forwarded_partition_does_not_invert_type_constructors_or_mix_binders() {
+    for (program, expected) in [
+        (
+            r#"
+            data Wrapped<T> { value: u32; }
+            machine classify<Kind>() -> bool {
+                transition { Kind == u32 -> true _ -> false }
+            }
+            machine entry<T>() -> bool { classify<Wrapped<T>>() }
+            "#,
+            "static partition cannot invert a constructed type argument",
+        ),
+        (
+            r#"
+            machine classify<Left, Right>() -> bool {
+                transition { Left == u32 -> true Right == bool -> true _ -> false }
+            }
+            machine entry<T, U>() -> bool { classify<U, T>() }
+            "#,
+            "static partition over independent type binders",
+        ),
+    ] {
+        let source = super::boundary_calls::typed(program);
+        let refused = typed_trees_to_terminal_psi::elaborate_alternatives(
+            &source,
+            super::boundary_calls::entry(&source),
+        )
+        .unwrap_err();
+        assert_eq!(refused.reason, RefusalReason::Unsupported);
+        assert!(refused.detail.contains(expected), "{refused:?}");
+    }
+}
+
+#[test]
+fn a_forwarded_partition_refuses_another_calls_source_application() {
+    let mut source = super::boundary_calls::typed(
+        r#"
+        machine classify<Kind>() -> bool {
+            transition { Kind == u32 -> true _ -> false }
+        }
+        machine entry<T>() -> bool { classify<T>() }
+    "#,
+    );
+    let entry = super::boundary_calls::entry(&source);
+    let callee = source
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "classify")
+        .unwrap()
+        .symbol;
+    let application = source
+        .expression_table
+        .static_machine_applications()
+        .find(|(_, application)| {
+            source
+                .machine_by_symbol(application.lexical_owner)
+                .or_else(|| source.machine_holding_state(application.lexical_owner))
+                .is_some_and(|owner| owner.symbol == entry)
+        })
+        .expect("the ordinary call has a retained supplying owner")
+        .0;
+    source
+        .expression_table
+        .static_machine_application_mut(application)
+        .lexical_owner = callee;
+    let refused = typed_trees_to_terminal_psi::elaborate_alternatives(&source, entry).unwrap_err();
+    assert_eq!(refused.reason, RefusalReason::Unsupported);
+    assert!(
+        refused
+            .detail
+            .contains("type application has another source owner or declaration"),
+        "{refused:?}"
+    );
+}
+
+/// Discovery uses the same finite expansion boundary as actual body reading.
+/// A recursive permutation cannot enumerate every possible binder mapping.
+#[test]
+fn forwarded_partition_discovery_refuses_changing_recursive_mappings() {
+    for program in [
+        r#"
+        machine entry<T, U>() -> bool {
+            let next: bool = entry<U, T>();
+            next
+        }
+        "#,
+        r#"
+        machine relay<X, Y, Z>() -> bool {
+            let next: bool = entry<X, Y, Z>();
+            next
+        }
+        machine entry<T, U, V>() -> bool {
+            let next: bool = relay<U, V, T>();
+            next
+        }
+        "#,
+    ] {
+        let source = super::boundary_calls::typed(program);
+        let refused = typed_trees_to_terminal_psi::elaborate_alternatives(
+            &source,
+            super::boundary_calls::entry(&source),
+        )
+        .unwrap_err();
+        assert_eq!(refused.reason, RefusalReason::Unsupported);
+        assert!(
+            refused
+                .detail
+                .contains("recursive static partition forwarding changes its arguments"),
+            "{refused:?}"
+        );
+    }
+}
