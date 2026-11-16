@@ -3920,6 +3920,14 @@ mod production {
             relocations.push_record(record);
         }
         let artifact = ObjectArtifact {
+            installation_authority: Arc::clone(
+                source
+                    .source()
+                    .source()
+                    .source()
+                    .source()
+                    .installation_authority(),
+            ),
             program_contracts: Arc::clone(
                 &source
                     .source()

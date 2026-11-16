@@ -4813,29 +4813,20 @@ pub(crate) mod physical_entry {
             )?;
             let source = artifact.composition_source.as_deref().unwrap_or(artifact);
             let mut installed_scopes = Vec::new();
-            if let Some(replay) = &source.fragment_replay {
-                let target = replay
-                    .0
-                    .source()
-                    .source()
-                    .source()
-                    .source()
-                    .optimized_target();
-                for requirement in target.installed_stack_requirements() {
-                    let Some(arrival) = &requirement.arrival else {
-                        continue;
-                    };
-                    if arrival.physical_entry.semantic_entry != semantic_entry
-                        || arrival.physical_entry.adapter != artifact.entry()
-                        || requirement.psi != artifact.psi()
-                        || requirement.target != artifact.target()
-                    {
-                        return Err(invalid(
-                            "physical memory requirement changed its installed occurrence",
-                        ));
-                    }
-                    installed_scopes.push(requirement.operation);
+            for requirement in source.installation_authority.installed_stack_requirements() {
+                let Some(arrival) = &requirement.arrival else {
+                    continue;
+                };
+                if arrival.physical_entry.semantic_entry != semantic_entry
+                    || arrival.physical_entry.adapter != artifact.entry()
+                    || requirement.psi != artifact.psi()
+                    || requirement.target != artifact.target()
+                {
+                    return Err(invalid(
+                        "physical memory requirement changed its installed occurrence",
+                    ));
                 }
+                installed_scopes.push(requirement.operation);
             }
             installed_scopes.sort_unstable();
             installed_scopes.dedup();
@@ -5843,10 +5834,7 @@ pub(crate) mod private_entry_origin {
         body: &'a ObjectArtifact,
         entries: &mut Vec<EntryOrigin<'a>>,
     ) -> Result<(), Error> {
-        let source = body.fragment_replay.as_ref().ok_or(Error::Mismatch(
-            "private entry origins require retained admission input",
-        ))?;
-        let facts = source.0.lowering_facts();
+        let facts = &body.installation_authority;
         let ordinary = facts.native_callbacks();
         let installed = facts.installed_interrupts();
         if ordinary.psi() != body.psi() || installed.psi() != body.psi() {

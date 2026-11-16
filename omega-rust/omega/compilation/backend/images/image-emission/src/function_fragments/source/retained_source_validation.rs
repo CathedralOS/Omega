@@ -100,14 +100,16 @@ pub(in crate::function_fragments) fn admit(
     let current = source.source().source().source().source();
     let abstract_plan = current.optimized_target().optimized().plan();
     privileged_termination::validate(
-        current.optimized_target().installed_entry_execution(),
+        current.installation_authority().installed_entry_execution(),
         current.selected_plan(),
     )?;
     placed_reference::backing_geometry::validate_activation_residence(
         abstract_plan,
         current.selected_plan(),
         crate::retained_working_program::target_operations(source),
-        current.optimized_target().installed_stack_requirements(),
+        current
+            .installation_authority()
+            .installed_stack_requirements(),
     )?;
     let geometry_graph = abstract_plan
         .operations()
@@ -150,7 +152,9 @@ pub(in crate::function_fragments) fn admit(
         let installed_scopes = installed_interrupts::validate(
             source.lowering_facts().module(),
             source.lowering_facts().installed_interrupts(),
-            current.optimized_target().installed_stack_requirements(),
+            current
+                .installation_authority()
+                .installed_stack_requirements(),
             current.selected_plan().target,
             targeted,
             selected,

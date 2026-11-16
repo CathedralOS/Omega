@@ -20,6 +20,8 @@ mod carriers {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct ObjectArtifact {
+        pub(crate) installation_authority:
+            std::sync::Arc<provider_admission::BoundInstallationAuthority>,
         pub(crate) program_contracts:
             std::sync::Arc<selected_instructions::SelectedProgramContracts>,
         pub(crate) projected: crate::object::function_fragments::ProjectedObject,
@@ -173,15 +175,7 @@ mod carriers {
         pub(crate) fn installed_entry_execution(
             &self,
         ) -> Option<&provider_admission::AdmittedInstalledEntryExecution> {
-            self.fragment_replay
-                .as_ref()?
-                .0
-                .source()
-                .source()
-                .source()
-                .source()
-                .optimized_target()
-                .installed_entry_execution()
+            self.installation_authority.installed_entry_execution()
         }
 
         pub fn installation_environment_assumptions(
@@ -192,12 +186,14 @@ mod carriers {
                 rows: &mut Vec<&'a installation_evidence::InstallationEnvironmentAssumption>,
             ) {
                 let source = object.composition_source.as_deref().unwrap_or(object);
-                if let Some(replay) = &source.fragment_replay {
-                    for scope in replay.0.lowering_facts().installed_interrupts().scopes() {
-                        for assumption in scope.installation_assumptions() {
-                            if !rows.contains(&assumption) {
-                                rows.push(assumption);
-                            }
+                for scope in source
+                    .installation_authority
+                    .installed_interrupts()
+                    .scopes()
+                {
+                    for assumption in scope.installation_assumptions() {
+                        if !rows.contains(&assumption) {
+                            rows.push(assumption);
                         }
                     }
                 }
@@ -1315,10 +1311,7 @@ pub(crate) mod installed_stack {
             ram::validate(
                 current.optimized_target().optimized().plan(),
                 selected,
-                current
-                    .optimized_target()
-                    .lowering_facts()
-                    .installed_interrupts(),
+                body.installation_authority.installed_interrupts(),
                 execution,
                 &machines,
             )?;
@@ -1569,18 +1562,9 @@ pub(crate) mod installed_stack {
         }
         for body in std::iter::once(root).chain(private_objects.iter().map(|row| row.body.as_ref()))
         {
-            let Some(replay) = &body.fragment_replay else {
-                continue;
-            };
-            let target = replay
-                .0
-                .source()
-                .source()
-                .source()
-                .source()
-                .optimized_target();
+            let authority = &body.installation_authority;
             let mut actual_requirements = Vec::new();
-            for expected in target.installed_stack_requirements() {
+            for expected in authority.installed_stack_requirements() {
                 let identity = function_identity::MachineFunctionIdentity::callback_thunk(
                     expected.psi,
                     expected.placement_index,
@@ -1601,7 +1585,7 @@ pub(crate) mod installed_stack {
                     expected.operation,
                 )?);
             }
-            for scope in target.lowering_facts().installed_interrupts().scopes() {
+            for scope in authority.installed_interrupts().scopes() {
                 let first =
                     actual_requirements.partition_point(|row| row.operation < scope.operation());
                 let last =
@@ -1609,14 +1593,13 @@ pub(crate) mod installed_stack {
                 if first == last {
                     continue;
                 }
-                let entries: Vec<_> = target
-                    .lowering_facts()
+                let entries: Vec<_> = authority
                     .installed_interrupts()
                     .entries()
                     .iter()
                     .filter(|entry| entry.operation == scope.operation())
                     .collect();
-                let proposed_root = target.installed_stack_requirements()[first]
+                let proposed_root = authority.installed_stack_requirements()[first]
                     .arrival
                     .as_ref()
                     .map(|arrival| arrival.physical_entry);
@@ -1634,7 +1617,7 @@ pub(crate) mod installed_stack {
                     proposed_root,
                 )?;
             }
-            if actual_requirements != target.installed_stack_requirements() {
+            if actual_requirements != authority.installed_stack_requirements() {
                 return Err(Error::Mismatch(
                     "installed stack guard differs from final body and complete arrival demand",
                 ));
@@ -1660,17 +1643,7 @@ pub(crate) mod installed_stack {
                 .iter()
                 .map(|entry| entry.body.as_ref()),
         ) {
-            let Some(replay) = &body.fragment_replay else {
-                continue;
-            };
-            let target = replay
-                .0
-                .source()
-                .source()
-                .source()
-                .source()
-                .optimized_target();
-            for requirement in target.installed_stack_requirements() {
+            for requirement in body.installation_authority.installed_stack_requirements() {
                 let Some(arrival) = &requirement.arrival else {
                     continue;
                 };
@@ -1699,15 +1672,8 @@ pub(crate) mod installed_stack {
                     .iter()
                     .map(|entry| entry.body.as_ref()),
             )
-            .filter_map(|body| body.fragment_replay.as_ref())
-            .any(|replay| {
-                replay
-                    .0
-                    .source()
-                    .source()
-                    .source()
-                    .source()
-                    .optimized_target()
+            .any(|body| {
+                body.installation_authority
                     .installed_stack_requirements()
                     .iter()
                     .any(|row| row.arrival.is_some())

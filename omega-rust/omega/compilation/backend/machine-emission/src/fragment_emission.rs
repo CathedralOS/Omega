@@ -280,6 +280,7 @@ impl FunctionFragmentReplayInputs {
 
 #[derive(Debug, Clone)]
 struct CurrentFunctionFragmentInput {
+    installation_authority: Arc<provider_admission::BoundInstallationAuthority>,
     program: ResolvedMachineProgram,
     machine: crate::AllocatedMachinePlan,
     homes: selected_instructions_to_register_homes::AssignedRegisterHomes,
@@ -297,10 +298,12 @@ impl CurrentFunctionFragmentInput {
         target_input: Arc<
             abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations,
         >,
+        installation_authority: Arc<provider_admission::BoundInstallationAuthority>,
     ) -> Self {
         let machine = replay.machine().clone();
         let homes = replay.register_homes().clone();
         Self {
+            installation_authority,
             program: ResolvedMachineProgram {
                 selected: replay.shared_selected_plan(),
                 homes: homes.shared_plan(),
@@ -370,6 +373,10 @@ pub struct StagedOptimizedFunctionFragmentEmissionSource {
 }
 
 impl StagedOptimizedFunctionFragmentEmissionSource {
+    pub fn installation_authority(&self) -> &Arc<provider_admission::BoundInstallationAuthority> {
+        &self.current.installation_authority
+    }
+
     pub fn program(&self) -> &ResolvedMachineProgram {
         &self.current.program
     }
@@ -456,19 +463,29 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
 }
 
 impl StagedOptimizedFunctionFragmentEmissionSource {
-    /// Join the function-relative realization with stage 02's output, which
-    /// object emission reads for lowering facts and installations. The
-    /// realization was built for the pre-physical manifest stage 02 published,
-    /// or the two are refused here.
+    /// Join the realized code with its checked installation receipt and retained
+    /// target input. Their program and pre-physical roots must agree. Later
+    /// installation readers use the receipt, not the target stage's output.
     pub fn new(
         realization: StagedFixedFrameFunctionRelativeRealization,
         target_input: Arc<
             abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations,
         >,
+        installation_authority: Arc<provider_admission::BoundInstallationAuthority>,
     ) -> Result<Self, FunctionFragmentEmissionError> {
+        if !installation_authority.matches_admission(
+            target_input.lowering_facts().installed_interrupts(),
+            target_input.lowering_facts().native_callbacks(),
+        ) {
+            return Err(FunctionFragmentEmissionError::RootMismatch);
+        }
         let replay = FunctionFragmentReplayInputs::from(realization);
         let source = Self {
-            current: CurrentFunctionFragmentInput::retain(&replay, target_input),
+            current: CurrentFunctionFragmentInput::retain(
+                &replay,
+                target_input,
+                installation_authority,
+            ),
             replay,
         };
         source.validate_target_input()?;
@@ -476,6 +493,13 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
     }
 
     fn validate_target_input(&self) -> Result<(), FunctionFragmentEmissionError> {
+        let installation_program = self.installation_authority().program();
+        if installation_program.psi != self.selected_plan().psi
+            || installation_program.target != self.program().machine.target
+            || installation_program.machine != self.selected_plan().entry
+        {
+            return Err(FunctionFragmentEmissionError::RootMismatch);
+        }
         if self.post_allocation_manifest().record().pre_physical
             != self.pre_physical_manifest().identity
         {

@@ -3717,7 +3717,7 @@ fn select(name: &str, plan: &AbstractOperationPlan, target: TargetOperationPlan)
         &provider_admission::installed_interrupt_helpers::bind_installations(
             &interrupts,
             None,
-            &[],
+            Vec::new(),
         ),
         &environment,
     )

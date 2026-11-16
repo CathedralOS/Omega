@@ -5,7 +5,7 @@ and separately emitted callable bodies.
 `lower_to_target` drives abstract optimization (`Omega 01`) and target lowering
 (`Omega 02`), which ends by publishing the prepared execution plan. The caller
 resolves the installations that plan lists (callback bodies, handler stacks)
-and attaches them before `emit_target` hands the plan and those bound
+and binds them before `emit_target` hands the plan and those bound
 installations to instruction selection (`Omega 03`), selected-instruction optimization (`Omega 04`), register
 allocation (`Omega 05`), post-allocation machine planning (`Omega 06`),
 layout-independent encoding (`Omega 07`), resolved layout (`Omega 08`), layout
@@ -107,33 +107,50 @@ pub(crate) fn optimize_abstract(
     )
 }
 
-/// Project the installation authority admission checked into the plain
-/// record instruction selection reads beside the plan.
+/// Bind measured stacks and the checked installed entry once. Selection reads
+/// the receipt's plain facts; image publication retains the same receipt.
 pub(crate) fn bound_installations(
     target: &ValidatedOptimizedTargetOperations,
-) -> target_operations_to_selected_instructions::BoundInstallations {
-    terminal_psi_to_abstract_operations::provider_admission::bind_installations(
+    execution: Option<terminal_psi_to_abstract_operations::AdmittedInstalledEntryExecution>,
+    requirements: Vec<installation_evidence::InstalledInterruptStackRequirement>,
+) -> Result<
+    std::sync::Arc<
+        terminal_psi_to_abstract_operations::provider_admission::BoundInstallationAuthority,
+    >,
+    &'static str,
+> {
+    let plan = target.execution_plan().plan();
+    terminal_psi_to_abstract_operations::provider_admission::bind_installation_authority(
+        bound_installations::BoundInstalledEntry {
+            psi: plan.psi,
+            target: plan.target,
+            machine: plan.entry,
+        },
         target.lowering_facts().installed_interrupts(),
-        target.installed_entry_execution(),
-        target.installed_stack_requirements(),
+        target.lowering_facts().native_callbacks(),
+        execution,
+        requirements,
     )
+    .map(std::sync::Arc::new)
 }
 
 pub(crate) fn emit_target(
     optimized_target: ValidatedOptimizedTargetOperations,
+    installations: std::sync::Arc<
+        terminal_psi_to_abstract_operations::provider_admission::BoundInstallationAuthority,
+    >,
     observation: &NativePipelineObservation,
 ) -> Result<native_artifact::FragmentObjectProjection, BodyEmissionError> {
     let register_environment = baseline_target_register_environment(optimized_target.target())
         .map_err(OptimizedVerifiedPhysicalPipelineError::RegisterEnvironment)?;
     let target_input = std::sync::Arc::new(optimized_target);
-    let installations = bound_installations(&target_input);
     let selected = {
         observation.enter(NativePipelineStage::InstructionSelection);
         let optimized = target_input.optimized();
         stage_optimized_instruction_selection(
             SelectionInput {
                 plan: target_input.execution_plan(),
-                installations: &installations,
+                installations: installations.facts(),
                 optimization: optimized.identity_bundle().identity(),
                 projection: optimized.projection(),
                 manifest: optimized.pre_physical_manifest().identity,
@@ -199,12 +216,16 @@ pub(crate) fn emit_target(
             .map_err(FunctionRelativeOptimizationRealizationError::LayoutOptimization)
     }?;
     let realization = machine_emission::assemble_fixed_frame_realization(optimized_layout)?;
-    let physical = StagedOptimizedFunctionFragmentEmissionSource::new(realization, target_input)
-        .map_err(|error| {
-            BodyEmissionError::Object(vec![diagnostics::Diagnostic::error(format!(
-                "native artifact function-fragment emission failed: {error}"
-            ))])
-        })?;
+    let physical = StagedOptimizedFunctionFragmentEmissionSource::new(
+        realization,
+        target_input,
+        installations,
+    )
+    .map_err(|error| {
+        BodyEmissionError::Object(vec![diagnostics::Diagnostic::error(format!(
+            "native artifact function-fragment emission failed: {error}"
+        ))])
+    })?;
     observation.enter(NativePipelineStage::FragmentEmission);
     native_artifact::emit_fragment_object(physical).map_err(BodyEmissionError::Object)
 }
