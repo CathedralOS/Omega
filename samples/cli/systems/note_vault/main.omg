@@ -121,13 +121,16 @@ machine main(context: &mut Main) reaches ProcessExit + Console + DirectoryEnumer
         let next_passed: i32 in Wrapping = passed + 1;
         // 8. Read back and spot-check first ('v') and last ('\n' = 10) bytes.
         let io_result: IoResult = block FilesystemService::read_all("omega_vault/notes/current/vault.txt" as +Path, &mut back[..], 64);
-        transition io_result { IoResult::Ok { count } -> block readback_ck(context, next_passed, count, back[0]) _ -> done(context, next_passed) }
+        transition io_result {
+            IoResult::Ok { count } -> block readback_ck(context, next_passed, count, back[0], back[31])
+            _ -> done(context, next_passed)
+        }
     }
-    machine readback_ck(context: &mut Main, passed: i32 in Wrapping, count: u64, head: u8) {
-        transition count == 32 { true -> block readback_head(context, passed, head) _ -> done(context, passed) }
-    }
-    machine readback_head(context: &mut Main, passed: i32 in Wrapping, head: u8) {
-        transition head == 118 { true -> block compact(context, passed) _ -> done(context, passed) }
+    machine readback_ck(context: &mut Main, passed: i32 in Wrapping, count: u64, head: u8, tail: u8) {
+        transition count == 32 && head == 118 && tail == 10 {
+            true -> block compact(context, passed)
+            _ -> done(context, passed)
+        }
     }
 
     machine compact(context: &mut Main, passed: i32 in Wrapping) {

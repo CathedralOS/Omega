@@ -255,7 +255,8 @@ invokes WindowsFilesystemHost
     }
     machine create(path: &[u8] in Path, position: u64) -> UnitResult
     requires position < path.len {
-        let result: UnitResult = block windows_filesystem_create_dir_existing(path[0..position]);
+        let prefix: &[u8] = &path[0..position];
+        let result: UnitResult = block windows_filesystem_create_dir_existing(prefix as +Path);
         transition result {
             UnitResult::Error { kind } -> (UnitResult::Error { kind: kind })
             UnitResult::Ok -> block walk(path, position + 1)
