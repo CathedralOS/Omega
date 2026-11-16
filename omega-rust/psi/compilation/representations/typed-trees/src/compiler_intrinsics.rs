@@ -128,12 +128,28 @@ fn byte_observation_header(program: &TypedTrees, machine: &Machine) -> bool {
     else {
         return false;
     };
+    // A plain header owns its explicit lifetime through its declaration's
+    // telescope. Applied signatures may also retain a resolved roster; that
+    // roster must agree rather than overriding the declaration's binder.
+    let expected_region = LifetimeParameterIdentity {
+        declaration: machine.symbol,
+        ordinal: 0,
+    };
+    let retained_owner = table.operand_lifetime_owner(formal.type_reference);
+    if retained_owner.is_valid() && !program.symbols.symbols().nodes().is_valid(retained_owner) {
+        return false;
+    }
+    let owner = if retained_owner.is_valid() {
+        retained_owner
+    } else {
+        machine.symbol
+    };
+    let resolved =
+        crate::type_identity::lifetime_parameter_identity(program, owner, lifetime.as_str());
+    let supplied = table.operand_lifetimes(formal.type_reference);
     if lifetime.as_str() != machine.lifetime_parameters[0].as_str()
-        || table.operand_lifetimes(formal.type_reference)
-            != [LifetimeParameterIdentity {
-                declaration: machine.symbol,
-                ordinal: 0,
-            }]
+        || resolved != Some(expected_region)
+        || (!supplied.is_empty() && supplied != [expected_region])
         || !table.contains_type_reference(*referee)
     {
         return false;
