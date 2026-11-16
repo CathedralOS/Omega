@@ -27,6 +27,14 @@ impl TypedTrees {
         &self,
         symbol: SymbolHandle,
     ) -> Result<Option<(CompilerPrimitive, NormalizedTypeIdentity)>, Diagnostic> {
+        self.compiler_primitive_schema_checked(symbol)
+            .map_err(Diagnostic::error)
+    }
+
+    pub(crate) fn compiler_primitive_schema_checked(
+        &self,
+        symbol: SymbolHandle,
+    ) -> Result<Option<(CompilerPrimitive, NormalizedTypeIdentity)>, &'static str> {
         let Some(machine) = self.machine_by_symbol(symbol) else {
             return Ok(None);
         };
@@ -36,9 +44,7 @@ impl TypedTrees {
         let Some(SealedIntrinsic::CompilerPrimitive(operation)) = custody else {
             return if machine.supply_mode == language_semantics::MachineSupplyMode::CompilerProvided
             {
-                Err(Diagnostic::error(
-                    "compiler primitive has no exact sealed declaration custody",
-                ))
+                Err("compiler primitive has no exact sealed declaration custody")
             } else {
                 Ok(None)
             };
@@ -46,17 +52,11 @@ impl TypedTrees {
         if machine.supply_mode != language_semantics::MachineSupplyMode::CompilerProvided
             || machine.body_is_present
         {
-            return Err(Diagnostic::error(
+            return Err(
                 "sealed compiler primitive has a different supply mode or an authored body",
-            ));
+            );
         }
-        normalized_schema(self, machine)
-            .map(|schema| Some((operation, schema)))
-            .ok_or_else(|| {
-                Diagnostic::error(
-                    "no product route yet: complete compiler primitive signature schema",
-                )
-            })
+        normalized_schema_checked(self, machine).map(|schema| Some((operation, schema)))
     }
 }
 
@@ -136,9 +136,13 @@ fn schema_span<T, Rows>(
     read(span)
 }
 
-fn normalized_schema(program: &TypedTrees, machine: &Machine) -> Option<NormalizedTypeIdentity> {
-    // Exhaust the header so a new Machine field requires a deliberate schema
-    // decision. Source coordinates and body storage do not change a signature.
+fn normalized_schema_checked(
+    program: &TypedTrees,
+    machine: &Machine,
+) -> Result<NormalizedTypeIdentity, &'static str> {
+    // Attribute the first refused phase before another normalization can set
+    // the shared invalid-context bit. The complete schema owner and every
+    // admission guard remain the same for diagnostics and prepared calls.
     let Machine {
         lexical_region_origin,
         assembly_target_requirement,
@@ -194,28 +198,30 @@ fn normalized_schema(program: &TypedTrees, machine: &Machine) -> Option<Normaliz
         || termination_plan.implementation_witness.is_some()
         || termination_plan.checked_summary != language_semantics::TerminationGuarantee::NoGuarantee
     {
-        return None;
+        return Err("compiler primitive schema: unsupported header");
     }
     let reach = if *service_reach_row == language_semantics::ServiceReachRowId::NULL {
         "inferred"
     } else if *service_reach_row == language_semantics::ServiceReachRowTable::EMPTY_ROW {
         "none"
     } else {
-        // Nonempty/abstract service rows need their complete declaration-owned
-        // normalization before this query can describe them.
-        return None;
+        return Err("compiler primitive schema: unsupported reach row");
     };
-    let [entry] = schema_span(|span| program.machine_states.span(span), machine.states)? else {
-        return None;
+    let [entry] = schema_span(|span| program.machine_states.span(span), machine.states)
+        .ok_or("compiler primitive schema: stale entry roster")?
+    else {
+        return Err("compiler primitive schema: requires one exact entry");
     };
     if !entry.symbol.is_valid() {
-        return None;
+        return Err("compiler primitive schema: unresolved entry declaration");
     }
     let types = schema_span(
         |span| program.data_type_parameters.span(span),
         machine.type_parameters,
-    )?;
-    let parameters = schema_span(|span| program.state_parameters.span(span), entry.parameters)?;
+    )
+    .ok_or("compiler primitive schema: stale static binder roster")?;
+    let parameters = schema_span(|span| program.state_parameters.span(span), entry.parameters)
+        .ok_or("compiler primitive schema: stale parameter roster")?;
     let binders = types
         .iter()
         .enumerate()
@@ -228,7 +234,7 @@ fn normalized_schema(program: &TypedTrees, machine: &Machine) -> Option<Normaliz
         )
         .collect::<Vec<_>>();
     if binders.iter().any(|(symbol, _)| !symbol.is_valid()) {
-        return None;
+        return Err("compiler primitive schema: unresolved static or value binder");
     }
     let lifetimes = lifetime_parameters
         .iter()
@@ -256,19 +262,26 @@ fn normalized_schema(program: &TypedTrees, machine: &Machine) -> Option<Normaliz
         encountered_elided_regions: Some(&invalid),
         ..Default::default()
     };
-    let termination = termination_schema(program, &termination_plan.interface, &context)?;
-    let type_identity = |reference| {
-        program
-            .contains_type_reference(reference)
-            .then(|| normalize_type_reference(program, reference, &context))
+    let termination = termination_schema(program, &termination_plan.interface, &context)
+        .ok_or("compiler primitive schema: unsupported termination premises")?;
+    if invalid.get() {
+        return Err("compiler primitive schema: open termination identity");
+    }
+    let type_identity = |reference, refusal| {
+        if !program.contains_type_reference(reference) {
+            return Err(refusal);
+        }
+        let identity = normalize_type_reference(program, reference, &context);
+        if invalid.get() {
+            return Err(refusal);
+        }
+        Ok(identity)
     };
-    // A static member retains its actual nominal owner and application. Its
-    // prefix is neither a runtime receiver nor permission to omit the owner's
-    // generic arguments from the complete declaration schema.
+    // Preserve the actual nominal owner and its application exactly as before.
     let attachment = match attached_data {
         None => {
             if attached_data_symbol.is_valid() || attached_data_application.is_valid() {
-                return None;
+                return Err("compiler primitive schema: attachment metadata without an owner");
             }
             None
         }
@@ -280,9 +293,11 @@ fn normalized_schema(program: &TypedTrees, machine: &Machine) -> Option<Normaliz
                 .is_valid(*attached_data_symbol)
                 || program.symbols.get(*attached_data_symbol).kind != symbols::SymbolKind::Data
             {
-                return None;
+                return Err("compiler primitive schema: unresolved attachment owner");
             }
-            let declaration = program.unique_data_definition_by_symbol(*attached_data_symbol)?;
+            let declaration = program
+                .unique_data_definition_by_symbol(*attached_data_symbol)
+                .ok_or("compiler primitive schema: attachment has no unique data declaration")?;
             let application = if attached_data_application.is_valid() {
                 if !program.contains_type_reference(*attached_data_application)
                     || program
@@ -290,28 +305,34 @@ fn normalized_schema(program: &TypedTrees, machine: &Machine) -> Option<Normaliz
                         .type_head_symbol(*attached_data_application)
                         != Some(*attached_data_symbol)
                 {
-                    return None;
+                    return Err(
+                        "compiler primitive schema: attachment application selects another owner",
+                    );
                 }
-                compound(Tag::Type, [type_identity(*attached_data_application)?])
+                compound(
+                    Tag::Type,
+                    [type_identity(
+                        *attached_data_application,
+                        "compiler primitive schema: attachment type is missing or open",
+                    )?],
+                )
             } else {
                 if !declaration.type_parameters.is_empty() {
-                    return None;
+                    return Err("compiler primitive schema: generic attachment has no application");
                 }
                 compound(Tag::Type, [])
             };
+            let owner = context.name(
+                program,
+                *attached_data_symbol,
+                program.symbols.name(*attached_data_symbol),
+            );
+            if invalid.get() {
+                return Err("compiler primitive schema: open attachment owner identity");
+            }
             Some(compound(
                 Tag::Attachment,
-                [
-                    atom(
-                        Tag::Owner,
-                        &context.name(
-                            program,
-                            *attached_data_symbol,
-                            program.symbols.name(*attached_data_symbol),
-                        ),
-                    ),
-                    application,
-                ],
+                [atom(Tag::Owner, &owner), application],
             ))
         }
     };
@@ -321,10 +342,15 @@ fn normalized_schema(program: &TypedTrees, machine: &Machine) -> Option<Normaliz
             TypeParameterKind::Type => atom(Tag::Kind, "type"),
             TypeParameterKind::Const { type_reference } => compound(
                 Tag::Kind,
-                [atom(Tag::Kind, "const"), type_identity(type_reference)?],
+                [
+                    atom(Tag::Kind, "const"),
+                    type_identity(
+                        type_reference,
+                        "compiler primitive schema: static binder type is missing or open",
+                    )?,
+                ],
             ),
-            // Refuse actual unserved binders; none is silently a type binder.
-            _ => return None,
+            _ => return Err("compiler primitive schema: unsupported static binder kind"),
         };
         telescope.push(compound(
             Tag::Binder,
@@ -334,7 +360,7 @@ fn normalized_schema(program: &TypedTrees, machine: &Machine) -> Option<Normaliz
     let parameters = parameters
         .iter()
         .map(|parameter| {
-            Some(compound(
+            Ok(compound(
                 Tag::Parameter,
                 [
                     atom(
@@ -344,73 +370,93 @@ fn normalized_schema(program: &TypedTrees, machine: &Machine) -> Option<Normaliz
                             parameter.is_const, parameter.is_mutable, parameter.relevance
                         ),
                     ),
-                    compound(Tag::Type, [type_identity(parameter.type_reference)?]),
+                    compound(
+                        Tag::Type,
+                        [type_identity(
+                            parameter.type_reference,
+                            "compiler primitive schema: parameter type is missing or open",
+                        )?],
+                    ),
                 ],
             ))
         })
-        .collect::<Option<Vec<_>>>()?;
+        .collect::<Result<Vec<_>, &'static str>>()?;
+    let result = type_identity(
+        entry.return_type,
+        "compiler primitive schema: result type is missing or open",
+    )?;
     let contracts = contracts(
         program,
         schema_span(
             |span| program.signature_contracts.span(span),
             machine.contracts,
-        )?
+        )
+        .ok_or("compiler primitive schema: stale machine contract roster")?
         .iter()
-        .chain(schema_span(
-            |span| program.signature_contracts.span(span),
-            entry.contracts,
-        )?),
+        .chain(
+            schema_span(
+                |span| program.signature_contracts.span(span),
+                entry.contracts,
+            )
+            .ok_or("compiler primitive schema: stale entry contract roster")?,
+        ),
         &context,
     )?;
-    let identity = compound(
-        Tag::Schema,
-        [
-            compound(Tag::Binders, telescope),
-            atom(Tag::Lifetimes, &lifetimes.len().to_string()),
-            compound(Tag::Parameters, parameters),
-            compound(Tag::Result, [type_identity(entry.return_type)?]),
-            compound(Tag::Contracts, contracts),
-            atom(
-                Tag::Envelope,
-                &format!(
-                    "public={is_public};exposure={interface_exposure:?};purpose={purpose:?};token={spelling:?};assembly={assembly_target_requirement:?};reach={reach};suspends={suspends};suspends-written={};blocks={blocks};blocks-written={};crashes-none={declares_no_crash_route};termination={termination};stack={admitted_same_stack_bytes}",
-                    !suspends_keyword_source_spans.is_empty(),
-                    !blocks_keyword_source_spans.is_empty()
-                ),
-            ),
-        ].into_iter().chain(attachment),
-    );
-    (!invalid.get()).then(|| program.type_identities.intern(&identity))
+    let identity = compound(Tag::Schema, [
+        compound(Tag::Binders, telescope), atom(Tag::Lifetimes, &lifetimes.len().to_string()),
+        compound(Tag::Parameters, parameters), compound(Tag::Result, [result]),
+        compound(Tag::Contracts, contracts),
+        atom(Tag::Envelope, &format!(
+            "public={is_public};exposure={interface_exposure:?};purpose={purpose:?};token={spelling:?};assembly={assembly_target_requirement:?};reach={reach};suspends={suspends};suspends-written={};blocks={blocks};blocks-written={};crashes-none={declares_no_crash_route};termination={termination};stack={admitted_same_stack_bytes}",
+            !suspends_keyword_source_spans.is_empty(), !blocks_keyword_source_spans.is_empty()
+        )),
+    ].into_iter().chain(attachment));
+    Ok(program.type_identities.intern(&identity))
+}
+
+#[cfg(test)]
+fn normalized_schema(program: &TypedTrees, machine: &Machine) -> Option<NormalizedTypeIdentity> {
+    normalized_schema_checked(program, machine).ok()
 }
 
 fn contracts<'a>(
     program: &TypedTrees,
     contracts: impl Iterator<Item = &'a SignatureContract>,
     context: &TypeIdentityContext<'_>,
-) -> Option<Vec<String>> {
+) -> Result<Vec<String>, &'static str> {
     contracts
         .map(|contract| {
             if contract.binding.is_some() {
-                return None;
+                return Err("compiler primitive schema: unsupported bound contract premise");
             }
             let kind = match contract.kind {
                 SignatureContractKind::Requires => atom(Tag::Requires, ""),
                 SignatureContractKind::Ensures => atom(Tag::Ensures, ""),
                 SignatureContractKind::Crashes { cause } => atom(Tag::Crash, &format!("{cause:?}")),
-                SignatureContractKind::EnsuresForResultCase { .. } => return None,
+                SignatureContractKind::EnsuresForResultCase { .. } => {
+                    return Err("compiler primitive schema: unsupported result-case contract");
+                }
             };
-            let facts = schema_span(|span| program.proof_facts.span(span), contract.facts)?
+            let facts = schema_span(|span| program.proof_facts.span(span), contract.facts)
+                .ok_or("compiler primitive schema: stale contract fact roster")?
                 .iter()
                 .map(|fact| {
                     let ProofFact::Expression(expression) = fact else {
-                        return None;
+                        return Err("compiler primitive schema: unsupported contract proof form");
                     };
-                    expression
-                        .is_valid()
-                        .then(|| normalize_index_expression(program, *expression, context))
+                    if !expression.is_valid() {
+                        return Err("compiler primitive schema: missing contract expression");
+                    }
+                    let expression = normalize_index_expression(program, *expression, context);
+                    if context.invalid_application.is_some_and(Cell::get) {
+                        return Err(
+                            "compiler primitive schema: open or unserved contract expression",
+                        );
+                    }
+                    Ok(expression)
                 })
-                .collect::<Option<Vec<_>>>()?;
-            Some(compound(Tag::Contract, std::iter::once(kind).chain(facts)))
+                .collect::<Result<Vec<_>, &'static str>>()?;
+            Ok(compound(Tag::Contract, std::iter::once(kind).chain(facts)))
         })
         .collect()
 }

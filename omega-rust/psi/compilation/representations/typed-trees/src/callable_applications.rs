@@ -4168,10 +4168,7 @@ mod declaration_invocations {
             ) {
                 return Ok(None);
             }
-            match self
-                .compiler_primitive_schema(machine.symbol)
-                .map_err(|_| "run custody needs its complete authenticated compiler schema")?
-            {
+            match self.compiler_primitive_schema_checked(machine.symbol)? {
                 Some((operation @ CompilerPrimitive::RunCustody(_), _)) => Ok(Some(operation)),
                 _ => Err("run custody changed its exact compiler primitive declaration"),
             }

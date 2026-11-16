@@ -80,6 +80,62 @@ fn prepared(text: &str) -> typed_trees::FrozenTypedTrees {
     .expect("the actual imported Run program resolves");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("the actual imported Run program types");
+    for machine in typed.machines() {
+        if !matches!(
+            typed
+                .symbols
+                .sealed_declaration(machine.symbol, machine.name.as_str()),
+            Some(
+                language_core::sealed_intrinsics::SealedIntrinsic::CompilerPrimitive(
+                    language_core::sealed_intrinsics::CompilerPrimitive::RunCustody(_)
+                )
+            )
+        ) {
+            continue;
+        }
+        if let Err(reason) = typed.compiler_primitive_schema(machine.symbol) {
+            let application = machine.attached_data_application;
+            let attachment = application
+                .is_valid()
+                .then(|| typed.type_reference_table.type_reference(application));
+            eprintln!(
+                "Run schema {}: {reason:?}; attachment={attachment:?}; binders={:?}",
+                machine.name,
+                typed.machine_type_parameters(machine)
+            );
+            if let Some(typed_trees::types::TypeReferenceNode::Generic { arguments, .. }) =
+                attachment
+            {
+                for argument in typed
+                    .type_reference_table
+                    .type_reference_handles(*arguments)
+                {
+                    eprintln!(
+                        "attachment argument {argument:?}: {:?}",
+                        typed.type_reference_table.type_reference(*argument)
+                    );
+                }
+            }
+            for contract in typed.signature_contracts.span_or_empty(machine.contracts) {
+                for fact in typed.proof_facts.span_or_empty(contract.facts) {
+                    let typed_trees::domain::ProofFact::Expression(root) = fact else {
+                        eprintln!("unserved signature fact {fact:?}");
+                        continue;
+                    };
+                    typed.subtree_for_each(*root, typed_trees::SubtreeEdges::default(), |handle,node| {
+                        use typed_trees::expression::{ExpressionNode, MemberSelection};
+                        let unresolved = match node {
+                            ExpressionNode::Member(member) => matches!(member.selection, MemberSelection::Unresolved) || matches!(member.selection, MemberSelection::Field(symbol) if !symbol.is_valid()),
+                            ExpressionNode::Call(call) => !call.target_symbol.is_valid(),
+                            ExpressionNode::Name(name) => !name.symbol.is_valid() && !name.head_symbol.is_valid() && !name.reserved_result_of.is_valid(),
+                            _ => false,
+                        };
+                        if unresolved { eprintln!("unresolved schema expression {handle:?}: {node:?}"); }
+                    });
+                }
+            }
+        }
+    }
     typed_trees_to_typed_trees::prepare_typed_trees(
         typed,
         &typed_trees_to_typed_trees::PreparationRequest::settled(),
