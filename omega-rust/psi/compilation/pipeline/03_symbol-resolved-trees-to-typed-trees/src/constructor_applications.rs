@@ -1405,7 +1405,7 @@ mod tests {
             } else {
                 PrimitiveType::Integer(
                     numerics::integer_carrier::FixedInteger::new(
-                        numerics::IntegerSign::Unsigned,
+                        numerics::integer_carrier::IntegerSign::Unsigned,
                         16,
                     )
                     .unwrap(),
