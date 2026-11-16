@@ -2,119 +2,12 @@
 //! their exact application; the derived index contains only boundary IDs and
 //! grants no type, contract or live-cell authority.
 
-use semantic_vocabulary::{BoundaryMachineId, IdTable};
 use symbols::SymbolHandle;
 use typed_trees::{TypedTrees, static_applications::StaticMachineApplicationHandle};
 
-use super::BoundarySource;
-
-pub(crate) struct BoundarySources {
-    rows: IdTable<BoundaryMachineId, BoundarySource>,
-    applications: Vec<(StaticMachineApplicationHandle, Option<BoundaryMachineId>)>,
-}
-
-fn application_key(application: StaticMachineApplicationHandle) -> (u32, u32) {
-    (application.arena_index(), application.generation())
-}
-
-impl BoundarySources {
-    pub(super) fn new(typed: &TypedTrees) -> Self {
-        // Only actual arena-owned occurrences determine allocation and keys;
-        // a queried foreign or stale handle can never enlarge this index.
-        let mut applications = typed
-            .expression_table
-            .static_machine_applications()
-            .map(|(application, _)| (application, None))
-            .collect::<Vec<_>>();
-        applications.sort_unstable_by_key(|(application, _)| application_key(*application));
-        Self {
-            rows: IdTable::default(),
-            applications,
-        }
-    }
-
-    pub(super) fn len(&self) -> usize {
-        self.rows.len()
-    }
-    pub(super) fn is_empty(&self) -> bool {
-        self.rows.is_empty()
-    }
-    pub(super) fn iter(&self) -> impl Iterator<Item = (BoundaryMachineId, &BoundarySource)> {
-        self.rows.iter()
-    }
-    pub(super) fn get(&self, id: BoundaryMachineId) -> Option<&BoundarySource> {
-        self.rows.get(id)
-    }
-    pub(super) fn push(&mut self, symbol: SymbolHandle) -> BoundaryMachineId {
-        self.rows.push(BoundarySource {
-            symbol,
-            application: None,
-            element: None,
-        })
-    }
-    pub(crate) fn symbols(&self) -> IdTable<BoundaryMachineId, SymbolHandle> {
-        self.rows.map(|_, owner| owner.symbol)
-    }
-    fn index(
-        &self,
-        typed: &TypedTrees,
-        application: StaticMachineApplicationHandle,
-    ) -> Result<usize, &'static str> {
-        if !typed
-            .expression_table
-            .static_machine_application_is_valid(application)
-        {
-            return Err("run custody application has no live source occurrence");
-        }
-        self.applications
-            .binary_search_by_key(&application_key(application), |(known, _)| {
-                application_key(*known)
-            })
-            .map_err(|_| "run custody application is outside its prepared source owner")
-    }
-    pub(super) fn application(
-        &self,
-        typed: &TypedTrees,
-        application: StaticMachineApplicationHandle,
-        symbol: SymbolHandle,
-    ) -> Result<Option<BoundaryMachineId>, &'static str> {
-        let index = self.index(typed, application)?;
-        let Some(id) = self.applications[index].1 else {
-            return Ok(None);
-        };
-        if !self.rows.get(id).is_some_and(|owner| {
-            owner.symbol == symbol
-                && owner.application == Some(application)
-                && owner.element.is_some()
-        }) {
-            return Err("run custody cached boundary belongs to another source application");
-        }
-        Ok(Some(id))
-    }
-    pub(super) fn insert_application(
-        &mut self,
-        typed: &TypedTrees,
-        application: StaticMachineApplicationHandle,
-        symbol: SymbolHandle,
-        element: crate::body::ValueType,
-    ) -> Result<BoundaryMachineId, &'static str> {
-        let index = self.index(typed, application)?;
-        if self.applications[index].1.is_some() {
-            return Err("run custody source application already has a published boundary");
-        }
-        let id = self.rows.push(BoundarySource {
-            symbol,
-            application: Some(application),
-            element: Some(element),
-        });
-        self.applications[index].1 = Some(id);
-        Ok(id)
-    }
-}
-
 use language_core::core_vocabulary::{CoreVocabulary, ExtentDomain, RunDeclaration};
 use language_core::sealed_intrinsics::{CompilerPrimitive, RunCustodyOperation, SealedIntrinsic};
-use semantic_vocabulary::{MachineId, TargetMachineCallable};
+use semantic_vocabulary::MachineId;
 use terminal_check_tables::{Checked, Construct};
 use typed_trees::data::{DataDefinition, DataMember, TypeParameterKind};
 use typed_trees::references::StaticArgumentCall;
@@ -123,7 +16,7 @@ use typed_trees::static_applications::StaticMachineBindingValue;
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
 use super::{Program, Slot};
-use crate::body::{Expression, Termination, ValueType};
+use crate::body::{CallTarget, Expression, Termination, ValueType};
 use crate::{SourceOrigin, Unserved, refuse};
 
 fn same_type(typed: &TypedTrees, left: TypeReferenceHandle, right: TypeReferenceHandle) -> bool {
@@ -388,8 +281,13 @@ fn check_roles(
             "run custody changed its owned closed formal contract",
         ));
     }
-    match (operation, formals) {
-        (RunCustodyOperation::ReleaseEmpty, [run]) => {
+    match operation {
+        RunCustodyOperation::ReleaseEmpty => {
+            let Some([run]) = formals.as_array() else {
+                return Err(unavailable(
+                    "run custody changed its complete parameter and result roles",
+                ));
+            };
             run_role(typed, machine, run.type_reference, &arguments)?;
             let result = qualified_base(
                 typed,
@@ -403,7 +301,17 @@ fn check_roles(
             .map_err(unavailable)?;
             record_role(typed, machine, result, CoreVocabulary::Extent, &[])?;
         }
-        (RunCustodyOperation::Split, [run, cut]) if plain_u64(typed, cut.type_reference) => {
+        RunCustodyOperation::Split => {
+            let Some([run, cut]) = formals.as_array() else {
+                return Err(unavailable(
+                    "run custody changed its complete parameter and result roles",
+                ));
+            };
+            if !plain_u64(typed, cut.type_reference) {
+                return Err(unavailable(
+                    "run custody changed its complete parameter and result roles",
+                ));
+            }
             run_role(typed, machine, run.type_reference, &arguments)?;
             let base =
                 qualified_base(typed, signature.return_type, &[], &[]).map_err(unavailable)?;
@@ -430,7 +338,12 @@ fn check_roles(
             run_role(typed, machine, left.type_reference, &arguments)?;
             run_role(typed, machine, right.type_reference, &arguments)?;
         }
-        (RunCustodyOperation::Merge, [left, right]) => {
+        RunCustodyOperation::Merge => {
+            let Some([left, right]) = formals.as_array() else {
+                return Err(unavailable(
+                    "run custody changed its complete parameter and result roles",
+                ));
+            };
             for reference in [
                 left.type_reference,
                 right.type_reference,
@@ -438,11 +351,6 @@ fn check_roles(
             ] {
                 run_role(typed, machine, reference, &arguments)?;
             }
-        }
-        _ => {
-            return Err(unavailable(
-                "run custody changed its complete parameter and result roles",
-            ));
         }
     }
     Ok(())
@@ -558,7 +466,7 @@ impl Program<'_> {
         }
         self.run_custody_header(id, application, target, operation, prepared)?;
         let boundary = match self
-            .boundary_symbols
+            .boundaries
             .application(typed, application, target)
             .map_err(unavailable)?
         {
@@ -591,28 +499,52 @@ impl Program<'_> {
                         "run custody element still has an open type role",
                     ));
                 }
+                let machine = typed
+                    .machine_by_symbol(target)
+                    .ok_or_else(|| unavailable("run custody lost its source machine"))?;
+                let Some([entry]) = typed.machine_states(machine).as_array() else {
+                    return Err(unavailable("run custody lost its exact entry"));
+                };
+                let declaration = crate::declare::boundary_source(
+                    typed,
+                    target,
+                    target,
+                    entry.symbol,
+                    prepared,
+                    typed
+                        .machine_callable_identity_text(machine)
+                        .ok_or_else(|| unavailable("run custody lost its template callable"))?,
+                )
+                .map_err(unavailable)?;
+                let envelope = self.signature_envelope(id, prepared)?;
                 let boundary = self
-                    .boundary_symbols
-                    .insert_application(typed, application, target, element)
+                    .boundaries
+                    .insert_application(
+                        typed,
+                        crate::boundaries::BoundarySource {
+                            source: target,
+                            owner: target,
+                            kind: semantic_vocabulary::BoundaryRequirementKind::Machine,
+                            signature,
+                            envelope,
+                            completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
+                            owning_service: None,
+                            declaration,
+                            run: Some(crate::boundaries::RunBoundarySource {
+                                application,
+                                element,
+                            }),
+                        },
+                    )
                     .map_err(unavailable)?;
-                if self.boundary_signatures.push(signature) != boundary
-                    || self.boundary_services.push(None) != boundary
-                    || self
-                        .boundary_completions
-                        .push(semantic_vocabulary::BoundaryCompletion::NormalReturn)
-                        != boundary
-                {
-                    return Err(unavailable(
-                        "run custody lost its exact boundary coordinate",
-                    ));
-                }
+                self.admitted_declarations.include(target);
                 boundary
             }
         };
         self.call_of(
             id,
             slots,
-            (TargetMachineCallable::Boundary(boundary), None),
+            (CallTarget::Boundary { boundary }, None),
             arguments,
             source,
             expected,
@@ -672,6 +604,44 @@ mod tests {
     use symbols::{BuiltinTypeAtom, SymbolKind, SymbolNameRef, SymbolTableBuilder};
     use typed_trees::{data::DataProperties, expression::StaticMachineArgument, name::Identifier};
 
+    fn cache_row(
+        source: SymbolHandle,
+        run: Option<crate::boundaries::RunBoundarySource>,
+    ) -> crate::boundaries::BoundarySource {
+        crate::boundaries::BoundarySource {
+            source,
+            owner: source,
+            kind: semantic_vocabulary::BoundaryRequirementKind::Machine,
+            signature: crate::Signature {
+                operational: Default::default(),
+                parameters: Vec::new(),
+                erased: Vec::new(),
+                borrowed: Vec::new(),
+                result: None,
+                requires: Vec::new(),
+                ensures: Vec::new(),
+                crashes: crate::CrashCeiling::DeclaredNone,
+                reaches: crate::Ceiling::Authored(Vec::new()),
+                invokes: crate::Ceiling::Authored(Vec::new()),
+                termination: Termination::Promised,
+                ranking: None,
+            },
+            envelope: crate::reach::SourceEnvelope {
+                service_reach: Vec::new(),
+                invocations: Vec::new(),
+                suspends: false,
+                blocks: false,
+                termination: terminal_psi::TerminalCallableTermination::Terminates {
+                    premises: Vec::new(),
+                },
+            },
+            completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
+            owning_service: None,
+            declaration: crate::declare::BoundaryDeclarationSource::empty_test_fixture(),
+            run,
+        }
+    }
+
     #[test]
     fn closed_boundary_applications_cannot_reuse_a_template_or_another_occurrence() {
         let mut typed = TypedTrees::default();
@@ -694,29 +664,37 @@ mod tests {
         let first = application(&mut typed, [p, t]);
         let second = application(&mut typed, [t, p]);
         let unprepared = application(&mut typed, [p, t]);
-        let mut boundaries = BoundarySources::new(&typed);
-        let template = boundaries.push(target);
+        let mut boundaries = crate::boundaries::BoundaryNamespace::new(&typed);
+        let template = boundaries.rows.push(cache_row(target, None));
         assert_eq!(boundaries.application(&typed, first, target).unwrap(), None);
         let first_id = boundaries
             .insert_application(
                 &typed,
-                first,
-                target,
-                ValueType::plain(semantic_vocabulary::ScalarType::Integer(
-                    semantic_vocabulary::IntegerType::new(
-                        semantic_vocabulary::IntegerSign::Unsigned,
-                        64,
-                    )
-                    .unwrap(),
-                )),
+                cache_row(
+                    target,
+                    Some(crate::boundaries::RunBoundarySource {
+                        application: first,
+                        element: ValueType::plain(semantic_vocabulary::ScalarType::Integer(
+                            semantic_vocabulary::IntegerType::new(
+                                semantic_vocabulary::IntegerSign::Unsigned,
+                                64,
+                            )
+                            .unwrap(),
+                        )),
+                    }),
+                ),
             )
             .unwrap();
         let second_id = boundaries
             .insert_application(
                 &typed,
-                second,
-                target,
-                ValueType::plain(semantic_vocabulary::ScalarType::Boolean),
+                cache_row(
+                    target,
+                    Some(crate::boundaries::RunBoundarySource {
+                        application: second,
+                        element: ValueType::plain(semantic_vocabulary::ScalarType::Boolean),
+                    }),
+                ),
             )
             .unwrap();
         assert_ne!(template, first_id);
@@ -745,21 +723,25 @@ mod tests {
             boundaries
                 .insert_application(
                     &typed,
-                    first,
-                    target,
-                    ValueType::plain(semantic_vocabulary::ScalarType::Boolean)
+                    cache_row(
+                        target,
+                        Some(crate::boundaries::RunBoundarySource {
+                            application: first,
+                            element: ValueType::plain(semantic_vocabulary::ScalarType::Boolean),
+                        })
+                    )
                 )
                 .is_err()
         );
         assert_eq!(
-            boundaries.get(first_id).unwrap().element,
-            Some(ValueType::plain(semantic_vocabulary::ScalarType::Integer(
+            boundaries.row(first_id).unwrap().run.unwrap().element,
+            ValueType::plain(semantic_vocabulary::ScalarType::Integer(
                 semantic_vocabulary::IntegerType::new(
                     semantic_vocabulary::IntegerSign::Unsigned,
                     64
                 )
                 .unwrap()
-            )))
+            ))
         );
     }
 

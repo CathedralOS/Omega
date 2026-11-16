@@ -321,6 +321,17 @@ mod activation_storage {
                     erased_arguments: Vec::new(),
                     erased_proof_arguments: Vec::new(),
                 },
+                AbstractCallTarget::Callable { callee, contract } => T::CallMachine {
+                    callee: *callee,
+                    contract: *contract,
+                    arguments: arguments.clone(),
+                    structural_arguments: structural_arguments.clone(),
+                    claim_transfers: claim_transfers.clone(),
+                    requirement_obligations: requirement_obligations.clone(),
+                    crash_continuations: crash_continuations.clone(),
+                    erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
+                },
                 AbstractCallTarget::Dynamic {
                     selector,
                     interface,
@@ -7190,6 +7201,7 @@ pub(crate) mod function_structure {
                     | O::EstablishZeroedStructural { .. }
                     | O::EstablishStructuralLocal { .. }
                     | O::SelectImplementation { .. }
+                    | O::SelectMachine { .. }
                     | O::PortWrite { .. }
                     | O::RegisterAccess { .. }
                     | O::Call { .. }
@@ -8223,6 +8235,14 @@ pub(crate) mod function_structure {
                             source,
                         )
                         .is_some_and(|actual| match storage {
+                            Some(storage) if storage.stored_scalar.is_none() => {
+                                crate::unit_validation::references::aggregate_recast_source_compatible(
+                                    function,
+                                    structural_types.values().copied(),
+                                    source,
+                                    result.structural_type,
+                                )
+                            }
                             Some(storage) => {
                                 terminal_semantics::reference_storage_source_compatible(
                                     structural_types.values().copied(),
@@ -9916,6 +9936,7 @@ pub(crate) mod function_structure {
             functions,
             structural_types,
             &unit.dynamic_dispatch,
+            &unit.callables,
         )?;
         byte_concatenation::validate(
             function,
@@ -12205,6 +12226,15 @@ pub(crate) mod operation_contracts {
                 if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned
                     && integer.bits() == Some(64) && fixed(integer))
                 }),
+                O::SelectMachine {
+                    result, descriptor, ..
+                } => unit
+                    .callables
+                    .descriptor(*descriptor)
+                    .is_some_and(|selected| {
+                        result.scalar_type == ScalarType::Callable(selected.contract)
+                            && unit.callables.contract(selected.contract).is_some()
+                    }),
                 O::SelectImplementation { result, table, .. } => {
                     matches!(result.scalar_type, ScalarType::Integer(integer)
                 if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned
@@ -12346,17 +12376,18 @@ pub(crate) mod operation_contracts {
                 | O::StructuralCase { .. }
                 | O::ReturnUnit { .. }
                 | abstract_operations::return_structural_or_crash_pattern!() => true,
-                O::StructuralScalarFieldRead { result, .. } => {
-                    matches!(
-                        result.scalar_type,
-                        ScalarType::Boolean | ScalarType::Integer(_)
-                    )
-                }
+                O::StructuralScalarFieldRead { result, .. } => match result.scalar_type {
+                    ScalarType::Boolean | ScalarType::Integer(_) => true,
+                    ScalarType::Callable(contract) => unit.callables.contract(contract).is_some(),
+                    ScalarType::IeeeFloat(_) => false,
+                },
                 O::IntegerConstant {
                     scalar_type, value, ..
                 } => match scalar_type {
                     ScalarType::Integer(integer) => integer.admits(*value),
-                    ScalarType::Boolean | ScalarType::IeeeFloat(_) => false,
+                    ScalarType::Boolean | ScalarType::IeeeFloat(_) | ScalarType::Callable(_) => {
+                        false
+                    }
                 },
                 O::IeeeFloatConstant { .. } => true,
                 O::FloatResultPolicy { format, policy, .. } => {
@@ -12713,12 +12744,27 @@ pub(crate) mod operation_contracts {
                 O::Call { callee, .. } | O::InvokeNoNormal { callee, .. } => functions
                     .get(callee)
                     .is_some_and(|callee| reached_is_published(&callee.published_service_ceiling)),
+                O::CallStructural {
+                    callee: abstract_operations::AbstractCallTarget::Callable { contract, .. },
+                    ..
+                } => unit.callables.contract(*contract).is_some_and(|contract| {
+                    contract
+                        .envelope
+                        .service_reach
+                        .iter()
+                        .all(|service| services.contains_key(service))
+                        && reached_is_published(&contract.envelope.service_reach)
+                }),
                 O::CallStructural { .. } => {
-                    unit.call_machine_references(operation).all(|machine| {
-                        functions.get(&machine).is_some_and(|callee| {
-                            reached_is_published(&callee.published_service_ceiling)
+                    unit.call_machine_references(operation)
+                        .all(|reference| match reference {
+                            optimization_unit::CallMachineReference::Declaration(machine) => {
+                                functions.get(&machine).is_some_and(|callee| {
+                                    reached_is_published(&callee.published_service_ceiling)
+                                })
+                            }
+                            optimization_unit::CallMachineReference::Callable { .. } => false,
                         })
-                    })
                 }
                 O::BoundaryCall { boundary, .. } => {
                     boundaries.get(boundary).is_some_and(|boundary| {
@@ -14751,6 +14797,23 @@ pub(crate) mod operation_contracts {
         call_accesses: &crate::current_ownership::CallAccesses,
     ) -> Result<(), OptimizationUnitValidationError> {
         let definitions = values::collect_value_definitions(function)?;
+        for definition in definitions.values() {
+            unit.callables
+                .validate_scalar_type(definition.scalar_type)
+                .map_err(OptimizationUnitValidationError::CallableValueProvenance)?;
+        }
+        if let Some(contract) = &function.verified_contract {
+            for formal in &contract.erased_scalar_formals {
+                unit.callables
+                    .validate_scalar_type(formal.scalar_type)
+                    .map_err(OptimizationUnitValidationError::CallableValueProvenance)?;
+            }
+        }
+        if let abstract_operations::AbstractFunctionResult::Scalar(result) = &function.result {
+            unit.callables
+                .validate_scalar_type(result.scalar_type)
+                .map_err(OptimizationUnitValidationError::CallableValueProvenance)?;
+        }
         // Most functions never need array literal qualification. Retain one
         // reader only if an actual query needs it, and share it across nodes.
         let scalar_expressions = std::cell::OnceCell::new();
@@ -15304,6 +15367,23 @@ pub(crate) mod references {
                 && !function.content_entry_claim_declared(source.place))
     }
 
+    pub(crate) fn aggregate_recast_source_compatible<'types>(
+        function: &PsiOptimizationFunction,
+        types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+        source: &StructuralArgument,
+        reference: StructuralTypeId,
+    ) -> bool {
+        structural_source_contract(function, source.place).is_some_and(|contract| {
+            terminal_semantics::reference_storage_region_source_compatible(
+                types,
+                contract.structural_type,
+                &source.path,
+                reference,
+                None,
+            )
+        })
+    }
+
     pub(crate) fn reference_source_type(
         function: &PsiOptimizationFunction,
         types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
@@ -15477,6 +15557,7 @@ pub(crate) mod references {
         functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
         types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
         dynamic_dispatch: &TerminalDynamicDispatchCatalog,
+        callables: &terminal_psi::TerminalCallableCatalog,
     ) -> Result<(), OptimizationUnitValidationError> {
         let invalid = || catalog_mismatch(function);
         let is_reference = |structural_type| {
@@ -15635,7 +15716,13 @@ pub(crate) mod references {
                         || source.path().contains(&ReferenceOriginProjection::Element)
                 })
         }) {
-            validate_alternative_result_dependencies(function, functions, types, dynamic_dispatch)?;
+            validate_alternative_result_dependencies(
+                function,
+                functions,
+                types,
+                dynamic_dispatch,
+                callables,
+            )?;
         }
         let mut sources = BTreeMap::new();
         for (path, mapping) in paths.iter().zip(&result.reference_sources) {
@@ -15703,6 +15790,7 @@ pub(crate) mod references {
         functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
         types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
         dynamic_dispatch: &TerminalDynamicDispatchCatalog,
+        callables: &terminal_psi::TerminalCallableCatalog,
     ) -> Result<(), OptimizationUnitValidationError> {
         let invalid = || catalog_mismatch(function);
         let mut pending = vec![(function.machine, false)];
@@ -15725,6 +15813,7 @@ pub(crate) mod references {
             for node in current.block_nodes() {
                 if let O::CallStructural {
                     callee,
+                    structural_arguments,
                     result: AbstractStructuralCallResult::Structural { result, .. },
                     ..
                 } = &node.operation
@@ -15733,6 +15822,28 @@ pub(crate) mod references {
                     match callee {
                         abstract_operations::AbstractCallTarget::Machine(machine) => {
                             pending.push((*machine, false));
+                        }
+                        abstract_operations::AbstractCallTarget::Callable { contract, .. } => {
+                            let contract = callables.contract(*contract).ok_or_else(invalid)?;
+                            let terminal_psi::BoundaryMachineResult::Structural(declared) =
+                                &contract.result
+                            else {
+                                return Err(invalid());
+                            };
+                            if declared.structural_type != result.structural_type
+                                || declared.multiplicity != result.multiplicity
+                            {
+                                return Err(invalid());
+                            }
+                            // The callable publishes its result origins. Bind
+                            // those exact regions to actual arguments; private
+                            // bodies cannot strengthen the public contract.
+                            terminal_semantics::bind_reference_call_results(
+                                types.values().copied(),
+                                terminal_semantics::ReferenceCallContract::Callable(contract),
+                                structural_arguments,
+                            )
+                            .map_err(OptimizationUnitValidationError::CallableValueProvenance)?;
                         }
                         abstract_operations::AbstractCallTarget::Dynamic {
                             interface,
@@ -15796,7 +15907,7 @@ mod runtime_evidence {
             }
             return Ok(());
         };
-        if catalog.psi() != unit.psi {
+        if catalog.psi() != unit.psi || catalog.callables() != &unit.callables {
             return Err("runtime evidence declaration catalog belongs to another Terminal input");
         }
         let calls = catalog
@@ -15809,20 +15920,29 @@ mod runtime_evidence {
             .functions
             .iter()
             .flat_map(|function| function.evidence_contract_lanes.iter().cloned())
+            .chain(
+                catalog
+                    .lanes()
+                    .iter()
+                    .filter(|lane| {
+                        matches!(lane.owner, terminal_psi::EvidenceCallableOwner::Runtime(_))
+                    })
+                    .cloned(),
+            )
             .collect::<Vec<_>>();
         for function in &unit.functions {
             let expected = catalog
                 .lanes()
                 .iter()
-                .filter(|lane| lane.machine == function.machine)
+                .filter(|lane| {
+                    lane.owner == terminal_psi::EvidenceCallableOwner::Machine(function.machine)
+                })
                 .collect::<Vec<_>>();
             if !function.evidence_contract_lanes.iter().eq(expected) {
                 return Err("optimizer changed the verified evidence declaration lane");
             }
         }
-        let consumes_snapshots = calls
-            .iter()
-            .any(|call| call.runtime_call.is_some() && !call.evidence_arguments.is_empty());
+        let consumes_snapshots = calls.iter().any(|call| call.runtime_call.is_some());
         let checks_calls = consumes_snapshots
             || lanes
                 .iter()
@@ -15850,7 +15970,7 @@ mod runtime_evidence {
                 for (index, node) in block.nodes.iter().enumerate() {
                     let (
                         site,
-                        callee,
+                        target,
                         role,
                         arguments,
                         structural_arguments,
@@ -15866,7 +15986,7 @@ mod runtime_evidence {
                             ..
                         } => (
                             (*psi_operation).into(),
-                            *callee,
+                            terminal_psi::EvidenceCallableTarget::Machine(*callee),
                             DirectCallRole::Scalar,
                             arguments.clone(),
                             Vec::new(),
@@ -15884,8 +16004,18 @@ mod runtime_evidence {
                             result,
                             ..
                         } => {
-                            let Some(callee) = callee.machine() else {
-                                continue;
+                            let target = match callee {
+                                abstract_operations::AbstractCallTarget::Machine(machine) => {
+                                    terminal_psi::EvidenceCallableTarget::Machine(*machine)
+                                }
+                                abstract_operations::AbstractCallTarget::Callable {
+                                    callee,
+                                    contract,
+                                } => terminal_psi::EvidenceCallableTarget::Runtime {
+                                    contract: *contract,
+                                    callee: *callee,
+                                },
+                                abstract_operations::AbstractCallTarget::Dynamic { .. } => continue,
                             };
                             let (role, result, selected) = match result {
                                 R::Unit => (
@@ -15912,7 +16042,7 @@ mod runtime_evidence {
                             };
                             (
                                 (*psi_operation).into(),
-                                callee,
+                                target,
                                 role,
                                 arguments.clone(),
                                 structural_arguments.clone(),
@@ -15928,7 +16058,7 @@ mod runtime_evidence {
                             ..
                         } => (
                             semantic_vocabulary::InvocationSite::InvokeNoNormal(*psi_edge),
-                            *callee,
+                            terminal_psi::EvidenceCallableTarget::Machine(*callee),
                             DirectCallRole::NoNormal,
                             arguments.clone(),
                             structural_arguments.clone(),
@@ -15944,7 +16074,7 @@ mod runtime_evidence {
                             u32::try_from(index)
                                 .map_err(|_| "current evidence operation position exceeds u32")?,
                         ),
-                        callee,
+                        target,
                         role,
                         arguments,
                         structural_arguments,
@@ -15953,11 +16083,9 @@ mod runtime_evidence {
                     });
                 }
             }
-            let observes = calls.iter().any(|call| {
-                call.caller == function.machine
-                    && call.runtime_call.is_some()
-                    && !call.evidence_arguments.is_empty()
-            });
+            let observes = calls
+                .iter()
+                .any(|call| call.caller == function.machine && call.runtime_call.is_some());
             let mut values = Vec::new();
             if observes {
                 values.extend(function.parameters.iter().map(|value| value.value));
@@ -16017,8 +16145,10 @@ mod runtime_evidence {
         }
         validate_runtime_evidence_inputs_in(&RuntimeEvidenceInputs {
             identities: &unit.identities,
+            callables: &unit.callables,
             structural_types: &unit.structural_types,
             structural_domains: &unit.structural_domains,
+            proposition_declarations: catalog.proposition_declarations(),
             proposition_applications: catalog.applications(),
             evidence_terms: catalog.terms(),
             evidence_contract_lanes: &lanes,
@@ -16202,6 +16332,8 @@ pub(crate) mod services {
         boundaries: &BTreeMap<BoundaryMachineId, &terminal_psi::BoundaryMachineDeclaration>,
         services: &BTreeMap<ServiceId, &terminal_psi::ServiceDeclaration>,
     ) -> Result<terminal_psi::TerminalRootServiceReach, OptimizationUnitValidationError> {
+        let callable_invocations = crate::callable_values::optimized_callable_invocations(unit)
+            .map_err(OptimizationUnitValidationError::CallableValueProvenance)?;
         let dependencies = unit
             .root_service_reach
             .installation_dependencies
@@ -16232,7 +16364,34 @@ pub(crate) mod services {
                             _ => None,
                         }),
                 );
-                pending.extend(unit.call_machine_references(operation));
+                for reference in unit.call_machine_references(operation) {
+                    match reference {
+                        optimization_unit::CallMachineReference::Declaration(machine) => {
+                            pending.push(machine)
+                        }
+                        optimization_unit::CallMachineReference::Callable { contract, .. } => {
+                            let contract = unit.callables.contract(contract).ok_or(
+                                OptimizationUnitValidationError::CallableValueProvenance(
+                                    "root service reach lost its exact callable contract",
+                                ),
+                            )?;
+                            concrete.extend(contract.envelope.service_reach.iter().copied());
+                            let operation = operation.psi_operation().ok_or(
+                                OptimizationUnitValidationError::CallableValueProvenance(
+                                    "root service reach lost its callable operation identity",
+                                ),
+                            )?;
+                            if let Some(summary) = &callable_invocations
+                                && let Some(row) =
+                                    summary.operation(function.machine, operation).map_err(
+                                        OptimizationUnitValidationError::CallableValueProvenance,
+                                    )?
+                            {
+                                pending.extend(row.selected_machines.iter().copied());
+                            }
+                        }
+                    }
+                }
                 match operation {
                     O::BoundaryCall { boundary, .. } => {
                         let declaration = boundaries.get(boundary).copied().ok_or(

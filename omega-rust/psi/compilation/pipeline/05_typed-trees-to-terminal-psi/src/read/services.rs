@@ -1,13 +1,1051 @@
-//! A boundary invocation keeps the actual applied service and its parents.
-//! Build this graph from the shared trait-application owner; a missing parent
-//! is unavailable, and a provider choice cannot replace its declaration.
+//! Keep each callable's authored permissions separate from what its body reaches.
+//! Private omitted axes are inferred from actual calls, never from callers or a
+//! list of eligible implementations. Published axes are checked as ceilings.
 
-use semantic_vocabulary::{MachineId, ServiceId};
-use terminal_check_tables::{Checked, Construct};
-use terminal_psi::{ServiceDeclaration, TerminalModule};
-use typed_trees::trait_definition::{AppliedTraitScope, TraitApplicationArguments};
+use crate::reach::{SourceEnvelope, SourceInvocation as Invocation};
+use language_semantics::{
+    ServiceReachId, ServiceReachRowId, TerminationGuarantee, TerminationInterface,
+};
+use semantic_vocabulary::{ContractId, IdTable, MachineId};
+use terminal_check_tables::{Checked, Construct, Refusal, RefusalReason};
+use terminal_psi::{TerminalCallableTermination, TerminalModule};
+use typed_trees::TypedTrees;
+use typed_trees::signature::{AuthoredInvocation, AuthoredInvocationTarget, StateSignature};
 
 use super::Program;
+use crate::body::{
+    Body, CallTarget, Expression, ExpressionKind as E, Statement, Target, ValueType,
+};
+
+pub(crate) fn unavailable(machine: MachineId, detail: impl Into<String>) -> Refusal {
+    Refusal {
+        source_span: None,
+        machine,
+        concerns: Construct::Machine,
+        reason: RefusalReason::Unsupported,
+        detail: detail.into(),
+    }
+}
+
+pub(super) fn service(
+    typed: &TypedTrees,
+    context: MachineId,
+    id: ServiceReachId,
+) -> Checked<ServiceReachId> {
+    typed
+        .service_reaches
+        .definition(id)
+        .ok_or_else(|| unavailable(context, "service permission names an absent declaration"))?;
+    Ok(id)
+}
+
+pub(super) fn service_closure(
+    typed: &TypedTrees,
+    context: MachineId,
+    roots: &[ServiceReachId],
+) -> Checked<Vec<ServiceReachId>> {
+    crate::reach::source_closure(typed, context, roots)
+}
+
+pub(crate) fn finite_reach(
+    typed: &TypedTrees,
+    context: MachineId,
+    mut row: ServiceReachRowId,
+) -> Checked<Vec<ServiceReachId>> {
+    let mut active = Vec::new();
+    loop {
+        if row.0 == 0 || row.0 as usize > typed.service_reach_rows.len() || active.contains(&row) {
+            return Err(unavailable(
+                context,
+                "callable has an open, stale or cyclic service ceiling",
+            ));
+        }
+        active.push(row);
+        match typed.service_reach_rows.abstract_bound(row) {
+            Some(bound) => row = bound,
+            None => return service_closure(typed, context, typed.service_reach_rows.services(row)),
+        }
+    }
+}
+
+pub(super) fn invocations(
+    typed: &TypedTrees,
+    context: MachineId,
+    authored: &[AuthoredInvocation],
+    parameters: arena::RootRows<'_, typed_trees::signature::StateParameter>,
+) -> Checked<Vec<Invocation>> {
+    let mut targets = Vec::new();
+    for invocation in authored {
+        let target = match invocation.target {
+            AuthoredInvocationTarget::Parameter { ordinal, symbol }
+                if symbol.is_valid()
+                    && parameters
+                        .get(ordinal as usize)
+                        .is_some_and(|parameter| parameter.symbol == symbol) =>
+            {
+                let source = ordinal as usize;
+                if parameters[source].relevance != language_core::BindingRelevance::Relevant {
+                    return Err(unavailable(
+                        context,
+                        "invocation permission names an erased formal",
+                    ));
+                }
+                let runtime = parameters
+                    .slice(0..source)
+                    .iter()
+                    .filter(|formal| formal.relevance == language_core::BindingRelevance::Relevant)
+                    .count();
+                Invocation::Parameter(u32::try_from(runtime).map_err(|_| {
+                    unavailable(context, "invocation runtime parameter coordinate overflow")
+                })?)
+            }
+            AuthoredInvocationTarget::Service(symbol) if symbol.is_valid() => {
+                let id = typed.service_reaches.id_for_symbol(symbol).ok_or_else(|| {
+                    unavailable(
+                        context,
+                        "invocation permission has no exact service declaration",
+                    )
+                })?;
+                Invocation::Service(service(typed, context, id)?)
+            }
+            _ => {
+                return Err(unavailable(
+                    context,
+                    "invocation permission has an unresolved target",
+                ));
+            }
+        };
+        targets.push(target);
+    }
+    targets.sort();
+    targets.dedup();
+    Ok(targets)
+}
+
+pub(super) fn termination(
+    context: MachineId,
+    guarantee: &TerminationGuarantee,
+) -> Checked<TerminalCallableTermination> {
+    match guarantee {
+        TerminationGuarantee::NoGuarantee => Ok(TerminalCallableTermination::NotGuaranteed),
+        TerminationGuarantee::Terminates { premises } if premises.is_empty() => {
+            Ok(TerminalCallableTermination::Terminates {
+                premises: Vec::new(),
+            })
+        }
+        TerminationGuarantee::Terminates { .. } => Err(unavailable(
+            context,
+            "callable termination premises need retained lowered progress subjects",
+        )),
+    }
+}
+
+impl Program<'_> {
+    pub(super) fn signature_envelope(
+        &self,
+        context: MachineId,
+        signature: &StateSignature,
+    ) -> Checked<SourceEnvelope> {
+        let authored = self
+            .typed
+            .signature_invokes
+            .span(signature.invokes)
+            .ok_or_else(|| unavailable(context, "callable invocation permission span is stale"))?;
+        let parameters = self
+            .typed
+            .state_parameters
+            .span(signature.parameters)
+            .ok_or_else(|| unavailable(context, "callable parameter permission span is stale"))?;
+        Ok(SourceEnvelope {
+            service_reach: finite_reach(self.typed, context, signature.service_reach_row)?,
+            invocations: invocations(self.typed, context, authored, parameters)?,
+            suspends: signature.suspends,
+            blocks: signature.blocks,
+            termination: termination(context, &signature.termination_guarantee)?,
+        })
+    }
+
+    pub(crate) fn finish_operational_envelopes(
+        &mut self,
+        bodies: &IdTable<MachineId, Body>,
+        components: &crate::components::Components,
+    ) -> Checked<()> {
+        let declaration_policies = self.declaration_policies()?;
+        // An abstract requirement can defer its operational contract to a
+        // later application. The generic witness retains that open Signature;
+        // it cannot publish a complete callable envelope or supply descriptors.
+        if let Some(requirement) = self.requirements.iter().copied().find(|id| {
+            self.symbols
+                .get(*id)
+                .is_some_and(|symbol| self.typed.machine_by_symbol(*symbol).is_none())
+                && !matches!(self.callables.envelopes.get(*id), Some(Some(_)))
+        }) {
+            if !self.callables.contracts.is_empty() || !self.callables.descriptors.is_empty() {
+                return Err(unavailable(
+                    requirement,
+                    "runtime callable needs the abstract requirement's complete operational contract",
+                ));
+            }
+            for (contract, policy) in declaration_policies.iter() {
+                if policy.reach.is_none()
+                    || policy.invokes.is_none()
+                    || policy.suspends.is_none()
+                    || policy.blocks.is_none()
+                {
+                    let caller = self
+                        .declaration_selections
+                        .get(contract)
+                        .and_then(Option::as_ref)
+                        .map_or(requirement, |selected| selected.0);
+                    return Err(unavailable(
+                        caller,
+                        "selected public contract needs completion in its open abstract operational context",
+                    ));
+                }
+            }
+            return Ok(());
+        }
+        let mut policies = IdTable::default();
+        let mut published = IdTable::default();
+        let mut calls = IdTable::default();
+        for (id, symbol) in self.symbols.iter() {
+            let operational = self
+                .signatures
+                .get(id)
+                .ok_or_else(|| unavailable(id, "callable has no retained signature"))?
+                .operational;
+            let policy = if let Some(policy) = self
+                .declared_envelope_policies
+                .get(id)
+                .and_then(Option::as_ref)
+            {
+                policy.clone()
+            } else if let Some(machine) = self.typed.machine_by_symbol(*symbol) {
+                let authored = self
+                    .typed
+                    .signature_invokes
+                    .span(machine.invokes)
+                    .ok_or_else(|| unavailable(id, "named invocation permission span is stale"))?;
+                let states = self
+                    .typed
+                    .machine_states
+                    .span(machine.states)
+                    .ok_or_else(|| unavailable(id, "named callable has a stale state span"))?;
+                let Some([state]) = states.as_array() else {
+                    return Err(unavailable(
+                        id,
+                        "named callable needs one exact entry state",
+                    ));
+                };
+                let parameters = self
+                    .typed
+                    .state_parameters
+                    .span(state.parameters)
+                    .ok_or_else(|| unavailable(id, "named callable has a stale parameter span"))?;
+                let termination = match &machine.termination_plan.interface {
+                    TerminationInterface::Published(guarantee) => termination(id, guarantee)?,
+                    TerminationInterface::InternalDerived => {
+                        TerminalCallableTermination::NotGuaranteed
+                    }
+                };
+                Policy {
+                    reach: crate::reach::written_ceiling(self.typed, id, *symbol)?,
+                    invokes: if !authored.is_empty() {
+                        Some(invocations(self.typed, id, authored, parameters)?)
+                    } else {
+                        None
+                    },
+                    suspends: operational.suspension,
+                    blocks: operational.blocking,
+                    termination,
+                }
+            } else {
+                let envelope = self
+                    .callables
+                    .envelopes
+                    .get(id)
+                    .and_then(Option::as_ref)
+                    .ok_or_else(|| {
+                        unavailable(id, "abstract callable has no retained operational contract")
+                    })?;
+                Policy {
+                    reach: Some(envelope.service_reach.clone()),
+                    invokes: Some(envelope.invocations.clone()),
+                    suspends: Some(envelope.suspends),
+                    blocks: Some(envelope.blocks),
+                    termination: envelope.termination.clone(),
+                }
+            };
+            published.push(policy.initial());
+            policies.push(policy);
+            let body = terminal_check_tables::row(bodies, id, id, Construct::Machine)?;
+            let mut found = Vec::new();
+            for statement in &body.statements {
+                collect_statement(statement, &mut found);
+            }
+            calls.push(found);
+        }
+        loop {
+            let mut changed = false;
+            for (id, uses) in calls.iter() {
+                let mut reached = empty();
+                for invocation in uses {
+                    let target_signature = self.source_call_signature(
+                        id,
+                        invocation.target,
+                        invocation.required_contract,
+                    )?;
+                    let envelope = if let Some(required) = invocation.required_contract {
+                        self.declaration_envelopes.get(required).ok_or_else(|| {
+                            unavailable(
+                                id,
+                                "selected public contract has no complete envelope coordinate",
+                            )
+                        })?
+                    } else {
+                        match invocation.target {
+                            CallTarget::Machine(callee) => terminal_check_tables::row(
+                                &published,
+                                *callee,
+                                id,
+                                Construct::Machine,
+                            )?,
+                            CallTarget::Selected { contract, .. } => {
+                                &self
+                                    .callables
+                                    .contracts
+                                    .get(*contract)
+                                    .ok_or_else(|| {
+                                        unavailable(
+                                            id,
+                                            "invocation lost its retained callable contract",
+                                        )
+                                    })?
+                                    .envelope
+                            }
+                            CallTarget::Boundary { boundary, .. } => {
+                                &self
+                                    .boundaries
+                                    .row(*boundary)
+                                    .ok_or_else(|| {
+                                        unavailable(
+                                            id,
+                                            "invocation lost its retained boundary contract",
+                                        )
+                                    })?
+                                    .envelope
+                            }
+                        }
+                    };
+                    union_services(&mut reached.service_reach, &envelope.service_reach);
+                    reached.suspends |= envelope.suspends;
+                    reached.blocks |= envelope.blocks;
+                    for target in &envelope.invocations {
+                        match target {
+                            Invocation::Service(service) => {
+                                union(&mut reached.invocations, &[Invocation::Service(*service)])
+                            }
+                            Invocation::Parameter(position) => {
+                                let source_position = target_signature
+                                    .source_parameter_position(*position as usize)
+                                    .ok_or_else(|| {
+                                        unavailable(
+                                            id,
+                                            "invocation permission names no runtime formal",
+                                        )
+                                    })?;
+                                let actual =
+                                    invocation.arguments.get(source_position).ok_or_else(|| {
+                                        unavailable(
+                                            id,
+                                            "invocation permission lost its exact actual",
+                                        )
+                                    })?;
+                                match &actual.kind {
+                                    E::Slot(slot)
+                                        if *slot
+                                            < self
+                                                .signatures
+                                                .get(id)
+                                                .ok_or_else(|| {
+                                                    unavailable(id, "caller has no signature")
+                                                })?
+                                                .parameters
+                                                .len() =>
+                                    {
+                                        union(
+                                            &mut reached.invocations,
+                                            &[Invocation::Parameter(
+                                                u32::try_from(self.signatures.get(id)
+                                                    .and_then(|signature| signature.runtime_parameter_position(*slot))
+                                                    .ok_or_else(|| unavailable(id, "invocation actual names no runtime caller formal"))?).map_err(|_| {
+                                                    unavailable(id, "invocation parameter coordinate overflow")
+                                                })?,
+                                            )],
+                                        )
+                                    }
+                                    _ => {
+                                        let Some(ValueType::Scalar(
+                                            semantic_vocabulary::ScalarType::Callable(contract),
+                                            _,
+                                        )) = actual.result
+                                        else {
+                                            return Err(unavailable(
+                                                id,
+                                                "invocation permission actual has no retained callable type",
+                                            ));
+                                        };
+                                        let actual = self.callables.contracts.get(contract).ok_or_else(|| unavailable(id, "invoked actual has no retained callable contract"))?;
+                                        union_services(
+                                            &mut reached.service_reach,
+                                            &actual.envelope.service_reach,
+                                        );
+                                        reached.suspends |= actual.envelope.suspends;
+                                        reached.blocks |= actual.envelope.blocks;
+                                        for dependency in &actual.envelope.invocations {
+                                            match dependency {
+                                                Invocation::Service(service) => union(
+                                                    &mut reached.invocations,
+                                                    &[Invocation::Service(*service)],
+                                                ),
+                                                Invocation::Parameter(_) => {
+                                                    return Err(unavailable(
+                                                        id,
+                                                        "nested invocation permission needs the invocation's exact actual mapping",
+                                                    ));
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if let CallTarget::Selected { callable, .. } = invocation.target
+                        && let E::Slot(slot) = callable.kind
+                        && slot
+                            < self
+                                .signatures
+                                .get(id)
+                                .ok_or_else(|| unavailable(id, "caller has no signature"))?
+                                .parameters
+                                .len()
+                    {
+                        union(
+                            &mut reached.invocations,
+                            &[Invocation::Parameter(
+                                u32::try_from(
+                                    self.signatures
+                                        .get(id)
+                                        .and_then(|signature| {
+                                            signature.runtime_parameter_position(slot)
+                                        })
+                                        .ok_or_else(|| {
+                                            unavailable(
+                                                id,
+                                                "selected callee names no runtime caller formal",
+                                            )
+                                        })?,
+                                )
+                                .map_err(|_| {
+                                    unavailable(id, "invocation parameter coordinate overflow")
+                                })?,
+                            )],
+                        );
+                    }
+                }
+                let next = policies
+                    .get(id)
+                    .ok_or_else(|| unavailable(id, "callable has no header policy"))?
+                    .close(id, reached)?;
+                let previous = published
+                    .get_mut(id)
+                    .ok_or_else(|| unavailable(id, "callable has no envelope row"))?;
+                if *previous != next {
+                    *previous = next;
+                    changed = true;
+                }
+            }
+            for (contract, policy) in declaration_policies.iter() {
+                let selected = self.declaration_selections.get(contract).ok_or_else(|| {
+                    unavailable(
+                        MachineId::new(1).expect("nonzero diagnostic"),
+                        "public contract lost its selection coordinate",
+                    )
+                })?;
+                let Some((caller, callee, ..)) = selected else {
+                    continue;
+                };
+                let reached = published
+                    .get(*callee)
+                    .ok_or_else(|| {
+                        unavailable(
+                            *caller,
+                            "selected public contract has no actual body envelope",
+                        )
+                    })?
+                    .clone();
+                let next = policy.complete(reached);
+                let previous = self
+                    .declaration_envelopes
+                    .get_mut(contract)
+                    .ok_or_else(|| {
+                        unavailable(
+                            *caller,
+                            "selected public contract lost its complete envelope coordinate",
+                        )
+                    })?;
+                if *previous != next {
+                    *previous = next;
+                    changed = true;
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+        // The completed envelopes are carried into Terminal Psi. Its checker
+        // validates acknowledgements, source positions and suspension evidence
+        // on the actual emitted calls.
+        // A private body's progress belongs to this checked closure. Its
+        // ranked cycles still owe their comparisons; a silent exported or
+        // selected requirement cannot borrow that private evidence.
+        let private = self.symbols.map(|id, symbol| {
+            !self.requirements.contains(&id)
+                && self
+                    .typed
+                    .machine_by_symbol(*symbol)
+                    .is_some_and(|machine| !machine.is_public && machine.body_is_present)
+        });
+        let mut local_termination = policies.map(|id, policy| {
+            matches!(
+                policy.termination,
+                TerminalCallableTermination::Terminates { .. }
+            ) || (private.get(id) == Some(&true)
+                && !components.reaches_unranked_cycle(crate::components::index(id)))
+        });
+        // Callee components are settled first. A ranked cycle may assume its
+        // own progress only while every member and outgoing call supports it.
+        for (members, _) in components.callee_first() {
+            let mut complete = true;
+            for &id in members {
+                let uses = calls
+                    .get(id)
+                    .ok_or_else(|| unavailable(id, "progress subject has no invocation row"))?;
+                if local_termination.get(id) != Some(&true)
+                    || !uses
+                        .iter()
+                        .all(|invocation| call_terminates(self, invocation, &local_termination))
+                {
+                    complete = false;
+                    break;
+                }
+            }
+            if !complete {
+                for &id in members {
+                    if private.get(id) == Some(&true)
+                        && !matches!(
+                            policies.get(id).map(|policy| &policy.termination),
+                            Some(TerminalCallableTermination::Terminates { .. })
+                        )
+                    {
+                        *local_termination
+                            .get_mut(id)
+                            .ok_or_else(|| unavailable(id, "termination subject has no row"))? =
+                            false;
+                    }
+                }
+            }
+        }
+        for (id, eligible) in private.iter() {
+            if *eligible && local_termination.get(id) == Some(&true) {
+                published
+                    .get_mut(id)
+                    .ok_or_else(|| unavailable(id, "private progress subject has no envelope"))?
+                    .termination = TerminalCallableTermination::Terminates {
+                    premises: Vec::new(),
+                };
+            }
+        }
+        for (id, envelope) in published.iter() {
+            if matches!(
+                envelope.termination,
+                TerminalCallableTermination::Terminates { .. }
+            ) && calls
+                .get(id)
+                .ok_or_else(|| unavailable(id, "termination subject has no invocations"))?
+                .iter()
+                .any(|invocation| !call_terminates(self, invocation, &local_termination))
+            {
+                return Err(unavailable(
+                    id,
+                    "termination promise invokes a callable without a termination guarantee",
+                ));
+            }
+            self.callables
+                .bind_machine_envelope(id, envelope.clone())
+                .map_err(|reason| unavailable(id, reason))?;
+        }
+        Ok(())
+    }
+
+    fn declaration_policies(&self) -> Checked<IdTable<ContractId, Policy>> {
+        let diagnostic = MachineId::new(1).expect("nonzero diagnostic identity");
+        if self.declaration_signatures.len() != self.declaration_sources.len()
+            || self.declaration_signatures.len() != self.declaration_selections.len()
+            || self.declaration_signatures.len() != self.declaration_envelopes.len()
+        {
+            return Err(unavailable(
+                diagnostic,
+                "public contracts lost their exact source coordinate tables",
+            ));
+        }
+        let mut policies = IdTable::default();
+        for (contract, signature) in self.declaration_signatures.iter() {
+            let envelope = self
+                .declaration_envelopes
+                .get(contract)
+                .ok_or_else(|| unavailable(diagnostic, "public contract has no source envelope"))?;
+            let policy = Policy {
+                reach: matches!(signature.reaches, crate::Ceiling::Authored(_))
+                    .then(|| envelope.service_reach.clone()),
+                invokes: matches!(signature.invokes, crate::Ceiling::Authored(_))
+                    .then(|| envelope.invocations.clone()),
+                suspends: signature.operational.suspension,
+                blocks: signature.operational.blocking,
+                termination: envelope.termination.clone(),
+            };
+            if matches!(self.declaration_selections.get(contract), Some(None))
+                && (policy.reach.is_none()
+                    || policy.invokes.is_none()
+                    || policy.suspends.is_none()
+                    || policy.blocks.is_none())
+            {
+                return Err(unavailable(
+                    diagnostic,
+                    "unselected public contract retains an open operational axis",
+                ));
+            }
+            if policies.push(policy) != contract {
+                return Err(unavailable(
+                    diagnostic,
+                    "public contract policy lost its exact coordinate",
+                ));
+            }
+        }
+        Ok(policies)
+    }
+
+    pub(super) fn retain_requirement_policy(
+        &mut self,
+        id: MachineId,
+        signature: &StateSignature,
+        source_owner: symbols::SymbolHandle,
+    ) -> Checked<()> {
+        let parameters = self
+            .typed
+            .state_parameters
+            .span(signature.parameters)
+            .ok_or_else(|| unavailable(id, "requirement policy has a stale parameter span"))?;
+        let authored = self
+            .typed
+            .signature_invokes
+            .span(signature.invokes)
+            .ok_or_else(|| unavailable(id, "requirement policy has a stale invocation span"))?;
+        let mut reach = if crate::reach::has_authored_ceiling(self.typed, id, signature.symbol)? {
+            if signature.service_reach_is_installation_bound && source_owner != signature.symbol {
+                crate::reach::written_ceiling(self.typed, id, source_owner)?
+            } else {
+                Some(finite_reach(self.typed, id, signature.service_reach_row)?)
+            }
+        } else {
+            None
+        };
+        // An open requirement defers to the implementation's published bound.
+        // Infer from its body only when that declaration also omits the bound.
+        if reach.is_none() && source_owner != signature.symbol {
+            reach = crate::reach::written_ceiling(self.typed, id, source_owner)?;
+        }
+        let policy = Policy {
+            reach,
+            invokes: Some(invocations(self.typed, id, authored, parameters)?),
+            suspends: Some(signature.suspends),
+            blocks: Some(signature.blocks),
+            termination: termination(id, &signature.termination_guarantee)?,
+        };
+        while self.declared_envelope_policies.len() < id.get() as usize {
+            self.declared_envelope_policies.push(None);
+        }
+        let saved = self
+            .declared_envelope_policies
+            .get_mut(id)
+            .ok_or_else(|| unavailable(id, "requirement policy has no exact callable row"))?;
+        if saved.is_some() {
+            return Err(unavailable(id, "requirement policy was already retained"));
+        }
+        *saved = Some(policy);
+        Ok(())
+    }
+}
+
+fn call_terminates(
+    program: &Program<'_>,
+    invocation: &Use<'_>,
+    named: &IdTable<MachineId, bool>,
+) -> bool {
+    if let Some(required) = invocation.required_contract {
+        return program
+            .declaration_envelopes
+            .get(required)
+            .is_some_and(|envelope| {
+                matches!(
+                    envelope.termination,
+                    TerminalCallableTermination::Terminates { .. }
+                )
+            });
+    }
+    match invocation.target {
+        CallTarget::Machine(machine) => named.get(*machine) == Some(&true),
+        CallTarget::Selected { contract, .. } => program
+            .callables
+            .contracts
+            .get(*contract)
+            .is_some_and(|row| {
+                matches!(
+                    row.envelope.termination,
+                    TerminalCallableTermination::Terminates { .. }
+                )
+            }),
+        CallTarget::Boundary { boundary, .. } => {
+            program.boundaries.row(*boundary).is_some_and(|row| {
+                matches!(
+                    row.envelope.termination,
+                    TerminalCallableTermination::Terminates { .. }
+                )
+            })
+        }
+    }
+}
+
+#[derive(Clone)]
+pub(super) struct Policy {
+    reach: Option<Vec<ServiceReachId>>,
+    invokes: Option<Vec<Invocation>>,
+    suspends: Option<bool>,
+    blocks: Option<bool>,
+    termination: TerminalCallableTermination,
+}
+impl Policy {
+    fn initial(&self) -> SourceEnvelope {
+        SourceEnvelope {
+            service_reach: self.reach.clone().unwrap_or_default(),
+            invocations: self.invokes.clone().unwrap_or_default(),
+            suspends: self.suspends.unwrap_or(false),
+            blocks: self.blocks.unwrap_or(false),
+            termination: self.termination.clone(),
+        }
+    }
+    fn close(&self, context: MachineId, reached: SourceEnvelope) -> Checked<SourceEnvelope> {
+        if self.invokes.as_ref().is_some_and(|ceiling| {
+            reached
+                .invocations
+                .iter()
+                .any(|value| !ceiling.contains(value))
+        }) {
+            return Err(unavailable(
+                context,
+                "body invokes outside its published ceiling",
+            ));
+        }
+        // Keep authored operational bounds even when a call exceeds them.
+        // The Terminal checker rejects that actual call at its source position.
+        Ok(self.complete(reached))
+    }
+    fn complete(&self, reached: SourceEnvelope) -> SourceEnvelope {
+        SourceEnvelope {
+            service_reach: self.reach.clone().unwrap_or(reached.service_reach),
+            invocations: self.invokes.clone().unwrap_or(reached.invocations),
+            suspends: self.suspends.unwrap_or(reached.suspends),
+            blocks: self.blocks.unwrap_or(reached.blocks),
+            termination: self.termination.clone(),
+        }
+    }
+}
+fn empty() -> SourceEnvelope {
+    SourceEnvelope {
+        service_reach: Vec::new(),
+        invocations: Vec::new(),
+        suspends: false,
+        blocks: false,
+        termination: TerminalCallableTermination::NotGuaranteed,
+    }
+}
+fn union_services(to: &mut Vec<ServiceReachId>, from: &[ServiceReachId]) {
+    to.extend_from_slice(from);
+    to.sort_by_key(|service| service.0);
+    to.dedup();
+}
+fn union<T: Clone + Ord>(to: &mut Vec<T>, from: &[T]) {
+    to.extend_from_slice(from);
+    to.sort();
+    to.dedup();
+}
+struct Use<'a> {
+    target: &'a CallTarget,
+    required_contract: Option<ContractId>,
+    arguments: &'a [Expression],
+}
+
+fn collect_statement<'a>(statement: &'a Statement, calls: &mut Vec<Use<'a>>) {
+    match statement {
+        Statement::Bind { value, .. }
+        | Statement::Evaluate {
+            expression: value, ..
+        }
+        | Statement::Decompose { subject: value } => collect_expression(value, calls),
+        Statement::Store {
+            destination, value, ..
+        } => {
+            collect_expression(destination, calls);
+            collect_expression(value, calls);
+        }
+        // Capturing an existing reference aliases its already evaluated
+        // binding; its initializer's calls were charged at that earlier Bind.
+        Statement::CaptureReference { .. } => {}
+        Statement::Witness { .. } | Statement::Declare { .. } => {}
+        Statement::Dispatch {
+            subject,
+            arms,
+            default,
+            ..
+        } => {
+            collect_expression(subject, calls);
+            for (_, target, _) in arms {
+                collect_target(target, calls);
+            }
+            if let Some((target, _)) = default {
+                collect_target(target, calls);
+            }
+        }
+        Statement::Arm { guard, target, .. } => {
+            if let Some(guard) = guard {
+                collect_expression(guard, calls);
+            }
+            collect_target(target, calls);
+        }
+    }
+}
+fn collect_target<'a>(target: &'a Target, calls: &mut Vec<Use<'a>>) {
+    if let Target::Value(value) = target {
+        collect_expression(value, calls);
+    }
+}
+fn collect_expression<'a>(expression: &'a Expression, calls: &mut Vec<Use<'a>>) {
+    match &expression.kind {
+        E::Call {
+            callee,
+            required_contract,
+            arguments,
+            ..
+        } => {
+            if let CallTarget::Selected { callable, .. } = callee {
+                collect_expression(callable, calls);
+            }
+            for argument in arguments {
+                collect_expression(argument, calls);
+            }
+            calls.push(Use {
+                target: callee,
+                required_contract: *required_contract,
+                arguments,
+            });
+        }
+        E::Field { base, .. }
+        | E::CollectionView { base, .. }
+        | E::CollectionMeasure { base, .. }
+        | E::Establish { operand: base, .. }
+        | E::Payload { base, .. }
+        | E::IsCase { subject: base, .. }
+        | E::Borrow { place: base, .. }
+        | E::Not(base)
+        | E::BitwiseNot(base)
+        | E::Cast(base)
+        | E::Requalify(base)
+        | E::Referent(base) => collect_expression(base, calls),
+        E::Record { fields } | E::Case { fields, .. } => {
+            for (_, field) in fields {
+                collect_expression(field, calls);
+            }
+        }
+        E::Match {
+            subject,
+            arms,
+            default,
+            ..
+        } => {
+            collect_expression(subject, calls);
+            for (selector, arm) in arms {
+                if let crate::body::Selector::Value(pattern) = selector {
+                    collect_expression(pattern, calls);
+                }
+                collect_expression(arm, calls);
+            }
+            if let Some(default) = default {
+                collect_expression(default, calls);
+            }
+        }
+        E::Strict { left, right, .. } | E::ShortCircuit { left, right, .. } => {
+            collect_expression(left, calls);
+            collect_expression(right, calls);
+        }
+        E::Array { elements } => {
+            for element in elements {
+                collect_expression(element, calls);
+            }
+        }
+        E::CollectionSubslice { base, start, end } => {
+            collect_expression(base, calls);
+            if let Some(start) = start {
+                collect_expression(start, calls);
+            }
+            if let Some(end) = end {
+                collect_expression(end, calls);
+            }
+        }
+        E::Index { base, index } | E::ByteElement { base, index } => {
+            collect_expression(base, calls);
+            collect_expression(index, calls);
+        }
+        E::Atomic(operation) => {
+            for operand in operation.inputs() {
+                collect_expression(operand, calls);
+            }
+        }
+        E::SavedSubject(_)
+        | E::Float(_)
+        | E::ScalarApplication { .. }
+        | E::ByteLiteral(_)
+        | E::Integer(_)
+        | E::Boolean(_)
+        | E::Slot(_)
+        | E::MachineValue { .. } => {}
+    }
+}
+
+impl Program<'_> {
+    pub(crate) fn prepare_service_bindings(
+        &mut self,
+        context: MachineId,
+    ) -> Checked<Vec<(ServiceReachId, semantic_vocabulary::ServiceId)>> {
+        let mut roots = Vec::new();
+        for (_, row) in self.callables.contracts.iter() {
+            source_roots(&row.envelope, &mut roots);
+        }
+        for (_, row) in self.callables.envelopes.iter() {
+            if let Some(row) = row {
+                source_roots(row, &mut roots);
+            }
+        }
+        for (_, row) in self.declaration_envelopes.iter() {
+            source_roots(row, &mut roots);
+        }
+        for (_, row) in self.boundaries.rows.iter() {
+            source_roots(&row.envelope, &mut roots);
+            roots.extend(row.owning_service);
+        }
+        for row in &self.external_providers.rows {
+            source_roots(&row.envelope, &mut roots);
+        }
+        self.static_contracts.service_roots(&mut roots);
+        let roots = crate::reach::source_closure(self.typed, context, &roots)?;
+        let mut bindings = Vec::with_capacity(roots.len());
+        for source in roots {
+            let symbol = self
+                .typed
+                .service_reaches
+                .definition(source)
+                .ok_or_else(|| unavailable(context, "service declaration is absent"))?
+                .symbol;
+            let declaration = self
+                .typed
+                .trait_definition_by_symbol(symbol)
+                .filter(|declaration| declaration.is_boundary)
+                .ok_or_else(|| {
+                    unavailable(context, "service does not name its exact boundary trait")
+                })?;
+            let id = self.declared_service(context, declaration)?;
+            bindings.push((source, id));
+        }
+        Ok(bindings)
+    }
+
+    pub(crate) fn service_map(&mut self, context: MachineId) -> Checked<crate::reach::ServiceMap> {
+        let bindings = self.prepare_service_bindings(context)?;
+        let services =
+            crate::reach::ServiceMap::prepare(self.typed, context, &self.services, bindings)?;
+        let contracts = self.callables.contracts.keys().collect::<Vec<_>>();
+        for contract in contracts {
+            let row = self.callables.contracts.get_mut(contract).ok_or_else(|| {
+                unavailable(
+                    context,
+                    "callable contract disappeared while projecting its envelope",
+                )
+            })?;
+            row.signature.reaches =
+                crate::Ceiling::Authored(services.row(context, &row.envelope.service_reach)?);
+            row.signature.invokes = crate::Ceiling::Authored(
+                services
+                    .envelope(context, &row.envelope)?
+                    .invocations
+                    .into_iter()
+                    .filter_map(|entry| match entry {
+                        terminal_psi::TerminalCallableInvocation::Service(service) => Some(service),
+                        terminal_psi::TerminalCallableInvocation::Parameter(_) => None,
+                    })
+                    .collect(),
+            );
+        }
+        let boundaries = self.boundaries.rows.keys().collect::<Vec<_>>();
+        for boundary in boundaries {
+            let row = self.boundaries.rows.get_mut(boundary).ok_or_else(|| {
+                unavailable(
+                    context,
+                    "boundary disappeared while projecting its envelope",
+                )
+            })?;
+            row.signature.reaches =
+                crate::Ceiling::Authored(services.row(context, &row.envelope.service_reach)?);
+            row.signature.invokes = crate::Ceiling::Authored(
+                services
+                    .envelope(context, &row.envelope)?
+                    .invocations
+                    .into_iter()
+                    .filter_map(|entry| match entry {
+                        terminal_psi::TerminalCallableInvocation::Service(service) => Some(service),
+                        terminal_psi::TerminalCallableInvocation::Parameter(_) => None,
+                    })
+                    .collect(),
+            );
+        }
+        Ok(services)
+    }
+}
+fn source_roots(envelope: &SourceEnvelope, roots: &mut Vec<ServiceReachId>) {
+    roots.extend_from_slice(&envelope.service_reach);
+    roots.extend(
+        envelope
+            .invocations
+            .iter()
+            .filter_map(|target| match target {
+                Invocation::Service(service) => Some(*service),
+                Invocation::Parameter(_) => None,
+            }),
+    );
+}
+
+use semantic_vocabulary::ServiceId;
+use typed_trees::trait_definition::{AppliedTraitScope, TraitApplicationArguments};
+
 use crate::{Unserved, refuse};
 
 impl<'t> Program<'t> {
@@ -18,6 +1056,11 @@ impl<'t> Program<'t> {
     ) -> Checked<ServiceId> {
         let unavailable =
             |reason| refuse(caller, Construct::Machine, Unserved::Declaration(reason));
+        if !scope.declaration.is_boundary {
+            return Err(unavailable(
+                "ordinary trait cannot declare a service identity",
+            ));
+        }
         if let Some((service, _)) = self
             .services
             .iter()
@@ -34,18 +1077,27 @@ impl<'t> Program<'t> {
             ));
         }
         self.resolving_services.push(scope.declaration.symbol);
-        let parents = (|| {
-            scope
-                .parent_scopes(self.typed)
-                .map_err(unavailable)?
-                .into_iter()
-                .map(|parent| self.service(caller, parent))
-                .collect::<Checked<Vec<_>>>()
+        let parents: Checked<Vec<ServiceId>> = (|| {
+            let declared = scope.parent_scopes(self.typed).map_err(unavailable)?;
+            let mut services = Vec::new();
+            let mut has_ordinary_parent = false;
+            for parent in declared {
+                if parent.declaration.is_boundary {
+                    services.push(self.service(caller, parent)?);
+                } else {
+                    has_ordinary_parent = true;
+                }
+            }
+            if has_ordinary_parent {
+                self.require_boundary_parent_contract(caller, &scope)?;
+            }
+            Ok(services)
         })();
         self.resolving_services.pop();
         let mut parents = parents?;
         parents.sort_unstable();
         parents.dedup();
+        self.admitted_declarations.include(scope.declaration.symbol);
         Ok(self.services.push((scope, parents)))
     }
 
@@ -94,17 +1146,15 @@ impl<'t> Program<'t> {
         requirement: bool,
     ) -> Checked<crate::Ceiling> {
         let typed = self.typed;
-        let mut written = false;
+        let Some(owner) = crate::reach::authored_ceiling_owner(typed, caller, owner)? else {
+            return Ok(crate::Ceiling::Inferred);
+        };
         let mut named = Vec::new();
         for row in typed.authored_service_reach_rows_for(owner) {
             if row.installation_bound && !requirement {
                 continue;
             }
-            written = true;
             named.extend(row.targets.iter().map(|target| target.service));
-        }
-        if !written {
-            return Ok(crate::Ceiling::Inferred);
         }
         Ok(crate::Ceiling::Authored(self.named_row(
             caller,
@@ -174,12 +1224,13 @@ impl<'t> Program<'t> {
     /// synchronous entry", an empty written row. "A row names a parameter
     /// path or a requirement identity." A parameter path stands for the
     /// binding a call supplies, so charging a caller for it needs the
-    /// actual substituted at each call; no slice reads that yet, and it is
-    /// refused by name, never dropped.
+    /// actual substituted at each call. The complete SourceEnvelope retains
+    /// that origin while this signature row records only service entries.
     pub(super) fn entry_ceiling(
         &mut self,
         caller: MachineId,
         rows: &[typed_trees::signature::AuthoredInvocation],
+        parameters: arena::RootRows<'_, typed_trees::signature::StateParameter>,
         bodyless: bool,
     ) -> Checked<crate::Ceiling> {
         use typed_trees::signature::AuthoredInvocationTarget as Named;
@@ -190,11 +1241,20 @@ impl<'t> Program<'t> {
         for row in rows {
             match row.target {
                 Named::Service(requirement) => named.push(requirement),
+                Named::Parameter { ordinal, symbol }
+                    if symbol.is_valid()
+                        && parameters
+                            .get(ordinal as usize)
+                            .is_some_and(|formal| formal.symbol == symbol) =>
+                {
+                    // The full envelope retains this exact formal origin;
+                    // this header row is only its service projection.
+                }
                 Named::Parameter { .. } => {
                     return Err(refuse(
                         caller,
                         Construct::Machine,
-                        Unserved::Machine("invokes naming a parameter path"),
+                        Unserved::Machine("invokes has no exact formal origin"),
                     ));
                 }
                 // "A row names a parameter path or a requirement identity",
@@ -298,265 +1358,6 @@ impl<'t> Program<'t> {
         services.dedup();
         services
     }
-
-    pub(crate) fn publish_boundaries(
-        &self,
-        caller: MachineId,
-        signatures: crate::body::Signatures<'_>,
-        outcomes: &semantic_vocabulary::IdTable<MachineId, crate::Outcome>,
-        records: &crate::lower::places::Records<'_>,
-        qualifications: &mut crate::qualifications::Qualifications,
-        module: &mut TerminalModule,
-    ) -> Checked<()> {
-        let mut boundaries = Vec::with_capacity(self.boundary_symbols.len());
-        for (boundary, owner) in self.boundary_symbols.iter() {
-            let symbol = &owner.symbol;
-            let signature = signatures.get(
-                semantic_vocabulary::TargetMachineCallable::Boundary(boundary),
-                caller,
-            )?;
-            let unavailable =
-                |reason| refuse(caller, Construct::Machine, Unserved::Declaration(reason));
-            let mut rows = [Vec::new(), Vec::new()];
-            for axis in crate::body::Axis::ALL {
-                let crate::Ceiling::Authored(ceiling) = signature.ceiling(axis) else {
-                    return Err(unavailable(match axis {
-                        crate::body::Axis::Reach => {
-                            "boundary declaration has no declared reach ceiling"
-                        }
-                        crate::body::Axis::Entries => {
-                            "boundary declaration has no declared entry ceiling"
-                        }
-                    }));
-                };
-                for service in ceiling {
-                    rows[axis as usize].push(
-                        self.services
-                            .get(*service)
-                            .and_then(|(scope, _)| scope.portable_application_identity(self.typed))
-                            .and_then(|identity| self.typed.type_identity_text(identity))
-                            .filter(|identity| !identity.is_empty())
-                            .ok_or_else(|| {
-                                unavailable("retained service lost its exact application identity")
-                            })?,
-                    );
-                }
-            }
-            let [reach, entries] = rows
-                .each_ref()
-                .map(|row: &Vec<String>| row.iter().map(String::as_str).collect::<Vec<&str>>());
-            let execution = if let Some(application) = owner.application {
-                let (operation, _) = self
-                    .typed
-                    .compiler_primitive_callable_signature(application, *symbol)
-                    .map_err(unavailable)?
-                    .ok_or_else(|| {
-                        unavailable("compiler boundary lost its exact prepared source contract")
-                    })?;
-                let language_core::sealed_intrinsics::CompilerPrimitive::RunCustody(operation) =
-                    operation
-                else {
-                    return Err(unavailable(
-                        "compiler boundary has another operation family",
-                    ));
-                };
-                let bindings = self
-                    .typed
-                    .expression_table
-                    .static_machine_application_bindings(application);
-                let Some(typed_trees::static_applications::StaticMachineBinding {
-                    value: typed_trees::static_applications::StaticMachineBindingValue::Type(policy),
-                    ..
-                }) = bindings.first()
-                else {
-                    return Err(unavailable(
-                        "run custody publisher lost its actual policy operand",
-                    ));
-                };
-                let policy = self
-                    .typed
-                    .type_identity_text(self.typed.package_qualified_type_identity(*policy))
-                    .filter(|text| !text.is_empty())
-                    .ok_or_else(|| unavailable("run custody policy has no actual type identity"))?;
-                let element = match owner.element {
-                    Some(crate::body::ValueType::Scalar(scalar, _)) => {
-                        terminal_psi::StructuralFieldType::Scalar(scalar)
-                    }
-                    Some(crate::body::ValueType::Record(record, _, _)) => {
-                        terminal_psi::StructuralFieldType::Structural(record)
-                    }
-                    _ => {
-                        return Err(unavailable(
-                            "run custody publisher lost its actual element type coordinate",
-                        ));
-                    }
-                };
-                terminal_psi::CheckedBoundaryExecution::RunCustody {
-                    operation,
-                    policy: qualifications.identities.intern(&policy),
-                    element,
-                }
-            } else if let Some(
-                language_core::sealed_intrinsics::SealedIntrinsic::HostedPrimitive(operation),
-            ) = self.typed.symbols.sealed_intrinsic(*symbol)
-            {
-                let machine = self
-                    .typed
-                    .machine_by_symbol(*symbol)
-                    .ok_or_else(|| unavailable("hosted primitive lost its source machine"))?;
-                let mut declarations = self
-                    .typed
-                    .machine_trait_conformances(machine)
-                    .iter()
-                    .filter_map(|edge| {
-                        typed_trees::machine::resolve_satisfied_declaration(
-                            self.typed, machine, edge,
-                        )
-                    });
-                let requirement = declarations
-                    .next()
-                    .ok_or_else(|| unavailable("hosted primitive lost its requirement"))?
-                    .symbol();
-                if declarations.next().is_some() {
-                    return Err(unavailable("hosted primitive has multiple requirements"));
-                }
-                let requirement = self
-                    .boundary_symbols
-                    .iter()
-                    .find_map(|(id, owner)| {
-                        (owner.application.is_none() && owner.symbol == requirement).then_some(id)
-                    })
-                    .ok_or_else(|| unavailable("hosted primitive requirement was not published"))?;
-                terminal_psi::CheckedBoundaryExecution::HostedPrimitive {
-                    operation,
-                    requirement,
-                }
-            } else if self.typed.symbols.sealed_intrinsic(*symbol)
-                == Some(
-                    language_core::sealed_intrinsics::SealedIntrinsic::FloatOperationRequirement,
-                )
-            {
-                terminal_psi::CheckedBoundaryExecution::NumericPrimitive
-            } else {
-                terminal_psi::CheckedBoundaryExecution::Provider
-            };
-            let metadata = crate::declare::boundary(
-                self.typed,
-                *symbol,
-                owner.application,
-                execution.clone(),
-                signature,
-                crate::declare::Published {
-                    operational: signature.operational.published([false; 2]),
-                    reach: &reach,
-                    entries: &entries,
-                },
-                &mut qualifications.identities,
-            )
-            .map_err(|diagnostic| terminal_check_tables::Refusal {
-                reason: terminal_check_tables::RefusalReason::Unsupported,
-                machine: caller,
-                concerns: Construct::Machine,
-                source_span: diagnostic.source_span,
-                detail: format!("declaration {}", diagnostic.message),
-            })?;
-            let service = *terminal_check_tables::row(
-                &self.boundary_services,
-                boundary,
-                caller,
-                Construct::Machine,
-            )?;
-            let kind = if execution == terminal_psi::CheckedBoundaryExecution::NumericPrimitive {
-                let requirement = typed_trees::declarations::intrinsic_requirements::IntrinsicRequirement::by_symbol(self.typed, *symbol)
-                    .ok_or_else(|| unavailable("numeric primitive lost its declaration kind"))?;
-                match requirement.kind {
-                    typed_trees::declarations::intrinsic_requirements::IntrinsicRequirementKind::Operator => semantic_vocabulary::BoundaryRequirementKind::Operator,
-                    typed_trees::declarations::intrinsic_requirements::IntrinsicRequirementKind::TopLevelRequirement => semantic_vocabulary::BoundaryRequirementKind::Machine,
-                }
-            } else if execution.compiler_owned() {
-                semantic_vocabulary::BoundaryRequirementKind::Machine
-            } else {
-                semantic_vocabulary::BoundaryRequirementKind::Trait
-            };
-            let mut declaration = crate::lower::boundary(
-                caller,
-                boundary,
-                signatures,
-                outcomes,
-                records,
-                metadata,
-                service,
-                if execution == terminal_psi::CheckedBoundaryExecution::NumericPrimitive {
-                    self.typed.numeric_intrinsic_execution(*symbol)
-                } else {
-                    None
-                },
-                kind,
-                qualifications,
-            )?;
-            declaration.service_reach_is_installation_bound = self
-                .typed
-                .trait_machine_signature(*symbol)
-                .is_some_and(|(owner, signature)| {
-                    owner.is_boundary && signature.service_reach_is_installation_bound
-                });
-            if declaration.service_reach_is_installation_bound {
-                declaration.fixed_service_reach.clear();
-            }
-            declaration.result_lifetimes = self
-                .declared_result_lifetimes(caller, signature, &module.structural_types)
-                .map_err(unavailable)?;
-            if declaration.result_lifetimes.is_none() {
-                return Err(unavailable(
-                    "boundary result has an unresolved declared lifetime frontier",
-                ));
-            }
-            declaration.reference_outputs = self
-                .declared_reference_outputs(
-                    caller,
-                    signature,
-                    &module.structural_types,
-                    &declaration.structural_parameters,
-                )
-                .map_err(unavailable)?;
-            boundaries.push(declaration);
-        }
-        module.boundary_machines = boundaries;
-        Ok(())
-    }
-
-    pub(crate) fn publish_services(
-        &self,
-        caller: MachineId,
-        module: &mut TerminalModule,
-    ) -> Checked<()> {
-        let mut identities = std::mem::take(&mut module.identities).into_builder();
-        let mut services = Vec::with_capacity(self.services.len());
-        for (id, (scope, parents)) in self.services.iter() {
-            let identity = scope
-                .portable_application_identity(self.typed)
-                .and_then(|identity| self.typed.type_identity_text(identity))
-                .filter(|identity| !identity.is_empty())
-                .ok_or_else(|| {
-                    refuse(
-                        caller,
-                        Construct::Machine,
-                        Unserved::Declaration(
-                            "retained service lost its exact application identity",
-                        ),
-                    )
-                })?;
-            services.push(ServiceDeclaration {
-                id,
-                identity: identities.intern(&identity),
-                parents: parents.clone(),
-            });
-        }
-        module.identities = identities.build();
-        module.services = services;
-        Ok(())
-    }
-
     /// Notes that a Build selection awaits a provider for `service`.
     pub(super) fn awaits(&mut self, service: ServiceId) {
         if !self.readiness.contains(&service) {

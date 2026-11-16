@@ -6,6 +6,29 @@ and specialization commitments (`commitments`), constant evaluation recipes
 */
 
 pub(crate) mod access_views {
+    pub fn access_atomic_observing_results(
+        operations: access_plans::AtomicPermissions,
+    ) -> Vec<AccessAtomicObservingResultContract> {
+        let mut observing_results = Vec::new();
+        if operations.compare_exchange {
+            let operation =
+                language_core::atomic::AtomicObservingCompareExchangeOperation::Decisive;
+            observing_results.push(AccessAtomicObservingResultContract {
+                operation,
+                result_shape: operation.result_shape(),
+            });
+        }
+        if operations.compare_exchange_once {
+            let operation =
+                language_core::atomic::AtomicObservingCompareExchangeOperation::SingleAttempt;
+            observing_results.push(AccessAtomicObservingResultContract {
+                operation,
+                result_shape: operation.result_shape(),
+            });
+        }
+        observing_results
+    }
+
     pub(crate) mod lifecycle_execution {
         use super::AccessLifecycleOperation;
         use crate::TypedTrees;
@@ -142,7 +165,7 @@ pub(crate) mod access_views {
                 {
                     return Err(malformed("lost its canonical declaration envelope"));
                 }
-                let [state] = program.machine_states(machine) else {
+                let Some([state]) = program.machine_states(machine).as_array() else {
                     return Err(malformed("must retain one entry state"));
                 };
                 if symbol != machine.symbol && symbol != state.symbol {
@@ -238,7 +261,7 @@ pub(crate) mod access_views {
                 else {
                     return Err(invalid());
                 };
-                let [state] = program.machine_states(machine) else {
+                let Some([state]) = program.machine_states(machine).as_array() else {
                     return Err(invalid());
                 };
                 if machine.body_is_present
@@ -554,7 +577,7 @@ pub(crate) mod access_views {
                 let machine = typed
                     .machine(target.machine_symbol)
                     .ok_or_else(|| invalid("generated machine is absent"))?;
-                let [state] = typed.machine_states(machine) else {
+                let Some([state]) = typed.machine_states(machine).as_array() else {
                     return Err(invalid("generated machine has no unique entry"));
                 };
                 if state.symbol != target.state_symbol

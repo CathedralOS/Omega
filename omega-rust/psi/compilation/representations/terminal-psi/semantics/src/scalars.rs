@@ -1219,7 +1219,7 @@ pub(crate) mod proof_bearing_scalar {
     ) -> Result<IntegerType, OperationSemanticError> {
         match scalar_type {
             ScalarType::Integer(integer_type) => Ok(integer_type),
-            ScalarType::Boolean | ScalarType::IeeeFloat(_) => {
+            ScalarType::Boolean | ScalarType::IeeeFloat(_) | ScalarType::Callable(_) => {
                 Err(OperationSemanticError::OperandShapeMismatch(tag))
             }
         }
@@ -1668,6 +1668,7 @@ pub(crate) mod scalar_array {
         None
     }
 }
+
 pub(crate) mod scalar_field_requirements {
 
     use proof_admission::check_predicate_denotations_with_value_equalities;
@@ -1772,6 +1773,7 @@ pub(crate) mod scalar_field_requirements {
             return false;
         };
         let zero = match carrier {
+            ScalarType::Callable(_) => return false,
             ScalarType::Boolean => ScalarTerm::Boolean(false),
             ScalarType::Integer(integer) => ScalarTerm::Integer {
                 scalar_type: integer,
@@ -2247,7 +2249,7 @@ pub(crate) mod scalar_leaf_semantics {
     pub(crate) fn integer_type(term: &ScalarTerm) -> Option<semantic_vocabulary::IntegerType> {
         match term.scalar_type() {
             ScalarType::Integer(integer_type) => Some(integer_type),
-            ScalarType::Boolean | ScalarType::IeeeFloat(_) => None,
+            ScalarType::Boolean | ScalarType::IeeeFloat(_) | ScalarType::Callable(_) => None,
         }
     }
 

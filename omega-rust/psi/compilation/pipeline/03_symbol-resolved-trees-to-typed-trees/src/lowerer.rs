@@ -54,7 +54,7 @@ pub(crate) mod progress {
     pub(crate) fn normalize_trait_progress_premises(
         program: &mut typed::TypedTrees,
     ) -> Result<(), Diagnostic> {
-        let signature_updates = program
+        let mut signature_updates = program
             .traits()
             .iter()
             .flat_map(|trait_definition| program.trait_machine_signatures(trait_definition))
@@ -74,17 +74,35 @@ pub(crate) mod progress {
             })
             .collect::<Result<Vec<_>, Diagnostic>>()?;
 
-        program
+        // Several retained rosters may name the same symbol. Keep the first
+        // authored update, as before, and copy only signatures that change.
+        signature_updates.sort_by_key(|(symbol, _)| (symbol.arena_index(), symbol.generation()));
+        signature_updates.dedup_by_key(|(symbol, _)| *symbol);
+        let changes = program
             .tables
             .trait_machine_signatures
-            .for_each_mut(|_, signature| {
-                if let Some((_, guarantee)) = signature_updates
-                    .iter()
-                    .find(|(symbol, _)| *symbol == signature.symbol)
-                {
-                    signature.termination_guarantee = guarantee.clone();
-                }
-            });
+            .iter()
+            .filter_map(|(handle, signature)| {
+                let position = signature_updates
+                    .binary_search_by_key(
+                        &(
+                            signature.symbol.arena_index(),
+                            signature.symbol.generation(),
+                        ),
+                        |(symbol, _)| (symbol.arena_index(), symbol.generation()),
+                    )
+                    .ok()?;
+                let guarantee = &signature_updates[position].1;
+                (signature.termination_guarantee != *guarantee).then_some((handle, guarantee))
+            })
+            .collect::<Vec<_>>();
+        for (handle, guarantee) in changes {
+            program
+                .tables
+                .trait_machine_signatures
+                .get_mut(handle)
+                .termination_guarantee = guarantee.clone();
+        }
 
         Ok(())
     }
@@ -321,8 +339,8 @@ pub(crate) mod progress {
 
     fn authored_premises(
         program: &typed::TypedTrees,
-        contracts: &[typed::signature::SignatureContract],
-        parameters: &[typed::signature::StateParameter],
+        contracts: arena::RootRows<'_, typed::signature::SignatureContract>,
+        parameters: arena::RootRows<'_, typed::signature::StateParameter>,
     ) -> Result<Vec<ProgressPremise>, Diagnostic> {
         let mut premises = Vec::new();
         for contract in contracts
@@ -362,7 +380,7 @@ pub(crate) mod progress {
     fn subject_path(
         program: &typed::TypedTrees,
         expression: typed::expression::ExpressionHandle,
-        parameters: &[typed::signature::StateParameter],
+        parameters: arena::RootRows<'_, typed::signature::StateParameter>,
     ) -> Option<ProgressSubject> {
         match program.expression_table.expression(expression) {
             typed::expression::ExpressionNode::Name(path)
@@ -414,7 +432,7 @@ pub(crate) mod progress {
         program: &typed::TypedTrees,
         subject: &ProgressSubject,
         member_name: &str,
-        parameters: &[typed::signature::StateParameter],
+        parameters: arena::RootRows<'_, typed::signature::StateParameter>,
     ) -> Option<symbols::SymbolHandle> {
         let parameter = parameters
             .iter()
@@ -512,6 +530,92 @@ pub(crate) mod progress {
                     program.data_payload_field_by_symbol(variant, symbol)
                 }
             })
+    }
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn progress_normalization_copies_only_changed_signatures_and_keeps_first_symbol_update() {
+            let mut program = typed::TypedTrees::default();
+            let changed_symbol = symbols::SymbolHandle::from_parts(3, 1);
+            let unchanged_symbol = symbols::SymbolHandle::from_parts(4, 1);
+            let stale = TerminationGuarantee::Terminates {
+                premises: vec![ProgressPremise {
+                    profile: language_semantics::SemanticDomainId::NULL,
+                    subject: ProgressSubject {
+                        root: changed_symbol,
+                        projections: Vec::new(),
+                    },
+                }],
+            };
+            let signatures = program.trait_machine_signatures.insert_many([
+                typed::signature::StateSignature {
+                    symbol: changed_symbol,
+                    termination_guarantee: stale.clone(),
+                    ..Default::default()
+                },
+                typed::signature::StateSignature {
+                    symbol: unchanged_symbol,
+                    ..Default::default()
+                },
+                typed::signature::StateSignature {
+                    symbol: changed_symbol,
+                    ..Default::default()
+                },
+            ]);
+            // The old loop updates every stored row with the first matching
+            // symbol, including rows no longer selected by a trait roster.
+            let detached =
+                program
+                    .trait_machine_signatures
+                    .insert(typed::signature::StateSignature {
+                        symbol: changed_symbol,
+                        ..Default::default()
+                    });
+            program.push_trait_definition(typed::trait_definition::TraitDefinition {
+                machines: signatures,
+                ..Default::default()
+            });
+            let predecessor = program.clone();
+            normalize_trait_progress_premises(&mut program).unwrap();
+            let normalized = TerminationGuarantee::Terminates {
+                premises: Vec::new(),
+            };
+            for handle in [signatures.start(), signatures.handle_at(2), detached] {
+                assert_eq!(
+                    program
+                        .trait_machine_signatures
+                        .get(handle)
+                        .termination_guarantee,
+                    normalized
+                );
+                assert!(!std::ptr::eq(
+                    program.trait_machine_signatures.get(handle),
+                    predecessor.trait_machine_signatures.get(handle)
+                ));
+            }
+            assert_eq!(
+                predecessor
+                    .trait_machine_signatures
+                    .get(signatures.start())
+                    .termination_guarantee,
+                stale
+            );
+            let unchanged = signatures.handle_at(1);
+            assert!(std::ptr::eq(
+                program.trait_machine_signatures.get(unchanged),
+                predecessor.trait_machine_signatures.get(unchanged)
+            ));
+            let settled = program.clone();
+            normalize_trait_progress_premises(&mut program).unwrap();
+            for (handle, signature) in settled.trait_machine_signatures.iter() {
+                assert!(std::ptr::eq(
+                    signature,
+                    program.trait_machine_signatures.get(handle)
+                ));
+            }
+        }
     }
 }
 pub(crate) mod seeded_continuation {
@@ -777,6 +881,7 @@ pub(crate) mod seeded_continuation {
         let mut lowerer = Lowerer {
             typed_trees: candidate,
             source_trees: &source,
+            source_owner: SymbolHandle::invalid(),
             type_reference_exposure: Some(
                 AuthoredDeclarationSelectionExposure::PrivateImplementation,
             ),
@@ -853,6 +958,7 @@ pub(crate) mod seeded_continuation {
         let mut lowerer = Lowerer {
             typed_trees: candidate,
             source_trees: &source,
+            source_owner: SymbolHandle::invalid(),
             type_reference_exposure: Some(
                 AuthoredDeclarationSelectionExposure::PrivateImplementation,
             ),
@@ -1497,6 +1603,7 @@ pub fn lower_symbol_resolved_trees(
             ..TypedTrees::default()
         },
         source_trees: symbol_resolved_trees,
+        source_owner: SymbolHandle::invalid(),
         type_reference_exposure:
             Some(language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation),
         admits_contract_policy_operators: false,
@@ -1596,6 +1703,7 @@ pub(crate) fn type_resolved_cohort(
     cohort: &TypingCohort<'_>,
 ) -> Result<(), Diagnostic> {
     let source = lowerer.source_trees;
+    crate::runtime_callables::lower_contracts(lowerer)?;
     for declaration in source
         .const_declarations
         .iter()
@@ -1728,6 +1836,18 @@ pub(crate) fn close_typed_cohort(
     lowerer: &mut Lowerer<'_>,
     cohort: &TypingCohort<'_>,
 ) -> Result<(), Diagnostic> {
+    // Result and effect queries must see the signature of the evaluated callee,
+    // including calls in declaration contracts and initializers.
+    let mut callable_admission = crate::runtime_callables::bind_calls(
+        &mut lowerer.typed_trees,
+        cohort.typed_expressions,
+        cohort.typed_type_references,
+    )?;
+    let bound_expressions = lowerer.typed_trees.expression_table.expression_count();
+    let bound_types = lowerer
+        .typed_trees
+        .type_reference_table
+        .type_reference_count();
     settle_satisfied_declarations_from(&mut lowerer.typed_trees, cohort.typed_machines)?;
     normalize_machine_progress_premises(&mut lowerer.typed_trees, cohort.typed_machines)?;
     lowerer
@@ -1745,6 +1865,10 @@ pub(crate) fn close_typed_cohort(
         &mut lowerer.typed_trees,
         cohort.typed_type_references,
     )?;
+    crate::runtime_callables::validate_pending_token_shapes(
+        lowerer.source_trees,
+        &lowerer.typed_trees,
+    )?;
     crate::constructor_applications::prepare(
         lowerer.source_trees,
         &mut lowerer.typed_trees,
@@ -1755,6 +1879,7 @@ pub(crate) fn close_typed_cohort(
         .prepare_data_application_views(cohort.typed_type_references)
         .map_err(Diagnostic::error)?;
     let cast_destinations = crate::expressions::construction_destinations::prepare(
+        lowerer.source_trees,
         &mut lowerer.typed_trees,
         cohort.typed_expressions,
         cohort.typed_machines,
@@ -1771,6 +1896,7 @@ pub(crate) fn close_typed_cohort(
     // domain cast on its reference has settled. Keep the ordinary landing
     // pass here as well; already prepared constructors retain their identity.
     crate::expressions::construction_destinations::prepare(
+        lowerer.source_trees,
         &mut lowerer.typed_trees,
         cohort.typed_expressions,
         cohort.typed_machines,
@@ -1800,6 +1926,14 @@ pub(crate) fn close_typed_cohort(
         &mut lowerer.typed_trees,
         cohort.machines,
     )?;
+    callable_admission.extend(crate::runtime_callables::bind_calls(
+        &mut lowerer.typed_trees,
+        bound_expressions,
+        bound_types,
+    )?);
+    crate::runtime_callables::admit_types(&lowerer.typed_trees, &callable_admission)?;
+    // Constructor and cast preparation may finish a callee's retained type.
+    // Bind those values before attributing any still-unserved call request.
     crate::typing_queries::defer_unbound_calls(
         &mut lowerer.typed_trees,
         cohort.typed_machines,
@@ -1898,6 +2032,7 @@ pub(crate) fn declaration_exposure(
 pub(crate) struct Lowerer<'source> {
     pub(crate) typed_trees: TypedTrees,
     pub(crate) source_trees: &'source SymbolResolvedTrees,
+    pub(crate) source_owner: SymbolHandle,
     pub(crate) type_reference_exposure:
         Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure>,
     /// Set while the contracts of a machine or one of its states are lowered.
@@ -2021,6 +2156,17 @@ impl Lowerer<'_> {
             crate::constant_initializers::retain_entry(&mut self.typed_trees, handle)?;
         }
         Ok(())
+    }
+
+    pub(crate) fn with_source_owner<T>(
+        &mut self,
+        owner: SymbolHandle,
+        operation: impl FnOnce(&mut Self) -> Result<T, Diagnostic>,
+    ) -> Result<T, Diagnostic> {
+        let previous = std::mem::replace(&mut self.source_owner, owner);
+        let result = operation(self);
+        self.source_owner = previous;
+        result
     }
 
     pub(crate) fn with_type_reference_exposure<T>(

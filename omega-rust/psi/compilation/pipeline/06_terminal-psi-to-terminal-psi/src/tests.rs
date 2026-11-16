@@ -34,6 +34,7 @@ mod branch_warnings;
 mod build_purpose;
 mod byte_domains;
 mod byte_view_elements;
+mod callable_contracts;
 mod calling_policies;
 mod case_payloads;
 mod ceilings;
@@ -62,6 +63,7 @@ mod operational_effects;
 mod owned_cleanup;
 mod owned_dispatch;
 mod owned_match_results;
+mod owned_records;
 mod parallel_checks;
 mod proof_scope;
 mod provider_supplies;
@@ -71,6 +73,7 @@ mod ranges;
 pub(crate) mod rankings;
 mod reach;
 mod references;
+mod representation_views;
 mod result_fields;
 mod result_summaries;
 mod returned_views;
@@ -79,6 +82,7 @@ mod run_custody;
 mod runtime_indexed_elements;
 mod scalar_joins;
 mod sequence_regions;
+mod source_operators;
 mod stored_references;
 mod stored_views;
 mod structural_domains;
@@ -148,8 +152,7 @@ fn call(callee: u64, arguments: Vec<Expression>) -> Expression {
         ExpressionKind::Call {
             required_contract: None,
             static_reach_binding: None,
-            source_call: None,
-            callee: semantic_vocabulary::TargetMachineCallable::Machine(id(callee)),
+            callee: id::<MachineId>(callee).into(),
             arguments,
             designated: None,
         },
@@ -240,13 +243,20 @@ fn lower(machines: Vec<Machine>) -> Checked<typed_trees_to_terminal_psi::Elabora
             ranking: None,
         });
     }
-    typed_trees_to_terminal_psi::lower_bodies(id(1), &bodies, &signatures, &IdTable::default())
+    let mut elaboration = typed_trees_to_terminal_psi::lower_bodies(
+        id(1),
+        &bodies,
+        &signatures,
+        &IdTable::default(),
+    )?;
+    declare_body_models(&mut elaboration, &signatures);
+    Ok(elaboration)
 }
 
 /// Lowers `machines` (machine 1 is the entry) and discharges them.
 fn run(machines: Vec<Machine>) -> (typed_trees_to_terminal_psi::Elaboration, Discharge) {
     let mut elaboration = lower(machines).unwrap();
-    let result = discharge(&mut elaboration).unwrap();
+    let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
     (elaboration, result)
 }
 
@@ -1560,8 +1570,7 @@ fn transferred_when(flag: usize, value: usize) -> Expression {
             ExpressionKind::Call {
                 required_contract: None,
                 static_reach_binding: None,
-                source_call: None,
-                callee: semantic_vocabulary::TargetMachineCallable::Machine(id(2)),
+                callee: id::<MachineId>(2).into(),
                 arguments: vec![place(value, point())],
                 designated: None,
             },
@@ -1961,12 +1970,76 @@ fn elaborate_over(
             ranking: None,
         });
     }
-    typed_trees_to_terminal_psi::lower_bodies(id(1), &bodies, &signatures, records).unwrap()
+    let mut elaboration =
+        typed_trees_to_terminal_psi::lower_bodies(id(1), &bodies, &signatures, records).unwrap();
+    declare_body_models(&mut elaboration, &signatures);
+    elaboration
+}
+
+/// Raw-body units model declarations explicitly; they do not test source custody.
+/// These models grant no services, synchronous entries, suspension or blocking.
+/// The checker must still establish that each body fits those permissions.
+fn declare_body_models(
+    elaboration: &mut typed_trees_to_terminal_psi::Elaboration,
+    signatures: &IdTable<MachineId, Signature>,
+) {
+    use optimization::digest_encoder::DomainDigestEncoder;
+    use terminal_psi::{
+        CheckedMachineDeclaration, NominalDeclarationIdentity, TerminalCallableEnvelope,
+        TerminalCallableTermination, TerminalMachineEnvelope,
+    };
+
+    let module = &mut elaboration.module;
+    assert!(module.callables.machine_envelopes.is_empty());
+    let mut identities = std::mem::take(&mut module.identities).into_builder();
+    for machine in &mut module.machines {
+        let signature = signatures.get(machine.id).unwrap();
+        assert_eq!(signature.termination, Termination::Silent);
+        assert!(machine.declaration.is_none());
+        assert!(machine.published_service_ceiling.is_empty());
+        assert!(machine.published_synchronous_entries.is_empty());
+        let callable = identities.intern(&format!("lowered-body-model::{}", machine.id.get()));
+        let parameter_types = signature
+            .parameters
+            .iter()
+            .map(|value_type| identities.intern(&format!("{value_type:?}")))
+            .collect();
+        let result_type = identities.intern(&format!("{:?}", signature.result));
+        let mut commitment = DomainDigestEncoder::new(b"omega.lowered-body-test-model.v1\0");
+        commitment.bytes(format!("{signature:?}").as_bytes());
+        let contract = commitment.finish();
+        machine.declaration = Some(CheckedMachineDeclaration {
+            machine: NominalDeclarationIdentity::new(callable),
+            state: NominalDeclarationIdentity::new(callable),
+            semantic_declaration: callable,
+            parameter_types,
+            callable,
+            result_type,
+            contract,
+            published_may_suspend: false,
+            published_may_block: false,
+            specialization: None,
+        });
+        module
+            .callables
+            .machine_envelopes
+            .push(Some(TerminalMachineEnvelope {
+                machine: machine.id,
+                envelope: TerminalCallableEnvelope {
+                    service_reach: Vec::new(),
+                    invocations: Vec::new(),
+                    suspends: false,
+                    blocks: false,
+                    termination: TerminalCallableTermination::NotGuaranteed,
+                },
+            }));
+    }
+    module.identities = identities.build();
 }
 
 fn run_places(machines: Vec<Shaped>) -> (typed_trees_to_terminal_psi::Elaboration, Discharge) {
     let mut elaboration = elaborate_places(machines);
-    let result = discharge(&mut elaboration).unwrap();
+    let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
     (elaboration, result)
 }
 
@@ -2144,8 +2217,7 @@ fn a_copy_reads_as_what_its_source_held_and_a_call_result_as_its_own_unknown_lea
                     ExpressionKind::Call {
                         required_contract: None,
                         static_reach_binding: None,
-                        source_call: None,
-                        callee: semantic_vocabulary::TargetMachineCallable::Machine(id(3)),
+                        callee: id::<MachineId>(3).into(),
                         arguments: Vec::new(),
                         designated: None,
                     },
@@ -2309,7 +2381,7 @@ fn different_values_on_different_arrivals_give_no_equation() {
                 field_store(root, field, value),
             );
         }
-        discharge(&mut elaboration).unwrap();
+        discharge(&mut elaboration, &mut Default::default()).unwrap();
         let read = field_reads(&elaboration)[0];
         let tables = elaboration.tables.machines.get(id(1)).unwrap();
         read_equals(tables, read)
@@ -2619,7 +2691,7 @@ fn a_store_inside_a_guarded_arm_does_not_reach_the_continuation() {
                 field_store(p, 1, in_arm),
             );
         }
-        let result = discharge(&mut elaboration).unwrap();
+        let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
         assert!(uses(&result).iter().all(Result::is_ok));
         let tables = elaboration.tables.machines.get(id(1)).unwrap();
         let reads = field_reads(&elaboration);
@@ -3057,7 +3129,7 @@ fn a_store_on_one_way_to_a_join_does_not_establish_the_read_after_it() {
                     created_at: ProgramPoint::AfterOperation(negation),
                 });
         }
-        let result = discharge(&mut elaboration).unwrap();
+        let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
         let tables = elaboration.tables.machines.get(id(1)).unwrap();
         (uses(&result), read_equals(tables, read))
     };
@@ -3150,8 +3222,7 @@ fn every_use_of_storage_has_exactly_one_verdict() {
                     ExpressionKind::Call {
                         required_contract: None,
                         static_reach_binding: None,
-                        source_call: None,
-                        callee: semantic_vocabulary::TargetMachineCallable::Machine(id(2)),
+                        callee: id::<MachineId>(2).into(),
                         arguments: vec![place(4, point())],
                         designated: None,
                     },
@@ -3165,7 +3236,7 @@ fn every_use_of_storage_has_exactly_one_verdict() {
         ],
     };
     let mut elaboration = elaborate_over(vec![caller, taker], &types);
-    let result = discharge(&mut elaboration).unwrap();
+    let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
     let mut established = 0;
     let mut unestablished = 0;
     for (machine, lowered) in elaboration.module.machines.iter().enumerate() {
@@ -3345,7 +3416,7 @@ fn matching(
 
 fn run_sums(machines: Vec<Shaped>) -> (typed_trees_to_terminal_psi::Elaboration, Discharge) {
     let mut elaboration = elaborate_over(machines, &sums());
-    let result = discharge(&mut elaboration).unwrap();
+    let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
     (elaboration, result)
 }
 
@@ -3755,7 +3826,7 @@ fn a_dispatch_that_lists_no_edge_for_a_declared_case_is_unestablished() {
     // Elaboration lists all four declared cases.
     assert_eq!(cases.len(), 4);
     cases.pop();
-    let result = discharge(&mut elaboration).unwrap();
+    let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
     let verdict = result
         .machines
         .get(id(1))
@@ -4002,7 +4073,7 @@ fn constrained() -> IdTable<StructuralTypeId, RecordType> {
 
 fn run_constrained(machines: Vec<Shaped>) -> (typed_trees_to_terminal_psi::Elaboration, Discharge) {
     let mut elaboration = elaborate_over(machines, &constrained());
-    let result = discharge(&mut elaboration).unwrap();
+    let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
     (elaboration, result)
 }
 
@@ -4187,8 +4258,7 @@ fn returned_span_store(stored: u128) -> (typed_trees_to_terminal_psi::Elaboratio
                         ExpressionKind::Call {
                             required_contract: None,
                             static_reach_binding: None,
-                            source_call: None,
-                            callee: semantic_vocabulary::TargetMachineCallable::Machine(id(2)),
+                            callee: id::<MachineId>(2).into(),
                             arguments: Vec::new(),
                             designated: None,
                         },
@@ -4815,8 +4885,7 @@ fn a_read_of_what_a_call_returned_carries_its_types_clause() {
                         ExpressionKind::Call {
                             required_contract: None,
                             static_reach_binding: None,
-                            source_call: None,
-                            callee: semantic_vocabulary::TargetMachineCallable::Machine(id(3)),
+                            callee: id::<MachineId>(3).into(),
                             arguments: Vec::new(),
                             designated: None,
                         },
@@ -4877,8 +4946,7 @@ fn peeking(argument: Expression) -> Expression {
         ExpressionKind::Call {
             required_contract: None,
             static_reach_binding: None,
-            source_call: None,
-            callee: semantic_vocabulary::TargetMachineCallable::Machine(id(2)),
+            callee: id::<MachineId>(2).into(),
             arguments: vec![argument],
             designated: None,
         },
@@ -4930,8 +4998,7 @@ fn a_requirement_over_a_field_of_a_record_formal_is_decided_by_the_actuals_leaf(
                 ExpressionKind::Call {
                     required_contract: None,
                     static_reach_binding: None,
-                    source_call: None,
-                    callee: semantic_vocabulary::TargetMachineCallable::Machine(id(3)),
+                    callee: id::<MachineId>(3).into(),
                     arguments: Vec::new(),
                     designated: None,
                 },
@@ -5037,8 +5104,7 @@ fn taking(callee: u64, argument: Expression) -> Expression {
         ExpressionKind::Call {
             required_contract: None,
             static_reach_binding: None,
-            source_call: None,
-            callee: semantic_vocabulary::TargetMachineCallable::Machine(id(callee)),
+            callee: id::<MachineId>(callee).into(),
             arguments: vec![argument],
             designated: None,
         },
@@ -5134,7 +5200,7 @@ fn a_window_a_later_store_restores_is_closed_before_the_value_is_consumed() {
     for machines in span_consumers(true) {
         let mut elaboration = elaborate_over(machines, &constrained());
         let fresh = elaboration.clone();
-        let result = discharge(&mut elaboration).unwrap();
+        let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
         let owed = domains(&elaboration, &result);
         assert_eq!(owed.len(), 3, "the construction and the two stores");
         assert_opens_a_window(owed[1].1);
@@ -5169,7 +5235,7 @@ fn a_value_consumed_while_its_window_is_open_rejects_naming_the_write_and_the_us
     for machines in span_consumers(false) {
         let mut elaboration = elaborate_over(machines, &constrained());
         let fresh = elaboration.clone();
-        let result = discharge(&mut elaboration).unwrap();
+        let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
         let owed = domains(&elaboration, &result);
         assert_opens_a_window(owed[1].1);
         let store = scalar_stores(&elaboration)[0];
@@ -5212,10 +5278,10 @@ fn a_value_consumed_while_its_window_is_open_rejects_naming_the_write_and_the_us
                 clause: 0
             }
         );
-        assert_eq!(entry.site, nowhere());
+        assert_eq!(entry.site, nowhere().into());
         let consumption = entry.consumed.unwrap();
         assert_eq!(consumption.at, Construct::Operation(copy));
-        assert_eq!(consumption.site, nowhere());
+        assert_eq!(consumption.site, nowhere().into());
         assert!(
             entry.message().starts_with(
                 "cannot prove requires clause 1 of a data type in this machine inside an open \
@@ -5267,7 +5333,7 @@ fn a_window_is_proved_again_at_its_consumption_point_from_what_flow_adds() {
             &constrained(),
         );
         let fresh = elaboration.clone();
-        let result = discharge(&mut elaboration).unwrap();
+        let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
         (elaboration, result, fresh)
     };
     let (elaboration, result, fresh) = program(true);
@@ -5357,7 +5423,7 @@ fn an_inner_and_an_outer_window_are_opened_and_consumed_independently() {
             &constrained(),
         );
         let fresh = elaboration.clone();
-        let result = discharge(&mut elaboration).unwrap();
+        let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
         (elaboration, result, fresh)
     };
     // `w.span.high = 12` keeps `Span` (1 <= 12) and opens a window on `w`
@@ -5438,7 +5504,7 @@ fn a_store_to_a_sibling_field_does_not_close_a_window_of_another_clause() {
         &constrained(),
     );
     let fresh = elaboration.clone();
-    let result = discharge(&mut elaboration).unwrap();
+    let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
     let owed = domains(&elaboration, &result);
     assert_eq!(owed.len(), 6, "two clauses at each of three operations");
     assert!(matches!(owed[2].1, Ok(Discharged::Certificate(_))));
@@ -5563,7 +5629,7 @@ fn a_field_read_that_takes_a_clause_as_a_premise_consumes_an_open_window() {
             &windowed(),
         );
         let fresh = elaboration.clone();
-        let result = discharge(&mut elaboration).unwrap();
+        let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
         (elaboration, result, fresh)
     };
     // Established: the read is lent its clause and `bounded` follows.
@@ -5626,7 +5692,7 @@ fn a_gated_local_established_field_by_field_is_a_value_once_its_requires_holds()
             &windowed(),
         );
         let fresh = elaboration.clone();
-        let result = discharge(&mut elaboration).unwrap();
+        let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
         (elaboration, result, fresh)
     };
     // let mut g: Both; g.a = 3; g.b = 2; take(g): each store proves the
@@ -5677,7 +5743,7 @@ fn a_gated_local_established_field_by_field_is_a_value_once_its_requires_holds()
         panic!("exactly the copy is unestablished: {unestablished:?}");
     };
     assert_eq!(used.at, Construct::Operation(copy));
-    assert_eq!(used.declared, Some(nowhere()));
+    assert_eq!(used.declared, Some(nowhere().into()));
     // The same two statements read `g.a` instead: the leaf observed is the
     // stored one, not zeroed storage.
     let (_, result, _) = program(BOTH, &[(0, 3)], false);
@@ -5790,7 +5856,7 @@ fn a_window_open_on_one_way_into_a_join_is_open_after_it() {
                     created_at: ProgramPoint::AfterOperation(negation),
                 });
         }
-        let result = discharge(&mut elaboration).unwrap();
+        let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
         windows(&result)
             .iter()
             .map(|consumed| consumed.verdict.is_ok())
@@ -5835,7 +5901,7 @@ fn every_consumption_point_of_an_open_window_has_exactly_one_verdict() {
         &constrained(),
     );
     let fresh = elaboration.clone();
-    let result = discharge(&mut elaboration).unwrap();
+    let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
     let owed = domains(&elaboration, &result);
     let window = owed[1].0;
     assert_opens_a_window(owed[1].1);
@@ -5926,7 +5992,7 @@ fn a_store_that_does_not_restore_an_open_window_opens_no_second_one() {
         &constrained(),
     );
     let fresh = elaboration.clone();
-    let result = discharge(&mut elaboration).unwrap();
+    let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
     let owed = domains(&elaboration, &result);
     assert_opens_a_window(owed[1].1);
     // The second store keeps why it did not prove the clause, and opens
@@ -5959,12 +6025,8 @@ mod reuse {
     // hypotheses from its own program; the saved evidence supplies only the
     // certificate, and the kernel decides it. No search runs on reuse.
     use super::*;
-    use crate::prove::SEARCHES;
+    use crate::ProofSearchActivity;
     use crate::{prepare_replay, reverify, reverify_at_call};
-
-    fn searches() -> usize {
-        SEARCHES.with(std::cell::Cell::get)
-    }
 
     /// `add(a, b) requires a <= bound, b <= 100 { return a + b }`.
     fn add(bound: u128) -> Machine {
@@ -5987,12 +6049,22 @@ mod reuse {
         // Shows: a saved proof is accepted for the same obligation of the same
         // program, decided by the kernel against the consumer's own goal and
         // hypotheses, and no prover is started.
-        let (obligation, certificate) = saved(vec![add(10)], 1, safety);
+        let mut activity = ProofSearchActivity::default();
+        let mut producer = lower(vec![add(10)]).unwrap();
+        let result = discharge(&mut producer, &mut activity).unwrap();
+        let (obligation, verdict) = verdicts(&producer, &result, 1, safety)[0];
+        let certificate = certificate(verdict).certificate.clone();
+        let started = activity.started();
+        assert!(
+            started > 0,
+            "the original proof must exercise the search counter"
+        );
         let mut consumer = lower(vec![add(10)]).unwrap();
-        let mut replay = prepare_replay(&mut consumer).unwrap();
-        let before = searches();
-        let evidence = reverify(&mut replay, id(1), obligation, &certificate).unwrap();
-        assert_eq!(searches(), before, "reuse started a prover");
+        let mut replay = prepare_replay(&mut consumer, &mut activity).unwrap();
+        let started = activity.started();
+        let evidence =
+            reverify(&mut replay, id(1), obligation, &certificate, &mut activity).unwrap();
+        assert_eq!(activity.started(), started, "reuse started a prover");
         assert!(matches!(
             evidence.fact.route,
             AcceptedFactRoute::CertificateDerived { .. }
@@ -6007,15 +6079,9 @@ mod reuse {
         let program = |bound| vec![guaranteeing(vec![at_most(1, 5)], at_most(1, bound))];
         let (obligation, certificate) = saved(program(10), 1, guarantee);
         let mut consumer = lower(program(9)).unwrap();
-        assert!(
-            reverify(
-                &mut prepare_replay(&mut consumer).unwrap(),
-                id(1),
-                obligation,
-                &certificate
-            )
-            .is_err()
-        );
+        let mut activity = ProofSearchActivity::default();
+        let mut replay = prepare_replay(&mut consumer, &mut activity).unwrap();
+        assert!(reverify(&mut replay, id(1), obligation, &certificate, &mut activity,).is_err());
         // The new program's own goal is provable; only the stale proof fails.
         let (_, result) = run(program(9));
         let verdicts = &result.machines.get(id(1)).unwrap().verdicts;
@@ -6028,15 +6094,9 @@ mod reuse {
         // consumer has no such hypothesis and the kernel refuses the citation.
         let (obligation, certificate) = saved(vec![add(10)], 1, safety);
         let mut consumer = lower(vec![add_of_formals(vec![at_most(2, 100)])]).unwrap();
-        assert!(
-            reverify(
-                &mut prepare_replay(&mut consumer).unwrap(),
-                id(1),
-                obligation,
-                &certificate
-            )
-            .is_err()
-        );
+        let mut activity = ProofSearchActivity::default();
+        let mut replay = prepare_replay(&mut consumer, &mut activity).unwrap();
+        assert!(reverify(&mut replay, id(1), obligation, &certificate, &mut activity,).is_err());
     }
 
     #[test]
@@ -6064,15 +6124,9 @@ mod reuse {
         assert_eq!(safeties.len(), 2);
         let first = certificate(safeties[0].1).certificate.clone();
         let mut consumer = lower(program()).unwrap();
-        assert!(
-            reverify(
-                &mut prepare_replay(&mut consumer).unwrap(),
-                id(1),
-                safeties[1].0,
-                &first
-            )
-            .is_err()
-        );
+        let mut activity = ProofSearchActivity::default();
+        let mut replay = prepare_replay(&mut consumer, &mut activity).unwrap();
+        assert!(reverify(&mut replay, id(1), safeties[1].0, &first, &mut activity,).is_err());
     }
 
     #[test]
@@ -6093,25 +6147,12 @@ mod reuse {
         };
         let (obligation, certificate) = saved(program(100), 2, safety);
         let mut looser = lower(program(100)).unwrap();
-        assert!(
-            reverify(
-                &mut prepare_replay(&mut looser).unwrap(),
-                id(3),
-                obligation,
-                &certificate
-            )
-            .is_err()
-        );
+        let mut activity = ProofSearchActivity::default();
+        let mut replay = prepare_replay(&mut looser, &mut activity).unwrap();
+        assert!(reverify(&mut replay, id(3), obligation, &certificate, &mut activity,).is_err());
         let mut same = lower(program(10)).unwrap();
-        assert!(
-            reverify(
-                &mut prepare_replay(&mut same).unwrap(),
-                id(3),
-                obligation,
-                &certificate
-            )
-            .is_ok()
-        );
+        let mut replay = prepare_replay(&mut same, &mut activity).unwrap();
+        assert!(reverify(&mut replay, id(3), obligation, &certificate, &mut activity,).is_ok());
     }
 
     #[test]
@@ -6145,13 +6186,14 @@ mod reuse {
         let tables = elaboration.tables.machines.get(id(1)).unwrap();
         let calls: Vec<_> = tables.invocations.keys().collect();
         assert_eq!(calls.len(), 3);
-        let replay = prepare_replay(&mut elaboration).unwrap();
-        let before = searches();
+        let mut activity = ProofSearchActivity::default();
+        let replay = prepare_replay(&mut elaboration, &mut activity).unwrap();
+        let started = activity.started();
         for call in &calls[..2] {
-            reverify_at_call(&replay, &result, id(1), *call, 0, &saved).unwrap();
+            reverify_at_call(&replay, &result, id(1), *call, 0, &saved, &mut activity).unwrap();
         }
-        assert_eq!(searches(), before, "reuse started a prover");
-        let refused = reverify_at_call(&replay, &result, id(1), calls[2], 0, &saved);
+        assert_eq!(activity.started(), started, "reuse started a prover");
+        let refused = reverify_at_call(&replay, &result, id(1), calls[2], 0, &saved, &mut activity);
         assert_eq!(
             refused.unwrap_err().reason,
             RefusalReason::Unproved(UnprovedCause::NoDerivation)
@@ -6222,7 +6264,7 @@ mod reuse {
         let started = Instant::now();
         for _ in 0..ROUNDS {
             let mut elaboration = lower(program()).unwrap();
-            let result = discharge(&mut elaboration).unwrap();
+            let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
             saved.clear();
             obligations = 0;
             for (machine, discharged) in result.machines.iter() {
@@ -6238,9 +6280,17 @@ mod reuse {
         let started = Instant::now();
         for _ in 0..ROUNDS {
             let mut elaboration = lower(program()).unwrap();
-            let mut replay = prepare_replay(&mut elaboration).unwrap();
+            let mut activity = ProofSearchActivity::default();
+            let mut replay = prepare_replay(&mut elaboration, &mut activity).unwrap();
             for (machine, obligation, certificate) in &saved {
-                reverify(&mut replay, *machine, *obligation, certificate).unwrap();
+                reverify(
+                    &mut replay,
+                    *machine,
+                    *obligation,
+                    certificate,
+                    &mut activity,
+                )
+                .unwrap();
             }
         }
         let reusing = started.elapsed();
@@ -6265,12 +6315,8 @@ mod generic_bodies {
     //         requires start <= 10 ensures result <= 21
     //     { Selected::apply(start) + 1 }
     use super::*;
-    use crate::prove::SEARCHES;
+    use crate::ProofSearchActivity;
     use crate::{Carried, CarriedForm, Selection, discharge_carrying, reverify_specialization};
-
-    fn searches() -> usize {
-        SEARCHES.with(std::cell::Cell::get)
-    }
 
     /// The result pseudo-value of a machine with one scalar formal.
     fn result_at_most(value: u128) -> Proposition {
@@ -6391,7 +6437,7 @@ mod generic_bodies {
     /// takes a certificate has one, found against `Step::apply`'s contract.
     fn checked_once(bound: u128) -> (typed_trees_to_terminal_psi::Elaboration, Discharge) {
         let mut form = generic(vec![advance(bound), step()]);
-        let found = discharge(&mut form).unwrap();
+        let found = discharge(&mut form, &mut Default::default()).unwrap();
         (form, found)
     }
 
@@ -6419,6 +6465,7 @@ mod generic_bodies {
             Selected {
                 caller: id(1),
                 required_contract: None,
+                source_operand: None,
                 parameter: symbols::SymbolHandle::from_parts(3, 1),
                 declaring_trait: symbols::SymbolHandle::from_parts(4, 1),
                 requirement,
@@ -6453,8 +6500,9 @@ mod generic_bodies {
         let check = |selections| {
             let prepared =
                 prepared_refinement(selections, double(), lower(vec![witness(), double()]));
-            let before = searches();
-            let verdicts = crate::judge_compilation(prepared);
+            let mut activity = crate::ProofSearchActivity::default();
+            let before = activity.started();
+            let verdicts = crate::verdict::judge_compilation_with_activity(prepared, &mut activity);
             assert_eq!(verdicts.len(), 3);
             assert!(
                 verdicts
@@ -6462,7 +6510,7 @@ mod generic_bodies {
                     .all(|verdict| matches!(verdict, Ok(RouteVerdict::Accepted(_)))),
                 "{verdicts:?}"
             );
-            searches() - before
+            activity.started() - before
         };
         let one_selection = check(1);
         assert!(one_selection > 0);
@@ -6506,9 +6554,10 @@ mod generic_bodies {
         let (mut form, found) = checked_once(bound);
         let (witnessed, refinement) = run(vec![witness(), refines]);
         let mut consumer = lower(vec![advance(bound), implementation]).unwrap();
-        let generic = crate::prepare_replay(&mut form).unwrap();
-        let mut replay = crate::prepare_replay(&mut consumer).unwrap();
-        let before = searches();
+        let mut activity = ProofSearchActivity::default();
+        let generic = crate::prepare_replay(&mut form, &mut activity).unwrap();
+        let mut replay = crate::prepare_replay(&mut consumer, &mut activity).unwrap();
+        let before = activity.started();
         let verdicts = reverify_specialization(
             &generic,
             &found,
@@ -6520,9 +6569,10 @@ mod generic_bodies {
                 witness: &witnessed,
                 refinement: &refinement,
             }],
+            &mut activity,
         )
         .unwrap();
-        let started = searches() - before;
+        let started = activity.started() - before;
         (consumer, verdicts, started)
     }
 
@@ -6668,9 +6718,10 @@ mod generic_bodies {
             })
             .collect();
         let mut consumer = lower(vec![advance(bound), implementation]).unwrap();
-        let before = searches();
-        let decided = discharge_carrying(&mut consumer, &offered).unwrap();
-        let started = searches() - before;
+        let mut activity = ProofSearchActivity::default();
+        let before = activity.started();
+        let decided = discharge_carrying(&mut consumer, &offered, &mut activity).unwrap();
+        let started = activity.started() - before;
         (consumer, decided, started)
     }
 
@@ -6981,7 +7032,7 @@ fn crashing_below_ten(
     let mut elaboration =
         typed_trees_to_terminal_psi::lower_bodies(id(1), &bodies, &signatures, &IdTable::default())
             .unwrap();
-    let result = discharge(&mut elaboration).unwrap();
+    let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
     (elaboration, result)
 }
 
@@ -7074,7 +7125,7 @@ fn crashing_at_zero(
     let mut elaboration =
         typed_trees_to_terminal_psi::lower_bodies(id(1), &bodies, &signatures, &IdTable::default())
             .unwrap();
-    let result = discharge(&mut elaboration).unwrap();
+    let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
     (elaboration, result)
 }
 
@@ -7160,7 +7211,7 @@ fn calling_a_zero_route(
     let mut elaboration =
         typed_trees_to_terminal_psi::lower_bodies(id(1), &bodies, &signatures, &IdTable::default())
             .unwrap();
-    let result = discharge(&mut elaboration).unwrap();
+    let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
     (elaboration, result)
 }
 
@@ -7287,7 +7338,7 @@ fn a_call_that_may_crash_is_covered_by_its_callers_route() {
             &IdTable::default(),
         )
         .unwrap();
-        let result = discharge(&mut elaboration).unwrap();
+        let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
         (elaboration, result)
     };
     let operation_site = |kind: &ObligationKind| {

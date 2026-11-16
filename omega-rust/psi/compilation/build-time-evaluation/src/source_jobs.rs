@@ -646,6 +646,8 @@ impl PreparedBuildMachineProgram {
                 purpose: self.purpose,
                 selected: &[],
                 bindings: &[],
+                calling: None,
+                providers: None,
                 supplies,
             },
             terminal_codec::TerminalPublication::Invocation,
@@ -1142,10 +1144,10 @@ pub(crate) mod tests {
         let machine = source
             .realized_machine_named("retain_schema_member_type")
             .unwrap();
-        let [entry] = source.machine_states(machine) else {
+        let Some([entry]) = source.machine_states(machine).as_array() else {
             panic!("one entry state");
         };
-        let [field] = source.state_parameters(entry) else {
+        let Some([field]) = source.state_parameters(entry).as_array() else {
             panic!("one schema field parameter");
         };
         let enclosing = field.type_reference;
@@ -1375,6 +1377,8 @@ pub(crate) mod tests {
             source.push_machine(machine);
         }
         let request = terminal_production::TerminalSourceCompilation {
+            calling: None,
+            providers: None,
             declaration_metadata: &[],
             entries: &[entry],
             subjects: &[],
@@ -1570,6 +1574,8 @@ pub(crate) mod tests {
         terminal_production::AcceptedTerminalSource::judge(
             Arc::new(prepared),
             terminal_production::TerminalSourceCompilation {
+                calling: None,
+                providers: None,
                 declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[],
@@ -1759,6 +1765,8 @@ pub(crate) mod tests {
         let accepted = terminal_production::AcceptedTerminalSource::judge(
             Arc::new(prepared),
             terminal_production::TerminalSourceCompilation {
+                calling: None,
+                providers: None,
                 declaration_metadata: &[],
                 entries: &[root],
                 subjects: &[],
@@ -1849,6 +1857,8 @@ pub(crate) mod tests {
         let accepted = terminal_production::AcceptedTerminalSource::judge(
             Arc::new(prepared),
             terminal_production::TerminalSourceCompilation {
+                calling: None,
+                providers: None,
                 declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[],
@@ -1897,10 +1907,10 @@ pub(crate) mod tests {
                         .path
                         .ends_with("core/float.omg")
                 );
-                let [state] = source.machine_states(machine) else {
+                let Some([state]) = source.machine_states(machine).as_array() else {
                     panic!("one original helper entry")
                 };
-                let [formal] = source.state_parameters(state) else {
+                let Some([formal]) = source.state_parameters(state).as_array() else {
                     panic!("one declared float input")
                 };
                 let typed_trees::types::TypeReferenceNode::Named { symbol: scalar, .. } = source
@@ -1946,6 +1956,8 @@ pub(crate) mod tests {
             let accepted = terminal_production::AcceptedTerminalSource::judge(
                 Arc::clone(&prepared),
                 terminal_production::TerminalSourceCompilation {
+                    calling: None,
+                    providers: None,
                     declaration_metadata: &[],
                     entries: &[symbol],
                     subjects: &[],
@@ -2000,7 +2012,7 @@ pub(crate) mod tests {
         name: &str,
     ) -> (SymbolHandle, typed_trees::expression::ExpressionHandle) {
         let machine = source.realized_machine_named(name).unwrap();
-        let [state] = source.machine_states(machine) else {
+        let Some([state]) = source.machine_states(machine).as_array() else {
             panic!("one authored entry")
         };
         let Some(typed_trees::statement::StatementNode::Transition(transition)) = source
@@ -2348,6 +2360,8 @@ pub(crate) mod tests {
                 purpose: source::DependencyScope::Product,
                 selected: &[],
                 bindings: &[],
+                calling: None,
+                providers: None,
                 supplies: &[],
             },
             terminal_codec::TerminalPublication::Portable,
@@ -2421,14 +2435,14 @@ pub(crate) mod tests {
             .push(terminal_psi::ProofOutputCall {
                 caller,
                 ordinal: 0,
-                target_machine_identity: header.declaration.as_ref().unwrap().callable,
+                target_identity: header.declaration.as_ref().unwrap().callable,
                 static_requirement_dispatch: None,
                 runtime_result: Some(terminal_psi::ProofOutputRuntimeResult::Scalar(
                     header.result.scalar_ref().unwrap().scalar_type,
                 )),
                 runtime_call: Some(terminal_psi::ProofOutputRuntimeCall {
                     site: call.site,
-                    callee: call.inputs.callee,
+                    target: terminal_psi::EvidenceCallableTarget::Machine(call.inputs.callee),
                 }),
                 evidence_arguments: Vec::new(),
                 outputs: Vec::new(),
@@ -2648,6 +2662,8 @@ pub(crate) mod tests {
                 purpose: source::DependencyScope::Product,
                 selected: &[],
                 bindings: &[],
+                calling: None,
+                providers: None,
                 supplies: &[],
             },
             terminal_codec::TerminalPublication::Portable,
@@ -2984,6 +3000,8 @@ pub(crate) mod tests {
         // A matching template or argument count cannot hide a changed value.
         let entries = [used];
         let request = terminal_production::TerminalSourceCompilation {
+            calling: None,
+            providers: None,
             declaration_metadata: &[],
             entries: &entries,
             subjects: &[],
@@ -3208,7 +3226,7 @@ pub(crate) mod tests {
             }",
         );
         let machine = source.realized_machine_named("answer").unwrap();
-        let [state] = source.machine_states(machine) else {
+        let Some([state]) = source.machine_states(machine).as_array() else {
             panic!("one source state")
         };
         assert!(
@@ -4186,6 +4204,8 @@ pub(crate) mod tests {
                         subjects: &[subject],
                         purpose: source::DependencyScope::Product,
                         selected: &[],
+                        calling: None,
+                        providers: None,
                         bindings: &[],
                         supplies: &[],
                     },

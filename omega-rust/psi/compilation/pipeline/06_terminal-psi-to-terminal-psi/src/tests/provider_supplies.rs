@@ -89,6 +89,9 @@ fn supplied_with_subjects(
         typed_trees_to_terminal_psi::prepare_compilation(
             &typed,
             typed_trees_to_terminal_psi::Compilation {
+                calling: None,
+                providers: None,
+
                 declaration_metadata: &[],
                 entries: &[entry(&typed)],
                 subjects,
@@ -274,6 +277,9 @@ fn a_provider_that_refines_its_requirement_is_judged_as_a_root() {
         typed_trees_to_terminal_psi::prepare_compilation(
             &typed,
             typed_trees_to_terminal_psi::Compilation {
+                calling: None,
+                providers: None,
+
                 declaration_metadata: &[],
                 entries: &[entry(&typed)],
                 subjects: &[],
@@ -487,6 +493,9 @@ fn a_supplied_body_has_no_cached_or_selected_named_entry() {
         typed_trees_to_terminal_psi::prepare_compilation(
             &typed,
             typed_trees_to_terminal_psi::Compilation {
+                calling: None,
+                providers: None,
+
                 declaration_metadata: &[],
                 entries: &[member],
                 subjects: &[],

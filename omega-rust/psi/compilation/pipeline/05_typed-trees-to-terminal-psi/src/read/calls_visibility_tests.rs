@@ -149,7 +149,10 @@ impl Fixture {
                 ..Default::default()
             });
         }
+        // The hand-built signature records the source's explicit reaches none.
+        let no_services = typed.service_reach_rows.intern(Vec::new());
         let machines = typed.trait_machine_signatures.insert_many([StateSignature {
+            service_reach_row: no_services,
             symbol: requirement,
             name: Identifier::generated("read"),
             return_type: unit,
@@ -158,6 +161,7 @@ impl Fixture {
             blocks,
             ..Default::default()
         }]);
+        typed.service_reaches.intern(owner, "Raw");
         typed.push_trait_definition(TraitDefinition {
             symbol: owner,
             name: Identifier::generated("Raw"),
@@ -195,7 +199,7 @@ fn selecting_a_private_native_schema_does_not_require_app_call_visibility() {
     program
         .selected_declarations(app, &[fixture.owner, fixture.requirement])
         .unwrap();
-    assert_eq!(program.boundary_symbols.len(), 1);
+    assert_eq!(program.boundaries.rows.len(), 1);
 }
 
 #[test]
@@ -234,7 +238,7 @@ fn a_selected_private_boundary_still_refuses_another_packages_call() {
     program
         .selected_declarations(app, &[fixture.owner, fixture.requirement])
         .unwrap();
-    assert_eq!(program.boundary_symbols.len(), 1);
+    assert_eq!(program.boundaries.rows.len(), 1);
     let refused = program
         .call(
             app,
@@ -260,7 +264,7 @@ fn selected_native_schemas_still_require_their_complete_contract() {
         refused.detail,
         "call boundary requirement must declare its crash ceiling"
     );
-    assert!(program.boundary_symbols.is_empty());
+    assert!(program.boundaries.rows.is_empty());
 }
 
 #[test]
@@ -272,6 +276,8 @@ fn selected_native_declarations_preserve_each_operational_flag() {
         let elaboration = crate::elaborate(
             &fixture.typed,
             crate::Compilation {
+                calling: None,
+                providers: None,
                 entries: &[],
                 subjects: &[],
                 purpose: DependencyScope::Product,
@@ -370,6 +376,8 @@ fn a_build_boundary_publishes_its_own_complete_service_contract() {
             entries: &[],
             subjects: &[],
             purpose: DependencyScope::Build,
+            calling: None,
+            providers: None,
             selected: &[fixture.owner, fixture.requirement],
             declaration_metadata: &[],
             bindings: &[],

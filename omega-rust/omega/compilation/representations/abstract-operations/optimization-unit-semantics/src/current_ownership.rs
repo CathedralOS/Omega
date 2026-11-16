@@ -4020,8 +4020,9 @@ pub(crate) mod references {
     use crate::unit_validation::references::{
         LiveReference, ReferenceIdentity, ReferenceOrigin, ReferenceOriginIdentity,
         ReferenceParent, access_path_type, access_reference_source_compatible,
-        access_referent_tail, contains_reference, formal_origin, leaf_access_within, leaf_paths,
-        leaf_referent, leaf_type, reference_access, reference_source_type, storage_projection,
+        access_referent_tail, aggregate_recast_source_compatible, contains_reference,
+        formal_origin, leaf_access_within, leaf_paths, leaf_referent, leaf_type, reference_access,
+        reference_source_type, storage_projection,
     };
     use abstract_operations::AbstractOperation as O;
     use abstract_operations::AbstractStructuralCallResult;
@@ -6264,6 +6265,7 @@ pub(crate) mod references {
         function: &PsiOptimizationFunction,
         functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
         dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
+        callables: &terminal_psi::TerminalCallableCatalog,
         structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
         borrowed_sources: &BorrowedReferenceSources,
         call_effects: &call_effects::ReferenceCallEffects,
@@ -7014,6 +7016,12 @@ pub(crate) mod references {
                             sources: &declaration.reference_sources,
                         }
                     }
+                    abstract_operations::AbstractCallTarget::Callable { contract, .. } => {
+                        let contract = callables
+                            .contract(*contract)
+                            .ok_or_else(|| refusal("reference call contract is absent or stale"))?;
+                        terminal_semantics::ReferenceCallContract::Callable(contract)
+                    }
                     abstract_operations::AbstractCallTarget::Dynamic {
                         interface, slot, ..
                     } => {
@@ -7133,6 +7141,17 @@ pub(crate) mod references {
                                     actual,
                                     result.structural_type,
                                     correspondence,
+                                )
+                            }
+                            O::EstablishReference {
+                                storage: Some(storage),
+                                ..
+                            } if storage.stored_scalar.is_none() => {
+                                aggregate_recast_source_compatible(
+                                    function,
+                                    structural_types.values().copied(),
+                                    &source,
+                                    result.structural_type,
                                 )
                             }
                             O::EstablishReference {
@@ -8003,6 +8022,7 @@ mod replay {
                     function,
                     functions,
                     dynamic_dispatch,
+                    &unit.callables,
                     structural_types,
                     pins.reference_sources(),
                     &call_accesses.references,
@@ -8308,6 +8328,25 @@ mod replay {
                                         }
                                     }
                                     expected.into_values().collect::<Vec<_>>()
+                                })
+                                .collect::<Vec<_>>()
+                        }
+                        abstract_operations::AbstractCallTarget::Callable { contract, .. } => {
+                            let signature =
+                                unit.callables.contract(*contract).ok_or_else(invalid)?;
+                            signature
+                                .structural_parameters
+                                .iter()
+                                .enumerate()
+                                .map(|(argument_index, _)| {
+                                    signature
+                                        .entry_claim_paths
+                                        .iter()
+                                        .filter(|claim| {
+                                            claim.argument_index as usize == argument_index
+                                        })
+                                        .map(|claim| claim.path.as_slice())
+                                        .collect::<Vec<_>>()
                                 })
                                 .collect::<Vec<_>>()
                         }

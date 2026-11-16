@@ -16,7 +16,7 @@ use terminal_check_tables::{KnowledgeId, MachineTables, ProgramPoint};
 use terminal_psi::TerminalMachine;
 
 use crate::graph::Graph;
-use crate::{ImpossibleArm, hypotheses, prove};
+use crate::{ImpossibleArm, ProofSearchActivity, hypotheses, prove};
 
 struct PointRefutation {
     point: ProgramPoint,
@@ -70,7 +70,11 @@ impl<'machine> Analysis<'machine> {
         }))
     }
 
-    fn refuted(&mut self, point: ProgramPoint) -> Option<&[KnowledgeId]> {
+    fn refuted(
+        &mut self,
+        point: ProgramPoint,
+        activity: &mut ProofSearchActivity,
+    ) -> Option<&[KnowledgeId]> {
         let position = self
             .points
             .binary_search_by_key(&point, |query| query.point)
@@ -87,6 +91,7 @@ impl<'machine> Analysis<'machine> {
                 self.tables,
                 self.machine,
                 point,
+                activity,
             ));
         }
         cached.as_ref()?.as_deref()
@@ -95,7 +100,11 @@ impl<'machine> Analysis<'machine> {
     /// Warn only at the first contradictory branch, not at later arms whose
     /// incoming context is already impossible. Missing/refused evidence stays
     /// quiet: failed search does not prove that an arrival is impossible.
-    pub(super) fn run(&mut self, branches: &[Branch]) -> Vec<ImpossibleArm> {
+    pub(super) fn run(
+        &mut self,
+        branches: &[Branch],
+        activity: &mut ProofSearchActivity,
+    ) -> Vec<ImpossibleArm> {
         // A machine can contain many blocks but only a few authored arms.
         // Prepare only their exact query points, not a table spanning all its
         // blocks or operations. Empty branch lists allocate nothing.
@@ -118,13 +127,13 @@ impl<'machine> Analysis<'machine> {
             let Some(before) = self.point(branch.decided_in, true) else {
                 continue;
             };
-            if self.refuted(before).is_some() {
+            if self.refuted(before, activity).is_some() {
                 continue;
             }
             let Some(entry) = self.point(branch.block, false) else {
                 continue;
             };
-            let Some(rows) = self.refuted(entry) else {
+            let Some(rows) = self.refuted(entry, activity) else {
                 continue;
             };
             let premises = rows
@@ -162,10 +171,17 @@ fn refutation(
     tables: &MachineTables,
     machine: MachineId,
     point: ProgramPoint,
+    activity: &mut ProofSearchActivity,
 ) -> Option<Vec<KnowledgeId>> {
     let probe = ObligationId::new(1)?;
     let known = hypotheses(graph, tables, machine, probe, point).ok()?;
-    let mut prover = prove::Prover::new(context, &known.assumptions, &known.axioms, &tables.values);
+    let mut prover = prove::Prover::new(
+        context,
+        &known.assumptions,
+        &known.axioms,
+        &tables.values,
+        activity,
+    );
     let proof = prover.prove(&Proposition::Falsehood).ok()?;
     let accepted = verify_obligation(
         context,

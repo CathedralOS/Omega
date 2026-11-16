@@ -92,46 +92,44 @@ pub(crate) mod build_selections {
         BuildOperation, BuildSelectionRequest, RootBindingOperand,
     };
     use typed_trees::expression::{
-        BuildSelectionCall, ExpressionHandle, ExpressionNode, TableCallExpression, TableNamePath,
+        BuildSelectionCall, BuildSelectionInput, BuildSelectionInputs, BuildSelectionPhase,
+        ExpressionHandle, ExpressionNode, TableCallExpression, TableNamePath,
     };
 
     pub(crate) fn lower(
         source: &symbol_resolved_trees::SymbolResolvedTrees,
         target: &mut typed_trees::TypedTrees,
         request: typed_trees::expression::BuildSelectionRequest,
+        inputs: Vec<BuildSelectionInput>,
+        lexical_owner: symbols::SymbolHandle,
         mut arguments: Vec<ExpressionHandle>,
         acknowledgement: language_semantics::CallOperationalAcknowledgement,
     ) -> Result<ExpressionHandle, Diagnostic> {
         let source_span = request.source_span();
-        let mut operand_selections = Vec::new();
-        for operand in request.designated_operands() {
-            for (_, selection) in operand
-                .application
-                .as_ref()
-                .into_iter()
-                .flat_map(|graph| graph.selections.iter())
-            {
-                let kind = selection.kind.ok_or_else(|| {
-                    Diagnostic::error("designated operand lost its authored selection kind")
-                })?;
-                operand_selections.push(
-                    target
-                        .authored_declaration_selections()
-                        .source_coordinate_occurrence(
-                            selection.source_span,
-                            selection.exposure,
-                            kind,
-                        )
-                        .map_err(|reason| {
-                            Diagnostic::error(format!(
-                            "Build operand cannot rejoin its {kind:?} selection ({:?}): {reason}",
-                            selection.exposure
-                        ))
-                        .with_source_span(selection.source_span)
-                        })?,
+        if !source.symbols.symbols().nodes().is_valid(lexical_owner)
+            || source.symbols.get(lexical_owner).kind != symbols::SymbolKind::Machine
+        {
+            return Err(
+                Diagnostic::error("Build selection has no exact lexical machine owner")
+                    .with_source_span(source_span),
+            );
+        }
+        for input in &inputs {
+            let selection = target
+                .authored_declaration_selections()
+                .get(input.occurrence)
+                .ok_or_else(|| Diagnostic::error("Build input lost its exact ledger occurrence"))?;
+            if selection.target() != input.target {
+                return Err(
+                    Diagnostic::error("Build input changes its captured ledger target")
+                        .with_source_span(selection.source_span()),
                 );
             }
         }
+        let operand_selections = inputs
+            .iter()
+            .map(|input| input.occurrence)
+            .collect::<Vec<_>>();
         use language_semantics::build_requests::SelectionProtocolOperation as Protocol;
         let operation = match (&request, arguments.len()) {
             (BuildSelectionRequest::ProviderReadiness(_), 1) => Protocol::AwaitProvider,
@@ -254,6 +252,7 @@ pub(crate) mod build_selections {
                         operational_acknowledgement| {
             let arguments = table.insert_expression_handles(arguments);
             let expression = table.insert(ExpressionNode::Call(TableCallExpression {
+                runtime_call: None,
                 authored_call_selection: None,
                 authored_call_binding: None,
                 authored_machine_application: Default::default(),
@@ -303,7 +302,7 @@ pub(crate) mod build_selections {
                 Default::default(),
             );
         }
-        arguments[0] = emit(
+        let prepared = emit(
             preparation.symbol,
             crate::lowerer::name::lower_name(&preparation.name),
             receiver,
@@ -311,6 +310,7 @@ pub(crate) mod build_selections {
             prepared_selection,
             Default::default(),
         );
+        arguments[0] = prepared;
         let committed = emit(
             commit.symbol,
             crate::lowerer::name::lower_name(&commit.name),
@@ -319,6 +319,28 @@ pub(crate) mod build_selections {
             committed_selection,
             acknowledgement,
         );
+        table
+            .retain_build_selection_inputs(
+                prepared,
+                BuildSelectionInputs {
+                    request: prepared_selection,
+                    lexical_owner,
+                    phase: BuildSelectionPhase::Preparation,
+                    inputs: Vec::new(),
+                },
+            )
+            .map_err(|reason| Diagnostic::error(reason).with_source_span(source_span))?;
+        table
+            .retain_build_selection_inputs(
+                committed,
+                BuildSelectionInputs {
+                    request: committed_selection,
+                    lexical_owner,
+                    phase: BuildSelectionPhase::Commit,
+                    inputs,
+                },
+            )
+            .map_err(|reason| Diagnostic::error(reason).with_source_span(source_span))?;
         table.attach_authored_selection_occurrences(committed, operand_selections);
         Ok(committed)
     }
@@ -580,30 +602,43 @@ pub(crate) mod capture_product_operands {
     };
     use symbols::SymbolHandle;
 
+    pub(crate) struct Captured {
+        pub graph: ProductStaticOperandGraph,
+        pub inputs: Vec<typed_trees::expression::BuildSelectionInput>,
+    }
+
     pub(crate) fn capture(
         source: &SymbolResolvedTrees,
         typed: &mut typed_trees::TypedTrees,
         exposure: Option<SelectionExposure>,
         occurrences: &[language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId],
         argument: &source_expression::StaticMachineArgument,
-    ) -> Result<ProductStaticOperandGraph, Diagnostic> {
+        argument_ordinal: u32,
+    ) -> Result<Captured, Diagnostic> {
         let mut capture = Capture {
             source,
             typed,
             exposure,
             graph: ProductStaticOperandGraph::default(),
+            inputs: Vec::new(),
+            argument_ordinal,
             expressions: Vec::new(),
             captures: Vec::new(),
             active: Vec::new(),
         };
         capture.graph.root = capture.operand(argument, occurrences, true)?;
-        Ok(capture.graph)
+        Ok(Captured {
+            graph: capture.graph,
+            inputs: capture.inputs,
+        })
     }
     struct Capture<'a> {
         source: &'a SymbolResolvedTrees,
         typed: &'a mut typed_trees::TypedTrees,
         exposure: Option<SelectionExposure>,
         graph: ProductStaticOperandGraph,
+        inputs: Vec<typed_trees::expression::BuildSelectionInput>,
+        argument_ordinal: u32,
         expressions: Vec<(
             source_expression::ExpressionHandle,
             Handle<ProductOperandExpression>,
@@ -628,25 +663,23 @@ pub(crate) mod capture_product_operands {
             let selection = ledger.get(occurrence).ok_or_else(|| {
                 Diagnostic::error("original static input retains an unknown selection")
             })?;
-            let rejoined = ledger
-                .source_coordinate_occurrence(
-                    selection.source_span(),
-                    selection.exposure(),
-                    selection.kind(),
-                )
-                .map_err(|reason| {
-                    Diagnostic::error(format!(
-                        "captured static operand cannot rejoin its {:?} selection ({:?}): {reason}",
-                        selection.kind(),
-                        selection.exposure()
-                    ))
-                    .with_source_span(selection.source_span())
+            let retained = self
+                .typed
+                .authored_declaration_selections()
+                .get(occurrence)
+                .ok_or_else(|| {
+                    Diagnostic::error("captured static operand lost its typed selection occurrence")
                 })?;
-            if rejoined != occurrence {
-                return Err(Diagnostic::error(
-                    "original static input changed its exact selection attachment",
-                ));
-            }
+            self.inputs
+                .push(typed_trees::expression::BuildSelectionInput {
+                    occurrence,
+                    argument_ordinal: self.argument_ordinal,
+                    resolved_target: retained
+                        .target()
+                        .as_resolved()
+                        .map(|target| target.selected_symbol()),
+                    target: retained.target(),
+                });
             Ok(self.graph.selections.insert(ProductOperandSelection {
                 source_span: selection.source_span(),
                 exposure: selection.exposure(),
@@ -706,39 +739,34 @@ pub(crate) mod capture_product_operands {
             {
                 return Ok(Handle::invalid());
             }
-            let first = argument.path.first().expect("nonempty path").source_span();
-            let last = argument.path.last().expect("nonempty path").source_span();
-            if first.source_id != last.source_id {
+            let occurrence = argument.authored_selection.ok_or_else(|| {
+                Diagnostic::error(
+                    "original static input has no exact argument selection attachment",
+                )
+            })?;
+            if !occurrences.contains(&occurrence) {
                 return Err(Diagnostic::error(
-                    "original static input path crosses source owners",
+                    "static input attachment belongs to another original call",
                 ));
             }
-            let span = source::SourceSpan::new(
-                first.source_id,
-                source::Span::new(first.span.start, last.span.end),
-            );
-            let mut matching = occurrences.iter().copied().filter(|occurrence| {
-                self.source
-                    .authored_declaration_selections()
-                    .get(*occurrence)
-                    .is_some_and(|selection| {
-                        selection.source_span() == span
-                            && matches!(selection.kind(), Kind::StaticArgument | Kind::Conformance)
-                    })
-            });
-            let occurrence = matching.next().ok_or_else(|| {
-                Diagnostic::error(
-                    "original static input has no exact original-call selection attachment",
-                )
-                .with_source_span(span)
-            })?;
-            if matching.next().is_some() {
+            let selection = self
+                .source
+                .authored_declaration_selections()
+                .get(occurrence)
+                .ok_or_else(|| {
+                    Diagnostic::error("static input attachment has no current ledger row")
+                })?;
+            if !matches!(selection.kind(), Kind::StaticArgument | Kind::Conformance) {
                 return Err(Diagnostic::error(
-                    "original static input has ambiguous original-call selection attachments",
-                )
-                .with_source_span(span));
+                    "static input attachment has another selection kind",
+                ));
             }
-            self.retain_coordinate(occurrence, false)
+            let selection = self.retain_coordinate(occurrence, false)?;
+            self.inputs
+                .last_mut()
+                .expect("retained static input row")
+                .resolved_target = argument.authored_selection_target;
+            Ok(selection)
         }
         fn declaration(&self, symbol: SymbolHandle) -> Option<source::SourceSpan> {
             symbol
@@ -924,6 +952,9 @@ pub(crate) mod capture_product_operands {
             Source::ConstExpression(value) => {
                 ProductOperandType::ConstExpression(self.expression(value.expression)?)
             }
+            Source::Callable { .. } => {
+                return Err(Diagnostic::error("captured Product static type cannot yet retain a complete scoped callable contract"));
+            }
             Source::AliasUse { .. } => {
                 return Err(Diagnostic::error("captured Product static type cannot yet retain transparent alias application obligations"));
             }
@@ -997,26 +1028,23 @@ pub(crate) mod capture_product_operands {
                     )
                     .with_source_span(source.tables.bodies.expressions.source_span(expression))
                 })?;
-                let rejoined = ledger
-                    .source_coordinate_occurrence(
-                        selection.source_span(),
-                        selection.exposure(),
-                        selection.kind(),
-                    )
-                    .map_err(|reason| {
-                        Diagnostic::error(format!(
-                        "captured static operand cannot rejoin its {:?} selection ({:?}): {reason}",
-                        selection.kind(),
-                        selection.exposure()
-                    ))
-                    .with_source_span(selection.source_span())
+                let retained = self
+                    .typed
+                    .authored_declaration_selections()
+                    .get(occurrence)
+                    .ok_or_else(|| {
+                        Diagnostic::error("captured expression lost its typed selection occurrence")
                     })?;
-                if rejoined != occurrence {
-                    return Err(Diagnostic::error(
-                    "designated source expression selection changed its exact ledger association",
-                )
-                .with_source_span(selection.source_span()));
-                }
+                self.inputs
+                    .push(typed_trees::expression::BuildSelectionInput {
+                        occurrence,
+                        argument_ordinal: self.argument_ordinal,
+                        resolved_target: retained
+                            .target()
+                            .as_resolved()
+                            .map(|target| target.selected_symbol()),
+                        target: retained.target(),
+                    });
                 selections.push(ProductOperandSelection {
                     source_span: selection.source_span(),
                     exposure: selection.exposure(),
@@ -1317,11 +1345,13 @@ pub(crate) mod construction_destinations {
 
     struct ConstructionCall {
         target: SymbolHandle,
+        runtime_contract: Option<typed_trees::callable_values::RuntimeCallableContractHandle>,
         static_arguments: Vec<StaticMachineArgument>,
         arguments: Vec<ExpressionHandle>,
     }
 
     pub(crate) fn prepare(
+        source: &symbol_resolved_trees::SymbolResolvedTrees,
         program: &mut TypedTrees,
         expression_frontier: usize,
         machine_frontier: usize,
@@ -1330,7 +1360,9 @@ pub(crate) mod construction_destinations {
         let mut destinations = Vec::<(ExpressionHandle, TypeReferenceHandle, SymbolHandle)>::new();
         let mut calls = Vec::new();
         let mut constructors = Vec::new();
+        let mut result_calls = Vec::new();
         let mut unlanded = Vec::new();
+        let mut pending_destinations = Vec::new();
         // Values this pass cannot land, each with the request its holder
         // carries instead (`defer_to_holders`).
         let mut deferred = Vec::<(ExpressionHandle, DeferredRequest)>::new();
@@ -1343,6 +1375,7 @@ pub(crate) mod construction_destinations {
             match expression {
                 ExpressionNode::StructLiteral(_) => constructors.push(handle),
                 ExpressionNode::Call(call) => {
+                    result_calls.push(handle);
                     let arguments = program.expression_table.expression_handles(call.arguments);
                     if program
                         .mathematical_definitions()
@@ -1364,6 +1397,7 @@ pub(crate) mod construction_destinations {
                     collect_call_destinations(
                         program,
                         call.target_symbol,
+                        call.runtime_call.map(|binding| binding.contract),
                         &call.machine_arguments,
                         arguments,
                         &mut calls,
@@ -1408,27 +1442,29 @@ pub(crate) mod construction_destinations {
                         }
                         StatementNode::Assignment(assignment) => {
                             if needs_destination(program, assignment.value) {
-                                // A literal assigned to a field or array element
-                                // needs that destination's declared type. Bounds,
-                                // access and establishment are checked later. An
-                                // unavailable destination remains this machine's
-                                // deferred request rather than stopping its siblings.
+                                // One declared-place query supplies the exact
+                                // constructor application. Bounds, access and
+                                // establishment remain lowered judgments.
                                 match assigned_place_type(program, state, assignment.target) {
-                                    Some(receiving_type) => destinations.push((
+                                    Some(receiving) => destinations.push((
                                         assignment.value,
-                                        receiving_type,
+                                        receiving,
                                         machine.symbol,
                                     )),
-                                    None => unlanded.push((
-                                        machine.symbol,
-                                        program.expression_table.source_span(assignment.value),
-                                    )),
+                                    None => {
+                                        pending_destinations.push(assignment.value);
+                                        unlanded.push((
+                                            machine.symbol,
+                                            program.expression_table.source_span(assignment.value),
+                                        ));
+                                    }
                                 }
                             }
                         }
                         StatementNode::Call(call) => collect_call_destinations(
                             program,
                             call.target_symbol,
+                            call.runtime_call.map(|binding| binding.contract),
                             &call.machine_arguments,
                             program.statement_table.expression_handles(call.arguments),
                             &mut calls,
@@ -1457,6 +1493,7 @@ pub(crate) mod construction_destinations {
                                         collect_call_destinations(
                                             program,
                                             path.symbol,
+                                            None,
                                             &[],
                                             program.statement_table.expression_handles(*arguments),
                                             &mut calls,
@@ -1483,7 +1520,19 @@ pub(crate) mod construction_destinations {
             );
         }
         for call in calls {
-            let binders = program.declaration_type_parameters(call.target).to_vec();
+            if !call.target.is_valid() && call.runtime_contract.is_none() {
+                pending_destinations.extend(call.arguments);
+                continue;
+            }
+            let binders = if let Some(contract) = call.runtime_contract {
+                program
+                    .state_signature_type_parameters(
+                        &program.runtime_callable_contracts.get(contract).signature,
+                    )
+                    .to_vec()
+            } else {
+                program.declaration_type_parameters(call.target).to_vec()
+            };
             if binders.len() != call.static_arguments.len() {
                 continue;
             }
@@ -1494,11 +1543,19 @@ pub(crate) mod construction_destinations {
                     .map_err(Diagnostic::error)?;
                 substitutions.push((binder.symbol, actual));
             }
-            let Some(parameters) =
-                crate::typing_queries::call_target_parameters(program, call.target)
-            else {
-                // `collect_call_destinations` keeps only calls with an
-                // argument that needs its parameter's type.
+            let parameters = if let Some(contract) = call.runtime_contract {
+                Some(
+                    program.state_signature_parameters(
+                        &program
+                            .declared_callable_contract(contract)
+                            .map_err(Diagnostic::error)?
+                            .signature,
+                    ),
+                )
+            } else {
+                crate::typing_queries::call_target_parameters(program, call.target)?
+            };
+            let Some(parameters) = parameters else {
                 if let Some(argument) = call
                     .arguments
                     .iter()
@@ -1533,28 +1590,20 @@ pub(crate) mod construction_destinations {
                 destinations.push((argument, reference, call.target));
             }
         }
-        let mut cast_destinations = Vec::new();
-        let mut completed_destinations = Vec::new();
-        let mut unselected = Vec::new();
+        let mut receiving = DestinationPreparation::new(source, program);
+        receiving.mark_pending(program, &pending_destinations);
         for (value, destination, lifetime_owner) in destinations {
-            land_one(
-                program,
-                value,
-                destination,
-                lifetime_owner,
-                &mut cast_destinations,
-                &mut completed_destinations,
-                &mut unselected,
-            )?;
+            receiving.land_one(program, value, destination, lifetime_owner)?;
         }
         // A child constructor may get its complete application from an
         // enclosing field. Land explicit receiving contexts first; querying
         // every child before its parent would discard that application.
         for value in constructors {
             let position = value.arena_index() as usize;
-            if completed_destinations
+            if receiving
+                .contexts
                 .get(position)
-                .is_some_and(|contexts| !contexts.is_empty())
+                .is_some_and(|contexts| !contexts.known.is_empty())
             {
                 continue;
             }
@@ -1593,27 +1642,21 @@ pub(crate) mod construction_destinations {
                 let Some(field_type) =
                     selected_field_type(program, value, &literal, field.field_symbol)
                 else {
-                    unselected.push(value);
+                    receiving.unselected.push(value);
                     break;
                 };
-                land_one(
-                    program,
-                    field.value,
-                    field_type,
-                    literal.type_symbol,
-                    &mut cast_destinations,
-                    &mut completed_destinations,
-                    &mut unselected,
-                )?;
+                receiving.land_one(program, field.value, field_type, literal.type_symbol)?;
             }
         }
+        receiving.complete_unreceived_calls(program, &result_calls)?;
         deferred.extend(
-            unselected
+            receiving
+                .unselected
                 .into_iter()
                 .map(|constructor| (constructor, DeferredRequest::ConstructorFieldSelection)),
         );
         defer_to_holders(program, deferred)?;
-        Ok(cast_destinations)
+        Ok(receiving.cast_destinations)
     }
 
     /// The type a constructor's field is built at, or `None` when typing does
@@ -1711,19 +1754,20 @@ pub(crate) mod construction_destinations {
     fn collect_call_destinations(
         program: &TypedTrees,
         target_symbol: SymbolHandle,
+        runtime_contract: Option<typed_trees::callable_values::RuntimeCallableContractHandle>,
         static_arguments: &[StaticMachineArgument],
         arguments: &[ExpressionHandle],
         calls: &mut Vec<ConstructionCall>,
     ) {
-        if !target_symbol.is_valid()
-            || !arguments
-                .iter()
-                .any(|argument| needs_destination(program, *argument))
+        if !arguments
+            .iter()
+            .any(|argument| needs_destination(program, *argument))
         {
             return;
         }
         calls.push(ConstructionCall {
             target: target_symbol,
+            runtime_contract,
             static_arguments: static_arguments.to_vec(),
             arguments: arguments.to_vec(),
         });
@@ -1732,7 +1776,12 @@ pub(crate) mod construction_destinations {
     fn needs_destination(program: &TypedTrees, value: ExpressionHandle) -> bool {
         value.is_valid()
             && match program.expression_table.expression(value) {
-                ExpressionNode::StructLiteral(_)
+                ExpressionNode::Name(_) => {
+                    crate::runtime_callables::named_value_needs_destination(program, value)
+                }
+                ExpressionNode::MachineValue(_)
+                | ExpressionNode::StructLiteral(_)
+                | ExpressionNode::Call(_)
                 | ExpressionNode::String(_)
                 | ExpressionNode::ArrayLiteral(_)
                 | ExpressionNode::Match(_) => true,
@@ -1779,223 +1828,288 @@ pub(crate) mod construction_destinations {
         None
     }
 
-    fn land_one(
-        program: &mut TypedTrees,
-        value: ExpressionHandle,
-        destination: TypeReferenceHandle,
-        lifetime_owner: SymbolHandle,
-        cast_destinations: &mut Vec<TypeReferenceHandle>,
-        completed: &mut Vec<Vec<(TypeReferenceHandle, SymbolHandle)>>,
-        unselected: &mut Vec<ExpressionHandle>,
-    ) -> Result<bool, Diagnostic> {
-        if !value.is_valid() || !destination.is_valid() {
-            return Ok(false);
-        }
-        if !program.expression_table.expression_is_valid(value) {
-            return Err(Diagnostic::error(
-                "constructor destination refers to a missing expression occurrence",
-            ));
-        }
-        if !program
-            .type_reference_table
-            .contains_type_reference(destination)
-        {
-            return Err(Diagnostic::error(
-                "constructor destination refers to a missing receiving type occurrence",
-            ));
-        }
-        // A receiving occurrence includes its complete type handle and lexical
-        // region owner. Revisit a different context, but do not walk the same
-        // descendants again through another root or the constructor census.
-        let position = value.arena_index() as usize;
-        if completed
-            .get(position)
-            .is_some_and(|contexts| contexts.contains(&(destination, lifetime_owner)))
-        {
-            return Ok(true);
-        }
-        let landed = land_destination(
-            program,
-            value,
-            destination,
-            lifetime_owner,
-            cast_destinations,
-            completed,
-            unselected,
-        )?;
-        if landed {
-            if completed.len() <= position {
-                completed.resize_with(position + 1, Vec::new);
-            }
-            completed[position].push((destination, lifetime_owner));
-        }
-        Ok(landed)
+    #[derive(Default)]
+    struct ReceivingContexts {
+        pending: bool,
+        known: Vec<(TypeReferenceHandle, SymbolHandle)>,
     }
 
-    fn land_destination(
-        program: &mut TypedTrees,
-        value: ExpressionHandle,
-        destination: TypeReferenceHandle,
-        mut lifetime_owner: SymbolHandle,
-        cast_destinations: &mut Vec<TypeReferenceHandle>,
-        completed: &mut Vec<Vec<(TypeReferenceHandle, SymbolHandle)>>,
-        unselected: &mut Vec<ExpressionHandle>,
-    ) -> Result<bool, Diagnostic> {
-        if let Some(dispatch) = program.expression_table.match_node(value) {
-            let arms = program.expression_table.match_arms(dispatch.arms).to_vec();
-            let mut landed = true;
-            for arm in arms {
-                landed &= land_one(
-                    program,
-                    arm.value,
-                    destination,
-                    lifetime_owner,
-                    cast_destinations,
-                    completed,
-                    unselected,
-                )?;
+    struct DestinationPreparation<'a> {
+        calls: crate::constructor_applications::CallResultSelections<'a>,
+        cast_destinations: Vec<TypeReferenceHandle>,
+        contexts: Vec<ReceivingContexts>,
+        unselected: Vec<ExpressionHandle>,
+    }
+
+    impl<'a> DestinationPreparation<'a> {
+        fn new(
+            source: &'a symbol_resolved_trees::SymbolResolvedTrees,
+            program: &TypedTrees,
+        ) -> Self {
+            Self {
+                calls: crate::constructor_applications::CallResultSelections::new(source, program),
+                cast_destinations: Vec::new(),
+                contexts: Vec::new(),
+                unselected: Vec::new(),
             }
-            return Ok(landed);
         }
-        // An expected type supplies a literal's carrier, never its domains.
-        // Retain the destination at the complete cast, not at its operand:
-        // accounting still checks every written addition, keep and removal.
-        if let Some(cast) = program
-            .expression_table
-            .cast_node(value)
-            .copied()
-            .filter(|cast| cast.form.entry().is_some())
-        {
-            // Expression handles are dense. Keep lookup independent of the
-            // number of casts in a compiler-sized source cohort.
-            let index = value.arena_index() as usize;
-            if cast_destinations.len() <= index {
-                cast_destinations.resize(index + 1, TypeReferenceHandle::invalid());
+        fn mark_pending(&mut self, program: &TypedTrees, roots: &[ExpressionHandle]) {
+            use typed_trees::references::{TypedReferences, visit_expression};
+            struct Pending<'a> {
+                program: &'a TypedTrees,
+                contexts: &'a mut Vec<ReceivingContexts>,
+                seen: Vec<bool>,
             }
-            cast_destinations[index] = destination;
-            // Domain-only casts preserve the receiving carrier through an
-            // inner cast or match. An explicit carrier cast is a boundary:
-            // land_one does not descend through an ordinary value cast.
-            return land_one(
+            impl Extend<SymbolHandle> for Pending<'_> {
+                fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, _: T) {}
+            }
+            impl TypedReferences for Pending<'_> {
+                fn derived_declaration_references(&self) -> bool {
+                    false
+                }
+                fn expression(&mut self, value: ExpressionHandle) -> bool {
+                    let index = value.arena_index() as usize;
+                    if self.seen.len() <= index {
+                        self.seen.resize(index + 1, false);
+                    }
+                    if std::mem::replace(&mut self.seen[index], true) {
+                        return false;
+                    }
+                    if self.program.expression_table.call_node(value).is_some() {
+                        if self.contexts.len() <= index {
+                            self.contexts
+                                .resize_with(index + 1, ReceivingContexts::default);
+                        }
+                        self.contexts[index].pending = true;
+                    }
+                    true
+                }
+            }
+            let mut pending = Pending {
                 program,
-                cast.value,
-                destination,
-                lifetime_owner,
-                cast_destinations,
-                completed,
-                unselected,
-            );
-        }
-        let mut carrier = destination;
-        loop {
-            let supplied = program.type_reference_table.operand_lifetime_owner(carrier);
-            if supplied.is_valid() {
-                lifetime_owner = supplied;
-            }
-            match program.type_reference_table.type_reference(carrier) {
-                TypeReferenceNode::Constrained { base_type, .. } => carrier = *base_type,
-                _ => break,
+                contexts: &mut self.contexts,
+                seen: Vec::new(),
+            };
+            for root in roots {
+                visit_expression(program, &mut pending, *root);
             }
         }
-        if let ExpressionNode::StructLiteral(literal) =
-            program.expression_table.expression(value).clone()
-        {
-            // Runtime value indices still need their actual source argument
-            // materialization. This type-only landing does not snapshot or
-            // invent those values and grants no construction premise.
-            let exact_template = matches!(program.type_reference_table.type_reference(carrier),
-            TypeReferenceNode::Generic { base_symbol, .. } if *base_symbol == literal.type_symbol)
-                && !program
-                    .type_application_value_indices(carrier)
-                    .has_runtime_values();
-            if !exact_template
-                && program
-                    .closed_data_constructor_definition(destination, literal.type_symbol)
-                    .is_none()
-            {
+
+        fn complete_unreceived_calls(
+            &self,
+            program: &mut TypedTrees,
+            calls: &[ExpressionHandle],
+        ) -> Result<(), Diagnostic> {
+            // An explicit receiving occurrence can be pending while a cast on
+            // its place settles. It is not an absent context: only genuinely
+            // unreceived calls may request the default empty domain set.
+            for value in calls {
+                if !self
+                    .contexts
+                    .get(value.arena_index() as usize)
+                    .is_some_and(|contexts| contexts.pending || !contexts.known.is_empty())
+                {
+                    self.calls.select(program, *value, None)?;
+                }
+            }
+            Ok(())
+        }
+
+        fn land_one(
+            &mut self,
+            program: &mut TypedTrees,
+            value: ExpressionHandle,
+            destination: TypeReferenceHandle,
+            lifetime_owner: SymbolHandle,
+        ) -> Result<bool, Diagnostic> {
+            if !value.is_valid() || !destination.is_valid() {
                 return Ok(false);
             }
-            let prior = expression_table(program).construction_required_type_reference(value);
-            let carrier = if (!prior.is_valid() || !literal.application_type.is_valid())
-                && lifetime_owner.is_valid()
-                && !program
-                    .type_reference_table
-                    .operand_lifetime_owner(carrier)
-                    .is_valid()
+            if !program.expression_table.expression_is_valid(value) {
+                return Err(Diagnostic::error(
+                    "constructor destination refers to a missing expression occurrence",
+                ));
+            }
+            if !program
+                .type_reference_table
+                .contains_type_reference(destination)
             {
-                let occurrence = program.type_reference_table.fresh_occurrence(carrier);
-                program
-                    .type_reference_table
-                    .retain_operand_lifetime_owner(occurrence, lifetime_owner)
-                    .map_err(Diagnostic::error)?;
-                occurrence
-            } else {
-                carrier
-            };
-            // Normalization is complete before landing. Reuse its exact view;
-            // only a fresh receiving occurrence needs another metadata row.
-            if program.data_application_definition(carrier).is_none() {
-                program
-                    .prepare_data_application_view(carrier)
-                    .map_err(Diagnostic::error)?;
+                return Err(Diagnostic::error(
+                    "constructor destination refers to a missing receiving type occurrence",
+                ));
             }
-            if !prior.is_valid() {
-                expression_table_mut(program)
-                    .set_construction_required_type_reference(value, carrier);
-            }
-            if !literal.application_type.is_valid()
-                && let ExpressionNode::StructLiteral(retained) =
-                    expression_table_mut(program).expression_mut(value)
+            // A receiving occurrence includes its complete type handle and lexical
+            // region owner. Revisit a different context, but do not walk the same
+            // descendants again through another root or the constructor census.
+            let position = value.arena_index() as usize;
+            if self
+                .contexts
+                .get(position)
+                .is_some_and(|contexts| contexts.known.contains(&(destination, lifetime_owner)))
             {
-                retained.application_type = carrier;
+                return Ok(true);
             }
-            let fields = expression_table(program)
-                .struct_fields(literal.fields)
-                .to_vec();
-            let mut landed = true;
-            for field in fields {
-                let Some(field_type) =
-                    selected_field_type(program, value, &literal, field.field_symbol)
-                else {
-                    unselected.push(value);
+            let landed = self.land_destination(program, value, destination, lifetime_owner)?;
+            if landed {
+                if self.contexts.len() <= position {
+                    self.contexts
+                        .resize_with(position + 1, ReceivingContexts::default);
+                }
+                self.contexts[position]
+                    .known
+                    .push((destination, lifetime_owner));
+            }
+            Ok(landed)
+        }
+
+        fn land_destination(
+            &mut self,
+            program: &mut TypedTrees,
+            value: ExpressionHandle,
+            destination: TypeReferenceHandle,
+            mut lifetime_owner: SymbolHandle,
+        ) -> Result<bool, Diagnostic> {
+            if crate::runtime_callables::prepare_named_value(
+                program,
+                value,
+                destination,
+                lifetime_owner,
+            )? {
+                return Ok(true);
+            }
+            if program.expression_table.call_node(value).is_some() {
+                self.calls.select(program, value, Some(destination))?;
+                return Ok(true);
+            }
+            if let Some(dispatch) = program.expression_table.match_node(value) {
+                let arms = program.expression_table.match_arms(dispatch.arms).to_vec();
+                let mut landed = true;
+                for arm in arms {
+                    landed &= self.land_one(program, arm.value, destination, lifetime_owner)?;
+                }
+                return Ok(landed);
+            }
+            // An expected type supplies a literal's carrier, never its domains.
+            // Retain the destination at the complete cast, not at its operand:
+            // accounting still checks every written addition, keep and removal.
+            if program
+                .expression_table
+                .cast_node(value)
+                .is_some_and(|cast| cast.form.entry().is_some())
+            {
+                // Expression handles are dense. Keep lookup independent of the
+                // number of casts in a compiler-sized source cohort.
+                let index = value.arena_index() as usize;
+                if self.cast_destinations.len() <= index {
+                    self.cast_destinations
+                        .resize(index + 1, TypeReferenceHandle::invalid());
+                }
+                self.cast_destinations[index] = destination;
+                let (operand, before) = crate::domain_cast_accounting::call_operand_destination(
+                    self.calls.source(),
+                    program,
+                    value,
+                    destination,
+                )?;
+                return self.land_one(program, operand, before, lifetime_owner);
+            }
+            let mut carrier = destination;
+            loop {
+                let supplied = program.type_reference_table.operand_lifetime_owner(carrier);
+                if supplied.is_valid() {
+                    lifetime_owner = supplied;
+                }
+                match program.type_reference_table.type_reference(carrier) {
+                    TypeReferenceNode::Constrained { base_type, .. } => carrier = *base_type,
+                    _ => break,
+                }
+            }
+            if let ExpressionNode::StructLiteral(literal) =
+                program.expression_table.expression(value).clone()
+            {
+                // Runtime value indices still need their actual source argument
+                // materialization. This type-only landing does not snapshot or
+                // invent those values and grants no construction premise.
+                let exact_template = matches!(program.type_reference_table.type_reference(carrier),
+            TypeReferenceNode::Generic { base_symbol, .. } if *base_symbol == literal.type_symbol)
+                    && !program
+                        .type_application_value_indices(carrier)
+                        .has_runtime_values();
+                if !exact_template
+                    && program
+                        .closed_data_constructor_definition(destination, literal.type_symbol)
+                        .is_none()
+                {
                     return Ok(false);
+                }
+                let prior = expression_table(program).construction_required_type_reference(value);
+                let carrier = if (!prior.is_valid() || !literal.application_type.is_valid())
+                    && lifetime_owner.is_valid()
+                    && !program
+                        .type_reference_table
+                        .operand_lifetime_owner(carrier)
+                        .is_valid()
+                {
+                    let occurrence = program.type_reference_table.fresh_occurrence(carrier);
+                    program
+                        .type_reference_table
+                        .retain_operand_lifetime_owner(occurrence, lifetime_owner)
+                        .map_err(Diagnostic::error)?;
+                    occurrence
+                } else {
+                    carrier
                 };
-                landed &= land_one(
-                    program,
-                    field.value,
-                    field_type,
-                    literal.type_symbol,
-                    cast_destinations,
-                    completed,
-                    unselected,
-                )?;
+                // Normalization is complete before landing. Reuse its exact view;
+                // only a fresh receiving occurrence needs another metadata row.
+                if program.data_application_definition(carrier).is_none() {
+                    program
+                        .prepare_data_application_view(carrier)
+                        .map_err(Diagnostic::error)?;
+                }
+                if !prior.is_valid() {
+                    expression_table_mut(program)
+                        .set_construction_required_type_reference(value, carrier);
+                }
+                if !literal.application_type.is_valid()
+                    && let ExpressionNode::StructLiteral(retained) =
+                        expression_table_mut(program).expression_mut(value)
+                {
+                    retained.application_type = carrier;
+                }
+                let fields = expression_table(program)
+                    .struct_fields(literal.fields)
+                    .to_vec();
+                let mut landed = true;
+                for field in fields {
+                    let Some(field_type) =
+                        selected_field_type(program, value, &literal, field.field_symbol)
+                    else {
+                        self.unselected.push(value);
+                        return Ok(false);
+                    };
+                    landed &=
+                        self.land_one(program, field.value, field_type, literal.type_symbol)?;
+                }
+                return Ok(landed);
             }
-            return Ok(landed);
-        }
-        if let Some((_, element_type)) = array_literal_destination(program, value, carrier) {
-            let ExpressionNode::ArrayLiteral(elements) = program.expression_table.expression(value)
-            else {
-                unreachable!("array destination belongs to its literal")
-            };
-            let elements = expression_table(program)
-                .expression_handles(*elements)
-                .to_vec();
-            let mut landed = true;
-            for element in elements {
-                landed &= land_one(
-                    program,
-                    element,
-                    element_type,
-                    lifetime_owner,
-                    cast_destinations,
-                    completed,
-                    unselected,
-                )?;
+            if let Some((_, element_type)) = array_literal_destination(program, value, carrier) {
+                let ExpressionNode::ArrayLiteral(elements) =
+                    program.expression_table.expression(value)
+                else {
+                    unreachable!("array destination belongs to its literal")
+                };
+                let elements = expression_table(program)
+                    .expression_handles(*elements)
+                    .to_vec();
+                let mut landed = true;
+                for element in elements {
+                    landed &= self.land_one(program, element, element_type, lifetime_owner)?;
+                }
+                return Ok(landed);
             }
-            return Ok(landed);
+            crate::typing_queries::land_owned_fixed_byte_literal(program, value, destination)
+                .map(|()| true)
         }
-        crate::typing_queries::land_owned_fixed_byte_literal(program, value, destination)
-            .map(|()| true)
     }
 
     fn callee_owns_nominal_lifetimes(
@@ -2030,6 +2144,427 @@ pub(crate) mod construction_destinations {
     #[cfg(test)]
     mod tests {
         use super::*;
+
+        #[test]
+        fn ordinary_named_call_arguments_need_no_constructor_signature() {
+            use symbols::{
+                BuiltinFunction, SymbolKind, SymbolNameRef, SymbolTableBuilder,
+                builtin_function_symbols,
+            };
+            use typed_trees::expression::{TableCallExpression, TableNamePath};
+
+            let mut symbols = SymbolTableBuilder::default();
+            let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+            let declarations = symbols.insert_children(
+                root,
+                builtin_function_symbols().into_iter().chain([
+                    (SymbolKind::Parameter, SymbolNameRef::Static("parameter")),
+                    (SymbolKind::Local, SymbolNameRef::Static("local")),
+                    (SymbolKind::Field, SymbolNameRef::Static("field")),
+                ]),
+            );
+            let mut program = TypedTrees {
+                symbols: symbols.finish(),
+                ..Default::default()
+            };
+            let intrinsic = program
+                .symbols
+                .builtin_function_symbol(BuiltinFunction::IntegerEmbed)
+                .unwrap();
+            let mut arguments = Vec::new();
+            for (symbol, name) in declarations.handles().skip(BuiltinFunction::COUNT).zip([
+                "parameter",
+                "local",
+                "field",
+            ]) {
+                let mut members = Default::default();
+                program
+                    .expression_table
+                    .push_name_path_member(&mut members, name.into());
+                let value = program
+                    .expression_table
+                    .insert(ExpressionNode::Name(TableNamePath {
+                        members,
+                        symbol,
+                        head_symbol: symbol,
+                        ..Default::default()
+                    }));
+                arguments.push(value);
+                let operands = program.expression_table.insert_expression_handles([value]);
+                program
+                    .expression_table
+                    .insert(ExpressionNode::Call(TableCallExpression {
+                        target_symbol: intrinsic,
+                        arguments: operands,
+                        ..Default::default()
+                    }));
+            }
+            prepare(
+                &symbol_resolved_trees::SymbolResolvedTrees::default(),
+                &mut program,
+                0,
+                0,
+                &[],
+            )
+            .expect("ordinary values keep their identity without a constructor destination");
+            for argument in arguments {
+                assert!(matches!(
+                    program.expression_table.expression(argument),
+                    ExpressionNode::Name(_)
+                ));
+                assert!(
+                    !program
+                        .expression_table
+                        .construction_required_type_reference(argument)
+                        .is_valid()
+                );
+            }
+            // A real contextual production still needs an authored telescope;
+            // this pass cannot manufacture a builtin's expected argument type.
+            let literal = program
+                .expression_table
+                .insert(ExpressionNode::String(b"value".to_vec().into()));
+            let operands = program
+                .expression_table
+                .insert_expression_handles([literal]);
+            program
+                .expression_table
+                .insert(ExpressionNode::Call(TableCallExpression {
+                    target_symbol: intrinsic,
+                    arguments: operands,
+                    ..Default::default()
+                }));
+            let error = prepare(
+                &symbol_resolved_trees::SymbolResolvedTrees::default(),
+                &mut program,
+                0,
+                0,
+                &[],
+            )
+            .unwrap_err();
+            assert!(
+                error.message.contains("selected call parameter types"),
+                "{error:?}"
+            );
+        }
+
+        #[test]
+        fn a_named_machine_argument_keeps_its_exact_callable_destination() {
+            use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+            use typed_trees::{
+                callable_values::RuntimeCallableContract,
+                expression::{TableCallExpression, TableNamePath},
+                machine::Machine,
+                signature::{StateParameter, StateSignature},
+                state::State,
+            };
+
+            let mut symbols = SymbolTableBuilder::default();
+            let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+            let machines = symbols.insert_children(
+                root,
+                [
+                    (SymbolKind::Machine, SymbolNameRef::Static("accept")),
+                    (SymbolKind::Machine, SymbolNameRef::Static("selected")),
+                ],
+            );
+            let (accept, selected) = (machines.handle_at(0), machines.handle_at(1));
+            let accept_children = symbols.insert_children(
+                accept,
+                [
+                    (SymbolKind::State, SymbolNameRef::Static("entry")),
+                    (SymbolKind::State, SymbolNameRef::Static("contract")),
+                ],
+            );
+            let selected_state = symbols
+                .insert_children(
+                    selected,
+                    [(SymbolKind::State, SymbolNameRef::Static("entry"))],
+                )
+                .handle_at(0);
+            let states = [accept_children.handle_at(0), selected_state];
+            let contract_symbol = accept_children.handle_at(1);
+            let parameter = symbols
+                .insert_children(
+                    states[0],
+                    [(SymbolKind::Parameter, SymbolNameRef::Static("step"))],
+                )
+                .handle_at(0);
+            let mut program = TypedTrees {
+                symbols: symbols.finish(),
+                ..Default::default()
+            };
+            let unit = program.type_reference_table.insert(TypeReferenceNode::Unit);
+            let contract = program
+                .runtime_callable_contracts
+                .insert(RuntimeCallableContract {
+                    lexical_owner: accept,
+                    signature: StateSignature {
+                        symbol: contract_symbol,
+                        name: "contract".into(),
+                        return_type: unit,
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                });
+            let expected = program
+                .type_reference_table
+                .insert(TypeReferenceNode::Callable { contract });
+            let parameters = program.state_parameters.insert_many([StateParameter {
+                symbol: parameter,
+                name: "step".into(),
+                type_reference: expected,
+                ..Default::default()
+            }]);
+            for (position, machine) in [accept, selected].into_iter().enumerate() {
+                let state = program.machine_states.insert_many([State {
+                    symbol: states[position],
+                    name: "entry".into(),
+                    parameters: if position == 0 {
+                        parameters
+                    } else {
+                        Default::default()
+                    },
+                    return_type: unit,
+                    ..Default::default()
+                }]);
+                program.push_machine(Machine {
+                    symbol: machine,
+                    name: if position == 0 {
+                        "accept".into()
+                    } else {
+                        "selected".into()
+                    },
+                    states: state,
+                    ..Default::default()
+                });
+            }
+            let mut members = Default::default();
+            program
+                .expression_table
+                .push_name_path_member(&mut members, "selected".into());
+            let argument = program
+                .expression_table
+                .insert(ExpressionNode::Name(TableNamePath {
+                    members,
+                    symbol: selected,
+                    head_symbol: selected,
+                    ..Default::default()
+                }));
+            let operands = program
+                .expression_table
+                .insert_expression_handles([argument]);
+            program
+                .expression_table
+                .insert(ExpressionNode::Call(TableCallExpression {
+                    target_symbol: accept,
+                    arguments: operands,
+                    ..Default::default()
+                }));
+            prepare(
+                &symbol_resolved_trees::SymbolResolvedTrees::default(),
+                &mut program,
+                0,
+                0,
+                &[],
+            )
+            .unwrap();
+            let ExpressionNode::MachineValue(value) = program.expression_table.expression(argument)
+            else {
+                panic!("named code lost its contextual callable construction");
+            };
+            assert_eq!(value.type_reference, expected);
+            assert_eq!(value.selected.symbol, states[1]);
+            assert_eq!(
+                program
+                    .expression_table
+                    .static_machine_application(value.application)
+                    .registration_operation,
+                selected
+            );
+            assert_eq!(
+                program
+                    .expression_table
+                    .construction_required_type_reference(argument),
+                expected
+            );
+            assert_eq!(
+                program
+                    .runtime_callable_contracts
+                    .get(contract)
+                    .signature
+                    .symbol,
+                contract_symbol
+            );
+        }
+
+        #[test]
+        fn assignment_receivers_preserve_declared_types_without_inventing_unknown_types() {
+            use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+            use typed_trees::{
+                data::DataDefinition,
+                expression::{TableNamePath, TableStructLiteral},
+                machine::Machine,
+                signature::StateParameter,
+                state::State,
+                statement::TableAssignment,
+            };
+
+            let mut symbols = SymbolTableBuilder::default();
+            let data = symbols.insert_root(SymbolKind::Data, SymbolNameRef::Static("Record"));
+            let owner = symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("owner"));
+            let state = symbols
+                .insert_children(owner, [(SymbolKind::State, SymbolNameRef::Static("entry"))])
+                .handles()
+                .next()
+                .unwrap();
+            let formal = symbols
+                .insert_children(
+                    state,
+                    [(SymbolKind::Parameter, SymbolNameRef::Static("target"))],
+                )
+                .handles()
+                .next()
+                .unwrap();
+            let mut program = TypedTrees {
+                symbols: symbols.finish(),
+                ..Default::default()
+            };
+            program.push_data_definition(DataDefinition {
+                symbol: data,
+                name: "Record".into(),
+                ..Default::default()
+            });
+            let declared = program
+                .type_reference_table
+                .insert(TypeReferenceNode::Named {
+                    symbol: data,
+                    name: "Record".into(),
+                });
+            program
+                .type_reference_table
+                .retain_operand_lifetime_owner(declared, state)
+                .expect("the formal's declared type retains its actual state scope");
+            let parameters = program.state_parameters.insert_many([StateParameter {
+                symbol: formal,
+                name: "target".into(),
+                type_reference: declared,
+                is_mutable: true,
+                ..Default::default()
+            }]);
+            let mut names = Default::default();
+            program
+                .expression_table
+                .push_name_path_member(&mut names, "target".into());
+            let target = program
+                .expression_table
+                .insert(ExpressionNode::Name(TableNamePath {
+                    members: names,
+                    head_symbol: formal,
+                    symbol: formal,
+                    ..Default::default()
+                }));
+            let mut missing_names = Default::default();
+            program
+                .expression_table
+                .push_name_path_member(&mut missing_names, "missing".into());
+            let missing = program
+                .expression_table
+                .insert(ExpressionNode::Name(TableNamePath {
+                    members: missing_names,
+                    ..Default::default()
+                }));
+            let mut literal = || {
+                program
+                    .expression_table
+                    .insert(ExpressionNode::StructLiteral(TableStructLiteral {
+                        type_symbol: data,
+                        type_name: "Record".into(),
+                        ..Default::default()
+                    }))
+            };
+            let value = literal();
+            let unknown_value = literal();
+            let body = program.statement_table.insert_statements([
+                StatementNode::Assignment(TableAssignment { target, value }),
+                StatementNode::Assignment(TableAssignment {
+                    target: missing,
+                    value: unknown_value,
+                }),
+            ]);
+            let states = program.machine_states.insert_many([State {
+                symbol: state,
+                name: "entry".into(),
+                parameters,
+                statement_nodes: body,
+                ..Default::default()
+            }]);
+            program.push_machine(Machine {
+                symbol: owner,
+                name: "owner".into(),
+                states,
+                ..Default::default()
+            });
+
+            prepare(
+                &symbol_resolved_trees::SymbolResolvedTrees::default(),
+                &mut program,
+                0,
+                0,
+                &[],
+            )
+            .expect("retaining source destinations grants no assignment verdict");
+            let statements = program.statement_table.statements(body);
+            let StatementNode::Assignment(known) = statements[0] else {
+                panic!("known assignment changed kind");
+            };
+            let StatementNode::Assignment(unknown) = statements[1] else {
+                panic!("unknown assignment changed kind");
+            };
+            assert_eq!((known.target, known.value), (target, value));
+            assert_eq!(
+                crate::typing_queries::declared_place_type(
+                    &program,
+                    &program.machine_states(&program.machines()[0])[0],
+                    target
+                )
+                .unwrap(),
+                declared
+            );
+            assert_eq!((unknown.target, unknown.value), (missing, unknown_value));
+            assert!(
+                !program
+                    .expression_table
+                    .construction_required_type_reference(unknown.value)
+                    .is_valid(),
+                "an unresolved destination must not invent its constructor application"
+            );
+            assert_eq!(
+                program
+                    .deferred_refusal(owner)
+                    .map(|refusal| refusal.request),
+                Some(typed_trees::deferred_refusals::DeferredRequest::AssignmentLiteralDestination),
+                "the unresolved destination remains its owner's unserved request"
+            );
+            let ExpressionNode::StructLiteral(literal) = program.expression_table.expression(value)
+            else {
+                panic!("source constructor changed kind");
+            };
+            assert_eq!(literal.application_type, declared);
+            assert_eq!(
+                program
+                    .type_reference_table
+                    .operand_lifetime_owner(literal.application_type),
+                state,
+                "constructor landing preserves the supplying formal's lifetime scope"
+            );
+            assert_eq!(
+                program
+                    .expression_table
+                    .construction_required_type_reference(value),
+                declared
+            );
+        }
 
         #[test]
         fn an_assigned_literal_lands_on_its_binding_or_refuses_its_own_machine() {
@@ -2164,7 +2699,14 @@ pub(crate) mod construction_destinations {
                     panic!("assignment")
                 };
                 assignment.target = place;
-                prepare(&mut landed, 0, 0, &[]).unwrap();
+                prepare(
+                    &symbol_resolved_trees::SymbolResolvedTrees::default(),
+                    &mut landed,
+                    0,
+                    0,
+                    &[],
+                )
+                .unwrap();
                 assert!(landed.deferred_refusals.is_empty());
                 let required = landed
                     .expression_table
@@ -2204,7 +2746,14 @@ pub(crate) mod construction_destinations {
                 panic!("assignment")
             };
             assignment.target = place;
-            prepare(&mut unlanded, 0, 0, &[]).unwrap();
+            prepare(
+                &symbol_resolved_trees::SymbolResolvedTrees::default(),
+                &mut unlanded,
+                0,
+                0,
+                &[],
+            )
+            .unwrap();
             assert_eq!(
                 unlanded
                     .deferred_refusal(writer)
@@ -2311,7 +2860,14 @@ pub(crate) mod construction_destinations {
                     body_status: MachineBodyStatus::Complete,
                     ..Default::default()
                 });
-                prepare(&mut program, 0, 0, &[]).unwrap();
+                prepare(
+                    &symbol_resolved_trees::SymbolResolvedTrees::default(),
+                    &mut program,
+                    0,
+                    0,
+                    &[],
+                )
+                .unwrap();
                 program
             };
             // `Record { a: true }` names a field of the record it builds.
@@ -2393,6 +2949,7 @@ pub(crate) mod construction_destinations {
                     program
                         .expression_table
                         .insert(ExpressionNode::Call(TableCallExpression {
+                            runtime_call: None,
                             authored_call_selection: None,
                             authored_call_binding: None,
                             build_selection: Default::default(),
@@ -2444,8 +3001,14 @@ pub(crate) mod construction_destinations {
                     body_status: MachineBodyStatus::Complete,
                     ..Default::default()
                 });
-                prepare(&mut program, 0, 0, &[])
-                    .expect("an unlanded argument refuses its declaration, not the program");
+                prepare(
+                    &symbol_resolved_trees::SymbolResolvedTrees::default(),
+                    &mut program,
+                    0,
+                    0,
+                    &[],
+                )
+                .expect("an unlanded argument refuses its declaration, not the program");
                 program
             };
             let array = || ExpressionNode::ArrayLiteral(Default::default());
@@ -2484,6 +3047,72 @@ pub(crate) mod construction_destinations {
         }
 
         #[test]
+        fn pending_call_result_context_waits_for_the_actual_receiving_type() {
+            use typed_trees::deferred_refusals::DeferredRequest;
+            let mut program = crate::qualified_operator_home_tests::checked(&[
+                ("kit.omg", "module kit; public machine only() -> u32 in Saturating { 0u32 }"),
+                ("client.omg", "use kit::only; machine pending() { let selected: u32 in Saturating = kit::only(); }"),
+            ]).unwrap();
+            let (value, target) = program
+                .expression_table
+                .expression_entries()
+                .find_map(|(value, node)| {
+                    let ExpressionNode::Call(call) = node else {
+                        return None;
+                    };
+                    call.target
+                        .as_str()
+                        .ends_with("only")
+                        .then_some((value, call.target_symbol))
+                })
+                .unwrap();
+            let machine = program.machine_by_own_or_state_symbol(target).unwrap();
+            let expected = program.machine_states(machine)[0].return_type;
+            let owner = program
+                .machines()
+                .iter()
+                .find(|machine| machine.name.as_str() == "pending")
+                .unwrap()
+                .symbol;
+            let source = symbol_resolved_trees::SymbolResolvedTrees::default();
+            assert_eq!(
+                program.normalized_result_dispatch_set(expected).identity(),
+                "arithmetic:Saturating"
+            );
+            let mut absent = program.clone();
+            let absent_context = DestinationPreparation::new(&source, &absent);
+            absent_context
+                .complete_unreceived_calls(&mut absent, &[value])
+                .unwrap();
+            assert!(
+                absent
+                    .deferred_refusals
+                    .iter()
+                    .any(|row| row.request == DeferredRequest::CallResultDomainMismatch),
+                "call {:?}; selected {:?}; owners {:?}",
+                program.expression_table.call_node(value),
+                program.symbols.get(target),
+                typed_trees::references::collect_program_operand_owners(&program)
+                    .expression_owners(value)
+                    .collect::<Vec<_>>()
+            );
+            let mut receiving = DestinationPreparation::new(&source, &program);
+            receiving.mark_pending(&program, &[value]);
+            receiving
+                .complete_unreceived_calls(&mut program, &[value])
+                .unwrap();
+            receiving
+                .land_one(&mut program, value, expected, owner)
+                .unwrap();
+            assert!(
+                !program
+                    .deferred_refusals
+                    .iter()
+                    .any(|row| row.request == DeferredRequest::CallResultDomainMismatch)
+            );
+        }
+
+        #[test]
         fn deferred_destinations_do_not_complete_or_hide_expression_identity() {
             use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
             use typed_trees::{data::DataDefinition, expression::TableStructLiteral};
@@ -2514,93 +3143,54 @@ pub(crate) mod construction_destinations {
                     symbol: data,
                     name: "Record".into(),
                 });
-            let mut casts = Vec::new();
-            let mut completed = Vec::new();
+            let source = symbol_resolved_trees::SymbolResolvedTrees::default();
+            let mut receiving = DestinationPreparation::new(&source, &program);
             assert!(
-                !land_one(
-                    &mut program,
-                    value,
-                    unrelated,
-                    owner,
-                    &mut casts,
-                    &mut completed,
-                    &mut Vec::new(),
-                )
-                .unwrap()
+                !receiving
+                    .land_one(&mut program, value, unrelated, owner,)
+                    .unwrap()
             );
             assert!(
-                completed.is_empty(),
+                receiving.contexts.is_empty(),
                 "a deferred constructor stays eligible for the census"
             );
             assert!(
-                land_one(
-                    &mut program,
-                    value,
-                    exact,
-                    owner,
-                    &mut casts,
-                    &mut completed,
-                    &mut Vec::new(),
-                )
-                .unwrap()
+                receiving
+                    .land_one(&mut program, value, exact, owner,)
+                    .unwrap()
             );
             assert!(
-                land_one(
-                    &mut program,
-                    value,
-                    exact,
-                    owner,
-                    &mut casts,
-                    &mut completed,
-                    &mut Vec::new(),
-                )
-                .unwrap()
-            );
-            assert_eq!(completed[value.arena_index() as usize], [(exact, owner)]);
-            assert!(
-                land_one(
-                    &mut program,
-                    value,
-                    exact,
-                    data,
-                    &mut casts,
-                    &mut completed,
-                    &mut Vec::new()
-                )
-                .unwrap()
+                receiving
+                    .land_one(&mut program, value, exact, owner,)
+                    .unwrap()
             );
             assert_eq!(
-                completed[value.arena_index() as usize],
+                receiving.contexts[value.arena_index() as usize].known,
+                [(exact, owner)]
+            );
+            assert!(
+                receiving
+                    .land_one(&mut program, value, exact, data,)
+                    .unwrap()
+            );
+            assert_eq!(
+                receiving.contexts[value.arena_index() as usize].known,
                 [(exact, owner), (exact, data)]
             );
 
             let stale = ExpressionHandle::from_parts(value.arena_index(), value.generation() + 1);
-            let error = land_one(
-                &mut program,
-                stale,
-                exact,
-                owner,
-                &mut casts,
-                &mut completed,
-                &mut Vec::new(),
-            )
-            .unwrap_err();
+            let error = receiving
+                .land_one(&mut program, stale, exact, owner)
+                .unwrap_err();
             assert!(
                 error.message.contains("missing expression occurrence"),
                 "{error:?}"
             );
             let stale_type =
                 TypeReferenceHandle::from_parts(exact.arena_index(), exact.generation() + 1);
-            let error = land_one(
-                &mut program,
-                value,
-                stale_type,
-                owner,
-                &mut casts,
-                &mut completed,
-                &mut Vec::new(),
-            )
-            .unwrap_err();
+            let error = receiving
+                .land_one(&mut program, value, stale_type, owner)
+                .unwrap_err();
             assert!(
                 error.message.contains("missing receiving type occurrence"),
                 "{error:?}"
@@ -2865,6 +3455,7 @@ pub(crate) mod product_queries {
         )));
         let arguments = table.insert_expression_handles(arguments);
         let expression = table.insert(ExpressionNode::Call(TableCallExpression {
+            runtime_call: None,
             authored_call_selection: None,
             authored_call_binding: None,
             authored_machine_application: Default::default(),
@@ -2900,6 +3491,11 @@ pub(crate) mod product_selections {
         ProductDeclarationRequest, ProductOperandRole,
     };
     use symbols::JoinedPath;
+
+    pub(crate) struct Request {
+        pub request: typed_trees::expression::BuildSelectionRequest,
+        pub inputs: Vec<typed_trees::expression::BuildSelectionInput>,
+    }
 
     /*
         `builder.tests.group<Requirement>()` is the testing facet's spelling of
@@ -2967,7 +3563,7 @@ pub(crate) mod product_selections {
         ordinary_count: usize,
         evidence_count: usize,
         span: source::SourceSpan,
-    ) -> Result<Option<typed_trees::expression::BuildSelectionRequest>, Diagnostic> {
+    ) -> Result<Option<Request>, Diagnostic> {
         // The Build prelude's operations live in its module `Build`, and
         // static normalization folds a module qualifier into the written
         // name. A designated operation has no declaration for that name to
@@ -3017,12 +3613,13 @@ pub(crate) mod product_selections {
                 )
                 .with_source_span(span));
                 }
-                return Ok(Some(BuildSelectionRequest::Exclusion(
-                    EnumExclusionRequest {
+                return Ok(Some(Request {
+                    request: BuildSelectionRequest::Exclusion(EnumExclusionRequest {
                         source_span: span,
                         vocabulary,
-                    },
-                )));
+                    }),
+                    inputs: Vec::new(),
+                }));
             }
         }
         let Some(operation) = BuildOperation::from_call_target(name)
@@ -3097,7 +3694,58 @@ pub(crate) mod product_selections {
         } else {
             None
         };
-        let operands = operands.iter().skip(usize::from(requirement.is_some())).enumerate().map(|(position, operand)| {
+        let mut inputs = Vec::new();
+        for (position, operand) in operands.iter().enumerate() {
+            if let Some(occurrence) = operand.authored_selection {
+                if !occurrences.contains(&occurrence) {
+                    return Err(Diagnostic::error(
+                        "Build static input belongs to another original call",
+                    )
+                    .with_source_span(span));
+                }
+                let selection = typed
+                    .authored_declaration_selections()
+                    .get(occurrence)
+                    .ok_or_else(|| {
+                        Diagnostic::error("Build input retains an unknown authored selection")
+                            .with_source_span(span)
+                    })?;
+                if selection.top_level_static_argument_position() != Some(position) {
+                    return Err(Diagnostic::error(
+                        "Build input selection has another original argument position",
+                    )
+                    .with_source_span(span));
+                }
+                inputs.push(typed_trees::expression::BuildSelectionInput {
+                    occurrence,
+                    argument_ordinal: u32::try_from(position).map_err(|_| {
+                        Diagnostic::error("Build static argument position exceeds u32")
+                    })?,
+                    resolved_target: operand.authored_selection_target,
+                    target: selection.target(),
+                });
+            } else if operand.symbol.is_valid()
+                && !matches!(
+                    source.symbols.get(operand.symbol).kind,
+                    symbols::SymbolKind::Local
+                        | symbols::SymbolKind::Parameter
+                        | symbols::SymbolKind::TypeParameter
+                        | symbols::SymbolKind::ConformanceParameter
+                        | symbols::SymbolKind::MachineParameter
+                        | symbols::SymbolKind::PropositionParameter
+                        | symbols::SymbolKind::PropositionMachineParameter
+                )
+                && operand.path.iter().any(|name| name.is_source_backed())
+            {
+                return Err(Diagnostic::error(
+                    "Build declaration input has no exact authored argument attachment",
+                )
+                .with_source_span(span));
+            }
+        }
+        let first_designated = usize::from(requirement.is_some());
+        let operands = operands.iter().enumerate().skip(first_designated).map(|(original_position, operand)| {
+        let position = original_position - first_designated;
         let nominal_application = operand.application.is_some() && (matches!(operation.product_operand_role(position), Some(ProductOperandRole::BoundarySubject | ProductOperandRole::Provider)) || operation == BuildOperation::NativeBinding);
         if operand.type_reference.is_valid() || (operand.application.is_some() && !nominal_application)
             || operand.const_literal.is_some() || operand.evidence_projection.is_some()
@@ -3111,7 +3759,16 @@ pub(crate) mod product_selections {
             return Err(Diagnostic::error("Product operand has no single authored source coordinate")
                 .with_source_span(span));
         }
-        let application = nominal_application.then(|| crate::expressions::capture_product_operands::capture(source, typed, exposure, occurrences, operand).map(std::sync::Arc::new)).transpose()?;
+        let application = if nominal_application {
+            let captured = crate::expressions::capture_product_operands::capture(
+                source, typed, exposure, occurrences, operand,
+                u32::try_from(original_position).map_err(|_| Diagnostic::error("Build static argument position exceeds u32"))?,
+            )?;
+            inputs.extend(captured.inputs);
+            Some(std::sync::Arc::new(captured.graph))
+        } else {
+            None
+        };
         let leading = source::SourceSpan::new(first.source_id, source::Span::new(first.span.start, last.span.end));
         let source_span = application.as_ref().map_or(leading, |graph| graph.authored_operand_span(leading));
         Ok(ProductDeclarationOperand {
@@ -3120,22 +3777,35 @@ pub(crate) mod product_selections {
             source_span,
         })
     }).collect::<Result<Vec<_>, Diagnostic>>()?.into_boxed_slice();
-        if let Some(requirement) = requirement {
-            return Ok(Some(BuildSelectionRequest::ProviderReadiness(
+        inputs.sort_by_key(|input| (input.argument_ordinal, input.occurrence.ordinal()));
+        for pair in inputs.windows(2) {
+            if pair[0].argument_ordinal == pair[1].argument_ordinal
+                && pair[0].occurrence == pair[1].occurrence
+                && pair[0].target != pair[1].target
+            {
+                return Err(Diagnostic::error(
+                    "Build input occurrence changes its exact ledger target",
+                )
+                .with_source_span(span));
+            }
+        }
+        inputs.dedup();
+        let request = if let Some(requirement) = requirement {
+            BuildSelectionRequest::ProviderReadiness(
                 declaration_selection::ProviderReadinessRequest {
                     source_span: span,
                     requirement,
                     backing: operands[0].clone(),
                 },
-            )));
-        }
-        Ok(Some(BuildSelectionRequest::Declaration(
-            std::sync::Arc::new(ProductDeclarationRequest {
+            )
+        } else {
+            BuildSelectionRequest::Declaration(std::sync::Arc::new(ProductDeclarationRequest {
                 source_span: span,
                 operation,
                 operands,
-            }),
-        )))
+            }))
+        };
+        Ok(Some(Request { request, inputs }))
     }
 }
 

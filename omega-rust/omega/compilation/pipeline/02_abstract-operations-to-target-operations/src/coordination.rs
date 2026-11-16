@@ -609,7 +609,13 @@ pub(crate) fn lower_to_target_operations_with_settlements_and_installation(
         });
     }
     let mut target_plan = TargetOperationPlan {
-        borrowed_storage_layouts: super::borrowed_storage::capture(plan, &structural_types),
+        borrowed_storage_layouts: runtime_abi::NativeBorrowedStorageLayouts::seal(
+            super::borrowed_storage::capture(plan, &structural_types),
+        )
+        .map_err(|error| LoweringError::FunctionContract {
+            machine: plan.entry,
+            reason: error.reason,
+        })?,
         psi: plan.psi,
         target,
         entry: plan.entry,
@@ -636,6 +642,7 @@ pub(crate) fn lower_to_target_operations_with_settlements_and_installation(
                     profile,
                     &functions_by_machine,
                     &plan.dynamic_dispatch,
+                    &plan.callables,
                     borrowed_reference_sources
                         .get(&function.machine)
                         .cloned()

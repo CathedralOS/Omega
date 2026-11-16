@@ -51,7 +51,7 @@ enum BindingPosition {
 }
 
 fn body_coordinates<'a>(
-    parameters: &'a [StateParameter],
+    parameters: arena::RootRows<'a, StateParameter>,
     statements: &'a [StatementNode],
 ) -> impl Iterator<Item = (SymbolHandle, BindingPosition)> + 'a {
     parameters
@@ -187,7 +187,7 @@ impl StateDeclarationIndex {
     fn body(
         &mut self,
         state: &State,
-        parameters: &[StateParameter],
+        parameters: arena::RootRows<'_, StateParameter>,
         statements: &[StatementNode],
     ) -> &PreparedBindings {
         let scope = body_scope(state);
@@ -425,7 +425,7 @@ impl TypedTrees {
     fn binding_position(
         &self,
         state: &State,
-        parameters: &[StateParameter],
+        parameters: arena::RootRows<'_, StateParameter>,
         statements: &[StatementNode],
         symbol: SymbolHandle,
     ) -> Option<BindingPosition> {
@@ -564,7 +564,7 @@ impl TypedTrees {
     /// and malformed duplicates; types and spellings do not change this query.
     pub fn state_position_for_parameter_symbols(
         &self,
-        parameters: &[StateParameter],
+        parameters: arena::RootRows<'_, StateParameter>,
     ) -> Option<(u32, u32)> {
         for (machine_position, machine) in self
             .tables

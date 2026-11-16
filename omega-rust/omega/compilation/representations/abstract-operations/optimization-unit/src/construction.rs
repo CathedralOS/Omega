@@ -67,6 +67,7 @@ pub fn reconstruct_psi_optimization_unit_seed(
         boundary_machines: plan.boundary_machines.clone(),
         provider_candidates: plan.provider_candidates.clone(),
         dynamic_dispatch: plan.dynamic_dispatch.clone(),
+        callables: plan.callables.clone(),
         accepted_obligation_facts: Vec::new(),
         ownership_frontier_facts: Vec::new(),
         pruned_machines: Vec::new(),
@@ -527,6 +528,7 @@ pub fn operation_definition(operation: &AbstractOperation) -> Option<(ValueId, S
             ..
         }
         | O::SelectImplementation { result, .. }
+        | O::SelectMachine { result, .. }
         | abstract_operations::primitive_storage_observation_pattern!(result, ..)
         | abstract_operations::byte_read_predicate_equal_pattern!(result, ..)
         | O::ByteSequenceLength { result, .. }
@@ -795,6 +797,7 @@ fn direct_uses(operation: &AbstractOperation) -> Vec<ValueId> {
         | O::EstablishZeroedStructural { .. }
         | O::EstablishStructuralLocal { .. }
         | O::SelectImplementation { .. }
+        | O::SelectMachine { .. }
         | O::PortWrite { .. }
         | O::IntegerConstant { .. }
         | O::IeeeFloatConstant { .. }
@@ -1174,6 +1177,7 @@ pub fn operation_ownership(operation: &AbstractOperation) -> Vec<OwnershipEvent>
         | O::EstablishStructuralLocal { .. }
         | O::EstablishRecord { .. }
         | O::SelectImplementation { .. }
+        | O::SelectMachine { .. }
         | O::PortWrite { .. }
         | O::RegisterAccess { .. }
         | O::Call { .. }

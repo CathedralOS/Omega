@@ -45,7 +45,8 @@ use terminal_check_tables::{Checked, Construct};
 use terminal_psi::{CrashRouteBucket, CrashRouteGuard};
 
 use crate::body::{
-    Axis, Body, Ceiling, CrashCeiling, Expression, ExpressionKind, Signatures, Statement, Target,
+    Axis, Body, CallTarget, Ceiling, CrashCeiling, Expression, ExpressionKind, Signatures,
+    Statement, Target,
 };
 use crate::canonical;
 use crate::components::{Components, index};
@@ -105,11 +106,19 @@ pub(crate) fn outcomes(
     bodies: &IdTable<MachineId, Body>,
     signatures: Signatures<'_>,
     requirements: &[MachineId],
+    callables: &crate::callables::CallableNamespace,
     local_bodies: Option<&[MachineId]>,
     inhabitation: &terminal_semantics::inhabitation::Inhabitation,
     components: &Components,
 ) -> Checked<IdTable<MachineId, Outcome>> {
-    let mut walk = Walk::new(bodies, signatures, requirements, local_bodies, inhabitation)?;
+    let mut walk = Walk::new(
+        bodies,
+        signatures,
+        requirements,
+        callables,
+        local_bodies,
+        inhabitation,
+    )?;
     walk.settle(bodies, components)?;
     walk.table()
 }
@@ -126,7 +135,15 @@ pub(crate) fn counted_outcomes(
     inhabitation: &terminal_semantics::inhabitation::Inhabitation,
     by_rounds: bool,
 ) -> Checked<(IdTable<MachineId, Outcome>, usize)> {
-    let mut walk = Walk::new(bodies, signatures, requirements, local_bodies, inhabitation)?;
+    let callables = crate::callables::CallableNamespace::default();
+    let mut walk = Walk::new(
+        bodies,
+        signatures,
+        requirements,
+        &callables,
+        local_bodies,
+        inhabitation,
+    )?;
     if by_rounds {
         loop {
             let mut changed = false;
@@ -171,6 +188,7 @@ struct Contributed {
 
 struct Walk<'b> {
     signatures: Signatures<'b>,
+    callables: &'b crate::callables::CallableNamespace,
     /// Whether a machine's normal-completion inference is its own body's.
     local: IdTable<MachineId, bool>,
     inhabitation: &'b terminal_semantics::inhabitation::Inhabitation,
@@ -192,6 +210,7 @@ impl<'b> Walk<'b> {
         bodies: &IdTable<MachineId, Body>,
         signatures: Signatures<'b>,
         requirements: &'b [MachineId],
+        callables: &'b crate::callables::CallableNamespace,
         local_bodies: Option<&[MachineId]>,
         inhabitation: &'b terminal_semantics::inhabitation::Inhabitation,
     ) -> Checked<Self> {
@@ -210,6 +229,7 @@ impl<'b> Walk<'b> {
         }
         Ok(Walk {
             signatures,
+            callables,
             local,
             requirements,
             inhabitation,
@@ -533,6 +553,7 @@ impl<'b> Walk<'b> {
             | ExpressionKind::Float(_)
             | ExpressionKind::ScalarApplication { .. }
             | ExpressionKind::ByteLiteral(_)
+            | ExpressionKind::MachineValue { .. }
             | ExpressionKind::Boolean(_)
             | ExpressionKind::Slot(_) => Ok(true),
             ExpressionKind::Not(operand)
@@ -576,7 +597,7 @@ impl<'b> Walk<'b> {
                 }
                 Ok(true)
             }
-            ExpressionKind::ArrayView { base, .. } => self.expression(machine, base),
+            ExpressionKind::CollectionView { base, .. } => self.expression(machine, base),
             ExpressionKind::CollectionSubslice { base, start, end } => {
                 for operand in std::iter::once(base.as_ref())
                     .chain(start.as_deref())
@@ -632,67 +653,106 @@ impl<'b> Walk<'b> {
                 arguments,
                 ..
             } => {
+                if let Some(operand) = callee.operand()
+                    && !self.expression(machine, operand)?
+                {
+                    return Ok(false);
+                }
                 for argument in arguments {
                     if !self.expression(machine, argument)? {
                         return Ok(false);
                     }
                 }
-                let semantic_vocabulary::TargetMachineCallable::Machine(callee) = callee else {
-                    let signature = self.signatures.get(*callee, machine)?;
-                    let published = signature.operational.published([false; 2]);
-                    for (contributes, published) in self.operational.iter_mut().zip(published) {
-                        *contributes |= published;
-                    }
-                    let routes = signature.declared_crash_routes().ok_or_else(|| {
-                        refuse(
-                            machine,
-                            Construct::Machine,
-                            Unserved::Call("boundary call has no published crash contract"),
-                        )
-                    })?;
-                    self.causes.extend(routes.iter().map(|route| route.cause));
-                    // "A boundary call contributes its requirement's explicit
-                    // reach ceiling, with boundary-parent closure", which the
-                    // reader applied when it read the clause. The call "is
-                    // not itself an entry", and "the callee's published
-                    // `invokes` joins the caller's, as its reach does".
-                    for axis in Axis::ALL {
-                        match signature.ceiling(axis) {
-                            Ceiling::Authored(ceiling) => {
-                                self.contributed[axis as usize]
-                                    .services
-                                    .extend(ceiling.iter().copied());
+                match callee {
+                    CallTarget::Selected { contract, .. } => {
+                        let contract =
+                            self.callables.contracts.get(*contract).ok_or_else(|| {
+                                refuse(
+                                    machine,
+                                    Construct::Machine,
+                                    Unserved::Call("selected call has no public contract"),
+                                )
+                            })?;
+                        let signature = &contract.signature;
+                        for (contributes, published) in self
+                            .operational
+                            .iter_mut()
+                            .zip([contract.envelope.suspends, contract.envelope.blocks])
+                        {
+                            *contributes |= published;
+                        }
+                        match &signature.crashes {
+                            CrashCeiling::Authored(routes) => {
+                                self.causes.extend(routes.iter().map(|bucket| bucket.cause))
                             }
-                            Ceiling::Inferred => {
+                            CrashCeiling::DeclaredNone => {}
+                            CrashCeiling::Inferred => {
                                 return Err(refuse(
                                     machine,
                                     Construct::Machine,
-                                    Unserved::Call(match axis {
-                                        Axis::Reach => {
-                                            "boundary call has no declared reach ceiling"
-                                        }
-                                        Axis::Entries => {
-                                            "boundary call has no declared entry ceiling"
-                                        }
-                                    }),
+                                    Unserved::Call("selected call has an open crash ceiling"),
                                 ));
                             }
                         }
-                    }
-                    // process_exit.md: the canonical operation "produces no
-                    // normal result or continuation", so evaluation never
-                    // finishes past it, exactly as past a call of a machine
-                    // no path of which returns.
-                    let semantic_vocabulary::TargetMachineCallable::Boundary(boundary) = *callee
-                    else {
+                        for axis in Axis::ALL {
+                            let Ceiling::Authored(row) = signature.ceiling(axis) else {
+                                return Err(refuse(
+                                    machine,
+                                    Construct::Machine,
+                                    Unserved::Call("selected call has an open operational ceiling"),
+                                ));
+                            };
+                            self.contributed[axis as usize]
+                                .services
+                                .extend(row.iter().copied());
+                        }
                         return Ok(true);
-                    };
-                    // A general boundary no-return transfer still needs its
-                    // distinct invocation/admission path; never turn it into
-                    // canonical process-exit authority here.
-                    return Ok(required_contract.is_some()
-                        || self.signatures.completion(boundary, machine)?
-                            == semantic_vocabulary::BoundaryCompletion::NormalReturn);
+                    }
+                    CallTarget::Boundary { boundary } => {
+                        let signature = self.signatures.invocation(
+                            semantic_vocabulary::TargetMachineCallable::Boundary(*boundary),
+                            *required_contract,
+                            machine,
+                        )?;
+                        for (contributes, published) in self
+                            .operational
+                            .iter_mut()
+                            .zip(signature.operational.published([false; 2]))
+                        {
+                            *contributes |= published;
+                        }
+                        let routes = signature.declared_crash_routes().ok_or_else(|| {
+                            refuse(
+                                machine,
+                                Construct::Machine,
+                                Unserved::Call("boundary call has no published crash contract"),
+                            )
+                        })?;
+                        self.causes.extend(routes.iter().map(|route| route.cause));
+                        for axis in Axis::ALL {
+                            let Ceiling::Authored(row) = signature.ceiling(axis) else {
+                                return Err(refuse(
+                                    machine,
+                                    Construct::Machine,
+                                    Unserved::Call("boundary call has an open operational ceiling"),
+                                ));
+                            };
+                            self.contributed[axis as usize]
+                                .services
+                                .extend(row.iter().copied());
+                        }
+                        return Ok(required_contract.is_some()
+                            || self.signatures.completion(*boundary, machine)?
+                                == semantic_vocabulary::BoundaryCompletion::NormalReturn);
+                    }
+                    CallTarget::Machine(_) => {}
+                }
+                let CallTarget::Machine(callee) = callee else {
+                    return Err(refuse(
+                        machine,
+                        Construct::Machine,
+                        Unserved::Call("call outcome lost its target classification"),
+                    ));
                 };
                 // A caller sees the causes the callee publishes, as the
                 // table stands: its ceiling when it authors one, what its

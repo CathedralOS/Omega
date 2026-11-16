@@ -146,7 +146,7 @@ pub mod calls {
         }
 
         pub fn state_parameter_position(
-            parameters: &[StateParameter],
+            parameters: arena::RootRows<'_, StateParameter>,
             symbol: SymbolHandle,
         ) -> Option<usize> {
             parameters
@@ -618,6 +618,14 @@ pub mod control_flow {
         }
 
         impl Machine {
+            /// A qualified header can name a module. Only resolved data
+            /// attachment makes this a data-owned declaration.
+            pub fn has_data_owner(&self) -> bool {
+                self.attached_data_symbol.is_valid()
+                    || self.attached_data_application.is_valid()
+                    || self.generic_data_template.is_valid()
+            }
+
             pub fn has_specialization_parameters(&self) -> bool {
                 !self.type_parameters.is_empty() || !self.conformance_bounds.is_empty()
             }
@@ -879,11 +887,17 @@ pub mod control_flow {
             pub statement_nodes: HandleSpan<StatementNode>,
         }
 
-        pub fn state_by_symbol(states: &[State], symbol: SymbolHandle) -> Option<&State> {
+        pub fn state_by_symbol<'arena>(
+            states: arena::RootRows<'arena, State>,
+            symbol: SymbolHandle,
+        ) -> Option<&'arena State> {
             states.iter().find(|state| state.symbol == symbol)
         }
 
-        pub fn state_position(states: &[State], symbol: SymbolHandle) -> Option<usize> {
+        pub fn state_position(
+            states: arena::RootRows<'_, State>,
+            symbol: SymbolHandle,
+        ) -> Option<usize> {
             states.iter().position(|state| state.symbol == symbol)
         }
 
@@ -1452,9 +1466,10 @@ pub mod control_flow {
                                 let reflected_field_origin =
                                     call.reflected_field_origin.as_ref().map(|origin| {
                                         let query = self
-                                            .copy_statement_nodes_deep_from(
+                                            .copy_statement_nodes_with_type_expressions(
                                                 source_tables,
                                                 HandleSpan::from_parts(origin.query, 1),
+                                                expressions,
                                             )
                                             .start();
                                         let callback =
@@ -1479,7 +1494,15 @@ pub mod control_flow {
                                             &request.timer_slot,
                                         );
                                 }
+                                let runtime_call = call.runtime_call.as_ref().map(|binding| {
+                                    self.copy_runtime_callable_binding_from(
+                                        source_tables,
+                                        binding,
+                                        expressions,
+                                    )
+                                });
                                 StatementNode::Call(TableCall {
+                                    runtime_call,
                                     unresolved_name: call.unresolved_name,
                                     installed_interrupt_operation,
                                     authored_machine_application,
@@ -1517,10 +1540,8 @@ pub mod control_flow {
                             ),
                             StatementNode::LocalData(local) => {
                                 let type_reference = local.type_reference.is_valid().then(|| {
-                                    self.type_reference_table.copy_with_expressions(
-                                        &source_tables.type_reference_table,
-                                        &source_tables.expression_table,
-                                        &mut self.expression_table,
+                                    self.copy_type_reference_with_expressions(
+                                        source_tables,
                                         local.type_reference,
                                         expressions,
                                     )
@@ -1533,9 +1554,10 @@ pub mod control_flow {
                                 });
                                 let reflected_query_origin =
                                     local.reflected_query_origin.map(|query| {
-                                        self.copy_statement_nodes_deep_from(
+                                        self.copy_statement_nodes_with_type_expressions(
                                             source_tables,
                                             HandleSpan::from_parts(query, 1),
+                                            expressions,
                                         )
                                         .start()
                                     });
@@ -1662,6 +1684,11 @@ pub mod control_flow {
                                     .remap_symbols_in(assignment.value, symbols);
                             }
                             StatementNode::Call(call) => {
+                                if let Some(binding) = &call.runtime_call {
+                                    self.remap_runtime_callable_binding_symbols_in(
+                                        binding, symbols,
+                                    );
+                                }
                                 let reflected_field_origin =
                                     call.reflected_field_origin.map(|mut origin| {
                                         self.remap_statement_symbols(
@@ -1737,11 +1764,7 @@ pub mod control_flow {
                                         symbols,
                                     );
                                 }
-                                self.type_reference_table.remap_symbols_in(
-                                    local.type_reference,
-                                    &mut self.expression_table,
-                                    symbols,
-                                );
+                                self.remap_type_reference_symbols_in(local.type_reference, symbols);
                                 self.expression_table
                                     .remap_symbols_in(local.initial_value, symbols);
                                 // A resolved record pattern names its record
@@ -1833,12 +1856,17 @@ pub mod control_flow {
                             roots.push((Role::AssignmentTarget, assignment.target));
                             roots.push((Role::AssignmentValue, assignment.value));
                         }
-                        StatementNode::Call(call) => roots.extend(
-                            self.statement_table
-                                .expression_handles(call.arguments)
-                                .iter()
-                                .map(|argument| (Role::CallArgument, *argument)),
-                        ),
+                        StatementNode::Call(call) => {
+                            if let Some(binding) = call.runtime_call {
+                                roots.push((Role::CallCallee, binding.callee));
+                            }
+                            roots.extend(
+                                self.statement_table
+                                    .expression_handles(call.arguments)
+                                    .iter()
+                                    .map(|argument| (Role::CallArgument, *argument)),
+                            );
+                        }
                         StatementNode::Expression(expression) => {
                             roots.push((Role::Expression, *expression))
                         }
@@ -1912,14 +1940,7 @@ pub mod control_flow {
                                 .type_reference_table
                                 .type_reference_handles(membership.domain_arguments)
                                 .iter()
-                                .map(|argument| {
-                                    self.type_reference_table.copy_from(
-                                        &source.type_reference_table,
-                                        &source.expression_table,
-                                        &mut self.expression_table,
-                                        *argument,
-                                    )
-                                })
+                                .map(|argument| self.copy_type_reference_from(source, *argument))
                                 .collect::<Vec<_>>();
                             membership.domain_arguments = self
                                 .type_reference_table
@@ -1966,11 +1987,7 @@ pub mod control_flow {
                                 .type_reference_handles(membership.domain_arguments)
                                 .to_vec()
                             {
-                                self.type_reference_table.remap_symbols_in(
-                                    argument,
-                                    &mut self.expression_table,
-                                    symbols,
-                                );
+                                self.remap_type_reference_symbols_in(argument, symbols);
                             }
                         }
                         ProofFact::Proposition(application) => {
@@ -2406,6 +2423,7 @@ pub mod control_flow {
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq)]
         pub enum StatementRootRole {
+            CallCallee,
             AssemblyFact,
             AssignmentTarget,
             AssignmentValue,
@@ -2484,6 +2502,7 @@ pub mod control_flow {
 
         #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
         pub struct TableCall {
+            pub runtime_call: Option<crate::callable_values::RuntimeCallBinding>,
             pub unresolved_name: symbols::UnresolvedName,
             pub installed_interrupt_operation:
                 Option<crate::expression::InstalledInterruptOperationRequest>,

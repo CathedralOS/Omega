@@ -102,7 +102,10 @@ pub(super) fn lower_lending(
             ranking: None,
         });
     }
-    typed_trees_to_terminal_psi::lower_bodies(id(1), &bodies, &signatures, &records())
+    let mut elaboration =
+        typed_trees_to_terminal_psi::lower_bodies(id(1), &bodies, &signatures, &records())?;
+    declare_body_models(&mut elaboration, &signatures);
+    Ok(elaboration)
 }
 
 fn of(kind: ExpressionKind, result: ValueType) -> Expression {
@@ -147,8 +150,7 @@ pub(super) fn invoke(callee: u64, arguments: Vec<Expression>) -> Statement {
         kind: ExpressionKind::Call {
             required_contract: None,
             static_reach_binding: None,
-            source_call: None,
-            callee: semantic_vocabulary::TargetMachineCallable::Machine(id(callee)),
+            callee: id::<MachineId>(callee).into(),
             arguments,
             designated: None,
         },
@@ -670,8 +672,7 @@ fn a_home_a_loan_gives_a_local_in_an_arm_is_not_the_continuations() {
                         kind: ExpressionKind::Call {
                             required_contract: None,
                             static_reach_binding: None,
-                            source_call: None,
-                            callee: semantic_vocabulary::TargetMachineCallable::Machine(id(2)),
+                            callee: id::<MachineId>(2).into(),
                             arguments: vec![lend(
                                 ReferenceAccess::Mutable,
                                 named(1, u32_type().into()),
@@ -730,6 +731,8 @@ machine entry() crashes none {
         typed_trees_to_terminal_psi::prepare_compilation(
             &typed,
             typed_trees_to_terminal_psi::Compilation {
+                calling: None,
+                providers: None,
                 declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[],
@@ -786,7 +789,7 @@ machine entry() crashes none {
     assert_eq!(refused.reason, RefusalReason::ForeignIdentity);
     assert_eq!(
         refused.detail,
-        "an invocation row names another callee in machine `relay`"
+        "invocation row and lowered call name different targets"
     );
 
     let mut missing_lifetimes = prepare();
@@ -873,6 +876,8 @@ fn an_original_returned_reference_keeps_its_backing_and_excludes_its_parent() {
         typed_trees_to_terminal_psi::elaborate_for(
             &typed,
             typed_trees_to_terminal_psi::Compilation {
+                calling: None,
+                providers: None,
                 declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[],
@@ -1031,7 +1036,10 @@ fn an_original_returned_reference_keeps_its_backing_and_excludes_its_parent() {
     );
     assert_eq!(conflicts.len(), 1);
     assert_eq!(conflicts[0].conflict, LoanConflict::ChangeWhileBorrowed);
-    assert!(matches!(conflicts[0].site, SourceOrigin::Authored(_)));
+    assert!(matches!(
+        conflicts[0].site,
+        terminal_check_tables::program::SourceOrigin::Authored(_)
+    ));
     assert_eq!(
         conflicts[0].statement,
         "storage is changed while a conflicting reference remains live"
@@ -1553,7 +1561,9 @@ fn rigid_relay_with(
         .symbol;
     let mut form = typed_trees_to_terminal_psi::elaborate_generic(&typed, symbol).unwrap();
     edit(&mut form);
-    let discharged = crate::discharge(&mut form).map_err(|refusal| format!("{refusal:?}"));
+    let mut activity = crate::ProofSearchActivity::default();
+    let discharged =
+        crate::discharge(&mut form, &mut activity).map_err(|refusal| format!("{refusal:?}"));
     (form, discharged)
 }
 
@@ -1685,6 +1695,8 @@ fn returned_relay(entry: &str) -> crate::RouteVerdict {
     let prepared = typed_trees_to_terminal_psi::prepare_compilation(
         &typed,
         typed_trees_to_terminal_psi::Compilation {
+            calling: None,
+            providers: None,
             declaration_metadata: &[],
             entries: &[entry],
             subjects: &[],

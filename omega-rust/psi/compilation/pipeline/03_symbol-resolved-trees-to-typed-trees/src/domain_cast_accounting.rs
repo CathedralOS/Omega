@@ -99,6 +99,79 @@ fn entry_sites(
         .collect()
 }
 
+fn read_run(program: &TypedTrees, outermost: ExpressionHandle) -> Run {
+    let mut run = Vec::new();
+    let mut cursor = outermost;
+    while let Some(cast) = program.expression_table.cast_node(cursor).copied() {
+        let Some(entry) = cast.form.entry() else {
+            break;
+        };
+        run.push((cursor, cast, entry));
+        if entry.first {
+            break;
+        }
+        cursor = cast.value;
+    }
+    run.reverse();
+    run
+}
+
+/// A domain-only cast names its complete input set with `=` and `-`.
+/// Use that set to select an operand call, without establishing any domain
+/// or borrowing the post-cast domains from its receiving declaration.
+pub(crate) fn call_operand_destination(
+    source: &symbol_resolved_trees::SymbolResolvedTrees,
+    program: &mut TypedTrees,
+    outermost: ExpressionHandle,
+    destination: TypeReferenceHandle,
+) -> Result<(ExpressionHandle, TypeReferenceHandle), Diagnostic> {
+    let run = read_run(program, outermost);
+    let Some((_, first, _)) = run.first() else {
+        return Err(refuse(
+            program,
+            outermost,
+            "call destination has no domain cast entries".to_owned(),
+        ));
+    };
+    let operand = first.value;
+    let (carrier, view) = match program
+        .type_reference_table
+        .type_reference(destination)
+        .clone()
+    {
+        TypeReferenceNode::Reference {
+            referee,
+            access,
+            lifetime,
+        } => (flatten(program, referee).0, Some((access, lifetime))),
+        _ => (flatten(program, destination).0, None),
+    };
+    let named = named_domains(source, program, &run, carrier)?;
+    let input: Vec<_> = named
+        .into_iter()
+        .filter(|entry| {
+            matches!(
+                entry.entry.kind,
+                CastEntryKind::Keep | CastEntryKind::Remove
+            )
+        })
+        .flat_map(|entry| entry.atoms)
+        .collect();
+    let before = spell(source, program, carrier, &input)?;
+    let before = if let Some((access, lifetime)) = view {
+        program
+            .type_reference_table
+            .insert(TypeReferenceNode::Reference {
+                referee: before,
+                access,
+                lifetime,
+            })
+    } else {
+        before
+    };
+    Ok((operand, before))
+}
+
 pub(crate) struct PreparedCasts {
     runs: Vec<Run>,
     initializer_owners: Vec<(SymbolHandle, SymbolHandle)>,
@@ -154,20 +227,7 @@ impl PreparedCasts {
         }
         let mut runs: Vec<Run> = Vec::new();
         for (outermost, _) in sites.iter().filter(|(handle, _)| !inner.contains(handle)) {
-            let mut run = Vec::new();
-            let mut cursor = *outermost;
-            while let Some(cast) = program.expression_table.cast_node(cursor).copied() {
-                let Some(entry) = cast.form.entry() else {
-                    break;
-                };
-                run.push((cursor, cast, entry));
-                if entry.first {
-                    break;
-                }
-                cursor = cast.value;
-            }
-            run.reverse();
-            runs.push(run);
+            runs.push(read_run(program, *outermost));
         }
 
         Ok(Self {

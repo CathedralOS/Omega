@@ -189,6 +189,8 @@ fn source_applications_prepare_substituted_cases_before_checked_construction() {
             subjects: &[None],
             purpose: source::DependencyScope::Product,
             selected: &[],
+            calling: None,
+            providers: None,
             bindings: &[],
             supplies: &[],
         },
@@ -200,8 +202,9 @@ fn source_applications_prepare_substituted_cases_before_checked_construction() {
     let RouteVerdict::Accepted(_) = verdict else {
         panic!("{verdict:?}")
     };
-    let records: Vec<_> = prepared
-        .source
+    let records: Vec<_> = prepared.source.forms[0]
+        .as_ref()
+        .expect("accepted primary form retains its source correspondence")
         .records
         .iter()
         .filter(|record| record.declaration == optional.symbol)
@@ -233,6 +236,9 @@ fn source_application_cannot_change_its_payload_type() {
         typed_trees_to_terminal_psi::prepare_compilation(
             &typed,
             typed_trees_to_terminal_psi::Compilation {
+                calling: None,
+                providers: None,
+
                 declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[None],
@@ -280,6 +286,8 @@ fn a_local_generic_data_template_is_read_and_judged_where_it_is_applied() {
             typed_trees_to_terminal_psi::prepare_compilation(
                 &typed,
                 typed_trees_to_terminal_psi::Compilation {
+                    calling: None,
+                    providers: None,
                     declaration_metadata: &[],
                     entries: &[entry],
                     subjects: &[None],

@@ -72,6 +72,7 @@ fn call(
         .static_machine_application_mut(application)
         .lexical_owner = holder;
     TableCallExpression {
+        runtime_call: None,
         authored_call_selection: None,
         authored_call_binding: None,
         build_selection: arena::Handle::invalid(),
@@ -121,6 +122,10 @@ fn push_machine(
 }
 
 fn source() -> Source {
+    source_with_typed_record(false)
+}
+
+fn source_with_typed_record(typed_record: bool) -> Source {
     let mut builder = SymbolTableBuilder::new();
     let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
     let top = builder.insert_children(
@@ -149,7 +154,11 @@ fn source() -> Source {
         advance,
         [
             (
-                SymbolKind::ConformanceParameter,
+                if typed_record {
+                    SymbolKind::TypeParameter
+                } else {
+                    SymbolKind::ConformanceParameter
+                },
                 SymbolNameRef::Static("Selected"),
             ),
             (SymbolKind::State, SymbolNameRef::Static("entry")),
@@ -171,6 +180,11 @@ fn source() -> Source {
         symbols: builder.finish(),
         ..Default::default()
     };
+    // Source resolution records the owner of every inline member.
+    program
+        .symbols
+        .record_declaration_owner(hold_apply, hold)
+        .unwrap();
 
     // trait Step { machine apply(); }
     let machines = program
@@ -245,13 +259,18 @@ fn source() -> Source {
             head_symbol: selected,
             ..TableNamePath::default()
         }));
+    let written_requirement = if typed_record {
+        requirement
+    } else {
+        placeholder
+    };
     let through = TableCallExpression {
         receiver: qualifier,
         authored_call_binding: Some(ResolvedAuthoredCallBinding {
-            selected: placeholder,
-            original: placeholder,
+            selected: written_requirement,
+            original: written_requirement,
         }),
-        ..call(&mut program, advance, placeholder, "apply", None)
+        ..call(&mut program, advance, written_requirement, "apply", None)
     };
     let through = program
         .expression_table
@@ -263,20 +282,47 @@ fn source() -> Source {
         &mut program,
         advance,
         "advance",
-        vec![GenericConformanceBound {
-            binder: selected,
-            binder_name: Identifier::generated("Selected"),
-            trait_symbol: step,
-            trait_name: Identifier::generated("Step"),
-            lifetime_arguments: Vec::new(),
-            arguments: Vec::new(),
-        }],
+        if typed_record {
+            Vec::new()
+        } else {
+            vec![GenericConformanceBound {
+                binder: selected,
+                binder_name: Identifier::generated("Selected"),
+                trait_symbol: step,
+                trait_name: Identifier::generated("Step"),
+                lifetime_arguments: Vec::new(),
+                arguments: Vec::new(),
+            }]
+        },
         advance_state,
         vec![StatementNode::Transition(TableTransition {
             target,
             ..TableTransition::default()
         })],
     );
+
+    if typed_record {
+        let schema =
+            program
+                .type_reference_table
+                .insert(typed_trees::types::TypeReferenceNode::Named {
+                    symbol: step,
+                    name: Identifier::generated("Step"),
+                });
+        let parameters =
+            program
+                .data_type_parameters
+                .insert_many([typed_trees::data::TypeParameter {
+                    symbol: selected,
+                    name: Identifier::generated("Selected"),
+                    kind: typed_trees::data::TypeParameterKind::Const {
+                        type_reference: schema,
+                    },
+                    ..Default::default()
+                }]);
+        let position = program.machine_position_by_symbol(advance).unwrap();
+        program.machine_mut(position).type_parameters = parameters;
+    }
 
     // main and partial: `let _ = advance<Implementation>();`
     let applied =
@@ -342,7 +388,7 @@ fn source() -> Source {
 
 fn only_state(program: &TypedTrees, machine: SymbolHandle) -> &State {
     let machine = program.machine_by_symbol(machine).expect("a machine");
-    let [state] = program.machine_states(machine) else {
+    let Some([state]) = program.machine_states(machine).as_array() else {
         panic!("one state");
     };
     state
@@ -492,4 +538,143 @@ fn an_implementation_with_no_machine_for_a_requirement_is_refused_on_its_holder_
         Some(DeferredRequest::StaticApplication)
     );
     assert!(program.deferred_refusal(main).is_none());
+}
+
+#[test]
+fn a_typed_const_record_keeps_its_value_binding_and_exact_named_call() {
+    let Source {
+        mut program,
+        step,
+        requirement,
+        selected,
+        advance,
+        hold,
+        main,
+        partial,
+        ..
+    } = source_with_typed_record(true);
+    prepare(&mut program).expect("typed record preparation");
+    assert!(
+        program.deferred_refusal(main).is_none(),
+        "{:?}",
+        program.deferred_refusal(main)
+    );
+    assert_eq!(
+        program.deferred_refusal(partial).map(|row| row.request),
+        Some(DeferredRequest::StaticApplication)
+    );
+    let authored = program.machine_by_symbol(advance).unwrap();
+    assert!(matches!(
+        program.machine_type_parameters(authored)[0].kind,
+        typed_trees::data::TypeParameterKind::Const { .. }
+    ));
+    let [first, alias] = calls(&program, main)[..] else {
+        panic!("two value aliases");
+    };
+    assert_eq!(first.target_symbol, alias.target_symbol);
+    let [binding] = program
+        .expression_table
+        .static_machine_application_bindings(first.authored_machine_application)
+    else {
+        panic!("one original const binding");
+    };
+    assert_eq!(binding.parameter, selected);
+    let StaticMachineBindingValue::Const(reference) = binding.value else {
+        panic!("the binder remains Const");
+    };
+    assert!(
+        matches!(program.type_reference_table.type_reference(reference),
+        typed_trees::types::TypeReferenceNode::Named { symbol, .. } if *symbol == hold)
+    );
+    let generated = program.symbols.get(first.target_symbol).parent;
+    let [member] = calls(&program, generated)[..] else {
+        panic!("one member call");
+    };
+    assert!(member.static_requirement_dispatch.is_none());
+    assert_eq!(member.target_symbol, requirement);
+    let receiver = program
+        .expression_table
+        .name_path_node(member.receiver)
+        .unwrap();
+    assert_eq!(receiver.symbol, hold);
+    let (_, row, signature) = program
+        .named_conformance_call_member(member)
+        .unwrap()
+        .unwrap();
+    assert_eq!(row.declaring_trait, step);
+    assert_eq!(row.requirement, requirement);
+    assert_eq!(signature.symbol, requirement);
+    let (operand, _) = program
+        .source_call_selected_operand(
+            generated,
+            typed_trees::references::StaticArgumentCall::Expression(
+                program
+                    .expression_table
+                    .iter_expressions()
+                    .find_map(|(handle, node)| {
+                        matches!(node, ExpressionNode::Call(call) if std::ptr::eq(call, member))
+                            .then_some(handle)
+                    })
+                    .unwrap(),
+                member,
+            ),
+        )
+        .unwrap();
+    assert_eq!(operand.symbol, hold);
+    assert!(
+        program
+            .specialization_source_identity(program.machine_specialization(generated).unwrap())
+            .is_ok()
+    );
+}
+
+#[test]
+fn typed_const_records_forward_the_declared_value_and_reject_another_schema() {
+    let Source {
+        mut program,
+        advance,
+        selected,
+        step,
+        ..
+    } = source_with_typed_record(true);
+    let parameter =
+        program.machine_type_parameters(program.machine_by_symbol(advance).unwrap())[0].clone();
+    let forwarded = StaticMachineArgument {
+        symbol: selected,
+        path: Box::new([Identifier::generated("Selected")]),
+        ..Default::default()
+    };
+    let operand = super::Operand::read(&mut program, selected, &parameter.kind, &forwarded)
+        .unwrap_or_else(|_| {
+            panic!("forward the original Const value without changing its binder kind")
+        });
+    assert!(operand.is_open(&program));
+    assert!(matches!(operand.value, StaticMachineBindingValue::Const(_)));
+    assert_eq!(operand.argument, forwarded);
+
+    let other = program
+        .symbols
+        .insert_generated_root_from(step, SymbolKind::Trait, "OtherStep");
+    program.push_trait_definition(TraitDefinition {
+        symbol: other,
+        name: Identifier::generated("OtherStep"),
+        ..Default::default()
+    });
+    let reference =
+        program
+            .type_reference_table
+            .insert(typed_trees::types::TypeReferenceNode::Named {
+                symbol: other,
+                name: Identifier::generated("OtherStep"),
+            });
+    let parameters = program.machine_by_symbol(advance).unwrap().type_parameters;
+    program
+        .data_type_parameters
+        .get_mut(parameters.start())
+        .kind = typed_trees::data::TypeParameterKind::Const {
+        type_reference: reference,
+    };
+    let errors =
+        prepare(&mut program).expect_err("another exact schema is not the declared record type");
+    assert!(errors[0].message.contains("another declared schema"));
 }

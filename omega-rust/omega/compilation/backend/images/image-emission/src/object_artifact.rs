@@ -20,6 +20,8 @@ mod carriers {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct ObjectArtifact {
+        pub(crate) program_contracts:
+            std::sync::Arc<selected_instructions::SelectedProgramContracts>,
         pub(crate) projected: crate::object::function_fragments::ProjectedObject,
         pub(crate) hosted_receiver: Option<HostedReceiverBinding>,
         pub(crate) physical_entry: Option<crate::PhysicalEntryBinding>,
@@ -46,9 +48,8 @@ mod carriers {
         pub(crate) byte_literal_pool: Option<ObjectByteLiteralPool>,
         pub(crate) native_code_layout_pool:
             Option<crate::object::function_fragments::native_code_layouts::NativeCodeLayoutPool>,
-        pub(crate) implementation_table_pool: Option<
-            crate::object::function_fragments::implementation_tables::ObjectImplementationTablePool,
-        >,
+        pub(crate) code_descriptor_pool:
+            Option<crate::object::function_fragments::code_descriptors::ObjectCodeDescriptorPool>,
     }
 
     /// Retains the exact semantic owner and occurrence coverage of a separately
@@ -324,22 +325,8 @@ mod carriers {
                 .find(|function| function.machine == machine)
         }
 
-        pub fn borrowed_storage_layouts(
-            &self,
-        ) -> Option<&[runtime_abi::NativeBorrowedStorageLayout]> {
-            self.fragment_replay.as_ref().map(|replay| {
-                replay
-                    .0
-                    .source()
-                    .source()
-                    .source()
-                    .source()
-                    .optimized_target()
-                    .execution_plan()
-                    .plan()
-                    .borrowed_storage_layouts
-                    .as_slice()
-            })
+        pub fn borrowed_storage_layouts(&self) -> &runtime_abi::NativeBorrowedStorageLayouts {
+            &self.program_contracts.borrowed_storage_layouts
         }
 
         pub fn private_functions(&self) -> &[ObjectCompilerPrivateFunction] {
@@ -3293,6 +3280,7 @@ mod normalized_foreign_calls {
             return Some(Kind::CopyI64);
         }
         match scalar_type {
+            ScalarType::Callable(_) => None,
             ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => {
                 Some(Kind::Float32ToBits)
             }

@@ -6227,12 +6227,7 @@ pub(crate) fn apply(
                     .any(|(carrier, _)| *carrier == result.place)
                 || !reference_source_accessible(function, custody, types, source)
                 || !match storage {
-                    Some(storage)
-                        if matches!(
-                            source.path.last(),
-                            Some(StructuralPathSegment::FixedRange { .. })
-                        ) =>
-                    {
+                    Some(storage) if storage.stored_scalar.is_none() => {
                         source_contract(function, custody, source.place).is_some_and(|root| {
                             terminal_semantics::reference_storage_region_source_compatible(
                                 types.iter(),
@@ -6559,6 +6554,21 @@ pub(crate) fn apply(
                             parameters: &callee.structural_parameters,
                             sources: &result.reference_sources,
                         },
+                    )
+                }
+                abstract_operations::AbstractCallTarget::Callable { contract, .. } => {
+                    let contract = plan
+                        .callables
+                        .contract(*contract)
+                        .ok_or_else(|| invalid())?;
+                    if !contract.result.matches_operation_result(
+                        &terminal_psi::OperationResult::Structural(result.clone()),
+                    ) {
+                        return Err(invalid());
+                    }
+                    (
+                        None,
+                        terminal_semantics::ReferenceCallContract::Callable(contract),
                     )
                 }
                 abstract_operations::AbstractCallTarget::Dynamic { .. } => {

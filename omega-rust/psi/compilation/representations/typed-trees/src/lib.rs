@@ -48,20 +48,53 @@ pub mod boundary_values {
     #[derive(Clone, Default)]
     pub struct BoundaryTypeBinding {
         pub parameter_symbol: symbols::SymbolHandle,
-        pub parameter_name: String,
         pub actual: TypeReferenceHandle,
     }
 }
+pub mod callable_lifetimes;
+pub mod source_names;
 pub(crate) mod source_review {
     use crate::{PlanLaidTargetLayout, types::TypeReferenceHandle};
     use arena::Handle;
     use semantic_vocabulary::{StructuralFieldId, StructuralTypeId};
     use symbols::SymbolHandle;
 
+    /// Typed occurrence identity belongs to the frozen source kept beside a
+    /// publication. Spans are diagnostic positions, never this association.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum SourceNode {
+        Expression(crate::expression::ExpressionHandle),
+        Statement(crate::statement::StatementHandle),
+    }
+
+    /// One actual emitted invocation and the typed occurrence that produced it.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct SourceCallCorrespondence {
+        /// The lowered machine that executes this invocation.
+        pub machine: semantic_vocabulary::MachineId,
+        /// The original member before call-component folding.
+        pub source_member: semantic_vocabulary::MachineId,
+        pub site: semantic_vocabulary::InvocationSite,
+        /// Combining a call cycle into one loop does not change this original
+        /// source owner or its static argument environment.
+        pub owner: SymbolHandle,
+        pub source: SourceNode,
+    }
+
     #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
     pub struct SourceTypeApplication {
         pub reference: TypeReferenceHandle,
         pub substitutions: Vec<(SymbolHandle, TypeReferenceHandle)>,
+    }
+
+    /// The canonical service coordinate paired with its source declaration.
+    /// The lowering owner prepares this association; consumers retain it
+    /// beside the checked module instead of comparing display identities.
+    #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+    pub struct SourceServiceCorrespondence {
+        pub service: semantic_vocabulary::ServiceId,
+        pub source: language_semantics::ServiceReachId,
+        pub declaration: SymbolHandle,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
@@ -101,8 +134,9 @@ pub(crate) mod source_review {
     }
 }
 pub use source_review::{
-    SourceFieldCorrespondence, SourceLayoutPlanCoordinate, SourceLayoutRealizationCoordinate,
-    SourceRecordCorrespondence, SourceTypeApplication,
+    SourceCallCorrespondence, SourceFieldCorrespondence, SourceLayoutPlanCoordinate,
+    SourceLayoutRealizationCoordinate, SourceNode, SourceRecordCorrespondence,
+    SourceServiceCorrespondence, SourceTypeApplication,
 };
 macro_rules! typed_tree_table {
     ($( $field:ident => $get:ident ($ty:ty) $( [ $push:ident ] )? $(, $inline:ident)? ;)*) => {
@@ -242,15 +276,21 @@ pub(crate) mod build_selections {
         }
     }
 }
+mod callable_copies;
 pub mod callable_signature_shapes;
+pub mod callable_values;
 pub mod compiler_intrinsics;
+pub mod contract_structure;
 pub mod declaration_projection;
 mod declared_bindings;
 pub mod deferred_refusals;
 mod machine_specializations;
+pub mod native_locators;
 pub use machine_specializations::MachineSpecializations;
 pub mod references;
+pub mod runtime_callable_identity;
 pub mod service_declarations;
+pub mod source_call_occurrences;
 pub use service_declarations::provider_declarations;
 mod access_views_and_commitments;
 pub use access_views_and_commitments::constant_recipes;
@@ -1180,6 +1220,7 @@ pub use access_views::{
     PlanLaidLayout, PlanLaidRealizations, PlanLaidRetiredFieldIdentity, PlanLaidSchemaArgument,
     PlanLaidSchemaField, PlanLaidSchemaFieldKind, PlanLaidTargetLayout,
     PrivateCallbackSlotApplication, ScalarAccessorDeclaration, ScalarAccessorOperation,
+    access_atomic_observing_results,
 };
 pub use commitments::{
     CapturedMachineApplication, CapturedMachineState, ClosedConformanceApplication,
@@ -1386,6 +1427,8 @@ pub struct DesignatedStaticTypeArgument {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TypedTreeTables {
+    pub runtime_callable_contracts: Arena<crate::callable_values::RuntimeCallableContract>,
+    pub runtime_callable_lowering: crate::callable_values::RuntimeCallableLowering,
     pub designated_static_type_arguments: Arena<DesignatedStaticTypeArgument>,
     pub retained_product_application_handles: Arena<Handle<ProductOperandApplication>>,
     pub product_input_selections: Arena<crate::product_operand::ProductInputSelection>,
@@ -1403,7 +1446,7 @@ pub struct TypedTreeTables {
     pub data_members: arena::RootedArena<data::DataMember>,
     pub data_payload_fields: arena::RootedArena<data::DataField>,
     pub domain_definitions: SpelledDeclarationTable<domain::DomainDefinition>,
-    pub proof_facts: Arena<domain::ProofFact>,
+    pub proof_facts: arena::RootedArena<domain::ProofFact>,
     proof_fact_source_spans: Vec<Option<source::SourceSpan>>,
     pub propositions: arena::RootedArena<proposition::PropositionDefinition>,
     pub proposition_binders: Arena<proposition::PropositionBinder>,
@@ -1418,12 +1461,12 @@ pub struct TypedTreeTables {
     pub operators: SpelledDeclarationTable<crate::operator::OperatorDefinition>,
     pub machine_owned_data: Arena<machine::OwnedData>,
     pub machine_trait_conformances: Arena<machine::TraitConformance>,
-    pub machine_states: Arena<crate::state::State>,
-    pub state_parameters: Arena<signature::StateParameter>,
+    pub machine_states: arena::RootedArena<crate::state::State>,
+    pub state_parameters: arena::RootedArena<signature::StateParameter>,
     pub traits: arena::RootedArena<trait_definition::TraitDefinition>,
     pub conformances: arena::RootedArena<trait_definition::Conformance>,
     pub trait_requirements: Arena<trait_definition::TraitRequirement>,
-    pub trait_machine_signatures: Arena<signature::StateSignature>,
+    pub trait_machine_signatures: arena::RootedArena<signature::StateSignature>,
     pub(crate) applied_callable_signatures: callable_applications::AppliedCallableTable,
     pub(crate) callable_substitutions: Arena<callable_applications::CallableSubstitution>,
     pub(crate) trait_application_frames: Arena<trait_definition::RetainedTraitApplicationFrame>,
@@ -1432,7 +1475,7 @@ pub struct TypedTreeTables {
     pub(crate) callable_lifetime_substitutions:
         Arena<crate::static_applications::StaticMachineLifetimeBinding>,
     pub signature_invokes: Arena<signature::AuthoredInvocation>,
-    pub signature_contracts: Arena<signature::SignatureContract>,
+    pub signature_contracts: arena::RootedArena<signature::SignatureContract>,
     pub expression_table: expression::ExpressionTable,
     pub statement_table: crate::statement::StatementTable,
     pub type_reference_table: types::TypeReferenceTable,
@@ -1949,6 +1992,137 @@ mod continuation_storage_tests {
         let mut builder = SymbolTableBuilder::new();
         builder.insert_root(SymbolKind::Machine, SymbolNameRef::Borrowed(name));
         builder.finish()
+    }
+
+    #[test]
+    fn selected_continuation_shares_callable_children_and_isolates_writes() {
+        use crate::name::Identifier;
+        use crate::{callable_applications, domain, signature, state};
+
+        let mut original = TypedTrees::default();
+        let parameters = original
+            .state_parameters
+            .insert_many((0..260).map(|_| signature::StateParameter::default()));
+        let facts = original
+            .proof_facts
+            .insert_many([domain::ProofFact::default(), domain::ProofFact::default()]);
+        let contracts = original.signature_contracts.insert_many([
+            signature::SignatureContract {
+                facts,
+                ..Default::default()
+            },
+            signature::SignatureContract::default(),
+        ]);
+        let states = original.machine_states.insert_many([
+            state::State {
+                parameters,
+                contracts,
+                ..Default::default()
+            },
+            state::State::default(),
+        ]);
+        let signatures = original.trait_machine_signatures.insert_many([
+            signature::StateSignature {
+                parameters,
+                contracts,
+                ..Default::default()
+            },
+            signature::StateSignature::default(),
+        ]);
+        let applied = original
+            .applied_callable_signatures
+            .insert(callable_applications::AppliedCallableSignature::default());
+        let other_applied = original
+            .applied_callable_signatures
+            .insert(callable_applications::AppliedCallableSignature::default());
+        let original = Arc::new(original);
+        let predecessor = Arc::clone(&original);
+        let mut successor = original.with_replaced_symbols(symbols("successor"));
+        let fork = Arc::get_mut(&mut successor).unwrap();
+
+        macro_rules! shares {
+            ($table:ident, $handle:expr) => {
+                assert!(std::ptr::eq(
+                    predecessor.$table.get($handle),
+                    fork.$table.get($handle)
+                ));
+            };
+        }
+        shares!(state_parameters, parameters.start());
+        shares!(proof_facts, facts.start());
+        shares!(signature_contracts, contracts.start());
+        shares!(machine_states, states.start());
+        shares!(trait_machine_signatures, signatures.start());
+        shares!(applied_callable_signatures, applied);
+
+        fork.state_parameters.get_mut(parameters.start()).name = Identifier::generated("changed");
+        fork.proof_facts.set(
+            facts.start(),
+            domain::ProofFact::Expression(arena::Handle::from_parts(1, 1)),
+        );
+        fork.signature_contracts
+            .get_mut(contracts.start())
+            .token_count = 7;
+        fork.machine_states.get_mut(states.start()).name = Identifier::generated("changed");
+        fork.trait_machine_signatures
+            .get_mut(signatures.start())
+            .name = Identifier::generated("changed");
+        fork.applied_callable_signatures
+            .replace(
+                applied,
+                callable_applications::AppliedCallableSignature::default(),
+            )
+            .unwrap();
+        assert!(!std::ptr::eq(
+            predecessor.applied_callable_signatures.get(applied),
+            fork.applied_callable_signatures.get(applied)
+        ));
+
+        assert_eq!(
+            predecessor.state_parameters.get(parameters.start()).name,
+            Identifier::default()
+        );
+        assert_eq!(
+            predecessor.proof_facts.get(facts.start()),
+            &domain::ProofFact::default()
+        );
+        assert_eq!(
+            predecessor
+                .signature_contracts
+                .get(contracts.start())
+                .token_count,
+            0
+        );
+        assert_eq!(
+            predecessor.machine_states.get(states.start()).name,
+            Identifier::default()
+        );
+        assert_eq!(
+            predecessor
+                .trait_machine_signatures
+                .get(signatures.start())
+                .name,
+            Identifier::default()
+        );
+        assert_eq!(
+            predecessor.applied_callable_signatures.get(applied),
+            &callable_applications::AppliedCallableSignature::default()
+        );
+        shares!(state_parameters, parameters.handle_at(259));
+        shares!(proof_facts, facts.handle_at(1));
+        shares!(signature_contracts, contracts.handle_at(1));
+        shares!(machine_states, states.handle_at(1));
+        shares!(trait_machine_signatures, signatures.handle_at(1));
+        shares!(applied_callable_signatures, other_applied);
+        assert!(fork.applied_callable_signatures.free(applied));
+        let recycled = fork
+            .applied_callable_signatures
+            .insert(callable_applications::AppliedCallableSignature::default());
+        assert_eq!(recycled.arena_index(), applied.arena_index());
+        assert_ne!(recycled.generation(), applied.generation());
+        assert!(!fork.applied_callable_signatures.is_valid(applied));
+        assert!(predecessor.applied_callable_signatures.is_valid(applied));
+        assert!(!predecessor.applied_callable_signatures.is_valid(recycled));
     }
 
     #[test]

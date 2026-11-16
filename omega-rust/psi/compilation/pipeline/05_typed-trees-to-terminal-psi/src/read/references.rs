@@ -755,11 +755,7 @@ mod tests {
                     .collect::<Vec<_>>(),
                 [crate::body::DomainInstance {
                     declaration: domain,
-                    identity: program
-                        .typed()
-                        .domain_definition(domain)
-                        .unwrap()
-                        .semantic_id,
+                    identity: program.typed.domain_definition(domain).unwrap().semantic_id,
                 }]
             );
         }

@@ -13,10 +13,14 @@ fn fixture(name: &str) -> std::path::PathBuf {
 }
 
 fn run_both(name: &str) -> (bool, String) {
-    let project = fixture(name);
+    let (status, report) = run_project(&fixture(name));
+    (status == Some(0), report)
+}
+
+fn run_project(project: &Path) -> (Option<i32>, String) {
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
         .args(["run", "--both", "main.omg"])
-        .current_dir(&project)
+        .current_dir(project)
         .stdin(Stdio::null())
         .output()
         .expect("omega runs on the hosted target");
@@ -27,7 +31,41 @@ fn run_both(name: &str) -> (bool, String) {
     );
     let _ = std::fs::remove_dir_all(project.join("build"));
     let _ = std::fs::remove_file(project.join("omega.lock"));
-    (output.status.success(), report)
+    (output.status.code(), report)
+}
+
+#[test]
+fn runtime_visitors_preserve_field_order_and_mutate_the_actual_fields() {
+    for fact in ["typed_reflection", "typed_reflection_mutation"] {
+        let project = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../samples/cli/facts")
+            .join(fact)
+            .join("local");
+        let (status, report) = run_project(&project);
+        assert_eq!(status, Some(0), "{fact}: {report}");
+        for receipt in ["native exit 0", "interp exit: 0"] {
+            assert!(
+                report.lines().any(|line| line == receipt),
+                "{fact}: {report}"
+            );
+        }
+    }
+}
+
+#[test]
+fn runtime_visitors_reject_callbacks_that_exclude_an_actual_field_type() {
+    for fact in ["typed_reflection", "typed_reflection_mutation"] {
+        let project = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../samples/cli/facts")
+            .join(fact)
+            .join("invalid_local");
+        let (status, report) = run_project(&project);
+        assert_ne!(status, Some(0), "{fact}: {report}");
+        assert!(
+            report.contains("the type arguments of this application do not meet its requirement"),
+            "{fact}: {report}"
+        );
+    }
 }
 
 #[test]

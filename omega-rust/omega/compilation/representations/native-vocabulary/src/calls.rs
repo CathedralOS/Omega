@@ -1,7 +1,7 @@
 // The formal a structural call argument binds to, read the same way from a
 // machine's parameter declaration and from a dynamic requirement slot.
 
-use semantic_vocabulary::{MachineId, StructuralDomainId, StructuralTypeId, ValueId};
+use semantic_vocabulary::{MachineId, ScalarType, StructuralDomainId, StructuralTypeId, ValueId};
 use terminal_psi::{
     StructuralAccess, StructuralMultiplicity,
     StructuralParameterDeclaration as ParameterDeclaration, StructuralPathQualification,
@@ -55,11 +55,13 @@ impl<'declaration> From<&StructuralCallFormal<'declaration>>
     }
 }
 
-/// What a call names: a machine directly, or a dynamic dispatch slot read
-/// through a selector value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum AbstractCallTarget {
     Machine(MachineId),
+    Callable {
+        callee: ValueId,
+        contract: semantic_vocabulary::CallableContractId,
+    },
     Dynamic {
         selector: ValueId,
         interface: u32,
@@ -71,7 +73,7 @@ impl AbstractCallTarget {
     pub const fn machine(self) -> Option<MachineId> {
         match self {
             Self::Machine(machine) => Some(machine),
-            Self::Dynamic { .. } => None,
+            Self::Dynamic { .. } | Self::Callable { .. } => None,
         }
     }
 
@@ -79,34 +81,53 @@ impl AbstractCallTarget {
         match self {
             Self::Machine(_) => None,
             Self::Dynamic { selector, .. } => Some(selector),
+            Self::Callable { callee, .. } => Some(callee),
+        }
+    }
+
+    pub fn operand_type(self) -> Option<ScalarType> {
+        match self {
+            Self::Machine(_) => None,
+            Self::Callable { contract, .. } => Some(ScalarType::Callable(contract)),
+            Self::Dynamic { .. } => Some(ScalarType::Integer(
+                semantic_vocabulary::IntegerType::new(
+                    semantic_vocabulary::IntegerSign::Unsigned,
+                    64,
+                )
+                .expect("dispatch selector uses the declared u64 carrier"),
+            )),
         }
     }
 
     pub fn canonical_bytes(self) -> Vec<u8> {
-        let mut bytes = Vec::new();
+        let mut bytes = Vec::with_capacity(17);
+        self.visit_canonical_bytes(|part| bytes.extend_from_slice(part));
+        bytes
+    }
+
+    /// Share the target's tagged identity without allocating at each hash pass.
+    pub fn visit_canonical_bytes(self, mut emit: impl FnMut(&[u8])) {
         match self {
             Self::Machine(machine) => {
-                bytes.push(0);
-                optimization_core::codec_bytes::push_encoded(
-                    &mut bytes,
-                    machine.get().to_le_bytes(),
-                );
+                emit(&[0]);
+                emit(&machine.get().to_le_bytes());
+            }
+            Self::Callable { callee, contract } => {
+                emit(&[2]);
+                emit(&callee.get().to_le_bytes());
+                emit(&contract.get().to_le_bytes());
             }
             Self::Dynamic {
                 selector,
                 interface,
                 slot,
             } => {
-                bytes.push(1);
-                optimization_core::codec_bytes::push_encoded(
-                    &mut bytes,
-                    selector.get().to_le_bytes(),
-                );
-                optimization_core::codec_bytes::push_encoded(&mut bytes, interface.to_le_bytes());
-                optimization_core::codec_bytes::push_encoded(&mut bytes, slot.to_le_bytes());
+                emit(&[1]);
+                emit(&selector.get().to_le_bytes());
+                emit(&interface.to_le_bytes());
+                emit(&slot.to_le_bytes());
             }
         }
-        bytes
     }
 }
 

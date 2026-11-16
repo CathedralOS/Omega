@@ -118,7 +118,11 @@ fn native_project_build_publishes_the_reached_boundary_calling_application() {
         "the real Build retains all four authored target bindings"
     );
     assert_eq!(
-        checked.execution().native_bindings().rows.len(),
+        checked
+            .execution()
+            .realization()
+            .evaluated_native_bindings()
+            .len(),
         1,
         "the selected target retains its own evaluated binding"
     );

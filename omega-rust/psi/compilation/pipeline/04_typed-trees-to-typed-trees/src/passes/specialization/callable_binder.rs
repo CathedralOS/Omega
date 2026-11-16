@@ -5,7 +5,9 @@
 use super::{Served, Stop, unserved};
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
-use typed_trees::data::TypeParameterKind;
+use typed_trees::data::{
+    TypeParameter, TypeParameterKind, type_parameter_demands_stronger_properties,
+};
 use typed_trees::expression::ExpressionNode;
 use typed_trees::machine::Machine;
 use typed_trees::signature::{SignatureContractKind, StateSignature};
@@ -32,6 +34,7 @@ pub(super) fn satisfies_binder(
     machine: &Machine,
     binder_description: &str,
     bound: &[(SymbolHandle, Bound)],
+    applications: Option<&[TypeReferenceHandle]>,
 ) -> Served<()> {
     let callback = program.symbols.name(machine.symbol);
     let refuse = |reason: &str| {
@@ -60,7 +63,13 @@ pub(super) fn satisfies_binder(
             .iter()
             .zip(required_parameters)
             .all(|(supplied, required)| {
-                supplied.kind == required.kind && supplied.bounds == required.bounds
+                supplied.kind == required.kind
+                    && properties_match(
+                        program,
+                        required,
+                        supplied,
+                        applications.filter(|_| required_parameters.len() == 1),
+                    )
             })
     {
         return Err(refuse("its static parameters do not match the binder's"));
@@ -147,6 +156,33 @@ pub(super) fn satisfies_binder(
         ));
     }
     Ok(())
+}
+
+/// An ordinary callback must admit the binder's whole type family. A finite
+/// per-member expansion instead knows every application: extra multiplicity
+/// bounds must hold for every included field. This does not weaken any runtime
+/// precondition or permit a qualification change. Carry refinement still needs
+/// its ordinary evidence and is not inferred from field multiplicity.
+fn properties_match(
+    program: &TypedTrees,
+    required: &TypeParameter,
+    supplied: &TypeParameter,
+    applications: Option<&[TypeReferenceHandle]>,
+) -> bool {
+    if !type_parameter_demands_stronger_properties(required, supplied) {
+        return true;
+    }
+    if supplied.bounds.carry.is_some() && supplied.bounds.carry != required.bounds.carry {
+        return false;
+    }
+    applications.is_some_and(|types| {
+        types.iter().all(|reference| {
+            program
+                .type_reference_table
+                .contains_type_reference(*reference)
+                && program.stored_value_multiplicity(*reference) == supplied.bounds.multiplicity
+        })
+    })
 }
 
 /// Whether a `requires` clause only restricts which types the callback
@@ -262,6 +298,13 @@ fn mentions(
         })
     };
     match table.type_reference(reference) {
+        // Callable clauses and signature types can name the mapped binder.
+        TypeReferenceNode::Callable { .. } => {
+            typed_trees::references::type_reference_inputs(program, reference)
+                .symbols
+                .into_iter()
+                .any(named)
+        }
         TypeReferenceNode::Named { symbol, .. } => named(*symbol),
         TypeReferenceNode::Reference { referee, .. } => mentions(program, *referee, map),
         TypeReferenceNode::Constrained { base_type, .. } => mentions(program, *base_type, map),
@@ -279,5 +322,49 @@ fn mentions(
                     .any(|argument| mentions(program, *argument, map))
         }
         TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::Unit => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn finite_callback_copy_bounds_keep_exclusive_references_affine() {
+        let mut program = TypedTrees::default();
+        let unit = program.type_reference_table.insert(TypeReferenceNode::Unit);
+        let mut reference = |access| {
+            program
+                .type_reference_table
+                .insert(TypeReferenceNode::Reference {
+                    referee: unit,
+                    access,
+                    lifetime: None,
+                })
+        };
+        let shared = reference(language_core::ReferenceAccess::Shared);
+        let exclusive = reference(language_core::ReferenceAccess::Mutable);
+        let required = TypeParameter::default();
+        let supplied = TypeParameter {
+            bounds: typed_trees::data::DataProperties {
+                multiplicity: language_semantics::Multiplicity::Unrestricted,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        assert!(!properties_match(&program, &required, &supplied, None));
+        assert!(properties_match(
+            &program,
+            &required,
+            &supplied,
+            Some(&[shared])
+        ));
+        assert!(!properties_match(
+            &program,
+            &required,
+            &supplied,
+            Some(&[shared, exclusive])
+        ));
+        assert!(properties_match(&program, &required, &supplied, Some(&[])));
     }
 }

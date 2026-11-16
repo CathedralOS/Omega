@@ -215,11 +215,11 @@ fn normalized_schema_checked(
     } else {
         return Err("compiler primitive schema: unsupported reach row");
     };
-    let [entry] = schema_span(|span| program.machine_states.span(span), machine.states)
-        .ok_or("compiler primitive schema: stale entry roster")?
-    else {
-        return Err("compiler primitive schema: requires one exact entry");
-    };
+    let entry_rows = schema_span(|span| program.machine_states.span(span), machine.states)
+        .ok_or("compiler primitive schema: stale entry roster")?;
+    let [entry] = entry_rows
+        .as_array()
+        .ok_or("compiler primitive schema: requires one exact entry")?;
     if !entry.symbol.is_valid() {
         return Err("compiler primitive schema: unresolved entry declaration");
     }

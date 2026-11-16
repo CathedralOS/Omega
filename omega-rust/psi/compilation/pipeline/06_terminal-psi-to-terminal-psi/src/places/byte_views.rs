@@ -12,6 +12,13 @@ use terminal_psi::{
     StructuralPathSegment, StructuralTypeShape,
 };
 
+/// What a `WholeRepresentation` formation measured and how it scales.
+pub(super) struct RepresentationCount {
+    pub(super) source_length: ValueId,
+    pub(super) factor: u64,
+    pub(super) source_extent: terminal_semantics::CollectionExtent,
+}
+
 fn count_type() -> ScalarType {
     ScalarType::Integer(
         semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
@@ -19,7 +26,7 @@ fn count_type() -> ScalarType {
     )
 }
 
-impl Storage<'_> {
+impl<'a> Storage<'a> {
     fn descriptor_access(
         &self,
         root: PlaceId,
@@ -214,9 +221,17 @@ impl Storage<'_> {
             .result
             .as_structural()
             .ok_or_else(|| self.foreign(concerns, "array view has no descriptor result"))?;
+        let whole_representation = matches!(region, ElementViewRegion::WholeRepresentation { .. });
+        // byte_views.md: `WholeRepresentation` "supplies no mutable access".
+        if whole_representation && access != StructuralAccess::SharedBorrow {
+            return Err(self.unsupported(
+                concerns,
+                "an exclusive whole-representation view without establishment and handback evidence",
+            ));
+        }
         if destination != result.place
             || source.access != access
-            || region != ElementViewRegion::WholeCollection
+            || !(region == ElementViewRegion::WholeCollection || whole_representation)
             || result.multiplicity != multiplicity
             || !result.qualifications.is_empty()
             || !result.projected_qualifications.is_empty()
@@ -269,6 +284,11 @@ impl Storage<'_> {
                 ));
             }
         };
+        if whole_representation {
+            return self
+                .representation_count(operation)
+                .map(|count| count.source_extent);
+        }
         let selected = terminal_semantics::runtime_structural_path_tip(
             self.types.iter(),
             self.root_type(source.place, concerns)?,
@@ -360,6 +380,180 @@ impl Storage<'_> {
         Ok(terminal_semantics::CollectionExtent::Fixed(window.length))
     }
 
+    /// A `WholeRepresentation` view re-views the complete captured window of
+    /// an existing shared descriptor (byte_views.md, "Collection view
+    /// establishment"). The shared geometry judgment decides tiling for
+    /// every element layout: both elements have total, padding-free
+    /// representations, the target's size divides the source's, and the
+    /// target needs no stronger alignment. The captured `source_length` must
+    /// be this exact descriptor's measurement directly before the formation,
+    /// so the scaled count names the window the view keeps. The returned
+    /// `source_extent` is the source descriptor's own extent, never the
+    /// re-view's count; `extent_contents` scales it.
+    ///
+    /// Only a borrowed descriptor is re-viewed here: an inline array has no
+    /// captured length observation to authenticate.
+    pub(super) fn representation_count(
+        &self,
+        operation: &Operation,
+    ) -> Checked<RepresentationCount> {
+        use terminal_psi::ElementViewRegion;
+        let concerns = Construct::Operation(operation.id);
+        let OperationKind::EstablishElementView {
+            source,
+            element,
+            region: region @ ElementViewRegion::WholeRepresentation { source_length, .. },
+            ..
+        } = &operation.kind
+        else {
+            return Err(self.foreign(
+                concerns,
+                "a whole-representation count requested for another operation",
+            ));
+        };
+        let selected = terminal_semantics::runtime_structural_path_tip(
+            self.types.iter(),
+            self.root_type(source.place, concerns)?,
+            &source.path,
+        )
+        .ok_or_else(|| self.foreign(concerns, "a re-view lost its captured source"))?;
+        let Some(terminal_semantics::ElementViewRegionGeometry::WholeRepresentation {
+            backing,
+            source: source_layout,
+            target: target_layout,
+        }) = terminal_semantics::element_view_shape_region_geometry(
+            self.types.iter(),
+            &selected.shape,
+            *element,
+            *region,
+            source.access,
+        )
+        else {
+            return Err(self.unsupported(
+                concerns,
+                "a whole-representation view whose target elements do not exactly tile its source elements",
+            ));
+        };
+        let StructuralTypeShape::ElementView {
+            element: source_element,
+            ..
+        } = selected.shape
+        else {
+            return Err(self.unsupported(
+                concerns,
+                "a whole-representation view needs a readable borrowed source view",
+            ));
+        };
+        let result = operation
+            .result
+            .as_structural()
+            .ok_or_else(|| self.foreign(concerns, "a whole-representation view lost its result"))?;
+        let result_type = self.declaration(result.structural_type, concerns)?;
+        let element_type = self.declaration(*element, concerns)?;
+        // Physical leaves determine tiling, but a byte descriptor still names
+        // the canonical byte element rather than any one-byte record wrapper.
+        if terminal_semantics::collection_backing(
+            [result_type, element_type].into_iter(),
+            result_type.id,
+            element_type.id,
+        )
+        .is_none()
+        {
+            return Err(self.foreign(concerns, "a byte view re-views elements that are not bytes"));
+        }
+        let actual = self.collection_backing_source(source, 0, source_element, concerns)?;
+        if !self.domains.get(*element).is_some_and(Vec::is_empty)
+            || self
+                .declaration(*element, concerns)?
+                .scalar_restriction
+                .is_some()
+        {
+            return Err(self.unsupported(
+                concerns,
+                "an array view without plain element storage and unclaimed backing",
+            ));
+        }
+        let (whole, projected) = terminal_psi::StructuralPathQualification::select_restorable(
+            &actual.qualifications,
+            &actual.projected_qualifications,
+            &source.path,
+        )
+        .ok_or_else(|| {
+            self.unsupported(
+                concerns,
+                "a collection view cannot discard an enclosing qualification",
+            )
+        })?;
+        if !whole.is_empty()
+            || !projected.is_empty()
+            || !actual.additional_input_qualifications.is_empty()
+        {
+            return Err(self.unsupported(
+                concerns,
+                "collection view needs its whole plain backing without qualification loss",
+            ));
+        }
+        if backing.storage != terminal_semantics::CollectionStorage::Borrowed
+            || !self.descriptor_access(
+                source.place,
+                &source.path,
+                concerns,
+                StructuralAccess::SharedBorrow,
+            )?
+        {
+            return Err(self.unsupported(
+                concerns,
+                "a whole-representation view needs a readable borrowed source view",
+            ));
+        }
+        let (block, after) = self
+            .graph
+            .locate(ProgramPoint::AfterOperation(operation.id))?;
+        let measured = after
+            .checked_sub(2)
+            .and_then(|position| self.block(block).ok()?.operations.get(position))
+            .is_some_and(|measurement| {
+                matches!(&measurement.kind,
+                    OperationKind::ElementViewLength { source: measured }
+                    | OperationKind::ByteSequenceLength { source: measured }
+                        if terminal_semantics::same_descriptor_coordinate(measured, source))
+                    && measurement.result.scalar_ref().is_some_and(|result| {
+                        result.id == *source_length && result.scalar_type == count_type()
+                    })
+            });
+        if !measured {
+            return Err(self.unsupported(
+                concerns,
+                "a whole-representation view whose source length is not its view's measurement directly before it",
+            ));
+        }
+        let factor = source_layout
+            .size
+            .checked_div(target_layout.size)
+            .filter(|factor| *factor != 0)
+            .ok_or_else(|| self.foreign(concerns, "a re-view has no tiling factor"))?;
+        Ok(RepresentationCount {
+            source_length: *source_length,
+            factor,
+            source_extent: backing.extent,
+        })
+    }
+
+    /// The obligation a `WholeRepresentation` view owns: its converted count
+    /// `source_length * factor` fits `u64` (byte_views.md: "A separate
+    /// obligation proves the converted count fits `u64`").
+    pub(super) fn representation_count_goal(&self, operation: &Operation) -> Checked<Proposition> {
+        self.array_view_formation(operation)?;
+        let count = self.representation_count(operation)?;
+        terminal_semantics::whole_representation_count_goal(count.source_length, count.factor)
+            .ok_or_else(|| {
+                self.foreign(
+                    Construct::Operation(operation.id),
+                    "a re-view has no canonical count goal",
+                )
+            })
+    }
+
     /// `left == right` over two byte views, a `ByteSequenceEqual`.
     ///
     /// structural_predicates.md: "Byte-sequence equality compares live
@@ -428,6 +622,7 @@ impl Storage<'_> {
     /// overlapping writes may not reuse its earlier observation.
     pub(crate) fn rank_descriptor_kept(
         &self,
+        references: &mut super::DescriptorAnalysis<'a>,
         source: &StructuralArgument,
         block: semantic_vocabulary::BlockId,
         from: usize,
@@ -435,7 +630,7 @@ impl Storage<'_> {
     ) -> Checked<bool> {
         let concerns = Construct::Block(block);
         let raw = self.argument(source, concerns)?;
-        let descriptor = self.backing(&raw, block, from, concerns)?;
+        let descriptor = self.backing(references, &raw, block, from, concerns)?;
         // Every pointer binding crossed on the way to the descriptor must
         // remain frozen too; a stable old destination cannot authenticate a
         // later observation through a rebound reference.
@@ -446,7 +641,7 @@ impl Storage<'_> {
                     root: raw.root,
                     segments: raw.segments[..position].to_vec(),
                 };
-                prefixes.push(self.backing(&prefix, block, from, concerns)?);
+                prefixes.push(self.backing(references, &prefix, block, from, concerns)?);
             }
         }
         let mut leaf = descriptor.clone();
@@ -460,7 +655,12 @@ impl Storage<'_> {
                 .iter()
                 .any(|prefix| super::overlap(&row.lineage, prefix))
                 || super::overlap(&row.lineage, &descriptor)
-                    && !self.call_preserves_extent(super::Asked::Contents(&leaf), row, concerns)?
+                    && !self.call_preserves_extent(
+                        references,
+                        super::Asked::Contents(&leaf),
+                        row,
+                        concerns,
+                    )?
             {
                 return Ok(false);
             }
@@ -564,7 +764,11 @@ impl Storage<'_> {
         Ok(())
     }
 
-    pub(super) fn subslice(&self, operation: &Operation) -> Checked<()> {
+    pub(super) fn subslice(
+        &self,
+        references: &mut super::DescriptorAnalysis<'a>,
+        operation: &Operation,
+    ) -> Checked<()> {
         use terminal_semantics::descriptor_results::DescriptorCallOrigin;
         let (source, typed) = match &operation.kind {
             OperationKind::ByteSequenceSubslice { source, .. } => (source, false),
@@ -662,9 +866,7 @@ impl Storage<'_> {
         let position = u32::try_from(after - 1).map_err(|_| {
             self.foreign(concerns, "a subslice position exceeds its descriptor graph")
         })?;
-        let origins = self
-            .references
-            .borrow_mut()
+        let origins = references
             .source_origins(self.machine, (block, position), &location)
             .filter(|origins| !origins.is_empty())
             .ok_or_else(|| {
@@ -806,6 +1008,7 @@ impl Storage<'_> {
     /// this length observation onto that producer, not an equal-sized view.
     pub(super) fn extent_equation(
         &self,
+        references: &mut super::DescriptorAnalysis<'a>,
         tables: &terminal_check_tables::MachineTables,
         measurement: &Operation,
         producer: OperationId,
@@ -816,6 +1019,7 @@ impl Storage<'_> {
             return Err(self.foreign(concerns, "a length measurement has no scalar result"));
         };
         let Some(extent) = self.extent_contents(
+            references,
             tables,
             producer,
             ProgramPoint::AfterOperation(measurement.id),
@@ -854,6 +1058,7 @@ impl Storage<'_> {
     /// it does not manufacture a length measurement or its bounds evidence.
     pub(super) fn extent_contents(
         &self,
+        references: &mut super::DescriptorAnalysis<'a>,
         tables: &terminal_check_tables::MachineTables,
         producer: OperationId,
         at: ProgramPoint,
@@ -885,6 +1090,36 @@ impl Storage<'_> {
                 OperationKind::EstablishByteSequenceLiteral { bytes, .. } => {
                     ScalarTerm::integer(integer, IntegerValue::Unsigned(bytes.len() as u128))
                 }
+                // The re-view holds `source_length * factor` target elements of
+                // the window it captured; the count goal keeps that product exact.
+                OperationKind::EstablishElementView {
+                    region: terminal_psi::ElementViewRegion::WholeRepresentation { .. },
+                    ..
+                } => {
+                    if (!self.current_extent(producer, trace)?
+                        || !self.current_extent(producer, &history)?)
+                        && self.repeated_extent(producer)?
+                    {
+                        return Ok(None);
+                    }
+                    let formation = self.operation(producer, concerns)?;
+                    self.array_view_formation(formation)?;
+                    let count = self.representation_count(formation)?;
+                    ScalarTerm::exact_integer_multiply(
+                        integer,
+                        ScalarTerm::value(count.source_length, scalar),
+                        ScalarTerm::integer(
+                            integer,
+                            IntegerValue::Unsigned(u128::from(count.factor)),
+                        )
+                        .map_err(|error| {
+                            self.foreign(
+                                concerns,
+                                &format!("re-view factor has invalid scalar semantics: {error:?}"),
+                            )
+                        })?,
+                    )
+                }
                 OperationKind::EstablishElementView { source, .. }
                 | OperationKind::EstablishMutableElementView { source, .. } => {
                     match self.array_view_formation(self.operation(producer, concerns)?)? {
@@ -904,10 +1139,10 @@ impl Storage<'_> {
                             let (block, after) =
                                 self.graph.locate(ProgramPoint::AfterOperation(producer))?;
                             match self.reaching(
+                                references,
                                 tables,
                                 super::Asked::Contents(&leaf),
-                                block,
-                                after - 1,
+                                (block, after - 1),
                                 &mut history,
                                 concerns,
                             )? {

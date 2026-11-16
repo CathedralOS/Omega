@@ -675,7 +675,7 @@ impl Inputs {
     fn prepare(
         typed: &TypedTrees,
         machine: MachineId,
-        parameters: &[StateParameter],
+        parameters: arena::RootRows<'_, StateParameter>,
         origins: &[usize],
         model: Option<&CallableAddressModel>,
         member_arena: &mut Arena<SymbolHandle>,
@@ -1454,7 +1454,6 @@ pub(crate) fn projected_arrival(
                 // separate contract must be substituted into this proof call.
                 required_contract: None,
                 static_reach_binding: None,
-                source_call: None,
                 arguments,
                 designated: None,
             },

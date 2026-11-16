@@ -18,7 +18,7 @@ within its body.
 
 use semantic_vocabulary::{
     BlockId, CanonicalStructuralPathSegment, EdgeId, IdTable, InvocationSite, MachineId, PlaceId,
-    Proposition, ScalarTerm, ScalarType, StructuralCaseId, ValueId,
+    Proposition, PropositionContext, ScalarTerm, ScalarType, StructuralCaseId, ValueId,
 };
 use std::collections::VecDeque;
 use terminal_check_tables::edges::Callee;
@@ -29,10 +29,11 @@ use terminal_check_tables::{
     Checked, Construct, InvocationId, MachineTables, ProgramPoint, RefusalReason,
 };
 use terminal_psi::{OperationKind, TerminalMachine, Terminator};
+use terminal_semantics::substitution::clauses::substitute_clause_with_computation_names;
 
 use crate::{
     Bindings, Unbound, graph::Graph, joins, prepare_with_inhabitation, refusal, scalar_actuals,
-    substitute, terminal_machine,
+    terminal_machine,
 };
 
 /// Ordinary callers precede helpers. A recursive component's internal calls
@@ -42,6 +43,7 @@ pub(crate) fn infer(
     scope: &mut crate::ReplayScope<'_>,
     unreached: &mut crate::Unreached,
     inhabitation: &terminal_semantics::inhabitation::Inhabitation,
+    activity: &mut crate::ProofSearchActivity,
 ) -> Checked<()> {
     let elaboration = scope.source();
     if elaboration.private_inputs.is_empty() {
@@ -62,13 +64,14 @@ pub(crate) fn infer(
             &mut loop_inputs,
             unreached,
             inhabitation,
+            activity,
         )?;
     }
     for (callee, arrivals) in loop_inputs.iter() {
         if !arrivals.is_empty() {
             let predicate = canonical(joins::connective(arrivals.clone(), false), callee)?;
             if predicate != Proposition::Truth {
-                scope.require(callee, predicate, &sites)?;
+                scope.require(callee, predicate, &sites, activity)?;
             }
         }
     }
@@ -96,7 +99,7 @@ pub(crate) fn infer(
             if !arrivals.is_empty() {
                 let predicate = canonical(joins::connective(arrivals, false), id)?;
                 if predicate != Proposition::Truth {
-                    scope.require(id, predicate, &sites)?;
+                    scope.require(id, predicate, &sites, activity)?;
                 }
             }
         }
@@ -108,6 +111,7 @@ pub(crate) fn infer(
             &mut incoming,
             unreached,
             inhabitation,
+            activity,
         )?;
         for &site in terminal_check_tables::row(&sites.outgoing, id, id, Construct::Machine)? {
             let callee = sites.arrivals[site].callee;
@@ -129,6 +133,7 @@ fn describe_calls(
     incoming: &mut IdTable<MachineId, Vec<Proposition>>,
     unreached: &mut crate::Unreached,
     inhabitation: &terminal_semantics::inhabitation::Inhabitation,
+    activity: &mut crate::ProofSearchActivity,
 ) -> Checked<()> {
     let elaboration = scope.source();
     let original =
@@ -160,7 +165,7 @@ fn describe_calls(
         inhabitation,
     )?;
     let lowered = terminal_machine(&elaboration.module.machines, id, id)?;
-    let references = prepared.references(&elaboration.module.structural_types);
+    let mut references = prepared.references(&elaboration.module.structural_types);
     let storage = crate::places::Storage::new(
         id,
         lowered,
@@ -169,7 +174,7 @@ fn describe_calls(
         &prepared.graph,
         &tables,
         &prepared.types,
-        &references,
+        &mut references,
     )?;
     let declared = joins::prepare(
         lowered,
@@ -179,6 +184,8 @@ fn describe_calls(
         &prepared.context,
         &elaboration.module.scalar_block_invariants,
         &storage,
+        &mut references,
+        activity,
     )?;
 
     let mut decided = (0..tables.obligations.len())
@@ -200,13 +207,16 @@ fn describe_calls(
         },
         &mut tables,
         &mut decided,
+        activity,
+        &mut references,
     )?;
     for &(edge, callee) in edges {
         let (_, actuals, structural) = storage.arrival(edge, Construct::Edge(edge))?;
         let target = terminal_machine(&elaboration.module.machines, callee, id)?;
         let point = ProgramPoint::Edge(edge);
         let known = known_at(&tables, &prepared.graph, &prepared.context, id, point)?;
-        let fields = storage.at_join(
+        let mut fields = storage.at_join(
+            &mut references,
             &tables,
             &target.structural_parameters,
             structural,
@@ -222,6 +232,7 @@ fn describe_calls(
             .collect::<Vec<_>>();
         let predicate = describe(
             &known,
+            &prepared.context,
             &crossing,
             &mut InputBindings {
                 actuals,
@@ -258,7 +269,8 @@ fn describe_calls(
             .map(|(formal, actual)| (ScalarTerm::value(formal.id, formal.scalar_type), *actual))
             .collect();
         let known = known_at(&tables, &prepared.graph, &prepared.context, id, site.before)?;
-        let fields = storage.at_call(
+        let mut fields = storage.at_call(
+            &mut references,
             &tables,
             &call.actuals,
             &target.structural_parameters,
@@ -267,6 +279,7 @@ fn describe_calls(
         )?;
         let predicate = describe(
             &known,
+            &prepared.context,
             &crossing,
             &mut InputBindings {
                 actuals: &actuals,
@@ -290,6 +303,7 @@ fn describe_calls(
             site.before,
             &crossing,
             &beyond,
+            activity,
         )?;
         // What the helper learns of such a formal describes an operation
         // the integer rules do not reach, in the caller.
@@ -623,6 +637,7 @@ fn derived(
     point: ProgramPoint,
     crossing: &[(ScalarTerm, ValueId)],
     beyond: &[ValueId],
+    activity: &mut crate::ProofSearchActivity,
 ) -> Checked<Derived> {
     let mut assumptions = Vec::new();
     let mut axioms = Vec::new();
@@ -641,7 +656,8 @@ fn derived(
             }
         }
     }
-    let mut prover = crate::prove::Prover::new(context, &assumptions, &axioms, &tables.values);
+    let mut prover =
+        crate::prove::Prover::new(context, &assumptions, &axioms, &tables.values, activity);
     let mut found = Derived {
         bounds: Vec::new(),
         unreached: Vec::new(),
@@ -717,47 +733,37 @@ pub(crate) fn known_at(
 /// boundary. A fact over a value without a name there can only be forgotten.
 pub(crate) fn describe(
     known: &crate::known::Known,
+    context: &PropositionContext,
     crossing: &[(ScalarTerm, ValueId)],
     bindings: &mut dyn Bindings<Error = Unbound>,
 ) -> Proposition {
-    let definitions: Vec<_> = known
-        .definitions
-        .values()
-        .flatten()
-        .filter_map(
-            |&index| match &known.facts[known.equations[index]].proposition {
-                Proposition::Equal(ScalarTerm::Value { id, .. }, definition) => {
-                    Some((*id, definition))
-                }
-                _ => None,
-            },
-        )
-        .collect();
     let mut parts = Vec::new();
+    let mut computation_names = Vec::new();
+    let mut transport = crate::known::TransportInputs::new(known.equations.len());
     for (name, here) in crossing {
-        let definition = joins::unfold(
-            &ScalarTerm::value(*here, name.scalar_type()),
-            &definitions,
-            0,
-        );
-        let equality = Proposition::Equal(
-            name.clone(),
-            match crate::bound(&definition, &mut *bindings) {
-                Ok(term) => term,
-                Err(_) => continue,
-            },
-        );
-        if !matches!(&equality, Proposition::Equal(left, right) if left == right) {
-            parts.push(equality);
+        // Callable identity and selection have no mathematical equality.
+        // Its declared type crosses independently of inferred predicates.
+        if matches!(name.scalar_type(), ScalarType::Callable(_)) {
+            continue;
+        }
+        let definition = known.expand_value(context, *here, name.scalar_type(), &mut transport);
+        if let Ok(term) = crate::bound(&definition, &mut *bindings)
+            && *name != term
+        {
+            parts.push(Proposition::Equal(name.clone(), term));
+        }
+        if definition.scalar_type() == name.scalar_type() && !definition.operands().is_empty() {
+            computation_names.push((definition, name.clone()));
         }
     }
+    computation_names.sort_unstable();
+    computation_names.dedup_by(|right, left| right.0 == left.0);
     for fact in known.facts.iter().filter(|fact| fact.axiom.is_none()) {
-        let proposition = &fact.proposition;
-        // The shared closure retains both the original and normalized facts.
-        // Projection can weaken the former; the latter still carries every
-        // relation established before crossing the input boundary.
-        parts.push(joins::project(proposition, &mut |atom| {
-            substitute(atom, &mut *bindings).ok()
+        // A normalized fact may already name the exact computation passed
+        // across the boundary. Give that computation its receiving name
+        // before resolving operands the receiver cannot see.
+        parts.push(joins::project(&fact.proposition, &mut |atom| {
+            substitute_clause_with_computation_names(atom, &mut *bindings, &computation_names).ok()
         }));
     }
     joins::connective(parts, true)
@@ -917,6 +923,56 @@ fn canonical_parts(
     keyed.sort_by(|left, right| left.0.cmp(&right.0));
     keyed.dedup_by(|left, right| left.0 == right.0);
     let mut parts: Vec<_> = keyed.into_iter().map(|(_, part)| part).collect();
+    // Projecting a guard can leave both possible values of a Boolean in a
+    // connective. Settle that pair before passing the clause to proof search.
+    let mut boolean_values: Vec<_> = parts
+        .iter()
+        .filter_map(|part| match part {
+            Proposition::Equal(ScalarTerm::Boolean(value), term)
+            | Proposition::Equal(term, ScalarTerm::Boolean(value))
+                if term.scalar_type() == ScalarType::Boolean =>
+            {
+                Some((term, *value))
+            }
+            _ => None,
+        })
+        .collect();
+    boolean_values.sort_unstable();
+    if boolean_values
+        .windows(2)
+        .any(|pair| pair[0].0 == pair[1].0 && pair[0].1 != pair[1].1)
+    {
+        return Ok(zero);
+    }
+    if !conjunction && parts.len() > 1 {
+        // A caller's entry condition can reach the same helper by several
+        // paths. State their common facts once so checking any arrival need
+        // only distinguish what changed between those paths.
+        let mut common: std::collections::BTreeSet<_> = conjuncts(&parts[0]).iter().collect();
+        for part in &parts[1..] {
+            if common.is_empty() {
+                break;
+            }
+            let here: std::collections::BTreeSet<_> = conjuncts(part).iter().collect();
+            common.retain(|fact| here.contains(fact));
+        }
+        if !common.is_empty() {
+            let distinct = parts
+                .iter()
+                .map(|part| {
+                    let conditions = conjuncts(part)
+                        .iter()
+                        .filter(|fact| !common.contains(fact))
+                        .cloned()
+                        .collect();
+                    canonical_parts(conditions, true, id)
+                })
+                .collect::<Checked<Vec<_>>>()?;
+            let mut required: Vec<_> = common.into_iter().cloned().collect();
+            required.push(canonical_parts(distinct, false, id)?);
+            return canonical_parts(required, true, id);
+        }
+    }
     Ok(match parts.len() {
         0 if conjunction => Proposition::Truth,
         0 => Proposition::Falsehood,
@@ -924,6 +980,13 @@ fn canonical_parts(
         _ if conjunction => Proposition::Conjunction(parts),
         _ => Proposition::Disjunction(parts),
     })
+}
+
+fn conjuncts(proposition: &Proposition) -> &[Proposition] {
+    match proposition {
+        Proposition::Conjunction(parts) => parts,
+        other => std::slice::from_ref(other),
+    }
 }
 
 /// Add the inferred predicate to the contract and mint its obligation at
@@ -934,6 +997,7 @@ pub(super) fn require(
     callee: MachineId,
     predicate: Proposition,
     sites: &CallSites,
+    activity: &mut crate::ProofSearchActivity,
 ) -> Checked<()> {
     // An inferred condition becomes a premise for later callers in this
     // pass. Its arithmetic must form before publishing that new contract.
@@ -941,7 +1005,7 @@ pub(super) fn require(
         .contract
         .clone();
     proposed.requires.push(predicate.clone());
-    crate::formation::contract(&elaboration.module, callee, &proposed)?;
+    crate::formation::contract(&elaboration.module, callee, &proposed, activity)?;
     let machine = usize::try_from(callee.get() - 1).map_err(|_| {
         refusal(
             RefusalReason::ForeignIdentity,

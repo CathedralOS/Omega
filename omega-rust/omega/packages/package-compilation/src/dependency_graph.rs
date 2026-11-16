@@ -10,12 +10,141 @@ use build_declarations::DependencyPurpose;
 use semantic_vocabulary::PackageKeyIdentity;
 use std::collections::{BTreeMap, BTreeSet};
 
+/// A package's own Build reads its Build dependencies. Source supplied by a
+/// dependency keeps that dependency's Product dependencies, even when the
+/// consumer is running Build. An inert Product selection requests Product
+/// nameability explicitly; it does not make its target executable in Build.
+struct PurposeDeclarationAuthority<'a> {
+    inputs: &'a PackageCompilationInputs,
+    purpose: DependencyPurpose,
+}
+
+impl PurposeDeclarationAuthority<'_> {
+    fn dependencies(
+        &self,
+        requester: PackageKeyIdentity,
+    ) -> Option<&BTreeMap<String, PackageKeyIdentity>> {
+        let record = self.inputs.source.packages.get(&requester)?;
+        Some(
+            match self
+                .inputs
+                .declaration_selection_purpose(requester, self.purpose)
+            {
+                DependencyPurpose::Build => &record.build_dependencies,
+                DependencyPurpose::Product => &record.dependencies,
+            },
+        )
+    }
+}
+
+impl semantic_vocabulary::compiler_evaluation::DeclarationSelectionAuthority
+    for PurposeDeclarationAuthority<'_>
+{
+    fn allows_declaration_selection(
+        &self,
+        requester: PackageKeyIdentity,
+        owner: PackageKeyIdentity,
+    ) -> bool {
+        self.inputs.source.packages.contains_key(&owner)
+            && self.dependencies(requester).is_some_and(|dependencies| {
+                requester == owner || dependencies.values().any(|target| *target == owner)
+            })
+    }
+
+    fn package_label(&self, identity: PackageKeyIdentity) -> String {
+        self.inputs.package_label(identity)
+    }
+
+    fn declaration_selection_scope(
+        &self,
+    ) -> Option<BTreeMap<PackageKeyIdentity, Vec<PackageKeyIdentity>>> {
+        Some(
+            self.inputs
+                .source
+                .packages
+                .iter()
+                .map(|(requester, record)| {
+                    let mut owners = vec![*requester];
+                    let dependencies = match self
+                        .inputs
+                        .declaration_selection_purpose(*requester, self.purpose)
+                    {
+                        DependencyPurpose::Build => &record.build_dependencies,
+                        DependencyPurpose::Product => &record.dependencies,
+                    };
+                    owners.extend(dependencies.values().copied());
+                    owners.sort_unstable();
+                    owners.dedup();
+                    (*requester, owners)
+                })
+                .collect(),
+        )
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageDependencyClosure {
     root: PackageKeyIdentity,
     root_role: BuildDeclarationKind,
     packages: Vec<PackageKeyIdentity>,
     dependencies: Vec<PackageDependencyBinding>,
+}
+
+// A sealed Product keeps the same direct dependency choices used during source
+// checking. Later policy evaluation reads those choices without reopening the
+// package graph or granting a dependency's dependencies to its caller.
+impl semantic_vocabulary::compiler_evaluation::DeclarationSelectionAuthority
+    for PackageDependencyClosure
+{
+    fn allows_declaration_selection(
+        &self,
+        requester: PackageKeyIdentity,
+        owner: PackageKeyIdentity,
+    ) -> bool {
+        self.packages.binary_search(&requester).is_ok()
+            && self.packages.binary_search(&owner).is_ok()
+            && (requester == owner
+                || self
+                    .dependencies
+                    .iter()
+                    .skip(
+                        self.dependencies
+                            .partition_point(|edge| edge.requester < requester),
+                    )
+                    .take_while(|edge| edge.requester == requester)
+                    .any(|edge| edge.target == owner))
+    }
+
+    fn package_label(&self, identity: PackageKeyIdentity) -> String {
+        use std::fmt::Write as _;
+        let mut label = String::with_capacity(72);
+        label.push_str("package ");
+        for byte in identity.digest() {
+            let _ = write!(label, "{byte:02x}");
+        }
+        label
+    }
+
+    fn declaration_selection_scope(
+        &self,
+    ) -> Option<BTreeMap<PackageKeyIdentity, Vec<PackageKeyIdentity>>> {
+        let mut scope = self
+            .packages
+            .iter()
+            .map(|owner| (*owner, vec![*owner]))
+            .collect::<BTreeMap<_, _>>();
+        for edge in &self.dependencies {
+            scope
+                .get_mut(&edge.requester)
+                .expect("canonical Product closure includes each edge's requester")
+                .push(edge.target);
+        }
+        for owners in scope.values_mut() {
+            owners.sort_unstable();
+            owners.dedup();
+        }
+        Some(scope)
+    }
 }
 
 impl PackageDependencyClosure {
@@ -99,6 +228,29 @@ impl PackageDependencyClosure {
 }
 
 impl PackageCompilationInputs {
+    pub(crate) fn declaration_selection_purpose(
+        &self,
+        requester: PackageKeyIdentity,
+        requested: DependencyPurpose,
+    ) -> DependencyPurpose {
+        if requester == self.root() {
+            requested
+        } else {
+            DependencyPurpose::Product
+        }
+    }
+
+    /// The exact direct package selections available for one source purpose.
+    /// This view never combines Build and Product dependency edges.
+    pub fn declaration_selection_authority(
+        &self,
+        purpose: DependencyPurpose,
+    ) -> impl semantic_vocabulary::compiler_evaluation::DeclarationSelectionAuthority + '_ {
+        PurposeDeclarationAuthority {
+            inputs: self,
+            purpose,
+        }
+    }
     pub fn direct_dependencies(
         &self,
         purpose: DependencyPurpose,
@@ -325,4 +477,112 @@ fn dependency_cycle_in_set(
         }
     }
     visited != packages.len()
+}
+
+#[cfg(test)]
+mod selection_authority_tests {
+    use super::*;
+    use crate::PackageSourceBinding;
+    use semantic_vocabulary::compiler_evaluation::DeclarationSelectionAuthority;
+
+    #[test]
+    fn sealed_product_authority_retains_direct_edges_only() {
+        let identity = |byte| PackageKeyIdentity::from_digest([byte; 32]).unwrap();
+        let [root, dependency, transitive, absent] = [1, 2, 3, 4].map(identity);
+        let graph = PackageDependencyClosure::from_canonical_parts(
+            root,
+            BuildDeclarationKind::Application,
+            vec![root, dependency, transitive],
+            vec![
+                PackageDependencyBinding::for_purpose(
+                    root,
+                    "dependency",
+                    dependency,
+                    DependencyPurpose::Product,
+                ),
+                PackageDependencyBinding::for_purpose(
+                    dependency,
+                    "transitive",
+                    transitive,
+                    DependencyPurpose::Product,
+                ),
+            ],
+        )
+        .expect("canonical Product closure");
+        assert!(graph.allows_declaration_selection(root, root));
+        assert!(graph.allows_declaration_selection(root, dependency));
+        assert!(graph.allows_declaration_selection(dependency, transitive));
+        assert!(!graph.allows_declaration_selection(root, transitive));
+        assert!(!graph.allows_declaration_selection(absent, absent));
+        assert!(!graph.allows_declaration_selection(root, absent));
+        assert_eq!(
+            graph.declaration_selection_scope().unwrap()[&root],
+            vec![root, dependency]
+        );
+    }
+
+    #[test]
+    fn source_purposes_keep_root_build_and_dependency_product_edges_separate() {
+        let directory = platform_custody::temporary_directory::TemporaryDirectory::create(
+            "purpose-declaration-authority",
+            false,
+        )
+        .expect("temporary package roots");
+        let identity = |byte| PackageKeyIdentity::from_digest([byte; 32]).unwrap();
+        let root = identity(1);
+        let helper = identity(2);
+        let product = identity(3);
+        let helper_dependency = identity(4);
+        let packages = [
+            (root, "root"),
+            (helper, "helper"),
+            (product, "product"),
+            (helper_dependency, "helper_dependency"),
+        ]
+        .into_iter()
+        .map(|(owner, name)| {
+            let path = directory.path().join(name);
+            std::fs::create_dir(&path).expect("package source root");
+            PackageSourceBinding::new(owner, name, path)
+        })
+        .collect();
+        let inputs = PackageCompilationInputs::new(
+            root,
+            BuildDeclarationKind::Application,
+            packages,
+            vec![
+                PackageDependencyBinding::for_purpose(
+                    root,
+                    "helper",
+                    helper,
+                    DependencyPurpose::Build,
+                ),
+                PackageDependencyBinding::for_purpose(
+                    root,
+                    "product",
+                    product,
+                    DependencyPurpose::Product,
+                ),
+                PackageDependencyBinding::for_purpose(
+                    helper,
+                    "helper_dependency",
+                    helper_dependency,
+                    DependencyPurpose::Product,
+                ),
+            ],
+        )
+        .expect("closed purpose-specific package graph");
+        let build = inputs.declaration_selection_authority(DependencyPurpose::Build);
+        let selected_product = inputs.declaration_selection_authority(DependencyPurpose::Product);
+        assert!(build.allows_declaration_selection(root, helper));
+        assert!(!build.allows_declaration_selection(root, product));
+        assert!(selected_product.allows_declaration_selection(root, product));
+        assert!(!selected_product.allows_declaration_selection(root, helper));
+        assert!(build.allows_declaration_selection(helper, helper_dependency));
+        assert!(!build.allows_declaration_selection(helper, product));
+        assert!(!build.allows_declaration_selection(identity(5), identity(5)));
+        let recorded = build.declaration_selection_scope().unwrap();
+        assert_eq!(recorded[&root], vec![root, helper]);
+        assert_eq!(recorded[&helper], vec![helper, helper_dependency]);
+    }
 }

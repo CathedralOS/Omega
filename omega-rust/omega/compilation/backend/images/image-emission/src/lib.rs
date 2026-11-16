@@ -38,6 +38,8 @@ verifiers that `image.rs` and `object.rs` orchestrate.
 
 #![forbid(unsafe_code)]
 
+mod callable_calls;
+
 mod codec_bytes {
     pub(crate) use optimization_core::codec_bytes::u32_at;
 

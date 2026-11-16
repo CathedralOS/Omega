@@ -26,7 +26,10 @@ modules to native code.
 */
 
 pub mod access;
+pub mod body_services;
 pub mod bytes;
+pub mod callable_envelopes;
+pub mod callable_values;
 pub mod calls;
 pub mod content_transformations;
 pub use content_transformations::{domain_preservation, quotients};
@@ -371,7 +374,9 @@ pub(crate) mod semantic_rows {
         CallStructuralWithScalarArguments => ("algebra:call:call-structural-with-scalar-arguments", CallComposition, None),
         BoundaryCall => ("algebra:call:boundary-call", CallComposition, None),
         SelectImplementation => ("schema:operation:select-implementation", LeafDenotation, None),
+        SelectMachine => ("schema:operation:select-machine", LeafDenotation, None),
         CallDynamic => ("algebra:call:call-dynamic", CallComposition, None),
+        CallMachine => ("algebra:call:call-machine", CallComposition, None),
         PortWrite => ("schema:operation:port-write", LeafDenotation, None),
         RegisterAccess => ("schema:operation:register-access", LeafDenotation, None),
         IntegerConstant => ("schema:operation:integer-constant", LeafDenotation,
@@ -554,8 +559,9 @@ pub use bytes::byte_sequence_predicates::{
     byte_literal_qualifications_hold_in, byte_owned_call_result, byte_owned_result_predicates,
     byte_parameter_predicates, byte_parameter_predicates_from_domains,
     byte_parameter_predicates_in, byte_predicate_carrier, byte_predicate_requirement,
-    byte_qualification_predicates_in, byte_sequence_concatenation_predicates,
-    byte_sequence_source_predicates, byte_view_call_result, indexed_byte_store_goal,
+    byte_qualification_predicates_in, byte_sequence_argument_predicates,
+    byte_sequence_concatenation_predicates, byte_sequence_source_predicates,
+    byte_transfer_qualifications_hold, byte_view_call_result, indexed_byte_store_goal,
     pure_byte_qualifications, scalar_array_qualifications_hold, scalar_operation_literal,
     scalar_operation_origin, shared_byte_field_copy_predicates,
 };
@@ -692,7 +698,7 @@ pub use storage::representation_regions::{
     ElementViewRegionGeometry, RepresentationElementLayout, RepresentationScalarLeaf,
     element_view_region_geometry, element_view_shape_region_geometry, representation_byte_extent,
     representation_element_layout, representation_region_goal, representation_region_length,
-    whole_representation_count_goal,
+    whole_representation_count_goal, whole_representation_region_goal,
 };
 
 pub use storage::element_representation::{

@@ -10,7 +10,7 @@ public LinuxArm64ByteViewCalling satisfies CallingPolicy {
         transition accepted {
             true -> BoundaryPlanResult::Accepted { plan: plan }
             _ -> BoundaryPlanResult::Rejected {
-                reason: CallingPolicyRejection { reason: "expected bounded byte views and integer or sized-reference formals" as +Utf8 }
+                reason: CallingPolicyRejection { reason: "expected bounded byte views, integer or sized-reference formals, and Unit or integer result" as +Utf8 }
             }
         }
     }
@@ -23,7 +23,7 @@ public LinuxX86ByteViewCalling satisfies CallingPolicy {
         transition accepted {
             true -> BoundaryPlanResult::Accepted { plan: plan }
             _ -> BoundaryPlanResult::Rejected {
-                reason: CallingPolicyRejection { reason: "expected bounded byte views and integer or sized-reference formals" as +Utf8 }
+                reason: CallingPolicyRejection { reason: "expected bounded byte views, integer or sized-reference formals, and Unit or integer result" as +Utf8 }
             }
         }
     }
@@ -38,7 +38,7 @@ public SystemVByteViewCalling satisfies CallingPolicy {
         transition accepted {
             true -> BoundaryPlanResult::Accepted { plan: plan }
             _ -> BoundaryPlanResult::Rejected {
-                reason: CallingPolicyRejection { reason: "expected bounded byte views and integer or sized-reference formals" as +Utf8 }
+                reason: CallingPolicyRejection { reason: "expected bounded byte views, integer or sized-reference formals, and Unit or integer result" as +Utf8 }
             }
         }
     }
@@ -51,7 +51,7 @@ public DarwinArm64ByteViewCalling satisfies CallingPolicy {
         transition accepted {
             true -> BoundaryPlanResult::Accepted { plan: plan }
             _ -> BoundaryPlanResult::Rejected {
-                reason: CallingPolicyRejection { reason: "expected bounded byte views and integer or sized-reference formals" as +Utf8 }
+                reason: CallingPolicyRejection { reason: "expected bounded byte views, integer or sized-reference formals, and Unit or integer result" as +Utf8 }
             }
         }
     }
@@ -59,11 +59,31 @@ public DarwinArm64ByteViewCalling satisfies CallingPolicy {
 machine posix_byte_view_parameters(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan) -> bool
 {
     transition signature.parameter_count == signature.native_parameter_count
-        && signature.parameter_count <= 6 && signature.has_result
+        && signature.parameter_count <= 6
         && signature.callback_binder_count == 0 && signature.callback_demand_count == 0
-        && signature.result < signature.shape_count && signature.result < 256 {
-        true -> result(signature, plan, &signature.shapes[signature.result])
+        {
+        true -> completion(signature, plan)
         _ -> false
+    }
+    machine completion(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan) -> bool
+    requires signature.parameter_count <= 6 {
+        transition signature.has_result {
+            true -> result_index(signature, plan)
+            _ -> unit(signature, plan)
+        }
+    }
+    machine unit(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan) -> bool
+    requires signature.parameter_count <= 6 {
+        plan.call.parameter_count = signature.parameter_count;
+        plan.call.callback_materialization_count = 0;
+        plan.call.has_result = false;
+        posix_byte_view_parameters_from(signature, plan, 0, 0, 6)
+    }
+    machine result_index(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan) -> bool {
+        transition signature.result < signature.shape_count && signature.result < 256 {
+            true -> result(signature, plan, &signature.shapes[signature.result])
+            _ -> false
+        }
     }
     machine result(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan, shape: &ValueShape) -> bool
     requires signature.parameter_count <= 32

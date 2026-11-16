@@ -1,0 +1,336 @@
+//! Resolve bodyless requirements by their declaration, retaining the service
+//! which owns the call and its independently declared completion behavior.
+
+use semantic_vocabulary::{BoundaryMachineId, MachineId};
+use symbols::SymbolHandle;
+use terminal_check_tables::Checked;
+use typed_trees::static_applications::StaticMachineApplicationHandle;
+
+use super::{Program, services};
+use crate::{Signature, boundaries::BoundarySource};
+
+impl Program<'_> {
+    pub(super) fn names_boundary_carrier(
+        &self,
+        target: SymbolHandle,
+        qualifier: SymbolHandle,
+    ) -> bool {
+        target.is_valid()
+            && qualifier.is_valid()
+            && (self
+                .boundaries
+                .rows
+                .iter()
+                .any(|(_, source)| source.source == target && source.owner == qualifier)
+                || self
+                    .typed
+                    .trait_machine_signature(target)
+                    .is_some_and(|(owner, _)| owner.is_boundary && owner.symbol == qualifier)
+                || self.typed.machine_by_own_or_state_symbol(target).is_some_and(|machine| {
+                    !machine.body_is_present
+                        && matches!(
+                            machine.supply_mode,
+                            language_semantics::MachineSupplyMode::Boundary
+                                | language_semantics::MachineSupplyMode::ExternalRealization { .. }
+                        )
+                        && machine.attached_data_symbol == qualifier
+                }))
+    }
+
+    pub(super) fn boundary_application_is_empty(
+        &self,
+        context: MachineId,
+        target: SymbolHandle,
+        application: StaticMachineApplicationHandle,
+    ) -> Checked<bool> {
+        let (owner, declaration) =
+            if let Some((owner, _)) = self.typed.trait_machine_signature(target) {
+                if !owner.is_boundary {
+                    return Ok(false);
+                }
+                (owner.symbol, target)
+            } else if let Some(machine) = self.typed.machine_by_own_or_state_symbol(target) {
+                if machine.body_is_present
+                    || !matches!(
+                        machine.supply_mode,
+                        language_semantics::MachineSupplyMode::Boundary
+                            | language_semantics::MachineSupplyMode::ExternalRealization { .. }
+                    )
+                {
+                    return Ok(false);
+                }
+                (machine.attached_data_symbol, machine.symbol)
+            } else {
+                return Ok(false);
+            };
+        if !application.is_valid() {
+            return Ok(true);
+        }
+        let actual = self
+            .typed
+            .expression_table
+            .static_machine_application(application);
+        if !actual.arguments.is_empty()
+            || !actual.selected_machine_arguments.is_empty()
+            || !actual.input_selections.is_empty()
+            || !actual.bindings.is_empty()
+            || !actual.lifetime_bindings.is_empty()
+            || actual.conformance_selection.is_some()
+            || actual.callable_contract_source.is_valid()
+            || (actual.registration_operation.is_valid()
+                && actual.registration_operation != target
+                && actual.registration_operation != owner
+                && actual.registration_operation != declaration)
+        {
+            let identity = |symbol| {
+                (
+                    symbol,
+                    self.typed
+                        .symbols
+                        .symbols()
+                        .nodes()
+                        .is_valid(symbol)
+                        .then(|| self.typed.symbols.display_path(symbol, "::")),
+                )
+            };
+            let caller = self.symbols.get(context).copied().map(identity);
+            let closed = self
+                .typed
+                .closed_requirement_application(target)
+                .map(|closed| (closed.template, closed.application));
+            return Err(services::unavailable(
+                context,
+                format!(
+                    "boundary call has an unspent or mismatched static application; \
+                     caller {context:?} {caller:?}; target {:?}; owner {:?}; declaration {:?}; \
+                     application {application:?}; registration {:?}; \
+                     arguments {}; selected arguments {}; inputs {}; bindings {}; lifetimes {}; \
+                     conformance operand {:?}; contract source {:?}; binding declaration {:?}; \
+                     lifetime declaration {:?}; lexical owner {:?}; closed requirement {closed:?}",
+                    identity(target),
+                    identity(owner),
+                    identity(declaration),
+                    identity(actual.registration_operation),
+                    actual.arguments.len(),
+                    actual.selected_machine_arguments.len(),
+                    actual.input_selections.len(),
+                    actual.bindings.len(),
+                    actual.lifetime_bindings.len(),
+                    actual
+                        .conformance_selection
+                        .as_ref()
+                        .map(|selection| selection.operand_ordinal),
+                    actual.callable_contract_source,
+                    identity(actual.binding_declaration),
+                    identity(actual.lifetime_binding_declaration),
+                    identity(actual.lexical_owner),
+                ),
+            ));
+        }
+        Ok(true)
+    }
+
+    pub(super) fn read_boundary_declaration(
+        &mut self,
+        context: MachineId,
+        target: SymbolHandle,
+    ) -> Checked<Option<(BoundaryMachineId, Signature)>> {
+        let typed = self.typed;
+        let target = typed
+            .machine_by_own_or_state_symbol(target)
+            .filter(|machine| {
+                !machine.body_is_present
+                    && matches!(
+                        machine.supply_mode,
+                        language_semantics::MachineSupplyMode::Boundary
+                            | language_semantics::MachineSupplyMode::ExternalRealization { .. }
+                    )
+            })
+            .map_or(target, |machine| machine.symbol);
+        if let Some((id, source)) = self
+            .boundaries
+            .rows
+            .iter()
+            .find(|(_, source)| source.run.is_none() && source.source == target)
+        {
+            return Ok(Some((id, source.signature.clone())));
+        }
+        if typed.symbols.sealed_intrinsic(target)
+            == Some(language_core::sealed_intrinsics::SealedIntrinsic::FloatOperationRequirement)
+        {
+            let signature = self.numeric_primitive_signature(context, target)?;
+            let declaration = crate::declare::intrinsic_boundary_source(typed, target)
+                .map_err(|reason| services::unavailable(context, reason))?;
+            let intrinsic =
+                typed_trees::declarations::intrinsic_requirements::IntrinsicRequirement::by_symbol(
+                    typed, target,
+                )
+                .ok_or_else(|| {
+                    services::unavailable(context, "numeric primitive lost its source declaration")
+                })?;
+            let kind = match intrinsic.kind {
+                typed_trees::declarations::intrinsic_requirements::IntrinsicRequirementKind::Operator => semantic_vocabulary::BoundaryRequirementKind::Operator,
+                typed_trees::declarations::intrinsic_requirements::IntrinsicRequirementKind::TopLevelRequirement => semantic_vocabulary::BoundaryRequirementKind::Machine,
+            };
+            let id = self.boundaries.rows.push(BoundarySource {
+                run: None,
+                source: target,
+                kind,
+                owner: target,
+                signature: signature.clone(),
+                envelope: crate::reach::SourceEnvelope {
+                    service_reach: Vec::new(),
+                    invocations: Vec::new(),
+                    suspends: false,
+                    blocks: false,
+                    termination: terminal_psi::TerminalCallableTermination::Terminates {
+                        premises: Vec::new(),
+                    },
+                },
+                completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
+                owning_service: None,
+                declaration,
+            });
+            self.admitted_declarations.include(target);
+            return Ok(Some((id, signature)));
+        }
+        if let Some(language_core::sealed_intrinsics::SealedIntrinsic::HostedPrimitive(operation)) =
+            typed.symbols.sealed_intrinsic(target)
+        {
+            let machine = typed.machine_by_symbol(target).ok_or_else(|| {
+                services::unavailable(context, "hosted primitive lost its machine")
+            })?;
+            let (_, declared) = typed
+                .bodyless_declaration(target)
+                .map_err(|reason| services::unavailable(context, reason))?
+                .ok_or_else(|| {
+                    services::unavailable(context, "hosted primitive lost its bodyless declaration")
+                })?;
+            let mut requirements =
+                typed
+                    .machine_trait_conformances(machine)
+                    .iter()
+                    .filter_map(|edge| {
+                        typed_trees::machine::resolve_satisfied_declaration(typed, machine, edge)
+                    });
+            let requirement = requirements
+                .next()
+                .ok_or_else(|| {
+                    services::unavailable(context, "hosted primitive has no exact requirement")
+                })?
+                .symbol();
+            if requirements.next().is_some() || typed.trait_machine_signature(requirement).is_none_or(|(owner, required)| typed.symbols.sealed_member_intrinsic(owner.symbol, required.name.as_str()) != Some(language_core::sealed_intrinsics::SealedIntrinsic::HostedRequirement(operation))) {
+                return Err(services::unavailable(context, "hosted primitive has no unique canonical requirement"));
+            }
+            let (canonical, signature) = self
+                .read_boundary_declaration(context, requirement)?
+                .ok_or_else(|| {
+                    services::unavailable(
+                        context,
+                        "hosted primitive requirement has no declaration",
+                    )
+                })?;
+            let (actual, _) = self.declared_requirement_signature(context, &declared, &[])?;
+            if actual != signature {
+                return Err(services::unavailable(
+                    context,
+                    "hosted primitive contract differs from its canonical requirement",
+                ));
+            }
+            let mut source = self
+                .boundaries
+                .row(canonical)
+                .ok_or_else(|| {
+                    services::unavailable(context, "hosted primitive requirement lost its boundary")
+                })?
+                .clone();
+            source.source = target;
+            source.owner = target;
+            source.kind = semantic_vocabulary::BoundaryRequirementKind::Machine;
+            source.owning_service = None;
+            source.declaration = crate::declare::intrinsic_boundary_source(typed, target)
+                .map_err(|reason| services::unavailable(context, reason))?;
+            self.admitted_declarations.include(target);
+            let id = self.boundaries.rows.push(source);
+            return Ok(Some((id, signature)));
+        }
+        let Some((owner, declared)) = typed.trait_machine_signature(target) else {
+            return self.read_native_boundary_declaration(context, target);
+        };
+        if !owner.is_boundary {
+            return Ok(None);
+        }
+        if (!owner.lifetime_parameters.is_empty() || !owner.type_parameters.is_empty())
+            && typed.closed_requirement_application(target).is_none()
+        {
+            return Err(services::unavailable(
+                context,
+                "boundary call needs its complete declaring trait application",
+            ));
+        }
+        if !crate::reach::has_authored_ceiling(typed, context, declared.symbol)? {
+            return Err(services::unavailable(
+                context,
+                "boundary requirement has an open service ceiling; write reaches",
+            ));
+        }
+        let clauses = typed
+            .signature_contracts
+            .span(declared.contracts)
+            .ok_or_else(|| {
+                services::unavailable(context, "boundary requirement has a stale clause span")
+            })?;
+        if !declared.declares_no_crash_route
+            && !clauses.iter().any(|clause| {
+                matches!(
+                    clause.kind,
+                    typed_trees::signature::SignatureContractKind::Crashes { .. }
+                )
+            })
+        {
+            return Err(services::unavailable(
+                context,
+                "boundary requirement has an open crash ceiling; write crashes",
+            ));
+        }
+        let envelope = self.signature_envelope(context, declared)?;
+        let service = self
+            .typed
+            .service_reaches
+            .id_for_symbol(owner.symbol)
+            .ok_or_else(|| {
+                services::unavailable(
+                    context,
+                    "boundary requirement has no owning service declaration",
+                )
+            })?;
+        let owning_service = services::service(self.typed, context, service)?;
+        let declaration = crate::declare::boundary_source(
+            self.typed,
+            target,
+            owner.symbol,
+            declared.symbol,
+            declared,
+            self.typed
+                .trait_requirement_callable_identity_text(owner, declared),
+        )
+        .map_err(|reason| services::unavailable(context, reason))?;
+        let completion =
+            typed_trees::boundary_completions::boundary_requirement_completion(self.typed, target);
+        let (signature, _) = self.boundary_signature(context, declared)?;
+        self.admitted_declarations.include(owner.symbol);
+        self.admitted_declarations.include(target);
+        let id = self.boundaries.rows.push(BoundarySource {
+            run: None,
+            source: target,
+            kind: semantic_vocabulary::BoundaryRequirementKind::Trait,
+            owner: owner.symbol,
+            signature: signature.clone(),
+            envelope,
+            completion,
+            owning_service: Some(owning_service),
+            declaration,
+        });
+        Ok(Some((id, signature)))
+    }
+}

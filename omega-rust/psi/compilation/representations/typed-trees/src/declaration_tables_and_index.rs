@@ -1226,7 +1226,7 @@ pub mod declaration_index {
             assert_eq!(original_handle, replacement_handle);
             assert_ne!(program.state_parameters.revision(), replacement.revision());
 
-            program.state_parameters = replacement;
+            program.state_parameters = replacement.into();
             assert_eq!(
                 program.first_named_value_declared_type(symbol, symbol),
                 Some(replacement_type)
@@ -1589,7 +1589,7 @@ pub mod declaration_index {
                     .map(|(machine_position, _)| *machine_position)
             })?;
             let machine = self.machines().at(machine_position as usize);
-            Some((machine, &self.machine_states(machine)[0]))
+            Some((machine, self.machine_states(machine).at(0)))
         }
 
         pub fn unique_machine_by_entry_state_symbol(
@@ -1606,7 +1606,7 @@ pub mod declaration_index {
                 entries.next().is_none().then_some(first)
             })?;
             let machine = self.machines().at(machine_position as usize);
-            Some((machine, &self.machine_states(machine)[0]))
+            Some((machine, self.machine_states(machine).at(0)))
         }
 
         fn build_state_positions(&self) -> StatePositionIndex {
@@ -2310,6 +2310,19 @@ pub(crate) mod declaration_tables {
             &self.tables.authored_declaration_selections
         }
 
+        /// Complete an existing typed intrinsic occurrence without inventing a
+        /// nominal declaration or changing an already selected target.
+        pub fn finalize_authored_intrinsic_selection(
+            &mut self,
+            occurrence: language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId,
+            binding: language_semantics::declaration_selection::AuthoredDeclarationSelectionLateBinding,
+            intrinsic: language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic,
+        ) -> Result<(), language_semantics::declaration_selection::AuthoredDeclarationSelectionFinalizationError>{
+            self.tables
+                .authored_declaration_selections
+                .finalize_intrinsic(occurrence, binding, intrinsic)
+        }
+
         pub fn const_declaration_by_symbol(
             &self,
             symbol: symbols::SymbolHandle,
@@ -2511,17 +2524,17 @@ pub(crate) mod declaration_tables {
                 -> &[proposition::PropositionBinder] = proposition_binders.binders
                 [push_proposition_binder];
             proposition_parameters(proposition: proposition::PropositionDefinition)
-                -> &[signature::StateParameter] = state_parameters.parameters
+                -> rows[signature::StateParameter] = state_parameters.parameters
                 [push_proposition_parameter];
             proof_facts(domain: domain::DomainDefinition)
-                -> &[domain::ProofFact] = proof_facts.facts;
+                -> rows[domain::ProofFact] = proof_facts.facts;
             operator_type_parameters(operator: crate::operator::OperatorDefinition)
                 -> rows[data::TypeParameter] = data_type_parameters.type_parameters;
             operator_parameters(operator: crate::operator::OperatorDefinition)
-                -> &[signature::StateParameter] = state_parameters.parameters
+                -> rows[signature::StateParameter] = state_parameters.parameters
                 [push_operator_parameter];
             operator_contracts(operator: crate::operator::OperatorDefinition)
-                -> &[signature::SignatureContract] = signature_contracts.contracts
+                -> rows[signature::SignatureContract] = signature_contracts.contracts
                 [push_operator_contract];
         }
 
@@ -2654,6 +2667,15 @@ pub(crate) mod declaration_tables {
             let index = proof_fact_source_span_index(handle);
             self.tables.proof_fact_source_spans.resize(index + 1, None);
             self.tables.proof_fact_source_spans[index] = Some(source_span);
+        }
+
+        pub fn proposition_definition_by_symbol(
+            &self,
+            symbol: symbols::SymbolHandle,
+        ) -> Option<&proposition::PropositionDefinition> {
+            self.propositions()
+                .iter()
+                .find(|definition| definition.symbol == symbol)
         }
 
         pub fn push_mathematical_definition(&mut self, definition: MathematicalDefinition) {
@@ -3741,7 +3763,8 @@ pub(crate) mod trait_and_machine_tables {
                         TypeReferenceNode::Unit => self.shape.push(Shape::Unit),
                         TypeReferenceNode::Constrained { .. }
                         | TypeReferenceNode::FixedArray { .. }
-                        | TypeReferenceNode::ConstExpression(_) => self.closed = false,
+                        | TypeReferenceNode::ConstExpression(_)
+                        | TypeReferenceNode::Callable { .. } => self.closed = false,
                     }
                 }
             }
@@ -3879,7 +3902,7 @@ pub(crate) mod trait_and_machine_tables {
                 -> &[trait_definition::TraitRequirement] = trait_requirements.requires
                 [push_trait_requirement];
             trait_machine_signatures(trait_definition: trait_definition::TraitDefinition)
-                -> &[signature::StateSignature] = trait_machine_signatures.machines
+                -> rows[signature::StateSignature] = trait_machine_signatures.machines
                 [push_trait_machine_signature];
             #[inline]
             machine_type_parameters(machine: machine::Machine)
@@ -3894,22 +3917,22 @@ pub(crate) mod trait_and_machine_tables {
                 -> &[signature::AuthoredInvocation] = signature_invokes.invokes
                 [push_machine_invoke];
             machine_contracts(machine: machine::Machine)
-                -> &[signature::SignatureContract] = signature_contracts.contracts
+                -> rows[signature::SignatureContract] = signature_contracts.contracts
                 [push_machine_contract];
             #[inline]
             machine_states(machine: machine::Machine)
-                -> &[crate::state::State] = machine_states.states
+                -> rows[crate::state::State] = machine_states.states
                 [push_machine_state];
             #[inline]
             state_parameters(state: crate::state::State)
-                -> &[signature::StateParameter] = state_parameters.parameters
+                -> rows[signature::StateParameter] = state_parameters.parameters
                 [push_state_parameter];
             #[inline]
             state_contracts(state: crate::state::State)
-                -> &[signature::SignatureContract] = signature_contracts.contracts
+                -> rows[signature::SignatureContract] = signature_contracts.contracts
                 [push_state_contract];
             state_signature_parameters(signature: signature::StateSignature)
-                -> &[signature::StateParameter] = state_parameters.parameters
+                -> rows[signature::StateParameter] = state_parameters.parameters
                 [push_state_signature_parameter];
             state_signature_type_parameters(signature: signature::StateSignature)
                 -> rows[data::TypeParameter] = data_type_parameters.type_parameters;
@@ -3917,7 +3940,7 @@ pub(crate) mod trait_and_machine_tables {
                 -> &[signature::AuthoredInvocation] = signature_invokes.invokes
                 [push_state_signature_invoke];
             state_signature_contracts(signature: signature::StateSignature)
-                -> &[signature::SignatureContract] = signature_contracts.contracts
+                -> rows[signature::SignatureContract] = signature_contracts.contracts
                 [push_state_signature_contract];
         }
 
@@ -3986,7 +4009,7 @@ pub(crate) mod trait_and_machine_tables {
                     let machine = self.machines().at(machine_position as usize);
                     (
                         machine,
-                        &self.machine_states(machine)[state_position as usize],
+                        self.machine_states(machine).at(state_position as usize),
                     )
                 },
             )
@@ -4015,8 +4038,9 @@ pub(crate) mod trait_and_machine_tables {
                 self.with_call_target_index(|index| index.trait_signature.get(&symbol).copied())
             {
                 let trait_definition = self.traits().at(trait_index as usize);
-                let signature =
-                    &self.trait_machine_signatures(trait_definition)[signature_index as usize];
+                let signature = self
+                    .trait_machine_signatures(trait_definition)
+                    .at(signature_index as usize);
                 return Some((trait_definition, signature));
             }
             if symbol.is_valid()
@@ -4221,14 +4245,6 @@ pub(crate) mod trait_and_machine_tables {
             symbol: SymbolHandle,
         ) -> Option<&crate::state::State> {
             state_by_symbol(self.machine_states(machine), symbol)
-        }
-
-        #[inline]
-        pub fn machine_states_mut(
-            &mut self,
-            machine: &machine::Machine,
-        ) -> &mut [crate::state::State] {
-            self.machine_states.span_mut_or_empty(machine.states)
         }
 
         pub fn machine_holding_state(
@@ -4472,7 +4488,10 @@ pub(crate) mod trait_and_machine_tables {
             }
             let snapshot = program.clone();
             let machine = program.machines()[0].clone();
-            program.machine_states_mut(&machine)[1].symbol = replaced;
+            program
+                .machine_states
+                .get_mut(machine.states.handle_at(1))
+                .symbol = replaced;
             assert_state_lookups_match_roster(&program, &symbols);
             assert_state_lookups_match_roster(&snapshot, &symbols);
 
@@ -4922,6 +4941,7 @@ pub(crate) mod type_reference_queries {
                         TypeReferenceNode::Slice { .. } => return Some(2),
                         TypeReferenceNode::FixedArray { .. }
                         | TypeReferenceNode::Reference { .. }
+                        | TypeReferenceNode::Callable { .. }
                         | TypeReferenceNode::Unit => return Some(1),
                         TypeReferenceNode::Named { symbol, .. }
                         | TypeReferenceNode::Generic {
@@ -5456,6 +5476,7 @@ pub(crate) mod type_reference_queries {
                         .map(|definition| definition.properties.multiplicity)
                         .unwrap_or(Multiplicity::Affine)
                 }
+                TypeReferenceNode::Callable { .. } => Multiplicity::Unrestricted,
                 TypeReferenceNode::Slice { .. } => Multiplicity::Affine,
             }
         }

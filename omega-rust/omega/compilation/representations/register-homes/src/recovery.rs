@@ -635,6 +635,10 @@ pub(crate) fn encode_terminal_recovery_classification_content(
 
 fn encode_classification_scalar_type(bytes: &mut Vec<u8>, scalar_type: ScalarType) {
     match scalar_type {
+        ScalarType::Callable(contract) => {
+            bytes.push(5);
+            push_encoded(bytes, contract.get().to_le_bytes());
+        }
         ScalarType::Boolean => bytes.push(0),
         ScalarType::Integer(integer) if integer.is_address() => {
             bytes.push(3);
@@ -994,6 +998,7 @@ pub struct FixedViewCopyDestination {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FixedViewCopyDecodeError {
+    InvalidBorrowedStorage(runtime_abi::BorrowedStorageEncodingError),
     InvalidQuotientCatalog,
     InvalidAccessLifecycleCatalog {
         catalog: &'static str,
@@ -1549,6 +1554,7 @@ mod tests {
                 },
             }],
             transformed: SelectedInstructionPlan {
+                contracts: Default::default(),
                 psi: TerminalPsiIdentity {
                     vocabulary_marker: VocabularyMarker::CURRENT,
                     program_fingerprint: SemanticFingerprint::from_bytes([12; 32]),

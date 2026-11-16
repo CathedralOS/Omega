@@ -667,6 +667,15 @@ pub(crate) mod type_predicates {
             result.unwrap_or(reference)
         }
 
+        pub fn is_unreachable(&self, expression: ExpressionHandle) -> bool {
+            self.rows
+                .binary_search_by_key(
+                    &(expression.arena_index(), expression.generation()),
+                    |(owned, _)| (owned.arena_index(), owned.generation()),
+                )
+                .is_ok_and(|index| self.rows[index].1.is_empty())
+        }
+
         pub fn agree(&self, left: ExpressionHandle, right: ExpressionHandle) -> bool {
             let default = [TypeWorld::default()];
             let worlds = |expression: ExpressionHandle| {
@@ -896,205 +905,153 @@ pub mod types {
 
     pub(crate) mod copies {
         use super::*;
+        use crate::callable_copies::{TypeCopy, TypeRemap};
 
         pub struct TypeExpressionCopy {
             pub source: TypeReferenceHandle,
             pub destination: TypeReferenceHandle,
             pub expression: crate::expression::ExpressionCopy,
+            /// A callable contract or callee graph, rather than a const type root.
+            pub contract_expression: bool,
         }
 
-        impl TypeReferenceTable {
-            pub fn copy_from(
-                &mut self,
-                source: &TypeReferenceTable,
-                source_expressions: &crate::expression::ExpressionTable,
-                target_expressions: &mut crate::expression::ExpressionTable,
-                type_reference: TypeReferenceHandle,
-            ) -> TypeReferenceHandle {
-                self.copy_with_expressions(
-                    source,
-                    source_expressions,
-                    target_expressions,
-                    type_reference,
-                    &mut Vec::new(),
-                )
-            }
-
-            pub fn copy_with_expressions(
-                &mut self,
-                source: &TypeReferenceTable,
-                source_expressions: &crate::expression::ExpressionTable,
-                target_expressions: &mut crate::expression::ExpressionTable,
-                type_reference: TypeReferenceHandle,
-                expressions: &mut Vec<TypeExpressionCopy>,
-            ) -> TypeReferenceHandle {
-                let copied = match source.type_reference(type_reference) {
+        impl TypeCopy<'_, '_, '_> {
+            pub(crate) fn ty(&mut self, reference: TypeReferenceHandle) -> TypeReferenceHandle {
+                if !reference.is_valid() {
+                    return reference;
+                }
+                if let Some((_, copied)) =
+                    self.types.iter().find(|(source, _)| *source == reference)
+                {
+                    return *copied;
+                }
+                let copied = self
+                    .target
+                    .type_reference_table
+                    .insert(TypeReferenceNode::Unit);
+                self.types.push((reference, copied));
+                let node = match self
+                    .source
+                    .type_reference_table
+                    .type_reference(reference)
+                    .clone()
+                {
                     TypeReferenceNode::Reference {
                         referee,
                         access,
                         lifetime,
-                    } => {
-                        let referee = self.copy_with_expressions(
-                            source,
-                            source_expressions,
-                            target_expressions,
-                            *referee,
-                            expressions,
-                        );
-                        self.insert(TypeReferenceNode::Reference {
-                            referee,
-                            access: *access,
-                            lifetime: lifetime.clone(),
-                        })
-                    }
+                    } => TypeReferenceNode::Reference {
+                        referee: self.ty(referee),
+                        access,
+                        lifetime,
+                    },
                     TypeReferenceNode::Constrained {
                         base_type,
                         constraints,
                     } => {
-                        let base_type = self.copy_with_expressions(
-                            source,
-                            source_expressions,
-                            target_expressions,
-                            *base_type,
-                            expressions,
-                        );
-                        let constraints = self.copy_constraints_from(
-                            source,
-                            source_expressions,
-                            target_expressions,
-                            *constraints,
-                            expressions,
-                        );
-                        self.insert(TypeReferenceNode::Constrained {
+                        let base_type = self.ty(base_type);
+                        let constraints = self.constraints(constraints);
+                        TypeReferenceNode::Constrained {
                             base_type,
                             constraints,
-                        })
+                        }
                     }
                     TypeReferenceNode::FixedArray {
                         element_type,
                         length,
                     } => {
-                        let element_type = self.copy_with_expressions(
-                            source,
-                            source_expressions,
-                            target_expressions,
-                            *element_type,
-                            expressions,
-                        );
+                        let element_type = self.ty(element_type);
                         let length = match length {
                             FixedArrayLength::Expression(argument) => {
-                                FixedArrayLength::Expression(self.copy_with_expressions(
-                                    source,
-                                    source_expressions,
-                                    target_expressions,
-                                    *argument,
-                                    expressions,
-                                ))
+                                FixedArrayLength::Expression(self.ty(argument))
                             }
-                            other => other.clone(),
+                            other => other,
                         };
-                        self.insert(TypeReferenceNode::FixedArray {
+                        TypeReferenceNode::FixedArray {
                             element_type,
                             length,
-                        })
+                        }
                     }
-                    TypeReferenceNode::Slice { element_type } => {
-                        let element_type = self.copy_with_expressions(
-                            source,
-                            source_expressions,
-                            target_expressions,
-                            *element_type,
-                            expressions,
-                        );
-                        self.insert(TypeReferenceNode::Slice { element_type })
-                    }
+                    TypeReferenceNode::Slice { element_type } => TypeReferenceNode::Slice {
+                        element_type: self.ty(element_type),
+                    },
                     TypeReferenceNode::Generic {
                         base_symbol,
                         base_name,
                         lifetime_arguments,
                         arguments,
-                    } => {
-                        let arguments = self.copy_type_reference_handles_from(
-                            source,
-                            source_expressions,
-                            target_expressions,
-                            *arguments,
-                            expressions,
-                        );
-                        self.insert(TypeReferenceNode::Generic {
-                            base_symbol: *base_symbol,
-                            base_name: base_name.clone(),
-                            lifetime_arguments: lifetime_arguments.clone(),
-                            arguments,
-                        })
-                    }
+                    } => TypeReferenceNode::Generic {
+                        base_symbol,
+                        base_name,
+                        lifetime_arguments,
+                        arguments: self.type_span(arguments),
+                    },
+                    TypeReferenceNode::Callable { contract } => TypeReferenceNode::Callable {
+                        contract: self.contract(contract),
+                    },
                     TypeReferenceNode::ConstExpression(expression) => {
-                        let expression =
-                            target_expressions.copy_graph(Some(source_expressions), *expression);
-                        let destination =
-                            self.insert(TypeReferenceNode::ConstExpression(expression.root));
-                        expressions.push(TypeExpressionCopy {
-                            source: type_reference,
-                            destination,
+                        let expression = self.expression_graph(expression);
+                        let root = expression.root;
+                        self.records.push(TypeExpressionCopy {
+                            source: reference,
+                            destination: copied,
                             expression,
+                            contract_expression: false,
                         });
-                        destination
+                        TypeReferenceNode::ConstExpression(root)
                     }
                     TypeReferenceNode::Named { symbol, name } => {
-                        self.insert(TypeReferenceNode::Named {
-                            symbol: *symbol,
-                            name: name.clone(),
-                        })
+                        TypeReferenceNode::Named { symbol, name }
                     }
-                    TypeReferenceNode::Unit => self.insert(TypeReferenceNode::Unit),
+                    TypeReferenceNode::Unit => TypeReferenceNode::Unit,
                 };
-                let argument = source.array_extent_argument(type_reference);
+                *self
+                    .target
+                    .type_reference_table
+                    .type_references
+                    .get_mut(copied) = node;
+                self.target.type_reference_table.renamed_row(copied, None);
+                let argument = self
+                    .source
+                    .type_reference_table
+                    .array_extent_argument(reference);
                 if argument.is_valid() {
-                    let argument = match self.type_reference(copied) {
-                        TypeReferenceNode::FixedArray {
-                            length: FixedArrayLength::Expression(argument),
-                            ..
-                        } => *argument,
-                        _ => self.copy_with_expressions(
-                            source,
-                            source_expressions,
-                            target_expressions,
-                            argument,
-                            expressions,
-                        ),
-                    };
-                    self.retain_array_extent_argument(copied, argument)
+                    let argument = self.ty(argument);
+                    self.target
+                        .type_reference_table
+                        .retain_array_extent_argument(copied, argument)
                         .expect("copied array extent child");
                 }
                 let source_owner =
-                    Handle::from_parts(type_reference.arena_index(), type_reference.generation());
+                    Handle::from_parts(reference.arena_index(), reference.generation());
                 let target_owner = Handle::from_parts(copied.arena_index(), copied.generation());
+                let source = &self.source.type_reference_table;
+                let target = &mut self.target.type_reference_table;
                 let span = *source.constant_origin_spans.get(source_owner);
-                *self.constant_origin_spans.get_mut(target_owner) = self
+                *target.constant_origin_spans.get_mut(target_owner) = target
                     .constant_origins
                     .insert_many(source.constant_origins.span_or_empty(span).iter().copied());
-                *self.operand_lifetime_owners.get_mut(Handle::from_parts(
+                *target.operand_lifetime_owners.get_mut(Handle::from_parts(
                     copied.arena_index(),
                     copied.generation(),
-                )) = source.operand_lifetime_owner(type_reference);
-                let lifetimes = source.operand_lifetimes(type_reference);
-                let span = self
+                )) = source.operand_lifetime_owner(reference);
+                let span = target
                     .operand_lifetimes
-                    .insert_many(lifetimes.iter().copied());
-                *self.operand_lifetime_spans.get_mut(Handle::from_parts(
+                    .insert_many(source.operand_lifetimes(reference).iter().copied());
+                *target.operand_lifetime_spans.get_mut(Handle::from_parts(
                     copied.arena_index(),
                     copied.generation(),
                 )) = span;
-                self.set_operand_origin(copied, source.operand_origin(type_reference));
-                for application in source.type_alias_applications(type_reference) {
-                    let copied_application = self.copy_with_expressions(
-                        source,
-                        source_expressions,
-                        target_expressions,
-                        application.application,
-                        expressions,
-                    );
+                target.set_operand_origin(copied, source.operand_origin(reference));
+                let applications = source
+                    .type_alias_applications(reference)
+                    .cloned()
+                    .collect::<Vec<_>>();
+                for application in applications {
+                    let copied_application = self.ty(application.application);
                     let (arguments, lifetime_arguments) = match self
+                        .target
+                        .type_reference_table
                         .type_reference(copied_application)
                     {
                         TypeReferenceNode::Generic {
@@ -1105,60 +1062,117 @@ pub mod types {
                         TypeReferenceNode::Named { .. } => (HandleSpan::empty(), Vec::new()),
                         _ => unreachable!("retained alias application keeps its declaration head"),
                     };
-                    self.retain_type_alias_application(crate::type_aliases::TypeAliasApplication {
-                        instance: copied,
-                        application: copied_application,
-                        arguments,
-                        lifetime_arguments,
-                        ..application.clone()
-                    });
+                    self.target
+                        .type_reference_table
+                        .retain_type_alias_application(crate::type_aliases::TypeAliasApplication {
+                            instance: copied,
+                            application: copied_application,
+                            arguments,
+                            lifetime_arguments,
+                            ..application
+                        });
                 }
                 copied
             }
 
-            pub fn remap_symbols_in<'scope>(
+            pub(crate) fn type_span(
                 &mut self,
-                type_reference: TypeReferenceHandle,
-                expressions: &mut crate::expression::ExpressionTable,
-                symbols: impl Into<crate::SymbolRebinding<'scope>>,
-            ) {
-                let symbols = symbols.into();
-                if !type_reference.is_valid() {
+                span: HandleSpan<TypeReferenceHandle>,
+            ) -> HandleSpan<TypeReferenceHandle> {
+                let references = self
+                    .source
+                    .type_reference_table
+                    .type_reference_handles(span)
+                    .to_vec();
+                assert_eq!(
+                    references.len(),
+                    span.len(),
+                    "copied type input keeps its complete span"
+                );
+                let copied = references
+                    .into_iter()
+                    .map(|reference| self.ty(reference))
+                    .collect::<Vec<_>>();
+                self.target
+                    .type_reference_table
+                    .insert_type_reference_handles(copied)
+            }
+
+            fn constraints(
+                &mut self,
+                span: HandleSpan<TypeConstraintNode>,
+            ) -> HandleSpan<TypeConstraintNode> {
+                let constraints = self.source.type_reference_table.constraints(span).to_vec();
+                assert_eq!(
+                    constraints.len(),
+                    span.len(),
+                    "copied constraints keep their complete span"
+                );
+                let mut copied = Vec::with_capacity(constraints.len());
+                for constraint in constraints {
+                    copied.push(match constraint {
+                        TypeConstraintNode::Domain(mut domain) => {
+                            domain.arguments = domain
+                                .arguments
+                                .into_iter()
+                                .map(|argument| self.ty(argument))
+                                .collect();
+                            TypeConstraintNode::Domain(domain)
+                        }
+                        other => other,
+                    });
+                }
+                self.target
+                    .type_reference_table
+                    .constraints
+                    .insert_many(copied)
+            }
+        }
+
+        impl TypeRemap<'_, '_> {
+            pub(crate) fn ty(&mut self, reference: TypeReferenceHandle) {
+                if !reference.is_valid() || self.types.contains(&reference) {
                     return;
                 }
-                let argument = self.array_extent_argument(type_reference);
-                if argument.is_valid()
-                    && !matches!(self.type_reference(type_reference), TypeReferenceNode::FixedArray { length: FixedArrayLength::Expression(current), .. } if *current == argument)
-                {
-                    self.remap_symbols_in(argument, expressions, symbols);
+                self.types.push(reference);
+                let argument = self
+                    .target
+                    .type_reference_table
+                    .array_extent_argument(reference);
+                if argument.is_valid() {
+                    self.ty(argument);
                 }
                 let applications = self
-                    .type_alias_applications(type_reference)
+                    .target
+                    .type_reference_table
+                    .type_alias_applications(reference)
                     .map(|application| application.application)
                     .collect::<Vec<_>>();
                 for application in applications {
-                    self.remap_symbols_in(application, expressions, symbols);
+                    self.ty(application);
                 }
-                let node = self.type_reference(type_reference).clone();
+                let node = self
+                    .target
+                    .type_reference_table
+                    .type_reference(reference)
+                    .clone();
                 match node {
-                    TypeReferenceNode::Reference { referee, .. } => {
-                        self.remap_symbols_in(referee, expressions, symbols);
-                    }
+                    TypeReferenceNode::Reference { referee, .. } => self.ty(referee),
                     TypeReferenceNode::Constrained {
                         base_type,
                         constraints,
                     } => {
-                        self.remap_symbols_in(base_type, expressions, symbols);
-                        for constraint in self.constraints(constraints).to_vec() {
-                            match constraint {
-                                TypeConstraintNode::Domain(domain) => {
-                                    for argument in domain.arguments {
-                                        self.remap_symbols_in(argument, expressions, symbols);
-                                    }
+                        self.ty(base_type);
+                        for constraint in self
+                            .target
+                            .type_reference_table
+                            .constraints(constraints)
+                            .to_vec()
+                        {
+                            if let TypeConstraintNode::Domain(domain) = constraint {
+                                for argument in domain.arguments {
+                                    self.ty(argument);
                                 }
-
-                                TypeConstraintNode::Named(_)
-                                | TypeConstraintNode::ArithmeticDomain(_) => {}
                             }
                         }
                     }
@@ -1166,148 +1180,88 @@ pub mod types {
                         element_type,
                         length,
                     } => {
-                        self.remap_symbols_in(element_type, expressions, symbols);
+                        self.ty(element_type);
                         if let FixedArrayLength::Expression(argument) = length {
-                            self.remap_symbols_in(argument, expressions, symbols);
+                            self.ty(argument);
                         }
-                        if let FixedArrayLength::ConstParameter { symbol, .. } = length
-                            && let TypeReferenceNode::FixedArray { length, .. } =
-                                self.type_references.get_mut(type_reference)
-                            && let FixedArrayLength::ConstParameter {
-                                symbol: current, ..
-                            } = length
-                        {
-                            *current = remapped(symbol, symbols);
+                        let symbol = match length {
+                            FixedArrayLength::ConstParameter { symbol, .. } => {
+                                Some((symbol, false))
+                            }
+                            FixedArrayLength::ConstCall { machine, .. } => Some((machine, true)),
+                            _ => None,
+                        };
+                        if let Some((symbol, call)) = symbol {
+                            let TypeReferenceNode::FixedArray { length, .. } = self
+                                .target
+                                .type_reference_table
+                                .type_references
+                                .get_mut(reference)
+                            else {
+                                unreachable!();
+                            };
+                            match length {
+                                FixedArrayLength::ConstParameter {
+                                    symbol: current, ..
+                                } if !call => *current = remapped(symbol, self.symbols),
+                                FixedArrayLength::ConstCall { machine, .. } if call => {
+                                    *machine = remapped(symbol, self.symbols)
+                                }
+                                _ => unreachable!(),
+                            }
                         }
                     }
-                    TypeReferenceNode::Slice { element_type } => {
-                        self.remap_symbols_in(element_type, expressions, symbols);
-                    }
+                    TypeReferenceNode::Slice { element_type } => self.ty(element_type),
                     TypeReferenceNode::Generic {
                         base_symbol,
                         arguments,
                         ..
                     } => {
-                        for argument in self.type_reference_handles(arguments).to_vec() {
-                            self.remap_symbols_in(argument, expressions, symbols);
+                        for argument in self
+                            .target
+                            .type_reference_table
+                            .type_reference_handles(arguments)
+                            .to_vec()
+                        {
+                            self.ty(argument);
                         }
                         let TypeReferenceNode::Generic {
                             base_symbol: current,
                             ..
-                        } = self.type_references.get_mut(type_reference)
+                        } = self
+                            .target
+                            .type_reference_table
+                            .type_references
+                            .get_mut(reference)
                         else {
                             unreachable!();
                         };
-                        *current = remapped(base_symbol, symbols);
+                        *current = remapped(base_symbol, self.symbols);
                     }
-                    TypeReferenceNode::ConstExpression(expression) => {
-                        expressions.remap_symbols_in(expression, symbols);
-                    }
+                    TypeReferenceNode::Callable { contract } => self.contract(contract),
+                    TypeReferenceNode::ConstExpression(expression) => self.expression(expression),
                     TypeReferenceNode::Named { symbol, .. } => {
-                        let replaced_named = matches!(
-                            self.type_references.get(type_reference),
-                            TypeReferenceNode::Named { .. }
-                        )
-                        .then_some(symbol);
                         let TypeReferenceNode::Named {
                             symbol: current, ..
-                        } = self.type_references.get_mut(type_reference)
+                        } = self
+                            .target
+                            .type_reference_table
+                            .type_references
+                            .get_mut(reference)
                         else {
                             unreachable!();
                         };
-                        *current = remapped(symbol, symbols);
-                        self.renamed_row(type_reference, replaced_named);
+                        *current = remapped(symbol, self.symbols);
+                        self.target
+                            .type_reference_table
+                            .renamed_row(reference, Some(symbol));
                     }
                     TypeReferenceNode::Unit => {}
                 }
             }
-
-            fn copy_type_reference_handles_from(
-                &mut self,
-                source: &TypeReferenceTable,
-                source_expressions: &crate::expression::ExpressionTable,
-                target_expressions: &mut crate::expression::ExpressionTable,
-                type_references: HandleSpan<TypeReferenceHandle>,
-                expressions: &mut Vec<TypeExpressionCopy>,
-            ) -> HandleSpan<TypeReferenceHandle> {
-                let source_type_references = source.type_reference_handles(type_references);
-                let copied = self.reserve_type_reference_handles(
-                    source_type_references
-                        .len()
-                        .try_into()
-                        .expect("type reference handle span count overflow"),
-                );
-
-                for (offset, type_reference) in source_type_references.iter().enumerate() {
-                    let type_reference = self.copy_with_expressions(
-                        source,
-                        source_expressions,
-                        target_expressions,
-                        *type_reference,
-                        expressions,
-                    );
-                    self.set_type_reference_handle_at_offset(
-                        copied,
-                        offset
-                            .try_into()
-                            .expect("type reference handle span count overflow"),
-                        type_reference,
-                    );
-                }
-
-                copied
-            }
-
-            fn copy_constraints_from(
-                &mut self,
-                source: &TypeReferenceTable,
-                source_expressions: &crate::expression::ExpressionTable,
-                target_expressions: &mut crate::expression::ExpressionTable,
-                constraints: HandleSpan<TypeConstraintNode>,
-                expressions: &mut Vec<TypeExpressionCopy>,
-            ) -> HandleSpan<TypeConstraintNode> {
-                let source_constraints = source.constraints(constraints);
-                let copied = self.reserve_constraints(
-                    source_constraints
-                        .len()
-                        .try_into()
-                        .expect("type constraint span count overflow"),
-                );
-
-                for (offset, constraint) in source_constraints.iter().enumerate() {
-                    let copied_constraint = match constraint {
-                        TypeConstraintNode::Domain(domain) => {
-                            let mut domain = domain.clone();
-                            domain.arguments = domain
-                                .arguments
-                                .iter()
-                                .map(|argument| {
-                                    self.copy_with_expressions(
-                                        source,
-                                        source_expressions,
-                                        target_expressions,
-                                        *argument,
-                                        expressions,
-                                    )
-                                })
-                                .collect();
-                            TypeConstraintNode::Domain(domain)
-                        }
-                        _ => constraint.clone(),
-                    };
-                    self.set_constraint_at_offset(
-                        copied,
-                        offset
-                            .try_into()
-                            .expect("type constraint span count overflow"),
-                        copied_constraint,
-                    );
-                }
-
-                copied
-            }
         }
     }
+
     use crate::expression::ExpressionHandle;
     pub use copies::TypeExpressionCopy;
     #[cfg(test)]
@@ -1373,14 +1327,13 @@ pub mod types {
             let operand = program.static_operand_from_type_reference(written).unwrap();
             assert_eq!(operand.type_reference, written);
             assert!(operand.path.is_empty());
-            let mut target = TypeReferenceTable::new();
-            let mut expressions = crate::expression::ExpressionTable::default();
-            let copied = target.copy_from(
-                &source,
-                &crate::expression::ExpressionTable::default(),
-                &mut expressions,
-                written,
-            );
+            let source_tables = crate::TypedTreeTables {
+                type_reference_table: source.clone(),
+                ..Default::default()
+            };
+            let mut copied_tables = crate::TypedTreeTables::default();
+            let copied = copied_tables.copy_type_reference_from(&source_tables, written);
+            let mut target = copied_tables.type_reference_table;
             let copied_obligation = target
                 .type_alias_applications(copied)
                 .next()
@@ -1487,6 +1440,7 @@ pub mod types {
                         )
                     }
                     TypeReferenceNode::ConstExpression(_) => "const <expression>".to_owned(),
+                    TypeReferenceNode::Callable { .. } => "machine <contract>".to_owned(),
                     TypeReferenceNode::Named { name, .. } => name.to_string(),
                     TypeReferenceNode::Unit => "()".to_owned(),
                 }
@@ -1555,6 +1509,7 @@ pub mod types {
                     TypeReferenceNode::ConstExpression(expression) => {
                         format!("const {}", expressions.display_name(*expression))
                     }
+                    TypeReferenceNode::Callable { .. } => "machine <contract>".to_owned(),
                     TypeReferenceNode::Named { name, .. } => name.to_string(),
                     TypeReferenceNode::Unit => "()".to_owned(),
                 }
@@ -1609,8 +1564,19 @@ pub mod types {
             for _ in 0..4 {
                 receiving.insert(TypeReferenceNode::Unit);
             }
-            let copied =
-                receiving.copy_from(&source, &expressions, &mut receiving_expressions, fresh);
+            let source_tables = crate::TypedTreeTables {
+                type_reference_table: source.clone(),
+                expression_table: expressions.clone(),
+                ..Default::default()
+            };
+            let mut copied_tables = crate::TypedTreeTables {
+                type_reference_table: receiving,
+                expression_table: receiving_expressions,
+                ..Default::default()
+            };
+            let copied = copied_tables.copy_type_reference_from(&source_tables, fresh);
+            let mut receiving = copied_tables.type_reference_table;
+            let receiving_expressions = copied_tables.expression_table;
             let copied_argument = receiving.array_extent_argument(copied);
             assert_ne!(copied_argument, argument);
             let TypeReferenceNode::ConstExpression(value) =
@@ -2057,6 +2023,11 @@ pub mod types {
                             lifetime_arguments,
                             arguments,
                         }),
+                    TypeReferenceNode::Callable { .. } => {
+                        return Err(
+                            "a machine contract requires TypedTrees::instantiate_type_reference",
+                        );
+                    }
                     TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::Unit => None,
                 };
                 let Some(node) = rebuilt else {
@@ -3139,6 +3110,9 @@ pub mod types {
 
     #[derive(Debug, Clone, PartialEq, Eq, Default, compiler_storage::Record)]
     pub enum TypeReferenceNode {
+        Callable {
+            contract: crate::callable_values::RuntimeCallableContractHandle,
+        },
         Reference {
             referee: TypeReferenceHandle,
             access: language_core::ReferenceAccess,
@@ -3240,6 +3214,7 @@ pub mod types {
                 | TypeReferenceNode::Slice { .. }
                 | TypeReferenceNode::Generic { .. }
                 | TypeReferenceNode::ConstExpression(_)
+                | TypeReferenceNode::Callable { .. }
                 | TypeReferenceNode::Unit => None,
             }
         }
@@ -3274,7 +3249,9 @@ pub mod types {
                 }
                 TypeReferenceNode::Slice { element_type } => table.type_symbol(*element_type),
                 TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
-                TypeReferenceNode::ConstExpression(_) => SymbolHandle::invalid(),
+                TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::Callable { .. } => {
+                    SymbolHandle::invalid()
+                }
                 TypeReferenceNode::Named { symbol, .. } => *symbol,
                 TypeReferenceNode::Unit => SymbolHandle::invalid(),
             }
@@ -3693,15 +3670,13 @@ pub mod types {
                 parameter: symbols::SymbolHandle::from_parts(2, 1),
             };
             source.set_operand_origin(reference, origin);
-            let source_expressions = crate::expression::ExpressionTable::default();
-            let mut target_expressions = crate::expression::ExpressionTable::default();
-            let mut target = TypeReferenceTable::new();
-            let copied = target.copy_from(
-                &source,
-                &source_expressions,
-                &mut target_expressions,
-                reference,
-            );
+            let source_tables = crate::TypedTreeTables {
+                type_reference_table: source,
+                ..Default::default()
+            };
+            let mut copied_tables = crate::TypedTreeTables::default();
+            let copied = copied_tables.copy_type_reference_from(&source_tables, reference);
+            let mut target = copied_tables.type_reference_table;
             assert_eq!(target.operand_origin(copied), origin);
             let receiving = target.insert(TypeReferenceNode::Unit);
             target.substitute_from(receiving, copied).unwrap();
@@ -4124,3 +4099,218 @@ pub mod types {
 }
 
 pub use type_predicates::CaseMembershipTypeFacts;
+
+/// Source type projection uses exact declarations and applied operands only.
+/// It grants no ownership, lifetime or proof judgment.
+pub mod source_projections {
+    use crate::data::TypeParameterKind;
+    use crate::types::TypeReferenceHandle;
+    use symbols::SymbolHandle;
+
+    pub struct SourceTypeCursor {
+        current: TypeReferenceHandle,
+        substitutions: Vec<(SymbolHandle, TypeReferenceHandle)>,
+    }
+    impl SourceTypeCursor {
+        pub fn new(current: TypeReferenceHandle) -> Self {
+            Self {
+                current,
+                substitutions: Vec::new(),
+            }
+        }
+        pub fn current(&mut self, program: &crate::TypedTrees) -> TypeReferenceHandle {
+            self.current = substituted_type_reference(program, self.current, &self.substitutions);
+            self.current
+        }
+        pub fn field(
+            &mut self,
+            program: &crate::TypedTrees,
+            symbol: SymbolHandle,
+        ) -> Option<TypeReferenceHandle> {
+            self.current =
+                field_type_reference(program, self.current, symbol, &mut self.substitutions)?;
+            Some(self.current(program))
+        }
+        pub fn element(&mut self, program: &crate::TypedTrees) -> Option<TypeReferenceHandle> {
+            self.current =
+                indexed_element_type_reference(program, self.current, &self.substitutions)?;
+            Some(self.current(program))
+        }
+    }
+
+    fn attached_data_field_type_reference(
+        program: &crate::TypedTrees,
+        machine: &crate::machine::Machine,
+        symbol: SymbolHandle,
+    ) -> Option<TypeReferenceHandle> {
+        if machine.attached_data_application.is_valid() {
+            return SourceTypeCursor::new(machine.attached_data_application).field(program, symbol);
+        }
+        let data = program.unique_data_definition_by_symbol(machine.attached_data_symbol)?;
+        data_field_type_reference(program, data, symbol)
+    }
+    pub fn field_type_reference(
+        program: &crate::TypedTrees,
+        type_reference: crate::types::TypeReferenceHandle,
+        field_symbol: SymbolHandle,
+        substitutions: &mut Vec<(SymbolHandle, crate::types::TypeReferenceHandle)>,
+    ) -> Option<crate::types::TypeReferenceHandle> {
+        let type_reference = substituted_type_reference(program, type_reference, substitutions);
+        match program.type_reference_table.type_reference(type_reference) {
+            crate::types::TypeReferenceNode::Reference { referee, .. }
+            | crate::types::TypeReferenceNode::Constrained {
+                base_type: referee, ..
+            } => field_type_reference(program, *referee, field_symbol, substitutions),
+            crate::types::TypeReferenceNode::Generic {
+                base_symbol,
+                arguments,
+                ..
+            } => {
+                let exact_application = substitutions.is_empty()
+                    || program.normalized_type_identity(type_reference)
+                        == program.type_identity(crate::type_identity::TypeIdentityRequest {
+                            substitutions,
+                            ..crate::type_identity::TypeIdentityRequest::ordinary(type_reference)
+                        });
+                if let Some(instance) = program
+                    .data_application_definition(type_reference)
+                    .filter(|_| exact_application)
+                    .or_else(|| program.closed_data_definition(type_reference))
+                {
+                    return data_field_type_reference(program, instance, field_symbol);
+                }
+                let data = program.unique_data_definition_by_symbol(*base_symbol)?;
+                let bindings: Vec<_> = program
+                    .data_type_parameters(data)
+                    .iter()
+                    .zip(
+                        program
+                            .type_reference_table
+                            .type_reference_handles(*arguments),
+                    )
+                    .filter(|&(parameter, _argument)| {
+                        matches!(parameter.kind, TypeParameterKind::Type)
+                    })
+                    .map(|(parameter, argument)| {
+                        (
+                            parameter.symbol,
+                            substituted_type_reference(program, *argument, substitutions),
+                        )
+                    })
+                    .collect();
+                substitutions.extend(bindings);
+                data_field_type_reference(program, data, field_symbol)
+            }
+            crate::types::TypeReferenceNode::Named {
+                symbol: base_symbol,
+                ..
+            } => {
+                if let Some(machine) = program.machine(*base_symbol) {
+                    attached_data_field_type_reference(program, machine, field_symbol)
+                } else {
+                    program
+                        .unique_data_definition_by_symbol(*base_symbol)
+                        .and_then(|data| data_field_type_reference(program, data, field_symbol))
+                }
+            }
+            crate::types::TypeReferenceNode::Callable { .. }
+            | crate::types::TypeReferenceNode::ConstExpression(_)
+            | crate::types::TypeReferenceNode::FixedArray { .. }
+            | crate::types::TypeReferenceNode::Slice { .. }
+            | crate::types::TypeReferenceNode::Unit => None,
+        }
+    }
+
+    pub fn indexed_element_type_reference(
+        program: &crate::TypedTrees,
+        type_reference: crate::types::TypeReferenceHandle,
+        substitutions: &[(SymbolHandle, crate::types::TypeReferenceHandle)],
+    ) -> Option<crate::types::TypeReferenceHandle> {
+        let type_reference = substituted_type_reference(program, type_reference, substitutions);
+        let element = match program.type_reference_table.type_reference(type_reference) {
+            crate::types::TypeReferenceNode::Reference { referee, .. }
+            | crate::types::TypeReferenceNode::Constrained {
+                base_type: referee, ..
+            } => indexed_element_type_reference(program, *referee, substitutions),
+            crate::types::TypeReferenceNode::FixedArray { element_type, .. }
+            | crate::types::TypeReferenceNode::Slice { element_type } => Some(*element_type),
+            crate::types::TypeReferenceNode::Callable { .. }
+            | crate::types::TypeReferenceNode::ConstExpression(_)
+            | crate::types::TypeReferenceNode::Generic { .. }
+            | crate::types::TypeReferenceNode::Named { .. }
+            | crate::types::TypeReferenceNode::Unit => None,
+        }?;
+        let collection_policy = program
+            .type_reference_table
+            .arithmetic_domain(type_reference);
+        if program
+            .type_reference_table
+            .element_inherits_collection_arithmetic_policy(element, &program.symbols)
+            && collection_policy != numerics::arithmetic::ArithmeticDomain::Exact
+            && program.type_reference_table.arithmetic_domain(element)
+                == numerics::arithmetic::ArithmeticDomain::Exact
+        {
+            program
+                .type_reference_table
+                .find_policy_qualified_type_reference(element, collection_policy)
+        } else {
+            Some(element)
+        }
+    }
+
+    pub fn substituted_type_reference(
+        program: &crate::TypedTrees,
+        mut type_reference: crate::types::TypeReferenceHandle,
+        substitutions: &[(SymbolHandle, crate::types::TypeReferenceHandle)],
+    ) -> crate::types::TypeReferenceHandle {
+        let mut remaining = substitutions.len().saturating_add(1);
+        while remaining > 0 {
+            remaining -= 1;
+            let crate::types::TypeReferenceNode::Named { symbol, .. } =
+                program.type_reference_table.type_reference(type_reference)
+            else {
+                break;
+            };
+            let Some(replacement) =
+                substitutions
+                    .iter()
+                    .rev()
+                    .find_map(|(parameter, replacement)| {
+                        (*parameter == *symbol).then_some(*replacement)
+                    })
+            else {
+                break;
+            };
+            if replacement == type_reference {
+                break;
+            }
+            type_reference = replacement;
+        }
+        type_reference
+    }
+
+    fn data_field_type_reference(
+        program: &crate::TypedTrees,
+        data: &crate::data::DataDefinition,
+        field_symbol: SymbolHandle,
+    ) -> Option<crate::types::TypeReferenceHandle> {
+        if !field_symbol.is_valid() {
+            return None;
+        }
+
+        program
+            .data_members(data)
+            .iter()
+            .find_map(|member| match member {
+                crate::data::DataMember::Field(field) => {
+                    (field.symbol == field_symbol).then_some(field.type_reference)
+                }
+                crate::data::DataMember::Variant(variant) => program
+                    .data_payload_fields(variant)
+                    .iter()
+                    .find_map(|field| {
+                        (field.symbol == field_symbol).then_some(field.type_reference)
+                    }),
+            })
+    }
+}

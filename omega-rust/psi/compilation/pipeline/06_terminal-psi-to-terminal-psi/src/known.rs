@@ -13,7 +13,9 @@
 
 use std::collections::VecDeque;
 
-use proof_admission::{ProofNode, ProofRule, check_value_equality_denotation};
+use proof_admission::{
+    ProofNode, ProofRule, check_value_equality_denotation, check_value_equality_substitution,
+};
 use semantic_vocabulary::{
     IdTable, IntegerCarrier, IntegerMathTerm, Proposition, PropositionContext, ScalarTerm,
     ScalarType, ValueId,
@@ -25,6 +27,7 @@ use terminal_psi::PrimitiveJudgment;
 /// producer. The prover borrows their types from the owner supplying them.
 pub(crate) trait ProofValues {
     fn count(&self) -> usize;
+    fn identity(&self, position: usize) -> Option<ValueId>;
     fn scalar_type(&self, value: ValueId) -> Option<ScalarType>;
 
     // Declaration-only values have no storage origin.
@@ -36,6 +39,10 @@ pub(crate) trait ProofValues {
 impl ProofValues for IdTable<ValueId, ValueRow> {
     fn count(&self) -> usize {
         self.len()
+    }
+
+    fn identity(&self, position: usize) -> Option<ValueId> {
+        self.keys().nth(position)
     }
 
     fn scalar_type(&self, value: ValueId) -> Option<ScalarType> {
@@ -293,13 +300,14 @@ impl Known {
             arrival_equations: Vec::new(),
             arrival_definitions: IdTable::default(),
         };
-        let mut defined: IdTable<ValueId, Option<usize>> = IdTable::default();
-        for _ in 0..values.count() {
-            defined.push(None);
-        }
-        // A premise may relate an operation's result to another value. Its
-        // checked definition still names what the operation did. Equivalent
-        // copies keep the first citation so repeated facts retain their proof.
+        let mut defined: IdTable<ValueId, Option<usize>> =
+            IdTable::from_rows((0..values.count()).map(|position| {
+                let identity = values
+                    .identity(position)
+                    .expect("proof value owner retains each actual input identity");
+                (identity, None)
+            }))
+            .expect("proof value owner retains its exact contiguous identity namespace");
         for (index, &fact) in result.equations.iter().enumerate() {
             let fact = &result.facts[fact];
             let Proposition::Equal(ScalarTerm::Value { id, .. }, _) = &fact.proposition else {
@@ -469,6 +477,40 @@ impl Known {
         *defined.get_mut(id)? = Some(self.equations.len());
         self.equations.push(fact);
         Some(id)
+    }
+
+    /// Use the proof kernel's expansion budget for a shared computation
+    /// graph. If it cannot be expanded, keep the original checked value.
+    pub(crate) fn expand_value(
+        &self,
+        context: &PropositionContext,
+        value: ValueId,
+        scalar_type: ScalarType,
+        transport: &mut TransportInputs,
+    ) -> ScalarTerm {
+        let actual = ScalarTerm::value(value, scalar_type);
+        if self.definitions.get(value).is_none_or(Option::is_none) {
+            return actual;
+        }
+        let identity = Proposition::Equal(actual.clone(), actual.clone());
+        Self::transport_inputs(
+            &self.facts,
+            &self.equations,
+            &identity,
+            &self.definitions,
+            transport,
+        );
+        match check_value_equality_substitution(
+            context,
+            &identity,
+            transport
+                .selected
+                .iter()
+                .map(|&index| &self.facts[self.equations[index]].proposition),
+        ) {
+            Ok(Proposition::Equal(definition, _)) => definition,
+            _ => actual,
+        }
     }
 
     /// Compare a read and the contents it denotes at this program point.

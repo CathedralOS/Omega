@@ -282,7 +282,7 @@ fn graph_refusal(
     )
 }
 
-impl Storage<'_> {
+impl<'a> Storage<'a> {
     pub(super) fn borrowed_resource(
         &self,
         parameter: &terminal_psi::StructuralParameterDeclaration,
@@ -295,6 +295,7 @@ impl Storage<'_> {
     }
     fn borrow_backing(
         &self,
+        references: &mut super::DescriptorAnalysis<'a>,
         raw: &super::Lineage,
         resource: BorrowedResource,
         at: terminal_semantics::descriptor_lifetimes::DescriptorPosition,
@@ -311,15 +312,13 @@ impl Storage<'_> {
                 if terminal_semantics::descriptor_results::is_descriptor(self.types.iter(), ty));
         if matches!(resource, BorrowedResource::Storage) || !is_view {
             return self
-                .backing(raw, at.0, at.1 as usize, concerns)
+                .backing(references, raw, at.0, at.1 as usize, concerns)
                 .map(LoanRegion::Storage);
         }
         let location = raw.descriptor_location().ok_or_else(|| {
             self.unsupported(concerns, "view loan has no exact descriptor coordinate")
         })?;
-        let origins = self
-            .references
-            .borrow_mut()
+        let origins = references
             .try_symbolic_source_origins(self.machine, at, &location)
             .map_err(|detail| self.unsupported(concerns, &detail))?;
         if origins.is_empty() {
@@ -338,6 +337,7 @@ impl Storage<'_> {
                         self.unsupported(concerns, "view loan has unresolved payload projection")
                     })?;
                     self.backing(
+                        references,
                         &self.stored_at(*source, &enclosing.path, concerns)?,
                         at.0,
                         at.1 as usize,
@@ -373,7 +373,7 @@ impl Storage<'_> {
                         terminal_semantics::borrowed_loan_source(
                             self.module,
                             self.lowered,
-                            &mut self.references.borrow_mut(),
+                            references,
                             at,
                             &location,
                             std::iter::empty(),
@@ -568,11 +568,12 @@ impl Storage<'_> {
     #[allow(clippy::too_many_arguments)]
     fn lent(
         &self,
+        references: &mut super::DescriptorAnalysis<'a>,
         module: &terminal_psi::TerminalModule,
         tables: &MachineTables,
         (concerns, before): (Construct, ProgramPoint),
         arguments: &[terminal_psi::StructuralArgument],
-        call: Option<(InvocationSite, terminal_psi::TargetMachineCallable)>,
+        call: Option<InvocationSite>,
         retained: Vec<terminal_semantics::RetainedCallLoan>,
         claimed: &mut [bool],
         formed: &mut Vec<Formed>,
@@ -586,17 +587,22 @@ impl Storage<'_> {
             }
             return Ok(());
         }
-        let Some((site, callee)) = call else {
+        let Some(site) = call else {
             return Err(self.unsupported(concerns, "a loan to something not a call"));
         };
-        let (invocation, row) = tables
+        let mut invocations = tables
             .invocations
             .iter()
-            .find(|(_, row)| row.site == site)
-            .ok_or_else(|| self.foreign(concerns, "a call has no invocation row"))?;
-        let formals = module
-            .invocation_structural_parameters(callee, row.required_contract)
-            .ok_or_else(|| self.foreign(concerns, "call has no canonical structural formals"))?;
+            .filter(|(_, row)| row.site == site);
+        let (Some((invocation, row)), None) = (invocations.next(), invocations.next()) else {
+            return Err(self.foreign(concerns, "a call does not have exactly one invocation row"));
+        };
+        let actual =
+            crate::call_contracts::invocation(module, self.lowered, tables, invocation, row)?;
+        if actual.inputs.structural_arguments != arguments {
+            return Err(self.foreign(concerns, "loan arguments differ from their canonical call"));
+        }
+        let formals = actual.contract.structural_parameters;
         // The structural lane's places, in argument order.
         let places: Vec<_> = row
             .actuals
@@ -698,7 +704,7 @@ impl Storage<'_> {
                 invocation: Some(invocation),
                 position,
                 access,
-                lineage: self.borrow_backing(&lent, resource, cut, concerns)?,
+                lineage: self.borrow_backing(references, &lent, resource, cut, concerns)?,
                 parent,
                 lender,
                 from,
@@ -755,7 +761,7 @@ impl Storage<'_> {
                     invocation: None,
                     position,
                     access,
-                    lineage: self.borrow_backing(&raw, resource, cut, concerns)?,
+                    lineage: self.borrow_backing(references, &raw, resource, cut, concerns)?,
                     parent,
                     lender,
                     from,
@@ -797,6 +803,7 @@ impl Storage<'_> {
     #[allow(clippy::too_many_arguments)]
     fn reference_loan(
         &self,
+        references: &mut super::DescriptorAnalysis<'a>,
         tables: &MachineTables,
         operation: &terminal_psi::Operation,
         before: ProgramPoint,
@@ -1003,7 +1010,7 @@ impl Storage<'_> {
             invocation: None,
             position: 0,
             access,
-            lineage: self.borrow_backing(&raw, resource, at, concerns)?,
+            lineage: self.borrow_backing(references, &raw, resource, at, concerns)?,
             parent,
             lender,
             from,
@@ -1058,6 +1065,7 @@ impl Storage<'_> {
     /// loan; a shared loan permits observation but no write through any alias.
     fn uses_retained_loan(
         &self,
+        references: &mut super::DescriptorAnalysis<'a>,
         loan: &Formed,
         formed: &[Formed],
         cleanup_cohorts: &CleanupCohorts,
@@ -1108,6 +1116,7 @@ impl Storage<'_> {
                     let (place, backing) = match effect {
                         super::StorageEffect::Payload(place) => {
                             let backing = self.borrow_backing(
+                                references,
                                 &place,
                                 BorrowedResource::ViewPayload,
                                 at,
@@ -1117,6 +1126,7 @@ impl Storage<'_> {
                         }
                         super::StorageEffect::Storage(place) => {
                             let backing = LoanRegion::Storage(self.backing(
+                                references,
                                 &place,
                                 block.id,
                                 position as usize,
@@ -1145,6 +1155,7 @@ impl Storage<'_> {
                     let (place, backing) = match effect {
                         super::StorageEffect::Payload(place) => {
                             let backing = self.borrow_backing(
+                                references,
                                 &place,
                                 BorrowedResource::ViewPayload,
                                 at,
@@ -1154,6 +1165,7 @@ impl Storage<'_> {
                         }
                         super::StorageEffect::Storage(place) => {
                             let backing = LoanRegion::Storage(self.backing(
+                                references,
                                 &place,
                                 block.id,
                                 position as usize,
@@ -1192,6 +1204,7 @@ impl Storage<'_> {
                     }
                     let cleaned = self.stored_at(action.place(), action.path(), concerns)?;
                     let backing = LoanRegion::Storage(self.backing(
+                        references,
                         &cleaned,
                         block.id,
                         block.operations.len(),
@@ -1209,9 +1222,9 @@ impl Storage<'_> {
                     }
                     if let terminal_psi::TerminalAffineCleanupAction::InvokeOwned(cleanup) = action
                     {
-                        for (raw, backing, access) in
-                            self.cleanup_reference_accesses(block.id, edge, ordinal, cleanup)?
-                        {
+                        for (raw, backing, access) in self.cleanup_reference_accesses(
+                            references, block.id, edge, ordinal, cleanup,
+                        )? {
                             if competing_borrows(
                                 loan.access,
                                 &loan.lineage,
@@ -1352,6 +1365,7 @@ impl Storage<'_> {
 
     fn cleanup_reference_accesses(
         &self,
+        references: &mut super::DescriptorAnalysis<'a>,
         block: semantic_vocabulary::BlockId,
         edge: semantic_vocabulary::EdgeId,
         ordinal: u32,
@@ -1413,9 +1427,7 @@ impl Storage<'_> {
                 block,
                 crate::position(self.block(block)?.operations.len(), self.machine)?,
             );
-            let backing = self
-                .references
-                .borrow_mut()
+            let backing = references
                 .location_at(
                     self.machine,
                     at,
@@ -1506,7 +1518,11 @@ impl Storage<'_> {
 
     /// An edge transports the original borrow, not a fresh incoming resource.
     /// Capture all actuals before binding names or cleaning the old frontier.
-    fn successor_borrows(&self, formed: &[Formed]) -> Checked<()> {
+    fn successor_borrows(
+        &self,
+        references: &mut super::DescriptorAnalysis<'a>,
+        formed: &[Formed],
+    ) -> Checked<()> {
         for block in &self.lowered.blocks {
             let successors = block.terminator.successor_edges();
             let arguments = block.terminator.successor_block_arguments();
@@ -1536,12 +1552,12 @@ impl Storage<'_> {
                             "successor borrow exceeds its original parent access",
                         ));
                     }
-                    let backing = self.borrow_backing(&raw, resource, at, concerns)?;
+                    let backing = self.borrow_backing(references, &raw, resource, at, concerns)?;
                     if let Some(descriptor) = from {
                         terminal_semantics::borrowed_loan_source(
                             self.module,
                             self.lowered,
-                            &mut self.references.borrow_mut(),
+                            references,
                             at,
                             &descriptor,
                             formed.iter().filter_map(|loan| {
@@ -1592,7 +1608,12 @@ impl Storage<'_> {
         Ok(())
     }
 
-    fn parents(&self, module: &terminal_psi::TerminalModule, formed: &[Formed]) -> Checked<()> {
+    fn parents(
+        &self,
+        references: &mut super::DescriptorAnalysis<'a>,
+        module: &terminal_psi::TerminalModule,
+        formed: &[Formed],
+    ) -> Checked<()> {
         for loan in formed {
             let Some(descriptor) = &loan.from else {
                 continue;
@@ -1600,7 +1621,7 @@ impl Storage<'_> {
             let source = terminal_semantics::borrowed_loan_source(
                 module,
                 self.lowered,
-                &mut self.references.borrow_mut(),
+                references,
                 loan.at,
                 descriptor,
                 formed
@@ -1771,6 +1792,7 @@ impl Storage<'_> {
     /// block and operation order, each call's loans in argument order.
     fn formed(
         &self,
+        references: &mut super::DescriptorAnalysis<'a>,
         module: &terminal_psi::TerminalModule,
         tables: &MachineTables,
     ) -> Checked<Vec<Formed>> {
@@ -1794,22 +1816,17 @@ impl Storage<'_> {
                         | terminal_psi::OperationKind::EstablishMutableElementView { .. }
                 )
             }) {
-            Some(
-                self.references
-                    .borrow_mut()
-                    .flow(self.machine)
-                    .map_err(|error| {
-                        self.unsupported(
-                            error
-                                .operation(module)
-                                .map(Construct::Operation)
-                                .unwrap_or(Construct::Machine),
-                            error
-                                .detail()
-                                .unwrap_or("persistent loans have no complete descriptor flow"),
-                        )
-                    })?,
-            )
+            Some(references.flow(self.machine).map_err(|error| {
+                self.unsupported(
+                    error
+                        .operation(module)
+                        .map(Construct::Operation)
+                        .unwrap_or(Construct::Machine),
+                    error
+                        .detail()
+                        .unwrap_or("persistent loans have no complete descriptor flow"),
+                )
+            })?)
         } else {
             None
         };
@@ -1818,6 +1835,7 @@ impl Storage<'_> {
             for operation in &block.operations {
                 let concerns = Construct::Operation(operation.id);
                 self.reference_loan(
+                    references,
                     tables,
                     operation,
                     before,
@@ -1826,17 +1844,17 @@ impl Storage<'_> {
                     &mut formed,
                 )?;
                 let arguments = operation.kind.structural_arguments();
-                let call = operation
-                    .declared_invocation()
-                    .map(|inputs| (InvocationSite::Operation(operation.id), inputs.callee));
+                let site = InvocationSite::Operation(operation.id);
+                let call = crate::call_contracts::inputs_at(self.lowered, site)?.map(|_| site);
                 let retained = terminal_semantics::reference_call_lifetimes(
                     module,
                     self.lowered,
                     operation,
-                    &mut self.references.borrow_mut(),
+                    references,
                 )
                 .map_err(|error| graph_refusal(module, error))?;
                 self.lent(
+                    references,
                     module,
                     tables,
                     (concerns, before),
@@ -1850,14 +1868,22 @@ impl Storage<'_> {
             }
             // A terminator that is a call lends as an operation does; the
             // loans of one that never returns are disposed of on its edge.
-            if let Some((site, inputs)) = block.terminator.declared_invocation() {
+            if let Some(site) = crate::call_contracts::terminator_site(&block.terminator) {
+                let inputs =
+                    crate::call_contracts::inputs_at(self.lowered, site)?.ok_or_else(|| {
+                        self.foreign(
+                            Construct::Block(block.id),
+                            "terminal call lost its canonical inputs",
+                        )
+                    })?;
                 let first = formed.len();
                 self.lent(
+                    references,
                     module,
                     tables,
                     (Construct::Block(block.id), before),
                     inputs.structural_arguments,
-                    Some((site, inputs.callee)),
+                    Some(site),
                     Vec::new(),
                     &mut claimed,
                     &mut formed,
@@ -1940,7 +1966,7 @@ impl Storage<'_> {
                         invocation: None,
                         position,
                         access,
-                        lineage: self.borrow_backing(&raw, resource, at, concerns)?,
+                        lineage: self.borrow_backing(references, &raw, resource, at, concerns)?,
                         parent,
                         lender,
                         from,
@@ -1961,12 +1987,56 @@ impl Storage<'_> {
                 ));
             }
         }
+        let mut disposed = vec![false; tables.obligations.len()];
+        for (edge, row) in tables.edges.iter() {
+            for disposition in &row.dispositions {
+                let Some(loan) = formed.iter().find(|loan| {
+                    loan.obligation == disposition.obligation
+                        && loan.invocation.is_some()
+                        && loan.lifetime.is_none()
+                }) else {
+                    continue;
+                };
+                let invocation = tables
+                    .invocations
+                    .get(loan.invocation.unwrap())
+                    .ok_or_else(|| {
+                        self.foreign(Construct::Edge(edge), "disposed loan has no invocation")
+                    })?;
+                let expected = match invocation.site {
+                    InvocationSite::InvokeNoNormal(site)
+                    | InvocationSite::ExternalCompletion(site) => site,
+                    // Cleanup owns an exact edge/action invocation but returns
+                    // normally. It cannot consume a duration loan as a terminal
+                    // transfer; its contained references follow cleanup cohorts.
+                    InvocationSite::Operation(_) | InvocationSite::Cleanup { .. } => {
+                        return Err(self.foreign(
+                            Construct::Edge(edge),
+                            "normal call loan has an edge disposition",
+                        ));
+                    }
+                };
+                if expected != edge
+                    || disposition.fate != Fate::Consumed
+                    || std::mem::replace(&mut disposed[index(loan.obligation.get())], true)
+                {
+                    return Err(self.foreign(
+                        Construct::Edge(edge),
+                        "loan disposition repeats or differs from its terminal transfer",
+                    ));
+                }
+            }
+        }
         Ok(formed)
     }
 
     /// The advertised return paths must be the paths the body actually
     /// returns. A header cannot turn a local borrow into caller-owned storage.
-    fn reference_results(&self, module: &terminal_psi::TerminalModule) -> Checked<()> {
+    fn reference_results(
+        &self,
+        references: &mut super::DescriptorAnalysis<'a>,
+        module: &terminal_psi::TerminalModule,
+    ) -> Checked<()> {
         let Some(result) = self.lowered.result.structural().filter(|result| {
             terminal_psi::structural_type_contains_reference_by(
                 |id| module.structural_type(id),
@@ -1976,16 +2046,12 @@ impl Storage<'_> {
             return Ok(());
         };
         let concerns = Construct::Machine;
-        let slots = self
-            .references
-            .borrow_mut()
-            .result_slots(self.machine)
-            .ok_or_else(|| {
-                self.unsupported(
-                    concerns,
-                    "reference result has no complete actual return-source correspondence",
-                )
-            })?;
+        let slots = references.result_slots(self.machine).ok_or_else(|| {
+            self.unsupported(
+                concerns,
+                "reference result has no complete actual return-source correspondence",
+            )
+        })?;
         let actual = terminal_semantics::reference_result_sources(
             self.types,
             &self.lowered.structural_parameters,
@@ -2008,6 +2074,7 @@ impl Storage<'_> {
     /// without a proved disposition remain unavailable.
     fn reference_completions(
         &self,
+        references: &mut super::DescriptorAnalysis<'a>,
         module: &terminal_psi::TerminalModule,
         formed: &[Formed],
     ) -> Checked<()> {
@@ -2076,7 +2143,7 @@ impl Storage<'_> {
                     if let Some(identity) = terminal_semantics::reference_loan_parent(
                         module,
                         self.lowered,
-                        &mut self.references.borrow_mut(),
+                        references,
                         at,
                         &descriptor,
                         formed.iter().filter_map(|loan| {
@@ -2149,14 +2216,15 @@ impl Storage<'_> {
     /// refusal, listed once in the conflicts with what it conflicts with.
     pub(crate) fn loans(
         &self,
+        references: &mut super::DescriptorAnalysis<'a>,
         module: &terminal_psi::TerminalModule,
         tables: &MachineTables,
     ) -> Checked<(Vec<(ObligationId, Checked<()>)>, Vec<ConflictingLoan>)> {
-        self.reference_results(module)?;
-        let mut formed = self.formed(module, tables)?;
-        self.parents(module, &formed)?;
-        self.successor_borrows(&formed)?;
-        self.reference_completions(module, &formed)?;
+        self.reference_results(references, module)?;
+        let mut formed = self.formed(references, module, tables)?;
+        self.parents(references, module, &formed)?;
+        self.successor_borrows(references, &formed)?;
+        self.reference_completions(references, module, &formed)?;
         self.retain_ancestors(&mut formed)?;
         let mut cleanup_flow = std::collections::BTreeMap::new();
         if formed.iter().any(|loan| loan.lifetime.is_some()) {
@@ -2172,9 +2240,7 @@ impl Storage<'_> {
                             terminal_psi::TerminalAffineCleanupAction::InvokeOwned(_)
                         ) {
                             let ordinal = crate::position(ordinal, self.machine)?;
-                            let effect = self
-                                .references
-                                .borrow_mut()
+                            let effect = references
                                 .invocation_flow_at(
                                     self.machine,
                                     position,
@@ -2199,7 +2265,7 @@ impl Storage<'_> {
         let mut verdicts = Vec::with_capacity(formed.len());
         let mut conflicts = Vec::new();
         for (at, loan) in formed.iter().enumerate() {
-            let used = self.uses_retained_loan(loan, &formed, &cleanup_cohorts)?;
+            let used = self.uses_retained_loan(references, loan, &formed, &cleanup_cohorts)?;
             let site = used.map_or(Construct::Obligation(loan.obligation), |(at, _)| at);
             let exclusive = loan.access.is_exclusive();
             let mut found = used.map(|(_, conflict)| (None, conflict));

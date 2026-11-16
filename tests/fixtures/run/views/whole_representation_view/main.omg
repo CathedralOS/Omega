@@ -1,0 +1,18 @@
+// Re-view a shared `&[i32]` as its bytes. The byte view keeps the same
+// backing and holds four bytes for every `i32`.
+machine bytes_of(words: &[i32]) -> u64 requires words.len <= 16 {
+    let bytes: &[u8] = words as &[u8];
+    bytes.len
+}
+
+machine main() crashes Trap {
+    let backing: [i32; 3] = [1, -2, 3];
+    let words: &[i32] = &backing[..];
+    let length: u64 = bytes_of(words);
+    transition length == 12 {
+        true -> done()
+        false -> wrong()
+    }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}

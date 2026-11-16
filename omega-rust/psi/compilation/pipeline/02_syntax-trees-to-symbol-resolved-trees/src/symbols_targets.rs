@@ -133,6 +133,26 @@ mod calls {
                     _ => return SymbolHandle::invalid(),
                 }
             }
+            // A typed static record keeps its Const binder. Select its
+            // member from the exact declared schema just as for an ordinary
+            // parameter; specialization supplies the record value later.
+            if let Some(type_reference) = machine.type_parameters.iter().find_map(|parameter| {
+                if parameter.symbol != receiver_symbol {
+                    return None;
+                }
+                match &parameter.kind {
+                    TypeParameterKind::Const { type_reference } => Some(type_reference),
+                    _ => None,
+                }
+            }) {
+                return call_target_for_type_reference(
+                    machine,
+                    symbols,
+                    child_type_references,
+                    type_reference,
+                    target,
+                );
+            }
             if let Some(parameter) = parameters
                 .iter()
                 .find(|parameter| parameter.symbol == receiver_symbol)
@@ -345,8 +365,9 @@ mod calls {
     /*
         Resolve a compile-time static argument in the role of the binder it fills
         (`wiki/spec/language/modules.md#builtin-type-names`). A type binder reads
-        a builtin or data type and a value binder reads a constant; lexical
-        binders and runtime subjects are the caller's, which knows their kinds.
+        a builtin or data type and a value binder reads a constant or named
+        record; lexical binders and runtime subjects are the caller's, which
+        knows their kinds.
         Otherwise the argument selects a declaration: a machine stands for its
         entry state (a free machine is spelled `work`, an attached one
         `Card::power`) and denotes no runtime value. Lookup never tries both
@@ -375,7 +396,9 @@ mod calls {
         };
         match role {
             BinderRole::Type => return top_level(&[SymbolKind::BuiltinType, SymbolKind::Data]),
-            BinderRole::Value => return top_level(&[SymbolKind::Const]),
+            BinderRole::Value => {
+                return top_level(&[SymbolKind::Const, SymbolKind::Conformance]);
+            }
             BinderRole::Declaration => {}
         }
         if owner.is_empty() {
@@ -501,9 +524,9 @@ mod calls {
         A type binder reads a type binder in scope, then a builtin or data type.
         A value binder reads a value binder in scope, then a parameter or local
         of `subjects` (the enclosing state, or invalid where no runtime value is
-        in scope), then a constant. A binding of the other role is never
-        consulted: `const u16` cannot stand for the type `u16`, and the type
-        never stands in for a missing value.
+        in scope), then a constant or named record. A binding of the other
+        role is never consulted: `const u16` cannot stand for the type `u16`,
+        and the type never stands in for a missing value.
     */
     fn assign_role_argument_symbol(
         symbols: &SymbolTable,
@@ -1823,6 +1846,18 @@ mod tests {
             static_argument_kinds(binder),
             [("identity", Some(SymbolKind::BuiltinType))]
         );
+        let record = "trait Step { machine apply(); }\n\
+                      Hold satisfies Step { machine apply() { } }\n\
+                      machine count<const Selected: Step>() -> u64 { 0u64 }\n\
+                      machine relay<const Selected: Step>() -> u64 { count<Selected>() }\n\
+                      machine main() -> u64 { count<Hold>() }";
+        assert_eq!(
+            static_argument_kinds(record),
+            [
+                ("count", Some(SymbolKind::TypeParameter)),
+                ("count", Some(SymbolKind::Conformance)),
+            ]
+        );
     }
 
     /* Each call's target and the kind its first static argument selected. */
@@ -1876,6 +1911,19 @@ mod tests {
         state_name: String,
         machine_name: String,
         target_symbol: symbols::SymbolHandle,
+    }
+
+    #[test]
+    fn typed_const_record_members_keep_the_declared_schema_requirement() {
+        for body in ["Selected::apply()", "Selected::apply();"] {
+            let text = format!(
+                "trait Step {{ machine apply(); }} trait Other {{ machine apply(); }} machine relay<const Selected: Step>() {{ {body} }}"
+            );
+            let call = resolved_call(&text, "apply");
+            assert_eq!(call.symbols_kind, SymbolKind::State);
+            assert_eq!(call.machine_name, "Step");
+            assert_eq!(call.state_name, "apply");
+        }
     }
 
     fn resolved_call(text: &str, target: &str) -> ResolvedCall {

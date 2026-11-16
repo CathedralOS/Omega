@@ -62,8 +62,8 @@ mod contents;
 
 use crate::body::Qualification;
 use semantic_vocabulary::{
-    BlockId, IdTable, IntegerValue, MachineId, OperationId, PlaceId, ScalarType, StructuralCaseId,
-    StructuralPlaceKind, StructuralTypeId, ValueId,
+    BlockId, DomainSemanticId, IdTable, IntegerValue, MachineId, OperationId, PlaceId, ScalarType,
+    StructuralCaseId, StructuralDomainId, StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use terminal_check_tables::bindings::{Content, PlaceOrigin, PlaceRow, Segment, WriteRow};
 use terminal_check_tables::edges::Destination;
@@ -75,8 +75,9 @@ use terminal_check_tables::{
 use terminal_psi::{
     NativeLayoutCatalog, NativeLayoutFieldIdentity, Operation, OperationKind, OperationResult,
     RecordFieldInitializer, RecordFieldValue, StructuralAccess, StructuralArgument,
-    StructuralCaseDeclaration, StructuralCaseSuccessorEdge, StructuralFieldDeclaration,
-    StructuralFieldType, StructuralMultiplicity, StructuralOperationResult, StructuralPathSegment,
+    StructuralCaseDeclaration, StructuralCaseSuccessorEdge, StructuralDomainDeclaration,
+    StructuralDomainPredicate, StructuralFieldDeclaration, StructuralFieldType,
+    StructuralMultiplicity, StructuralOperationResult, StructuralPathSegment,
     StructuralRecordStorage, StructuralStoreDisposition, StructuralTypeDeclaration,
     StructuralTypeShape, TerminalAffineCleanupAction, TerminalIdentityIndex, TerminalIdentityTable,
     TerminalIdentityTableBuilder, Terminator,
@@ -85,8 +86,8 @@ use terminal_semantics::CollectionExtent;
 
 use super::{Evaluation, Lowering, Reached, Value};
 use crate::body::{
-    Body, Expression, ExpressionKind, RecordField, RecordType, Statement, StorageShape, Target,
-    ValueType,
+    Body, Expression, ExpressionKind, RecordField, RecordType, Signature, Statement, StorageShape,
+    Target, ValueType,
 };
 use crate::{SourceOrigin, Unpositioned, Unserved, refuse};
 
@@ -118,6 +119,7 @@ pub(crate) struct Declared<'a> {
     pub records: Records<'a>,
     pub identities: TerminalIdentityTable,
     pub structural_types: Vec<StructuralTypeDeclaration>,
+    pub structural_domains: crate::qualifications::StructuralDomains,
     pub native_layouts: NativeLayoutCatalog,
 }
 
@@ -136,11 +138,13 @@ pub(crate) struct Declared<'a> {
 /// primitive structural type, so each scalar type such a local has is
 /// declared too, after the records, as the current pipeline declares it:
 /// copyable, with no cleanup and no claim.
-pub(crate) fn declare<'a>(
+pub(crate) fn declare<'a, 'b>(
     entry: MachineId,
     types: &'a IdTable<StructuralTypeId, RecordType>,
-    bodies: &IdTable<MachineId, Body>,
-    signatures: crate::body::Signatures<'_>,
+    bodies: &'b IdTable<MachineId, Body>,
+    signatures: impl Iterator<Item = &'b Signature>,
+    byte_domains: &[crate::body::SourceByteDomain],
+    typed_source: Option<&typed_trees::TypedTrees>,
     mut identities: TerminalIdentityTableBuilder,
 ) -> Checked<Declared<'a>> {
     let mut field_identities = IdTable::default();
@@ -395,12 +399,8 @@ pub(crate) fn declare<'a>(
     // scalar local declared without an initializer or lent to a call, and
     // the place of a borrowed scalar formal. Each needs its primitive type
     // declared once, with the text identity the typed trees gave it.
-    let mut homes = Vec::new();
-    for signature in signatures
-        .machines
-        .values()
-        .chain(signatures.boundaries.values())
-    {
+    let mut homes: Vec<ScalarHomeDemand<'_>> = Vec::new();
+    for signature in signatures {
         for borrowed in &signature.borrowed {
             if let Some(value_type @ ValueType::Scalar(..)) =
                 signature.parameters.get(borrowed.position).copied()
@@ -516,6 +516,124 @@ pub(crate) fn declare<'a>(
             }
         }
     }
+    let mut structural_domains = Vec::<StructuralDomainDeclaration>::new();
+    let mut domain_bindings = Vec::new();
+    let mut semantic_domains = Vec::<(TerminalIdentityIndex, DomainSemanticId)>::new();
+    for source in byte_domains {
+        let unavailable = |reason| refuse(entry, Construct::Machine, Unserved::Type(reason));
+        let typed =
+            typed_source.ok_or_else(|| unavailable("byte domain has no retained source owner"))?;
+        let definition = typed
+            .domain_definition_for_instance(source.source.declaration, source.source.identity)
+            .ok_or_else(|| unavailable("byte domain lost its exact theory"))?;
+        if typed_trees::byte_predicates::byte_slice_domain_predicate(typed, definition)
+            .map(|(_, predicate)| predicate)
+            != Some(source.predicate)
+            || !terminal_semantics::byte_predicate_carrier(structural_types.iter(), source.carrier)
+        {
+            return Err(unavailable(
+                "byte domain does not match its source predicate and carrier",
+            ));
+        }
+        if domain_bindings
+            .iter()
+            .any(|(owner, carrier, _)| *owner == source.source && *carrier == source.carrier)
+        {
+            return Err(unavailable(
+                "byte domain repeats its source and carrier declaration",
+            ));
+        }
+        let sources =
+            source::source_identity::toolchain_source_identities(typed.symbols.source_files())
+                .or_else(|error| {
+                    if identities.is_invocation_scoped() {
+                        Ok(Vec::new())
+                    } else {
+                        Err(error)
+                    }
+                })
+                .map_err(|detail| terminal_check_tables::Refusal {
+                    reason: RefusalReason::Unsupported,
+                    machine: entry,
+                    concerns: Construct::Machine,
+                    source_span: None,
+                    detail: format!("byte domain source identity: {detail}"),
+                })?;
+        let declaration =
+            crate::qualifications::domain_identity(typed, &sources, source.source, &mut identities)
+                .map_err(unavailable)?;
+        let semantic_domain = match semantic_domains
+            .iter()
+            .find(|(known, _)| *known == declaration)
+        {
+            Some((_, id)) => *id,
+            None => {
+                let id = u64::try_from(semantic_domains.len())
+                    .ok()
+                    .and_then(|count| count.checked_add(1))
+                    .and_then(DomainSemanticId::new)
+                    .ok_or_else(|| unavailable("semantic byte domain identity overflow"))?;
+                semantic_domains.push((declaration, id));
+                id
+            }
+        };
+        let carrier = structural_types
+            .iter()
+            .find(|row| row.id == source.carrier)
+            .ok_or_else(|| unavailable("byte domain lost its carrier declaration"))?;
+        let identity = byte_domain_identity(&mut identities, declaration, carrier.identity)
+            .map_err(unavailable)?;
+        if structural_domains
+            .iter()
+            .any(|row| row.identity == identity)
+        {
+            return Err(unavailable(
+                "byte domains have competing qualified identities",
+            ));
+        }
+        let id = u64::try_from(structural_domains.len())
+            .ok()
+            .and_then(|count| count.checked_add(1))
+            .and_then(StructuralDomainId::new)
+            .ok_or_else(|| unavailable("structural byte domain identity overflow"))?;
+        let subject = PlaceId::new(1).expect("1 is nonzero");
+        let subject_owner = typed
+            .closed_data_definition(definition.target_type)
+            .map_or(definition.symbol, |subject| subject.symbol);
+        let subject_identity = typed_trees::reflection::construction::schema_type_identity(
+            typed,
+            definition.target_type,
+            subject_owner,
+        )
+        .map_err(|_| unavailable("byte domain lost its exact selected subject application"))?;
+        structural_domains.push(StructuralDomainDeclaration {
+            subject_identity: identities.intern(&subject_identity),
+            // The shared access-plan publisher binds saved rules after the
+            // exact callable declarations and their commitments exist.
+            access_policy: None,
+            required_memberships: Some(Vec::new()),
+            complete_predicate_theory: true,
+            predicate: Some(StructuralDomainPredicate {
+                subject,
+                proposition: semantic_vocabulary::Proposition::Equal(
+                    semantic_vocabulary::ScalarTerm::ByteSequencePredicate {
+                        predicate: source.predicate,
+                        root: subject,
+                        path: Vec::new(),
+                    },
+                    semantic_vocabulary::ScalarTerm::Boolean(true),
+                ),
+            }),
+            id,
+            semantic_domain,
+            identity,
+            carrier: source.carrier,
+            content_projection: None,
+            byte_predicate: Some(source.predicate),
+            establishment_routes: None,
+        });
+        domain_bindings.push((source.source, source.carrier, id));
+    }
     // Scalar fields name a primitive contract, not a nominal storage row.
     // Nominate the canonical existing plain declaration for that contract
     // once, so a reference captures declared field storage rather than
@@ -577,8 +695,66 @@ pub(crate) fn declare<'a>(
         },
         identities: identities.build(),
         structural_types,
+        structural_domains: crate::qualifications::StructuralDomains {
+            declarations: structural_domains,
+            source_bindings: domain_bindings,
+        },
         native_layouts,
     })
+}
+
+pub(crate) fn byte_domain_identity(
+    identities: &mut TerminalIdentityTableBuilder,
+    declaration: TerminalIdentityIndex,
+    carrier: TerminalIdentityIndex,
+) -> Result<TerminalIdentityIndex, &'static str> {
+    let family = identities
+        .text(declaration)
+        .filter(|text| !text.is_empty())
+        .ok_or("byte domain has no declaration identity")?;
+    let carrier_text = identities
+        .text(carrier)
+        .filter(|text| !text.is_empty())
+        .ok_or("byte domain has no carrier identity")?;
+    // Lengths keep embedded separators in source or region names unambiguous.
+    let text = StructuralDomainDeclaration::carrier_qualified_identity(
+        &format!("{}:{family}", family.len()),
+        &format!("{}:{carrier_text}", carrier_text.len()),
+    );
+    if identities.as_table().is_invocation_local(declaration)
+        || identities.as_table().is_invocation_local(carrier)
+    {
+        identities.intern_invocation_local(&text)
+    } else {
+        Ok(identities.intern(&text))
+    }
+}
+
+#[cfg(test)]
+mod byte_domain_identity_tests {
+    use super::*;
+
+    #[test]
+    fn qualified_domains_keep_constituent_boundaries_and_invocation_custody() {
+        let mut identities = TerminalIdentityTableBuilder::default();
+        let first_source = identities.intern("a@b");
+        let first_carrier = identities.intern("c");
+        let second_source = identities.intern("a");
+        let second_carrier = identities.intern("b@c");
+        let first = byte_domain_identity(&mut identities, first_source, first_carrier).unwrap();
+        let second = byte_domain_identity(&mut identities, second_source, second_carrier).unwrap();
+        assert_ne!(first, second, "a source name cannot absorb a carrier name");
+
+        let mut invocation = TerminalIdentityTableBuilder::for_invocation();
+        let local = invocation.intern_invocation_local("local domain").unwrap();
+        let carrier = invocation.intern("view carrier");
+        let qualified = byte_domain_identity(&mut invocation, local, carrier).unwrap();
+        assert!(invocation.as_table().is_invocation_local(qualified));
+        assert_eq!(
+            byte_domain_identity(&mut invocation, local, carrier).unwrap(),
+            qualified
+        );
+    }
 }
 
 /// The one view a record field stores: a shared borrowed byte view.
@@ -715,6 +891,7 @@ fn expression_homes<'b>(
         | ExpressionKind::Float(_)
         | ExpressionKind::ScalarApplication { .. }
         | ExpressionKind::ByteLiteral(_)
+        | ExpressionKind::MachineValue { .. }
         | ExpressionKind::Boolean(_)
         | ExpressionKind::Slot(_) => {}
         ExpressionKind::Borrow { place, home, .. } => {
@@ -734,7 +911,7 @@ fn expression_homes<'b>(
         | ExpressionKind::Establish { operand, .. }
         | ExpressionKind::Referent(operand)
         | ExpressionKind::Field { base: operand, .. }
-        | ExpressionKind::ArrayView { base: operand, .. }
+        | ExpressionKind::CollectionView { base: operand, .. }
         | ExpressionKind::CollectionMeasure { base: operand, .. }
         | ExpressionKind::Payload { base: operand, .. }
         | ExpressionKind::IsCase {
@@ -781,7 +958,12 @@ fn expression_homes<'b>(
             expression_homes(left, homes);
             expression_homes(right, homes);
         }
-        ExpressionKind::Call { arguments, .. } => {
+        ExpressionKind::Call {
+            callee, arguments, ..
+        } => {
+            if let crate::body::CallTarget::Selected { callable, .. } = callee {
+                expression_homes(callable, homes);
+            }
             for argument in arguments {
                 expression_homes(argument, homes);
             }
@@ -854,10 +1036,9 @@ impl Records<'_> {
         }
         let declaration =
             terminal_check_tables::row(self.types, record, machine, Construct::Machine)?;
-        // Byte predicates belong to the storage the byte judgment sees.
-        if matches!(declaration.shape, StorageShape::ByteSequence(_)) {
-            return Ok(());
-        }
+        // Byte descriptors retain their exact domain memberships too. Their
+        // primitive predicates are established separately by the byte judgment;
+        // this transport path neither erases membership nor proves its bytes.
         // A reference's source qualification belongs to its referent. The
         // same path also carries the referent's field qualifications.
         if let StorageShape::Reference { referent, .. } = declaration.shape
@@ -951,12 +1132,6 @@ impl Records<'_> {
             let ValueType::Record(inner, qualification, _) = field.value_type else {
                 continue;
             };
-            // A byte view's domain is decided by the bytes it shows: the
-            // field's own type carries its predicates (`read::bytes`), and
-            // the byte judgment holds every store to them.
-            if !field.byte_predicates.is_empty() || self.is_byte_sequence(inner) {
-                continue;
-            }
             let depth = prefix.len();
             if let Some(case) = case {
                 prefix.push(StructuralPathSegment::Case(case));
@@ -973,12 +1148,6 @@ impl Records<'_> {
             prefix.truncate(depth);
         }
         Ok(())
-    }
-
-    pub(crate) fn is_byte_sequence(&self, record: StructuralTypeId) -> bool {
-        self.types
-            .get(record)
-            .is_some_and(|row| matches!(row.shape, StorageShape::ByteSequence(_)))
     }
 
     pub(crate) fn primitive_types(
@@ -1605,11 +1774,7 @@ impl<'a> Lowering<'a> {
             .result
             .map_or(Qualification::NONE, ValueType::qualification);
         let (whole, projected) = self.memberships(record, after)?;
-        let held = if self.is_byte_sequence(record) {
-            Vec::new()
-        } else {
-            self.qualifications.structural(self.id, record, before)?
-        };
+        let held = self.qualifications.structural(self.id, record, before)?;
         let (shown, displayed) = if matches!(
             self.record_type(record)?.shape,
             StorageShape::Reference { .. }
@@ -1635,7 +1800,11 @@ impl<'a> Lowering<'a> {
             }
             // A byte view's qualification is a predicate over its backing
             // bytes. The ordinary predicate edge proves it of the operand.
-            if !self.is_byte_sequence(record) || before == after {
+            if !matches!(
+                self.record_type(record)?.shape,
+                StorageShape::ByteSequence(_)
+            ) || before == after
+            {
                 return Err(self.internal("a cast that proves predicates adds no domain"));
             }
         }
@@ -1776,13 +1945,6 @@ impl<'a> Lowering<'a> {
         self.records.multiplicity(record, self.id)
     }
 
-    /// A byte view or sequence: its domains are primitive byte predicates,
-    /// which the byte judgment decides from the bytes it shows
-    /// (`read::bytes`), not memberships this one carries.
-    fn is_byte_sequence(&self, record: StructuralTypeId) -> bool {
-        self.records.is_byte_sequence(record)
-    }
-
     /// The memberships of a root holding a value of `record` in
     /// `qualification`: the type's own domains and its fields'.
     pub(super) fn memberships(
@@ -1798,22 +1960,12 @@ impl<'a> Lowering<'a> {
     pub(super) fn produce(
         &mut self,
         operation: OperationId,
-        record: StructuralTypeId,
+        value_type: ValueType,
         kind: OperationKind,
     ) -> Checked<(PlaceId, ExactPlaceId)> {
-        self.produce_qualified(operation, record, Qualification::NONE, kind)
-    }
-
-    /// Emits an operation whose result is a fresh record root of a type in
-    /// `qualification`: a copy, move or call result keeps the domains of the
-    /// value it delivers.
-    pub(super) fn produce_qualified(
-        &mut self,
-        operation: OperationId,
-        record: StructuralTypeId,
-        qualification: Qualification,
-        kind: OperationKind,
-    ) -> Checked<(PlaceId, ExactPlaceId)> {
+        let ValueType::Record(record, qualification, _) = value_type else {
+            return Err(self.internal("a structural result has no complete record type"));
+        };
         let memberships = self.memberships(record, qualification)?;
         let (place, exact) = self.root(
             StructuralPlaceKind::OperationResult {
@@ -1887,10 +2039,10 @@ impl<'a> Lowering<'a> {
             return Ok(place);
         }
         let operation = self.operation_identity(source);
-        let (copy, exact) = self.produce_qualified(
+        let value_type = ValueType::Record(record, qualification, crate::body::Regions::NONE);
+        let (copy, exact) = self.produce(
             operation,
-            record,
-            qualification,
+            value_type,
             OperationKind::StructuralLeafCopy {
                 source: place,
                 path: Vec::new(),
@@ -1918,7 +2070,8 @@ impl<'a> Lowering<'a> {
     }
 
     fn located(&mut self, expression: &Expression) -> Evaluation<Located> {
-        let Some(ValueType::Record(record, qualification, _)) = expression.result else {
+        let Some(value_type @ ValueType::Record(record, qualification, _)) = expression.result
+        else {
             return Err(self.internal("a scalar expression is used as a record"));
         };
         match &expression.kind {
@@ -2022,7 +2175,11 @@ impl<'a> Lowering<'a> {
                     OperationKind::EstablishByteSequenceLiteral {
                         destination: root,
                         bytes: bytes.clone(),
-                        qualifications: Vec::new(),
+                        qualifications: self.qualifications.structural(
+                            self.id,
+                            record,
+                            value_type.qualification(),
+                        )?,
                     },
                 )?;
                 self.write(
@@ -2038,15 +2195,58 @@ impl<'a> Lowering<'a> {
                     fresh: true,
                 }))
             }
-            ExpressionKind::ArrayView {
+            ExpressionKind::CollectionView {
                 base,
                 access,
                 element,
             } => {
                 let captured = continuing!(self.capture_place(base));
+                let ValueType::Record(backing, _, _) = captured.3 else {
+                    return Err(self.internal("a collection view has no collection backing"));
+                };
+                let representation = match self.record_type(backing)?.shape {
+                    StorageShape::FixedArray {
+                        element: stored, ..
+                    }
+                    | StorageShape::ElementView {
+                        element: stored, ..
+                    } => stored != *element,
+                    StorageShape::ByteSequence(_) => false,
+                    _ => return Err(self.internal("a collection view has another backing shape")),
+                };
+                // Measure the captured descriptor, not a later read of its
+                // source expression. The separate safety obligation checks
+                // that scaling this exact count fits the result's u64 count.
+                let source_length = if representation {
+                    let at = Located {
+                        root: captured.0,
+                        path: captured.1.clone(),
+                        place: captured.2,
+                        record: backing,
+                        fresh: false,
+                    };
+                    Some(self.measured_view(&at, expression.source)?.2)
+                } else {
+                    None
+                };
                 let lent = self.captured_loan(base, *access, captured, None)?;
                 let operation = self.operation_identity(expression.source);
                 let before = self.here()?;
+                let region = if let Some(source_length) = source_length {
+                    let obligation = self.obligation(
+                        ObligationKind::OperationSafety {
+                            site: ExecutionSite::Operation(operation),
+                        },
+                        before,
+                        expression.source,
+                    );
+                    terminal_psi::ElementViewRegion::WholeRepresentation {
+                        source_length,
+                        obligation,
+                    }
+                } else {
+                    terminal_psi::ElementViewRegion::WholeCollection
+                };
                 self.obligation(
                     ObligationKind::Loan {
                         captured: lent.place,
@@ -2072,7 +2272,6 @@ impl<'a> Lowering<'a> {
                     },
                     record,
                 )?;
-                let region = terminal_psi::ElementViewRegion::WholeCollection;
                 let kind = match access {
                     language_core::ReferenceAccess::Shared => OperationKind::EstablishElementView {
                         destination: root,
@@ -2093,7 +2292,7 @@ impl<'a> Lowering<'a> {
                     }
                 };
                 let multiplicity = self.records.multiplicity(record, self.id)?;
-                let memberships = self.memberships(record, Qualification::NONE)?;
+                let memberships = self.memberships(record, value_type.qualification())?;
                 self.draft()?.operations.push(Operation::unsuspended(
                     operation,
                     OperationResult::Structural(owned_result(
@@ -2153,6 +2352,10 @@ impl<'a> Lowering<'a> {
                 let source = StructuralArgument {
                     place: captured,
                     path: Vec::new(),
+                    // A window of a descriptor reads it as the descriptor
+                    // measurement does. A mutable byte formal has no access in
+                    // its carrier (its slot holds the permission), so its
+                    // window observes the bytes shared, like `measured_view`.
                     access: match self.record_type(record)?.shape {
                         StorageShape::ByteSequence(
                             terminal_psi::ByteSequenceCarrier::BorrowedView {
@@ -2163,6 +2366,9 @@ impl<'a> Lowering<'a> {
                             access: Some(access),
                             ..
                         } => access,
+                        StorageShape::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BorrowedView { access: None },
+                        ) => StructuralAccess::SharedBorrow,
                         _ => return Err(self.internal("a range lost its descriptor access")),
                     },
                 };
@@ -2207,7 +2413,7 @@ impl<'a> Lowering<'a> {
                         obligation,
                     }
                 };
-                let (root, place) = self.produce(operation, record, kind)?;
+                let (root, place) = self.produce(operation, value_type, kind)?;
                 self.write(
                     place,
                     ProgramPoint::AfterOperation(operation),
@@ -2246,17 +2452,16 @@ impl<'a> Lowering<'a> {
                 callee,
                 required_contract,
                 static_reach_binding,
-                source_call,
                 arguments,
                 designated,
             } => {
                 match continuing!(self.call(
-                    *callee,
+                    callee,
                     *required_contract,
                     arguments,
                     *designated,
                     expression.result,
-                    (expression.source, *source_call, *static_reach_binding),
+                    (expression.source, *static_reach_binding),
                     expression.call_context.unwrap_or_default(),
                 )) {
                     Value::Record(root) => Ok(Reached::Value(Located {
@@ -2303,6 +2508,7 @@ impl<'a> Lowering<'a> {
             ExpressionKind::Integer(_)
             | ExpressionKind::Float(_)
             | ExpressionKind::Boolean(_)
+            | ExpressionKind::MachineValue { .. }
             | ExpressionKind::IsCase { .. }
             | ExpressionKind::ByteElement { .. }
             | ExpressionKind::CollectionMeasure { .. }
@@ -2420,10 +2626,12 @@ impl<'a> Lowering<'a> {
                     Some(ValueType::Record(..)) => qualification,
                     _ => Qualification::NONE,
                 };
-                let (root, place) = self.produce_qualified(
+                let reference_type = value_type.qualified(qualification).ok_or_else(|| {
+                    self.internal("a reference has no qualified structural carrier")
+                })?;
+                let (root, place) = self.produce(
                     operation,
-                    record,
-                    qualification,
+                    reference_type,
                     OperationKind::EstablishReference { source, storage },
                 )?;
                 self.write(
@@ -2472,10 +2680,22 @@ impl<'a> Lowering<'a> {
     }
 
     fn owned_record(&mut self, expression: &Expression) -> Evaluation<PlaceId> {
+        let value_type = expression
+            .result
+            .ok_or_else(|| self.internal("a structural operand has no complete value type"))?;
         let at = continuing!(self.located(expression));
         if at.fresh && at.path.is_empty() {
             return Ok(Reached::Value(at.root));
         }
+        self.copy_or_move_record(at, value_type, expression.source)
+    }
+
+    fn copy_or_move_record(
+        &mut self,
+        at: Located,
+        value_type: ValueType,
+        source: SourceOrigin,
+    ) -> Evaluation<PlaceId> {
         let moving = !self.record_type(at.record)?.copyable;
         let borrowed = self.borrowed_roots.contains(&at.root);
         let mut window = borrowed;
@@ -2507,22 +2727,12 @@ impl<'a> Lowering<'a> {
                 Unserved::Expression("owned extraction from borrowed storage"),
             ));
         }
-        self.name_contents(at.place, ValueType::record(at.record))?;
-        let operation = self.operation_identity(expression.source);
-        let path = self.storage_path(
-            &at.path,
-            ExecutionSite::Operation(operation),
-            expression.source,
-        )?;
-        // The fresh root holds the value the expression denotes, in its
-        // type's domains: a field read keeps the field's declared domains.
-        let qualification = expression
-            .result
-            .map_or(Qualification::NONE, ValueType::qualification);
-        let (root, exact) = self.produce_qualified(
+        self.name_contents(at.place, value_type)?;
+        let operation = self.operation_identity(source);
+        let path = self.storage_path(&at.path, ExecutionSite::Operation(operation), source)?;
+        let (root, exact) = self.produce(
             operation,
-            at.record,
-            qualification,
+            value_type,
             if moving && window {
                 OperationKind::MoveStructuralField {
                     source: at.root,
@@ -2558,7 +2768,7 @@ impl<'a> Lowering<'a> {
                 Content::Vacated,
             )?;
             if at.path.is_empty() && !borrowed {
-                self.retire_homes(&[], expression.source)?;
+                self.retire_homes(&[], source)?;
             }
         }
         Ok(Reached::Value(root))
@@ -2570,7 +2780,7 @@ impl<'a> Lowering<'a> {
     /// binding. The admitted plain slice stores no persistent reference
     /// descriptors, so rebinding has no retained loan of the previous home.
     pub(super) fn bind_record(&mut self, expression: &Expression) -> Evaluation<PlaceId> {
-        let Some(ValueType::Record(record, qualification, _)) = expression.result else {
+        let Some(value_type @ ValueType::Record(record, _, _)) = expression.result else {
             return Err(self.internal("a scalar initializer is used as a record"));
         };
         let value = continuing!(self.record(expression));
@@ -2579,12 +2789,9 @@ impl<'a> Lowering<'a> {
         }
         self.retire_homes(&[], expression.source)?;
         let reserve = self.operation_identity(expression.source);
-        // The home is a place of the local's type, domains included; the
-        // store that fills it delivers them.
-        let (home, exact) = self.produce_qualified(
+        let (home, exact) = self.produce(
             reserve,
-            record,
-            qualification,
+            value_type,
             OperationKind::EstablishStructuralLocal {},
         )?;
         self.write(
@@ -2864,7 +3071,7 @@ impl<'a> Lowering<'a> {
         let operation = self.operation_identity(source);
         let (root, exact) = self.produce(
             operation,
-            home,
+            ValueType::record(home),
             OperationKind::EstablishPrimitiveLocal {
                 value,
                 range_obligation: None,
@@ -2931,7 +3138,7 @@ impl<'a> Lowering<'a> {
         self.owe_domains(operation, self.record_type(record)?.requires.len(), source)?;
         let (root, exact) = self.produce(
             operation,
-            record,
+            ValueType::record(record),
             OperationKind::EstablishRecord {
                 fields: initializers,
             },
@@ -2963,7 +3170,7 @@ impl<'a> Lowering<'a> {
         roster: Vec<(&RecordField, Operand)>,
         source: SourceOrigin,
     ) -> Evaluation<(PlaceId, ExactPlaceId)> {
-        let (root, exact) = self.establish_zeroed(record, source)?;
+        let (root, exact) = self.establish_zeroed(ValueType::record(record), source)?;
         let owed = self.record_type(record)?.requires.len();
         let fields = roster
             .into_iter()
@@ -3092,7 +3299,7 @@ impl<'a> Lowering<'a> {
                 ValueType::Rigid(_) => return Err(self.internal("a rigid array element")),
             };
         let operation = self.operation_identity(source);
-        let (root, exact) = self.produce(operation, array, kind)?;
+        let (root, exact) = self.produce(operation, ValueType::record(array), kind)?;
         self.write(
             exact,
             ProgramPoint::AfterOperation(operation),
@@ -3184,7 +3391,7 @@ impl<'a> Lowering<'a> {
         };
         let operation = self.operation_identity(source);
         self.owe_domains(operation, self.record_type(record)?.requires.len(), source)?;
-        let (root, exact) = self.produce(operation, record, kind)?;
+        let (root, exact) = self.produce(operation, ValueType::record(record), kind)?;
         let at = ProgramPoint::AfterOperation(operation);
         self.write(exact, at, Content::Overwritten)?;
         if !roster.is_empty() {
@@ -3363,7 +3570,7 @@ impl<'a> Lowering<'a> {
             });
         }
         if let (Some(arm), None) = (wildcard, &rest) {
-            self.sources.dead_wildcards.push(arm);
+            self.sources.dead_wildcards.push(arm.into());
         }
         self.terminate(Terminator::StructuralCase {
             source: at.root,
@@ -3809,9 +4016,12 @@ impl<'a> Lowering<'a> {
     /// first: the establishment's domain obligations are stated over them.
     fn establish_zeroed(
         &mut self,
-        record: StructuralTypeId,
+        value_type: ValueType,
         source: SourceOrigin,
     ) -> Checked<(PlaceId, ExactPlaceId)> {
+        let ValueType::Record(record, _, _) = value_type else {
+            return Err(self.internal("zero construction has no complete structural carrier"));
+        };
         let mut zeros = Vec::new();
         let mut owed = 0;
         self.zero_leaves(record, &mut Vec::new(), &mut zeros, &mut owed, source)?;
@@ -3819,7 +4029,7 @@ impl<'a> Lowering<'a> {
         self.owe_domains(operation, owed, source)?;
         let (root, exact) = self.produce(
             operation,
-            record,
+            value_type,
             OperationKind::EstablishZeroedStructural {},
         )?;
         let at = ProgramPoint::AfterOperation(operation);
@@ -3844,8 +4054,8 @@ impl<'a> Lowering<'a> {
             ValueType::Rigid(_) => {
                 return Err(self.internal("a local of a rigid type is declared"));
             }
-            ValueType::Record(record, _, _) => {
-                Bound::Record(self.establish_zeroed(record, source)?.0)
+            value_type @ ValueType::Record(..) => {
+                Bound::Record(self.establish_zeroed(value_type, source)?.0)
             }
             ValueType::Scalar(scalar_type, _) => {
                 let home = self
@@ -4120,6 +4330,13 @@ impl<'a> Lowering<'a> {
                     }
                 },
             },
+            ScalarType::Callable(_) => {
+                return Err(refuse(
+                    self.id,
+                    Construct::Machine,
+                    Unserved::Expression("zero-initialized callable"),
+                ));
+            }
         };
         let operation = self.operation_identity(source);
         match self.emit(operation, Some(scalar_type), kind)? {
@@ -4277,6 +4494,7 @@ impl<'a> Lowering<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::body::CallTarget;
     use crate::{Borrowed, CrashCeiling, Policy, Signature, Termination};
     use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 
@@ -4360,9 +4578,7 @@ mod tests {
                 Statement::discard(Expression {
                     call_context: None,
                     kind: ExpressionKind::Call {
-                        callee: semantic_vocabulary::TargetMachineCallable::Machine(
-                            MachineId::new(2).unwrap(),
-                        ),
+                        callee: CallTarget::Machine(MachineId::new(2).unwrap()),
                         arguments: vec![Expression {
                             call_context: None,
                             kind: ExpressionKind::Borrow {
@@ -4381,7 +4597,6 @@ mod tests {
                         designated: None,
                         required_contract: None,
                         static_reach_binding: None,
-                        source_call: None,
                     },
                     result: Some(plain),
                     source,
@@ -4416,13 +4631,9 @@ mod tests {
             machine,
             &types,
             &bodies,
-            crate::body::Signatures {
-                declarations: &IdTable::default(),
-                declaration_aliases: None,
-                machines: &signatures,
-                boundaries: &IdTable::default(),
-                completions: &IdTable::default(),
-            },
+            signatures.values(),
+            &[],
+            None,
             TerminalIdentityTableBuilder::default(),
         )
         .unwrap();

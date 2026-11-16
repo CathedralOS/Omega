@@ -236,11 +236,16 @@ mod framing {
     pub(super) struct Reader<'a> {
         text: &'a str,
         position: usize,
+        pub(super) callable_regions: bool,
     }
 
     impl<'a> Reader<'a> {
         pub(super) fn new(text: &'a str) -> Self {
-            Self { text, position: 0 }
+            Self {
+                text,
+                position: 0,
+                callable_regions: false,
+            }
         }
 
         pub(super) fn position(&self) -> usize {
@@ -454,8 +459,8 @@ mod framing {
 }
 mod grammar {
     use super::vocabulary::{
-        ConstraintForm, DomainFamily, IndexForm, Label, NameForm, OwnerForm, RegionForm, Spelled,
-        TypeForm, Unadmitted, Vocabulary,
+        CallableForm, ConstraintForm, DomainFamily, IndexForm, Label, NameForm, OwnerForm,
+        RegionForm, Spelled, TypeForm, Unadmitted, Vocabulary,
     };
     use super::{
         Error, Result, TypeIdentityPackageOwnerVisitor, framing::Reader, index, scoped, unadmitted,
@@ -489,7 +494,11 @@ mod grammar {
                     type_identity(reader, visitor)?;
                     if reader.next(b',') {
                         reader.expect(b',')?;
-                        declared_region(reader, visitor)?;
+                        if reader.callable_regions {
+                            region(reader, visitor)?;
+                        } else {
+                            declared_region(reader, visitor)?;
+                        }
                     }
                     Ok(())
                 })
@@ -514,16 +523,14 @@ mod grammar {
                 }
                 Ok(())
             }),
-            TypeForm::Generic | TypeForm::DynamicTrait => {
-                compound(reader, visitor, |reader, visitor| {
-                    name_atom(reader, Label::Name, visitor)?;
-                    while reader.next(b',') {
-                        reader.expect(b',')?;
-                        index::static_argument(reader, visitor)?;
-                    }
-                    Ok(())
-                })
-            }
+            TypeForm::Generic => compound(reader, visitor, |reader, visitor| {
+                name_atom(reader, Label::Name, visitor)?;
+                while reader.next(b',') {
+                    reader.expect(b',')?;
+                    index::static_argument(reader, visitor)?;
+                }
+                Ok(())
+            }),
             TypeForm::Named => compound(reader, visitor, |reader, visitor| {
                 match reader.peek::<IndexForm>() {
                     Some(IndexForm::IntegerConst) => {
@@ -538,6 +545,13 @@ mod grammar {
                 }
             }),
             TypeForm::IndexExpression => compound(reader, visitor, index::expression),
+            TypeForm::Callable => compound(reader, visitor, |reader, visitor| {
+                let previous = reader.callable_regions;
+                reader.callable_regions = true;
+                let result = callable_child(reader, visitor);
+                reader.callable_regions = previous;
+                result
+            }),
         };
         visitor.leave_type(form);
         result
@@ -576,19 +590,84 @@ mod grammar {
         })
     }
 
+    pub(super) fn callable_child(
+        reader: &mut Reader<'_>,
+        visitor: &mut dyn TypeIdentityPackageOwnerVisitor,
+    ) -> Result {
+        let form = reader.production::<CallableForm>()?;
+        compound(reader, visitor, |reader, visitor| {
+            reader.opaque(Label::Kind, visitor)?;
+            match form {
+                CallableForm::Record => {
+                    while reader.next(b',') {
+                        reader.expect(b',')?;
+                        callable_child(reader, visitor)?;
+                    }
+                    Ok(())
+                }
+                CallableForm::Atom => {
+                    reader.expect(b',')?;
+                    reader.opaque(Label::Encoding, visitor)
+                }
+                CallableForm::Name => {
+                    reader.expect(b',')?;
+                    name_atom(reader, Label::Symbol, visitor)
+                }
+                CallableForm::Type => {
+                    reader.expect(b',')?;
+                    type_identity(reader, visitor)
+                }
+                CallableForm::Index => {
+                    reader.expect(b',')?;
+                    index::static_argument(reader, visitor)
+                }
+            }
+        })
+    }
+
     pub(super) fn canonical_const(
         reader: &mut Reader<'_>,
         visitor: &mut dyn TypeIdentityPackageOwnerVisitor,
     ) -> Result {
         compound(reader, visitor, |reader, visitor| {
-            reader.opaque(Label::Type, visitor)?;
+            if reader.callable_regions {
+                let encoded = reader.atom(Label::Type, visitor)?;
+                let mut nested = Reader::new(&encoded);
+                nested.callable_regions = true;
+                type_identity(&mut nested, visitor)?;
+                nested.finish()?;
+            } else {
+                reader.opaque(Label::Type, visitor)?;
+            }
             reader.expect(b',')?;
             reader.opaque(Label::Encoding, visitor)
         })
     }
 
-    pub(super) fn region(reader: &mut Reader<'_>) -> Result {
+    pub(super) fn region(
+        reader: &mut Reader<'_>,
+        visitor: &mut dyn TypeIdentityPackageOwnerVisitor,
+    ) -> Result {
         match reader.production::<RegionForm>()? {
+            RegionForm::Region if reader.callable_regions => {
+                compound(reader, visitor, |reader, visitor| {
+                    if reader.peek::<Label>() == Some(Label::Owner) {
+                        if reader.atom(Label::Owner, visitor)?.as_ref() != "schema" {
+                            return Err(unadmitted(Unadmitted::ApplicationScope));
+                        }
+                    } else {
+                        reader.opaque(Label::Kind, visitor)?;
+                        reader.expect(b',')?;
+                        name_atom(reader, Label::Declaration, visitor)?;
+                    }
+                    reader.expect(b',')?;
+                    let ordinal = reader.atom(Label::Ordinal, visitor)?;
+                    if ordinal.is_empty() || !ordinal.bytes().all(|byte| byte.is_ascii_digit()) {
+                        return Err(Error::MalformedIdentity);
+                    }
+                    Ok(())
+                })
+            }
             RegionForm::Region | RegionForm::Elided | RegionForm::Unresolved => {
                 Err(unadmitted(Unadmitted::ApplicationScope))
             }
@@ -610,7 +689,7 @@ mod grammar {
         visitor: &mut dyn TypeIdentityPackageOwnerVisitor,
     ) -> Result {
         let name = reader.atom(tag, visitor)?;
-        semantic_name(&name, visitor)
+        semantic_name(&name, visitor, reader.callable_regions)
     }
 
     pub(super) fn name_value(
@@ -618,13 +697,18 @@ mod grammar {
         visitor: &mut dyn TypeIdentityPackageOwnerVisitor,
     ) -> Result {
         let name = reader.leaf_atom(visitor)?;
-        semantic_name(&name, visitor)?;
+        semantic_name(&name, visitor, reader.callable_regions)?;
         visitor.static_name(&name)
     }
 
-    fn semantic_name(name: &str, visitor: &mut dyn TypeIdentityPackageOwnerVisitor) -> Result {
+    fn semantic_name(
+        name: &str,
+        visitor: &mut dyn TypeIdentityPackageOwnerVisitor,
+        callable_regions: bool,
+    ) -> Result {
         scoped(visitor, |visitor| {
             let mut reader = Reader::new(name);
+            reader.callable_regions = callable_regions;
             let Some(form) = reader.peek_compound::<NameForm>() else {
                 if reader.opens_vocabulary_compound() {
                     return Err(Error::MalformedIdentity);
@@ -757,7 +841,7 @@ mod grammar {
             constraint(&mut nested, visitor)?;
             nested.finish()?;
         } else {
-            semantic_name(&name, visitor)?;
+            semantic_name(&name, visitor, reader.callable_regions)?;
         }
         while reader.next(b',') {
             reader.expect(b',')?;
@@ -870,6 +954,34 @@ mod index {
                 }
                 Ok(())
             }),
+            IndexForm::RuntimeCall => compound(reader, visitor, |reader, visitor| {
+                let previous = reader.callable_regions;
+                reader.callable_regions = true;
+                let result = (|| {
+                    expression(reader, visitor)?;
+                    reader.expect(b',')?;
+                    grammar::type_identity(reader, visitor)?;
+                    while reader.next(b',') {
+                        reader.expect(b',')?;
+                        if reader.peek::<Label>() == Some(Label::StaticArguments) {
+                            reader.expect_tag(Label::StaticArguments)?;
+                            compound(reader, visitor, |reader, visitor| {
+                                static_argument(reader, visitor)?;
+                                while reader.next(b',') {
+                                    reader.expect(b',')?;
+                                    static_argument(reader, visitor)?;
+                                }
+                                Ok(())
+                            })?;
+                        } else {
+                            expression(reader, visitor)?;
+                        }
+                    }
+                    Ok(())
+                })();
+                reader.callable_regions = previous;
+                result
+            }),
             IndexForm::Call => compound(reader, visitor, |reader, visitor| {
                 grammar::name_atom(reader, Label::Target, visitor)?;
                 while reader.next(b',') {
@@ -950,6 +1062,13 @@ mod index {
             IndexForm::TypeExpression | IndexForm::ZeroValue => {
                 compound(reader, visitor, grammar::type_identity)
             }
+            IndexForm::MachineValue => compound(reader, visitor, |reader, visitor| {
+                let previous = reader.callable_regions;
+                reader.callable_regions = true;
+                let result = grammar::callable_child(reader, visitor);
+                reader.callable_regions = previous;
+                result
+            }),
             IndexForm::Atomic => compound(reader, visitor, |reader, visitor| {
                 expression(reader, visitor)?;
                 reader.expect(b',')?;
@@ -1073,9 +1192,12 @@ mod index {
         visitor: &mut dyn TypeIdentityPackageOwnerVisitor,
     ) -> Result {
         if reader.peek::<RegionForm>().is_some() {
-            return match reader.peek::<RegionForm>() {
-                Some(RegionForm::Region) => grammar::declared_region(reader, visitor),
-                _ => grammar::region(reader),
+            return if !reader.callable_regions
+                && reader.peek::<RegionForm>() == Some(RegionForm::Region)
+            {
+                grammar::declared_region(reader, visitor)
+            } else {
+                grammar::region(reader, visitor)
             };
         }
         if reader.peek::<IndexForm>() == Some(IndexForm::StaticApplication) {
@@ -1256,8 +1378,17 @@ pub mod vocabulary {
             Constrained = "constrained",
             Generic = "generic",
             Named = "named",
-            DynamicTrait = "dynamic-trait",
+
             IndexExpression = "index-expression",
+            Callable = "callable",
+        }
+
+        CallableForm {
+            Record = "callable-record",
+            Atom = "callable-atom",
+            Name = "callable-name",
+            Type = "callable-type",
+            Index = "callable-index",
         }
 
         NameForm {
@@ -1328,6 +1459,7 @@ pub mod vocabulary {
             Subtract = "subtract",
             CaseMembership = "case_membership",
             Call = "call",
+            RuntimeCall = "runtime-call",
             Cast = "cast",
             ArrayLiteral = "array-literal",
             Indexed = "indexed",
@@ -1348,6 +1480,7 @@ pub mod vocabulary {
             /// `static-application(<index>,<argument or lifetime(<text>)>*)`: a
             /// selected declaration with its static operands.
             StaticApplication = "static-application",
+            MachineValue = "machine-value",
             UnsupportedConstSubstitution = "unsupported-const-substitution",
             UnboundMatchSubject = "unbound-match-subject",
         }

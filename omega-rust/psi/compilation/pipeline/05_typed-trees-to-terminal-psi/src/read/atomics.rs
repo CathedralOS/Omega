@@ -227,7 +227,7 @@ impl Program<'_> {
             )
         };
         let (_, entry) = self.declaration(id, target)?;
-        let [parameter] = self.typed.state_parameters(entry) else {
+        let Some([parameter]) = self.typed.state_parameters(entry).as_array() else {
             return Err(reject_ordering());
         };
         let [argument] = arguments else {

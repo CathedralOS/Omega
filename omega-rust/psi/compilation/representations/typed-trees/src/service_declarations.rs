@@ -10,6 +10,130 @@ pub mod provider_declarations {
     use language_semantics::trust_declarations::TrustDeclarations;
     use std::sync::{Arc, OnceLock};
 
+    pub fn closed_provider_requirements(
+        typed: &crate::TypedTrees,
+        template: &crate::machine::Machine,
+    ) -> Vec<crate::type_identity::CallableIdentityId> {
+        typed
+            .machine_specializations
+            .iter()
+            .filter(|receipt| receipt.template == template.symbol)
+            .filter_map(|receipt| typed.machine(receipt.instance))
+            .filter(|instance| {
+                instance.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
+            })
+            .map(|instance| typed.machine_callable_identity(instance))
+            .filter(|identity| identity.is_valid())
+            .collect()
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct NamedProviderApplication {
+        pub declaration: symbols::SymbolHandle,
+        pub capture: arena::Handle<crate::CapturedMachineApplication>,
+    }
+
+    pub enum ProviderApplicationView {
+        None,
+        PhysicalLeaf,
+        External,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum ProviderDeclarationOrigin {
+        Authored(symbols::SymbolHandle),
+        BuildNative {
+            requirement: symbols::SymbolHandle,
+            application: Option<arena::Handle<crate::product_operand::ProductOperandApplication>>,
+        },
+        Toolchain,
+    }
+
+    pub struct ProviderDeclarationRow<'identity> {
+        pub requirement: symbols::SymbolHandle,
+        pub origin: ProviderDeclarationOrigin,
+        pub requirement_identity: &'identity str,
+        pub declared_requirement_identity: &'identity str,
+        pub application: ProviderApplicationView,
+    }
+
+    pub struct ProviderDeclarationRequest<'rows> {
+        pub rows: &'rows [ProviderDeclarationRow<'rows>],
+        pub named_application: Option<NamedProviderApplication>,
+        pub provider_application_identity: Option<&'rows str>,
+        pub installation_reach: bool,
+    }
+
+    pub fn closed_provider_leaf_applications(
+        typed: &crate::TypedTrees,
+        template: &str,
+    ) -> Result<
+        Vec<language_semantics::provider_declarations::ProviderRequirementApplication>,
+        Vec<String>,
+    > {
+        let mut identities = Vec::new();
+        let mut diagnostics = Vec::new();
+        for application in typed
+            .closed_requirement_applications()
+            .filter(|application| {
+                typed
+                    .trait_machine_signature(application.template)
+                    .is_some_and(|(owner, signature)| {
+                        typed.trait_requirement_callable_identity_text(owner, signature) == template
+                    })
+            })
+        {
+            let Some(owner) = typed.trait_definition_by_symbol(application.declaring_trait) else {
+                diagnostics.push("closed requirement application lost its declaring trait".into());
+                continue;
+            };
+            let identity =
+                typed.trait_requirement_callable_identity_text(owner, application.signature);
+            if !identity.is_empty() && identity != template {
+                let Some(receiving_application) = typed
+                    .type_identity_text(application.portable_trait_application_identity)
+                    .filter(|text| !text.is_empty())
+                else {
+                    diagnostics
+                        .push("provider receiving application has no portable identity".into());
+                    continue;
+                };
+                identities.push(
+                    language_semantics::provider_declarations::ProviderRequirementApplication {
+                        requirement: identity,
+                        receiving_application,
+                    },
+                );
+            }
+        }
+        if diagnostics.is_empty() {
+            Ok(identities)
+        } else {
+            Err(diagnostics)
+        }
+    }
+
+    pub fn requirement_reach(
+        typed: &crate::TypedTrees,
+        symbol: symbols::SymbolHandle,
+    ) -> Option<(String, bool, language_semantics::ServiceReachRowId)> {
+        if let Some((owner, requirement)) = typed.trait_machine_signature(symbol) {
+            return Some((
+                typed.trait_requirement_callable_identity_text(owner, requirement),
+                requirement.service_reach_is_installation_bound,
+                requirement.service_reach_row,
+            ));
+        }
+        let requirement = typed.machine_by_symbol(symbol)?;
+        if requirement.supply_mode != language_semantics::MachineSupplyMode::TopLevelRequirement {
+            return None;
+        }
+        Some((
+            typed.machine_callable_identity_text(requirement)?,
+            requirement.service_reach_is_installation_bound,
+            requirement.service_reach_row,
+        ))
+    }
     pub(crate) mod context {
         use crate::TypedTrees;
         use source::DependencyScope;
@@ -479,7 +603,7 @@ pub mod projection {
     }
 
     impl ProjectedServiceSurface<'_> {
-        pub(crate) fn validate_correspondence(&self) -> Result<(), diagnostics::Diagnostic> {
+        pub fn validate_correspondence(&self) -> Result<(), diagnostics::Diagnostic> {
             correspondence::validate(self.program, self)
         }
     }
@@ -678,9 +802,7 @@ pub mod projection {
         schema: ProviderSchemaDeclaration,
     ) -> Option<ProjectedServiceSurface<'program>> {
         let program = context.typed;
-        let [entry] = program.machine_states(requirement) else {
-            return None;
-        };
+        let [entry] = program.machine_states(requirement).as_array()?;
         let requirement_path = program.symbols.display_path(requirement.symbol, "::");
         let (requirement_owner, method_name) = requirement_path.rsplit_once("::")?;
         if requirement_owner.is_empty() || method_name.is_empty() {
@@ -688,6 +810,7 @@ pub mod projection {
         }
         let requirement_identity = program.machine_callable_identity_text(requirement)?;
         let parameters = program.state_parameters(entry);
+        let (parameter_types, result_type) = program.machine_definition_types(requirement)?;
         let published_termination = requirement.termination_plan.interface.published()?;
         let package_identity = program.symbols.symbol_package_identity(requirement.symbol);
         let mut identities = ProviderIdentityTable::default();
@@ -723,11 +846,8 @@ pub mod projection {
                     parameter_count: parameters.len(),
                     declared_type_signature:
                         language_semantics::service_surface::declared_type_signature(
-                            parameters.iter().map(|parameter| {
-                                program
-                                    .package_qualified_type_identity_text(parameter.type_reference)
-                            }),
-                            &program.package_qualified_type_identity_text(entry.return_type),
+                            parameter_types.iter(),
+                            &result_type,
                         )
                         .ok()?,
                     parameter_type_identities: parameters
@@ -782,6 +902,15 @@ pub mod projection {
             {
                 continue;
             }
+            let (parameter_types, result_type, _) = program
+                .requirement_definition_types(scope, signature)
+                .ok_or_else(|| {
+                    projection_failure(
+                        program,
+                        signature.symbol,
+                        "boundary method has no complete applied signature type identity",
+                    )
+                })?;
             requirements.push(ServiceRequirementSource {
                 declaring_trait: trait_definition.symbol,
                 symbol: signature.symbol,
@@ -797,25 +926,8 @@ pub mod projection {
                 parameter_count: program.state_signature_parameters(signature).iter().count(),
                 declared_type_signature:
                     language_semantics::service_surface::declared_type_signature(
-                        program
-                            .state_signature_parameters(signature)
-                            .iter()
-                            .map(|parameter| {
-                                program
-                                    .type_identity_text(scope.package_qualified_type_identity(
-                                        program,
-                                        parameter.type_reference,
-                                    ))
-                                    .unwrap_or_default()
-                            }),
-                        &program
-                            .type_identity_text(
-                                scope.package_qualified_type_identity(
-                                    program,
-                                    signature.return_type,
-                                ),
-                            )
-                            .unwrap_or_default(),
+                        parameter_types.iter(),
+                        &result_type,
                     )
                     .map_err(|reason| projection_failure(program, signature.symbol, reason))?,
                 parameter_type_identities: program
@@ -875,7 +987,7 @@ pub mod projection {
     fn service_progress_premises_for_parameters(
         program: &crate::TypedTrees,
         guarantee: &language_semantics::TerminationGuarantee,
-        parameters: &[crate::signature::StateParameter],
+        parameters: arena::RootRows<'_, crate::signature::StateParameter>,
         identities: &mut ProviderIdentityTable,
     ) -> Vec<ServiceProgressPremise> {
         let language_semantics::TerminationGuarantee::Terminates { premises } = guarantee else {
@@ -2400,6 +2512,8 @@ pub mod signatures {
 
         pub struct PreparedCallingRequest {
             pub boundary: SymbolHandle,
+            /// The exact ordinary parent relationship this owner consumes.
+            pub relationship: SymbolHandle,
             pub name: String,
             pub span: source::SourceSpan,
             instances: Result<HandleSpan<PreparedCallingInstance>, Vec<Diagnostic>>,
@@ -2409,6 +2523,7 @@ pub mod signatures {
             fn default() -> Self {
                 Self {
                     boundary: SymbolHandle::invalid(),
+                    relationship: SymbolHandle::invalid(),
                     name: String::new(),
                     span: source::SourceSpan::default(),
                     instances: Ok(HandleSpan::default()),
@@ -2573,6 +2688,7 @@ pub mod signatures {
                     })();
                     prepared.requests.insert(PreparedCallingRequest {
                         boundary: boundary.symbol,
+                        relationship: relationship.symbol,
                         name: boundary.name.as_str().to_owned(),
                         span,
                         instances,
@@ -2799,7 +2915,7 @@ pub mod signatures {
                 );
             }
             let requirements = typed.trait_machine_signatures(calling_policy);
-            let [requirement] = requirements else {
+            let Some([requirement]) = requirements.as_array() else {
                 return Err(
                     "CallingPolicy must declare exactly one canonical plan requirement".to_owned(),
                 );
@@ -2886,7 +3002,6 @@ pub mod signatures {
                         .iter()
                         .map(|(parameter, actual)| BoundaryTypeBinding {
                             parameter_symbol: *parameter,
-                            parameter_name: typed.symbols.name(*parameter).to_owned(),
                             actual: *actual,
                         })
                         .collect();
@@ -2977,7 +3092,7 @@ pub mod signatures {
             for machine in typed.machines().iter().filter(|machine| {
                 machine.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
             }) {
-                let [entry] = typed.machine_states(machine) else {
+                let Some([entry]) = typed.machine_states(machine).as_array() else {
                     continue;
                 };
                 let requirement_identity = typed
