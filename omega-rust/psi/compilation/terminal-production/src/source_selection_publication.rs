@@ -1556,11 +1556,15 @@ machine entry() -> u64 crashes none {
     Second::pick(repeated)
 }
 "#;
+        calls_from_source(TEXT)
+    }
+
+    fn calls_from_source(text: &str) -> AcceptedTerminalSource {
         let mut sources = source::SourceMap::default();
         let id = sources
             .add_checked_instance(
                 "selection/main.omg".into(),
-                TEXT,
+                text,
                 "selection".into(),
                 Some(semantic_vocabulary::PackageKeyIdentity::from_digest([0xc3; 32]).unwrap()),
                 source::SourceOrigin::User,
@@ -1568,7 +1572,7 @@ machine entry() -> u64 crashes none {
                 source::DependencyScope::Product,
             )
             .source_id;
-        let tokens = source_files_to_tokens::Lexer::new(TEXT).tokenize().unwrap();
+        let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
         let syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(id, &tokens).unwrap();
         let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
             syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
@@ -1608,6 +1612,83 @@ machine entry() -> u64 crashes none {
             terminal_codec::TerminalPublication::Invocation,
         )
         .unwrap()
+    }
+
+    #[test]
+    fn requirement_overloads_keep_their_signatures_and_refuse_header_swaps() {
+        let source = calls_from_source(
+            r#"
+trait Input {
+    machine pick(value: u64) -> u64 reaches none crashes none;
+    machine pick(value: bool) -> bool reaches none crashes none;
+}
+Both satisfies Input {
+    machine pick(value: u64) -> u64 { value }
+    machine pick(value: bool) -> bool { value }
+}
+machine entry() -> u64 crashes none {
+    let flag: bool = Both::pick(true);
+    Both::pick(7u64)
+}
+"#,
+        );
+        let module = source.module();
+        let prepared = prepare(&source, module, None).unwrap();
+        terminal_installation::selection_questions::validate_selection_questions(
+            module,
+            &prepared.questions,
+        )
+        .unwrap();
+        let typed = source.source();
+        let owner = typed
+            .traits()
+            .iter()
+            .find(|owner| owner.name.as_str() == "Input")
+            .unwrap();
+        let identities = typed
+            .trait_machine_signatures(owner)
+            .iter()
+            .map(|signature| {
+                typed
+                    .normalized_hermetic_symbol_identity(signature.symbol)
+                    .unwrap()
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(identities.len(), 2);
+        assert_ne!(identities[0], identities[1]);
+        let calls = module
+            .machines
+            .iter()
+            .flat_map(|machine| {
+                machine.operations().filter_map(move |operation| {
+                    operation.declared_invocation()?;
+                    Some((machine.id, operation.id, operation.required_contract?))
+                })
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(calls.len(), 2);
+        assert_ne!(calls[0].2, calls[1].2);
+        for (original, other) in [(calls[0], calls[1]), (calls[1], calls[0])] {
+            let mut changed = module.clone();
+            let operation = changed
+                .machines
+                .iter_mut()
+                .find(|machine| machine.id == original.0)
+                .unwrap()
+                .blocks
+                .iter_mut()
+                .flat_map(|block| &mut block.operations)
+                .find(|operation| operation.id == original.1)
+                .unwrap();
+            operation.required_contract = Some(other.2);
+            let error = prepare(&source, &changed, None).err().unwrap();
+            assert!(
+                error
+                    .message
+                    .contains("exact caller, public header and body association"),
+                "{error:?}"
+            );
+        }
     }
 
     #[test]
