@@ -244,6 +244,9 @@ machine take(bytes: &[u8]) { }";
                 refusal.detail
             );
         }
-        Ok(_) => panic!("a nominal byte wrapper must not authenticate the canonical u8 element"),
+        Ok(RouteVerdict::Accepted(_)) => {
+            panic!("a nominal byte wrapper must not authenticate the canonical u8 element")
+        }
+        Ok(other) => panic!("the altered element has a different verdict: {other:?}"),
     }
 }
