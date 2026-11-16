@@ -471,7 +471,9 @@ fn decode_case(
         let field_byte_offset = cursor.u32()?;
         let parameter = legalized_operations::LegalizedValueDefinition {
             value: decode_id(cursor, ValueId::new)?,
-            scalar_type: decode_scalar(cursor)?,
+            // A payload parameter is a value of the prepared plan, which carries closed types.
+            scalar_type: semantic_vocabulary::ClosedScalarType::try_from(decode_scalar(cursor)?)
+                .map_err(|_| FixedViewCopyDecodeError::InvalidIntegerType)?,
             definition_site: decode_definition_site(cursor)?,
         };
         let transport = match cursor.byte()? {
@@ -1055,7 +1057,7 @@ mod tests {
                     field_byte_offset: 4,
                     parameter: legalized_operations::LegalizedValueDefinition {
                         value: ValueId::new(9).unwrap(),
-                        scalar_type: ScalarType::Boolean,
+                        scalar_type: semantic_vocabulary::ClosedScalarType::Boolean,
                         definition_site: optimization_unit::ValueDefinitionSite::BlockParameter {
                             block: original.source_target,
                             position: 1,

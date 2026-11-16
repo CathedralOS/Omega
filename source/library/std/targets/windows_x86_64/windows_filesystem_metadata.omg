@@ -30,10 +30,10 @@ reaches FilesystemMetadataQuery {
 machine windows_filesystem_native_read_metadata(path: &[u8] in Path, no_follow: bool) -> WindowsMetadataResult
 reaches FilesystemMetadataQuery {
     let mut wide: [u16; 4096];
-    let count: i64 = windows_wide_path(path, &mut wide);
+    let count: i64 = windows_wide_path(path as -Path, &mut wide);
     wide[4095] = 0;
     transition count > 0 {
-        true -> block select(wide, no_follow)
+        true -> block select(wide as +WindowsNativePath, no_follow)
         false -> (WindowsMetadataResult::Error { code: 87 })
     }
     machine select(wide: [u16; 4096] in WindowsNativePath, no_follow: bool) -> WindowsMetadataResult {
@@ -83,7 +83,7 @@ machine windows_metadata_completion(outcome: WindowsMetadataResult, released: i3
 machine windows_classify_metadata_disk_file(handle: u64) -> i64 in WindowsDiskFileOrAbsent
 reaches FilesystemMetadataQuery {
     let classified: i64 = block windows_metadata_disk_file(handle);
-    classified
+    classified as +WindowsDiskFileOrAbsent
 }
 
 // Keep the raw predicate obligation independent of the qualification the

@@ -4,19 +4,19 @@
 //! and this invocation's scratch, so projection helpers cannot accidentally
 //! discard preparation by accepting only a slice of declarations.
 
-pub(crate) use calling_conventions::terminal_layout::NativeGeometry;
+pub use calling_conventions::terminal_layout::NativeGeometry;
 use semantic_vocabulary::NonDenseIdentities;
 use terminal_psi::StructuralTypeDeclaration;
 
 /// Function contracts normally borrow one shared catalog. Prepare that catalog
 /// once, while still accepting separately retained catalogs in received plans.
 /// Slice identity is only a scratch-sharing key; layout lookup uses semantic IDs.
-pub(crate) struct NativeGeometries<'a> {
+pub struct NativeGeometries<'a> {
     catalogs: Vec<NativeGeometry<'a>>,
 }
 
 impl<'a> NativeGeometries<'a> {
-    pub(crate) fn new(
+    pub fn new(
         declarations: impl Iterator<
             Item = (
                 &'a [StructuralTypeDeclaration],
@@ -47,7 +47,7 @@ impl<'a> NativeGeometries<'a> {
         )
     }
 
-    pub(crate) fn get(
+    pub fn get(
         &self,
         declarations: &[StructuralTypeDeclaration],
         bounds: &[(semantic_vocabulary::StructuralTypeId, u64)],
@@ -63,55 +63,54 @@ impl<'a> NativeGeometries<'a> {
     }
 }
 
-/// The published catalog must belong to the exact module used by origin
-/// admission. Clones of the retained owner share this immutable module.
-pub(crate) fn retained_types<'a>(
-    closed: &'a terminal_codec::ClosedTerminalModule,
+/// Copy the accepted module's retained integer types into the plan's own
+/// membership record. The module must be the exact one origin admission used;
+/// clones of the retained owner share that immutable module.
+pub fn retained_types(
+    closed: &terminal_codec::ClosedTerminalModule,
     psi: terminal_psi::TerminalPsiIdentity,
     module: &terminal_psi::TerminalModule,
-) -> Option<&'a terminal_codec::ClosedTypeCatalog> {
-    (closed.identity() == psi && std::ptr::eq(closed.module(), module))
-        .then(|| closed.closed_types())
+) -> Option<crate::RetainedIntegerTypes> {
+    (closed.identity() == psi && std::ptr::eq(closed.module(), module)).then(|| {
+        crate::RetainedIntegerTypes::from_module(closed.closed_types().retained_integers())
+    })
 }
 
-pub(crate) fn closed_scalar(
-    types: Option<&terminal_codec::ClosedTypeCatalog>,
-    scalar: semantic_vocabulary::ScalarType,
-) -> Option<semantic_vocabulary::ClosedScalarType> {
-    match types {
-        Some(types) => types.scalar(scalar).ok(),
-        None => scalar.try_into().ok(),
-    }
+/// A plan prepared without an accepted module: unit fixtures and the
+/// module-less audit entry.
+pub const UNSEALED: &crate::RetainedIntegerTypes = &crate::RetainedIntegerTypes::Unsealed;
+
+/// An exact integer cast is native when both carriers fit a register shape
+/// and the checking rules admit the conversion.
+pub fn exact_cast_has_native_carriers(
+    source: semantic_vocabulary::IntegerType,
+    target: semantic_vocabulary::IntegerType,
+) -> bool {
+    use semantic_vocabulary::ScalarType;
+    calling_conventions::ValueShape::for_scalar(ScalarType::Integer(source)).is_some()
+        && calling_conventions::ValueShape::for_scalar(ScalarType::Integer(target)).is_some()
+        && source.can_exact_cast_to(target)
 }
 
-pub(crate) fn closed_integer(
-    types: Option<&terminal_codec::ClosedTypeCatalog>,
-    integer: semantic_vocabulary::IntegerType,
-) -> Option<semantic_vocabulary::ClosedIntegerType> {
-    match types {
-        Some(types) => types.integer(integer).ok(),
-        None => integer.try_into().ok(),
-    }
-}
-
-pub(crate) struct NativeInput<'a, T> {
+pub struct NativeInput<'a, T> {
     source: &'a T,
     geometry: &'a NativeGeometry<'a>,
-    closed_types: Option<&'a terminal_codec::ClosedTypeCatalog>,
+    closed_types: &'a crate::RetainedIntegerTypes,
 }
 
 impl<'a, T> NativeInput<'a, T> {
-    #[cfg(test)]
-    pub(crate) fn new(source: &'a T, geometry: &'a NativeGeometry<'a>) -> Self {
-        Self::with_types(source, geometry, None)
+    /// An input with no accepted module behind it: unit fixtures and the
+    /// module-less validator entry.
+    pub fn new(source: &'a T, geometry: &'a NativeGeometry<'a>) -> Self {
+        Self::with_types(source, geometry, UNSEALED)
     }
 
     /// Published inputs retain their exact catalog. Independent plan metadata
     /// has no publication authority and can only close concrete descriptors.
-    pub(crate) fn with_types(
+    pub fn with_types(
         source: &'a T,
         geometry: &'a NativeGeometry<'a>,
-        closed_types: Option<&'a terminal_codec::ClosedTypeCatalog>,
+        closed_types: &'a crate::RetainedIntegerTypes,
     ) -> Self {
         Self {
             source,
@@ -120,25 +119,25 @@ impl<'a, T> NativeInput<'a, T> {
         }
     }
 
-    pub(crate) fn closed_scalar(
+    pub fn closed_scalar(
         &self,
         scalar: semantic_vocabulary::ScalarType,
     ) -> Option<semantic_vocabulary::ClosedScalarType> {
-        closed_scalar(self.closed_types, scalar)
+        self.closed_types.scalar(scalar)
     }
 
-    pub(crate) fn closed_integer(
+    pub fn closed_integer(
         &self,
         integer: semantic_vocabulary::IntegerType,
     ) -> Option<semantic_vocabulary::ClosedIntegerType> {
-        closed_integer(self.closed_types, integer)
+        self.closed_types.integer(integer)
     }
 
-    pub(crate) const fn closed_types(&self) -> Option<&'a terminal_codec::ClosedTypeCatalog> {
+    pub const fn closed_types(&self) -> &'a crate::RetainedIntegerTypes {
         self.closed_types
     }
 
-    pub(crate) fn geometry(&self) -> &'a NativeGeometry<'a> {
+    pub fn geometry(&self) -> &'a NativeGeometry<'a> {
         self.geometry
     }
 }
@@ -151,9 +150,7 @@ impl<T> std::ops::Deref for NativeInput<'_, T> {
     }
 }
 
-pub(crate) type NativeFunction<'a> = NativeInput<'a, legalized_operations::LegalizedScalarFunction>;
-pub(crate) type NativePlan<'a> = NativeInput<'a, abstract_operations::AbstractOperationPlan>;
-pub(crate) type NativeUnit<'a> = NativeInput<'a, optimization_unit::PsiOptimizationUnit>;
+pub type NativeFunction<'a> = NativeInput<'a, crate::LegalizedScalarFunction>;
 
 #[cfg(test)]
 mod tests {
@@ -260,8 +257,9 @@ mod tests {
             super::retained_types(&foreign_owner, published.identity(), published.module())
                 .is_none()
         );
-        let verified =
-            super::NativeInput::with_types(&source, &geometry, Some(published.closed_types()));
+        let retained =
+            super::retained_types(&published, published.identity(), published.module()).unwrap();
+        let verified = super::NativeInput::with_types(&source, &geometry, &retained);
         assert_eq!(verified.closed_integer(integer).unwrap().bits(), 13);
         assert!(verified.closed_scalar(scalar).is_some());
         let foreign = IntegerType::new(IntegerSign::Unsigned, 17).unwrap();

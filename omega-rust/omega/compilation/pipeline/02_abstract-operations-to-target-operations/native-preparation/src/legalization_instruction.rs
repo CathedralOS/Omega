@@ -15,6 +15,7 @@ use target_operations::{
 pub(crate) fn project(
     machine: MachineId,
     facts: &[optimization_unit::AcceptedObligationFact],
+    types: &legalized_operations::RetainedIntegerTypes,
     native: &target_operations::TargetOperationPlan,
     geometry: &crate::native_geometry::NativeGeometry<'_>,
     instruction: &target_operations::TargetInstruction,
@@ -82,6 +83,7 @@ pub(crate) fn project(
                 scalar(
                     machine,
                     facts,
+                    types,
                     operation,
                     result_home.scalar_type,
                     expression,
@@ -204,7 +206,7 @@ pub(crate) fn project(
             ..
         } => Kind::AtomicAccess {
             location: location.clone(),
-            scalar_type: *scalar_type,
+            scalar_type: types.integer(*scalar_type).ok_or_else(Error::custody)?,
             field_byte_offset: *field_byte_offset,
             event: *event,
             outcome: outcome_home
@@ -228,7 +230,9 @@ pub(crate) fn project(
         },
         Operation::ScalarRepresentationView { operand, .. } => Kind::ScalarRepresentationView {
             operand: operand.source_value(),
-            source_type: operand.scalar_type(),
+            source_type: types
+                .scalar(operand.scalar_type())
+                .ok_or_else(Error::custody)?,
         },
         Operation::IeeeFloatCompare {
             comparison,
@@ -623,7 +627,7 @@ pub(crate) fn project(
             return Err(Error::custody());
         }
     };
-    Ok(crate::legalization_source::scalar_graph::instruction::with_metadata(source, kind))
+    crate::legalization_source::scalar_graph::instruction::with_metadata(source, kind, types)
 }
 
 fn result(
@@ -671,6 +675,7 @@ fn boolean_operand(expression: &Boolean) -> Result<ValueId, Error> {
 fn scalar(
     machine: MachineId,
     facts: &[optimization_unit::AcceptedObligationFact],
+    types: &legalized_operations::RetainedIntegerTypes,
     operation: OperationId,
     scalar_type: ScalarType,
     expression: &Scalar,
@@ -700,8 +705,8 @@ fn scalar(
         },
         Scalar::Boolean(Boolean::Equal { left, right, .. }) => Kind::Compare {
             predicate: legalized_operations::LegalizedScalarComparison::Equal,
-            operand_type: ScalarType::Boolean,
-            right_operand_type: ScalarType::Boolean,
+            operand_type: semantic_vocabulary::ClosedScalarType::Boolean,
+            right_operand_type: semantic_vocabulary::ClosedScalarType::Boolean,
             left: boolean_operand(left)?,
             right: boolean_operand(right)?,
         },
@@ -737,8 +742,14 @@ fn scalar(
                 }
                 _ => legalized_operations::LegalizedScalarComparison::LessOrEqual,
             },
-            operand_type: ScalarType::Integer(*scalar_type),
-            right_operand_type: ScalarType::Integer(*right_scalar_type),
+            operand_type: semantic_vocabulary::ClosedScalarType::Integer(
+                types.integer(*scalar_type).ok_or_else(Error::custody)?,
+            ),
+            right_operand_type: semantic_vocabulary::ClosedScalarType::Integer(
+                types
+                    .integer(*right_scalar_type)
+                    .ok_or_else(Error::custody)?,
+            ),
             left: integer_operand(left)?,
             right: integer_operand(right)?,
         },
@@ -776,7 +787,7 @@ fn scalar(
                 ..
             } => Kind::IntegerWiden {
                 operand: integer_operand(operand)?,
-                source_type: *source_type,
+                source_type: types.integer(*source_type).ok_or_else(Error::custody)?,
             },
             Integer::IntegerExactCast {
                 operand,
@@ -785,7 +796,7 @@ fn scalar(
                 ..
             } => Kind::IntegerExactCast {
                 operand: integer_operand(operand)?,
-                source_type: *source_type,
+                source_type: types.integer(*source_type).ok_or_else(Error::custody)?,
                 obligation: *obligation,
                 accepted_fact: fact(*obligation)?,
             },

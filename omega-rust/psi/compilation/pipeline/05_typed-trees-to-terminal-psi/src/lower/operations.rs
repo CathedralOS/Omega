@@ -5,7 +5,7 @@ A record-typed expression is storage and goes to `places`.
 */
 
 use crate::body::Qualification;
-use semantic_vocabulary::{ObligationId, OperationId, ScalarType, ValueId};
+use semantic_vocabulary::{IntegerSign, ObligationId, OperationId, ScalarType, ValueId};
 use terminal_check_tables::obligations::ObligationKind;
 use terminal_check_tables::values::ValueOrigin;
 use terminal_check_tables::{Checked, Construct, ProgramPoint};
@@ -415,8 +415,8 @@ impl Lowering<'_> {
     /// Wrapping shift reduces its count and is total. What each one owes is
     /// Terminal semantics' to say (`integer_policy_bridge`); this names the
     /// operation and mints the obligation the operation carries. A
-    /// Saturating shift owes the Exact count proof under an operation this
-    /// lowering does not emit, and is refused.
+    /// Saturating right shift shares the Exact count proof and result.
+    /// Saturating left shift additionally needs the clamp operation.
     fn policy_operation(
         &mut self,
         strict: Strict,
@@ -468,13 +468,11 @@ impl Lowering<'_> {
                 right,
                 obligation: self.safety(operation, source)?,
             },
-            (Strict::ShiftLeft | Strict::ShiftRight, Policy::Saturating) => {
-                return Err(refuse(
-                    self.id,
-                    self.current.map_or(Construct::Machine, Construct::Block),
-                    Unserved::Expression("saturating shift"),
-                ));
-            }
+            (Strict::ShiftRight, Policy::Saturating) => OperationKind::ExactIntegerShiftRight {
+                value: left,
+                count: right,
+                obligation: self.safety(operation, source)?,
+            },
             // The reader gives no other operation a policy-qualified result,
             // `policy::total` named every total one above, and a Trapping
             // operation is `trapping`'s.
@@ -565,6 +563,109 @@ impl Lowering<'_> {
         )
     }
 
+    /// Clamp a left shift using the bounds of the original value. Shifting
+    /// the upper bound right proves the count before the wrapping primitive
+    /// computes the low bits. For a signed carrier, its lower bound is the
+    /// complement of the upper bound, and arithmetic right shift preserves
+    /// that relation. This keeps the full count and the original semantic width.
+    fn saturating_shift_left(
+        &mut self,
+        value: ValueId,
+        count: ValueId,
+        result: ValueType,
+        source: SourceOrigin,
+    ) -> Checked<Value> {
+        let Some(carrier @ ScalarType::Integer(integer)) = result.scalar() else {
+            return Err(self.internal("a saturating shift has no integer carrier"));
+        };
+        let maximum = integer.maximum_value().ok_or_else(|| {
+            refuse(
+                self.id,
+                self.current.map_or(Construct::Machine, Construct::Block),
+                Unserved::Expression("policy arithmetic at a parameter width"),
+            )
+        })?;
+        let limit = self.emit_scalar(
+            carrier,
+            OperationKind::IntegerConstant { value: maximum },
+            source,
+        )?;
+        let Value::Scalar(upper) = self.strict(
+            Strict::ShiftRight,
+            carrier,
+            limit,
+            count,
+            Some(carrier),
+            source,
+        )?
+        else {
+            return Err(self.internal("an integer shift produces no value"));
+        };
+        let shifted = self.emit_scalar(
+            carrier,
+            OperationKind::WrappingIntegerShiftLeft { value, count },
+            source,
+        )?;
+        let above = self.emit_scalar(
+            ScalarType::Boolean,
+            OperationKind::IntegerLessThan {
+                left: upper,
+                right: value,
+            },
+            source,
+        )?;
+        let mut clamped = self.choose_scalar(above, limit, shifted, carrier, source)?;
+
+        if integer.sign() == IntegerSign::Signed {
+            let lower = self.emit_scalar(
+                carrier,
+                OperationKind::IntegerBitwiseNot { operand: upper },
+                source,
+            )?;
+            let minimum = integer.minimum_value().expect("closed integer carrier");
+            let minimum = self.emit_scalar(
+                carrier,
+                OperationKind::IntegerConstant { value: minimum },
+                source,
+            )?;
+            let below = self.emit_scalar(
+                ScalarType::Boolean,
+                OperationKind::IntegerLessThan {
+                    left: value,
+                    right: lower,
+                },
+                source,
+            )?;
+            clamped = self.choose_scalar(below, minimum, clamped, carrier, source)?;
+        }
+
+        if !result.qualification().is_none() {
+            self.qualify(clamped, Qualification::NONE)?;
+            clamped = self.establish_predicates(
+                clamped,
+                carrier,
+                result.qualification(),
+                &[],
+                None,
+                source,
+            )?;
+        }
+        Ok(Value::Scalar(clamped))
+    }
+
+    fn emit_scalar(
+        &mut self,
+        carrier: ScalarType,
+        kind: OperationKind,
+        source: SourceOrigin,
+    ) -> Checked<ValueId> {
+        let operation = self.operation_identity(source);
+        match self.emit(operation, Some(carrier), kind)? {
+            Value::Scalar(value) => Ok(value),
+            _ => Err(self.internal("a scalar operation produces no scalar value")),
+        }
+    }
+
     /// Body expressions and ranking observations use the same selected
     /// arithmetic policy. Reconstructing an observation must not turn a
     /// wrapping or saturating operation into exact arithmetic.
@@ -588,7 +689,16 @@ impl Lowering<'_> {
             None => None,
             _ => return Err(self.internal("a strict operation has a non-scalar result")),
         };
-        if let Some(policy) = policy {
+        if (*operation, *policy) == (Strict::ShiftLeft, Some(Policy::Saturating)) {
+            self.saturating_shift_left(
+                left,
+                right,
+                expression
+                    .result
+                    .ok_or_else(|| self.internal("a shift has no result type"))?,
+                expression.source,
+            )
+        } else if let Some(policy) = policy {
             self.policy_operation(*operation, *policy, left, right, result, expression.source)
         } else {
             self.strict(

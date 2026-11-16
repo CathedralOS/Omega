@@ -13,7 +13,7 @@ use omega::language::core::narrow_i64_to_u64_wrapping;
 machine windows_open_reparse(path: &[u16; 4096] in WindowsNativePath) -> i64 in WindowsPrivateNonalertFileOrAbsent
 reaches FilesystemMetadataQuery {
     let handle: i64 = block windows_open_reparse_handle(path);
-    handle
+    handle as +WindowsPrivateNonalertFileOrAbsent
 }
 machine windows_open_reparse_handle(path: &[u16; 4096] in WindowsNativePath) -> i64
 ensures result != -1
@@ -27,9 +27,9 @@ reaches FilesystemMetadataQuery {
     transition count > 0 && count <= output.len { true -> block path(path, output, count) false -> (-87) }
     machine path(path: &[u8] in Path, output: &mut [u8], count: u64) -> i64 {
         let mut wide: [u16; 4096];
-        let units: i64 = windows_wide_path(path, &mut wide);
+        let units: i64 = windows_wide_path(path as -Path, &mut wide);
         wide[4095] = 0;
-        transition units > 0 { true -> block open(wide, output, count) false -> (-87) }
+        transition units > 0 { true -> block open(wide as +WindowsNativePath, output, count) false -> (-87) }
     }
     machine open(path: [u16; 4096] in WindowsNativePath, output: &mut [u8], count: u64) -> i64 {
         let handle: i64 in WindowsPrivateNonalertFileOrAbsent = block windows_open_reparse(&path);
@@ -41,7 +41,7 @@ reaches FilesystemMetadataQuery {
     machine query(handle: i64 in WindowsPrivateNonalertFileOrAbsent, output: &mut [u8], count: u64) -> i64
     requires (handle as -WindowsPrivateNonalertFileOrAbsent) != 0 {
         let result: i64 = block windows_reparse_query(handle, output, count);
-        let released: i32 = block windows_filesystem_native_close_handle(narrow_i64_to_u64_wrapping(handle as i64));
+        let released: i32 = block windows_filesystem_native_close_handle(narrow_i64_to_u64_wrapping(handle as -WindowsPrivateNonalertFileOrAbsent));
         transition result < 0 { true -> (result) false -> complete(result, released) }
     }
     machine complete(result: i64, released: i32) -> i64 {

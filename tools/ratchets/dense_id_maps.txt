@@ -29,9 +29,9 @@
 9 omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/references.rs
 28 omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/scalar.rs
 39 omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/unit.rs
-20 omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization_reference_custody.rs
-1 omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization_scalar_graph.rs
-1 omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization_target.rs
+20 omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/native-preparation/src/legalization_reference_custody.rs
+1 omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/native-preparation/src/legalization_scalar_graph.rs
+1 omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/native-preparation/src/legalization_target.rs
 7 omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/selection.rs
 1 omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/selection_inputs.rs
 1 omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/selection_scalar_graph.rs

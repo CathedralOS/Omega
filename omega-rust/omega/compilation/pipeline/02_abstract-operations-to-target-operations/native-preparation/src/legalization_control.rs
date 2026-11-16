@@ -113,6 +113,7 @@ pub(crate) fn project(
     block: &TargetControlBlock,
     parameters: &[terminal_psi::StructuralParameterDeclaration],
     facts: &[AcceptedObligationFact],
+    types: &legalized_operations::RetainedIntegerTypes,
 ) -> Result<LegalizedScalarTerminator, LegalizationError> {
     let metadata = &block.terminator_metadata;
     let returned = |edge, value| {
@@ -137,7 +138,9 @@ pub(crate) fn project(
             *psi_edge,
             LegalizedScalarReturnValue::Value {
                 value: *source_value,
-                scalar_type: expression.scalar_type(),
+                scalar_type: types
+                    .scalar(expression.scalar_type())
+                    .ok_or_else(LegalizationError::custody)?,
             },
         ),
         TargetControlTerminator::ReturnStructural {
@@ -346,7 +349,9 @@ pub(crate) fn project(
                                     field_byte_offset: payload.field_byte_offset,
                                     parameter: legalized_operations::LegalizedValueDefinition {
                                         value: payload.parameter.value,
-                                        scalar_type: payload.parameter.scalar_type,
+                                        scalar_type: types
+                                            .scalar(payload.parameter.scalar_type)
+                                            .ok_or_else(LegalizationError::custody)?,
                                         definition_site:
                                             optimization_unit::ValueDefinitionSite::BlockParameter {
                                                 block: case.target,

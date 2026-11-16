@@ -8578,7 +8578,7 @@ pub(crate) fn u8_type() -> IntegerType {
     IntegerType::new(IntegerSign::Unsigned, 8).expect("U8")
 }
 pub(crate) fn scalar_shape(scalar: ScalarType) -> Option<ValueShape> {
-    crate::selection::scalar_shape(scalar)
+    ValueShape::for_scalar(scalar)
 }
 
 pub(crate) fn saturating_carrier(integer: IntegerType) -> Option<SaturatingCarrier> {
@@ -8636,11 +8636,7 @@ pub(crate) fn supports_wrapping_division(integer: IntegerType) -> bool {
         && scalar_shape(ScalarType::Integer(integer)).is_some()
 }
 
-pub(crate) fn exact_cast_has_native_carriers(source: IntegerType, target: IntegerType) -> bool {
-    scalar_shape(ScalarType::Integer(source)).is_some()
-        && scalar_shape(ScalarType::Integer(target)).is_some()
-        && source.can_exact_cast_to(target)
-}
+pub(crate) use crate::native_geometry::exact_cast_has_native_carriers;
 
 pub(crate) fn i32_type() -> IntegerType {
     IntegerType::new(IntegerSign::Signed, 32).expect("I32")

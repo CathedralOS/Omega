@@ -64,7 +64,7 @@ pub(super) fn encode(
     encode_len(bytes, function.parameters.len());
     for parameter in &function.parameters {
         crate::codec_bytes::push_encoded(bytes, parameter.value.get().to_le_bytes());
-        encode_scalar_type(bytes, parameter.scalar_type);
+        encode_scalar_type(bytes, parameter.scalar_type.as_checking());
         encode_value_definition_site_identity(bytes, parameter.definition_site);
         encode_placement(bytes, &parameter.placement);
     }
@@ -79,15 +79,15 @@ pub(super) fn encode(
         encode_len(bytes, block.parameters.len());
         for parameter in &block.parameters {
             crate::codec_bytes::push_encoded(bytes, parameter.value.get().to_le_bytes());
-            encode_scalar_type(bytes, parameter.scalar_type);
-            encode_value_definition_site_identity(bytes, parameter.site);
+            encode_scalar_type(bytes, parameter.scalar_type.as_checking());
+            encode_value_definition_site_identity(bytes, parameter.definition_site);
         }
         encode_len(bytes, block.instructions.len());
         for instruction in &block.instructions {
             crate::codec_bytes::push_encoded(bytes, instruction.operation.get().to_le_bytes());
             encode_option(bytes, instruction.result, |bytes, result| {
                 crate::codec_bytes::push_encoded(bytes, result.value.get().to_le_bytes());
-                encode_scalar_type(bytes, result.scalar_type);
+                encode_scalar_type(bytes, result.scalar_type.as_checking());
                 encode_value_definition_site_identity(bytes, result.definition_site);
             });
             match &instruction.kind {
@@ -296,7 +296,7 @@ pub(super) fn encode(
                 } => {
                     bytes.push(167);
                     super::structural_types::encode_structural_argument(bytes, location);
-                    encode_integer_type(bytes, *scalar_type);
+                    encode_integer_type(bytes, scalar_type.as_checking());
                     crate::codec_bytes::push_encoded(bytes, field_byte_offset.to_le_bytes());
                     encode_atomic_event(bytes, *event);
                     bytes.push(u8::from(outcome.is_some()));
@@ -1091,7 +1091,7 @@ pub(super) fn encode(
                 } => {
                     bytes.push(5);
                     crate::codec_bytes::push_encoded(bytes, operand.get().to_le_bytes());
-                    encode_integer_type(bytes, *source_type);
+                    encode_integer_type(bytes, source_type.as_checking());
                 }
                 LegalizedScalarInstructionKind::ScalarRepresentationView {
                     operand,
@@ -1099,7 +1099,7 @@ pub(super) fn encode(
                 } => {
                     bytes.push(171);
                     crate::codec_bytes::push_encoded(bytes, operand.get().to_le_bytes());
-                    encode_scalar_type(bytes, *source_type);
+                    encode_scalar_type(bytes, source_type.as_checking());
                 }
                 LegalizedScalarInstructionKind::IntegerExactCast {
                     operand,
@@ -1109,7 +1109,7 @@ pub(super) fn encode(
                 } => {
                     bytes.push(20);
                     crate::codec_bytes::push_encoded(bytes, operand.get().to_le_bytes());
-                    encode_integer_type(bytes, *source_type);
+                    encode_integer_type(bytes, source_type.as_checking());
                     crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
                     bytes.extend_from_slice(&accepted_fact.bytes());
                 }
@@ -1300,8 +1300,8 @@ pub(super) fn encode(
                         LegalizedScalarComparison::LessThan => 1,
                         LegalizedScalarComparison::LessOrEqual => 2,
                     });
-                    encode_scalar_type(bytes, *operand_type);
-                    encode_scalar_type(bytes, *right_operand_type);
+                    encode_scalar_type(bytes, operand_type.as_checking());
+                    encode_scalar_type(bytes, right_operand_type.as_checking());
                     crate::codec_bytes::push_encoded(bytes, left.get().to_le_bytes());
                     crate::codec_bytes::push_encoded(bytes, right.get().to_le_bytes());
                 }
@@ -1658,7 +1658,7 @@ fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator
                     crate::codec_bytes::push_encoded(bytes, payload.field.get().to_le_bytes());
                     push_bytes!(bytes, payload.field_byte_offset.to_le_bytes());
                     push_bytes!(bytes, payload.parameter.value.get().to_le_bytes());
-                    encode_scalar_type(bytes, payload.parameter.scalar_type);
+                    encode_scalar_type(bytes, payload.parameter.scalar_type.as_checking());
                     encode_value_definition_site_identity(bytes, payload.parameter.definition_site);
                 }
                 encode_len(bytes, case.structural_bindings.len());
@@ -1700,7 +1700,7 @@ fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator
                 LegalizedScalarReturnValue::Value { value, scalar_type } => {
                     bytes.push(1);
                     crate::codec_bytes::push_encoded(bytes, value.get().to_le_bytes());
-                    encode_scalar_type(bytes, *scalar_type);
+                    encode_scalar_type(bytes, scalar_type.as_checking());
                 }
             }
             encode_work(bytes, &returned.work);

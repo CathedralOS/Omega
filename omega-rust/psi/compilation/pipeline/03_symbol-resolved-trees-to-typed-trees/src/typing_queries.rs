@@ -10,7 +10,10 @@ use symbols::{BuiltinTypeAtom, SymbolHandle, SymbolKind};
 use typed_trees::{
     TypedTrees,
     data::DataField,
-    expression::{ExpressionHandle, ExpressionNode, TableNamePath, TableStructLiteral},
+    expression::{
+        BinaryOperator, ExpressionHandle, ExpressionNode, TableNamePath, TableStructLiteral,
+        UnaryOperator,
+    },
     signature::StateParameter,
     types::{TypeReferenceHandle, TypeReferenceNode},
 };
@@ -1095,6 +1098,10 @@ impl DeclaredExpressionTypes {
             {
                 Some(cast.target_type)
             }
+            ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::BitwiseNot => {
+                let operand = self.get(program, owner, unary.operand)?;
+                core_integer_operand(program, operand).map(|_| operand)
+            }
             // Selection supplies the exact declared return type before an enclosing
             // cast is accounted. No contract or membership evidence is inferred.
             ExpressionNode::Binary(binary) if binary.operator.is_arithmetic() => {
@@ -1133,7 +1140,15 @@ impl DeclaredExpressionTypes {
                                 .contains_type_reference(*reference)
                         });
                 }
-                // Only unqualified builtin arithmetic can inherit its carrier.
+                let [left, right] = operands.as_slice() else {
+                    unreachable!("binary operator has two operands")
+                };
+                if let Some(result) =
+                    core_integer_result(program, binary.operator, binary.policy, *left, *right)
+                {
+                    return Some(result);
+                }
+                // Keep the existing bare float and open-carrier queries.
                 // A suffixed policy operation returns the same bare carrier; its
                 // validity and arithmetic policy remain the checker's obligations.
                 let mut result = None;
@@ -1160,6 +1175,90 @@ impl DeclaredExpressionTypes {
             }
             _ => None,
         }
+    }
+}
+
+/// Read the exact carrier and single core policy, without treating ordinary
+/// domain membership as permission to use the core operator signatures.
+fn core_integer_operand(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+) -> Option<(TypeReferenceHandle, BuiltinTypeAtom, ArithmeticDomain)> {
+    use typed_trees::types::TypeConstraintNode;
+    let table = &program.type_reference_table;
+    let (bare, policy) = match table.type_reference(reference) {
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => {
+            let mut policy = ArithmeticDomain::Exact;
+            for constraint in table.constraint_span(*constraints)? {
+                let TypeConstraintNode::ArithmeticDomain(current) = constraint else {
+                    return None;
+                };
+                if *current != ArithmeticDomain::Exact {
+                    if policy != ArithmeticDomain::Exact {
+                        return None;
+                    }
+                    policy = *current;
+                }
+            }
+            (*base_type, policy)
+        }
+        _ => (reference, ArithmeticDomain::Exact),
+    };
+    let TypeReferenceNode::Named { symbol, .. } = table.type_reference(bare) else {
+        return None;
+    };
+    let atom @ BuiltinTypeAtom::Integer(_) = program.symbols.builtin_type_atom(*symbol)? else {
+        return None;
+    };
+    Some((bare, atom, policy))
+}
+
+/// What a core integer operator returns before any enclosing cast. An
+/// anonymous numeric operand lands in a known carrier as a plain operand.
+fn core_integer_result(
+    program: &TypedTrees,
+    operator: BinaryOperator,
+    written: ArithmeticDomain,
+    left: Option<TypeReferenceHandle>,
+    right: Option<TypeReferenceHandle>,
+) -> Option<TypeReferenceHandle> {
+    let read = |reference| match reference {
+        Some(reference) => core_integer_operand(program, reference).map(Some),
+        None => Some(None),
+    };
+    let left_type = read(left)?;
+    let right_type = read(right)?;
+    let policy = |operand: Option<(TypeReferenceHandle, BuiltinTypeAtom, ArithmeticDomain)>| {
+        operand.map_or(ArithmeticDomain::Exact, |(_, _, policy)| policy)
+    };
+    if written != ArithmeticDomain::Exact
+        && [policy(left_type), policy(right_type)]
+            .into_iter()
+            .any(|policy| policy != ArithmeticDomain::Exact)
+    {
+        return None;
+    }
+    if operator.is_shift() {
+        // The count can land an anonymous value's carrier, but the result
+        // of shifting that value still carries no count qualification.
+        return left.or_else(|| right_type.map(|(bare, _, _)| bare));
+    }
+    if let (Some((_, left_carrier, _)), Some((_, right_carrier, _))) = (left_type, right_type)
+        && left_carrier != right_carrier
+    {
+        return None;
+    }
+    let result_policy = operator.core_integer_policy(policy(left_type), policy(right_type))?;
+    if result_policy == ArithmeticDomain::Exact {
+        return left_type.or(right_type).map(|(bare, _, _)| bare);
+    }
+    if policy(left_type) == result_policy {
+        left
+    } else {
+        right
     }
 }
 

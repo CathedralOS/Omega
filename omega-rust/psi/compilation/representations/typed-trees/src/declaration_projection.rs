@@ -211,12 +211,12 @@ fn project_declarations(
                         removed_declarations.insert(declaration.symbol);
                     }
                 }
-                let roots = declarations
-                    .iter()
-                    .filter(|declaration| selected(declaration.symbol))
-                    .cloned()
-                    .collect::<Vec<_>>();
-                projected_roots.$field = program.tables.$table.insert_many(roots);
+                projected_roots.$field = program
+                    .tables
+                    .$table
+                    .project(original_roots.$field, |declaration| {
+                        selected(declaration.symbol)
+                    });
             }};
         }
         project_roots!(const_declarations, const_declarations);
@@ -231,13 +231,10 @@ fn project_declarations(
         project_roots!(traits, traits);
         project_roots!(conformances, conformances);
         project_roots!(wire_schemas, wire_schemas);
-        let machines = program
-            .machines()
-            .iter()
-            .filter(|machine| selected(machine.symbol))
-            .cloned()
-            .collect::<Vec<_>>();
-        projected_roots.machines = program.tables.machines.insert_many(machines);
+        projected_roots.machines = program
+            .tables
+            .machines
+            .project(original_roots.machines, |machine| selected(machine.symbol));
 
         let original = std::mem::replace(&mut program.roots, projected_roots.clone());
         let selection = DeclarationSelection::from_program(&program);

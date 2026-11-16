@@ -1,0 +1,31 @@
+[package]
+name = "native-preparation"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "native_preparation"
+path = "src/lib.rs"
+
+[dependencies]
+provider-admission = { path = "../../../realization/provider-admission" }
+language-core = { path = "../../../../../psi/foundation/language-core" }
+calling-conventions = { path = "../../../backend/calling-conventions" }
+optimization-core = { path = "../../../../foundation/optimization-core" }
+optimization-unit-semantics = { path = "../../../representations/abstract-operations/optimization-unit-semantics" }
+optimization-unit = { path = "../../../representations/abstract-operations/optimization-unit" }
+target = { path = "../../../backend/target" }
+abstract-operations = { path = "../../../representations/abstract-operations" }
+legalized-operations = { path = "../../../representations/target-operations/legalized-operations" }
+target-operations = { path = "../../../representations/target-operations" }
+semantic-vocabulary = { path = "../../../../../psi/foundation/semantic-vocabulary" }
+terminal-psi = { path = "../../../../../psi/compilation/representations/terminal-psi" }
+terminal-semantics = { path = "../../../../../psi/compilation/representations/terminal-psi/semantics" }
+
+terminal-codec = { path = "../../../../../psi/compilation/representations/terminal-psi/codec" }
+
+[dev-dependencies]
+register-environment = { path = "../../../backend/register-environment" }
+selected-instructions = { path = "../../../representations/selected-instructions" }
+target-operations-to-selected-instructions = { path = "../../03_target-operations-to-selected-instructions" }

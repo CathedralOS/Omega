@@ -976,6 +976,24 @@ impl Program<'_> {
                     self.arithmetic_term(id, scope, binary, Some(policy), expected)
                 }
             },
+            ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::BitwiseNot => {
+                let (operand, value_type) = self.term(id, scope, unary.operand, expected)?;
+                let Some(result @ ValueType::Scalar(ScalarType::Integer(carrier), _)) =
+                    crate::policy::bitwise_not_type(value_type)
+                else {
+                    return unserved(
+                        "bitwise complement on an operand without a core word signature",
+                    );
+                };
+                let term = ScalarTerm::integer_bitwise_not(carrier, operand).map_err(|_| {
+                    refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Contract("bitwise complement term"),
+                    )
+                })?;
+                Ok((term, result))
+            }
             ExpressionNode::Cast(cast) => self.clause_cast(id, scope, cast, expected),
             ExpressionNode::Call(call)
                 if self.builtin_call(call, symbols::BuiltinFunction::ContentOld) =>

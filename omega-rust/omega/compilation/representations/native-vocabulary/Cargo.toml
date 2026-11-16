@@ -1,0 +1,16 @@
+[package]
+name = "native-vocabulary"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "native_vocabulary"
+path = "src/lib.rs"
+
+[dependencies]
+optimization-core = { path = "../../../foundation/optimization-core" }
+semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
+terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }
+terminal-semantics = { path = "../../../../psi/compilation/representations/terminal-psi/semantics" }
+terminal-codec = { path = "../../../../psi/compilation/representations/terminal-psi/codec" }

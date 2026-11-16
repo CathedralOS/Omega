@@ -8,7 +8,7 @@ or borrowed restoration obligations.
 Carrier casts start with an unqualified operand and perform an exact scalar
 conversion before adding a policy. Float widening uses the authenticated Core
 conversion whose entire input format is exactly representable in its result.
-Trapping conversions, storage recasts and unserved anonymous operands refuse.
+Storage recasts and unserved anonymous operands refuse here.
 */
 
 use semantic_vocabulary::{MachineId, ScalarType};
@@ -41,12 +41,7 @@ impl Program<'_> {
         // with the policy beside it (`cast.domain`); a target written as a
         // constrained type goes through the type route like any other.
         use numerics::arithmetic::ArithmeticDomain;
-        let named = match cast.domain {
-            ArithmeticDomain::Exact => None,
-            ArithmeticDomain::Wrapping => Some(Policy::Wrapping),
-            ArithmeticDomain::Saturating => Some(Policy::Saturating),
-            ArithmeticDomain::Trapping => return unserved("cast into Trapping"),
-        };
+        let named = Policy::of_domain(cast.domain);
         let target = match (self.value_type(id, cast.target_type)?, named) {
             (
                 ValueType::Scalar(carrier @ ScalarType::Integer(_), Qualification::NONE),
@@ -778,21 +773,12 @@ mod tests {
             }),
             "expression cast naming a domain"
         );
-        // A cast into Trapping is refused before its target is read.
-        assert_eq!(
-            refused(TableCastExpression {
-                domain: ArithmeticDomain::Trapping,
-                ..plain()
-            }),
-            "expression cast into Trapping"
-        );
-        // A plain cast with no target type is refused by the type route,
-        // and so is one into Wrapping or Saturating: the policy is read,
-        // then the carrier it qualifies.
+        // The type route checks the carrier before applying any policy.
         for domain in [
             ArithmeticDomain::Exact,
             ArithmeticDomain::Wrapping,
             ArithmeticDomain::Saturating,
+            ArithmeticDomain::Trapping,
         ] {
             assert_eq!(
                 refused(TableCastExpression { domain, ..plain() }),

@@ -84,6 +84,7 @@ fn retained_instruction_metadata_projects_without_a_node_and_rejects_changed_cus
     let projected = crate::legalization_source::scalar_graph::instruction::project(
         unit.functions[0].machine,
         &unit.accepted_obligation_facts,
+        crate::native_geometry::UNSEALED,
         &target,
         &geometry,
         instruction,
@@ -121,7 +122,9 @@ fn retained_instruction_metadata_projects_without_a_node_and_rejects_changed_cus
     let carried = crate::legalization_source::scalar_graph::instruction::with_metadata(
         &carrying,
         projected.kind.clone(),
-    );
+        crate::native_geometry::UNSEALED,
+    )
+    .unwrap();
     assert_eq!(carried.work, carrying.metadata.work);
     assert_eq!(carried.effect, carrying.metadata.effect);
     assert_eq!(carried.ownership, carrying.metadata.ownership);
@@ -134,6 +137,7 @@ fn retained_instruction_metadata_projects_without_a_node_and_rejects_changed_cus
     let failure = crate::legalization_source::scalar_graph::instruction::project(
         unit.functions[0].machine,
         &unit.accepted_obligation_facts,
+        crate::native_geometry::UNSEALED,
         &target,
         &geometry,
         &missing,
@@ -162,8 +166,14 @@ fn retained_instruction_metadata_projects_without_a_node_and_rejects_changed_cus
                 requirement_obligations: Vec::new(),
             },
         });
-    let failure = crate::legalization_control::project(machine(), &annotated_cleanup, &[], &[])
-        .expect_err("cleanup keeps its cleanup owner, not an authored instruction identity");
+    let failure = crate::legalization_control::project(
+        machine(),
+        &annotated_cleanup,
+        &[],
+        &[],
+        crate::native_geometry::UNSEALED,
+    )
+    .expect_err("cleanup keeps its cleanup owner, not an authored instruction identity");
     assert!(matches!(
         failure,
         crate::LegalizationError::InstructionMetadata {
@@ -264,7 +274,7 @@ fn retained_interrupt_geometry_does_not_authorize_an_unassociated_helper() {
         .unwrap();
     let module = TerminalModule::for_entry(plan.entry);
     let interrupts = provider_admission::AdmittedInstalledInterruptCohort::empty(plan.psi);
-    let evidence = crate::TargetSelectionEvidence {
+    let evidence = crate::PreparationEvidence {
         optimization_unit: unit.identity,
         work_schedule: unit.work_schedule,
         accepted_obligation_facts: &[],
@@ -276,13 +286,12 @@ fn retained_interrupt_geometry_does_not_authorize_an_unassociated_helper() {
         target_context: None,
         module: &module,
     };
-    crate::legalization::legalize_retained_target_operations(
+    crate::legalization::prepare_execution_plan(
         &target,
         evidence,
         origins,
         &interrupts,
-        None,
-        &[],
+        legalized_operations::RetainedIntegerTypes::Unsealed,
     )
     .unwrap();
     // The selector-free helper has a representable operand. Only separately
@@ -303,18 +312,18 @@ fn retained_interrupt_geometry_does_not_authorize_an_unassociated_helper() {
     crate::legalization_source::scalar_graph::instruction::project(
         machine(),
         &[],
+        crate::native_geometry::UNSEALED,
         &target,
         &geometry,
         &target.functions[0].graph.blocks[0].operations[0],
     )
     .unwrap();
-    let error = crate::legalization::legalize_retained_target_operations(
+    let error = crate::legalization::prepare_execution_plan(
         &target,
         evidence,
         origins,
         &interrupts,
-        None,
-        &[],
+        legalized_operations::RetainedIntegerTypes::Unsealed,
     )
     .expect_err("operand geometry cannot invent an admitted helper association");
     assert!(
@@ -358,6 +367,7 @@ fn retained_terminator_projects_without_a_body_and_audit_refuses_changed_evidenc
         &target.functions[0].graph.blocks[0],
         &[],
         &[],
+        crate::native_geometry::UNSEALED,
     )
     .unwrap();
     let legalized_operations::LegalizedScalarTerminator::Return(returned) = projected else {
@@ -365,8 +375,13 @@ fn retained_terminator_projects_without_a_body_and_audit_refuses_changed_evidenc
     };
     assert_eq!(returned.edge, edge(1));
     assert_eq!(returned.work, unit.functions[0].blocks[0].nodes[0].work);
-    crate::legalization::audit_target_operation_plan(&target, &plan, &unit, None)
-        .expect("retained exit matches source");
+    crate::legalization::audit_target_operation_plan(
+        &target,
+        &plan,
+        &unit,
+        crate::native_geometry::UNSEALED,
+    )
+    .expect("retained exit matches source");
     for mutation in 0..4 {
         let mut changed = target.clone();
         let block = &mut changed.functions[0].graph.blocks[0];
@@ -381,7 +396,13 @@ fn retained_terminator_projects_without_a_body_and_audit_refuses_changed_evidenc
             _ => block.terminator = return_unit(9),
         }
         assert!(
-            crate::legalization::audit_target_operation_plan(&changed, &plan, &unit, None).is_err(),
+            crate::legalization::audit_target_operation_plan(
+                &changed,
+                &plan,
+                &unit,
+                crate::native_geometry::UNSEALED
+            )
+            .is_err(),
             "forged exit {mutation}"
         );
     }
@@ -535,7 +556,7 @@ fn selection_honors_the_stored_call_plan_without_recomputing_it() {
         panic!("call");
     };
     assert_eq!(call.call_plan, stored);
-    assert!(crate::selection_call_abi::stored_plan_placements(policy, &call).is_some());
+    assert!(call.stored_plan_placements(policy).is_some());
     // An argument placed somewhere the stored plan does not put it is refused,
     // even where that placement is what a recomputed plan would choose.
     let mut moved = call.clone();
@@ -545,12 +566,12 @@ fn selection_honors_the_stored_call_plan_without_recomputing_it() {
         panic!("scalar argument");
     };
     *placement = evaluated.parameters[0].clone();
-    assert!(crate::selection_call_abi::stored_plan_placements(policy, &moved).is_none());
+    assert!(moved.stored_plan_placements(policy).is_none());
     let mut missing = call.clone();
     missing.arguments.pop();
-    assert!(crate::selection_call_abi::stored_plan_placements(policy, &missing).is_none());
+    assert!(missing.stored_plan_placements(policy).is_none());
     let foreign = CallingPolicy::native_for_target(NativeTarget::linux_arm64());
-    assert!(crate::selection_call_abi::stored_plan_placements(foreign, &call).is_none());
+    assert!(call.stored_plan_placements(foreign).is_none());
 }
 
 #[test]
@@ -584,11 +605,14 @@ fn scalar_parameter_projection_uses_retained_abi_without_a_source_function() {
         scalar_type,
         placement: call_plan.parameters[0].clone(),
     }];
-    let parameters =
-        crate::legalization_source::scalar_graph::parameters(&target.functions[0]).unwrap();
+    let parameters = crate::legalization_source::scalar_graph::parameters(
+        &target.functions[0],
+        crate::native_geometry::UNSEALED,
+    )
+    .unwrap();
     assert_eq!(parameters.len(), 1);
     assert_eq!(parameters[0].value, val(7));
-    assert_eq!(parameters[0].scalar_type, scalar_type);
+    assert_eq!(parameters[0].scalar_type.as_checking(), scalar_type);
     assert_eq!(parameters[0].placement, call_plan.parameters[0]);
     assert_eq!(
         parameters[0].definition_site,
@@ -3439,7 +3463,7 @@ fn select(name: &str, plan: &AbstractOperationPlan, target: TargetOperationPlan)
     }
     let module = TerminalModule::for_entry(plan.entry);
     let interrupts = provider_admission::AdmittedInstalledInterruptCohort::empty(plan.psi);
-    let legalized = crate::legalize_target_operations(
+    let prepared = crate::legalization::legalize_target_operations(
         &target,
         plan,
         &unit,
@@ -3450,16 +3474,21 @@ fn select(name: &str, plan: &AbstractOperationPlan, target: TargetOperationPlan)
             module: &module,
         },
         &interrupts,
-        None,
-        &[],
     )
-    .unwrap_or_else(|error| panic!("{name}: legalize {error:?}"));
+    .unwrap_or_else(|error| panic!("{name}: prepare {error:?}"));
     let environment = register_environment::baseline_target_register_environment(target.target)
         .unwrap_or_else(|error| panic!("{name}: registers {error:?}"));
-    let constraints =
-        crate::optimized::constraints::selection_constraints(&legalized, &environment);
-    let selected = crate::select_instructions(&legalized, &constraints, &environment)
-        .unwrap_or_else(|error| panic!("{name}: select {error:?}"));
+    // From here selection sees the prepared plan and nothing behind it.
+    let selected = target_operations_to_selected_instructions::select_instructions_for_plan(
+        &prepared,
+        target_operations_to_selected_instructions::BoundInstallations {
+            interrupts: &interrupts,
+            entry_execution: None,
+            stack_requirements: &[],
+        },
+        &environment,
+    )
+    .unwrap_or_else(|error| panic!("{name}: select {error:?}"));
     let mut text = format!("== {name}\n");
     for function in selected.plan().functions.iter() {
         for slot in &function.local_storage_slots {
@@ -4065,11 +4094,11 @@ fn ordinary_comparison_metadata_does_not_recover_a_missing_retained_operand_type
     );
     let closed = terminal_codec::ClosedTerminalModule::new(TerminalModule::declarations()).unwrap();
     assert!(closed.closed_types().scalar(scalar).is_err());
-    let retained = crate::native_geometry::NativeInput::with_types(
-        &plan,
-        &geometry,
-        Some(closed.closed_types()),
+    let retained_integers = legalized_operations::RetainedIntegerTypes::from_module(
+        closed.closed_types().retained_integers(),
     );
+    let retained =
+        crate::native_geometry::NativeInput::with_types(&plan, &geometry, &retained_integers);
     assert!(
         crate::legalization_scalar_graph::nodes::validate(
             &function.blocks[0],

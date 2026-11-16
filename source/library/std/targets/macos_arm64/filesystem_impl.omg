@@ -48,15 +48,15 @@ machine macos_arm64_posix_permission_bits(filesystem: &PosixFilesystem) -> u32
 
 machine macos_arm64_posix_encode_open_options(filesystem: &mut PosixFilesystem)
     satisfies PosixFilesystemTarget::encode_open_options {
-    filesystem.open_writable = (filesystem.open_options.write as i32) | (filesystem.open_options.append as i32);
-    filesystem.open_readable = filesystem.open_options.read as i32;
-    filesystem.open_creating = (filesystem.open_options.create as i32) | (filesystem.open_options.create_new as i32);
+    filesystem.open_writable = posix_flag_bit(filesystem.open_options.write) | posix_flag_bit(filesystem.open_options.append);
+    filesystem.open_readable = posix_flag_bit(filesystem.open_options.read);
+    filesystem.open_creating = posix_flag_bit(filesystem.open_options.create) | posix_flag_bit(filesystem.open_options.create_new);
     filesystem.open_flags = ((filesystem.open_writable & (filesystem.open_readable ^ 1))
         | ((filesystem.open_writable & filesystem.open_readable) << 1)
-        | ((filesystem.open_options.append as i32) << 3)
+        | (posix_flag_bit(filesystem.open_options.append) << 3)
         | (filesystem.open_creating << 9)
-        | ((filesystem.open_options.truncate as i32) << 10)
-        | ((filesystem.open_options.create_new as i32) << 11));
+        | (posix_flag_bit(filesystem.open_options.truncate) << 10)
+        | (posix_flag_bit(filesystem.open_options.create_new) << 11));
 }
 
 // Resolve an absent directory hint from the native mode without decoding

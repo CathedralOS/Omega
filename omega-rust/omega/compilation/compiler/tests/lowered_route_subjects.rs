@@ -1705,12 +1705,15 @@ const POLICY_INTEGERS: &[(&str, &str)] = &[
         "machine spare(left: u32 in Trapping, right: u32 in Trapping) -> u32 in Trapping {\n    \
          left + right\n}",
     ),
+    (
+        "trapping_forbidden",
+        "machine spare(left: u32 in Trapping, right: u32 in Trapping) -> u32 in Trapping crashes none { left + right }",
+    ),
 ];
 
-/// An integer of type `T in Wrapping` or `T in Saturating` is judged with
-/// its policy's operations; the route used to refuse every machine that
-/// named such a type (`type constrained`) and every suffixed operator's
-/// rewrite. A policy operation owes what Terminal semantics says it owes: an
+/// Each policy-qualified integer is judged with its policy's operations.
+/// The route used to refuse qualified types (`type constrained`) and every
+/// suffixed operator's rewrite. A policy operation owes what Terminal semantics says it owes: an
 /// add nothing, a divide its divisor. It is never read as the Exact
 /// operation: an Exact add beside a Wrapping one still owes its range. That
 /// a wrapped sum is not taken for the mathematical sum is pinned in
@@ -1750,7 +1753,8 @@ fn a_policy_qualified_integer_is_judged_with_its_policys_operations() {
         // errors of the program, not forms the route does not serve.
         Verdict::Rejected,
         Verdict::Rejected,
-        falls_back("type constrained by Trapping while reading the signature of `spare`"),
+        Verdict::Accepted(2),
+        Verdict::Rejected,
     ];
     assert_eq!(expected.len(), POLICY_INTEGERS.len());
     let mut wrong = Vec::new();

@@ -15,7 +15,6 @@ use terminal_psi::StructuralAccess;
 pub(crate) mod borrowed_argument {
     use super::{
         LegalizedScalarArgument, LegalizedScalarCall, StructuralAccess, ValueShape, scalar_shape,
-        stored_plan_placements,
     };
     use crate::selection::established_view_input::{
         accepts_at, accepts_view_loan, completed_descriptor, element_view_type, view_access,
@@ -521,7 +520,7 @@ pub(crate) mod borrowed_argument {
         argument_index: usize,
         shape: ValueShape,
     ) -> Option<&'call calling_conventions::ValuePlacement> {
-        stored_plan_placements(source.call_plan.policy, call)?;
+        call.stored_plan_placements(source.call_plan.policy)?;
         for argument in &call.arguments {
             if let LegalizedScalarArgument::Scalar {
                 source: value,
@@ -684,7 +683,7 @@ pub(crate) mod input_site {
         source: &'source crate::native_geometry::NativeFunction<'source>,
         site: InvocationSite,
         call: &legalized_operations::LegalizedScalarCall,
-    ) -> Option<&'source abstract_operations::AbstractFunctionResult> {
+    ) -> Option<&'source native_vocabulary::values::AbstractFunctionResult> {
         let InvocationSite::InvokeNoNormal(edge) = site else {
             return None;
         };
@@ -1345,7 +1344,7 @@ pub(crate) mod normalized_foreign {
                 if scalar_shape(result.scalar_type).is_none()
                     || Some(home.defining_operation) != invocation_site.operation()
                     || home.source_value != result.value
-                    || home.scalar_type != result.scalar_type
+                    || home.scalar_type != result.scalar_type.as_checking()
                     || scalar_shape(result.scalar_type) != Some(home.shape)
                     || placement.shape != home.shape
                 {
@@ -1427,9 +1426,7 @@ pub(crate) mod owned_argument {
     use crate::selection::place_declaration::{arrivals, declares_block_parameter};
     use crate::structural_inputs::structural_reference_input::runtime_projection;
 
-    use super::{
-        LegalizedScalarArgument, LegalizedScalarCall, StructuralAccess, stored_plan_placements,
-    };
+    use super::{LegalizedScalarArgument, LegalizedScalarCall, StructuralAccess};
     use legalized_operations::LegalizedScalarInstructionKind;
 
     pub(crate) fn validate_owned_arguments(
@@ -1555,30 +1552,12 @@ pub(crate) mod owned_argument {
                 _ => return None,
             }
         }
-        stored_plan_placements(source.call_plan.policy, call)
+        call.stored_plan_placements(source.call_plan.policy)
     }
 }
 use borrowed_argument::validate_borrowed_argument;
 use calling_conventions::{CallSignature, CallingPolicy, ValueShape};
 
-/// Legalization stored this call's calling-convention plan. Selection checks
-/// that the plan uses the caller's policy and that every argument and the
-/// result sit where the plan puts them; it does not compute the plan again.
-/// The independent audit compares the stored plan with the callee's own plan.
-pub(crate) fn stored_plan_placements(
-    caller: CallingPolicy,
-    call: &LegalizedScalarCall,
-) -> Option<()> {
-    (call.call_plan.policy == caller
-        && call.arguments.len() == call.call_plan.parameters.len()
-        && call
-            .arguments
-            .iter()
-            .zip(&call.call_plan.parameters)
-            .all(|(argument, placement)| argument.placement() == placement)
-        && call.result_placement == call.call_plan.result)
-        .then_some(())
-}
 use legalized_operations::{LegalizedScalarArgument, LegalizedScalarCall};
 use register_environment::ValidatedTargetRegisterEnvironment;
 
@@ -1711,7 +1690,7 @@ pub(crate) fn unit_key(
 
 pub(crate) fn no_normal_key(
     call: &LegalizedScalarCall,
-    declared_result: &abstract_operations::AbstractFunctionResult,
+    declared_result: &native_vocabulary::values::AbstractFunctionResult,
     environment: &ValidatedTargetRegisterEnvironment,
 ) -> Option<RegisterConstraintKey> {
     invocation_key(call, Some(declared_result), environment)
@@ -1719,7 +1698,7 @@ pub(crate) fn no_normal_key(
 
 fn invocation_key(
     call: &LegalizedScalarCall,
-    declared_no_normal_result: Option<&abstract_operations::AbstractFunctionResult>,
+    declared_no_normal_result: Option<&native_vocabulary::values::AbstractFunctionResult>,
     environment: &ValidatedTargetRegisterEnvironment,
 ) -> Option<RegisterConstraintKey> {
     let order = register_argument_order(call);
@@ -1756,7 +1735,7 @@ fn invocation_key(
         declared_no_normal_result.map_or(call.structural_result.is_some(), |result| {
             matches!(
                 result,
-                abstract_operations::AbstractFunctionResult::Structural(_)
+                native_vocabulary::values::AbstractFunctionResult::Structural(_)
             )
         });
     let empty_result = structural_result
@@ -1904,7 +1883,7 @@ pub(crate) fn validate(
             target_operations::CallSiteOwner::Installation {
                 role: target_operations::InstallationCallRole::Work,
                 ..
-            } => &abstract_operations::AbstractFunctionResult::Unit,
+            } => &native_vocabulary::values::AbstractFunctionResult::Unit,
             target_operations::CallSiteOwner::InvokeNoNormal(edge) => input_site::no_normal_result(
                 source,
                 semantic_vocabulary::InvocationSite::InvokeNoNormal(edge),
@@ -2126,8 +2105,8 @@ pub(crate) fn validate(
     Ok(())
 }
 
-pub(crate) fn scalar_shape(scalar_type: ScalarType) -> Option<ValueShape> {
-    ValueShape::for_scalar(scalar_type)
+pub(crate) fn scalar_shape(scalar_type: impl Into<ScalarType>) -> Option<ValueShape> {
+    ValueShape::for_scalar(scalar_type.into())
 }
 
 pub(crate) fn integer_carrier_normalization(
@@ -2208,7 +2187,7 @@ fn scalar_value_shape(
 fn scalar_value_type(
     source: &crate::native_geometry::NativeFunction<'_>,
     value: ValueId,
-) -> Option<ScalarType> {
+) -> Option<semantic_vocabulary::ClosedScalarType> {
     source
         .parameters
         .iter()

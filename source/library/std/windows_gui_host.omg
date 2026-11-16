@@ -90,13 +90,17 @@ public boundary trait WindowsGuiHost {
         SurfacePresentation + FilesystemContentRead + FilesystemContentWrite +
         FilesystemMetadataQuery + FilesystemMetadataMutation + DirectoryEnumeration +
         FilesystemNamespaceMutation
-        crashes none;
+    invokes WindowsGuiIo
+    crashes none;
     machine release_dc(window: u64, device: u64) -> i32 reaches
         SurfacePresentation + FilesystemContentRead + FilesystemContentWrite +
         FilesystemMetadataQuery + FilesystemMetadataMutation + DirectoryEnumeration +
         FilesystemNamespaceMutation
-        crashes none;
-    machine client_rectangle(window: u64, rectangle: &mut WindowsRectangle) -> i32 reaches WindowManagement crashes none;
+    invokes WindowsGuiIo
+    crashes none;
+    machine client_rectangle(window: u64, rectangle: &mut WindowsRectangle) -> i32 reaches WindowManagement
+    invokes WindowsGuiIo
+    crashes none;
     // The caller lends live BITMAPINFO and pixel storage for this synchronous call.
     machine stretch_dibits(device: u64, destination_x: i32, destination_y: i32,
         destination_width: i32, destination_height: i32, source_x: i32, source_y: i32,
@@ -105,7 +109,8 @@ public boundary trait WindowsGuiHost {
             SurfacePresentation + FilesystemContentRead + FilesystemContentWrite +
             FilesystemMetadataQuery + FilesystemMetadataMutation + DirectoryEnumeration +
             FilesystemNamespaceMutation
-        crashes none;
+    invokes WindowsGuiIo
+    crashes none;
     // Asynchronous virtual-key state. One means the key was down at call time;
     // the raw pressed-since-last-call latch of GetAsyncKeyState is discarded.
     machine key_state(virtual_key: u32) -> u64 reaches GlobalInputObservation

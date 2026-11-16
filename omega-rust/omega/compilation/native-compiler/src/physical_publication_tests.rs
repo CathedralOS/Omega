@@ -107,7 +107,7 @@ fn reject_changed_entry_literal(
     *value = IntegerValue::Unsigned(8);
 
     let optimized = target.optimized();
-    let error = target_operations_to_selected_instructions::verify_target_operation_plan_with_closed_module(
+    let error = native_preparation::verify_target_operation_plan_with_closed_module(
         &mismatched,
         optimized.plan(),
         optimized.unit(),
@@ -118,11 +118,165 @@ fn reject_changed_entry_literal(
     .expect_err("a retained target literal must agree with the compiled source");
     assert!(
         matches!(error,
-            target_operations_to_selected_instructions::TargetOperationAuditError::SourceCustodyMismatch {
+            native_preparation::TargetOperationAuditError::SourceCustodyMismatch {
                 machine: Some(rejected_machine), ..
             } if rejected_machine == entry),
         "{error:?}"
     );
+}
+
+/// The decisive checks on the plan stage 02 published for a compiled program.
+///
+/// First the plan is selected with nothing but itself, its bound installations
+/// and the register environment: the selection entry takes no source module,
+/// abstract program or optimization-unit table, so none can be consulted.
+/// Then three separate corruptions are each refused by the check that owns
+/// them: a narrowed value type and a dropped proof record by stage 02's
+/// validator, and installations admitted for another program by the binding
+/// check in front of selection.
+fn check_published_plan(
+    target: &abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations,
+    entry: MachineId,
+) {
+    use legalized_operations::{PreparedExecutionPlan, RetainedIntegerTypes};
+    use native_preparation::TargetOperationAuditError::PublishedPlanMismatch;
+    use semantic_vocabulary::{ClosedIntegerType, ClosedScalarType};
+    use target_operations_to_selected_instructions::{
+        BoundInstallations, InstallationBindingError, OptimizedSelectionPipelineError,
+        select_instructions_for_plan,
+    };
+
+    let optimized = target.optimized();
+    let verify = |prepared: &PreparedExecutionPlan| {
+        native_preparation::verify_execution_plan(
+            prepared,
+            target.target_operations(),
+            optimized.plan(),
+            optimized.unit(),
+            target.boundary_origins(),
+            target.lowering_facts().installed_interrupts(),
+            target.lowering_facts().closed_module(),
+        )
+    };
+    let published = target.execution_plan();
+    verify(published).expect("the published plan equals its independent derivation");
+
+    let environment =
+        register_environment::baseline_target_register_environment(target.target()).unwrap();
+    let installations = BoundInstallations {
+        interrupts: target.lowering_facts().installed_interrupts(),
+        entry_execution: target.installed_entry_execution(),
+        stack_requirements: target.installed_stack_requirements(),
+    };
+    let selected = select_instructions_for_plan(published, installations, &environment)
+        .expect("selection needs only the plan, its installations and the registers");
+    assert!(
+        selected
+            .plan()
+            .functions
+            .iter()
+            .any(|function| function.machine == entry),
+        "the entry was selected"
+    );
+
+    let reseal = |plan| PreparedExecutionPlan::seal(plan, published.receipt().validator());
+    let entry_function = |plan: &mut legalized_operations::LegalizedOperationPlan| {
+        plan.scalar_functions
+            .iter()
+            .position(|function| function.machine == entry)
+            .expect("the plan holds the entry")
+    };
+
+    // A value's concrete type is part of the plan.
+    let mut narrowed = published.plan().clone();
+    let index = entry_function(&mut narrowed);
+    let result = narrowed.scalar_functions[index]
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.instructions)
+        .find_map(|instruction| instruction.result.as_mut())
+        .expect("the entry defines a value");
+    let wide =
+        ClosedScalarType::Integer(ClosedIntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+    assert_eq!(result.scalar_type, wide);
+    result.scalar_type =
+        ClosedScalarType::Integer(ClosedIntegerType::new(IntegerSign::Unsigned, 32).unwrap());
+    assert!(
+        matches!(
+            verify(&reseal(narrowed)),
+            Err(PublishedPlanMismatch { machine: Some(machine), part: "a block, instruction or terminator" })
+                if machine == entry
+        ),
+        "a narrowed value type is refused"
+    );
+
+    // So is the record of which integer types the module retains.
+    let mut unsealed = published.plan().clone();
+    unsealed.retained_integers = RetainedIntegerTypes::Unsealed;
+    assert!(matches!(
+        verify(&reseal(unsealed)),
+        Err(PublishedPlanMismatch { machine: None, .. })
+    ));
+
+    // Proof evidence stays with the function it was accepted for. This small
+    // program records none, so the corruption is a record the sources lack;
+    // a program that has some loses one instead. Either way the plan then
+    // claims evidence its sources do not.
+    let mut forged = published.plan().clone();
+    let index = entry_function(&mut forged);
+    let facts = &mut forged.scalar_functions[index].ownership_frontier_facts;
+    if facts.pop().is_none() {
+        facts.push(optimization_unit::OwnershipFrontierFact::new(
+            published.plan().psi,
+            entry,
+            optimization_unit::OwnershipFrontierSite::BlockEntry(BlockId::new(1).unwrap()),
+            optimization_unit::OwnershipFrontierSnapshot {
+                claims: Vec::new(),
+                owned_places: Vec::new(),
+                partial_custody: Vec::new(),
+            },
+        ));
+    }
+    assert!(
+        matches!(
+            verify(&reseal(forged)),
+            Err(PublishedPlanMismatch { machine: Some(machine), part: "ownership-frontier facts" })
+                if machine == entry
+        ),
+        "a changed proof record is refused"
+    );
+
+    // The plan lists the installations that survived lowering; one the target
+    // program does not contain is refused.
+    let mut installed = published.plan().clone();
+    installed
+        .installation_operations
+        .push(OperationId::new(4096).unwrap());
+    assert!(matches!(
+        verify(&reseal(installed)),
+        Err(PublishedPlanMismatch {
+            machine: None,
+            part: "the surviving installations differ from the target's"
+        })
+    ));
+
+    // Installations admitted for another program cannot be bound to this plan.
+    let mut other_program = published.plan().psi;
+    other_program.program_fingerprint = terminal_psi::SemanticFingerprint::from_bytes([9; 32]);
+    let foreign = terminal_psi_to_abstract_operations::provider_admission::AdmittedInstalledInterruptCohort::empty(other_program);
+    let error = select_instructions_for_plan(
+        published,
+        BoundInstallations {
+            interrupts: &foreign,
+            ..installations
+        },
+        &environment,
+    )
+    .expect_err("a foreign interrupt cohort is refused");
+    assert!(matches!(
+        error,
+        OptimizedSelectionPipelineError::Binding(InstallationBindingError::InterruptCohortProgram)
+    ));
 }
 
 fn constant_artifact(through_boundary: bool) -> Arc<CanonicalTerminalArtifact> {
@@ -355,6 +509,7 @@ fn check_publication(through_boundary: bool) {
     )
     .expect("canonical constant admits without provider authority");
     let (projection, providers) = emit_body(admitted, |target| {
+        check_published_plan(target, bootstrap_entry);
         if !through_boundary {
             reject_changed_entry_literal(target, bootstrap_entry);
         }
