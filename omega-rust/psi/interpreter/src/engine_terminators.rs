@@ -2653,6 +2653,7 @@ impl TerminalExecution<'_> {
             return meter_status(error).map(TerminatorFlow::Yield);
         }
         let result = self.scalar_value(*value)?;
+        self.soundness_oracle_on_return(machine, Some(result));
         self.continue_cleanup_actions(
             cleanup_actions.into_iter(),
             CleanupContinuation::Return(CompletedReturn::plain(TerminalExecutionResult::Scalar(
@@ -2685,6 +2686,7 @@ impl TerminalExecution<'_> {
         if let Err(error) = meter.charge_terminator(terminator) {
             return meter_status(error).map(TerminatorFlow::Yield);
         }
+        self.soundness_oracle_on_return(machine, None);
         self.continue_cleanup_actions(
             cleanup_actions.into_iter(),
             CleanupContinuation::Return(CompletedReturn::plain(TerminalExecutionResult::Unit)),

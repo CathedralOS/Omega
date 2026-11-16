@@ -580,6 +580,7 @@ pub(crate) mod frames {
             self.current_machine = callee_id;
             self.current = callee.entry;
             self.next_operation = 0;
+            self.soundness_oracle_on_entry(callee);
             Ok(())
         }
 

@@ -46,6 +46,7 @@ mod storage_primitives;
 mod storage_providers;
 mod storage_records_and_arrays;
 mod storage_references;
+mod soundness_oracle;
 
 pub(crate) mod boundary {
     pub(crate) use crate::boundary_effects as effects;
