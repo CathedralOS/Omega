@@ -1,0 +1,214 @@
+diff -ru source/psi/foundation/source.omg source/psi/foundation/source.omg
+--- source/psi/foundation/source.omg	2026-11-16 19:01:31.121633739 +0000
++++ source/psi/foundation/source.omg	2026-11-16 21:52:08.797043701 +0000
+@@ -169,17 +169,17 @@
+     package_count <= 64,
+     dependency_count <= 256,
+ {
+-    bytes: [u8; 4194304] in Trapping;
++    bytes: [u8 in Trapping; 4194304];
+     byte_count: u64;
+-    path_bytes: [u8; 16384] in Trapping;
++    path_bytes: [u8 in Trapping; 16384];
+     path_byte_count: u64;
+-    units: [SourceRange; 512] in Trapping;
+-    paths: [SourceRange; 512] in Trapping;
+-    unit_packages: [u64; 512] in Trapping;
++    units: [SourceRange; 512];
++    paths: [SourceRange; 512];
++    unit_packages: [u64 in Trapping; 512];
+     unit_count: u64;
+-    packages: [PackageRow; 64] in Trapping;
++    packages: [PackageRow; 64];
+     package_count: u64;
+-    dependencies: [DependencyRow; 256] in Trapping;
++    dependencies: [DependencyRow; 256];
+     dependency_count: u64;
+ }
+ 
+diff -ru source/psi/pipeline/01_tokens-to-syntax-trees/parser.omg source/psi/pipeline/01_tokens-to-syntax-trees/parser.omg
+--- source/psi/pipeline/01_tokens-to-syntax-trees/parser.omg	2026-11-16 19:01:31.122141513 +0000
++++ source/psi/pipeline/01_tokens-to-syntax-trees/parser.omg	2026-11-16 21:52:08.796260676 +0000
+@@ -65,9 +65,9 @@
+     type_end: u64 in Trapping;
+     // Type stacks: open type constructors and the static arguments staged
+     // until their list closes.
+-    type_frames: [TypeFrame; 16] in Trapping;
++    type_frames: [TypeFrame; 16];
+     type_frame_depth: u64;
+-    pending_type_arguments: [u64; 32] in Trapping;
++    pending_type_arguments: [u64 in Trapping; 32];
+     pending_type_argument_count: u64;
+     // Lifetime arguments staged like the type arguments, and whether the
+     // static argument just parsed was one (it leaves no row).
+@@ -113,11 +113,11 @@
+     // Open callable scopes and their direct rows. Child headers publish before
+     // their parent; staging keeps each owner's clause and contract ranges
+     // contiguous without mistaking descendant rows for the parent's clauses.
+-    header_frames: [CallableHeaderFrame; 257] in Trapping;
++    header_frames: [CallableHeaderFrame; 257];
+     header_depth: u64;
+-    header_clauses: [Clause; 2048] in Trapping;
++    header_clauses: [Clause; 2048];
+     header_clause_count: u64;
+-    header_contracts: [Contract; 256] in Trapping;
++    header_contracts: [Contract; 256];
+     header_contract_count: u64;
+     machine_first_component: u64 in Trapping;
+     machine_component_count: u64 in Trapping;
+@@ -138,18 +138,18 @@
+     binding_erased_start: u64 in Trapping;
+     // Expression stacks: operands, pending operators and open brackets, with
+     // the arguments and construction fields staged until their bracket closes.
+-    expression_operands: [u64; 64] in Trapping;
++    expression_operands: [u64 in Trapping; 64];
+     expression_operand_depth: u64;
+-    expression_operators: [PendingOperator; 64] in Trapping;
++    expression_operators: [PendingOperator; 64];
+     expression_operator_depth: u64;
+-    expression_frames: [ExpressionFrame; 32] in Trapping;
++    expression_frames: [ExpressionFrame; 32];
+     expression_frame_depth: u64;
+-    pending_arguments: [u64; 256] in Trapping;
++    pending_arguments: [u64 in Trapping; 256];
+     pending_argument_count: u64;
+-    pending_fields: [ConstructField; 64] in Trapping;
++    pending_fields: [ConstructField; 64];
+     pending_field_count: u64;
+     // A value-position match's arms stage here until its `}`.
+-    pending_arms: [TransitionArm; 64] in Trapping;
++    pending_arms: [TransitionArm; 64];
+     pending_arm_count: u64;
+     expression_result: u64 in Trapping;
+     expression_allow_construct: bool;
+@@ -183,7 +183,7 @@
+     clause_first_argument: u64 in Trapping;
+     clause_argument_count: u64 in Trapping;
+     // A ranking witness's subjects stage here until its list closes.
+-    ranked_subjects: [u64; 8] in Trapping;
++    ranked_subjects: [u64 in Trapping; 8];
+     ranked_subject_count: u64;
+     // Declaration scratch for the trait, conformance, domain, constant and
+     // proposition grammars; one root declaration is under way at a time, and
+diff -ru source/psi/representations/syntax_trees.omg source/psi/representations/syntax_trees.omg
+--- source/psi/representations/syntax_trees.omg	2026-11-16 19:01:31.131066790 +0000
++++ source/psi/representations/syntax_trees.omg	2026-11-16 21:52:08.794920052 +0000
+@@ -948,72 +948,72 @@
+     match_arm_count <= 1024,
+     definition_count <= 256,
+ {
+-    roots: [RootItem; 4096] in Trapping;
++    roots: [RootItem; 4096];
+     root_count: u64;
+-    uses: [UseItem; 1024] in Trapping;
++    uses: [UseItem; 1024];
+     use_count: u64;
+-    members: [IdentifierSpan; 32000] in Trapping;
++    members: [IdentifierSpan; 32000];
+     member_count: u64;
+-    data_items: [DataItem; 256] in Trapping;
++    data_items: [DataItem; 256];
+     data_count: u64;
+-    generic_parameters: [GenericParameter; 256] in Trapping;
++    generic_parameters: [GenericParameter; 256];
+     generic_parameter_count: u64;
+-    fields: [DataField; 1024] in Trapping;
++    fields: [DataField; 1024];
+     field_count: u64;
+-    data_members: [DataMember; 2048] in Trapping;
++    data_members: [DataMember; 2048];
+     data_member_count: u64;
+     retired_identities: [RetiredIdentity; 2048];
+     retired_identity_count: u64;
+-    cases: [DataCase; 1536] in Trapping;
++    cases: [DataCase; 1536];
+     case_count: u64;
+-    payload_fields: [DataField; 1024] in Trapping;
++    payload_fields: [DataField; 1024];
+     payload_field_count: u64;
+-    type_references: [TypeReference; 65536] in Trapping;
++    type_references: [TypeReference; 65536];
+     type_reference_count: u64;
+-    type_arguments: [u64; 1024] in Trapping;
++    type_arguments: [u64 in Trapping; 1024];
+     type_argument_count: u64;
+     // The lifetime arguments of applied names, each run named by its row.
+     type_lifetimes: [IdentifierSpan; 1024];
+     type_lifetime_count: u64;
+-    machines: [MachineItem; 10240] in Trapping;
++    machines: [MachineItem; 10240];
+     machine_count: u64;
+-    parameters: [Parameter; 32768] in Trapping;
++    parameters: [Parameter; 32768];
+     parameter_count: u64;
+-    erased_bindings: [ErasedBinding; 1024] in Trapping;
++    erased_bindings: [ErasedBinding; 1024];
+     erased_binding_count: u64;
+-    expressions: [Expression; 131072] in Trapping;
++    expressions: [Expression; 131072];
+     expression_count: u64;
+-    arguments: [u64; 65536] in Trapping;
++    arguments: [u64 in Trapping; 65536];
+     argument_count: u64;
+-    construct_fields: [ConstructField; 4096] in Trapping;
++    construct_fields: [ConstructField; 4096];
+     construct_field_count: u64;
+-    statements: [Statement; 16384] in Trapping;
++    statements: [Statement; 16384];
+     statement_count: u64;
+-    arms: [TransitionArm; 8192] in Trapping;
++    arms: [TransitionArm; 8192];
+     arm_count: u64;
+-    pattern_fields: [PatternField; 2048] in Trapping;
++    pattern_fields: [PatternField; 2048];
+     pattern_field_count: u64;
+-    clauses: [Clause; 2048] in Trapping;
++    clauses: [Clause; 2048];
+     clause_count: u64;
+-    name_paths: [NamePath; 2048] in Trapping;
++    name_paths: [NamePath; 2048];
+     name_path_count: u64;
+-    traits: [TraitItem; 256] in Trapping;
++    traits: [TraitItem; 256];
+     trait_count: u64;
+-    trait_parents: [u64; 512] in Trapping;
++    trait_parents: [u64 in Trapping; 512];
+     trait_parent_count: u64;
+-    conformances: [ConformanceItem; 256] in Trapping;
++    conformances: [ConformanceItem; 256];
+     conformance_count: u64;
+-    domains: [DomainItem; 256] in Trapping;
++    domains: [DomainItem; 256];
+     domain_count: u64;
+-    constants: [ConstantItem; 512] in Trapping;
++    constants: [ConstantItem; 512];
+     constant_count: u64;
+-    propositions: [PropositionItem; 256] in Trapping;
++    propositions: [PropositionItem; 256];
+     proposition_count: u64;
+-    contracts: [Contract; 256] in Trapping;
++    contracts: [Contract; 256];
+     contract_count: u64;
+-    match_arms: [TransitionArm; 1024] in Trapping;
++    match_arms: [TransitionArm; 1024];
+     match_arm_count: u64;
+-    definitions: [DefinitionItem; 256] in Trapping;
++    definitions: [DefinitionItem; 256];
+     definition_count: u64;
+     diagnostic: ParseDiagnostic;
+     accepted: bool;
+diff -ru source/psi/representations/tokens.omg source/psi/representations/tokens.omg
+--- source/psi/representations/tokens.omg	2026-11-16 19:01:31.131066790 +0000
++++ source/psi/representations/tokens.omg	2026-11-16 21:52:08.794281824 +0000
+@@ -146,9 +146,9 @@
+     token_count <= 65536,
+     decoded_length <= 131072,
+ {
+-    tokens: [Token; 65536] in Trapping;
++    tokens: [Token; 65536];
+     token_count: u64;
+-    decoded: [u8; 131072] in Trapping;
++    decoded: [u8 in Trapping; 131072];
+     decoded_length: u64;
+     diagnostic: LexDiagnostic;
+     accepted: bool;

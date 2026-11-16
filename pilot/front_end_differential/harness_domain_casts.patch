@@ -1,0 +1,72 @@
+--- tests/psi/checking/harness.omg	2026-11-16 19:01:31.171112671 +0000
++++ tests/psi/checking/harness.omg	2026-11-16 21:52:47.006053287 +0000
+@@ -400,7 +400,7 @@
+ crashes Trap
+ blocks
+ {
+-    transition { _ -> block next(checking_harness, 0, 0, 1) }
++    transition { _ -> block next(checking_harness, 0 as +Trapping, 0 as +Trapping, 1 as +Trapping) }
+ 
+     machine next(checking_harness: &mut CheckingHarness, read: u64 in Trapping, value: u64 in Trapping, scale: u64 in Trapping) -> HarnessWord {
+         transition read < 4 {
+@@ -422,7 +422,7 @@
+     }
+ 
+     machine ended() -> HarnessWord {
+-        HarnessWord { value: 0, complete: false }
++        HarnessWord { value: 0 as +Trapping, complete: false }
+     }
+ }
+ 
+@@ -491,7 +491,7 @@
+     write_byte(checking_harness, 75);
+     write_byte(checking_harness, 49);
+     write_byte(checking_harness, 0);
+-    write_u64(checking_harness, 3);
++    write_u64(checking_harness, 3 as +Trapping);
+     let accepted: u8 = boolean_tag(output.accepted);
+     write_byte(checking_harness, accepted);
+     write_u64(checking_harness, output.diagnostic_count as u64 in Trapping);
+@@ -514,7 +514,7 @@
+ 
+     machine machines(checking_harness: &mut CheckingHarness, output: &Checks) {
+         write_u64(checking_harness, output.machine_count as u64 in Trapping);
+-        transition { _ -> machine(checking_harness, output, 0) }
++        transition { _ -> machine(checking_harness, output, 0 as +Trapping) }
+     }
+ 
+     machine machine(checking_harness: &mut CheckingHarness, output: &Checks, index: u64 in Trapping) {
+@@ -529,7 +529,7 @@
+         psi::prepare(&mut review);
+         let admits: bool = psi::admits(&review, output);
+         write_u64(checking_harness, output.slot_origin_count as u64 in Trapping);
+-        transition { _ -> origin(checking_harness, output, admits, 0) }
++        transition { _ -> origin(checking_harness, output, admits, 0 as +Trapping) }
+     }
+ 
+     machine origin(checking_harness: &mut CheckingHarness, output: &Checks, admits: bool, index: u64 in Trapping) {
+@@ -549,7 +549,7 @@
+ 
+     machine qualifications(checking_harness: &mut CheckingHarness, output: &Checks, admits: bool) {
+         write_u64(checking_harness, output.slot_qualification_count as u64 in Trapping);
+-        transition { _ -> qualification(checking_harness, output, admits, 0) }
++        transition { _ -> qualification(checking_harness, output, admits, 0 as +Trapping) }
+     }
+ 
+     machine qualification(checking_harness: &mut CheckingHarness, output: &Checks, admits: bool, index: u64 in Trapping) {
+@@ -647,13 +647,13 @@
+ }
+ 
+ machine write_source_span(checking_harness: &mut CheckingHarness, source_span: SourceSpan) reaches Console {
+-    write_u64(checking_harness, source_span.source.value as u64 in Trapping);
++    write_u64(checking_harness, (source_span.source.value as -Trapping) as u64 +Trapping);
+     write_u64(checking_harness, source_span.span.start);
+     write_u64(checking_harness, source_span.span.end);
+ }
+ 
+ machine write_u64(checking_harness: &mut CheckingHarness, value: u64 in Trapping) reaches Console {
+-    write_byte(checking_harness, (value % 256) as u8);
++    write_byte(checking_harness, ((value % 256) as -Trapping) as u8);
+     write_byte(checking_harness, (value / 256 % 256) as u8);
+     write_byte(checking_harness, (value / 65536 % 256) as u8);
+     write_byte(checking_harness, (value / 16777216 % 256) as u8);
