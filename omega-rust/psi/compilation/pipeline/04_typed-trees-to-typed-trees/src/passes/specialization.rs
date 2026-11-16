@@ -422,11 +422,7 @@ fn serve(program: &mut TypedTrees, site: Site, generated: &mut GeneratedMachines
     };
     // Its type and value parameters, then each implementation parameter
     // its bounds declare: the order a call's static arguments are given in.
-    let parameters = program
-        .machine_callable_parameters(machine)
-        .into_iter()
-        .map(|parameter| (parameter.symbol, parameter.kind))
-        .collect::<Vec<_>>();
+    let parameters = program.machine_callable_parameters(machine);
     if parameters.is_empty() {
         return Ok(());
     }
@@ -495,14 +491,14 @@ fn serve(program: &mut TypedTrees, site: Site, generated: &mut GeneratedMachines
 fn specialize_application(
     program: &mut TypedTrees,
     callee: SymbolHandle,
-    parameters: &[(SymbolHandle, TypeParameterKind)],
+    parameters: &[typed_trees::data::TypeParameter],
     application: StaticMachineApplicationHandle,
     arguments: &mut [StaticMachineArgument],
     generated: &mut GeneratedMachines,
 ) -> Served<Option<(SymbolHandle, SymbolHandle)>> {
     let mut open_callback = false;
-    for ((_, kind), argument) in parameters.iter().zip(arguments.iter_mut()) {
-        if matches!(kind, TypeParameterKind::Machine { .. })
+    for (parameter, argument) in parameters.iter().zip(arguments.iter_mut()) {
+        if matches!(parameter.kind, TypeParameterKind::Machine { .. })
             && argument.application.is_some()
             && !close_machine_argument(program, application, argument, generated)?
         {
@@ -517,15 +513,15 @@ fn specialize_application(
         return Ok(None);
     }
     let mut operands = Vec::with_capacity(parameters.len());
-    for ((parameter, kind), argument) in parameters.iter().zip(arguments.iter()) {
-        operands.push(Operand::read(program, *parameter, kind, argument).map_err(
-            |stop| match stop {
+    for (parameter, argument) in parameters.iter().zip(arguments.iter()) {
+        operands.push(
+            Operand::read(program, parameter, argument).map_err(|stop| match stop {
                 Stop::Unserved(None) => {
                     unserved("a static argument could not be read under its declared binder")
                 }
                 other => other,
-            },
-        )?);
+            })?,
+        );
     }
     // Explicit groups keep the original callable's formals and the caller's
     // supplying scope. Authenticate that relation before copying; absent groups
@@ -603,11 +599,7 @@ fn close_machine_argument(
             "an applied callback needs its exact own lifetime application",
         ));
     }
-    let parameters = program
-        .machine_callable_parameters(machine)
-        .into_iter()
-        .map(|parameter| (parameter.symbol, parameter.kind))
-        .collect::<Vec<_>>();
+    let parameters = program.machine_callable_parameters(machine);
     let selected_name = machine.name.clone();
     let mut arguments = selected.arguments.to_vec();
     if parameters.len() != arguments.len() {
@@ -889,8 +881,8 @@ fn bound_arguments(
             .binary_search_by_key(&symbol_order(parameter.symbol), |(symbol, _)| *symbol)
             .map_err(|_| Stop::Unserved(None))?;
         let actual = &selected[position].1;
-        let operand = Operand::read(program, parameter.symbol, &parameter.kind, argument)?;
-        let existing = Operand::read(program, parameter.symbol, &parameter.kind, actual)?;
+        let operand = Operand::read(program, parameter, argument)?;
+        let existing = Operand::read(program, parameter, actual)?;
         if operand.is_open(program) || operand.identity != existing.identity {
             return Err(Stop::Unserved(None));
         }
@@ -920,20 +912,22 @@ fn bind_requirement(
         .data_type_parameters
         .span_or_empty(requirement.type_parameters)
         .iter()
-        .map(|parameter| (parameter.symbol, parameter.kind.clone()))
+        .cloned()
         .collect::<Vec<_>>();
-    if !parameters
-        .iter()
-        .all(|(_, kind)| matches!(kind, typed_trees::data::TypeParameterKind::Const { .. }))
-    {
+    if !parameters.iter().all(|parameter| {
+        matches!(
+            parameter.kind,
+            typed_trees::data::TypeParameterKind::Const { .. }
+        )
+    }) {
         return Ok(());
     }
     if parameters.len() != arguments.len() {
         return Err(Stop::Unserved(None));
     }
     let mut operands = Vec::with_capacity(parameters.len());
-    for ((parameter, kind), argument) in parameters.iter().zip(arguments) {
-        operands.push(Operand::read(program, *parameter, kind, argument)?);
+    for (parameter, argument) in parameters.iter().zip(arguments) {
+        operands.push(Operand::read(program, parameter, argument)?);
     }
     program
         .expression_table
@@ -971,7 +965,7 @@ fn apply_requirement(
     let parameters = program
         .state_signature_type_parameters(requirement)
         .iter()
-        .map(|parameter| (parameter.symbol, parameter.kind.clone()))
+        .cloned()
         .collect::<Vec<_>>();
     if parameters.is_empty() {
         return Ok(());
@@ -986,8 +980,8 @@ fn apply_requirement(
     let environment =
         typed_trees::trait_definition::AppliedTraitScope::abstract_scope(owner).environment();
     let mut operands = Vec::with_capacity(parameters.len());
-    for ((parameter, kind), argument) in parameters.iter().zip(arguments) {
-        operands.push(Operand::read(program, *parameter, kind, argument)?);
+    for (parameter, argument) in parameters.iter().zip(arguments) {
+        operands.push(Operand::read(program, parameter, argument)?);
     }
     bind(program, applied.application, &operands);
     // Open at a parameter of the enclosing generic machine: closed in each
@@ -1085,15 +1079,24 @@ struct Operand {
 impl Operand {
     fn read(
         program: &mut TypedTrees,
-        parameter: SymbolHandle,
-        kind: &typed_trees::data::TypeParameterKind,
+        binder: &typed_trees::data::TypeParameter,
         argument: &StaticMachineArgument,
     ) -> Served<Self> {
         use typed_trees::data::TypeParameterKind;
+        let parameter = binder.symbol;
+        let kind = &binder.kind;
+        if !matches!(kind, TypeParameterKind::Type)
+            && binder.bounds != typed_trees::data::DataProperties::default()
+        {
+            return Err(unserved(
+                "a non-type binder carries a property bound no application judges",
+            ));
+        }
         let mut scalar = None;
         let (identity, value) = match kind {
             TypeParameterKind::Type => {
                 let reference = named_type(program, argument)?;
+                type_argument_meets_bounds(program, binder, reference)?;
                 let identity = if argument.symbol.is_valid()
                     && program.symbols.get(argument.symbol).kind == SymbolKind::TypeParameter
                 {
@@ -1527,6 +1530,49 @@ fn selections(program: &TypedTrees, operands: &[Operand]) -> Served<Vec<Selectio
         }
     }
     Ok(selected)
+}
+
+/// A type binder's `[copy]` or `[linear]` property fixes the multiplicity
+/// every use of the parameter receives (ownership.md, "Property
+/// declarations"), so each application must supply a type with exactly that
+/// multiplicity (generics.md: an application validates its complete tuple,
+/// including constraints). The copied body is later checked as a closed
+/// machine, but that check judges the body's uses, not the declared contract
+/// callers rely on. An unbounded (affine) binder admits any type and leaves
+/// the uses to that closed check. A `carry` bound has no judgment against a
+/// supplied type yet, so the application is refused, as the other
+/// application paths refuse it.
+fn type_argument_meets_bounds(
+    program: &TypedTrees,
+    binder: &typed_trees::data::TypeParameter,
+    reference: TypeReferenceHandle,
+) -> Served<()> {
+    use language_semantics::Multiplicity;
+    if binder.bounds.carry.is_some() {
+        return Err(unserved(
+            "a type binder's carry bound has no judgment against its argument yet",
+        ));
+    }
+    let required = binder.bounds.multiplicity;
+    if required == Multiplicity::Affine {
+        return Ok(());
+    }
+    let actual = program.type_multiplicity(reference);
+    if actual == required {
+        return Ok(());
+    }
+    let property = |multiplicity| match multiplicity {
+        Multiplicity::Unrestricted => "`[copy]`",
+        Multiplicity::Linear => "`[linear]`",
+        Multiplicity::Affine => "neither `[copy]` nor `[linear]`",
+    };
+    Err(Stop::Rejected(format!(
+        "type argument `{}` for `{}` has {} but the binder requires {}",
+        program.display_type_reference(reference),
+        program.symbols.name(binder.symbol),
+        property(actual),
+        property(required),
+    )))
 }
 
 /// A retained type parameter stays open until its enclosing call is specialized;

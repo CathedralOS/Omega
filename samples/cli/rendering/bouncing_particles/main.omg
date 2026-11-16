@@ -130,7 +130,7 @@ machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
         transition { _ -> block render_row(main) }
     }
     machine after_render(main: &mut Main) {
-        Clock::sleep(70);
+        block Clock::sleep(70);
         transition { _ -> block update_init(main) }
     }
 

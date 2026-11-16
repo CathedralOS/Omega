@@ -120,8 +120,8 @@ public WindowsTimeHost satisfies TimeHost {
     blocks
     {
         transition milliseconds == 4294967295 {
-            true -> in_halves()
-            _ -> at_once(milliseconds)
+            true -> block in_halves()
+            _ -> block at_once(milliseconds)
         }
 
         machine at_once(milliseconds: u32) {

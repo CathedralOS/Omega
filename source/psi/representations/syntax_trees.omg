@@ -36,7 +36,8 @@ public data ReferenceAccess [copy] {
 // `&mut T`, `&write T`) carries its `access`. `Reference`, `Array` (`[T; N]`) and
 // `Slice` (`[T]`) name their referee or element in `inner`, and `Array` names
 // its length row, a `Literal` or a `Named` static value, in `length`.
-// `Literal` is an integer static argument or length spelled by `name`.
+// `Literal` is an integer static argument or length spelled by `name`, its
+// decoded value at `literal` in `SyntaxTrees::integer_literals`.
 // `Named`, `Array` and `Slice` rows may carry an `in Domain` qualifier: its
 // own name is `domain`, and a path qualifier (`in Type::Case`) keeps the
 // members before that name in `domain_owner`.
@@ -60,18 +61,33 @@ public data TypeReference [copy] {
     lifetime: IdentifierSpan;
     first_lifetime: u64 in Trapping;
     lifetime_count: u64 in Trapping;
+    literal: u64 in Trapping;
     first_row: u64 in Trapping;
     source_span: SourceSpan;
 }
 
+// One integer literal as the lexer decoded it: its value `magnitude` when
+// `exact` (it fit in 64 bits), whether a based literal had no digits
+// (`0x`), and the carrier its suffix names. A literal expression, a
+// `Literal` type row and a stable identity each name their row by handle in
+// `SyntaxTrees::integer_literals`, so later stages never re-read the bytes.
+public data IntegerLiteral [copy] {
+    magnitude: u64 in Wrapping;
+    exact: bool;
+    empty_digits: bool;
+    suffix: IntegerSuffix;
+}
+
 // A field or case may carry a stable schema identity `#N`
-// (wiki/spec/layouts/plans.md): `has_identity` and the integer literal's span
-// in `identity`. Identities are not runtime discriminants; their numbering
+// (wiki/spec/layouts/plans.md): `has_identity`, the integer literal's span
+// in `identity` and its decoded value at `identity_literal` in
+// `SyntaxTrees::integer_literals`. Identities are not runtime discriminants; their numbering
 // rules are resolution's question.
 public data DataField [copy] {
     name: IdentifierSpan;
     has_identity: bool;
     identity: SourceSpan;
+    identity_literal: u64 in Trapping;
     type_reference: u64 in Trapping;
     source_span: SourceSpan;
 }
@@ -80,6 +96,7 @@ public data DataCase [copy] {
     name: IdentifierSpan;
     has_identity: bool;
     identity: SourceSpan;
+    identity_literal: u64 in Trapping;
     first_payload_field: u64 in Trapping;
     payload_field_count: u64 in Trapping;
     first_clause: u64 in Trapping;
@@ -110,6 +127,7 @@ public data RetiredIdentity [copy] {
     owner_kind: RetiredIdentityOwner;
     owner: u64 in Trapping;
     identity: SourceSpan;
+    identity_literal: u64 in Trapping;
     source_span: SourceSpan;
 }
 
@@ -208,6 +226,8 @@ public data Parameter [copy] {
 // `type_reference`. With `flag` true it keeps the operand carrier: `operator`
 // is Add, Subtract or Equal, and `first` names its single domain NamePath.
 // Multiple simultaneous entries remain an explicit coverage refusal.
+// An Integer names its decoded value at `literal` in
+// `SyntaxTrees::integer_literals`; `literal` is zero for every other kind.
 public data ExpressionKind [copy] {
     case Name;
     case Path;
@@ -271,6 +291,7 @@ public data Expression [copy] {
     name: IdentifierSpan;
     type_reference: u64 in Trapping;
     first_row: u64 in Trapping;
+    literal: u64 in Trapping;
     source_span: SourceSpan;
 }
 
@@ -892,6 +913,7 @@ public data ParseDiagnosticCode [copy] {
     case ExpectedDefinitionTerm;
     case ExpectedDefinitionEnd;
     case DefinitionCapacityExceeded;
+    case IntegerLiteralCapacityExceeded;
     // `..=` with no end before the index's `]`.
     case ExpectedRangeEnd;
     case ExpectedArrayElement;
@@ -947,6 +969,7 @@ requires
     contract_count <= 256,
     match_arm_count <= 1024,
     definition_count <= 256,
+    integer_literal_count <= 65536,
 {
     roots: [RootItem; 4096] in Trapping;
     root_count: u64;
@@ -1015,6 +1038,8 @@ requires
     match_arm_count: u64;
     definitions: [DefinitionItem; 256] in Trapping;
     definition_count: u64;
+    integer_literals: [IntegerLiteral; 65536] in Trapping;
+    integer_literal_count: u64;
     diagnostic: ParseDiagnostic;
     accepted: bool;
 }
@@ -1053,6 +1078,7 @@ public machine syntax_trees_clear(syntax_trees: &mut SyntaxTrees, source: Source
     syntax_trees.contract_count = 0;
     syntax_trees.match_arm_count = 0;
     syntax_trees.definition_count = 0;
+    syntax_trees.integer_literal_count = 0;
     syntax_trees.accepted = true;
     syntax_trees.diagnostic.code = ParseDiagnosticCode::None;
     syntax_trees.diagnostic.source_span.source = source;
@@ -1315,6 +1341,23 @@ crashes Trap
     }
 
     machine invalid() -> Expression {
+        crash Trap;
+    }
+}
+
+public machine syntax_trees_integer_literal(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> IntegerLiteral
+crashes Trap
+{
+    transition handle < syntax_trees.integer_literal_count {
+        true -> read(syntax_trees, handle)
+        _ -> invalid()
+    }
+
+    machine read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> IntegerLiteral {
+        syntax_trees.integer_literals[handle]
+    }
+
+    machine invalid() -> IntegerLiteral {
         crash Trap;
     }
 }

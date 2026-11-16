@@ -14,6 +14,7 @@ boundary trait WindowsClockWait {
     machine sleep(milliseconds: u32)
     reaches
         Clock
+    blocks
     crashes none;
 }
 
@@ -23,20 +24,21 @@ public WindowsX8664Clock satisfies Clock {
     machine sleep(milliseconds: u32)
     reaches Clock
     invokes WindowsClockWait
+    blocks
     {
         transition milliseconds == 4294967295 {
-            true -> in_halves()
-            _ -> at_once(milliseconds)
+            true -> block in_halves()
+            _ -> block at_once(milliseconds)
         }
 
         machine at_once(milliseconds: u32) {
-            WindowsClockWait::sleep(milliseconds);
+            block WindowsClockWait::sleep(milliseconds);
         }
 
         // 2147483647 + 2147483648 == 4294967295.
         machine in_halves() {
-            WindowsClockWait::sleep(2147483647);
-            WindowsClockWait::sleep(2147483648);
+            block WindowsClockWait::sleep(2147483647);
+            block WindowsClockWait::sleep(2147483648);
         }
     }
 }

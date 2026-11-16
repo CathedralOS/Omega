@@ -2,8 +2,11 @@
 We project a validated function-relative realization's resolved machine layout
 into unplaced function fragments and seal their v10 manifest custody.
 
-`stage_optimized_function_fragment_emission` retains the current resolved
-machine program, retaining originals only for explicit audits, and projects each function's fragment
+`StagedOptimizedFunctionFragmentEmissionSource` joins the current resolved
+machine program with the `EmissionFacts` the native driver copied out of the
+earlier stages and with the bound installation receipt. It keeps no earlier
+stage output; original allocation and layout inputs ride along only for an
+explicit audit. `stage_optimized_function_fragment_emission` projects each function's fragment
 bytes, block and instruction spans, semantic control provenance, and
 function-relative fixup coordinates (`emit_resolved_function_fragments`), and
 seals `ValidatedFunctionFragmentEmissionManifest` together with
@@ -117,14 +120,8 @@ impl StagedOptimizedFunctionFragmentEmission {
         self.custody
     }
 
-    pub fn lowering_facts(&self) -> &verified_optimization_input::AdmittedLoweringFacts {
-        self.source.lowering_facts()
-    }
-
-    pub fn provider_installation(
-        &self,
-    ) -> Option<&provider_admission::AdmittedProviderInstallation> {
-        self.source.provider_installation()
+    pub fn facts(&self) -> &crate::EmissionFacts {
+        self.source.facts()
     }
 
     pub fn function_relative_manifest(
@@ -207,7 +204,7 @@ impl From<FunctionFragmentStatisticsOverflow> for FunctionFragmentEmissionError 
 #[derive(Debug)]
 pub struct StagedOptimizedFunctionFragmentEmissionSource {
     realization: StagedFixedFrameFunctionRelativeRealization,
-    target_input: Arc<abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations>,
+    facts: crate::EmissionFacts,
     installation_authority: Arc<provider_admission::BoundInstallationAuthority>,
 }
 
@@ -260,20 +257,9 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
         &self.physical_program().publication
     }
 
-    pub fn optimized_target(
-        &self,
-    ) -> &abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations {
-        &self.target_input
-    }
-
-    pub fn lowering_facts(&self) -> &verified_optimization_input::AdmittedLoweringFacts {
-        self.optimized_target().lowering_facts()
-    }
-
-    pub fn provider_installation(
-        &self,
-    ) -> Option<&provider_admission::AdmittedProviderInstallation> {
-        self.optimized_target().provider_installation()
+    /// The facts settled before instruction selection that emission reads.
+    pub fn facts(&self) -> &crate::EmissionFacts {
+        &self.facts
     }
 
     pub fn has_original_replay(&self) -> bool {
@@ -305,78 +291,64 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
             .map_err(FunctionFragmentEmissionError::Source)
     }
 
-    /// Compare current output with original allocation and lowering owners.
-    /// A compile that did not request their retention cannot claim this audit.
+    /// Compare current output with the original allocation, encoding and
+    /// layout inputs. A compile that did not request their retention cannot
+    /// claim this audit.
     pub fn verify_original_correspondence(&self) -> Result<(), FunctionFragmentEmissionError> {
         validate_source(self)?;
         crate::function_realization::verify_fixed_frame_original_correspondence(&self.realization)
             .map_err(FunctionFragmentEmissionError::Source)?;
-        let original = self
-            .realization
-            .replay()
-            .map_err(FunctionFragmentEmissionError::Source)?;
-        let expected = original
-            .target_input
-            .optimized()
-            .selections()
-            .for_phase(optimization_core::OptimizationExecutionPhase::AllocationRecovery)
-            .identity();
-        if self
-            .function_relative_manifest()
-            .record()
-            .allocation_recovery_selections
-            != expected
-        {
-            return Err(FunctionFragmentEmissionError::RootMismatch);
-        }
         Ok(())
     }
 }
 
 impl StagedOptimizedFunctionFragmentEmissionSource {
-    /// Join the realized code with its checked installation receipt and retained
-    /// target input. Their program and pre-physical roots must agree. Later
-    /// installation readers use the receipt, not the target stage's output.
+    /// Join the realized code with its checked installation receipt and the
+    /// facts the driver carried from before instruction selection. The
+    /// receipt must admit the same callback and interrupt cohorts, and the
+    /// realized program must name the same Terminal program, entry and
+    /// pre-physical manifest as those facts.
     pub fn new(
         realization: StagedFixedFrameFunctionRelativeRealization,
-        target_input: Arc<
-            abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations,
-        >,
+        facts: crate::EmissionFacts,
         installation_authority: Arc<provider_admission::BoundInstallationAuthority>,
     ) -> Result<Self, FunctionFragmentEmissionError> {
         if !installation_authority.matches_admission(
-            target_input.lowering_facts().installed_interrupts(),
-            target_input.lowering_facts().native_callbacks(),
+            facts.lowering.installed_interrupts(),
+            facts.lowering.native_callbacks(),
         ) {
             return Err(FunctionFragmentEmissionError::RootMismatch);
         }
         let source = Self {
             realization,
-            target_input,
+            facts,
             installation_authority,
         };
-        source.validate_target_input()?;
+        source.validate_facts()?;
         Ok(source)
     }
 
-    fn validate_target_input(&self) -> Result<(), FunctionFragmentEmissionError> {
-        let roots = self
-            .physical_program()
+    fn validate_facts(&self) -> Result<(), FunctionFragmentEmissionError> {
+        let physical = self.physical_program();
+        let roots = physical
             .contracts
             .execution()
             .ok_or(FunctionFragmentEmissionError::MissingExecutionFacts)?
             .roots();
         let installation_program = self.installation_authority().program();
-        if installation_program.psi != self.physical_program().psi
-            || installation_program.target != self.physical_program().target
-            || installation_program.machine != self.physical_program().entry
+        if installation_program.psi != physical.psi
+            || installation_program.target != physical.target
+            || installation_program.machine != physical.entry
         {
             return Err(FunctionFragmentEmissionError::RootMismatch);
         }
-        if roots.psi != self.physical_program().psi
-            || roots.work_schedule != self.physical_program().work_schedule
-            || roots.entry != self.physical_program().entry
+        let facts = &self.facts;
+        if roots.psi != physical.psi
+            || roots.work_schedule != physical.work_schedule
+            || roots.entry != physical.entry
             || self.post_allocation_manifest().record().pre_physical != roots.pre_physical
+            || facts.abstract_program.psi != physical.psi
+            || facts.abstract_program.entry != physical.entry
         {
             return Err(FunctionFragmentEmissionError::RootMismatch);
         }
@@ -389,7 +361,7 @@ fn validate_source(
 ) -> Result<(), FunctionFragmentEmissionError> {
     validate_fixed_frame_function_relative_realization(&source.realization)
         .map_err(FunctionFragmentEmissionError::Source)?;
-    source.validate_target_input()?;
+    source.validate_facts()?;
     Ok(())
 }
 
