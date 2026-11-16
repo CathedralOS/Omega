@@ -122,14 +122,11 @@ These are compiler defects exposed by the complete row, not weakened witnesses.
 
 ## Host entry-result loans
 
-The public embedding workflow `mbx run -p compiler --example terminal_loans`
-selects checked entry machines from this fact and from the
-[entry-return composition](controls/entry_return/main.omg). The host calls
-`retain_returned_loans` before execution, then borrows `returned_loan` from the
-completed instance. The carrier reads actual backing through ordinary scalar
-storage projections; it is not a guest value, permission to mutate, or a new
-qualification. Its Rust lifetime prevents closing or resuming the instance
-while an observation remains live.
+The embedding example `terminal_loans` and the host interface it used
+(`retain_returned_loans`, `returned_loan`) no longer exist in the repository;
+nothing called that interface, and it was deleted as unused. The paragraphs
+below record what that workflow showed with the
+[entry-return composition](controls/entry_return/main.omg).
 
 At the fixed baseline `c689405c35345f81eab2f7dab1b0ad2010b74150`, the original
 `selected` entry refuses with `host reference results require an explicit loan

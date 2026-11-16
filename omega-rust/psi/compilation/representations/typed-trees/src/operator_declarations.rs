@@ -1741,30 +1741,11 @@ pub mod operator {
     pub(crate) mod satisfied_operators {
         use crate::TypedTrees;
         use crate::declarations::operator::OperatorDefinition;
-        use crate::type_identity::TypeIdentityRequest;
-        use symbols::SymbolHandle;
 
         pub fn resolve_satisfied_boundary_operator_for_conformance<'program>(
             program: &'program TypedTrees,
             machine: &'program crate::machine::Machine,
             conformance: &'program crate::machine::TraitConformance,
-        ) -> Option<&'program OperatorDefinition> {
-            resolve_satisfied_operator_for_conformance(program, machine, conformance, true)
-        }
-
-        pub fn resolve_satisfied_checked_operator_for_conformance<'program>(
-            program: &'program TypedTrees,
-            machine: &'program crate::machine::Machine,
-            conformance: &'program crate::machine::TraitConformance,
-        ) -> Option<&'program OperatorDefinition> {
-            resolve_satisfied_operator_for_conformance(program, machine, conformance, false)
-        }
-
-        fn resolve_satisfied_operator_for_conformance<'program>(
-            program: &'program TypedTrees,
-            machine: &'program crate::machine::Machine,
-            conformance: &'program crate::machine::TraitConformance,
-            boundary_only: bool,
         ) -> Option<&'program OperatorDefinition> {
             let requirement = conformance.requirement.as_ref()?;
             let candidates = satisfied_operator_candidates(
@@ -1772,7 +1753,6 @@ pub mod operator {
                 machine,
                 conformance.name.as_str(),
                 requirement.as_str(),
-                boundary_only,
             )
             .collect::<Vec<_>>();
             if conformance.requirement_symbol.is_valid() {
@@ -1804,106 +1784,25 @@ pub mod operator {
             machine: &'program crate::machine::Machine,
             namespace: &str,
             requirement: &str,
-            boundary_only: bool,
         ) -> impl Iterator<Item = &'program OperatorDefinition> {
-            let state = program.machine_states(machine).first();
-            let actual_parameters = state.map(|state| program.state_parameters(state));
             program
                 .operators()
                 .iter()
                 .chain(program.machine_token_bindings())
                 .filter(move |operator| {
-                    let (Some(state), Some(actual_parameters)) = (state, actual_parameters) else {
-                        return false;
-                    };
-                    if (boundary_only && !operator.is_boundary)
+                    if !operator.is_boundary
                         || !operator_path_matches(operator, program, namespace, requirement)
                     {
                         return false;
                     }
-                    let Some((machine_binders, operator_binders)) =
-                        operator_realization_static_binders(program, machine, operator)
-                    else {
-                        return false;
-                    };
-                    let required_parameters = program.operator_parameters(operator);
-                    actual_parameters.len() == required_parameters.len()
-                        && actual_parameters
-                            .iter()
-                            .zip(required_parameters.iter())
-                            .all(|(actual, required)| {
-                                actual.is_const == required.is_const
-                                    && actual.is_mutable == required.is_mutable
-                                    && program.type_identity(TypeIdentityRequest {
-                                        binders: &machine_binders,
-                                        ..TypeIdentityRequest::ordinary(actual.type_reference)
-                                    }) == program.type_identity(TypeIdentityRequest {
-                                        binders: &operator_binders,
-                                        ..TypeIdentityRequest::ordinary(required.type_reference)
-                                    })
-                            })
-                        && state.return_type.is_valid() == operator.return_type.is_valid()
-                        && (!state.return_type.is_valid()
-                            || program.type_identity(TypeIdentityRequest {
-                                binders: &machine_binders,
-                                ..TypeIdentityRequest::ordinary(state.return_type)
-                            }) == program.type_identity(TypeIdentityRequest {
-                                binders: &operator_binders,
-                                ..TypeIdentityRequest::ordinary(operator.return_type)
-                            }))
+                    crate::callable_signature_shapes::realizes_signature(
+                        program,
+                        machine,
+                        program.operator_type_parameters(operator),
+                        program.operator_parameters(operator),
+                        operator.return_type,
+                    )
                 })
-        }
-
-        fn operator_realization_static_binders(
-            program: &TypedTrees,
-            machine: &crate::machine::Machine,
-            operator: &OperatorDefinition,
-        ) -> Option<(Vec<(SymbolHandle, String)>, Vec<(SymbolHandle, String)>)> {
-            let machine_parameters = program.machine_type_parameters(machine);
-            let operator_parameters = program.operator_type_parameters(operator);
-            if machine_parameters.len() != operator_parameters.len() {
-                return None;
-            }
-            let machine_binders = machine_parameters
-                .iter()
-                .enumerate()
-                .map(|(ordinal, parameter)| (parameter.symbol, format!("${ordinal}")))
-                .collect::<Vec<_>>();
-            let operator_binders = operator_parameters
-                .iter()
-                .enumerate()
-                .map(|(ordinal, parameter)| (parameter.symbol, format!("${ordinal}")))
-                .collect::<Vec<_>>();
-            for (machine_parameter, operator_parameter) in
-                machine_parameters.iter().zip(operator_parameters)
-            {
-                match (&machine_parameter.kind, &operator_parameter.kind) {
-                    (
-                        crate::data::TypeParameterKind::Type,
-                        crate::data::TypeParameterKind::Type,
-                    ) if !crate::data::type_parameter_demands_stronger_properties(
-                        operator_parameter,
-                        machine_parameter,
-                    ) => {}
-                    (
-                        crate::data::TypeParameterKind::Const {
-                            type_reference: machine_carrier,
-                        },
-                        crate::data::TypeParameterKind::Const {
-                            type_reference: operator_carrier,
-                        },
-                    ) if machine_parameter.bounds == operator_parameter.bounds
-                        && program.type_identity(TypeIdentityRequest {
-                            binders: &machine_binders,
-                            ..TypeIdentityRequest::ordinary(*machine_carrier)
-                        }) == program.type_identity(TypeIdentityRequest {
-                            binders: &operator_binders,
-                            ..TypeIdentityRequest::ordinary(*operator_carrier)
-                        }) => {}
-                    _ => return None,
-                }
-            }
-            Some((machine_binders, operator_binders))
         }
 
         fn operator_path_matches(
@@ -4265,9 +4164,7 @@ pub mod operator {
     };
     pub use primitive_integer::{builtin_integer_result_carrier, integer_peer_operand_carrier};
     pub use satisfied_operators::{
-        boundary_operator_requirement_identity,
-        resolve_satisfied_boundary_operator_for_conformance,
-        resolve_satisfied_checked_operator_for_conformance,
+        boundary_operator_requirement_identity, resolve_satisfied_boundary_operator_for_conformance,
     };
     pub use spellings::{
         OperandType, OperatorOperandBindings, arithmetic_operator_spelling,

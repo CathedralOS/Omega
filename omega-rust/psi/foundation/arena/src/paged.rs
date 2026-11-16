@@ -85,17 +85,6 @@ impl<T: Default + Clone> ArenaPage<T> {
     }
 }
 
-impl<T> ArenaPage<T> {
-    fn shares_allocation(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Self::Shared { arena: left, .. }, Self::Shared { arena: right, .. }) => {
-                Arc::ptr_eq(left, right)
-            }
-            _ => false,
-        }
-    }
-}
-
 impl<T: Clone> Clone for ArenaPage<T> {
     fn clone(&self) -> Self {
         match self {
@@ -546,11 +535,6 @@ impl<T: Default> PagedArenaSet<T> {
             Some(items) => items,
             None => refuse_unresolved_span("span_mut_or_empty", span),
         }
-    }
-
-    pub fn shares_first_page(&self, other: &Self) -> bool {
-        self.first_generation == other.first_generation
-            && self.first_page.shares_allocation(&other.first_page)
     }
 
     pub fn len(&self) -> usize {

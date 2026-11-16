@@ -2157,6 +2157,8 @@ impl<'t> Program<'t> {
         self.generic_binders
             .extend(binders.iter().map(|binder| binder.symbol));
         let outer = std::mem::replace(&mut self.scope, scope);
+        let schema_types =
+            std::mem::replace(&mut self.schema_types, abstract_schema.then(Vec::new));
         let declared = if abstract_schema {
             Declarer::Schema {
                 declares_no_crash_route: signature.declares_no_crash_route,
@@ -2193,6 +2195,7 @@ impl<'t> Program<'t> {
         );
         self.lifetime_owner = owner;
         self.elision = elision;
+        self.schema_types = schema_types;
         self.scope = outer;
         if let Some((_, count)) = self
             .elided_lifetimes
@@ -3093,6 +3096,39 @@ impl<'t> Program<'t> {
             }
         }
         let value_type = self.formal_value_type(id, carrier, referent)?;
+        if matches!(value_type, ValueType::Rigid(_))
+            && let Some(types) = &mut self.schema_types
+        {
+            // A bodyless generic schema has no caller storage to borrow. Its
+            // whole reference type is an opaque logical input, distinct from T
+            // and from other reference types. Rigid inputs grant no facts. The
+            // applied callable later checks its real referent and outer loan.
+            let identity = self
+                .typed
+                .package_qualified_type_identity(formal.type_reference);
+            if !identity.is_valid() {
+                return unserved("symbolic reference without its complete type identity");
+            }
+            let position = match types.iter().position(|candidate| *candidate == identity) {
+                Some(position) => position,
+                None => {
+                    types.push(identity);
+                    types.len() - 1
+                }
+            };
+            let position = u32::try_from(self.scope.len() + position).map_err(|_| {
+                refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Parameter("schema type count"),
+                )
+            })?;
+            return Ok((
+                ValueType::Rigid(terminal_check_tables::values::RigidType(position)),
+                false,
+                None,
+            ));
+        }
         // Incoming data is already established, whether lent shared or
         // exclusively. Stores through an exclusive loan owe the same data
         // clauses as owned stores; the existing storage windows require

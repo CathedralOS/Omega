@@ -22,7 +22,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("file_permissions: unix-style permission bits built with bitwise and/or/xor");
     main.mode = 4i32 | 2;       // READ | WRITE          -> 6
     main.mode = main.mode | 1;  // + EXEC                -> 7
@@ -35,7 +35,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     machine emit(main: &mut Main) {
         Console::write_line("result: the final mode bits r-- +s, 12 for this sequence (the exit code)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(main.mode);
     }
 }
@@ -43,5 +43,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

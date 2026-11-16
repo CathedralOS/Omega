@@ -311,26 +311,6 @@ pub mod type_system {
                     })
             }
 
-            pub fn retain_pending_const_argument_uses(&mut self, argument: TypeReferenceHandle) {
-                let positions = self.type_references.iter().filter_map(|(handle, node)| {
-            let owns = match node {
-                TypeReferenceNode::Generic { arguments, .. } => self.type_reference_handles(*arguments).contains(&argument),
-                TypeReferenceNode::Constrained { constraints, .. } => self.constraints(*constraints).iter().any(|constraint| {
-                    matches!(constraint, TypeConstraintNode::Domain(domain) if self.type_reference_handles(domain.arguments).contains(&argument))
-                }),
-                _ => false,
-            };
-            owns.then_some(handle)
-        }).collect::<Vec<_>>();
-                if positions.is_empty() {
-                    self.retain_pending_const_argument(argument, argument);
-                } else {
-                    for position in positions {
-                        self.retain_pending_const_argument(position, argument);
-                    }
-                }
-            }
-
             pub fn const_argument_normalization(
                 &self,
                 argument: TypeReferenceHandle,
@@ -466,23 +446,6 @@ pub mod type_system {
                     .filter_map(|(handle, node)| match node {
                         TypeReferenceNode::Named(name) => {
                             Some((handle, name.as_str(context).to_string()))
-                        }
-                        _ => None,
-                    })
-                    .collect()
-            }
-
-            pub fn generic_nodes_from(
-                &self,
-                watermark: TypeReferenceFrontier,
-                context: &impl crate::SyntaxTextContext,
-            ) -> Vec<(TypeReferenceHandle, String)> {
-                self.type_references
-                    .iter()
-                    .filter(|(handle, _)| watermark.contains(*handle))
-                    .filter_map(|(handle, node)| match node {
-                        TypeReferenceNode::Generic { base_name, .. } => {
-                            Some((handle, base_name.as_str(context).to_string()))
                         }
                         _ => None,
                     })

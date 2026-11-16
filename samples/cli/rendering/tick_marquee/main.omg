@@ -14,56 +14,53 @@ use omega_language_std::Duration;
 use omega_language_std::Instant;
 use omega_language_std::elapsed_since;
 use omega_language_std::instant_now;
-domain [u8; 12]::Utf8
-requires
-    valid_utf8(self);
 data Main {
-    line: [u8; 12] in Utf8;
+    line: [u8; 12];
     frame: u32 in Wrapping;
     pos: u32 in Wrapping;
     t_start: Instant;
     pause: [u8; 256];
 }
-machine Main::main(main: &mut Main) reaches ProcessExit + Clock + Console {
+machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
     Console::write_line("tick_marquee: a # sweeps 24 frames, then real elapsed time is asserted");
     main.t_start = instant_now();
-    main.frame = 0;
-    transition { _ -> frame_loop(main) }
+    main.frame = 0u32 as +Wrapping;
+    transition { _ -> block frame_loop(main) }
     machine frame_loop(main: &mut Main) {
-        transition main.frame < 24 { true -> draw(main) _ -> finish(main) }
+        transition main.frame < 24 { true -> block draw(main) _ -> block finish(main) }
     }
     machine draw(main: &mut Main) {
         main.line = "            ";
         main.pos = main.frame % 12;
-        transition main.pos < 12 { true -> put(main) _ -> finish(main) }
+        transition main.pos < 12 { true -> block put(main) _ -> block finish(main) }
     }
     machine put(main: &mut Main) {
         main.line[main.pos] = 35;
-        Console::write_line(main.line);
+        Console::write_line(&main.line[..]);
         Clock::sleep(15);
         main.frame = main.frame + 1;
-        transition { _ -> frame_loop(main) }
+        transition { _ -> block frame_loop(main) }
     }
     machine finish(main: &mut Main) {
         let elapsed: Duration = elapsed_since(main.t_start);
         transition elapsed.seconds == 0 {
-            true -> check_subsecond(main, elapsed.subsecond_nanoseconds)
-            false -> ok(main)
+            true -> block check_subsecond(main, elapsed.subsecond_nanoseconds)
+            false -> block ok(main)
         }
     }
     machine check_subsecond(main: &mut Main, subsecond_nanoseconds: u32) {
-        transition subsecond_nanoseconds >= 100000000 { true -> ok(main) _ -> bad(main) }
+        transition subsecond_nanoseconds >= 100000000 { true -> block ok(main) _ -> block bad(main) }
     }
     machine ok(main: &mut Main)  {
         Console::write_line("PASS: 24 frames drawn and elapsed time >= 100ms (exit 0)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(0);
     }
     machine bad(main: &mut Main) {
         Console::write_line("FAIL: elapsed time came in under 100ms (exit 1)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(1);
     }
 }
@@ -71,5 +68,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Clock + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Clock + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

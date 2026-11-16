@@ -26,6 +26,8 @@ use std::path::Path;
 /// The compiler-supplied operation a catalog row identifies.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum SealedIntrinsic {
+    /// Core's structural equality synthesis protocol; not an executable primitive.
+    EqualityProtocol,
     /// A bodyless machine supplied by a closed portable compiler catalog.
     CompilerPrimitive(CompilerPrimitive),
     /// A member of core's `NativeFloats` realization of `FloatNativeOperations`.
@@ -231,6 +233,12 @@ const fn lifecycle(operation: PlacementOperation, content: PlacementContent) -> 
 }
 
 const ROWS: &[SealedIntrinsicRow] = &[
+    row(
+        "equality.omg",
+        "Equatable",
+        bundled!("core/equality.omg"),
+        SealedIntrinsic::EqualityProtocol,
+    ),
     row(
         "indexing.omg",
         "read",

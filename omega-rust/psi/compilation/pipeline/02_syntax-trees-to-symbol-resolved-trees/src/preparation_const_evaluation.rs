@@ -5567,7 +5567,6 @@ mod values {
     #[derive(Clone, Copy, PartialEq, Eq)]
     pub(in crate::preparation::generic_data) enum ConstPredicateAdmission {
         ProveSyntax,
-        PendingDestination,
         CheckedDestination,
     }
 

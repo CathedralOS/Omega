@@ -142,15 +142,17 @@ fn schema_context(
     let mut scalars = Vec::new();
     let mut places = Vec::new();
     for (position, value_type) in signature.parameters.iter().enumerate() {
-        if let ValueType::Rigid(rigid) = value_type
-            && (rigid.0 >= abstract_types || signature.borrowed(position).is_none())
-        {
-            return Err(crate::refusal(
-                RefusalReason::Unsupported,
-                machine,
-                Construct::Machine,
-                "abstract schema values are supported only through borrowed carriers",
-            ));
+        if let ValueType::Rigid(rigid) = value_type {
+            if rigid.0 >= abstract_types {
+                return Err(fault(machine, "abstract schema input has no declared type"));
+            }
+            if signature.borrowed(position).is_none() {
+                // An opaque logical input occupies a formal value ID, but
+                // supplies neither an observable scalar nor borrowed storage.
+                // Any predicate trying to observe it must still fail scope
+                // validation; closed applications check their actual loans.
+                continue;
+            }
         }
         if signature.is_place(position) {
             let place = u64::try_from(places.len())
@@ -209,7 +211,7 @@ fn schema_context(
                 .iter()
                 .enumerate()
                 .filter(|(position, value)| {
-                    value.scalar().is_some()
+                    value.is_value()
                         && !signature.is_erased(*position)
                         && !signature.is_place(*position)
                 })

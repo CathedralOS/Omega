@@ -391,6 +391,111 @@ pub mod calls {
             }
         }
     }
+    use crate::expression::ExpressionNode::Name;
+    use crate::expression::TableCallExpression;
+
+    // Readers use this typed declaration relation to distinguish a namespace
+    // qualifier from an extra runtime argument, without re-reading source.
+    impl crate::TypedTrees {
+        pub fn call_has_no_runtime_receiver_for_target(&self, call: &TableCallExpression) -> bool {
+            if let Some(owner) = self.machine_holding_state(call.target_symbol)
+                && let Some(target) = self
+                    .machine_states(owner)
+                    .iter()
+                    .find(|target| target.symbol == call.target_symbol)
+            {
+                return self.call_has_no_runtime_receiver(call, owner, target);
+            }
+            if crate::operator::selected_named_expression_call_has_no_runtime_receiver(self, call) {
+                return true;
+            }
+            if let Some(receiver) = self.expression_table.name_path_node(call.receiver)
+                && receiver.symbol.is_valid()
+                && self.symbols.get(receiver.symbol).kind
+                    == symbols::SymbolKind::ConformanceParameter
+                && let Ok(Some(requirement)) = self.evidence_bound_requirement(
+                    self.symbols.get(receiver.symbol).parent,
+                    receiver.symbol,
+                    call.target_symbol,
+                )
+            {
+                return call.target == requirement.signature.name
+                    && call.arguments.len()
+                        == self.state_signature_parameters(requirement.signature).len();
+            }
+            let binder = self.symbols.get(call.target_symbol).parent;
+            if binder.is_valid()
+                && self.symbols.get(binder).kind == symbols::SymbolKind::ConformanceParameter
+                && let Ok(Some(requirement)) = self.evidence_bound_requirement(
+                    self.symbols.get(binder).parent,
+                    binder,
+                    call.target_symbol,
+                )
+            {
+                return self
+                    .expression_table
+                    .name_path_node(call.receiver)
+                    .is_some_and(|path| path.symbol == binder)
+                    && call.target == requirement.signature.name
+                    && call.arguments.len()
+                        == self.state_signature_parameters(requirement.signature).len();
+            }
+            let mut requirements = self.traits().iter().filter_map(|owner| {
+                self.trait_machine_signature_by_symbol(owner, call.target_symbol)
+                    .map(|signature| (owner, signature))
+            });
+            let Some((owner, signature)) = requirements.next() else {
+                return false;
+            };
+            let parameters = self.state_signature_parameters(signature);
+            let arguments = self.expression_table.expression_handles(call.arguments);
+            if requirements.next().is_some()
+                || !call.target_symbol.is_valid()
+                || arguments.len() != call.arguments.count() as usize
+                || arguments.len() != parameters.len()
+                || call.target.as_str() != signature.name.as_str()
+            {
+                return false;
+            }
+            if !call.receiver.is_valid() {
+                return true;
+            }
+            if !self.expression_table.expression_is_valid(call.receiver) {
+                return false;
+            }
+            matches!(self.expression_table.expression(call.receiver),
+            Name(path) if path.symbol == owner.symbol)
+        }
+
+        fn call_has_no_runtime_receiver(
+            &self,
+            call: &TableCallExpression,
+            owner: &crate::machine::Machine,
+            target: &crate::state::State,
+        ) -> bool {
+            if call.target_symbol != target.symbol {
+                return false;
+            }
+            if !call.receiver.is_valid() {
+                return true;
+            }
+            if !self.expression_table.expression_is_valid(call.receiver) {
+                return false;
+            }
+            let Name(path) = self.expression_table.expression(call.receiver) else {
+                return false;
+            };
+            if path.symbol.is_valid()
+                && matches!(
+                    self.symbols.get(path.symbol).kind,
+                    symbols::SymbolKind::Conformance | symbols::SymbolKind::ConformanceParameter
+                )
+            {
+                return true;
+            }
+            owner.attached_data_symbol.is_valid() && path.symbol == owner.attached_data_symbol
+        }
+    }
 }
 
 pub mod control_flow {
@@ -694,22 +799,62 @@ pub mod control_flow {
             {
                 return None;
             }
-            let operator = crate::operator::resolve_satisfied_checked_operator_for_conformance(
-                program,
-                machine,
-                conformance,
-            )?;
-            if let Some(requirement) =
+            // A requirement's name can denote several input/result-domain
+            // overloads. Resolve its complete signature independently of any
+            // token binding; named catalog calls use the same declaration.
+            let path = format!("{}::{}", conformance.name, requirement_name);
+            let matches = |symbol| {
+                if let Some(requirement) = program.machine_by_symbol(symbol)
+                    && requirement.supply_mode
+                        == language_semantics::MachineSupplyMode::TopLevelRequirement
+                {
+                    let Some(entry) = program.machine_states(requirement).first() else {
+                        return false;
+                    };
+                    return crate::callable_signature_shapes::realizes_signature(
+                        program,
+                        machine,
+                        program.machine_type_parameters(requirement),
+                        program.state_parameters(entry),
+                        entry.return_type,
+                    );
+                }
                 program
-                    .machines_with_symbol(operator.symbol)
-                    .find(|requirement| {
-                        requirement.supply_mode
-                            == language_semantics::MachineSupplyMode::TopLevelRequirement
+                    .operator_definition_by_symbol(symbol)
+                    .is_some_and(|operator| {
+                        crate::callable_signature_shapes::realizes_signature(
+                            program,
+                            machine,
+                            program.operator_type_parameters(operator),
+                            program.operator_parameters(operator),
+                            operator.return_type,
+                        )
                     })
+            };
+            let selected = program
+                .symbols
+                .lookup_signature_free_top_level_from_source_matching(
+                    &path,
+                    &[symbols::SymbolKind::Machine, symbols::SymbolKind::Operator],
+                    conformance.requirement_source_span.unwrap_or_default(),
+                    matches,
+                )
+                .unique()?;
+            if conformance.requirement_symbol.is_valid()
+                && conformance.requirement_symbol != selected
             {
-                return Some(SatisfiedDeclaration::TopLevelRequirement(requirement));
+                return None;
             }
-            Some(SatisfiedDeclaration::Operator(operator))
+            if let Some(requirement) = program.machine_by_symbol(selected)
+                && requirement.supply_mode
+                    == language_semantics::MachineSupplyMode::TopLevelRequirement
+            {
+                Some(SatisfiedDeclaration::TopLevelRequirement(requirement))
+            } else {
+                program
+                    .operator_definition_by_symbol(selected)
+                    .map(SatisfiedDeclaration::Operator)
+            }
         }
 
         pub fn machine_by_symbol(machines: &[Machine], symbol: SymbolHandle) -> Option<&Machine> {

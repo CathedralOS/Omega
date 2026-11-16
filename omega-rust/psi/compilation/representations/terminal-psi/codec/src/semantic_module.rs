@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 278`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 279`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -4757,12 +4757,11 @@ pub(crate) use wire::{Reader, Writer, decode_canonical, decode_counted};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
-// Marker 278 combines callable/service/provider contracts, structural
-// qualifications, numeric clauses, installation-bound service rows and the
-// distinction between absent and explicit machine-parameter upper bounds.
-// Both incompatible predecessor layouts used 277; neither supplies this
-// combined grammar. Reject them at the header before reading any payload.
-pub(crate) const FORMAT_MARKER: u16 = 278;
+// Marker 279 combines callable/service/provider contracts, structural
+// qualification changes, numeric clauses, installation-bound service rows,
+// optional machine upper bounds, and typed integer float-equation operands.
+// Both incompatible marker-278 predecessors refuse before payload decoding.
+pub(crate) const FORMAT_MARKER: u16 = 279;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
@@ -5814,7 +5813,7 @@ mod format_marker_tests {
 
     #[test]
     fn predecessor_vocabularies_are_refused_before_payload_interpretation() {
-        for vocabulary in [136u16, 137] {
+        for vocabulary in [136u16, 137, 138] {
             for payload in [&[][..], &[0xff, 0xff, 0xff][..]] {
                 let mut bytes = MAGIC.to_vec();
                 bytes.extend_from_slice(&FORMAT_MARKER.to_le_bytes());
@@ -5830,11 +5829,11 @@ mod format_marker_tests {
 
     #[test]
     fn legacy_semantic_markers_are_refused_before_payload_interpretation() {
-        // Independent predecessors shared markers 251, 252 and 277.
+        // Independent predecessors shared markers 251, 252, 277 and 278.
         // None may enter the combined grammar, regardless of payload.
         for legacy in [
             250u16, 251, 252, 256, 260, 261, 264, 265, 266, 267, 268, 269, 270, 271, 272, 273, 274,
-            275, 276, 277,
+            275, 276, 277, 278,
         ] {
             for payload in [&[][..], &[0xff, 0xff, 0xff][..]] {
                 let mut bytes = MAGIC.to_vec();

@@ -54,6 +54,14 @@ pub fn terminal_callable_values_with_boundary_implementations<'a>(
     Ok(program)
 }
 
+/// Boundary demand and the exact machines invoked by the same callable analysis.
+/// A directly invoked selected body can be reached without its boundary ID.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ReachedBoundaryCalls {
+    pub boundaries: Vec<BoundaryMachineId>,
+    pub reached_machines: Vec<MachineId>,
+}
+
 /// Find actual boundary invocations from an entry, including selected code,
 /// terminal edges and cleanup calls. Retaining a boundary header or descriptor
 /// alone does not make it a demand for executable supply.
@@ -62,6 +70,15 @@ pub fn reached_boundary_calls(
     entry: MachineId,
     implementations: &[CallableBoundaryImplementation],
 ) -> CallableValueResult<Vec<BoundaryMachineId>> {
+    Ok(boundary_call_reach(module, entry, implementations)?.boundaries)
+}
+
+/// Keep machine reach and boundary demand paired to one actual-argument query.
+pub fn boundary_call_reach(
+    module: &TerminalModule,
+    entry: MachineId,
+    implementations: &[CallableBoundaryImplementation],
+) -> CallableValueResult<ReachedBoundaryCalls> {
     let program = terminal_callable_values_with_boundary_implementations(module, implementations)?;
     let reached = reachable_callable_invocations(&program, [entry])?;
     let mut boundaries = Vec::new();
@@ -94,7 +111,10 @@ pub fn reached_boundary_calls(
     }
     boundaries.sort_unstable();
     boundaries.dedup();
-    Ok(boundaries)
+    Ok(ReachedBoundaryCalls {
+        boundaries,
+        reached_machines: reached.reached_machines,
+    })
 }
 
 /// Project current executable Terminal operations into the shared value query.

@@ -1043,11 +1043,6 @@ pub mod fnv1a {
             self.bytes(&value.to_le_bytes());
         }
 
-        pub fn u64_mix(&mut self, value: u64) {
-            self.0 ^= value;
-            self.0 = self.0.wrapping_mul(Self::PRIME);
-        }
-
         pub fn bytes_terminated(&mut self, bytes: &[u8], terminator: u8) {
             self.bytes(bytes);
             self.byte(terminator);

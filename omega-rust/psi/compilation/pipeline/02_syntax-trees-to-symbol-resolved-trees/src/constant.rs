@@ -1280,21 +1280,6 @@ pub(crate) mod initializer_dependencies {
         })
     }
 
-    pub(crate) fn collect(
-        program: &SymbolResolvedTrees,
-        root: ExpressionHandle,
-        selected_calls: Option<&[(SourceSpan, SourceSpan)]>,
-    ) -> Result<ConstInitializerDependencies, String> {
-        let mut collector = Collector {
-            expressions: vec![DependencyWork::unscoped(root)],
-            initializer_expressions: vec![DependencyWork::unscoped(root)],
-            selected_calls,
-            ..Collector::new(program)
-        };
-        collector.collect()?;
-        Ok(collector.dependencies)
-    }
-
     /*
         A declaration's destination participates in readiness independently of the
         expression leaves. In particular an empty/literal array still demands its
@@ -1356,36 +1341,6 @@ pub(crate) mod initializer_dependencies {
         }
 
         Ok(collector.dependencies)
-    }
-
-    pub(crate) fn expression_at_source(
-        program: &SymbolResolvedTrees,
-        root: ExpressionHandle,
-        source: SourceSpan,
-    ) -> Result<ExpressionHandle, String> {
-        let mut collector = Collector {
-            expressions: vec![DependencyWork::unscoped(root)],
-            follow_dependencies: false,
-            ..Collector::new(program)
-        };
-        let mut selected = None;
-        while let Some(work) = collector.expressions.pop() {
-            collector.lexical_owner = work.lexical_owner;
-            let expression = work.value;
-            if collector.visited_expressions.contains(&work) {
-                continue;
-            }
-            collector.visited_expressions.push(work);
-            if program.tables.bodies.expressions.source_span(expression) == source {
-                if selected.is_some() {
-                    return Err("initializer leaf source correspondence is ambiguous".to_owned());
-                }
-                selected = Some(expression);
-            }
-            collector.expression(expression)?;
-        }
-        selected
-            .ok_or_else(|| "initializer leaf is absent from its retained original root".to_owned())
     }
 
     /*

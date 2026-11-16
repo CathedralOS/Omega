@@ -3697,48 +3697,6 @@ pub(super) fn qualification_names_itself(definition: &ConstDefinition) -> bool {
         })
 }
 
-pub(crate) fn canonicalize_pending_initializer_payload(
-    syntax: &SyntaxTrees,
-    definition: &ConstDefinition,
-    selection: Option<&ConstantSelection>,
-) -> Result<crate::resolution::ConstInitializerPayload, String> {
-    let mut payload = definition.clone();
-    while let TypeReferenceNode::Constrained { base_type, .. } =
-        syntax_type_references(syntax).type_reference(payload.type_reference)
-    {
-        payload.type_reference = *base_type;
-    }
-    let value = canonicalize_selected_declaration_value_with_admission(
-        syntax,
-        &payload,
-        selection,
-        ConstPredicateAdmission::PendingDestination,
-    )?;
-    Ok(crate::resolution::ConstInitializerPayload {
-        value,
-        pending_destination: if let Some(obligation) = &definition.pending_qualification {
-            if obligation.declaration != definition.name.source_span()
-                || obligation.initializer != definition.value
-            {
-                return Err(
-                    "private constant payload drifted from its pending destination".to_owned(),
-                );
-            }
-            Some(obligation.clone())
-        } else if !qualification_names_itself(definition)
-            && const_destination_requires_proof(syntax, definition, selection)
-        {
-            Some(crate::resolution::ConstDestinationObligation {
-                declaration: definition.name.source_span(),
-                destination: definition.type_reference,
-                initializer: definition.value,
-            })
-        } else {
-            None
-        },
-    })
-}
-
 /*
     Canonicalize one source const declaration against its own declared type.
 

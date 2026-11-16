@@ -206,7 +206,37 @@ fn settle_execution(
 ) -> Result<SelectedExecution, Vec<Diagnostic>> {
     use provider_planning::target_supply::{TargetSupplyRealizationRequest, realize_target_supply};
     let accepted = source.terminal_publication.accepted()?;
+    let declared = accepted
+        .boundary_requirements_declared()
+        .map_err(|error| vec![error])?
+        .into_iter()
+        .map(
+            |row| provider_planning::target_supply::ReachedBoundaryRequirement {
+                boundary: row.boundary,
+                requirement: row.requirement,
+                slot: row.slot,
+                name: row.name,
+            },
+        )
+        .collect::<Vec<_>>();
+    let selected_requirements = provider_planning::target_supply::explicit_build_requirements(
+        &declared,
+        &source.computed_build_config.config.provider_selections,
+        profile.map(|profile| profile.target_name()),
+    );
     let Some(target) = profile else {
+        if !selected_requirements.is_empty() {
+            return Err(declared
+                .iter()
+                .filter(|row| selected_requirements.binary_search(&row.boundary).is_ok())
+                .map(|row| {
+                    Diagnostic::error(format!(
+                        "boundary requirement `{}` requires an explicit deployment target",
+                        row.name,
+                    ))
+                })
+                .collect());
+        }
         let roots = source
             .terminal_publication
             .roster()?
@@ -227,18 +257,45 @@ fn settle_execution(
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
         return SelectedExecution::from_realization(None, realization);
     };
-    let mut bindings = Vec::new();
+    let mut bindings: Vec<source_compiler::CallableBoundaryImplementation> = Vec::new();
     let mut execution_inputs = None::<(
         Vec<semantic_vocabulary::BoundaryMachineId>,
         provider_planning::target_supply::TargetSupplyExecutionInputs,
     )>;
     loop {
-        let reached = match entry {
-            Some(entry) => accepted
-                .boundary_calls_reached(entry, &bindings, Some(target.target_name()))
-                .map_err(|error| vec![error])?,
-            None => Vec::new(),
+        let (mut reached, invoked_machines) = match entry {
+            Some(entry) => {
+                let reach = accepted
+                    .boundary_call_reach(entry, &bindings, Some(target.target_name()))
+                    .map_err(|error| vec![error])?;
+                (reach.boundaries, reach.reached_machines)
+            }
+            None => (Vec::new(), Vec::new()),
         };
+        // An explicit Build selection commits its exact requirements even in a
+        // reusable package. An invoked body already retains its exact actuals;
+        // query only otherwise dormant selected bodies as admission roots.
+        // Retained code and available defaults introduce no independent roots.
+        for binding in &bindings {
+            if selected_requirements
+                .binary_search(&binding.boundary)
+                .is_ok()
+                && invoked_machines.binary_search(&binding.machine).is_err()
+            {
+                reached.extend(
+                    accepted
+                        .boundary_calls_reached(
+                            binding.machine,
+                            &bindings,
+                            Some(target.target_name()),
+                        )
+                        .map_err(|error| vec![error])?,
+                );
+            }
+        }
+        reached.extend(selected_requirements.iter().copied());
+        reached.sort_unstable();
+        reached.dedup();
         let inputs = match &execution_inputs {
             Some((previous, inputs)) if *previous == reached => inputs.clone(),
             _ => {

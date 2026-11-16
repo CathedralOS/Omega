@@ -324,6 +324,24 @@ fn entry_calls_bind_two_selections_through_one_formal_without_invoking_unused_co
             .is_none()
     );
 
+    // A chosen body is also an ordinary callable. The direct call above
+    // supplies its real code argument without invoking the associated boundary;
+    // retain the machine summary so admission does not root that body again.
+    module.boundary_machines = vec![boundary(1, true)];
+    let direct_binding = CallableBoundaryImplementation {
+        boundary: BoundaryMachineId::new(1).unwrap(),
+        machine: machine_id(6),
+    };
+    let direct_reach = boundary_call_reach(&module, machine_id(1), &[direct_binding]).unwrap();
+    assert!(direct_reach.boundaries.is_empty());
+    assert_eq!(direct_reach.reached_machines, reached.reached_machines);
+    assert!(
+        direct_reach
+            .reached_machines
+            .contains(&direct_binding.machine)
+    );
+    assert!(!direct_reach.reached_machines.contains(&machine_id(5)));
+
     // The same returned value and formal substitution must survive a chosen
     // provider. Its terminal call is reached; an unused descriptor's is not.
     module.boundary_machines = vec![boundary(1, true), boundary(2, false), boundary(3, false)];

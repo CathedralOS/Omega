@@ -690,7 +690,7 @@ impl Program<'_> {
         Ok(typed_view(row))
     }
 
-    fn retain_byte_domains(
+    pub(super) fn retain_byte_domains(
         &mut self,
         machine: MachineId,
         carrier: StructuralTypeId,

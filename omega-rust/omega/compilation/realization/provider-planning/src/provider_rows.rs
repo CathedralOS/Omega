@@ -278,19 +278,7 @@ pub fn direct_compiler_primitive_leaves(
                 let meaning = boundary
                     .numeric_intrinsic
                     .ok_or_else(|| fail("numeric primitive lost its semantic meaning"))?;
-                let profile = target::TargetProfile::from_canonical_target_name(target)
-                    .map_err(|_| fail("numeric primitive has no recognized target"))?;
-                let requirement = text(boundary.identity)?;
-                let entry = profile
-                    .canonical_float_realization(requirement)
-                    .ok_or_else(|| {
-                        fail("numeric primitive has no canonical target realization entry")
-                    })?;
-                if let target::CanonicalFloatRealization::Unsupported { constraint } = entry {
-                    return Err(vec![Diagnostic::error(format!(
-                        "canonical float operation `{requirement}` has no realization on target `{target}`: {constraint}"
-                    ))]);
-                }
+                let entry = canonical_numeric_realization(module, boundary, target)?;
                 (
                     boundary,
                     effects::CompilerIntrinsicExecutionIdentity::from(meaning),
@@ -357,6 +345,35 @@ pub fn direct_compiler_primitive_leaves(
         leaves.push(leaf);
     }
     Ok(leaves)
+}
+
+/// Target preparation and native publication consult the same canonical table.
+/// A declaration that no selected root reaches imposes no target obligation.
+pub(crate) fn canonical_numeric_realization(
+    module: &terminal_psi::TerminalModule,
+    boundary: &terminal_psi::BoundaryMachineDeclaration,
+    target: &str,
+) -> Result<target::CanonicalFloatRealization, Vec<Diagnostic>> {
+    let fail = |reason: &str| vec![Diagnostic::error(reason)];
+    if boundary.numeric_intrinsic.is_none() {
+        return Err(fail("numeric primitive lost its semantic meaning"));
+    }
+    let profile = target::TargetProfile::from_canonical_target_name(target)
+        .map_err(|_| fail("numeric primitive has no recognized target"))?;
+    let requirement = module
+        .identities
+        .text(boundary.identity)
+        .filter(|identity| !identity.is_empty())
+        .ok_or_else(|| fail("numeric primitive lost its exact declaration identity"))?;
+    let entry = profile
+        .canonical_float_realization(requirement)
+        .ok_or_else(|| fail("numeric primitive has no canonical target realization entry"))?;
+    if let target::CanonicalFloatRealization::Unsupported { constraint } = entry {
+        return Err(vec![Diagnostic::error(format!(
+            "canonical float operation `{requirement}` has no realization on target `{target}`: {constraint}"
+        ))]);
+    }
+    Ok(entry)
 }
 
 #[cfg(test)]

@@ -376,6 +376,20 @@ impl AcceptedTerminalSource {
         implementations: &[crate::CallableBoundaryImplementation],
         target: Option<&str>,
     ) -> Result<Vec<semantic_vocabulary::BoundaryMachineId>, Diagnostic> {
+        Ok(self
+            .boundary_call_reach(entry, implementations, target)?
+            .boundaries)
+    }
+
+    /// Preserve the actual invoked-machine summary alongside boundary demand.
+    /// Both projections include the same demanded scalar evaluations and exact
+    /// selected implementations; a retained body alone contributes neither.
+    pub fn boundary_call_reach(
+        &self,
+        entry: semantic_vocabulary::MachineId,
+        implementations: &[crate::CallableBoundaryImplementation],
+        target: Option<&str>,
+    ) -> Result<terminal_semantics::callable_values::ReachedBoundaryCalls, Diagnostic> {
         let module = self.module();
         let defect = |detail| {
             Diagnostic::error(format!(
@@ -396,6 +410,7 @@ impl AcceptedTerminalSource {
             .map_err(defect)?;
         let mut roots = vec![entry];
         let mut boundaries = Vec::new();
+        let mut reached_machines = Vec::new();
         for root in scalar_roots {
             match root {
                 semantic_vocabulary::TargetMachineCallable::Machine(machine) => roots.push(machine),
@@ -410,18 +425,23 @@ impl AcceptedTerminalSource {
         roots.sort_unstable();
         roots.dedup();
         for root in roots {
-            boundaries.extend(
-                terminal_semantics::callable_values::reached_boundary_calls(
-                    module,
-                    root,
-                    implementations,
-                )
-                .map_err(|detail| defect(detail.to_owned()))?,
-            );
+            let reached = terminal_semantics::callable_values::boundary_call_reach(
+                module,
+                root,
+                implementations,
+            )
+            .map_err(|detail| defect(detail.to_owned()))?;
+            boundaries.extend(reached.boundaries);
+            reached_machines.extend(reached.reached_machines);
         }
         boundaries.sort_unstable();
         boundaries.dedup();
-        Ok(boundaries)
+        reached_machines.sort_unstable();
+        reached_machines.dedup();
+        Ok(terminal_semantics::callable_values::ReachedBoundaryCalls {
+            boundaries,
+            reached_machines,
+        })
     }
 
     /// The supply a Build names as the backing of a provider readiness

@@ -1167,17 +1167,6 @@ pub(crate) mod item_copies {
             SyntaxCopy::new(self, other).copy_static_machine_argument(other, argument)
         }
 
-        pub fn transfer_static_machine_arguments(
-            &mut self,
-            other: &SyntaxTrees,
-            mut arguments: Box<[StaticMachineArgument]>,
-        ) -> Box<[StaticMachineArgument]> {
-            for argument in arguments.iter_mut() {
-                SyntaxCopy::new(self, other).remap_static_machine_argument(other, argument);
-            }
-            arguments
-        }
-
         pub(crate) fn copy_mathematical_definition(
             &mut self,
             other: &SyntaxTrees,

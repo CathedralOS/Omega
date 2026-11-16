@@ -486,18 +486,6 @@ filesystem_record!(
     }
 );
 
-impl FilesystemLogicalHandleInput {
-    pub const fn is_unknown_native(self) -> bool {
-        matches!(
-            (self.kind, self.resolution),
-            (
-                FilesystemLogicalHandleKind::Native,
-                FilesystemLogicalHandleInputResolution::Unknown
-            )
-        )
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FilesystemLogicalHandleOutputSource {
     Created,

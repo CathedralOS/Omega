@@ -58,6 +58,7 @@ use crate::{ClauseText, Unserved, refuse};
 /// One predicate of a declared domain: the symbol its `self` resolved to
 /// and the clause's expression.
 struct Predicate {
+    instance: crate::body::DomainInstance,
     owner: SymbolHandle,
     subject: SymbolHandle,
     expression: ExpressionHandle,
@@ -86,6 +87,7 @@ impl Program<'_> {
                 let expression = self.fact(id, fact)?;
                 if !self.states_nothing(id, expression, false)? {
                     predicates.push(Predicate {
+                        instance: domain,
                         owner: definition.symbol,
                         subject: definition.subject_symbol,
                         expression,
@@ -146,15 +148,6 @@ impl Program<'_> {
         let mut added = SignaturePredicates::default();
         for (position, slot) in entry.slots.iter().enumerate() {
             let qualification = slot.value_type.qualification();
-            if let ValueType::Record(record, _, _) = slot.value_type
-                && self.is_readable_byte_view(id, record)?
-            {
-                // Descriptor predicates remain exact structural qualifications,
-                // checked at calls and establishments. They are not scalar
-                // clauses over an invented value-formal identity.
-                self.view_predicates(id, slot.value_type)?;
-                continue;
-            }
             if self.predicates(id, qualification)?.is_empty() {
                 continue;
             }
@@ -530,6 +523,49 @@ impl Program<'_> {
         };
         let mut clauses = Vec::with_capacity(predicates.len());
         for predicate in predicates {
+            if let Some((expression, _)) = typed_trees::byte_predicates::byte_slice_domain_predicate(
+                self.typed,
+                self.domain_theory(id, predicate.instance)?,
+            ) && expression == predicate.expression
+            {
+                let ValueType::Record(carrier, _, _) = plain else {
+                    return Err(refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Type("primitive byte domain on non-byte storage"),
+                    ));
+                };
+                if !self.is_readable_byte_view(id, carrier)? {
+                    return Err(refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Type("primitive byte domain without its readable descriptor"),
+                    ));
+                }
+                let domains = crate::body::DomainSet::EMPTY
+                    .with(predicate.instance)
+                    .ok_or_else(|| {
+                        refuse(
+                            id,
+                            Construct::Machine,
+                            Unserved::Type("primitive byte domain identity"),
+                        )
+                    })?;
+                // The exact declaration, call and subject establish this
+                // descriptor's domain meaning. Retain its actual membership;
+                // byte establishment and transfer validate it against the
+                // source bytes rather than treating the primitive as a call
+                // of an ordinary predicate machine.
+                self.retain_byte_domains(
+                    id,
+                    carrier,
+                    Qualification {
+                        policy: None,
+                        domains,
+                    },
+                )?;
+                continue;
+            }
             if !predicate.subject.is_valid() {
                 return Err(refuse(
                     id,
@@ -564,19 +600,6 @@ impl Program<'_> {
         path: &[CanonicalStructuralPathSegment],
         value_type: ValueType,
     ) -> Checked<Vec<Proposition>> {
-        // A byte view's domains are its primitive byte predicates, which
-        // the lowered form carries on the field's own type
-        // (`StructuralFieldType::PredicateByteSequence`) and the checker
-        // judges at every store from the bytes supplied, not as a clause of
-        // the owner (`byte_view_domains`).
-        if let ValueType::Record(row, _, _) = value_type
-            && matches!(
-                self.data_type(id, row)?.shape,
-                crate::StorageShape::ByteSequence(_)
-            )
-        {
-            return Ok(Vec::new());
-        }
         let Some(root) = crate::body::self_place() else {
             return Err(refuse(
                 id,

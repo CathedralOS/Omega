@@ -20,5 +20,5 @@ pub use source_choices::{
     DemandedRequirement, JudgedProvider, NormalizedNativeSupplies, NormalizedNativeSupply,
     PreparedTargetSupply, ProviderSupply, ReachedBoundaryRequirement, SettledRequirement,
     SettledTargetSupply, SlotSchema, SupplyAuthority, SupplyPlanning, SupplySelection,
-    TargetSupplyRequest, UnchosenSupply, choose_supply,
+    TargetSupplyRequest, UnchosenSupply, choose_supply, explicit_build_requirements,
 };
