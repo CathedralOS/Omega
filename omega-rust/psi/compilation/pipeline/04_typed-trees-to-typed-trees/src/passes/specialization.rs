@@ -1218,7 +1218,7 @@ fn copied_parts(
     let Some(machine) = program.machine_by_symbol(symbol) else {
         return Err(Stop::Unserved(Some("a copied declaration has no machine")));
     };
-    let [state] = program.machine_states(machine) else {
+    let Some([state]) = program.machine_states(machine).as_array() else {
         return Err(Stop::Unserved(Some(
             "a copied declaration needs exactly one entry",
         )));

@@ -554,6 +554,12 @@ impl<T> Clone for RootRows<'_, T> {
         *self
     }
 }
+impl<T: PartialEq> PartialEq for RootRows<'_, T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.iter().eq(other.iter())
+    }
+}
+impl<T: Eq> Eq for RootRows<'_, T> {}
 impl<'arena, T> RootRows<'arena, T> {
     fn retained(arena: &'arena RootedArena<T>, span: HandleSpan<T>) -> Self {
         Self {
@@ -779,6 +785,21 @@ impl<T: compiler_storage::Record> compiler_storage::Record for RootedArena<T> {
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
+
+    #[test]
+    fn row_equality_observes_values_not_storage_geometry() {
+        let mut original = RootedArena::new();
+        let span = original.insert_many([1u32, 2, 3]);
+        let mut fork = original.clone();
+        let borrowed = RootRows::from_slice(&[1u32, 2, 3]);
+        assert_eq!(original.span_or_empty(span), borrowed);
+        assert_eq!(fork.span_or_empty(span), borrowed);
+        *fork.get_mut(span.start()) = 8;
+        assert_eq!(original.span_or_empty(span), borrowed);
+        assert_ne!(fork.span_or_empty(span), borrowed);
+        assert_ne!(original.span_or_empty(span), borrowed.slice(0..2));
+        assert_eq!(RootRows::<u32>::default(), borrowed.slice(0..0));
+    }
 
     #[test]
     fn empty_subranges_do_not_mint_a_handle_past_the_slot_domain() {

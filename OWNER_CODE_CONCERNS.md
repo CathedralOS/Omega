@@ -75,37 +75,30 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-### Target validation rejects an executable provider call with two mutable inputs
-- Category: verifying costs more than writing
-- Where: [selected boundary correspondence](omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/native-preparation/src/legalization_scalar_graph.rs#L2407)
-- Saw: A Build-selected provider writes 41 and 43 through two distinct `&mut i64` inputs. On macOS arm64, the caller checks both values and exits 0 in native execution and Psi at `b0780cf0613`. The same source with `TargetOperationCorrespondence` reports `SourceCustodyMismatch` for machine 1, operation 5. The reproduction uses elided lifetimes.
-- Cost: Independent target validation refuses this provider call. Identify the disagreement between the selected requirement and call record, and verify a valid pair of loans and a mismatched provider record.
-- Reported: 2026-11-16, Codex, while qualifying named boundary input lifetimes.
-
 ### Selected-body activation copies retained side records
 - Category: re-deriving
-- Where: [body activation](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L555), [continuation storage clone](omega-rust/psi/compilation/representations/typed-trees/src/lib.rs#L1295), [retained pages](omega-rust/psi/foundation/arena/src/retained.rs)
-- Saw: Replacing symbols on a shared typed predecessor can still clone side records, normalized identities and owned containers when no bodies are selected. The [data-child sharing change](https://github.com/CathedralOS/Omega/pull/3720) records a historical baseline on both Windows x86-64 Build routes.
+- Where: [body activation](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L669), [continuation storage clone](omega-rust/psi/compilation/representations/typed-trees/src/lib.rs#L1295), [owned arena clone](omega-rust/psi/foundation/arena/src/arena.rs#L748)
+- Saw: Replacing symbols on a shared typed predecessor can still clone other side records, normalized identities and owned containers when no bodies are selected. The [data-child sharing change](https://github.com/CathedralOS/Omega/pull/3720) records a historical baseline on both Windows x86-64 Build routes. A matched pair on fixed `570d707` plus the call/machine-record repair and numeric observer recorded 2,182,456 requested bytes, 12,456 allocations and 36 arena clones on both routes (Windows x86-64, opt-level 1); this is historical measurement, not current-main qualification.
 - Cost: Empty activation pays to copy storage unrelated to the selection. Share the remaining immutable storage under its existing owners and keep writes local to the changed records or completion batches. Preserve source application preparation, projection, source authority checks, and signature and inferred-summary dependencies. Re-measure empty activation and nonempty completion on both [scalar and borrowed-root workloads](wiki/drafts/measurements/selected_body_copies.md#workloads-and-boundary), counting copied storage and new output separately. See the [body ownership design](wiki/drafts/designs/compiler_work_ownership.md#representation-and-execution-contract).
 - Reported: 2026-11-15, Codex, while measuring continuation construction and body completion.
 
-### Instruction selection's inputs still carry earlier-stage pieces
+### Image emission gets installation records from stage 02's output
 - Category: knowledge crossing a boundary
-- Where: [stage 03 manifest](omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/Cargo.toml), [stage 02 output](omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/lib.rs#L309), [boundary rules](tools/xtask/src/boundary.rs#L396)
-- Saw: Stage 03 now takes installation authority as the plain [`BoundInstallations`](omega-rust/omega/compilation/backend/runtime/bound-installations/src/lib.rs) record and sits under both transitive rules in `tools/xtask/src/boundary.rs`. The driver still attaches [handler stacks](omega-rust/omega/compilation/native-compiler/src/realization/object_emission.rs#L102) and [entry execution](omega-rust/omega/compilation/native-compiler/src/realization/callback_thunks.rs#L315) to stage 02's output after preparation, because image emission reads them back from that output (`installed_entry_execution`, `installed_stack_requirements` in `image-emission`). Plan and selection representations use canonical encoders from the [module codec](omega-rust/psi/compilation/representations/terminal-psi/codec/src/lib.rs), which also exposes the sealed Terminal Psi module.
-- Cost: Stage 02's output is still mutated after preparation. Once image emission takes the installed entry and handler stacks from the bound record instead of stage 02's output, delete `with_installed_entry_execution` and `with_installed_stack_requirements` and pass the record beside the plan to both consumers. Separate canonical encoding from module access.
+- Where: [handler stack setup](omega-rust/omega/compilation/native-compiler/src/realization/object_emission.rs#L102), [entry execution setup](omega-rust/omega/compilation/native-compiler/src/realization/callback_thunks.rs#L315), [physical entry requirements](omega-rust/omega/compilation/backend/images/image-emission/src/entries.rs#L4824)
+- Saw: The driver attaches entry execution and installed stack requirements to stage 02's output after preparation. Image emission reads those records back from the stage output. Instruction selection already receives them through [`BoundInstallations`](omega-rust/omega/compilation/backend/runtime/bound-installations/src/lib.rs).
+- Cost: The driver must modify the prepared stage output to carry installation records to image emission. Pass the bound record beside the plan to image emission and remove the two stage-output setters.
 - Reported: 2026-11-16, Claude Code, while auditing the stage 02 to stage 03 boundary.
 
 ### Later machine forms embed records from the prepared plan
 - Category: knowledge crossing a boundary
-- Where: [selected instructions](omega-rust/omega/compilation/representations/selected-instructions/Cargo.toml#L25), [register homes](omega-rust/omega/compilation/representations/register-homes/Cargo.toml#L13), [frame step](omega-rust/omega/compilation/backend/machine-emission/src/function_realization.rs#L345)
-- Saw: `selected-instructions` and `register-homes` embed call records, structural contracts and call-site owners defined in `legalized-operations`, so both depend on the prepared plan's crate. Stage 06's output omits the allocation it was computed from, so `stage_function_frame` takes the allocation and stage 06's output separately.
-- Cost: A change to a legalized-operations record changes the selected and allocated forms without passing through stage 03. Move the embedded records to the form that owns them, and let stage 06's output keep its allocation so the frame step reads one form.
+- Where: [selected instructions](omega-rust/omega/compilation/representations/selected-instructions/Cargo.toml#L25), [register homes](omega-rust/omega/compilation/representations/register-homes/Cargo.toml#L13)
+- Saw: `selected-instructions` and `register-homes` embed call records, structural contracts and call-site owners defined in `legalized-operations`, so both depend on the prepared plan's crate.
+- Cost: A change to a legalized-operations record changes the selected and allocated forms without passing through stage 03. Move the embedded records to the form that owns them.
 - Reported: 2026-11-16, Claude Code, while removing unused dependencies from stages 04 to 09.
 
-### Image emission still reads the target operations stage 02 keeps as a working form
+### Image emission's replay validators share a file with object production
 - Category: knowledge crossing a boundary
-- Where: [object evidence](omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments.rs), [stage 02 output](omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/lib.rs)
-- Saw: Stage 02 now publishes one execution plan, and the entry, profile, entry calling plan and surviving installations are read from it. `function_fragments.rs` still reads `target_operations()` for evidence checks alongside the abstract program (reference backing geometry, activation residence, access-reference checks), and borrowed-storage layouts still come from `TargetOperationPlan` because `NativeBorrowedStorageLayout` has no identity encoding to seal into the plan.
-- Cost: Stage 02 has to keep exposing two complete graphs. Give borrowed-storage layouts a canonical encoding and move them into the plan, port the evidence checks to plan rows, then stop exposing `target_operations()` outside the stage and its validator.
-- Reported: 2026-11-16, Claude Code, while moving the readers of stage 02's output onto the execution plan.
+- Where: [object production](omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments.rs#L3693), [replay validation](omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments.rs#L3961), [working-program boundary rule](tools/xtask/src/boundary.rs#L855)
+- Saw: Replay validators read stage 02's working program through [a helper](omega-rust/omega/compilation/backend/images/image-emission/src/retained_working_program.rs#L14). The boundary rule restricts the underlying accessor by file. Object production shares a file with the replay validators and can call the helper without crossing the rule.
+- Cost: A production path can regain access to stage 02's working program. Give the replay validators their own module or crate and make `check-boundary` reject a production call to the helper.
+- Reported: 2026-11-16, Claude Code, while moving image emission off stage 02's working program.

@@ -154,6 +154,7 @@ pub(crate) mod native_geometry {
                 no_code_affine_cleanup: false,
                 copyable: true,
                 descriptor_cleanup: false,
+                nominal_cleanup: None,
                 scalar_restriction: None,
             });
             let published = terminal_codec::ClosedTerminalModule::new(module).unwrap();
@@ -194,6 +195,18 @@ pub(crate) mod native_geometry {
     }
 }
 pub(crate) use legalized_operations::structural_inputs;
+
+/// What stage 02 knows about the program's boundary origins while it prepares
+/// the plan: the program entry, the installed assumed bindings, the target
+/// context and the Terminal Psi module. Preparation reads these; the prepared
+/// plan and later forms do not carry them.
+#[derive(Debug, Clone, Copy)]
+pub struct BoundaryOriginFacts<'input> {
+    pub program_entry: Option<target_operations::ProgramEntryOrigin>,
+    pub assumed_bindings: &'input [installation_evidence::InstalledAssumedBindingEvidence],
+    pub target_context: Option<&'input terminal_installation::TerminalTargetContext>,
+    pub module: &'input terminal_psi::TerminalModule,
+}
 
 pub(crate) mod installed_interrupts;
 pub(crate) mod interrupt_installation;

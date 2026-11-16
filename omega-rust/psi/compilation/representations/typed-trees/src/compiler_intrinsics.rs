@@ -199,9 +199,8 @@ fn normalized_schema(program: &TypedTrees, machine: &Machine) -> Option<Normaliz
         ) => "no-guarantee",
         _ => return None,
     };
-    let [entry] = schema_span(|span| program.machine_states.span(span), machine.states)? else {
-        return None;
-    };
+    let [entry] =
+        schema_span(|span| program.machine_states.span(span), machine.states)?.as_array()?;
     if !entry.symbol.is_valid() {
         return None;
     }

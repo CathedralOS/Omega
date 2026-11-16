@@ -9,7 +9,7 @@ use std::collections::BTreeMap;
 
 use effects::TerminalMechanismIdentity;
 use semantic_vocabulary::{
-    BlockId, BoundaryMachineId, EdgeId, IdTable, InvocationSite, MachineId, ValueId,
+    BlockId, BoundaryMachineId, IdTable, InvocationSite, MachineId, ValueId,
 };
 use terminal_psi::control_flow::BoundaryInvocationCompletion;
 use terminal_psi::{
@@ -20,31 +20,22 @@ use terminal_psi::{
 use super::context::ReviewContext;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub(super) enum CallSite {
-    Invocation(InvocationSite),
-    Cleanup { edge: EdgeId, ordinal: usize },
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) struct Caller {
     pub machine: MachineId,
     pub block: BlockId,
     pub operation_index: usize,
-    pub site: CallSite,
+    pub site: InvocationSite,
 }
 
 #[derive(Clone, Copy)]
-pub(super) enum RuntimeArguments<'a> {
-    Explicit {
-        scalar: &'a [ValueId],
-        structural: &'a [StructuralArgument],
-    },
-    Cleanup(&'a terminal_psi::NominalAffineCleanup),
+pub(super) struct RuntimeArguments<'a> {
+    pub scalar: &'a [ValueId],
+    pub structural: &'a [StructuralArgument],
 }
 
 impl<'a> From<ModuleInvocationInputs<'a>> for RuntimeArguments<'a> {
     fn from(inputs: ModuleInvocationInputs<'a>) -> Self {
-        Self::Explicit {
+        Self {
             scalar: inputs.arguments,
             structural: inputs.structural_arguments,
         }
@@ -80,9 +71,8 @@ pub(super) struct RuntimeStorageActual<'a> {
 }
 
 impl<'a> RuntimeCall<'a> {
-    /// Reuse the admitted call's own positional arguments. A nominal cleanup
-    /// has only its canonically checked receiver, never an invented ordinal
-    /// or a second expression which could select different storage.
+    /// Reuse the admitted call's original positional arguments, including the
+    /// owned subject slice of a cleanup invocation.
     pub(super) fn storage_actual(
         self,
         callee: &TerminalMachine,
@@ -95,33 +85,21 @@ impl<'a> RuntimeCall<'a> {
             .structural_parameters
             .get(parameter)
             .ok_or("handle storage actual has no original callee formal")?;
-        match self.arguments {
-            RuntimeArguments::Explicit { structural, .. } => {
-                let actual = structural
-                    .get(parameter)
-                    .ok_or("handle storage formal omits its actual argument")?;
-                if structural.len() != callee.structural_parameters.len()
-                    || actual.access != formal.access
-                {
-                    return Err("handle storage call changes its formal count or access".into());
-                }
-                Ok(RuntimeStorageActual {
-                    place: actual.place,
-                    path: &actual.path,
-                    access: actual.access,
-                })
-            }
-            RuntimeArguments::Cleanup(cleanup) => {
-                if !formal.is_cleanup_receiver(cleanup) || callee.structural_parameters.len() != 1 {
-                    return Err("handle storage call changes its nominal cleanup receiver".into());
-                }
-                Ok(RuntimeStorageActual {
-                    place: cleanup.place,
-                    path: &cleanup.path,
-                    access: formal.access,
-                })
-            }
+        let actual = self
+            .arguments
+            .structural
+            .get(parameter)
+            .ok_or("handle storage formal omits its actual argument")?;
+        if self.arguments.structural.len() != callee.structural_parameters.len()
+            || actual.access != formal.access
+        {
+            return Err("handle storage call changes its formal count or access".into());
         }
+        Ok(RuntimeStorageActual {
+            place: actual.place,
+            path: &actual.path,
+            access: actual.access,
+        })
     }
 }
 
@@ -190,44 +168,20 @@ impl<'a> HandleCallGraph<'a> {
                         }),
                     None => Ok(block.operations.len()),
                 };
-                for invocation in block.module_invocations() {
-                    let caller = Caller {
-                        machine: identity,
-                        block: block.id,
-                        operation_index: position(invocation.site)?,
-                        site: CallSite::Invocation(invocation.site),
-                    };
-                    graph.insert(
-                        RuntimeCall {
-                            caller,
-                            boundary: None,
-                            target: CallTarget::Machine(invocation.inputs.callee),
-                            arguments: invocation.inputs.into(),
-                            normal_return: !matches!(
-                                invocation.site,
-                                InvocationSite::InvokeNoNormal(_)
-                            ),
-                            receiving: invocation
-                                .site
-                                .operation()
-                                .map(|_| &block.operations[caller.operation_index].result),
-                        },
-                        &mut pending,
-                    );
-                }
+                graph.insert_module_invocations(identity, block, position, &mut pending)?;
                 for invocation in block.boundary_invocations() {
                     let caller = Caller {
                         machine: identity,
                         block: invocation.block,
                         operation_index: position(invocation.site)?,
-                        site: CallSite::Invocation(invocation.site),
+                        site: invocation.site,
                     };
                     graph.insert(
                         RuntimeCall {
                             caller,
                             boundary: Some(invocation.boundary),
                             target: boundary_target(context, invocation.boundary)?,
-                            arguments: RuntimeArguments::Explicit {
+                            arguments: RuntimeArguments {
                                 scalar: invocation.arguments,
                                 structural: invocation.structural_arguments,
                             },
@@ -268,13 +222,11 @@ impl<'a> HandleCallGraph<'a> {
                                     machine: identity,
                                     block: block.id,
                                     operation_index: index,
-                                    site: CallSite::Invocation(InvocationSite::Operation(
-                                        operation.id,
-                                    )),
+                                    site: InvocationSite::Operation(operation.id),
                                 },
                                 boundary: None,
                                 target: CallTarget::Machine(callee),
-                                arguments: RuntimeArguments::Explicit {
+                                arguments: RuntimeArguments {
                                     scalar: arguments,
                                     structural: structural_arguments,
                                 },
@@ -285,30 +237,17 @@ impl<'a> HandleCallGraph<'a> {
                         );
                     }
                 }
-                for (edge, actions) in block.terminator.cleanup_rosters() {
-                    for (ordinal, action) in actions.iter().enumerate() {
-                        if let TerminalAffineCleanupAction::InvokeNominal(cleanup) = action {
-                            terminal_semantics::nominal_cleanup::target(
+                // Cleanup invocations already appear in module_invocations with
+                // their real edge/action owner and ordinary owned arguments.
+                // Validate their target contract without staging a second call.
+                for (_, actions) in block.terminator.cleanup_rosters() {
+                    for action in actions {
+                        if let TerminalAffineCleanupAction::InvokeOwned(cleanup) = action {
+                            terminal_semantics::nominal_cleanup::owned_target(
                                 context.input.module().structural_types.iter(),
                                 context.input.module().machines.iter(),
                                 cleanup,
-                            ).map_err(|reason| format!("native handle cleanup call has no canonical receiver contract: {reason}"))?;
-                            graph.insert(
-                                RuntimeCall {
-                                    caller: Caller {
-                                        machine: identity,
-                                        block: block.id,
-                                        operation_index: block.operations.len(),
-                                        site: CallSite::Cleanup { edge, ordinal },
-                                    },
-                                    boundary: None,
-                                    target: CallTarget::Machine(cleanup.cleanup_machine),
-                                    arguments: RuntimeArguments::Cleanup(cleanup),
-                                    normal_return: true,
-                                    receiving: None,
-                                },
-                                &mut pending,
-                            );
+                            ).map_err(|reason| format!("native handle cleanup call has no canonical owned contract: {reason}"))?;
                         }
                     }
                 }
@@ -340,6 +279,38 @@ impl<'a> HandleCallGraph<'a> {
         self.machines
             .iter()
             .filter_map(|(identity, machine)| machine.map(|machine| (identity, machine)))
+    }
+
+    fn insert_module_invocations(
+        &mut self,
+        identity: MachineId,
+        block: &'a terminal_psi::Block,
+        position: impl Fn(InvocationSite) -> Result<usize, String>,
+        pending: &mut Vec<MachineId>,
+    ) -> Result<(), String> {
+        for invocation in block.module_invocations() {
+            let caller = Caller {
+                machine: identity,
+                block: block.id,
+                operation_index: position(invocation.site)?,
+                site: invocation.site,
+            };
+            self.insert(
+                RuntimeCall {
+                    caller,
+                    boundary: None,
+                    target: CallTarget::Machine(invocation.inputs.callee),
+                    arguments: invocation.inputs.into(),
+                    normal_return: !matches!(invocation.site, InvocationSite::InvokeNoNormal(_)),
+                    receiving: invocation
+                        .site
+                        .operation()
+                        .map(|_| &block.operations[caller.operation_index].result),
+                },
+                pending,
+            );
+        }
+        Ok(())
     }
 
     fn insert(&mut self, call: RuntimeCall<'a>, pending: &mut Vec<MachineId>) {
@@ -381,5 +352,89 @@ fn boundary_target(
         Ok(CallTarget::Machine(candidate.candidate))
     } else {
         Ok(CallTarget::Boundary(boundary))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use semantic_vocabulary::{EdgeId, PlaceId, StructuralTypeId};
+    use terminal_psi::{Block, OwnedCleanupInvocation, StructuralAccess, Terminator};
+
+    #[test]
+    fn owned_cleanup_has_one_call_per_original_edge_and_action() {
+        let machine = MachineId::new(1).unwrap();
+        let callee = MachineId::new(2).unwrap();
+        let place = PlaceId::new(1).unwrap();
+        let action = || {
+            TerminalAffineCleanupAction::InvokeOwned(OwnedCleanupInvocation {
+                subject: StructuralArgument {
+                    place,
+                    path: Vec::new(),
+                    access: StructuralAccess::Owned,
+                },
+                structural_type: StructuralTypeId::new(1).unwrap(),
+                cleanup_machine: callee,
+                claim_transfers: Vec::new(),
+                requirement_obligations: Vec::new(),
+            })
+        };
+        let blocks = [1, 2].map(|index| {
+            Block::plain(
+                BlockId::new(index).unwrap(),
+                Vec::new(),
+                Terminator::ReturnUnit {
+                    edge: EdgeId::new(index).unwrap(),
+                    cleanup_actions: vec![
+                        TerminalAffineCleanupAction::RetireHome(place),
+                        action(),
+                        action(),
+                    ],
+                },
+            )
+        });
+        let mut graph = HandleCallGraph {
+            entry: machine,
+            machines: IdTable::default(),
+            calls: BTreeMap::new(),
+            callers: IdTable::default(),
+        };
+        let mut pending = Vec::new();
+        for block in &blocks {
+            graph
+                .insert_module_invocations(machine, block, |_| Ok(0), &mut pending)
+                .unwrap();
+        }
+        assert_eq!(graph.calls.len(), 4);
+        for (caller, alternatives) in &graph.calls {
+            assert_eq!(alternatives.len(), 1);
+            let call = alternatives[0];
+            let InvocationSite::Cleanup {
+                edge,
+                action_ordinal,
+            } = caller.site
+            else {
+                panic!("cleanup lost its action owner")
+            };
+            assert_eq!(edge.get(), caller.block.get());
+            assert!(matches!(action_ordinal, 1 | 2));
+            assert_eq!(caller.operation_index, 0);
+            assert!(call.arguments.scalar.is_empty());
+            assert_eq!(call.arguments.structural.len(), 1);
+            assert_eq!(call.arguments.structural[0].access, StructuralAccess::Owned);
+            let block = &blocks[caller.block.get() as usize - 1];
+            let (_, actions) = block.terminator.cleanup_rosters().next().unwrap();
+            let TerminalAffineCleanupAction::InvokeOwned(original) =
+                &actions[action_ordinal as usize]
+            else {
+                panic!("call substitutes a disposal action")
+            };
+            assert!(std::ptr::eq(
+                call.arguments.structural,
+                std::slice::from_ref(&original.subject)
+            ));
+            assert!(call.normal_return);
+            assert!(call.receiving.is_none());
+        }
     }
 }

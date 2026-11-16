@@ -478,7 +478,7 @@ pub(crate) fn legalize_target_operations(
     target: &TargetOperationPlan,
     _abstract_plan: &AbstractOperationPlan,
     unit: &optimization_unit::PsiOptimizationUnit,
-    origins: target_operations::BoundaryOriginFacts<'_>,
+    origins: crate::BoundaryOriginFacts<'_>,
     installed_interrupts: &provider_admission::AdmittedInstalledInterruptCohort,
     types: &crate::native_geometry::ModuleTypes,
 ) -> Result<legalized_operations::PreparedExecutionPlan, LegalizationError> {
@@ -510,6 +510,33 @@ fn surviving_installations(target: &TargetOperationPlan) -> Vec<semantic_vocabul
     operations
 }
 
+/// Copy each function's target calling contract out of the working program,
+/// sorted by machine. Two functions with one machine refuse the program.
+fn function_abis(
+    target: &TargetOperationPlan,
+) -> Result<Vec<legalized_operations::LegalizedFunctionAbi>, LegalizationError> {
+    let mut abis: Vec<_> = target
+        .functions
+        .iter()
+        .map(|function| legalized_operations::LegalizedFunctionAbi {
+            machine: function.machine,
+            call_plan: function.graph.call_plan.clone(),
+            scalar_parameters: function.graph.scalar_parameters.clone(),
+            structural_parameters: function.graph.parameters.clone(),
+            scalar: function.scalar_abi.clone(),
+            mixed_structural_scalar: function.mixed_structural_scalar_abi.clone(),
+        })
+        .collect();
+    abis.sort_unstable_by_key(|row| row.machine);
+    if abis
+        .windows(2)
+        .any(|pair| pair[0].machine == pair[1].machine)
+    {
+        return Err(LegalizationError::custody());
+    }
+    Ok(abis)
+}
+
 /// Build the execution plan from the target operations stage 02 lowered.
 ///
 /// Every target row keeps the identity and obligations of the operation it
@@ -521,7 +548,7 @@ fn surviving_installations(target: &TargetOperationPlan) -> Vec<semantic_vocabul
 pub fn prepare_execution_plan(
     target: &TargetOperationPlan,
     evidence: PreparationEvidence<'_>,
-    origins: target_operations::BoundaryOriginFacts<'_>,
+    origins: crate::BoundaryOriginFacts<'_>,
     installed_interrupts: &provider_admission::AdmittedInstalledInterruptCohort,
     types: &crate::native_geometry::ModuleTypes,
 ) -> Result<legalized_operations::PreparedExecutionPlan, LegalizationError> {
@@ -537,6 +564,8 @@ pub fn prepare_execution_plan(
         entry: target.entry,
         scalar_functions: rosters.scalar_functions,
         installation_operations: surviving_installations(target),
+        function_abis: function_abis(target)?,
+        borrowed_storage_layouts: target.borrowed_storage_layouts.clone(),
     };
     Ok(legalized_operations::PreparedExecutionPlan::seal(
         plan,
@@ -548,7 +577,7 @@ pub fn verify_target_operation_plan_with_closed_module(
     target: &TargetOperationPlan,
     abstract_plan: &AbstractOperationPlan,
     unit: &optimization_unit::PsiOptimizationUnit,
-    origins: target_operations::BoundaryOriginFacts<'_>,
+    origins: crate::BoundaryOriginFacts<'_>,
     installed_interrupts: &provider_admission::AdmittedInstalledInterruptCohort,
     closed_module: &terminal_codec::ClosedTerminalModule,
 ) -> Result<(), LegalizationError> {
@@ -569,7 +598,7 @@ fn verify_target_operation_plan_input(
     target: &TargetOperationPlan,
     abstract_plan: &AbstractOperationPlan,
     unit: &optimization_unit::PsiOptimizationUnit,
-    origins: target_operations::BoundaryOriginFacts<'_>,
+    origins: crate::BoundaryOriginFacts<'_>,
     installed_interrupts: &provider_admission::AdmittedInstalledInterruptCohort,
     closed_types: &crate::native_geometry::ModuleTypes,
 ) -> Result<(), LegalizationError> {
@@ -625,7 +654,7 @@ pub fn verify_execution_plan(
     target: &TargetOperationPlan,
     abstract_plan: &AbstractOperationPlan,
     unit: &optimization_unit::PsiOptimizationUnit,
-    origins: target_operations::BoundaryOriginFacts<'_>,
+    origins: crate::BoundaryOriginFacts<'_>,
     installed_interrupts: &provider_admission::AdmittedInstalledInterruptCohort,
     closed_module: &terminal_codec::ClosedTerminalModule,
 ) -> Result<(), LegalizationError> {

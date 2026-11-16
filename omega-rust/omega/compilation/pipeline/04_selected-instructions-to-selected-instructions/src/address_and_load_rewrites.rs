@@ -1249,7 +1249,6 @@ pub(crate) mod load_forwarding {
                         selected_instructions::SelectedFunctionContracts {
                             machine: semantic_vocabulary::MachineId::new(1).unwrap(),
                             attachment: None,
-                            nominal_cleanup_subject: None,
                             provenance: target_operations::TerminalPsiProvenance {
                                 operations: vec![],
                                 edges: vec![],

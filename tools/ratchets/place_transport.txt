@@ -14,9 +14,9 @@
 7 omega-rust/psi/compilation/representations/symbol-resolved-trees/src/lib.rs
 1 omega-rust/psi/compilation/representations/syntax-trees/src/values_and_types.rs
 2 omega-rust/psi/compilation/representations/terminal-psi/check-tables/src/bindings.rs
-1 omega-rust/psi/compilation/representations/terminal-psi/codec/src/semantic_module.rs
-1 omega-rust/psi/compilation/representations/terminal-psi/codec/src/term_wire.rs
-3 omega-rust/psi/compilation/representations/terminal-psi/codec/src/wire_fields.rs
+1 omega-rust/psi/compilation/representations/terminal-psi/wire/src/semantic_module.rs
+1 omega-rust/psi/compilation/representations/terminal-psi/wire/src/term_wire.rs
+3 omega-rust/psi/compilation/representations/terminal-psi/wire/src/wire_fields.rs
 1 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_replay.rs
 2 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors.rs
 1 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/place_paths.rs

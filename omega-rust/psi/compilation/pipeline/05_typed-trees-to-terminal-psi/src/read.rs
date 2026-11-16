@@ -97,6 +97,8 @@ pub(crate) struct Program<'t> {
     pub publication: terminal_codec::TerminalPublication,
     pub purpose: source::DependencyScope,
     pub declaration_metadata: Vec<SymbolHandle>,
+    calling_policy_boundaries: Vec<SymbolHandle>,
+    calling_policy_roots: Vec<calling_abis::PreparedCallingPolicy>,
     /// One output slot per source mathematical declaration, not per call.
     /// Publication assigns portable identities to the prepared definitions.
     pub predicate_definitions: Vec<Option<PredicateDefinition>>,
@@ -224,6 +226,9 @@ pub(crate) struct Program<'t> {
     /// Every record type a formal, local, result, field or literal named, in
     /// discovery order; a nested record is discovered before its owner.
     pub records: IdTable<StructuralTypeId, RecordType>,
+    /// Resolve selected consumers after the current signature is registered;
+    /// a record used by its own cleanup must not allocate that machine twice.
+    pending_cleanup: Vec<(StructuralTypeId, SymbolHandle)>,
     pub(crate) scalar_applications: constant_values::ScalarApplications,
     /// Resolved domain declarations actually used by this verification unit.
     /// Lowering publishes these meanings, not just the carrier of their values.
@@ -371,6 +376,8 @@ impl<'t> Program<'t> {
             publication: terminal_codec::TerminalPublication::Portable,
             purpose,
             declaration_metadata: Vec::new(),
+            calling_policy_boundaries: Vec::new(),
+            calling_policy_roots: Vec::new(),
             predicate_definitions: std::iter::repeat_with(|| None)
                 .take(typed.mathematical_definitions().len())
                 .collect(),
@@ -415,6 +422,7 @@ impl<'t> Program<'t> {
             generic_binders: Vec::new(),
             value_arguments: IdTable::default(),
             records: IdTable::default(),
+            pending_cleanup: Vec::new(),
             scalar_applications: Default::default(),
             declared_domains: Vec::new(),
             inhabitation: Default::default(),
@@ -684,6 +692,7 @@ mod tests {
         RecordType {
             owns_linear_claim: false,
             copyable: false,
+            cleanup: None,
             identity: String::from("point"),
             shape: crate::StorageShape::Record(Vec::new()),
             requires: Vec::new(),
@@ -2182,6 +2191,11 @@ mod tests {
             |rows: Vec<TableMatchField>| typed.expression_table.insert_match_fields(rows);
         let full = roster(vec![row(b, "b", false), row(a, "a", true)]);
         let partial = roster(vec![row(a, "a", true)]);
+        let duplicate = roster(vec![
+            row(a, "a", true),
+            row(a, "a", false),
+            row(b, "b", false),
+        ]);
         let spelled = roster(vec![
             row(a, "a", true),
             row(SymbolHandle::invalid(), "b", true),
@@ -2222,7 +2236,7 @@ mod tests {
                 },
             )
         };
-        assert_eq!(read(point, full, subject), Ok(()));
+        assert!(matches!(read(point, full, subject), Ok(None)));
         let mut detail = |pattern_subject, pattern_fields, initial_value| {
             read(pattern_subject, pattern_fields, initial_value)
                 .unwrap_err()
@@ -2231,6 +2245,10 @@ mod tests {
         assert_eq!(
             detail(point, partial, subject),
             "statement record pattern that omits a field"
+        );
+        assert_eq!(
+            detail(point, duplicate, subject),
+            "typing record pattern repeats a field"
         );
         assert_eq!(
             detail(point, spelled, subject),

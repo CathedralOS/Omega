@@ -282,6 +282,25 @@ terminates
     crash Trap;
 }
 
+// A formal description retains its complete requirement application because
+// its declared lifetimes can relate it to other arguments and the result.
+public data ParameterInfo<'text> {
+    requirement_identity: &'text [u8];
+    requirement_application: &'text [u8];
+    parameter_identity: &'text [u8];
+    qualified_type: &'text [u8];
+    declaration_position: u64;
+    source_revision: &'text [u8];
+}
+
+public machine parameter(declaration: ()) -> ParameterInfo
+reaches none
+crashes Trap
+terminates
+{
+    crash Trap;
+}
+
 // A compiler-known operation on this exact toolchain declaration. It closes
 // into ordinary typed projections and callback calls in the lexical author's
 // scope. The context and subject are evaluated once, and each invocation

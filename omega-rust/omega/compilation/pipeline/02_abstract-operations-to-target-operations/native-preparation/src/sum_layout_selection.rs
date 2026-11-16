@@ -5,6 +5,7 @@
 //! referent-region size that stage 02 records. The expected text is the
 //! selection `origin/main` emitted for that same geometry.
 
+use crate::BoundaryOriginFacts;
 use abstract_operations::{
     AbstractBlock, AbstractFunction, AbstractFunctionResult, AbstractOperation,
     AbstractOperationPlan, AbstractResult, AbstractStructuralCaseSuccessor,
@@ -21,11 +22,11 @@ use semantic_vocabulary::{
 };
 use target::NativeTarget;
 use target_operations::{
-    BoundaryOriginFacts, TargetCasePointerSlot, TargetControlBlock, TargetControlCaseSuccessor,
-    TargetControlGraph, TargetControlTerminator, TargetFunction, TargetOperationPlan,
-    TargetStructuralCaseSource, TargetStructuralHomeLayout, TargetStructuralHomeOrigin,
-    TargetStructuralHomeRequirement, TargetStructuralParameter, TargetUnitOperation,
-    TargetUnitScalarArgumentSource, TerminalPsiProvenance,
+    TargetCasePointerSlot, TargetControlBlock, TargetControlCaseSuccessor, TargetControlGraph,
+    TargetControlTerminator, TargetFunction, TargetOperationPlan, TargetStructuralCaseSource,
+    TargetStructuralHomeLayout, TargetStructuralHomeOrigin, TargetStructuralHomeRequirement,
+    TargetStructuralParameter, TargetUnitOperation, TargetUnitScalarArgumentSource,
+    TerminalPsiProvenance,
 };
 use terminal_psi::{
     BindingRelevance, SemanticFingerprint, StructuralAccess, StructuralCaseDeclaration,
@@ -374,6 +375,7 @@ fn retained_instruction_metadata_projects_without_a_node_and_rejects_changed_cus
                 callee: machine(),
                 call_plan: target.functions[0].graph.call_plan.clone(),
                 arguments: Vec::new(),
+                requirement_obligations: Vec::new(),
             },
         });
     let failure = crate::legalization_control::project(
@@ -3287,6 +3289,7 @@ fn sum_inside_record() -> String {
         copyable: true,
         no_code_affine_cleanup: true,
         descriptor_cleanup: false,
+        nominal_cleanup: None,
         shape: StructuralTypeShape::Record {
             storage: StructuralRecordStorage::Packed,
             fields: vec![
@@ -3880,7 +3883,6 @@ fn function_with_body(
     AbstractFunction {
         machine: machine(),
         attachment: None,
-        nominal_cleanup_subject: None,
         entry: block_id(1),
         parameters: Vec::new(),
         structural_parameters,
@@ -3994,7 +3996,6 @@ fn target_plan(
         functions: vec![TargetFunction {
             machine: function.machine,
             attachment: None,
-            nominal_cleanup_subject: None,
             scalar_abi: None,
             mixed_structural_scalar_abi: None,
             structural_contract: (!function.structural_parameters.is_empty()
@@ -4158,6 +4159,7 @@ fn sum_type(
         copyable: true,
         no_code_affine_cleanup: true,
         descriptor_cleanup: false,
+        nominal_cleanup: None,
         shape: StructuralTypeShape::Sum {
             cases: vec![
                 StructuralCaseDeclaration {
@@ -4193,6 +4195,7 @@ fn reference_type(
         copyable: true,
         no_code_affine_cleanup: true,
         descriptor_cleanup: false,
+        nominal_cleanup: None,
         shape: StructuralTypeShape::Reference {
             referent,
             access: StructuralAccess::SharedBorrow,
@@ -4384,6 +4387,7 @@ fn module_retaining(scalars: &[ScalarType]) -> terminal_codec::ClosedTerminalMod
             no_code_affine_cleanup: false,
             copyable: true,
             descriptor_cleanup: false,
+            nominal_cleanup: None,
             scalar_restriction: None,
         });
     }

@@ -970,3 +970,18 @@ fn activation_base_physical_address_round_trips_without_a_storage_slot() {
         assert!(PostAllocationMachinePlan::decode(&source.encode()).is_err());
     }
 }
+
+#[test]
+fn cleanup_invocation_wire_identity_retains_action_owner() {
+    for (edge, action_ordinal) in [(1, 0), (1, 2), (2, 0)] {
+        let site = semantic_vocabulary::InvocationSite::Cleanup {
+            edge: semantic_vocabulary::EdgeId::new(edge).unwrap(),
+            action_ordinal,
+        };
+        let mut bytes = Vec::new();
+        site.encode_identity(&mut bytes);
+        let mut cursor = super::effect_codec::Cursor::new(&bytes);
+        assert_eq!(super::decode_invocation_site(&mut cursor).unwrap(), site);
+        assert_eq!(cursor.remaining(), 0);
+    }
+}

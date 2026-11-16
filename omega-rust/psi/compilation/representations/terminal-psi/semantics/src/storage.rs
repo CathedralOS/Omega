@@ -599,7 +599,7 @@ pub mod activation_storage {
                                 .any(|operation| may_suspend(operation, &known, &suspending))
                                 || machine.blocks.iter().any(|block| {
                                     block.terminator.cleanup_rosters().flat_map(|(_, actions)| actions).any(|action| {
-                                        matches!(action, terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup)
+                                        matches!(action, terminal_psi::TerminalAffineCleanupAction::InvokeOwned(cleanup)
                                             if !known.contains(&cleanup.cleanup_machine) || suspending.contains(&cleanup.cleanup_machine))
                                     })
                                 })
@@ -1166,6 +1166,17 @@ pub mod activation_storage {
                             state.retire_carriers(&destination);
                             state.loans.extend(captured);
                         }
+                        // Decomposition retires only the nominal wrapper.
+                        // Activation claims and captured loans stay at their
+                        // exact component paths until an ordinary transfer.
+                        O::DecomposeStructuralValue { subject } => {
+                            if operation.result != terminal_psi::OperationResult::Unit
+                                || subject.access != StructuralAccess::Owned
+                                || subject.path.contains(&P::Referent)
+                            {
+                                return Err("activation decomposition has no exact owned subject");
+                            }
+                        }
                         O::MoveStructuralValue { source } => {
                             let result = operation
                                 .result
@@ -1350,7 +1361,7 @@ pub mod activation_storage {
                                 root: discard.place,
                                 path: discard.path.clone(),
                             },
-                            C::InvokeNominal(cleanup) => {
+                            C::InvokeOwned(cleanup) => {
                                 if machine_may_suspend(cleanup.cleanup_machine)
                                     && next.live.iter().any(|live| live.pending.is_some())
                                 {
@@ -1358,10 +1369,7 @@ pub mod activation_storage {
                                         "activation claim cannot remain live across a possible suspension in nominal cleanup",
                                     );
                                 }
-                                let root = Place {
-                                    root: cleanup.place,
-                                    path: Vec::new(),
-                                };
+                                let root = Place::argument(&cleanup.subject);
                                 if !next.sites(&root).is_empty() {
                                     return Err(
                                         "activation-bearing nominal cleanup needs explicit claim and loan disposition",
@@ -1429,7 +1437,6 @@ pub mod activation_storage {
                     assembly_target_requirement: terminal_psi::RegisterTargetApplicability::Any,
                     id: MachineId::new(id).unwrap(),
                     attachment: None,
-                    nominal_cleanup_subject: None,
                     ranked_scc: None,
                     structural_places: Vec::new(),
                     call_formations: Vec::new(),
@@ -3147,6 +3154,7 @@ pub(crate) mod calling_storage {
                 copyable: true,
                 no_code_affine_cleanup: true,
                 descriptor_cleanup: false,
+                nominal_cleanup: None,
                 scalar_restriction: None,
             }
         }

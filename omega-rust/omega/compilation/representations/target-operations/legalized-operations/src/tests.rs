@@ -153,6 +153,8 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
     let return_edge = id::<EdgeId>(1);
     LegalizedOperationPlan {
         installation_operations: Vec::new(),
+        function_abis: Vec::new(),
+        borrowed_storage_layouts: Vec::new(),
         psi: TerminalPsiIdentity {
             vocabulary_marker: VocabularyMarker::CURRENT,
             program_fingerprint: SemanticFingerprint::from_bytes([7; 32]),
@@ -165,7 +167,6 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
         scalar_functions: vec![LegalizedScalarFunction {
             machine: id(1),
             attachment: None,
-            nominal_cleanup_subject: None,
             provenance: TerminalPsiProvenance {
                 operations: vec![call],
                 edges: vec![return_edge],
@@ -182,6 +183,7 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
                     no_code_affine_cleanup: false,
                     copyable: false,
                     descriptor_cleanup: false,
+                    nominal_cleanup: None,
                     scalar_restriction: None,
                     id: extent_type,
                     identity: terminal_psi::TerminalIdentityIndex(1),
@@ -470,7 +472,6 @@ pub(super) fn scalar_call_unit_plan() -> LegalizedOperationPlan {
         structural: None,
         machine,
         attachment: Some(attachment),
-        nominal_cleanup_subject: None,
         provenance: TerminalPsiProvenance {
             operations: operations.to_vec(),
             edges: vec![edge],

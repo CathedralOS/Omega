@@ -2573,7 +2573,6 @@ pub(crate) mod resource_profile {
                             let source = legalized_operations::LegalizedScalarFunction {
                                 machine: MachineId::new(1).unwrap(),
                                 attachment: None,
-                                nominal_cleanup_subject: None,
                                 provenance: target_vocabulary::TerminalPsiProvenance {
                                     operations: vec![row.operation],
                                     edges: vec![],
@@ -3003,6 +3002,7 @@ pub(crate) mod resource_profile {
                     no_code_affine_cleanup: false,
                     copyable: false,
                     descriptor_cleanup: false,
+                    nominal_cleanup: None,
                     scalar_restriction: None,
                     shape,
                 });
@@ -4645,6 +4645,8 @@ pub(crate) mod tests {
             entry: MachineId::new(1).unwrap(),
             scalar_functions: vec![],
             installation_operations: Vec::new(),
+            function_abis: Vec::new(),
+            borrowed_storage_layouts: Vec::new(),
         };
         let geometries = crate::native_geometry::NativeGeometries::new(std::iter::empty()).unwrap();
         let backings = crate::selection::foreign_scalar_backings::ForeignScalarBackings::new(
@@ -4697,6 +4699,7 @@ pub(crate) mod tests {
             no_code_affine_cleanup: false,
             copyable: false,
             descriptor_cleanup: false,
+            nominal_cleanup: None,
             scalar_restriction: None,
             shape,
         }

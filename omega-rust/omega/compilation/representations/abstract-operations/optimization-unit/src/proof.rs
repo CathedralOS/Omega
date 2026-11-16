@@ -20,6 +20,44 @@ pub struct RuntimeEvidenceCatalog {
     terms: Vec<EvidenceTermDeclaration>,
     lanes: Vec<EvidenceContractLane>,
     calls: Vec<ProofOutputCall>,
+    owned_cleanups: Vec<SourceOwnedCleanupInvocation>,
+}
+
+/// Checked cleanup requirements belong to one exact source action and subject.
+/// Native stages preserve these coordinates instead of proving the call again.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SourceOwnedCleanupInvocation {
+    pub machine: MachineId,
+    pub edge: semantic_vocabulary::EdgeId,
+    pub action_ordinal: u32,
+    pub invocation: terminal_psi::OwnedCleanupInvocation,
+}
+
+fn source_owned_cleanups(module: &TerminalModule) -> Vec<SourceOwnedCleanupInvocation> {
+    let mut rows = Vec::new();
+    for machine in &module.machines {
+        for block in &machine.blocks {
+            for (edge, actions) in block.terminator.cleanup_rosters() {
+                for (ordinal, action) in actions.iter().enumerate() {
+                    if let terminal_psi::TerminalAffineCleanupAction::InvokeOwned(invocation) =
+                        action
+                    {
+                        rows.push(SourceOwnedCleanupInvocation {
+                            machine: machine.id,
+                            edge,
+                            // Canonical Terminal artifacts bound every counted
+                            // roster before this verified-context attachment.
+                            action_ordinal: u32::try_from(ordinal)
+                                .expect("verified cleanup action exceeds canonical format bound"),
+                            invocation: invocation.clone(),
+                        });
+                    }
+                }
+            }
+        }
+    }
+    rows.sort_by_key(|row| (row.machine, row.edge, row.action_ordinal));
+    rows
 }
 impl RuntimeEvidenceCatalog {
     pub(crate) fn from_verified_module(psi: TerminalPsiIdentity, module: &TerminalModule) -> Self {
@@ -34,6 +72,7 @@ impl RuntimeEvidenceCatalog {
             terms: module.evidence_terms.clone(),
             lanes: module.evidence_contract_lanes.clone(),
             calls: module.proof_output_calls.clone(),
+            owned_cleanups: source_owned_cleanups(module),
         }
     }
     pub fn psi(&self) -> TerminalPsiIdentity {
@@ -53,6 +92,24 @@ impl RuntimeEvidenceCatalog {
     }
     pub fn calls(&self) -> &[ProofOutputCall] {
         &self.calls
+    }
+    pub fn owned_cleanups(&self) -> &[SourceOwnedCleanupInvocation] {
+        &self.owned_cleanups
+    }
+
+    pub fn owns_cleanup(
+        &self,
+        machine: MachineId,
+        edge: semantic_vocabulary::EdgeId,
+        action_ordinal: u32,
+        invocation: &terminal_psi::OwnedCleanupInvocation,
+    ) -> bool {
+        self.owned_cleanups
+            .binary_search_by_key(&(machine, edge, action_ordinal), |row| {
+                (row.machine, row.edge, row.action_ordinal)
+            })
+            .ok()
+            .is_some_and(|index| self.owned_cleanups[index].invocation == *invocation)
     }
 }
 
@@ -81,9 +138,11 @@ pub fn validate_runtime_evidence_context(
         || catalog.terms != module.evidence_terms
         || catalog.lanes != module.evidence_contract_lanes
         || catalog.calls != module.proof_output_calls
+        || catalog.owned_cleanups != source_owned_cleanups(module)
     {
         return Err("optimizer runtime evidence catalog differs from admitted Terminal source");
     }
+    validate_owned_cleanup_evidence(unit)?;
     for function in &unit.functions {
         let source = module
             .machine(function.machine)
@@ -95,6 +154,54 @@ pub fn validate_runtime_evidence_context(
                 .filter(|lane| lane.machine == function.machine))
         {
             return Err("optimizer changed verified evidence contract custody");
+        }
+    }
+    Ok(())
+}
+
+pub fn validate_owned_cleanup_evidence(
+    unit: &super::PsiOptimizationUnit,
+) -> Result<(), &'static str> {
+    if let Some(catalog) = &unit.runtime_evidence
+        && (catalog.psi != unit.psi
+            || !catalog.owned_cleanups.windows(2).all(|rows| {
+                (rows[0].machine, rows[0].edge, rows[0].action_ordinal)
+                    < (rows[1].machine, rows[1].edge, rows[1].action_ordinal)
+            }))
+    {
+        return Err("cleanup source custody has a foreign or repeated action owner");
+    }
+    for function in &unit.functions {
+        for node in function.block_nodes() {
+            let rosters: Vec<_> = if node.successors.is_empty() {
+                node.operation.cleanup_rosters().collect()
+            } else {
+                node.successors
+                    .iter()
+                    .map(|edge| (edge.psi_edge, edge.cleanup_actions.as_slice()))
+                    .collect()
+            };
+            for (edge, actions) in rosters {
+                for (ordinal, action) in actions.iter().enumerate() {
+                    let terminal_psi::TerminalAffineCleanupAction::InvokeOwned(cleanup) = action
+                    else {
+                        continue;
+                    };
+                    let ordinal = u32::try_from(ordinal)
+                        .map_err(|_| "cleanup source owner ordinal exceeds canonical bound")?;
+                    match &unit.runtime_evidence {
+                        Some(catalog)
+                            if catalog.owns_cleanup(function.machine, edge, ordinal, cleanup) => {}
+                        Some(_) => {
+                            return Err(
+                                "current cleanup differs from its exact source action, subject or requirement evidence",
+                            );
+                        }
+                        None if cleanup.requirement_obligations.is_empty() => {}
+                        None => return Err("cleanup requirements have no verified source custody"),
+                    }
+                }
+            }
         }
     }
     Ok(())

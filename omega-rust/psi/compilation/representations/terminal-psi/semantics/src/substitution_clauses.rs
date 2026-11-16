@@ -120,9 +120,21 @@ pub fn substitute_clause<Error: From<&'static str>>(
     proposition: &Proposition,
     bindings: &mut dyn ClauseBindings<Error = Error>,
 ) -> Result<Proposition, Error> {
+    substitute_clause_with_computation_names(proposition, bindings, &[])
+}
+
+/// Substitute a clause after giving exact source computations names at the
+/// destination. The caller establishes the correspondence and sorts the pairs
+/// by source term. A whole computation can cross even when its operands cannot.
+pub fn substitute_clause_with_computation_names<Error: From<&'static str>>(
+    proposition: &Proposition,
+    bindings: &mut dyn ClauseBindings<Error = Error>,
+    computation_names: &[(ScalarTerm, ScalarTerm)],
+) -> Result<Proposition, Error> {
     Ok(match proposition {
         Proposition::FloatMeaningEqual(clause) => {
-            let mapped = clause.map_sources(|source| substitute_clause_term(source, bindings))?;
+            let mapped =
+                clause.map_sources(|source| bound_term(source, bindings, computation_names))?;
             for source in mapped.projection_sources() {
                 bindings.validate_float_meaning_source(source)?;
             }
@@ -133,8 +145,8 @@ pub fn substitute_clause<Error: From<&'static str>>(
                 .validate()
                 .map_err(|error| Error::from(error.description()))?;
             let mut mapped = clause.clone();
-            mapped.source = substitute_clause_term(&clause.source, bindings)?;
-            mapped.result = substitute_clause_term(&clause.result, bindings)?;
+            mapped.source = bound_term(&clause.source, bindings, computation_names)?;
+            mapped.result = bound_term(&clause.result, bindings, computation_names)?;
             mapped
                 .validate()
                 .map_err(|error| Error::from(error.description()))?;
@@ -142,7 +154,7 @@ pub fn substitute_clause<Error: From<&'static str>>(
             Proposition::FloatIntegerConversion(mapped)
         }
         Proposition::IeeeFloatIntegerExact { source, target } => {
-            let mapped = substitute_clause_term(source, bindings)?;
+            let mapped = bound_term(source, bindings, computation_names)?;
             if mapped.scalar_type() != source.scalar_type() {
                 return Err(Error::from(
                     "exact float integer cast substitution changes its source format",
@@ -155,7 +167,7 @@ pub fn substitute_clause<Error: From<&'static str>>(
             }
         }
         Proposition::IntegerIeeeFloatExact { source, target } => {
-            let mapped = substitute_clause_term(source, bindings)?;
+            let mapped = bound_term(source, bindings, computation_names)?;
             if mapped.scalar_type() != source.scalar_type() {
                 return Err(Error::from(
                     "exact float integer cast substitution changes its source carrier",
@@ -175,8 +187,8 @@ pub fn substitute_clause<Error: From<&'static str>>(
         // Two Boolean literals compare by value: a byte predicate a literal's
         // octets decide is `true` or `false`, and its clause is then settled.
         Proposition::Equal(left, right) => match (
-            substitute_clause_term(left, bindings)?,
-            substitute_clause_term(right, bindings)?,
+            bound_term(left, bindings, computation_names)?,
+            bound_term(right, bindings, computation_names)?,
         ) {
             (ScalarTerm::Boolean(left), ScalarTerm::Boolean(right)) => {
                 if left == right {
@@ -188,16 +200,16 @@ pub fn substitute_clause<Error: From<&'static str>>(
             (left, right) => Proposition::Equal(left, right),
         },
         Proposition::LessThan(left, right) => Proposition::LessThan(
-            substitute_clause_term(left, bindings)?,
-            substitute_clause_term(right, bindings)?,
+            bound_term(left, bindings, computation_names)?,
+            bound_term(right, bindings, computation_names)?,
         ),
         Proposition::LessOrEqual(left, right) => Proposition::LessOrEqual(
-            substitute_clause_term(left, bindings)?,
-            substitute_clause_term(right, bindings)?,
+            bound_term(left, bindings, computation_names)?,
+            bound_term(right, bindings, computation_names)?,
         ),
         Proposition::IntegerMathEqual(left, right) => {
-            let mut left = bound_mathematical(left, bindings)?;
-            let mut right = bound_mathematical(right, bindings)?;
+            let mut left = bound_mathematical(left, bindings, computation_names)?;
+            let mut right = bound_mathematical(right, bindings, computation_names)?;
             // Substituting a literal can change the canonical order of this
             // symmetric relation; keep its operands ordered after binding.
             if left > right {
@@ -206,12 +218,12 @@ pub fn substitute_clause<Error: From<&'static str>>(
             Proposition::IntegerMathEqual(left, right)
         }
         Proposition::IntegerMathLessThan(left, right) => Proposition::IntegerMathLessThan(
-            bound_mathematical(left, bindings)?,
-            bound_mathematical(right, bindings)?,
+            bound_mathematical(left, bindings, computation_names)?,
+            bound_mathematical(right, bindings, computation_names)?,
         ),
         Proposition::IntegerMathLessOrEqual(left, right) => Proposition::IntegerMathLessOrEqual(
-            bound_mathematical(left, bindings)?,
-            bound_mathematical(right, bindings)?,
+            bound_mathematical(left, bindings, computation_names)?,
+            bound_mathematical(right, bindings, computation_names)?,
         ),
         Proposition::ScalarIeeeFloatComparison {
             kind,
@@ -222,8 +234,8 @@ pub fn substitute_clause<Error: From<&'static str>>(
             // A comparison keeps its IEEE predicate while names change. In
             // particular, an ordered false result is not the opposite integer
             // relation: either operand may be NaN.
-            let mut left = substitute_clause_term(left, bindings)?;
-            let mut right = substitute_clause_term(right, bindings)?;
+            let mut left = bound_term(left, bindings, computation_names)?;
+            let mut right = bound_term(right, bindings, computation_names)?;
             if left.scalar_type() != ScalarType::IeeeFloat(*format)
                 || right.scalar_type() != ScalarType::IeeeFloat(*format)
             {
@@ -246,11 +258,19 @@ pub fn substitute_clause<Error: From<&'static str>>(
             premise,
             conclusion,
         } => Proposition::Implication {
-            premise: Box::new(substitute_clause(premise, bindings)?),
-            conclusion: Box::new(substitute_clause(conclusion, bindings)?),
+            premise: Box::new(substitute_clause_with_computation_names(
+                premise,
+                bindings,
+                computation_names,
+            )?),
+            conclusion: Box::new(substitute_clause_with_computation_names(
+                conclusion,
+                bindings,
+                computation_names,
+            )?),
         },
-        Proposition::Conjunction(parts) => connective(parts, bindings, true)?,
-        Proposition::Disjunction(parts) => connective(parts, bindings, false)?,
+        Proposition::Conjunction(parts) => connective(parts, bindings, computation_names, true)?,
+        Proposition::Disjunction(parts) => connective(parts, bindings, computation_names, false)?,
         _ => {
             return Err(Error::from("clause form outside the scalar subset"));
         }
@@ -262,6 +282,14 @@ pub fn substitute_clause_term<Error: From<&'static str>>(
     term: &ScalarTerm,
     bindings: &mut dyn ClauseBindings<Error = Error>,
 ) -> Result<ScalarTerm, Error> {
+    bound_term(term, bindings, &[])
+}
+
+fn bound_term<Error: From<&'static str>>(
+    term: &ScalarTerm,
+    bindings: &mut dyn ClauseBindings<Error = Error>,
+    computation_names: &[(ScalarTerm, ScalarTerm)],
+) -> Result<ScalarTerm, Error> {
     enum Pending {
         Visit(ScalarTerm),
         Complete(ScalarTerm, usize),
@@ -269,6 +297,12 @@ pub fn substitute_clause_term<Error: From<&'static str>>(
     let mut pending = vec![Pending::Visit(term.clone())];
     let mut completed = Vec::new();
     while let Some(step) = pending.pop() {
+        if let Pending::Visit(term) = &step
+            && let Ok(index) = computation_names.binary_search_by(|(source, _)| source.cmp(term))
+        {
+            completed.push(computation_names[index].1.clone());
+            continue;
+        }
         let resolved = match step {
             Pending::Complete(mut term, count) => {
                 if completed.len() < count {
@@ -360,6 +394,7 @@ pub fn substitute_clause_term<Error: From<&'static str>>(
 fn bound_mathematical<Error: From<&'static str>>(
     term: &IntegerMathTerm,
     bindings: &mut dyn ClauseBindings<Error = Error>,
+    computation_names: &[(ScalarTerm, ScalarTerm)],
 ) -> Result<IntegerMathTerm, Error> {
     let embedded = |term: ScalarTerm| {
         IntegerMathTerm::embed(term)
@@ -390,7 +425,7 @@ fn bound_mathematical<Error: From<&'static str>>(
                     embedded(bindings.value(value, ScalarType::Integer(source_type))?)?
                 }
                 IntegerMathTerm::Embed(scalar) => {
-                    embedded(substitute_clause_term(&scalar, bindings)?)?
+                    embedded(bound_term(&scalar, bindings, computation_names)?)?
                 }
                 mut term => {
                     // Clone the tree once, then move every owned operand once.
@@ -429,6 +464,7 @@ fn bound_mathematical<Error: From<&'static str>>(
 fn connective<Error: From<&'static str>>(
     parts: &[Proposition],
     bindings: &mut dyn ClauseBindings<Error = Error>,
+    computation_names: &[(ScalarTerm, ScalarTerm)],
     conjunction: bool,
 ) -> Result<Proposition, Error> {
     let (deciding, unit) = if conjunction {
@@ -440,7 +476,7 @@ fn connective<Error: From<&'static str>>(
     let mut unstated = None;
     let mut decided = false;
     for part in parts {
-        match substitute_clause(part, bindings) {
+        match substitute_clause_with_computation_names(part, bindings, computation_names) {
             Ok(part) if part == deciding => {
                 if !bindings.requires_complete_terms() {
                     return Ok(deciding);

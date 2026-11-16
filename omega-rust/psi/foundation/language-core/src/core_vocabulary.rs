@@ -118,6 +118,8 @@ pub enum ReflectionDeclaration {
     Callable,
     /// `field(declaration)`, an uninvoked field selector.
     Field,
+    /// `parameter(declaration)`, an uninvoked boundary-formal selector.
+    Parameter,
     /// `CallableInfo`, the descriptive result of `callable`.
     CallableInfo,
     /// `TypeSchema`, the result of `schema`.
@@ -126,6 +128,7 @@ pub enum ReflectionDeclaration {
     CaseInfo,
     /// `FieldInfo`, field metadata.
     FieldInfo,
+    ParameterInfo,
     VisitRuntimeFields,
     VisitRuntimeFieldsMut,
     InspectRecordFields,
@@ -378,6 +381,18 @@ const ROWS: &[CoreVocabularyRow] = &[
         "reflect::field",
         REFLECT,
         CoreVocabulary::Reflection(ReflectionDeclaration::Field),
+    ),
+    row(
+        "reflect.omg",
+        "reflect::parameter",
+        REFLECT,
+        CoreVocabulary::Reflection(ReflectionDeclaration::Parameter),
+    ),
+    row(
+        "reflect.omg",
+        "reflect::ParameterInfo",
+        REFLECT,
+        CoreVocabulary::Reflection(ReflectionDeclaration::ParameterInfo),
     ),
     row(
         "reflect.omg",

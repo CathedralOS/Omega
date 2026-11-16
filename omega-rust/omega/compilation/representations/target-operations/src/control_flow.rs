@@ -18,7 +18,6 @@ use terminal_psi::TerminalAffineCleanupAction;
 pub struct TargetFunction {
     pub machine: MachineId,
     pub attachment: Option<StructuralTypeId>, // Terminal attachment retained for artifact-side nominal cleanup validation.
-    pub nominal_cleanup_subject: Option<StructuralTypeId>, // Owner-designated cleanup subject, independent of attachment or call sites.
     pub scalar_abi: Option<ScalarFunctionAbi>,
     pub mixed_structural_scalar_abi: Option<MixedStructuralScalarFunctionAbi>,
     pub structural_contract: Option<TargetStructuralContract>,

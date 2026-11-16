@@ -970,10 +970,6 @@ fn unplanned_demands(module: &TerminalModule) -> Vec<&'static str> {
             "an applied boundary requirement",
         ),
         (
-            !module.calling_policy_requests.is_empty(),
-            "a calling policy",
-        ),
-        (
             !module.callback_applications.is_empty()
                 || !module.installed_interrupt_registrations.is_empty(),
             "a callback",

@@ -82,7 +82,7 @@ fn reject_changed_entry_literal(
 ) {
     // Keep the compiled operation and result paired with their optimized
     // source, and change just the value in a copy of the target plan.
-    let mut mismatched = target.target_operations().clone();
+    let mut mismatched = target.working_program_for_validation().clone();
     let function = mismatched
         .functions
         .iter_mut()
@@ -150,7 +150,7 @@ fn check_published_plan(
     let verify = |prepared: &PreparedExecutionPlan| {
         native_preparation::verify_execution_plan(
             prepared,
-            target.target_operations(),
+            target.working_program_for_validation(),
             optimized.plan(),
             optimized.unit(),
             target.boundary_origins(),
@@ -245,6 +245,7 @@ fn check_published_plan(
                 claims: Vec::new(),
                 owned_places: Vec::new(),
                 partial_custody: Vec::new(),
+                nominal_partitions: Vec::new(),
             },
         ));
     }
@@ -316,7 +317,6 @@ fn constant_artifact(through_boundary: bool) -> Arc<CanonicalTerminalArtifact> {
     module.machines.push(TerminalMachine {
         id: entry,
         attachment: None,
-        nominal_cleanup_subject: None,
         structural_places: Vec::new(),
         call_formations: Vec::new(),
         block_entry_claims: Vec::new(),

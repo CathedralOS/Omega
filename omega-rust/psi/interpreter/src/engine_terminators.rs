@@ -14,7 +14,7 @@ pub(crate) mod block_bindings {
     use crate::engine::custody::{
         bind_active_retained_arguments, bind_active_structural_arguments, bind_affine_frontier,
         bind_arguments, projected_ownership_claims, resolve_single_structural_argument,
-        validate_nominal_cleanup_action, verified_structural_place, whole_path_discard,
+        verified_structural_place, whole_path_discard,
     };
     use crate::storage::runtime_rows::RuntimeRows;
     use crate::storage::scalar_storage::ScalarCell;
@@ -190,7 +190,7 @@ pub(crate) mod block_bindings {
             for (action, selected) in actions.iter().zip(&mut selected) {
                 let path = match selected {
                     TerminalAffineCleanupAction::DiscardResidual(discard) => &mut discard.path,
-                    TerminalAffineCleanupAction::InvokeNominal(cleanup) => &mut cleanup.path,
+                    TerminalAffineCleanupAction::InvokeOwned(cleanup) => &mut cleanup.subject.path,
                     _ => continue,
                 };
                 if path.iter().any(|segment| segment.runtime_index().is_some()) {
@@ -239,6 +239,40 @@ pub(crate) mod block_bindings {
                 }
                 discarded.insert(place);
                 match action {
+                    TerminalAffineCleanupAction::InvokeOwned(cleanup) => {
+                        terminal_semantics::nominal_cleanup::owned_target(
+                            execution.structural_types().values(),
+                            execution.program.machines().values(),
+                            cleanup,
+                        )
+                        .map_err(|_| malformed())?;
+                        // The full call transaction runs after edge capture.
+                        // Preflight removes only the caller's transferred
+                        // custody; it never simulates the target's body.
+                        if !cleanup.claim_transfers.is_empty()
+                            || claims.values().any(|claim| {
+                                claim.place == Some(cleanup.subject.place)
+                                    && terminal_semantics::structural_paths_may_overlap(
+                                        &claim.path,
+                                        &cleanup.subject.path,
+                                    )
+                            })
+                        {
+                            return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                                "owned cleanup claim transfer needs its complete correspondence",
+                            ));
+                        }
+                        crate::engine::custody::consume_affine_projection(
+                            &execution.structural_types(),
+                            &values,
+                            execution.structural_cases.as_map(),
+                            &mut frontier,
+                            &cleanup.subject,
+                        )?;
+                        if cleanup.subject.path.is_empty() {
+                            values.remove(&cleanup.subject.place);
+                        }
+                    }
                     TerminalAffineCleanupAction::DiscardRoot(_) => {
                         let structural_type =
                             verified_structural_place(&execution.structural_values, place)
@@ -254,32 +288,7 @@ pub(crate) mod block_bindings {
                         crate::engine::custody::remove_affine_root(&mut frontier, place);
                         values.remove(&place);
                     }
-                    TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
-                        validate_nominal_cleanup_action(
-                            &execution.structural_types(),
-                            execution.structural_cases.as_map(),
-                            &execution.program.machines(),
-                            &values,
-                            &frontier,
-                            &claims,
-                            cleanup,
-                        )?;
-                        crate::engine::custody::begin_nominal_cleanup(
-                            &execution.structural_types(),
-                            &values,
-                            execution.structural_cases.as_map(),
-                            &mut frontier,
-                            &mut claims,
-                            cleanup,
-                        )?;
-                        crate::engine::custody::complete_nominal_cleanup(
-                            &mut values,
-                            &mut scalar_arrays,
-                            &mut frontier,
-                            &claims,
-                            cleanup,
-                        )?;
-                    }
+
                     TerminalAffineCleanupAction::DiscardResidual(discard) => {
                         crate::engine::custody::consume_affine_discard(
                             &execution.structural_types(),
@@ -1091,9 +1100,8 @@ pub(crate) mod block_bindings {
 pub(crate) mod completion {
     use super::*;
     use crate::boundary::errors::malformed;
-    use crate::boundary::values::TerminalStructuralValue;
     use crate::engine::execution::FailedReturn;
-    use terminal_psi::{NominalAffineCleanup, TerminalAffineCleanupAction};
+    use terminal_psi::TerminalAffineCleanupAction;
 
     impl TerminalExecution<'_> {
         pub(crate) fn reject_no_normal_return(&self) -> Result<(), TerminalInterpretError> {
@@ -1124,6 +1132,10 @@ pub(crate) mod completion {
         ) -> Result<TerminatorFlow, TerminalInterpretError> {
             while let Some(action) = remaining.next() {
                 self.collect_retired_descriptor_storage(Some(&continuation));
+                if let TerminalAffineCleanupAction::InvokeOwned(cleanup) = &action {
+                    self.begin_owned_cleanup_call(cleanup, remaining, continuation)?;
+                    return Ok(TerminatorFlow::Continue);
+                }
                 let retired = match &action {
                     TerminalAffineCleanupAction::RetireHome(place) => self
                         .structural_values
@@ -1132,10 +1144,9 @@ pub(crate) mod completion {
                         .cloned(),
                     _ => None,
                 };
-                let nominal = commit_cleanup_action(
+                commit_cleanup_action(
                     &self.program.structural_types(),
                     self.structural_cases.as_map(),
-                    &self.program.machines(),
                     self.program.verified_machine(self.current_machine)?,
                     &mut self.structural_values,
                     &mut self.linear_homes,
@@ -1162,9 +1173,6 @@ pub(crate) mod completion {
                     self.retire_home_companions(*place);
                 }
                 self.collect_retired_descriptor_storage(Some(&continuation));
-                if let Some(completed) = nominal {
-                    return self.start_nominal_cleanup(completed, remaining, continuation);
-                }
             }
             if matches!(&continuation, CleanupContinuation::Return(_)) {
                 if !self.live_affine_frontier.is_empty() || !self.live_claims.is_empty() {
@@ -1196,36 +1204,6 @@ pub(crate) mod completion {
                     Ok(TerminatorFlow::Continue)
                 }
             }
-        }
-
-        fn start_nominal_cleanup(
-            &mut self,
-            completed: (NominalAffineCleanup, TerminalStructuralValue),
-            remaining: std::vec::IntoIter<TerminalAffineCleanupAction>,
-            continuation: CleanupContinuation,
-        ) -> Result<TerminatorFlow, TerminalInterpretError> {
-            let callee = self.program.verified_machine(completed.0.cleanup_machine)?;
-            let entry = callee.entry;
-            let target = completed.0.cleanup_machine;
-            let receiver = completed
-                .0
-                .cleanup_receiver
-                .map(|place| (place, completed.1.clone()));
-            self.suspend_with(
-                SuspendedCallResult::NominalCleanups {
-                    completed,
-                    remaining,
-                    continuation,
-                },
-                Vec::new(),
-            )?;
-            if let Some((place, value)) = receiver {
-                self.structural_values.insert(place, value)?;
-            }
-            self.current_machine = target;
-            self.current = entry;
-            self.next_operation = 0;
-            Ok(TerminatorFlow::Continue)
         }
 
         fn restore_return_caller(&mut self, caller: SuspendedCall) -> SuspendedCallResult {
@@ -1300,10 +1278,9 @@ pub(crate) mod completion {
                 });
                 return Err(error);
             }
-            if let SuspendedCallResult::NominalCleanups {
+            if let SuspendedCallResult::OwnedCleanups {
                 remaining,
                 continuation,
-                ..
             } = expected
             {
                 return self.continue_cleanup_actions(remaining, continuation);
@@ -1346,26 +1323,7 @@ pub(crate) mod completion {
                         edge: *edge,
                     })
                 }
-                SuspendedCallResult::NominalCleanups {
-                    completed: cleanup, ..
-                } => {
-                    if completed.value != TerminalExecutionResult::Unit {
-                        return Err(TerminalInterpretError::AffineFrontierMismatch);
-                    }
-                    crate::engine::custody::complete_nominal_cleanup(
-                        &mut self.structural_values,
-                        &mut self.scalar_array_values,
-                        &mut self.live_affine_frontier,
-                        &self.live_claims,
-                        &cleanup.0,
-                    )?;
-                    if !self.structural_values.contains_key(&cleanup.0.place) {
-                        self.retire_home_companions(cleanup.0.place);
-                        self.queue_retired_descriptor_home((&cleanup.1).into());
-                    }
-                    Ok(())
-                }
-                SuspendedCallResult::Unit => {
+                SuspendedCallResult::Unit | SuspendedCallResult::OwnedCleanups { .. } => {
                     if completed.value != TerminalExecutionResult::Unit {
                         return Err(malformed());
                     }
@@ -1516,7 +1474,11 @@ pub(crate) mod completion {
             };
             let mut outgoing = CompletedReturn::plain(TerminalExecutionResult::Structural(
                 TerminalStructuralResult {
-                    value: TerminalStructuralValue::minted(42, structural_type, Vec::new()),
+                    value: crate::boundary::values::TerminalStructuralValue::minted(
+                        42,
+                        structural_type,
+                        Vec::new(),
+                    ),
                     claims: vec![claim],
                     observation_home: None,
                 },

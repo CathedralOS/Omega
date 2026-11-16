@@ -7,6 +7,7 @@
 // - Atomic accesses take tag `167`, case-qualified scalar field reads take tag `168`
 //   (`TAG_CASE_PAYLOAD_FIELD_READ`), and inline nearest-even IEEE float arithmetic takes tag `169`
 //   (`TAG_NEAREST_IEEE_FLOAT_ARITHMETIC`, appending the optional x86 FMA provider identity).
+// - Custody-only decomposition takes tag `174` and binds the complete owned subject.
 // - Saturating forms (`saturating_tag`) preserve legacy tags for `U64` and `I32` (35, 36, 40, 41,
 //   42) and assign dense per-operation carrier offsets for all other carriers.
 // - Root-window `StoreStructuralField` instructions and whole-slot `StructuralByteViewFieldStore`
@@ -46,10 +47,6 @@ pub(super) fn encode(
 ) {
     crate::codec_bytes::push_encoded(bytes, function.machine.get().to_le_bytes());
     optimization_core::encode_option_u64(bytes, function.attachment.map(|value| value.get()));
-    optimization_core::encode_option_u64(
-        bytes,
-        function.nominal_cleanup_subject.map(|value| value.get()),
-    );
     encode_ids(
         bytes,
         function
@@ -635,6 +632,10 @@ pub(super) fn encode(
                     super::structural::encode_operation_result(bytes, result);
                     super::calling::encode_shape(bytes, *shape);
                 }
+                LegalizedScalarInstructionKind::DecomposeStructuralValue { subject } => {
+                    bytes.push(174);
+                    super::structural_types::encode_structural_argument(bytes, subject);
+                }
                 LegalizedScalarInstructionKind::EstablishTrivialAffineLocal {
                     place,
                     structural_type,
@@ -865,9 +866,14 @@ pub(super) fn encode(
                     bytes.push(*byte_size);
                     encode_runtime_indices(bytes, indices);
                 }
-                LegalizedScalarInstructionKind::HostedWriteByteI32 { boundary, source } => {
+                LegalizedScalarInstructionKind::HostedWriteByteI32 {
+                    boundary,
+                    execution,
+                    source,
+                } => {
                     bytes.push(11);
                     crate::codec_bytes::push_encoded(bytes, boundary.get().to_le_bytes());
+                    super::calling::encode_boundary_execution_identity(bytes, *execution);
                     crate::codec_bytes::push_encoded(bytes, source.get().to_le_bytes());
                 }
                 LegalizedScalarInstructionKind::StructuralScalarFieldStore {
@@ -1617,7 +1623,7 @@ fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator
             encode_len(bytes, site_guard.len());
             for predicate in site_guard {
                 let encoded =
-                    terminal_codec::canonical_proposition_order_key(predicate.proposition())
+                    terminal_wire::canonical_proposition_order_key(predicate.proposition())
                         .expect("validated crash predicate");
                 encode_len(bytes, encoded.len());
                 bytes.extend_from_slice(&encoded);

@@ -230,9 +230,7 @@ impl FunctionFragmentReplayInputs {
         self.realization.allocation()
     }
 
-    pub fn machine(
-        &self,
-    ) -> &register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan {
+    pub fn machine(&self) -> &crate::AllocatedMachinePlan {
         self.realization.machine()
     }
 
@@ -283,7 +281,7 @@ impl FunctionFragmentReplayInputs {
 #[derive(Debug, Clone)]
 struct CurrentFunctionFragmentInput {
     program: ResolvedMachineProgram,
-    machine: register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan,
+    machine: crate::AllocatedMachinePlan,
     homes: selected_instructions_to_register_homes::AssignedRegisterHomes,
     environment: register_environment::ValidatedTargetRegisterEnvironment,
     exit: StagedWholeFunctionExitContract,
@@ -345,7 +343,10 @@ impl CurrentFunctionFragmentInput {
             || !matches_shared_plan(layout, replay.layout_optimization().layout())
             || !matches_shared_plan(frame, replay.fixed_frame().frame().plan())
             || !matches_shared_plan(protocol, replay.fixed_frame().protocol().plan())
-            || &self.machine != replay.machine()
+            || self.machine.effects() != replay.machine().effects()
+            || self.machine.machine() != replay.machine().machine()
+            || self.machine.optimization() != replay.machine().optimization()
+            || self.machine.custody() != replay.machine().custody()
             || &self.homes != replay.register_homes()
             || &self.environment != replay.register_environment()
             || &self.exit != replay.exit_contract()
@@ -373,9 +374,7 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
         &self.current.program
     }
 
-    pub fn machine(
-        &self,
-    ) -> &register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan {
+    pub fn machine(&self) -> &crate::AllocatedMachinePlan {
         &self.current.machine
     }
 
@@ -776,7 +775,6 @@ fn emit_ordinary_function(
     Ok(FunctionFragment {
         machine: selected.machine,
         attachment: selected.attachment,
-        nominal_cleanup_subject: selected.nominal_cleanup_subject,
         provenance: selected.provenance.clone(),
         byte_count,
         bytes,
@@ -1263,8 +1261,7 @@ fn check_ordinary_fragments(
         )?;
         require(
             claimed.machine == source.machine
-                && (claimed.attachment == source.attachment
-                    && claimed.nominal_cleanup_subject == source.nominal_cleanup_subject)
+                && claimed.attachment == source.attachment
                 && claimed.provenance == source.provenance
                 && claimed.byte_count == resolved.byte_count
                 && u64::try_from(claimed.bytes.len()).ok() == Some(claimed.byte_count)
@@ -1867,7 +1864,6 @@ mod tests {
                 contracts: std::sync::Arc::new(selected_instructions::SelectedFunctionContracts {
                     machine,
                     attachment: None,
-                    nominal_cleanup_subject: None,
                     provenance: Default::default(),
                     structural: None,
                     local_storage_slots: Vec::new(),

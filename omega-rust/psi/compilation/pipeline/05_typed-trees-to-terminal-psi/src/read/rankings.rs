@@ -73,7 +73,7 @@ impl Program<'_> {
                         "selected ranking declaration differs from its closed catalog header",
                     ));
                 }
-                let [entry] = self.typed.machine_states(declaration) else {
+                let Some([entry]) = self.typed.machine_states(declaration).as_array() else {
                     return Err(unsupported(
                         "selected ranking declaration needs exactly one entry",
                     ));

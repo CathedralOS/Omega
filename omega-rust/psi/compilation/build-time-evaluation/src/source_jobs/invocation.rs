@@ -16,10 +16,8 @@ use typed_trees::statement::{StatementNode, TableTransition, TransitionTargetNod
 use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
 fn entry_state<'a>(program: &'a TypedTrees, machine: &Machine) -> Option<&'a State> {
-    match program.machine_states(machine) {
-        [state] => Some(state),
-        _ => None,
-    }
+    let [state] = program.machine_states(machine).as_array()?;
+    Some(state)
 }
 
 // Authored inputs may name the declared member; returned values retain its

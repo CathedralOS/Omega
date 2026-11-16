@@ -93,7 +93,6 @@ pub(crate) mod source {
             Ok(AbstractFunction {
                 machine: unit.machine,
                 attachment: unit.attachment,
-                nominal_cleanup_subject: unit.nominal_cleanup_subject,
                 entry: unit.entry,
                 parameters,
                 structural_parameters: unit.structural_parameters.clone(),

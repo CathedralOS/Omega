@@ -66,7 +66,7 @@ pub(super) fn decode_parameter(
 pub(super) fn encode_type(
     bytes: &mut Vec<u8>,
     declaration: &StructuralTypeDeclaration,
-) -> Result<(), terminal_codec::CodecError> {
+) -> Result<(), terminal_wire::CodecError> {
     bytes.push(u8::from(declaration.quotient_carrier.is_some()));
     if let Some(carrier) = declaration.quotient_carrier {
         crate::codec_bytes::push_encoded(bytes, carrier.get().to_le_bytes());
@@ -78,6 +78,11 @@ pub(super) fn encode_type(
     bytes.push(u8::from(declaration.no_code_affine_cleanup));
     bytes.push(u8::from(declaration.descriptor_cleanup));
     bytes.push(u8::from(declaration.copyable));
+    bytes.push(u8::from(declaration.nominal_cleanup.is_some()));
+    if let Some(selection) = &declaration.nominal_cleanup {
+        bytes.extend_from_slice(&selection.declaration.identity().0.to_le_bytes());
+        bytes.extend_from_slice(&selection.cleanup_machine.get().to_le_bytes());
+    }
     match &declaration.shape {
         StructuralTypeShape::Opaque => bytes.push(19),
         StructuralTypeShape::Reference { referent, access } => {
@@ -189,6 +194,16 @@ pub(super) fn decode_type(
     let no_code_affine_cleanup = decode_bool(cursor)?;
     let descriptor_cleanup = decode_bool(cursor)?;
     let copyable = decode_bool(cursor)?;
+    let nominal_cleanup = if decode_bool(cursor)? {
+        Some(terminal_psi::NominalCleanupSelection {
+            declaration: terminal_psi::NominalDeclarationIdentity::new(
+                terminal_psi::TerminalIdentityIndex(cursor.u32()?),
+            ),
+            cleanup_machine: decode_id(cursor, semantic_vocabulary::MachineId::new)?,
+        })
+    } else {
+        None
+    };
     let mut scalar_restriction = None;
     let shape = match cursor.byte()? {
         19 => StructuralTypeShape::Opaque,
@@ -296,6 +311,7 @@ pub(super) fn decode_type(
         no_code_affine_cleanup,
         copyable,
         descriptor_cleanup,
+        nominal_cleanup,
         scalar_restriction,
         id,
         identity,
@@ -350,7 +366,7 @@ fn decode_authored_field_storage(
 fn encode_cases(
     bytes: &mut Vec<u8>,
     cases: &[StructuralCaseDeclaration],
-) -> Result<(), terminal_codec::CodecError> {
+) -> Result<(), terminal_wire::CodecError> {
     length(bytes, cases.len());
     for case in cases {
         crate::codec_bytes::push_encoded(bytes, case.declaration_identity.0.to_le_bytes());
@@ -377,7 +393,7 @@ fn decode_cases(
 fn encode_fields(
     bytes: &mut Vec<u8>,
     fields: &[StructuralFieldDeclaration],
-) -> Result<(), terminal_codec::CodecError> {
+) -> Result<(), terminal_wire::CodecError> {
     length(bytes, fields.len());
     for field in fields {
         crate::codec_bytes::push_encoded(bytes, field.id.get().to_le_bytes());
@@ -551,7 +567,7 @@ pub(super) fn decode_semantic_argument(
 pub(super) fn encode_target_argument(
     bytes: &mut Vec<u8>,
     argument: &TargetStructuralArgument,
-) -> Result<(), terminal_codec::CodecError> {
+) -> Result<(), terminal_wire::CodecError> {
     crate::codec_bytes::push_encoded(bytes, argument.place.get().to_le_bytes());
     encode_access(bytes, argument.access);
     encode_path(bytes, &argument.path);
@@ -859,7 +875,7 @@ pub(super) fn decode_projected(
 fn encode_bounded_integer(
     bytes: &mut Vec<u8>,
     bounds: BoundedIntegerType,
-) -> Result<(), terminal_codec::CodecError> {
+) -> Result<(), terminal_wire::CodecError> {
     encode_scalar(bytes, ScalarType::Integer(bounds.integer_type()))?;
     encode_integer(bytes, bounds.minimum());
     encode_integer(bytes, bounds.maximum());
@@ -881,13 +897,12 @@ fn decode_bounded_integer(
 fn encode_scalar_restriction(
     bytes: &mut Vec<u8>,
     field_type: &StructuralFieldType,
-) -> Result<(), terminal_codec::CodecError> {
+) -> Result<(), terminal_wire::CodecError> {
     match field_type {
         StructuralFieldType::RefinedScalar(refinement) => {
             bytes.push(9);
             encode_scalar(bytes, refinement.carrier())?;
-            let predicate =
-                terminal_codec::canonical_proposition_order_key(refinement.predicate())?;
+            let predicate = terminal_wire::canonical_proposition_order_key(refinement.predicate())?;
             length(bytes, predicate.len());
             bytes.extend_from_slice(&predicate);
         }
@@ -945,7 +960,7 @@ fn decode_scalar_restriction(
         9 => {
             let carrier = decode_scalar(cursor)?;
             let length = cursor.length()?;
-            let predicate = terminal_codec::decode_canonical_proposition(cursor.take(length)?)
+            let predicate = terminal_wire::decode_canonical_proposition(cursor.take(length)?)
                 .map_err(|_| FixedViewCopyDecodeError::InvalidScalarRefinement)?;
             StructuralFieldType::RefinedScalar(
                 semantic_vocabulary::ScalarRefinement::new(carrier, predicate)
@@ -1005,12 +1020,50 @@ mod tests {
     };
     use crate::recovery::structural_calls::{decode_provider, encode_provider};
     use semantic_vocabulary::{BoundaryMachineId, MachineId, StructuralDomainId};
-    use terminal_codec::canonical_proposition_order_key;
     use terminal_psi::{
         NominalDeclarationIdentity, ProviderCandidateConformance, ProviderParameterRefinement,
         ProviderRefinement, ProviderSignature, ProviderSignatureParameter,
         ReferenceOriginProjection, StructuralDomainRequirement, TerminalIdentityIndex,
     };
+    use terminal_wire::canonical_proposition_order_key;
+
+    #[test]
+    fn nominal_cleanup_selection_round_trip_binds_declaration_and_target() {
+        let mut encodings = Vec::new();
+        for selection in [None, Some((2, 3)), Some((4, 3)), Some((2, 5))] {
+            let declaration = StructuralTypeDeclaration {
+                requires: Vec::new(),
+                quotient_carrier: None,
+                owns_linear_claim: false,
+                no_code_affine_cleanup: false,
+                descriptor_cleanup: false,
+                nominal_cleanup: selection.map(|(identity, machine)| {
+                    terminal_psi::NominalCleanupSelection {
+                        declaration: NominalDeclarationIdentity::new(TerminalIdentityIndex(
+                            identity,
+                        )),
+                        cleanup_machine: MachineId::new(machine).unwrap(),
+                    }
+                }),
+                copyable: false,
+                scalar_restriction: None,
+                id: StructuralTypeId::new(1).unwrap(),
+                identity: TerminalIdentityIndex(1),
+                declaration_identity: TerminalIdentityIndex(1),
+                shape: StructuralTypeShape::Record {
+                    fields: Vec::new(),
+                    storage: terminal_psi::StructuralRecordStorage::Packed,
+                },
+            };
+            let mut bytes = Vec::new();
+            encode_type(&mut bytes, &declaration).unwrap();
+            let mut cursor = Cursor::new(&bytes);
+            assert_eq!(decode_type(&mut cursor).unwrap(), declaration);
+            assert_eq!(cursor.remaining(), 0);
+            assert!(!encodings.contains(&bytes));
+            encodings.push(bytes);
+        }
+    }
 
     #[test]
     fn logical_copy_permission_changes_encoded_identity() {
@@ -1023,6 +1076,7 @@ mod tests {
                 owns_linear_claim: false,
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: true,
+                nominal_cleanup: None,
                 copyable,
                 scalar_restriction: None,
                 id: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
@@ -1054,6 +1108,7 @@ mod tests {
                 no_code_affine_cleanup: false,
                 copyable: false,
                 descriptor_cleanup: false,
+                nominal_cleanup: None,
                 scalar_restriction: None,
                 id: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
                 identity: terminal_psi::TerminalIdentityIndex(1),
@@ -1089,6 +1144,7 @@ mod tests {
                 no_code_affine_cleanup: false,
                 copyable: false,
                 descriptor_cleanup: true,
+                nominal_cleanup: None,
                 scalar_restriction: None,
                 id: StructuralTypeId::new(2).unwrap(),
                 identity: terminal_psi::TerminalIdentityIndex(1),
@@ -1123,6 +1179,7 @@ mod tests {
             no_code_affine_cleanup: true,
             copyable: false,
             descriptor_cleanup: false,
+            nominal_cleanup: None,
             scalar_restriction: None,
             id: StructuralTypeId::new(7).unwrap(),
             identity: terminal_psi::TerminalIdentityIndex(1),
@@ -1169,6 +1226,7 @@ mod tests {
             no_code_affine_cleanup: false,
             copyable: false,
             descriptor_cleanup: false,
+            nominal_cleanup: None,
             scalar_restriction: None,
             id: StructuralTypeId::new(7).unwrap(),
             identity: terminal_psi::TerminalIdentityIndex(3),
@@ -1239,6 +1297,7 @@ mod tests {
                 no_code_affine_cleanup: false,
                 copyable: false,
                 descriptor_cleanup,
+                nominal_cleanup: None,
                 scalar_restriction: None,
                 id: StructuralTypeId::new(7).unwrap(),
                 identity: terminal_psi::TerminalIdentityIndex(4),
@@ -1326,6 +1385,7 @@ mod tests {
                 no_code_affine_cleanup: false,
                 copyable: false,
                 descriptor_cleanup: false,
+                nominal_cleanup: None,
                 scalar_restriction: None,
                 id: StructuralTypeId::new(7).unwrap(),
                 identity: terminal_psi::TerminalIdentityIndex(5),

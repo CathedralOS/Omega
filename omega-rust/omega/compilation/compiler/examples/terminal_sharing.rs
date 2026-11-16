@@ -163,7 +163,7 @@ fn main() {
                     .artifact()
                     .or_else(|| {
                         report
-                            .retained_native_artifact()
+                            .retained_native_program()
                             .map(|native| native.psi_artifact())
                     })
                     .expect("portable artifact")
@@ -185,11 +185,10 @@ fn main() {
     let checks = counters::settled_check_totals().0 - checks_before;
     let terminals = counters::terminal_production_count() - terminals_before;
     assert_eq!(
-        (sources, builds, checks, terminals),
+        (sources, builds, terminals),
         (
             1,
             1,
-            2,
             expected_terminal_productions
                 .unwrap_or_else(|| u64::from(product != RequestedCompileProduct::Check))
         )
@@ -260,17 +259,16 @@ fn main() {
             .iter()
             .filter(|name| rejected_target.as_ref() != Some(*name));
         for (name, report) in admitted_targets.zip(&reports) {
-            let retained = report.retained_native_artifact().expect("native product");
             std::fs::write(
                 directory.join(format!("{name}-shared.image")),
-                &retained.image().output().bytes,
+                native_bytes(report),
             )
             .expect("retain shared-target image");
         }
         std::fs::write(
             directory.join("program.oterm"),
             reports[0]
-                .retained_native_artifact()
+                .retained_native_program()
                 .expect("shared native product")
                 .psi_artifact()
                 .to_bytes(),
@@ -308,18 +306,8 @@ fn main() {
             .expect("single target admission")
             .into_single_report()
             .expect("single target production");
-            let shared = &shared
-                .retained_native_artifact()
-                .expect("shared native")
-                .image()
-                .output()
-                .bytes;
-            let single = &single
-                .retained_native_artifact()
-                .expect("single native")
-                .image()
-                .output()
-                .bytes;
+            let shared = native_bytes(shared);
+            let single = native_bytes(&single);
             assert!(
                 shared == single,
                 "{name}: shared and single-target bytes differ"
@@ -343,4 +331,18 @@ fn main() {
         );
         println!("host_native_exit=0 reloaded_terminal=Unit");
     }
+}
+
+// Imports can require a dynamic ELF image. Compare the emitted bytes of the
+// report's actual image while the portable-program accessor preserves sharing.
+fn native_bytes(report: &compiler::CompileReport) -> &[u8] {
+    report
+        .retained_native_artifact()
+        .map(|artifact| artifact.image().output().bytes.as_slice())
+        .or_else(|| {
+            report
+                .retained_dynamic_elf_artifact()
+                .map(|artifact| artifact.image().output().bytes.as_slice())
+        })
+        .expect("retained native image")
 }

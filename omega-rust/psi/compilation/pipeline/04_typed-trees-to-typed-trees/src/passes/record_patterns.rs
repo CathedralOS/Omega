@@ -79,8 +79,10 @@ fn named_field(program: &TypedTrees, record: &DataDefinition, name: &str) -> Sym
 ///
 /// The subject's type is read from the declaration of the binding it names,
 /// a parameter or an earlier typed local of the same state, and otherwise
-/// from the marker's own type. A field path, a call result, an applied
-/// generic record, a quotient and a sum all stay unresolved.
+/// from the marker's own type. A field path, a call result, a type-applied
+/// record, a quotient and a sum all stay unresolved. Lifetime
+/// arguments leave the field roster unchanged; their actual loans are checked
+/// when the prepared body is lowered.
 fn subject_record<'program>(
     program: &'program TypedTrees,
     state: &State,
@@ -95,14 +97,17 @@ fn subject_record<'program>(
                 .then_some(local.type_reference)
         })?;
     let carrier = program.type_reference_table.peeled_type_reference(declared);
-    let TypeReferenceNode::Named { symbol, .. } =
-        program.type_reference_table.type_reference(carrier)
-    else {
-        return None;
+    let symbol = match program.type_reference_table.type_reference(carrier) {
+        TypeReferenceNode::Named { symbol, .. } => *symbol,
+        TypeReferenceNode::Generic {
+            base_symbol,
+            arguments,
+            ..
+        } if arguments.is_empty() => *base_symbol,
+        _ => return None,
     };
-    let record = program.unique_data_definition_by_symbol(*symbol)?;
+    let record = program.unique_data_definition_by_symbol(symbol)?;
     let plain = program.data_type_parameters(record).is_empty()
-        && record.lifetime_parameters.is_empty()
         && record.quotient.is_none()
         && program
             .data_members(record)
@@ -137,7 +142,7 @@ mod tests {
     /// `machine read(pair: Pair, shape: Shape)` whose body holds one marker
     /// per subject: `pair`, `shape`, and a call-like subject that names no
     /// binding. `Pair { a, b }` is a plain record; `Shape` has a case.
-    fn source() -> Source {
+    fn source(lifetime: bool, applied: bool) -> Source {
         let mut builder = SymbolTableBuilder::new();
         let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
         let top = builder.insert_children(
@@ -182,7 +187,18 @@ mod tests {
                     name: Identifier::generated(name),
                 })
         };
-        let pair_type = named(&mut program, pair, "Pair");
+        let pair_type = if applied {
+            program
+                .type_reference_table
+                .insert(TypeReferenceNode::Generic {
+                    base_symbol: pair,
+                    base_name: Identifier::generated("Pair"),
+                    lifetime_arguments: vec![Identifier::generated("storage")],
+                    arguments: arena::HandleSpan::empty(),
+                })
+        } else {
+            named(&mut program, pair, "Pair")
+        };
         let shape_type = named(&mut program, shape, "Shape");
         let members =
             program
@@ -198,6 +214,11 @@ mod tests {
         program.push_data_definition(DataDefinition {
             symbol: pair,
             name: Identifier::generated("Pair"),
+            lifetime_parameters: if lifetime {
+                vec![Identifier::generated("storage")]
+            } else {
+                Vec::new()
+            },
             members,
             ..Default::default()
         });
@@ -301,7 +322,7 @@ mod tests {
             pair,
             fields: [a, b],
             markers,
-        } = source();
+        } = source(false, false);
         let authored = marker(&program, markers[0]).pattern_fields;
         prepare(&mut program).expect("the pass refuses nothing");
         let resolved = marker(&program, markers[0]);
@@ -318,12 +339,43 @@ mod tests {
     }
 
     #[test]
+    fn lifetime_binders_and_arguments_keep_the_same_record_field_roster() {
+        for applied in [false, true] {
+            let Source {
+                mut program,
+                pair,
+                fields: [a, b],
+                markers,
+            } = source(true, applied);
+            prepare(&mut program).expect("record preparation only resolves field identities");
+            let resolved = marker(&program, markers[0]);
+            assert_eq!(resolved.pattern_subject, pair);
+            assert_eq!(
+                program
+                    .expression_table
+                    .match_fields(resolved.pattern_fields)
+                    .iter()
+                    .map(|row| row.field_symbol)
+                    .collect::<Vec<_>>(),
+                [b, a, SymbolHandle::invalid()]
+            );
+            assert_eq!(
+                program
+                    .unique_data_definition_by_symbol(pair)
+                    .unwrap()
+                    .lifetime_parameters,
+                [Identifier::generated("storage")]
+            );
+        }
+    }
+
+    #[test]
     fn a_marker_over_a_sum_or_an_undeclared_subject_stays_unresolved() {
         let Source {
             mut program,
             markers,
             ..
-        } = source();
+        } = source(false, false);
         let before = [markers[1], markers[2]].map(|handle| marker(&program, handle).clone());
         prepare(&mut program).expect("the pass refuses nothing");
         for (handle, before) in [markers[1], markers[2]].into_iter().zip(before) {

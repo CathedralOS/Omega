@@ -340,9 +340,7 @@ pub(crate) mod callable_identity {
         /// identities. Overload identity deliberately omits this information;
         /// a checked declaration must retain the stronger source promise.
         pub fn machine_definition_types(&self, machine: &Machine) -> Option<(Vec<String>, String)> {
-            let [entry] = self.machine_states(machine) else {
-                return None;
-            };
+            let [entry] = self.machine_states(machine).as_array()?;
             // Captured lifetimes keep their portable declaration owner. Only
             // this callable's own binders receive schema ordinals; otherwise
             // a captured region absent from the inputs could look universal.
@@ -363,7 +361,7 @@ pub(crate) mod callable_identity {
             mut binders: Vec<(symbols::SymbolHandle, String)>,
             signature: (symbols::SymbolHandle, symbols::SymbolHandle),
             lifetime_owners: &[(symbols::SymbolHandle, usize)],
-            parameters: &[crate::signature::StateParameter],
+            parameters: arena::RootRows<'_, crate::signature::StateParameter>,
             result: crate::types::TypeReferenceHandle,
         ) -> Option<(Vec<String>, String, usize)> {
             use super::LifetimeParameterIdentity;
@@ -8375,7 +8373,7 @@ impl TypedTrees {
         path: &str,
         owner_symbol: SymbolHandle,
         type_parameters: arena::RootRows<'_, data::TypeParameter>,
-        parameters: &[crate::signature::StateParameter],
+        parameters: arena::RootRows<'_, crate::signature::StateParameter>,
         return_type: TypeReferenceHandle,
     ) -> callable_identity::CallableIdentityParts {
         let binders = callable_type_binders(owner_symbol, type_parameters);

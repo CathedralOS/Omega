@@ -299,15 +299,42 @@ impl<'t> Program<'t> {
                 .typed
                 .machine_by_symbol(owner)
                 .and_then(|machine| self.typed.machine_states.span(machine.states))
-                .and_then(|states| match states {
-                    [state] => Some(state.symbol),
-                    _ => None,
-                });
+                .and_then(|states| states.as_array::<1>())
+                .map(|[state]| state.symbol);
             if state != Some(registration) {
                 return unserved("static application registers another declaration");
             }
         }
         Ok(())
+    }
+
+    /// Read the exact executable selected by an ordinary retained application.
+    /// Unspent static arguments stay subject to the ordinary call floor.
+    pub(super) fn ordinary_application_target(
+        &self,
+        id: MachineId,
+        application: typed_trees::static_applications::StaticMachineApplicationHandle,
+    ) -> Checked<SymbolHandle> {
+        let table = &self.typed.expression_table;
+        if !table.static_machine_application_is_valid(application) {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Call("selected ordinary application is absent"),
+            ));
+        }
+        let registered = table
+            .static_machine_application(application)
+            .registration_operation;
+        let target = self.entered_machine(registered).ok_or_else(|| {
+            refuse(
+                id,
+                Construct::Machine,
+                Unserved::Call("selected ordinary application has no machine body"),
+            )
+        })?;
+        self.applies_nothing(id, registered, application, &[])?;
+        Ok(target)
     }
 
     /// Whether every generic parameter of `declared`, a machine or its entry
@@ -358,8 +385,8 @@ impl<'t> Program<'t> {
             SymbolKind::State => {
                 let parent = self.typed.symbols.get(symbol).parent;
                 let machine = self.typed.machine_by_symbol(parent)?;
-                match self.typed.machine_states.span(machine.states)? {
-                    [state] if state.symbol == symbol => Some(parent),
+                match self.typed.machine_states.span(machine.states)?.as_array() {
+                    Some([state]) if state.symbol == symbol => Some(parent),
                     _ => None,
                 }
             }
@@ -465,7 +492,7 @@ impl<'t> Program<'t> {
             .typed
             .machine_by_symbol(capture.instance)
             .ok_or_else(|| unserved("named capture lost its actual machine"))?;
-        let [entry] = self.typed.machine_states(machine) else {
+        let Some([entry]) = self.typed.machine_states(machine).as_array() else {
             return Err(unserved("named capture without one actual entry"));
         };
         if !self.typed.instantiated_machine_state_matches(
@@ -1118,7 +1145,7 @@ impl<'t> Program<'t> {
             .ok_or_else(|| unavailable("sealed borrow lost its exact source type argument"))?;
         let view_type = bound_type(factory.view_parameter)
             .ok_or_else(|| unavailable("sealed borrow lost its complete view type argument"))?;
-        let [parameter] = typed.state_signature_parameters(signature) else {
+        let Some([parameter]) = typed.state_signature_parameters(signature).as_array() else {
             return Err(unavailable(
                 "sealed borrow closed declaration needs one source parameter",
             ));
@@ -1547,7 +1574,7 @@ impl<'t> Program<'t> {
                 Unserved::Call("named call lost its actual body"),
             )
         })?;
-        let [entry] = self.typed.machine_states(machine) else {
+        let Some([entry]) = self.typed.machine_states(machine).as_array() else {
             return Err(refuse(
                 id,
                 Construct::Machine,

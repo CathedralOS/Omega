@@ -665,6 +665,28 @@ pub(crate) mod aggregate_results {
             native: &TargetOperationPlan,
             plan: &crate::native_geometry::NativePlan<'_>,
         ) -> Result<target_operations::TargetStructuralArgument, LegalizationError> {
+            reconstruct_at_owner(
+                argument,
+                position,
+                target_operations::CallSiteOwner::from(call_operation),
+                caller,
+                callee,
+                call,
+                native,
+                plan,
+            )
+        }
+
+        pub(crate) fn reconstruct_at_owner(
+            argument: &terminal_psi::StructuralArgument,
+            position: usize,
+            owner: target_operations::CallSiteOwner,
+            caller: &PsiOptimizationFunction,
+            callee: abstract_operations::AbstractCallSignature<'_>,
+            call: &CallPlan,
+            native: &TargetOperationPlan,
+            plan: &crate::native_geometry::NativePlan<'_>,
+        ) -> Result<target_operations::TargetStructuralArgument, LegalizationError> {
             let declaration = crate::legalization::scalar_graph_input::call_signature::parameter(
                 callee,
                 position,
@@ -732,7 +754,7 @@ pub(crate) mod aggregate_results {
                     )?,
                 )
             } else if let Some((block, parameter)) = block_parameter {
-                let call_site = call_site(caller, call_operation, argument)?;
+                let call_site = call_site_at_owner(caller, owner, argument)?;
                 if block == caller.entry
                     || parameter.access != destination.access
                     || argument.access != parameter.access
@@ -764,7 +786,7 @@ pub(crate) mod aggregate_results {
                     || structural_type != destination.structural_type
                     || destination.multiplicity != StructuralMultiplicity::Affine
                     || shape.byte_size != 0
-                    || !precedes(caller, producer_site, call_operation, argument)?
+                    || !precedes_at_owner(caller, producer_site, owner, argument)?
                 {
                     return Err(LegalizationError::custody());
                 }
@@ -794,7 +816,7 @@ pub(crate) mod aggregate_results {
                         })
                 })
                 .ok_or(LegalizationError::custody())?;
-                if !precedes(caller, producer_site, call_operation, argument)?
+                if !precedes_at_owner(caller, producer_site, owner, argument)?
                     || !structural_case::records_operation_result(caller, producer, result)
                 {
                     return Err(LegalizationError::custody());
@@ -808,12 +830,8 @@ pub(crate) mod aggregate_results {
                 )
             };
             let (source_byte_offset, elements) = projection;
-            let indices = target::control_flow::sources::call_indices(
-                native,
-                caller,
-                target_operations::CallSiteOwner::from(call_operation),
-                &elements,
-            )?;
+            let indices =
+                target::control_flow::sources::call_indices(native, caller, owner, &elements)?;
             let placement = call
                 .parameters
                 .get(callee.scalar_parameter_count() + position)
@@ -834,6 +852,66 @@ pub(crate) mod aggregate_results {
                 indices,
                 source,
                 destination: placement.clone(),
+            })
+        }
+
+        fn call_site_at_owner(
+            caller: &PsiOptimizationFunction,
+            owner: target_operations::CallSiteOwner,
+            argument: &terminal_psi::StructuralArgument,
+        ) -> Result<(semantic_vocabulary::BlockId, usize), LegalizationError> {
+            use target_operations::CallSiteOwner;
+            let site = match owner {
+                CallSiteOwner::Operation(operation) => {
+                    Some(semantic_vocabulary::InvocationSite::Operation(operation))
+                }
+                CallSiteOwner::InvokeNoNormal(edge) => {
+                    Some(semantic_vocabulary::InvocationSite::InvokeNoNormal(edge))
+                }
+                CallSiteOwner::ExternalCompletion(edge) => Some(
+                    semantic_vocabulary::InvocationSite::ExternalCompletion(edge),
+                ),
+                CallSiteOwner::Installation { .. } => return Err(LegalizationError::custody()),
+                CallSiteOwner::CleanupAction {
+                    edge,
+                    action_ordinal,
+                } => {
+                    let mut sites = caller.blocks.iter().flat_map(|block| {
+                        block.nodes.iter().enumerate().filter_map(move |(ordinal, node)| {
+                            let (_, actions) = node.operation.cleanup_rosters().find(|(candidate, _)| *candidate == edge)?;
+                            let action = actions.get(usize::try_from(action_ordinal).ok()?)?;
+                            matches!(action, terminal_psi::TerminalAffineCleanupAction::InvokeOwned(cleanup)
+                                if cleanup.subject == *argument)
+                                .then_some((block.id, ordinal))
+                        })
+                    });
+                    let site = sites.next().ok_or(LegalizationError::custody())?;
+                    return sites
+                        .next()
+                        .is_none()
+                        .then_some(site)
+                        .ok_or(LegalizationError::custody());
+                }
+            };
+            super::super::invocations::position(
+                caller,
+                site.ok_or(LegalizationError::custody())?,
+                Some(argument),
+            )
+            .ok_or(LegalizationError::custody())
+        }
+
+        fn precedes_at_owner(
+            caller: &PsiOptimizationFunction,
+            producer: (semantic_vocabulary::BlockId, usize),
+            owner: target_operations::CallSiteOwner,
+            argument: &terminal_psi::StructuralArgument,
+        ) -> Result<bool, LegalizationError> {
+            let consumer = call_site_at_owner(caller, owner, argument)?;
+            Ok(if producer.0 == consumer.0 {
+                producer.1 < consumer.1
+            } else {
+                target::control_flow::sources::dominates(caller, producer.0, consumer.0)
             })
         }
 
@@ -964,6 +1042,7 @@ pub(crate) mod aggregate_results {
                         | AbstractOperation::EstablishReference { .. }
                         | AbstractOperation::EstablishAccessReference { .. }
                         | AbstractOperation::ReleaseReference { .. }
+                        | AbstractOperation::DecomposeStructuralValue { .. }
                         | AbstractOperation::EstablishCase { .. }
                         | AbstractOperation::StructuralLeafCopy { .. }
                         | AbstractOperation::MoveStructuralValue { .. }
@@ -1049,20 +1128,12 @@ pub(crate) mod aggregate_results {
                     owner(discard.place).and_then(|(root, _)| selected_type(root))
                         == Some(discard.structural_type)
                 }
-                terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
-                    owner(cleanup.place).is_some_and(|(structural_type, multiplicity)| {
-                        let whole_claim_contract = match multiplicity {
-                            StructuralMultiplicity::Affine => cleanup.consumed_claims.is_empty(),
-                            StructuralMultiplicity::Linear => !cleanup.consumed_claims.is_empty(),
-                            StructuralMultiplicity::Unrestricted => false,
-                        };
-                        selected_type(structural_type) == Some(cleanup.structural_type)
-                            && (!cleanup.path.is_empty() || whole_claim_contract)
-                    }) && cleanup
-                        .consumed_claims
-                        .windows(2)
-                        .all(|pair| pair[0] < pair[1])
-                        && cleanup.requirement_obligations.is_empty()
+                terminal_psi::TerminalAffineCleanupAction::InvokeOwned(cleanup) => {
+                    owner(cleanup.subject.place).is_some_and(|(structural_type, multiplicity)| {
+                        multiplicity == StructuralMultiplicity::Affine
+                            && cleanup.subject.access == terminal_psi::StructuralAccess::Owned
+                            && selected_type(structural_type) == Some(cleanup.structural_type)
+                    }) && cleanup.claim_transfers.is_empty()
                 }
             }
         })
@@ -1079,10 +1150,8 @@ pub(crate) mod aggregate_results {
         let graph = &target.graph;
         if target.machine != abstracted.machine
             || target.machine != optimized.machine
-            || (target.attachment != abstracted.attachment
-                || target.nominal_cleanup_subject != abstracted.nominal_cleanup_subject)
-            || (target.attachment != optimized.attachment
-                || target.nominal_cleanup_subject != optimized.nominal_cleanup_subject)
+            || target.attachment != abstracted.attachment
+            || target.attachment != optimized.attachment
             || (match abstracted.result {
                 AbstractFunctionResult::Unit => target
                     .scalar_abi
@@ -1930,10 +1999,8 @@ pub(crate) mod byte_views {
                 .collect::<Vec<_>>();
         if target.machine != abstracted.machine
             || target.machine != optimized.machine
-            || (target.attachment != abstracted.attachment
-                || target.nominal_cleanup_subject != abstracted.nominal_cleanup_subject)
-            || (target.attachment != optimized.attachment
-                || target.nominal_cleanup_subject != optimized.nominal_cleanup_subject)
+            || target.attachment != abstracted.attachment
+            || target.attachment != optimized.attachment
             || target.scalar_abi.is_some()
             || !crate::structural_inputs::structural_unit_input::accepts_graph(
                 call_plan,
@@ -2349,7 +2416,7 @@ pub(crate) mod call_origin {
 
     pub(crate) fn validate_boundary_origins(
         native: &TargetOperationPlan,
-        input: target_operations::BoundaryOriginFacts<'_>,
+        input: crate::BoundaryOriginFacts<'_>,
     ) -> Result<(), LegalizationError> {
         let profile = input
             .target_context
@@ -2746,7 +2813,7 @@ pub(crate) mod cleanup_calls {
     use calling_conventions::{CallSignature, CallingPolicy, evaluate_call_plan};
     use legalized_operations::{LegalizedScalarArgument, LegalizedScalarCall};
     use target_operations::{CallSiteOwner, TargetOperationPlan, TargetUnitOperation};
-    use terminal_psi::{StructuralArgument, TerminalAffineCleanupAction};
+    use terminal_psi::TerminalAffineCleanupAction;
 
     pub(crate) fn expected(
         operation: &AbstractOperation,
@@ -2759,19 +2826,34 @@ pub(crate) mod cleanup_calls {
         let mut calls = Vec::new();
         for (edge, actions) in operation.cleanup_rosters() {
             for (ordinal, action) in actions.iter().enumerate() {
-                let TerminalAffineCleanupAction::InvokeNominal(cleanup) = action else {
+                let TerminalAffineCleanupAction::InvokeOwned(cleanup) = action else {
                     continue;
                 };
                 let callee = unit
                     .function(cleanup.cleanup_machine)
                     .ok_or(LegalizationError::custody())?;
-                if callee.machine == caller.machine
-                    || callee.attachment != Some(cleanup.structural_type)
-                    || callee.nominal_cleanup_subject != Some(cleanup.structural_type)
+                let declaration = unit
+                    .structural_types
+                    .iter()
+                    .find(|declaration| declaration.id == cleanup.structural_type)
+                    .ok_or(LegalizationError::custody())?;
+                let [parameter] = callee.structural_parameters.as_slice() else {
+                    return Err(LegalizationError::custody());
+                };
+                if declaration
+                    .nominal_cleanup
+                    .as_ref()
+                    .is_none_or(|selection| {
+                        selection.cleanup_machine != cleanup.cleanup_machine
+                            || selection.declaration.identity() != declaration.identity
+                    })
+                    || cleanup.subject.access != terminal_psi::StructuralAccess::Owned
                     || callee.result != AbstractFunctionResult::Unit
                     || !callee.parameters.is_empty()
-                    || callee.structural_parameters.len() > 1
-                    || !cleanup.requirement_obligations.is_empty()
+                    || parameter.position != 0
+                    || parameter.structural_type != cleanup.structural_type
+                    || parameter.access != terminal_psi::StructuralAccess::Owned
+                    || !cleanup.claim_transfers.is_empty()
                 {
                     return Err(LegalizationError::custody());
                 }
@@ -2799,26 +2881,20 @@ pub(crate) mod cleanup_calls {
                 .map_err(|_| LegalizationError::custody())?;
                 let mut arguments = Vec::new();
                 for (position, parameter) in callee.structural_parameters.iter().enumerate() {
-                    if position != 0 || !parameter.is_cleanup_receiver(cleanup) {
+                    if position != 0 || parameter.access != terminal_psi::StructuralAccess::Owned {
                         return Err(LegalizationError::custody());
                     }
-                    let semantic = StructuralArgument {
-                        place: cleanup.place,
-                        path: cleanup.path.clone(),
-                        access: parameter.access,
-                    };
-                    let target =
-                        super::aggregate_results::borrowed_arguments::reconstruct_at_owner(
-                            &semantic,
-                            position,
-                            owner,
-                            caller,
-                            super::call_signature::signature(callee.machine, plan)?,
-                            &call_plan,
-                            native,
-                            plan,
-                            || function_inputs.address_join_parameter(semantic.place, plan),
-                        )?;
+                    let semantic = cleanup.subject.clone();
+                    let target = super::aggregate_results::owned_arguments::reconstruct_at_owner(
+                        &semantic,
+                        position,
+                        owner,
+                        caller,
+                        super::call_signature::signature(callee.machine, plan)?,
+                        &call_plan,
+                        native,
+                        plan,
+                    )?;
                     let indices = crate::legalization::runtime_indices::projection(
                         caller,
                         unit,
@@ -2833,9 +2909,6 @@ pub(crate) mod cleanup_calls {
                         indices,
                     });
                 }
-                if callee.structural_parameters.is_empty() && cleanup.cleanup_receiver.is_some() {
-                    return Err(LegalizationError::custody());
-                }
                 calls.push((
                     owner,
                     LegalizedScalarCall {
@@ -2848,7 +2921,7 @@ pub(crate) mod cleanup_calls {
                         descriptor_origins: Vec::new(),
                         access_bindings: Vec::new(),
                         claim_transfers: Vec::new(),
-                        requirement_obligations: Vec::new(),
+                        requirement_obligations: cleanup.requirement_obligations.clone(),
                         crash_continuations: Vec::new(),
                     },
                 ));
@@ -2875,6 +2948,7 @@ pub(crate) mod cleanup_calls {
                 callee,
                 call_plan,
                 arguments,
+                requirement_obligations,
             } = &row.kind
             else {
                 return Err(LegalizationError::custody());
@@ -2894,6 +2968,7 @@ pub(crate) mod cleanup_calls {
                 || Some(*callee) != call.target.machine()
                 || *call_plan != call.call_plan
                 || *arguments != expected_arguments
+                || *requirement_obligations != call.requirement_obligations
             {
                 return Err(LegalizationError::custody());
             }
@@ -3340,10 +3415,8 @@ pub(crate) mod header {
         let optimized = function_inputs.function();
         if target.machine != abstracted.machine
             || target.machine != optimized.machine
-            || (target.attachment != abstracted.attachment
-                || target.nominal_cleanup_subject != abstracted.nominal_cleanup_subject)
-            || (target.attachment != optimized.attachment
-                || target.nominal_cleanup_subject != optimized.nominal_cleanup_subject)
+            || target.attachment != abstracted.attachment
+            || target.attachment != optimized.attachment
             || target.mixed_structural_scalar_abi.is_some()
             || optimized.result != abstracted.result
             || !abstracted.structural_parameters.is_empty()
@@ -3468,7 +3541,13 @@ pub(crate) mod hosted_scalar {
         native: &TargetOperationPlan,
         machine: MachineId,
         operation: OperationId,
-    ) -> Result<BoundaryRealization, LegalizationError> {
+    ) -> Result<
+        (
+            target_operations::BoundaryExecutionBinding,
+            BoundaryRealization,
+        ),
+        LegalizationError,
+    > {
         let mut functions = native
             .functions
             .iter()
@@ -3477,18 +3556,21 @@ pub(crate) mod hosted_scalar {
         if functions.next().is_some() {
             return Err(LegalizationError::custody());
         }
-        let Some(TargetUnitOperation::BoundarySettlement { realization, .. }) =
-            super::unique_row(function, |row| {
-                matches!(
-                    row,
-                    TargetUnitOperation::BoundarySettlement { psi_operation, .. }
-                        if *psi_operation == operation
-                )
-            })?
+        let Some(TargetUnitOperation::BoundarySettlement {
+            execution,
+            realization,
+            ..
+        }) = super::unique_row(function, |row| {
+            matches!(
+                row,
+                TargetUnitOperation::BoundarySettlement { psi_operation, .. }
+                    if *psi_operation == operation
+            )
+        })?
         else {
             return Err(LegalizationError::custody());
         };
-        Ok(*realization)
+        Ok((*execution, *realization))
     }
 }
 pub(crate) mod ieee_float_arithmetic {
@@ -5259,6 +5341,8 @@ pub(crate) mod invocations {
                 AbstractOperation::InvokeNoNormal { psi_edge, .. } if *psi_edge == edge),
             InvocationSite::ExternalCompletion(edge) => matches!(operation,
                 AbstractOperation::ExternalCompletion { psi_edge, .. } if *psi_edge == edge),
+            // Cleanup calls belong to their edge/action roster, not a node.
+            InvocationSite::Cleanup { .. } => false,
         }
     }
 
@@ -7369,6 +7453,7 @@ pub(crate) mod nodes {
         | AbstractOperation::EstablishReference { psi_operation, .. }
         | AbstractOperation::EstablishAccessReference { psi_operation, .. }
         | AbstractOperation::ReleaseReference { psi_operation, .. }
+        | AbstractOperation::DecomposeStructuralValue { psi_operation, .. }
         | AbstractOperation::EstablishCase { psi_operation, .. }
         | AbstractOperation::CallStructural {
             psi_operation,
@@ -8045,6 +8130,7 @@ pub(crate) mod nodes {
                     | AbstractOperation::EstablishReference { .. }
                     | AbstractOperation::EstablishAccessReference { .. }
                     | AbstractOperation::ReleaseReference { .. }
+                    | AbstractOperation::DecomposeStructuralValue { .. }
                     | AbstractOperation::EstablishStructuralArray { .. }
                     | AbstractOperation::EstablishScalarArray { .. }
                     | AbstractOperation::EstablishCase { .. }

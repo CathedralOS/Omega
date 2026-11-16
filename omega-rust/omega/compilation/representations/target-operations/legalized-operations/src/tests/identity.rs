@@ -448,6 +448,7 @@ fn ownership_frontier_fact_identities_bind_the_plan_identity() {
             id(1),
             site,
             native_vocabulary::ownership_frontier::OwnershipFrontierSnapshot {
+                nominal_partitions: Vec::new(),
                 claims: Vec::new(),
                 owned_places: Vec::new(),
                 partial_custody: Vec::new(),
@@ -531,6 +532,7 @@ fn literal_identity_binds_payload_declaration_and_producer_reference() {
         no_code_affine_cleanup: false,
         copyable: false,
         descriptor_cleanup: false,
+        nominal_cleanup: None,
         scalar_restriction: None,
         id: argument.structural_type,
         identity: terminal_psi::TerminalIdentityIndex(1),
@@ -850,4 +852,96 @@ fn owned_block_field_store_identity_binds_block_declaration_and_variant() {
             parameter: shared,
         })
     );
+}
+
+#[test]
+fn decomposition_identity_binds_exact_subject_and_keeps_no_result_or_scalar_use() {
+    let mut plan = scalar_call_unit_plan();
+    let row = &mut plan.scalar_functions[0].blocks[0].instructions[0];
+    row.result = None;
+    row.kind = LegalizedScalarInstructionKind::DecomposeStructuralValue {
+        subject: terminal_psi::StructuralArgument {
+            place: id(201),
+            path: vec![],
+            access: StructuralAccess::Owned,
+        },
+    };
+    assert!(row.kind.get_structural_result().is_none());
+    let mut operands = vec![];
+    row.visit_scalar_operands(|value| operands.push(value));
+    assert!(operands.is_empty());
+    let identity = legalized_operation_plan_identity(&plan);
+    for mutation in 0..4 {
+        let mut changed = plan.clone();
+        let row = &mut changed.scalar_functions[0].blocks[0].instructions[0];
+        let LegalizedScalarInstructionKind::DecomposeStructuralValue { subject } = &mut row.kind
+        else {
+            panic!("decomposition fixture")
+        };
+        match mutation {
+            0 => subject.place = id(202),
+            1 => subject.path.push(StructuralPathSegment::Field(
+                terminal_psi::TerminalIdentityIndex(203),
+            )),
+            2 => subject.access = StructuralAccess::MutableBorrow,
+            3 => row.operation = id(204),
+            _ => unreachable!(),
+        }
+        assert_identity_drift(identity, &changed);
+    }
+}
+
+/// Borrowed-storage layouts and each function's calling contract reach the
+/// plan's identity, so neither can be swapped after the plan is sealed.
+#[test]
+fn borrowed_storage_and_function_abis_bind_identity() {
+    use semantic_vocabulary::CanonicalStructuralPathSegment;
+    let plan = scalar_call_unit_plan();
+    let original = legalized_operation_plan_identity(&plan);
+    let byte = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
+    let layout = |offset: u32| {
+        runtime_abi::NativeBorrowedStorageLayout::new(
+            id(601),
+            8,
+            8,
+            [(
+                vec![CanonicalStructuralPathSegment::Field(id(602))],
+                Vec::new(),
+                offset,
+                byte,
+                byte,
+            )],
+            [],
+            [(Vec::new(), Vec::new(), 1, 7)],
+        )
+    };
+    let mut borrowed = plan.clone();
+    borrowed.borrowed_storage_layouts.push(layout(0));
+    let borrowed_identity = legalized_operation_plan_identity(&borrowed);
+    assert_ne!(borrowed_identity, original);
+    let mut moved = plan.clone();
+    moved.borrowed_storage_layouts.push(layout(1));
+    assert_identity_drift(borrowed_identity, &moved);
+
+    let function = &plan.scalar_functions[0];
+    let abi = crate::LegalizedFunctionAbi {
+        machine: function.machine,
+        call_plan: function.call_plan.clone(),
+        scalar_parameters: Vec::new(),
+        structural_parameters: Vec::new(),
+        scalar: None,
+        mixed_structural_scalar: None,
+    };
+    let mut described = plan.clone();
+    described.function_abis.push(abi.clone());
+    let described_identity = legalized_operation_plan_identity(&described);
+    assert_ne!(described_identity, original);
+    assert_eq!(described.function_abi(function.machine), Some(&abi));
+    let mut scalar = described.clone();
+    scalar.function_abis[0].scalar = Some(target_vocabulary::ScalarFunctionAbi {
+        call_plan: function.call_plan.clone(),
+        parameters: Vec::new(),
+        result: None,
+    });
+    assert_identity_drift(described_identity, &scalar);
 }

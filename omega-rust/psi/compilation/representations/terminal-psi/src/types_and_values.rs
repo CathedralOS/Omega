@@ -741,6 +741,7 @@ pub mod types {
             pub copyable: bool,
             pub no_code_affine_cleanup: bool,
             pub descriptor_cleanup: bool,
+            pub nominal_cleanup: Option<crate::NominalCleanupSelection>,
             pub shape: StructuralTypeShape,
             pub scalar_restriction: Option<StructuralFieldType>,
             /// The data declaration's `requires` clauses, in authored order:
@@ -1615,6 +1616,7 @@ pub mod types {
                         no_code_affine_cleanup: false,
                         copyable: false,
                         descriptor_cleanup: false,
+                        nominal_cleanup: None,
                         scalar_restriction: None,
                         id: reference,
                         identity: crate::TerminalIdentityIndex(1),
@@ -1631,6 +1633,7 @@ pub mod types {
                         no_code_affine_cleanup: false,
                         copyable: false,
                         descriptor_cleanup: false,
+                        nominal_cleanup: None,
                         scalar_restriction: None,
                         id: referent,
                         identity: crate::TerminalIdentityIndex(2),
@@ -1644,6 +1647,7 @@ pub mod types {
                         no_code_affine_cleanup: false,
                         copyable: false,
                         descriptor_cleanup: false,
+                        nominal_cleanup: None,
                         scalar_restriction: None,
                         id: element,
                         identity: crate::TerminalIdentityIndex(3),
@@ -1668,6 +1672,7 @@ pub mod types {
                         no_code_affine_cleanup: false,
                         copyable: false,
                         descriptor_cleanup: false,
+                        nominal_cleanup: None,
                         scalar_restriction: None,
                         id: array,
                         identity: crate::TerminalIdentityIndex(5),
@@ -1996,6 +2001,7 @@ pub mod values {
                     | Self::StorageAddress { source }
                     | Self::GlobalDescriptorTable { source, .. }
                     | Self::MoveStructuralValue { source }
+                    | Self::DecomposeStructuralValue { subject: source }
                     | Self::EstablishAccessReference { source, .. }
                     | Self::EstablishReference { source, .. }
                     | Self::EstablishElementView { source, .. }
@@ -2188,7 +2194,8 @@ pub mod values {
                     | Self::EstablishReference { source, .. } => {
                         push(argument_projection(source).into(), None);
                     }
-                    Self::MoveStructuralValue { source } => {
+                    Self::MoveStructuralValue { source }
+                    | Self::DecomposeStructuralValue { subject: source } => {
                         push(
                             argument_projection(source).into(),
                             projected_transfer_operation(source),
@@ -2540,6 +2547,7 @@ pub mod values {
                     | Self::StorageAddress { source }
                     | Self::GlobalDescriptorTable { source, .. }
                     | Self::MoveStructuralValue { source }
+                    | Self::DecomposeStructuralValue { subject: source }
                     | Self::EstablishAccessReference { source, .. }
                     | Self::EstablishReference { source, .. }
                     | Self::EstablishElementView { source, .. }
@@ -3160,13 +3168,6 @@ pub mod values {
                 declarations
                     .iter()
                     .find(|parameter| parameter.place == place)
-            }
-
-            pub fn is_cleanup_receiver(&self, cleanup: &crate::NominalAffineCleanup) -> bool {
-                self.position == 0
-                    && self.structural_type == cleanup.structural_type
-                    && cleanup.cleanup_receiver == Some(self.place)
-                    && matches!(self.access, crate::exclusive_borrow_pair_pattern!())
             }
 
             pub fn is_unqualified_root(&self) -> bool {

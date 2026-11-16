@@ -44,6 +44,8 @@ use terminal_psi::TerminalPsiIdentity;
 #[doc(hidden)]
 pub use crate as legalized_operations;
 
+pub mod function_abi;
+pub use function_abi::LegalizedFunctionAbi;
 pub mod native_geometry;
 pub mod structural_inputs;
 
@@ -62,6 +64,12 @@ pub struct LegalizedOperationPlan {
     /// stacks) and bind before selection; the plan says which, the bound
     /// authority says with what.
     pub installation_operations: Vec<semantic_vocabulary::OperationId>,
+    /// Each function's target calling contract, sorted by machine and unique.
+    pub function_abis: Vec<LegalizedFunctionAbi>,
+    /// Native storage geometry of borrowed boundary inputs and owned roots
+    /// reached by foreign calls. The host bridge reads it to borrow guest
+    /// values; the plan carries it so nothing reads stage 02's working form.
+    pub borrowed_storage_layouts: Vec<runtime_abi::NativeBorrowedStorageLayout>,
 }
 
 impl LegalizedOperationPlan {
@@ -71,6 +79,14 @@ impl LegalizedOperationPlan {
         self.scalar_functions
             .iter()
             .find(|function| function.machine == self.entry)
+    }
+
+    /// The target calling contract stage 02 chose for `machine`.
+    pub fn function_abi(&self, machine: MachineId) -> Option<&LegalizedFunctionAbi> {
+        self.function_abis
+            .binary_search_by_key(&machine, |row| row.machine)
+            .ok()
+            .map(|index| &self.function_abis[index])
     }
 }
 

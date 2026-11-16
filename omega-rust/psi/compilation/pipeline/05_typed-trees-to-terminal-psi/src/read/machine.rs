@@ -138,14 +138,50 @@ impl<'t> Program<'t> {
                 )
             })? = true;
         }
+        let mut subjects = self.symbols.map(|_, _| false);
         for &id in &self.subject_machines {
+            *subjects.get_mut(id).ok_or_else(|| {
+                refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Machine("verification subject without a machine"),
+                )
+            })? = true;
+        }
+        // A nested helper can be named only from its declaring machine's
+        // scope. An unchecked dependency body can hide a caller there, so
+        // mark every lexical scope that still contains a deferred body.
+        let mut incomplete_scopes = symbols::SymbolMap::default();
+        for machine in self.typed.machines().iter() {
+            if machine.body_status != MachineBodyStatus::Deferred {
+                continue;
+            }
+            let mut scope = self.typed.symbols.get(machine.symbol).parent;
+            while let Some(enclosing) = self.typed.machine_by_symbol(scope) {
+                if incomplete_scopes.insert(scope, ()).is_some() {
+                    break;
+                }
+                scope = self.typed.symbols.get(enclosing.symbol).parent;
+            }
+        }
+        for (id, symbol) in self.symbols.iter() {
             if fixed.get(id) == Some(&true) {
                 continue;
             }
-            let symbol = terminal_check_tables::row(&self.symbols, id, id, Construct::Machine)?;
             let Some(machine) = self.typed.machine_by_symbol(*symbol) else {
                 continue;
             };
+            if subjects.get(id) != Some(&true) {
+                let scope = self.typed.symbols.get(*symbol).parent;
+                if incomplete_scopes.contains_key(&scope)
+                    || self
+                        .typed
+                        .machine_by_symbol(scope)
+                        .is_none_or(|owner| owner.body_status != MachineBodyStatus::Complete)
+                {
+                    continue;
+                }
+            }
             let contracts = span(
                 |span| self.typed.signature_contracts.span(span),
                 machine.contracts,
@@ -287,7 +323,7 @@ impl<'t> Program<'t> {
         Ok(local)
     }
 
-    fn next_identity(&self) -> Checked<MachineId> {
+    pub(super) fn next_identity(&self) -> Checked<MachineId> {
         MachineId::new(self.symbols.len() as u64 + 1).ok_or_else(|| {
             refuse(
                 MachineId::new(1).expect("1 is nonzero"),
@@ -774,7 +810,7 @@ impl<'t> Program<'t> {
     /// value facts. A fact about another value or domain still needs checking.
     fn fact_restates_formal_domain(
         &self,
-        formals: &[StateParameter],
+        formals: arena::RootRows<'_, StateParameter>,
         fact: &typed_trees::domain::ProofFact,
     ) -> bool {
         use typed_trees::domain::ProofFact;
@@ -953,7 +989,7 @@ impl<'t> Program<'t> {
             id,
             "state span",
         )?;
-        let [state] = states else {
+        let Some([state]) = states.as_array() else {
             return Err(refuse(
                 id,
                 Construct::Machine,
@@ -1576,7 +1612,7 @@ impl<'t> Program<'t> {
                         .flatten()
                     })
                     .ok_or_else(|| unserved("conformer lost its prepared owning requirement"))?;
-                let [entry] = typed.machine_states(machine) else {
+                let Some([entry]) = typed.machine_states(machine).as_array() else {
                     return Err(unserved("conformer without one owned entry state"));
                 };
                 if !typed.instantiated_machine_state_matches(
@@ -3139,11 +3175,18 @@ impl<'t> Program<'t> {
                 StatementNode::LocalData(local)
                     if local.role == language_core::LocalBindingRole::RecordPattern =>
                 {
-                    // The marker reads nothing and binds nothing, so it
-                    // leaves no statement; only the cursor moves on.
-                    self.record_pattern(id, &slots, local)?;
-                    position += 1;
-                    continue;
+                    // A nominal owned pattern ends its wrapper before the
+                    // following field bindings. Other markers bind nothing.
+                    let decomposition = self.record_pattern(id, &slots, local)?;
+                    if let Some(statement) = decomposition {
+                        // The common tail advances this real event. The next
+                        // statement is the first component binding, not part
+                        // of the marker, and must still enter the slot scope.
+                        statement
+                    } else {
+                        position += 1;
+                        continue;
+                    }
                 }
                 StatementNode::LocalData(local)
                     if local.role == language_core::LocalBindingRole::AtomicObservedResult =>
@@ -3406,6 +3449,7 @@ fn bindings(statement: &Statement, slot_names: &[String], out: &mut Vec<(SourceS
             }
         }
         Statement::CaptureReference { .. }
+        | Statement::Decompose { .. }
         | Statement::Declare { .. }
         | Statement::Witness { .. }
         | Statement::Store { .. }
@@ -3425,6 +3469,7 @@ fn value_exits(statement: &Statement, exits: &mut Vec<(SourceSpan, usize)>) {
             .chain(default.iter().map(|(target, source)| (target, *source)))
             .collect(),
         Statement::CaptureReference { .. }
+        | Statement::Decompose { .. }
         | Statement::Declare { .. }
         | Statement::Witness { .. }
         | Statement::Bind { .. }
@@ -3613,7 +3658,9 @@ fn statement_slot_uses(statement: &Statement, uses: &mut [usize]) {
         }
     };
     match statement {
-        Statement::Bind { value, .. } => expression_slot_uses(value, uses),
+        Statement::Bind { value, .. } | Statement::Decompose { subject: value } => {
+            expression_slot_uses(value, uses)
+        }
         Statement::Store {
             destination, value, ..
         } => {

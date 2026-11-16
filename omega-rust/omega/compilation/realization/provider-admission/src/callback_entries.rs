@@ -258,7 +258,7 @@ impl<'a> PreparedEntries<'a> {
             module, boundary, inbound,
         )?
         .parameters;
-        if inbound.dispatch_only_parameter_count != 0
+        if inbound.dispatch_only_formal.is_some()
             || parameters.len() != occurrence.entry_parameters().len()
             || parameters.len() != formals.len()
         {

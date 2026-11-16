@@ -10,15 +10,10 @@ name = "terminal_codec"
 path = "src/lib.rs"
 
 [dependencies]
-language-core = { path = "../../../../foundation/language-core" }
-arena = { path = "../../../../foundation/arena" }
-semantic-vocabulary = { path = "../../../../foundation/semantic-vocabulary" }
-language-semantics = { path = "../../../../foundation/language-semantics" }
 optimization = { path = "../../../../foundation/optimization" }
-numerics = { path = "../../../../foundation/numerics" }
-proof-admission = { path = "../../../proof-admission" }
+semantic-vocabulary = { path = "../../../../foundation/semantic-vocabulary" }
 terminal-psi = { path = ".." }
-terminal-semantics = { path = "../semantics" }
+terminal-wire = { path = "../wire" }
 
-access-plans = { path = "../../../../foundation/access-plans" }
-layout-plans = { path = "../../../../foundation/layout-plans" }
+[dev-dependencies]
+terminal-wire = { path = "../wire", features = ["test-support"] }
