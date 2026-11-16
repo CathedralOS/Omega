@@ -1515,6 +1515,115 @@ fn assert_recovery_rejects_swapped_native_abi(
 }
 
 #[test]
+fn closed_native_binding_review_keeps_the_original_method_and_full_application() {
+    use review_evidence::encoding::PackagePolicyRecoveryLimits;
+    use review_evidence::record::PackagePolicyBaseline;
+
+    // Review describes an import without loading it. The separate native/Psi
+    // witness executes this same unsigned source against its actual C provider.
+    let workspace = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "review-closed-native-bindings",
+        false,
+    )
+    .unwrap();
+    let root = workspace.path().join("main.omg");
+    std::fs::write(
+        &root,
+        r###"
+boundary trait Probe {
+    machine take<const Limit: u64>(value: u32) -> u32
+    reaches none
+    requires value <= Limit
+    crashes none;
+}
+machine entry() -> u32 crashes none {
+    let first: u32 = Probe::take<4>(3);
+    let second: u32 = Probe::take<8>(7);
+    first
+}
+
+machine entry_start() crashes Trap {
+    let observed: u32 = entry();
+    let other: u32 = Probe::take<8>(7);
+    transition observed == 3 && other == 7 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+"###,
+    )
+    .unwrap();
+    std::fs::write(root.with_file_name("build.omg"), r###"use omega::language::core::DllImport;
+use omega::language::core::ForeignBinding;
+machine build(builder: &mut Build) {
+    Build::application(builder, "closed_requirement_bindings");
+    Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
+    Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
+    Build::bind(builder, linux_arm64::ProgramEntry, entry_start);
+    Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
+    Build::bind<Probe::take<4>>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/OmegaReviewFixtures/libclosed_requirement_identity.dylib", symbol: "_omega_identity_u32",
+        },
+    });
+    Build::bind<Probe::take<8>>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/OmegaReviewFixtures/libclosed_requirement_identity.dylib", symbol: "_omega_identity_u32",
+        },
+    });
+}
+"###).unwrap();
+    let recovered = reviewed_and_recovered(&root, "macos_arm64");
+    let [first, second] = recovered.native_bindings() else {
+        panic!("both exact Build applications must survive review");
+    };
+    let first_application = first.application().expect("closed first application");
+    let second_application = second.application().expect("closed second application");
+    assert_ne!(first_application, second_application);
+    let [first_calling] = first.method().calling() else {
+        panic!("first exact ABI");
+    };
+    let [second_calling] = second.method().calling() else {
+        panic!("second exact ABI");
+    };
+    assert_eq!(
+        first_calling.abi().requirement_identity,
+        second_calling.abi().requirement_identity
+    );
+    assert_ne!(first_calling.abi().operands, second_calling.abi().operands);
+    assert_ne!(first_application, first_calling.abi().requirement_identity);
+
+    let original = recovered.canonical_bytes().unwrap();
+    let positions = original
+        .windows(first_application.len())
+        .enumerate()
+        .filter(|(_, bytes)| *bytes == first_application.as_bytes())
+        .map(|(position, _)| position)
+        .collect::<Vec<_>>();
+    let [position] = positions.as_slice() else {
+        panic!("one exact encoded native application, observed {positions:?}");
+    };
+    assert_eq!(first_application.len(), second_application.len());
+    let mut swapped = original.clone();
+    swapped[*position..*position + first_application.len()]
+        .copy_from_slice(second_application.as_bytes());
+    assert!(
+        PackagePolicyBaseline::recover_canonical(&swapped, PackagePolicyRecoveryLimits::default())
+            .is_err(),
+        "another closed argument tuple cannot retain the first calling application"
+    );
+    let mut malformed = original;
+    malformed[*position + first_application.len() - 1] = b'!';
+    assert!(
+        PackagePolicyBaseline::recover_canonical(
+            &malformed,
+            PackagePolicyRecoveryLimits::default()
+        )
+        .is_err(),
+        "an incomplete application frame must refuse"
+    );
+}
+
+#[test]
 fn review_recovery_retains_native_build_intents_without_runtime_demand() {
     let fixture = kept_fixture("pass/boundary/native_provider_unoffered_read/main.omg");
     let workspace = platform_custody::temporary_directory::TemporaryDirectory::create(

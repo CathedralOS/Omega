@@ -11,6 +11,12 @@ pub struct PackagePolicyNativeBinding {
     pub(crate) binding: PackagePolicyProviderBinding,
 }
 impl PackagePolicyNativeBinding {
+    /// The complete closed callable selected by Build, when the binding has
+    /// static arguments. Its original method remains in the calling ABI key.
+    pub fn application(&self) -> Option<&str> {
+        self.application.as_deref()
+    }
+
     pub fn method(&self) -> &PackagePolicyServiceMethod {
         &self.method
     }
