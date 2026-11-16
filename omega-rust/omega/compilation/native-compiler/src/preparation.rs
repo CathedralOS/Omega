@@ -1,44 +1,29 @@
-// Select native work and list the scalar values it needs before any Omega stage
-// runs. `prepare` binds explicit platform installation assumptions to the
-// retained artifact and proposal, admits independent component calls and
-// private entry RAM initializers against target layouts, chooses the root and
-// component executions with their provider demand, and constructs the root and
-// component `NativeScalarCompletion` demands. Every step reads the retained
-// Terminal product and its native proposal; `compile` then runs Omega 00 to 09
-// once, front to back, with the completed values as input.
+// Select native work before any Omega stage runs. `prepare` binds explicit
+// platform installation assumptions to the retained artifact and proposal,
+// admits independent component calls and private entry RAM initializers
+// against target layouts, chooses the root and component executions with their
+// provider demand, and keeps the completed scalar values each one reads. Every
+// step reads the retained Terminal product, its native proposal and the
+// request; `compile` then runs Omega 00 to 09 once, front to back.
 
-use crate::{NativeCompileRequest, NativeScalarCompletion};
+use crate::NativeCompileRequest;
 use diagnostics::Diagnostic;
 use image_emission::ExecutableImageEmissionRequest;
 use installation_evidence::InstallationEnvironmentAssumption;
 use terminal_installation::admit_target_layouts;
 use terminal_psi_to_abstract_operations::{PreparedNativeExecution, RetainedTerminalArtifact};
 
-pub struct PreparedNativeCompilation<'input> {
+pub(crate) struct PreparedNativeCompilation<'input> {
     pub(crate) retained: &'input RetainedTerminalArtifact,
     pub(crate) request: NativeCompileRequest<'input>,
     pub(crate) recovery: ExecutableImageEmissionRequest,
     pub(crate) execution: PreparedNativeExecution,
     pub(crate) private_entry_ram: Vec<terminal_installation::CheckedPrivateEntryRamRecipe>,
-    pub(crate) scalars: NativeScalarCompletion<'input>,
+    pub(crate) scalars: Option<&'input terminal_installation::AdmittedScalarApplications>,
     pub(crate) components: Vec<crate::components::PreparedComponent<'input>>,
 }
 
-impl<'input> PreparedNativeCompilation<'input> {
-    pub fn scalar_completions(
-        &mut self,
-    ) -> impl Iterator<Item = &mut NativeScalarCompletion<'input>> {
-        std::iter::once(&mut self.scalars)
-            .chain(
-                self.components
-                    .iter_mut()
-                    .map(|component| &mut component.scalars),
-            )
-            .filter(|completion| completion.is_required())
-    }
-}
-
-pub fn prepare<'input>(
+pub(crate) fn prepare<'input>(
     retained: &'input RetainedTerminalArtifact,
     mut request: NativeCompileRequest<'input>,
 ) -> Result<PreparedNativeCompilation<'input>, (ExecutableImageEmissionRequest, Vec<Diagnostic>)> {
@@ -98,11 +83,11 @@ pub fn prepare<'input>(
         let execution = proposal
             .prepare_native_execution(retained.authorization(), &calls)?
             .with_operation_evidence(artifact, retained.evidence().cloned())?;
-        let scalars = NativeScalarCompletion::new(
+        let scalars = crate::scalar_completion::required_scalars(
             artifact,
-            proposal,
-            execution.scalar_application_demand(proposal.target_profile())?,
-        );
+            &execution.scalar_application_demand(proposal.target_profile())?,
+            request.scalars,
+        )?;
         Ok((execution, recipes, scalars, components))
     })();
     match result {

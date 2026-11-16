@@ -95,17 +95,46 @@ pub(crate) fn complete_native(
         let selected = components
             .as_ref()
             .map_err(|reason| vec![Diagnostic::error(reason.clone())])?;
-        let mut components = Vec::with_capacity(selected.len());
-        for component in selected {
-            components.push(native_compiler::ComponentCompilation {
-                input: component
-                    .input()
-                    .map_err(|reason| vec![Diagnostic::error(reason)])?,
-                plan: component.plan(),
-                receiving_identities: component.receiving_identities(),
-                accepted_package_permissions: component.accepted_package_permissions(),
-            });
+        let constant_checking =
+            |reason: String| vec![Diagnostic::error(format!("constant checking: {reason}"))];
+        // Complete every scalar value native compilation reads before it
+        // starts, so the native pipeline runs once with them as input.
+        let inputs = selected
+            .iter()
+            .map(|component| component.input())
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        let mut component_scalars = Vec::with_capacity(inputs.len());
+        for input in &inputs {
+            component_scalars.push(
+                build_settings::scalar_completion::complete_native_demand(
+                    input.component().shared_artifact(),
+                    input.proposal(),
+                    input.scalar_demand()?,
+                    settlement.source_completion_accounting_mut(),
+                )
+                .map_err(constant_checking)?,
+            );
         }
+        let scalars = build_settings::scalar_completion::complete_native(
+            &terminal,
+            settlement.source_completion_accounting_mut(),
+        )
+        .map_err(constant_checking)?;
+        let components = selected
+            .iter()
+            .zip(inputs)
+            .zip(&component_scalars)
+            .map(
+                |((component, input), scalars)| native_compiler::ComponentCompilation {
+                    input,
+                    plan: component.plan(),
+                    receiving_identities: component.receiving_identities(),
+                    accepted_package_permissions: component.accepted_package_permissions(),
+                    scalars: scalars.as_ref(),
+                },
+            )
+            .collect::<Vec<_>>();
         let post_terminal = rollback.effective().project_post_terminal();
         let request = native_compiler::NativeCompileRequest {
             retain_native_stage_inputs: request.retain_native_stage_inputs,
@@ -118,28 +147,14 @@ pub(crate) fn complete_native(
             image_request: image_emission::ExecutableImageEmissionRequest::direct(subsystem),
             imports: &[],
             components: &components,
+            scalars: scalars.as_ref(),
         };
-        let mut prepared =
-            native_compiler::prepare(&terminal, request).map_err(|(_, diagnostics)| diagnostics)?;
-        for completion in prepared.scalar_completions() {
-            let completed = build_settings::scalar_completion::complete(
-                completion.artifact(),
-                completion.target(),
-                completion.demand(),
-                completion.provider_proposals(),
-                settlement.source_completion_accounting_mut(),
-            )
-            .map_err(|reason| vec![Diagnostic::error(format!("constant checking: {reason}"))])?;
-            completion
-                .complete(completed)
-                .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        }
         let produced = match image {
-            products::NativeImageDemand::Emit => native_compiler::compile(prepared)
+            products::NativeImageDemand::Emit => native_compiler::compile(&terminal, request)
                 .map(NativeStop::Image)
                 .map_err(|(_, diagnostics)| diagnostics),
             products::NativeImageDemand::RuntimeAdmissionOnly => {
-                native_compiler::admit_runtime(prepared)
+                native_compiler::admit_runtime(&terminal, request)
                     .map(NativeStop::RuntimeAdmission)
                     .map_err(|(_, diagnostics)| diagnostics)
             }
