@@ -1661,13 +1661,139 @@ pub mod operator {
             let [namespace, name] = typed.operator_path_members(operator.name) else {
                 return false;
             };
-            typed
-                .normalized_hermetic_symbol_identity(operator.symbol)
-                .is_ok_and(|identity| {
-                    identity == format!("toolchain::{}::{}", namespace.as_str(), name.as_str())
-                })
+            // Custody comes from the exact authored catalog declaration.
+            // A semantic declaration identity also contains its overload
+            // signature, so a path-only comparison cannot authenticate it.
+            typed.symbols.sealed_intrinsic(operator.symbol)
+                == Some(
+                    language_core::sealed_intrinsics::SealedIntrinsic::FloatOperationRequirement,
+                )
+                && typed.symbols.display_path(operator.symbol, "::")
+                    == format!("{}::{}", namespace.as_str(), name.as_str())
                 && typed.symbols.core_source(operator.symbol)
                     == Some(language_core::core_vocabulary::CoreSource::FloatOperations)
+        }
+
+        #[cfg(test)]
+        #[test]
+        fn default_float_spelling_uses_exact_catalog_custody_not_a_bare_nominal_path() {
+            use crate::types::TypeReferenceNode;
+            use crate::{machine::Machine, signature::StateParameter, state::State};
+            use language_core::operator_spelling::OperatorSpelling;
+            use source::{SourceMap, SourceOrigin, SourceSpan, Span};
+            use std::{path::PathBuf, sync::Arc};
+            use symbols::{BuiltinTypeAtom, SymbolKind, SymbolNameRef, SymbolTableBuilder};
+
+            let (file, bytes) = language_core::sealed_intrinsics::float_operations_source();
+            let original = std::str::from_utf8(bytes).unwrap();
+            for (origin, edited, accepted) in [
+                (SourceOrigin::Toolchain, false, true),
+                (SourceOrigin::User, false, false),
+                (SourceOrigin::Toolchain, true, false),
+            ] {
+                let text = if edited {
+                    format!("{original}\n// changed catalog")
+                } else {
+                    original.to_owned()
+                };
+                let mut sources = SourceMap::default();
+                let id = sources
+                    .add_with_metadata(
+                        PathBuf::from("/compiler/core").join(file),
+                        text.clone(),
+                        PathBuf::from("/compiler/core"),
+                        None,
+                        origin,
+                    )
+                    .source_id;
+                let start = text.find("Float::divide(").unwrap();
+                let mut builder = SymbolTableBuilder::with_sources(Some(Arc::new(sources)));
+                let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+                let children = builder.insert_children(
+                    root,
+                    symbols::builtin_type_symbols().into_iter().chain([(
+                        SymbolKind::Machine,
+                        SymbolNameRef::Source(SourceSpan::new(
+                            id,
+                            Span::new(start, start + "Float::divide".len()),
+                        )),
+                    )]),
+                );
+                let symbol = children.handle_at(symbols::BUILTIN_TYPE_COUNT as u32);
+                let float_symbol = children.handle_at(BuiltinTypeAtom::F32.ordinal() as u32);
+                let entry = builder
+                    .insert_children(
+                        symbol,
+                        [(SymbolKind::State, SymbolNameRef::Static("divide"))],
+                    )
+                    .start();
+                let mut typed = TypedTrees {
+                    symbols: builder.finish(),
+                    ..Default::default()
+                };
+                let float = typed.type_reference_table.insert(TypeReferenceNode::Named {
+                    symbol: float_symbol,
+                    name: "f32".into(),
+                });
+                let parameters = typed.state_parameters.insert_many([
+                    StateParameter {
+                        type_reference: float,
+                        ..Default::default()
+                    },
+                    StateParameter {
+                        type_reference: float,
+                        ..Default::default()
+                    },
+                ]);
+                let mut machine = Machine {
+                    symbol,
+                    name: "Float::divide".into(),
+                    ..Default::default()
+                };
+                typed.push_machine_state(
+                    &mut machine,
+                    State {
+                        symbol: entry,
+                        name: "divide".into(),
+                        parameters,
+                        return_type: float,
+                        ..Default::default()
+                    },
+                );
+                typed.push_machine(machine);
+                let mut operator = super::OperatorDefinition {
+                    symbol,
+                    is_public: true,
+                    is_boundary: true,
+                    parameters,
+                    return_type: float,
+                    spelling: Some(OperatorSpelling::Divide),
+                    ..Default::default()
+                };
+                typed.push_operator_path_member(&mut operator, "Float".into());
+                typed.push_operator_path_member(&mut operator, "divide".into());
+                if accepted {
+                    assert_ne!(
+                        typed.normalized_hermetic_symbol_identity(symbol).unwrap(),
+                        "toolchain::Float::divide"
+                    );
+                }
+                assert_eq!(is_default_primitive_operator(&typed, &operator), accepted);
+                if accepted {
+                    operator.spelling = Some(OperatorSpelling::Add);
+                    assert!(!is_default_primitive_operator(&typed, &operator));
+                    operator.spelling = Some(OperatorSpelling::Divide);
+                    operator.name = Default::default();
+                    typed.push_operator_path_member(&mut operator, "Float".into());
+                    typed.push_operator_path_member(&mut operator, "add".into());
+                    assert!(!is_sealed_toolchain_float_operator(&typed, &operator));
+                    operator.symbol = symbols::SymbolHandle::from_parts(
+                        symbol.arena_index(),
+                        symbol.generation() + 1,
+                    );
+                    assert!(!is_sealed_toolchain_float_operator(&typed, &operator));
+                }
+            }
         }
 
         pub(crate) fn is_default_primitive_operator(
