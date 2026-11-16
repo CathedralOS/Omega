@@ -2691,8 +2691,8 @@ mod repeated_locals {
                     if let TransitionGuard::When(guard) = &transition.guard {
                         self.expression(*guard);
                     }
-                    for target in std::iter::once(&transition.target)
-                        .chain(transition.continuation.as_ref())
+                    for target in
+                        std::iter::once(&transition.target).chain(transition.continuation.as_ref())
                     {
                         match target {
                             TransitionTarget::Named(named) => self.expressions_in(named.arguments),
@@ -2800,7 +2800,7 @@ mod repeated_locals {
         /// arm were refused by the parser.
         fn bind(&mut self, names: Vec<String>, arm: SourceSpan) {
             for name in names {
-                if self.declared.iter().any(|declared| *declared == name) {
+                if self.declared.contains(&name) {
                     let (machine, state_name) = (self.machine, self.state_name);
                     self.diagnostics.push(
                         Diagnostic::error(format!(

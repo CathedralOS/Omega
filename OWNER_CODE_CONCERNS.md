@@ -117,13 +117,6 @@ framework or a list of unimplemented features.
 - Cost: A write under a live shared loan is accepted and the reference sees the old value; displaced-value cleanup moves to exit. Lower whole assignment as an empty-path store on the existing root with displaced-value disposal, delete the rebinding route and update the test.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/terminal-psi/structural_access.md
 
-### Match and transition pattern bindings may reuse a parameter or local name
-- Category: One idea, several implementations
-- Where: [repeated-name check covers only `let`](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/symbols.rs#L2572), [parser checks one arm](omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/expressions_frames.rs#L1365), [bindings substituted by spelling](omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/type_syntax_and_patterns.rs#L421)
-- Saw: [bindings and arrivals](wiki/spec/language/state_contracts.md) says "A name is declared at most once among one machine's parameters and the locals of its own body", and pattern bindings within one arm follow the same rule. `reject_repeated_local_names` looks only at `Statement::LocalData`; match and transition arm bindings never become locals, because the parser rewrites each use of the name into a projection of the subject and checks only duplicates inside the arm. `machine pick(value: u32, r: Reading) -> u32 { match r { Reading::Sample { value } -> value  Reading::Idle -> value } }` is accepted, with `value` meaning the payload in one arm and the parameter in the other.
-- Cost: Programs the spec rejects are accepted, and a binding can shadow a parameter that facts and contracts name. Check arm bindings against the machine's parameters and earlier locals in the same pass as `let`.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/state_contracts.md
-
 ### Build operand lookup falls back to the first same-named declaration when lookup is ambiguous or unimported
 - Category: A verdict with nothing behind it
 - Where: [descendant fallback](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/symbols_targets.rs#L799), [provider-selection fallback](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/symbols_targets.rs#L870), [assumed-binding fallback](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/symbols_targets.rs#L897), [first child wins](omega-rust/psi/foundation/symbols/src/table.rs#L3265)
