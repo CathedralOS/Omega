@@ -701,13 +701,9 @@ pub(crate) mod aggregate_result_input {
     ) -> Option<(
         &'a terminal_psi::StructuralOperationResult,
         &'a calling_conventions::ValuePlacement,
-        calling_conventions::CallingPolicy,
     )> {
         match &instruction.kind {
-            LegalizedScalarInstructionKind::Call(call) => {
-                let (result, placement) = call_result(source, call)?;
-                Some((result, placement, call.call_plan.policy))
-            }
+            LegalizedScalarInstructionKind::Call(call) => call_result(source, call),
             LegalizedScalarInstructionKind::NormalizedForeignCall(call) => {
                 let target_operations::TargetBoundaryResult::Structural(home) = &call.result else {
                     return None;
@@ -721,7 +717,6 @@ pub(crate) mod aggregate_result_input {
                 Some((
                     result,
                     call.binding.boundary_entry_plan.call.result.as_ref()?,
-                    call.binding.boundary_entry_plan.call.policy,
                 ))
             }
             _ => None,
@@ -777,8 +772,7 @@ pub(crate) mod aggregate_result_input {
         let placement = call.result_placement.as_ref()?;
         if call.call_plan.result.as_ref() != Some(placement)
             || placement.shape != shape
-            || !(direct_fragments(placement)
-                || indirect_result(placement, call.call_plan.policy).is_some())
+            || !(direct_fragments(placement) || indirect_result(placement).is_some())
         {
             return None;
         }
@@ -819,8 +813,7 @@ pub(crate) mod aggregate_result_input {
                 identity,
             )
             || placement.shape != calling_conventions::ValueShape::integer(16, 8)
-            || !(direct_fragments(placement)
-                || indirect_result(placement, source.call_plan.policy).is_some())
+            || !(direct_fragments(placement) || indirect_result(placement).is_some())
         {
             return None;
         }
@@ -904,8 +897,7 @@ pub(crate) mod aggregate_result_input {
         if parameter.target.shape != shape
             || parameter.target.placement.shape != shape
             || placement.shape != shape
-            || !(direct_fragments(placement)
-                || indirect_result(placement, source.call_plan.policy).is_some())
+            || !(direct_fragments(placement) || indirect_result(placement).is_some())
             || !(inline_argument_fragments(&parameter.target.placement)
                 || crate::structural_inputs::structural_unit_input::owned_indirect_pointer(
                     semantic,
@@ -1159,8 +1151,7 @@ pub(crate) mod aggregate_result_input {
         }
         let placement = source.call_plan.result.as_ref()?;
         if placement.shape != shape
-            || !(direct_fragments(placement)
-                || indirect_result(placement, source.call_plan.policy).is_some())
+            || !(direct_fragments(placement) || indirect_result(placement).is_some())
         {
             return None;
         }
@@ -1462,13 +1453,12 @@ pub(crate) mod aggregate_result_input {
         })
     }
 
+    /// The retained placement supplies the hidden result register. The target
+    /// audit separately checks that the full plan agrees with the callee's ABI.
     pub(crate) fn indirect_result(
         placement: &calling_conventions::ValuePlacement,
-        policy: calling_conventions::CallingPolicy,
     ) -> Option<calling_conventions::MachineRegister> {
-        use calling_conventions::{
-            CallSignature, IndirectPointerLocation, ValueLocation, evaluate_call_plan,
-        };
+        use calling_conventions::{IndirectPointerLocation, ValueLocation};
         if placement.shape.class != calling_conventions::ValueClass::Integer
             || placement.shape.byte_size == 0
             || !placement.shape.alignment.is_power_of_two()
@@ -1486,18 +1476,8 @@ pub(crate) mod aggregate_result_input {
         else {
             return None;
         };
-        if *byte_size != placement.shape.byte_size || *alignment != placement.shape.alignment {
-            return None;
-        }
-        let canonical = evaluate_call_plan(
-            policy,
-            &CallSignature {
-                parameters: Vec::new(),
-                result: Some(placement.shape),
-            },
-        )
-        .ok()?;
-        (canonical.result.as_ref() == Some(placement)).then_some(*register)
+        (*byte_size == placement.shape.byte_size && *alignment == placement.shape.alignment)
+            .then_some(*register)
     }
 
     pub(crate) fn operation_result<'input>(
@@ -3284,13 +3264,16 @@ pub(crate) mod primitive_local_input {
                 indices,
                 length_byte_offset,
             } => {
-                if *length_byte_offset != 8 {
-                    return None;
-                }
                 source.structural.as_ref()?;
                 let root = crate::selection::reference_input::root_type(source, argument.place)?;
                 let geometry =
                     element_view_length_geometry(root, &argument.path, source.geometry())?;
+                if calling_conventions::terminal_layout::element_view_length_offset(
+                    &source.geometry().declaration(geometry.selected).ok()?.shape,
+                ) != Some(*length_byte_offset)
+                {
+                    return None;
+                }
                 length_count_matches(scalar, indices, &geometry.elements)?;
                 Some((argument.place, geometry.byte_offset, geometry.pointer_slots))
             }
@@ -3716,13 +3699,18 @@ pub(crate) mod record_input {
             StructuralFieldType::Structural(child) => find_structural_type(declarations, *child)
                 .filter(|declaration| !declaration.owns_linear_claim)
                 .map(|declaration| declaration.shape.clone())
+                // Owned sequences carry aggregate storage, including when a
+                // local supplies a record field. Only physical descriptors use
+                // the view-origin and access checks above.
                 .filter(|shape| {
                     matches!(
                         shape,
-                        StructuralTypeShape::ElementView { .. }
-                            | StructuralTypeShape::ByteSequence(
-                                terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
-                            )
+                        StructuralTypeShape::ElementView {
+                            access: Some(_),
+                            ..
+                        } | StructuralTypeShape::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
+                        )
                     )
                 }),
             StructuralFieldType::ByteSequence(
@@ -4360,6 +4348,7 @@ pub(crate) mod reference_input {
 
         fn field(identity: u32, field_type: StructuralFieldType) -> StructuralFieldDeclaration {
             StructuralFieldDeclaration {
+                declaration_identity: Default::default(),
                 inline_carrier: None,
                 id: StructuralFieldId::new(u64::from(identity)).unwrap(),
                 identity: TerminalIdentityIndex(identity),
@@ -4371,6 +4360,7 @@ pub(crate) mod reference_input {
 
         fn declaration(identity: u32, shape: StructuralTypeShape) -> StructuralTypeDeclaration {
             StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
                 requires: Vec::new(),
                 quotient_carrier: None,
                 id: type_id(u64::from(identity)),
@@ -5575,47 +5565,16 @@ pub(crate) mod structural_array_input {
     use legalized_operations::{LegalizedScalarInstruction, LegalizedScalarInstructionKind};
     use terminal_psi::{StructuralAccess, StructuralTypeShape};
 
-    /// Whether this construction builds an owned element sequence (whose 16-byte
-    /// stored-length descriptor points at its literal-pool roster) rather than an inline
-    /// fixed array. `None` when the row is not a structural array construction.
-    pub(crate) fn owned_sequence(
-        source: &crate::native_geometry::NativeFunction<'_>,
-        row: &LegalizedScalarInstruction,
-    ) -> Option<bool> {
-        let LegalizedScalarInstructionKind::EstablishStructuralArray {
-            result,
-            elements,
-            shape,
-        } = &row.kind
-        else {
-            return None;
-        };
-        let declaration = source
-            .geometry()
-            .iter()
-            .find(|entry| entry.id == result.structural_type)?;
-        let StructuralTypeShape::ElementView { access: None, .. } = declaration.shape else {
-            return Some(false);
-        };
-        let declared = crate::structural_inputs::structural_reference_input::shape(
-            result.structural_type,
-            source.geometry(),
-        )?;
-        (row.result.is_none()
-            && declared == *shape
-            && shape.byte_size == 16
-            && elements.iter().all(|argument| {
-                argument.access == StructuralAccess::Owned
-                    && argument.path.is_empty()
-                    && argument.place != result.place
-            }))
-        .then_some(true)
+    pub(crate) struct Elements {
+        pub element_shape: ValueShape,
+        pub offsets: Vec<u32>,
+        pub live_length: Option<u64>,
     }
 
     pub(crate) fn elements(
         source: &crate::native_geometry::NativeFunction<'_>,
         row: &LegalizedScalarInstruction,
-    ) -> Option<(ValueShape, Vec<u32>)> {
+    ) -> Option<Elements> {
         let LegalizedScalarInstructionKind::EstablishStructuralArray {
             result,
             elements,
@@ -5629,12 +5588,23 @@ pub(crate) mod structural_array_input {
         let declaration = types
             .iter()
             .find(|entry| entry.id == result.structural_type)?;
-        let StructuralTypeShape::FixedArray {
-            element,
-            length: terminal_psi::ArrayExtent::Literal(length),
-        } = declaration.shape
-        else {
-            return None;
+        let count = u64::try_from(elements.len()).ok()?;
+        let (element, length, base, live_length) = match declaration.shape {
+            StructuralTypeShape::FixedArray {
+                element,
+                length: terminal_psi::ArrayExtent::Literal(length),
+            } => (element, length, 0, None),
+            StructuralTypeShape::ElementView {
+                element,
+                access: None,
+            } => {
+                let layout = types.owned_sequence(result.structural_type).ok()?;
+                if count > layout.capacity {
+                    return None;
+                }
+                (element, count, layout.elements_offset, Some(count))
+            }
+            _ => return None,
         };
         let geometry = crate::structural_inputs::structural_reference_input::shape;
         if row.result.is_some()
@@ -5664,9 +5634,13 @@ pub(crate) mod structural_array_input {
             {
                 return None;
             }
-            offsets.push(u32::try_from(ordinal).ok()?.checked_mul(stride)?);
+            offsets.push(base.checked_add(u32::try_from(ordinal).ok()?.checked_mul(stride)?)?);
         }
-        Some((element_shape, offsets))
+        Some(Elements {
+            element_shape,
+            offsets,
+            live_length,
+        })
     }
 }
 

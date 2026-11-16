@@ -2,7 +2,7 @@ use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 data Model { z: [f64; 5]; }
 data Main { model: Model; }
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     transition { _ -> centered(main, 1.0) }
     machine centered(main: &mut Main, total: f64) {
         main.model.z[0] = 0.0-total/2.0;
@@ -15,5 +15,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    main(&mut entry_storage);
 }

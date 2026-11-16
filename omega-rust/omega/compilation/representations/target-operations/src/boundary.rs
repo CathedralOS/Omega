@@ -141,6 +141,7 @@ mod tests {
 
     fn declaration() -> StructuralTypeDeclaration {
         StructuralTypeDeclaration {
+            declaration_identity: Default::default(),
             requires: Vec::new(),
             quotient_carrier: None,
             owns_linear_claim: false,
@@ -154,12 +155,14 @@ mod tests {
             shape: StructuralTypeShape::Sum {
                 cases: (0..5)
                     .map(|index| StructuralCaseDeclaration {
+                        declaration_identity: Default::default(),
                         id: StructuralCaseId::new(index + 1).unwrap(),
                         identity: terminal_psi::TerminalIdentityIndex(10 + index as u32),
                         fields: if index == 0 {
                             vec![]
                         } else {
                             vec![StructuralFieldDeclaration {
+                                declaration_identity: Default::default(),
                                 inline_carrier: None,
                                 id: StructuralFieldId::new(index).unwrap(),
                                 identity: terminal_psi::TerminalIdentityIndex(2),

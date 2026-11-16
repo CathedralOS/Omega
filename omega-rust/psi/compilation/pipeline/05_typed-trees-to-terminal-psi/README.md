@@ -525,14 +525,15 @@ same through two or more machines.
 forever and owes no rank". [Call cycles as loops](#call-cycles-as-loops)
 gives the lowered form.
 
-A loop can name its decreasing measure with `terminates by remaining` or
-`terminates by bytes -> Slice::Length`. The reader uses the resolved typed
-expressions and the selected view declaration, and checks an explicit
-`Nat::Descending` against its sealed catalog header. Short forms use the
-carrier's canonical default; a user-written declaration that looks like a
-catalog view grants no ranking rules. Measures may use scalar formals,
-integer constants, exact subtraction and the length of a borrowed byte-view
-formal. In a ranked group of mutually recursive machines, every member keeps
+A loop can name its decreasing measure with `terminates by remaining`,
+`terminates by bytes -> Slice::Length` or `terminates by (cursor, limit) ->
+Nat::BoundedDistance`. The reader uses the resolved typed expressions and
+checks explicit natural views against their sealed catalog headers. Short
+forms use the carrier's canonical default. A user-written lookalike grants
+no ranking rules. Measures may use scalar formals, integer constants,
+exact subtraction and the length of a borrowed byte-view formal. Bounded
+distance uses ordinary unsigned saturating subtraction to keep zero at
+and beyond the limit. In a ranked group of mutually recursive machines, every member keeps
 a private measure. A recursive call group may declare
 its decreasing measure in one machine and pass the values it needs through
 helpers. The compiler follows each call's actual argument bindings to express
@@ -558,7 +559,7 @@ name until the slice that serves it:
 | a call of a member whose result the caller goes on to use, `1 + f(n)` | `call recursion outside a terminal position` |
 | a view with no admitted resolved selection, including an authored lookalike | `contract ranking view has no admitted resolved selection`, `contract selected ranking view is not an admitted compiler ranking declaration` |
 | view arguments or a rank range, `in lower..=upper` | `contract ranking view arguments and bounded ranges` |
-| several subjects under the served catalog views | `contract selected ranking view requires exactly one subject` |
+| several subjects under a single-subject view | `contract selected ranking view requires exactly one subject` |
 | a signed subject under `Nat::Descending` | `contract natural ranking needs an unsigned integer subject` |
 | an address or width-generic rank carrier | `contract ranking needs a closed finite integer carrier` |
 | a length measure whose base is not a formal | `contract length ranking subject is not a resolved formal` |
@@ -827,7 +828,7 @@ the slice that serves it:
 | a record pattern that omits a field, or whose subject is not a place | `statement record pattern that omits a field`, `statement record pattern over a value that is not a place` |
 | a payload member whose spelling two cases share | `spelling member without a field symbol` (finding 19) |
 | a field of a data payload binding, `inner.x` | `expression field read beneath a case payload` |
-| a case arm with a guard, a pattern field tested against a value, a pattern that binds its case, a second arm for one case, a wildcard no case reaches | `transition case arm with a guard`, `transition pattern field tested against a value`, `transition pattern that binds its case`, `transition case arm for a case an earlier arm selects`, `transition wildcard arm that no case reaches` |
+| a case arm with a guard, a pattern field tested against a value, a pattern that binds its case, a second arm for one case | `transition case arm with a guard`, `transition pattern field tested against a value`, `transition pattern that binds its case`, `transition case arm for a case an earlier arm selects` |
 | `crash` in a case arm | `transition crash in a case arm` (finding 21) |
 | `match` on a scalar or with value patterns, on a subject that is not a place, with a data or Unit result | `expression match on a scalar subject`, `expression match arm on a value pattern`, `expression match on a subject that is not a place`, `expression match with a data result`, `expression match with a Unit arm` |
 | a `match` arm with a guard or after the wildcard | `transition case arm with a guard`, `expression match arm after the wildcard` |
@@ -974,7 +975,11 @@ uncovered cases share. A declared case with neither is refused there with
 reason `Unestablished`
 ([patterns](../../../../../wiki/spec/language/patterns.md): "Every dispatch
 must cover the admitted subject. Missing runtime coverage is a compile
-error, not an implicit trap or fallthrough."). Each scalar payload field of
+error, not an implicit trap or fallthrough."). A wildcard after arms that
+name every declared case is accepted and left out: no edge enters it, and
+the checker's advisories warn that it can never run
+([state contracts](../../../../../wiki/spec/language/state_contracts.md#unreachable-branches):
+"This is an advisory diagnostic, not an inherent language error"). Each scalar payload field of
 an arm's case is one parameter of the arm's block
 ([control flow](../../../../../wiki/spec/terminal-psi/control_flow.md):
 "Selected payload fields become scalar parameters on that case's edge before

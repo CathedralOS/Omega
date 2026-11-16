@@ -180,66 +180,6 @@ macro_rules! span_columns {
 }
 pub(crate) use span_columns;
 
-pub(crate) mod authored_targets {
-    use super::TypedTrees;
-    use symbols::SymbolHandle;
-
-    impl TypedTrees {
-        pub fn authored_machine_target(
-            &self,
-            mut symbol: SymbolHandle,
-        ) -> Result<Option<&str>, &'static str> {
-            for _ in 0..=self.machine_specializations.len() + self.machines().len() {
-                let mut machines = self
-                    .machines()
-                    .iter()
-                    .filter(|machine| machine.symbol == symbol);
-                let machine = machines
-                    .next()
-                    .ok_or("authored target has no exact machine")?;
-                if machines.next().is_some() {
-                    return Err("authored target has repeated machine coordinates");
-                }
-                let mut members = self
-                    .target_machine_families
-                    .iter()
-                    .flat_map(|family| &family.members)
-                    .filter(|member| member.machine == symbol);
-                if let Some(member) = members.next() {
-                    if members.next().is_some() || member.target.as_str().is_empty() {
-                        return Err("machine has no unique authored target member");
-                    }
-                    return Ok(Some(member.target.as_str()));
-                }
-                let mut origins = self.machine_specializations.for_instance(symbol);
-                if let Some(origin) = origins.next() {
-                    if origins.next().is_some() {
-                        return Err("machine has repeated specialization origins");
-                    }
-                    if origin.template != symbol {
-                        symbol = origin.template;
-                        continue;
-                    }
-                }
-                if let Some(target) = machine.target.as_ref() {
-                    if self.declared_outside_product_scope(machine.symbol) {
-                        return Ok(Some(target.as_str()));
-                    }
-                    return Err("target-tagged machine has no authored family member");
-                }
-                return Ok(None);
-            }
-            Err("authored target machine origins contain a cycle")
-        }
-
-        fn declared_outside_product_scope(&self, symbol: SymbolHandle) -> bool {
-            self.symbols
-                .symbol_provenance_source_span(symbol)
-                .and_then(|span| self.symbols.source_file(span))
-                .is_some_and(|file| file.dependency_scope != source::DependencyScope::Product)
-        }
-    }
-}
 pub(crate) mod build_selections {
     use crate::TypedTrees;
     use crate::trait_definition::{AppliedTraitScope, TraitApplicationArguments};
@@ -953,101 +893,6 @@ pub use machine_declarations::MachineDeclarationTable;
 pub use machine_parameter_signatures::MachineParameterSignatureQueries;
 pub use spelled_declarations::SpelledDeclarationTable;
 pub use type_parameters::TypeParameterTable;
-pub(crate) mod run_custody {
-    use crate::TypedTrees;
-    use diagnostics::Diagnostic;
-    use language_semantics::MachineSupplyMode;
-    use symbols::SymbolHandle;
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub struct EmptyRunReleaseDeclaration {
-        pub machine: SymbolHandle,
-        pub state: SymbolHandle,
-        pub template: SymbolHandle,
-    }
-
-    impl EmptyRunReleaseDeclaration {
-        pub fn authenticate(
-            program: &TypedTrees,
-            symbol: SymbolHandle,
-        ) -> Result<Option<Self>, Diagnostic> {
-            let Some(machine) = program
-                .machine(symbol)
-                .or_else(|| program.machine_holding_state(symbol))
-            else {
-                return Ok(None);
-            };
-            let template = program
-                .machine_specialization(machine.symbol)
-                .map_or(machine.symbol, |application| application.template);
-            if program.symbols.core_source(template)
-                != Some(language_core::core_vocabulary::CoreSource::Run)
-                || program
-                    .normalized_hermetic_symbol_identity(template)
-                    .ok()
-                    .as_deref()
-                    != Some("toolchain::Run::retire_empty")
-            {
-                return Ok(None);
-            }
-            let malformed = |reason: &str| Diagnostic::error(format!("empty-run release {reason}"));
-            if machine.body_is_present
-                || machine.supply_mode != MachineSupplyMode::AdmissionClaim
-                || !machine.lifetime_parameters.is_empty()
-                || machine.spelling.is_some()
-                || machine.suspends
-                || machine.blocks
-                || machine.target.is_some()
-                || machine.authored_target.is_some()
-                || machine.target_family_interface
-                || !program.machine_trait_conformances(machine).is_empty()
-                || !machine.invokes.is_empty()
-                || machine.service_reach_is_installation_bound
-            {
-                return Err(malformed(&format!(
-                    "changed its core envelope (body={}, supply={:?}, lifetimes={}, spelling={}, suspends={}, blocks={}, target={}, authored_target={}, family={}, conformances={}, invokes={}, installed_reach={})",
-                    machine.body_is_present,
-                    machine.supply_mode,
-                    machine.lifetime_parameters.len(),
-                    machine.spelling.is_some(),
-                    machine.suspends,
-                    machine.blocks,
-                    machine.target.is_some(),
-                    machine.authored_target.is_some(),
-                    machine.target_family_interface,
-                    program.machine_trait_conformances(machine).len(),
-                    machine.invokes.len(),
-                    machine.service_reach_is_installation_bound,
-                )));
-            }
-            let [state] = program.machine_states(machine) else {
-                return Err(malformed("must retain exactly one entry state"));
-            };
-            let [parameter] = program.state_parameters(state) else {
-                return Err(malformed("must retain exactly one run parameter"));
-            };
-            if (symbol != machine.symbol && symbol != state.symbol)
-                || parameter.is_const
-                || parameter.is_mutable
-                || parameter.relevance.is_erased()
-            {
-                return Err(malformed(&format!(
-                    "changed its entry parameter (entry={}, const={}, mutable={}, erased={})",
-                    symbol == machine.symbol || symbol == state.symbol,
-                    parameter.is_const,
-                    parameter.is_mutable,
-                    parameter.relevance.is_erased(),
-                )));
-            }
-            Ok(Some(Self {
-                machine: machine.symbol,
-                state: state.symbol,
-                template,
-            }))
-        }
-    }
-}
-pub use run_custody::EmptyRunReleaseDeclaration;
 pub(crate) mod selection_exclusions {
     use crate::AuthoredDeclarationSelectionOccurrenceId;
 
@@ -1181,10 +1026,6 @@ pub(crate) mod symbol_rebinding {
 
         pub fn execution_symbol(&self, source: SymbolHandle) -> Option<SymbolHandle> {
             self.execution.index.get(&source).copied()
-        }
-
-        pub fn authored_symbol(&self, source: SymbolHandle) -> Option<SymbolHandle> {
-            self.authored.index.get(&source).copied()
         }
 
         pub fn rebinding(&self) -> SymbolRebinding<'_> {
@@ -1362,7 +1203,7 @@ impl PartialEq for ProgramIdentity {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+#[derive(Debug, Default, PartialEq, Eq, compiler_storage::Record)]
 #[record(write_scope = crate::type_identity::write_under_own_numbering)]
 pub struct TypedTrees {
     pub identity: ProgramIdentity,
@@ -1409,6 +1250,85 @@ pub struct TypedTrees {
     pub constant_recipe_closure: constant_recipes::ConstantRecipeClosure,
     pub callable_identities: OwnedInterner<crate::type_identity::CallableIdentityTable>,
     pub type_identities: crate::type_identity::TypeIdentityTable,
+}
+
+impl Clone for TypedTrees {
+    fn clone(&self) -> Self {
+        self.clone_with_symbols(self.symbols.clone())
+    }
+}
+
+impl TypedTrees {
+    /// Install the continuation's symbols without copying the old symbol table
+    /// that they replace. Other storage follows its owner's clone contract.
+    /// The caller must establish the replacement's source authority first.
+    pub fn with_replaced_symbols(
+        mut self: std::sync::Arc<Self>,
+        symbols: SymbolTable,
+    ) -> std::sync::Arc<Self> {
+        if let Some(program) = std::sync::Arc::get_mut(&mut self) {
+            program.symbols = symbols;
+            return self;
+        }
+        let program = match std::sync::Arc::try_unwrap(self) {
+            Ok(mut program) => {
+                program.symbols = symbols;
+                program
+            }
+            Err(program) => program.clone_with_symbols(symbols),
+        };
+        std::sync::Arc::new(program)
+    }
+
+    fn clone_with_symbols(&self, symbols: SymbolTable) -> Self {
+        macro_rules! clone_storage {
+            ($($field:ident),+ $(,)?) => {{
+                let Self { identity, symbols: _, $($field,)+ } = self;
+                Self { identity: *identity, symbols, $($field: $field.clone(),)+ }
+            }};
+        }
+        clone_storage!(
+            product_declaration_frontier,
+            excluded_authored_selection_occurrences,
+            roots,
+            tables,
+            service_reaches,
+            service_reach_rows,
+            authored_service_reach_rows,
+            semantic_domains,
+            applied_domain_applications,
+            applied_data_cleanup_selections,
+            external_bindings,
+            plan_laid_layouts,
+            plan_laid_target_layouts,
+            plan_laid_schema_fields,
+            plan_laid_retired_field_identities,
+            access_view_plans,
+            access_lifecycle_plans,
+            access_policy_invocations,
+            access_borrow_factories,
+            wire_placements,
+            wire_encode_obligations,
+            wire_schema_plans,
+            machine_specializations,
+            captured_machine_applications,
+            captured_machine_states,
+            trait_implementation_applications,
+            data_implementation_applications,
+            target_machine_families,
+            deferred_refusals,
+            evidence_forwardings,
+            proof_output_calls,
+            declaration_indexes,
+            ranking_expression_custody,
+            pending_const_range_endpoints,
+            constant_recipes,
+            constant_expression_contexts,
+            constant_recipe_closure,
+            callable_identities,
+            type_identities,
+        )
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
@@ -1508,6 +1428,16 @@ pub struct TypedTreeTables {
     pub wire_members: Arena<wire::WireMember>,
 }
 
+impl TypedTreeTables {
+    /// Keep one declaration or completed body's expressions and statements
+    /// together. A later source-application update may rewrite that owner,
+    /// but must not detach unrelated bodies from the earlier completion batch.
+    pub fn begin_declaration_output(&mut self) {
+        self.expression_table.finish_output_page();
+        self.statement_table.finish_output_page();
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TypedTreeRoots {
     pub retained_product_applications: HandleSpan<Handle<ProductOperandApplication>>,
@@ -1556,18 +1486,6 @@ impl TypedTreeRoots {
 impl TypedTrees {
     pub fn product_declarations(&self) -> &TypedTrees {
         self.product_declaration_frontier.as_deref().unwrap_or(self)
-    }
-
-    // Build checking may retain the Product snapshot separately from its own
-    // execution graph. Prepare designated Product operands in that same owner.
-    pub fn product_declarations_mut(&mut self) -> &mut TypedTrees {
-        match self {
-            Self {
-                product_declaration_frontier: Some(frontier),
-                ..
-            } => std::sync::Arc::make_mut(frontier),
-            original => original,
-        }
     }
 
     pub fn machine_specialization(
@@ -1797,17 +1715,6 @@ fn static_const_argument_value<'argument>(
     CanonicalConstValue::from_atom(name.as_str()).map(StaticConstArgumentValue::Canonical)
 }
 
-pub fn static_const_value_identity(
-    identity: &language_semantics::const_value::CanonicalConstIdentity,
-) -> Option<String> {
-    language_semantics::const_value::CanonicalConstValue::new(
-        identity.type_name.clone(),
-        identity.encoding.clone(),
-        "",
-    )
-    .application_identity()
-}
-
 fn canonical_static_const_spelling(
     value: language_semantics::const_value::CanonicalConstValue,
 ) -> Option<String> {
@@ -1875,12 +1782,11 @@ impl compiler_storage::Record for ProgramIdentity {
     }
 }
 
-pub use calls::{boundary, finite_family, signature, static_applications};
+pub use calls::{signature, static_applications};
 pub use control_flow::{machine, state, statement};
 pub use declarations::{
-    boundary_completions, calling_vocabulary, constant, data, domain, float_providers, invocations,
-    layout_storage, measure, operator, product_operand, trait_definition, type_aliases, visibility,
-    wire,
+    boundary_completions, calling_vocabulary, constant, data, domain, invocations, layout_storage,
+    measure, operator, product_operand, trait_definition, type_aliases, visibility, wire,
 };
 pub use evidence::{byte_predicates, mathematical, proof_only, proposition, ranking};
 pub use inspection::snapshot;
@@ -1903,4 +1809,64 @@ pub mod source_subjects;
 
 pub mod typed_trees {
     pub use crate::*;
+}
+
+#[cfg(test)]
+mod continuation_storage_tests {
+    use super::TypedTrees;
+    use crate::expression::ExpressionNode;
+    use std::sync::Arc;
+    use symbols::{SymbolKind, SymbolNameRef, SymbolTable, SymbolTableBuilder};
+
+    fn symbols(name: &str) -> SymbolTable {
+        let mut builder = SymbolTableBuilder::new();
+        builder.insert_root(SymbolKind::Machine, SymbolNameRef::Borrowed(name));
+        builder.finish()
+    }
+
+    #[test]
+    fn shared_continuation_moves_replacement_symbols_and_preserves_the_predecessor() {
+        let mut original = TypedTrees {
+            symbols: symbols("old"),
+            ..Default::default()
+        };
+        let expression = original
+            .expression_table
+            .insert(ExpressionNode::Boolean(true));
+        let original = Arc::new(original);
+        let predecessor = Arc::clone(&original);
+        let replacement = symbols("new");
+        let replacement_rows = replacement.names().storage_slice().as_ptr();
+        let successor = original.with_replaced_symbols(replacement);
+        assert_eq!(
+            successor.symbols.names().storage_slice().as_ptr(),
+            replacement_rows
+        );
+        assert_eq!(predecessor.symbols.name(predecessor.symbols.root()), "old");
+        assert_eq!(successor.symbols.name(successor.symbols.root()), "new");
+        assert_eq!(
+            successor.expression_table.expression(expression),
+            &ExpressionNode::Boolean(true)
+        );
+        assert_eq!(
+            predecessor.expression_table.expression(expression),
+            &ExpressionNode::Boolean(true)
+        );
+        assert!(!Arc::ptr_eq(&predecessor, &successor));
+    }
+
+    #[test]
+    fn owned_continuation_keeps_its_allocation_and_disassociates_weak_predecessors() {
+        let original = Arc::new(TypedTrees::default());
+        let storage = Arc::as_ptr(&original);
+        let successor = original.with_replaced_symbols(symbols("owned"));
+        assert_eq!(Arc::as_ptr(&successor), storage);
+        let weak = Arc::downgrade(&successor);
+        let successor = successor.with_replaced_symbols(symbols("weak"));
+        assert!(weak.upgrade().is_none());
+        assert_eq!(successor.symbols.name(successor.symbols.root()), "weak");
+        let ordinary_clone = successor.as_ref().clone();
+        assert_eq!(ordinary_clone.symbols, successor.symbols);
+        assert_eq!(ordinary_clone.tables, successor.tables);
+    }
 }

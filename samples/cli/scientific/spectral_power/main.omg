@@ -16,7 +16,7 @@ data Application {
     index: i32 in Wrapping; start: i32 in Wrapping; segments: i32 in Wrapping;
     energy: f64; width: i32 in Wrapping; group: i32 in Wrapping; butterfly: i32 in Wrapping;
 }
-machine Application::main(application: &mut Application) reaches ProcessExit + Console crashes Trap {
+machine main(application: &mut Application) reaches ProcessExit + Console crashes Trap {
     let sampling: Number = block number(&mut application.reader);
     let gain: Number = block number(&mut application.reader);
     let offset: Number = block number(&mut application.reader);
@@ -199,5 +199,5 @@ machine reverse_bits(value: i32 in Wrapping, size: i32 in Wrapping) -> i32 in Wr
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console crashes Trap {
     let mut entry_storage: Application;
-    block Application::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

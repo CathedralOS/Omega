@@ -131,6 +131,11 @@ pub(crate) mod declarations {
                             &other_specialization.template,
                             other_identities,
                         )
+                        && specialization.template_entry.same_identity_as(
+                            identities,
+                            &other_specialization.template_entry,
+                            other_identities,
+                        )
                 }
                 _ => false,
             }
@@ -141,6 +146,10 @@ pub(crate) mod declarations {
     pub struct CheckedMachineSpecialization {
         pub capture: Option<CheckedMachineCapture>,
         pub template: NominalDeclarationIdentity,
+        /// The original entry is distinct from the generated body's state.
+        /// Caller descriptions must retain this link rather than infer an
+        /// entry from the machine's spelling or its parameter types.
+        pub template_entry: NominalDeclarationIdentity,
         pub template_callable: TerminalIdentityIndex,
         pub template_semantic_declaration: TerminalIdentityIndex,
         pub commitment: [u8; 32],
@@ -518,8 +527,8 @@ pub(crate) mod vocabulary {
         }
 
         pub const fn get(self) -> u16 {
-            // Boundary declarations retain their complete service contract.
-            136
+            // Float-result equations retain typed integer operands.
+            137
         }
     }
 }

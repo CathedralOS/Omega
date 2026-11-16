@@ -17,7 +17,7 @@ data Protocol {
 // EOF completes the record; LF, CR, spaces and tabs separate fields. Storage
 // holds no more than 54 values; the input itself is at most 599 bytes. It
 // reads at most 600 bytes, and rejects rather than wrapping decimal overflow.
-machine Protocol::read(protocol: &mut Protocol) -> bool
+machine protocol_read(protocol: &mut Protocol) -> bool
 reaches ProcessExit + Console
 blocks
 crashes Trap
@@ -161,7 +161,7 @@ crashes Trap
     machine rejected() -> bool { false }
 }
 
-machine Protocol::integer(protocol: &mut Protocol, value: i32 in Wrapping)
+machine integer(protocol: &mut Protocol, value: i32 in Wrapping)
 reaches ProcessExit + Console {
     transition value < 0 {
 
@@ -221,7 +221,7 @@ reaches ProcessExit + Console {
 
 // Nine significant decimal digits as signed integer mantissa and power of ten.
 // All model outputs are finite, and normalization precedes the trapping cast.
-machine Protocol::number(protocol: &mut Protocol, value: f64)
+machine number(protocol: &mut Protocol, value: f64)
 reaches ProcessExit + Console {
     transition value == 0.0 {
 
@@ -271,9 +271,9 @@ reaches ProcessExit + Console {
     requires scaled == scaled && scaled >= 0.0 && scaled < 1000000000.0
     {
         let mantissa: i32 = I32::from_f64(scaled);
-        Protocol::integer(protocol, mantissa as i32 in Wrapping);
+        integer(protocol, mantissa as i32 in Wrapping);
         Console::write("e");
-        Protocol::integer(protocol, exponent - 8);
+        integer(protocol, exponent - 8);
     }
     machine invalid(protocol: &mut Protocol) {
         Console::write_line("ERROR numeric: reporting value outside finite model envelope");

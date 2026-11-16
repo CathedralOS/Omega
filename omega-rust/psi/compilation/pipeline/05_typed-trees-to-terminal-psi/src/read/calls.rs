@@ -936,10 +936,12 @@ impl<'t> Program<'t> {
         {
             return unserved("compiler operation call");
         }
-        // A boundary qualifier names a requirement; an actual receiver
-        // would supply an undeclared argument and is refused.
+        // Qualification names a declaration without supplying an extra
+        // runtime argument. Typing owns that distinction for named operators
+        // and machines; trait requirements retain their exact owner relation.
         let named = self.named_expression_target(id, call)?;
         let qualified = named.is_some()
+            || self.typed.call_has_no_runtime_receiver_for_target(call)
             || (call.receiver.is_valid()
                 && matches!(
                     self.node(id, call.receiver)?,

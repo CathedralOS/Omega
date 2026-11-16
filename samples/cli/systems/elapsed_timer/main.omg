@@ -19,24 +19,17 @@ use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 use omega_language_std::Duration;
 use omega_language_std::Instant;
+use omega_language_std::TimeHost;
 use omega_language_std::TotalResult;
 use omega_language_std::duration_checked_as_milliseconds;
 use omega_language_std::elapsed_since;
 use omega_language_std::instant_now;
 use omega_language_std::sleep_for;
 
-// Text carriers are byte arrays in the Utf8 domain (declared per storage
-// type; encodings are library, not intrinsics).
-domain [u8; 27]::Utf8
-requires
-    valid_utf8(self);
-domain [u8; 10]::Utf8
-requires
-    valid_utf8(self);
 data Main {
 }
 
-machine Main::main(context: &mut Main) reaches ProcessExit + Console {
+machine main(context: &mut Main) reaches ProcessExit + Console + TimeHost {
     Console::write_line("elapsed_timer: times a 50ms workload with std::time");
     let start: Instant = instant_now();
     let pause: Duration = Duration { seconds: 0, subsecond_nanoseconds: 50000000 };
@@ -54,8 +47,8 @@ machine Main::main(context: &mut Main) reaches ProcessExit + Console {
         }
     }
     machine render(context: &mut Main, milliseconds: u64) {
-        let digits: [u8; 10] in Utf8 = "0123456789";
-        let mut line: [u8; 27] in Utf8 = "elapsed milliseconds: 00000";
+        let digits: [u8; 10] = "0123456789";
+        let mut line: [u8; 27] = "elapsed milliseconds: 00000";
         let ten_thousands: u64 = (milliseconds / 10000) % 10;
         let thousands: u64 = (milliseconds / 1000) % 10;
         let hundreds: u64 = (milliseconds / 100) % 10;
@@ -66,7 +59,7 @@ machine Main::main(context: &mut Main) reaches ProcessExit + Console {
         line[24] = digits[hundreds];
         line[25] = digits[tens];
         line[26] = digits[ones];
-        Console::write_line(line);
+        Console::write_line(&line[..]);
         transition milliseconds >= 50 {
             true -> good(context)
             false -> fail_elapsed(context)
@@ -79,7 +72,7 @@ machine Main::main(context: &mut Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + Console + TimeHost {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

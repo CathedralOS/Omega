@@ -107,7 +107,7 @@ Sample layout:
 - `rooms/`, `inventory/`, `events/`, `combat/`, `player/`, `enemies/`,
   and `rewards/`: domain-owned models plus their behavior
 
-The build declares the std dependency and binds `Main::main` explicitly for
+The build declares the std dependency and binds `entry_start` explicitly for
 Windows x64, Linux x64/ARM64 and macOS ARM64. Ordinary target defaults select
 console and process-exit providers; the sample does not bind each provider
 separately. Selection is not proof of native provider implementation or runtime

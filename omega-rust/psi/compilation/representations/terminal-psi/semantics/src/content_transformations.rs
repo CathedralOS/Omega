@@ -1676,37 +1676,6 @@ pub fn structural_path<'a>(
     Some(path)
 }
 
-pub fn content_path<'a>(
-    types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
-    identities: &TerminalIdentityTable,
-    root: StructuralTypeId,
-    path: &[StructuralPathSegment],
-) -> Option<Vec<ContentPlaceSegment>> {
-    let mut segments = Vec::new();
-    for (position, segment) in path.iter().enumerate() {
-        segments.push(match segment {
-            StructuralPathSegment::Field(identity) => {
-                ContentPlaceSegment::Field(identities.text(*identity)?.to_owned())
-            }
-            StructuralPathSegment::FixedIndex(position) => {
-                ContentPlaceSegment::FixedIndex(*position)
-            }
-            StructuralPathSegment::Case(identity) => {
-                let carrier = runtime_structural_path_tip(types.clone(), root, &path[..position])?;
-                let case = carrier
-                    .shape
-                    .sum_cases()?
-                    .iter()
-                    .find(|case| case.id == *identity)?;
-                ContentPlaceSegment::Case(identities.text(case.identity)?.to_owned())
-            }
-            _ => return None,
-        });
-    }
-    runtime_structural_path_tip(types, root, path)?;
-    Some(segments)
-}
-
 pub fn claim_term(bindings: &[ContentClaimProjection]) -> Result<ContentTerm, &'static str> {
     if bindings.is_empty()
         || bindings
@@ -2667,6 +2636,7 @@ pub mod domain_preservation {
             let low = StructuralFieldId::new(1).unwrap();
             let case_id = |id| StructuralCaseId::new(id).unwrap();
             let declaration = |id, shape| StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
                 requires: Vec::new(),
                 quotient_carrier: None,
                 id,
@@ -2689,14 +2659,17 @@ pub mod domain_preservation {
                     StructuralTypeShape::Sum {
                         cases: vec![
                             StructuralCaseDeclaration {
+                                declaration_identity: Default::default(),
                                 id: case_id(1),
                                 identity: TerminalIdentityIndex(3),
                                 fields: Vec::new(),
                             },
                             StructuralCaseDeclaration {
+                                declaration_identity: Default::default(),
                                 id: case_id(2),
                                 identity: TerminalIdentityIndex(4),
                                 fields: vec![StructuralFieldDeclaration {
+                                    declaration_identity: Default::default(),
                                     inline_carrier: None,
                                     id: low,
                                     identity: TerminalIdentityIndex(5),

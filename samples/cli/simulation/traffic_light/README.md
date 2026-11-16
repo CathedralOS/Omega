@@ -9,7 +9,7 @@ calls. Runs to exit **70**.
 omega run --both --input samples/cli/simulation/traffic_light/input.txt samples/cli/simulation/traffic_light/main.omg
 ```
 
-The machine starts in `Red` (zero-initialized) and calls `Main::advance(main)` four
+The machine starts in `Red` (zero-initialized) and calls `advance(main)` four
 times. After Red→Green→Yellow→Red→Green the advance count is 4 and the phase
 is `Green`. A two-level guard ladder checks both conditions before exiting 70.
 
@@ -17,7 +17,7 @@ Features exercised:
 - `data Phase [copy] { case Red; case Green; case Yellow; }`
 - `data Light [copy]` holding a `Phase` field
 - `transition main.light.phase { Phase::Green -> ... _ -> ... }`
-- Repeated `Main::advance(main)` calls mutate the explicit `main: &mut Main` context
+- Repeated `advance(main)` calls mutate the explicit `main: &mut Main` context
 
 ## Scalar contract migration
 

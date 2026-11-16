@@ -20,7 +20,7 @@ The private search enumerates base-three words in lexicographic action order
 optimization and storage; it imports only stable std console facilities.
 `controller/model.omg` owns the model and limits, `controller/search.omg` owns
 exhaustive optimization, `data/fixtures.omg` owns scenarios and `io/render.omg`
-formats computed results. Build metadata binds `Main::main` explicitly.
+formats computed results. Build metadata binds `main` explicitly.
 
 Compared against existing samples: brightness_control validates direct commands,
 elevator dispatches scripted commands, maze_flood performs BFS, and bubble_sort

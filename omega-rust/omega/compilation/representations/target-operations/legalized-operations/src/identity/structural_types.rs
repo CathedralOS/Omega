@@ -261,6 +261,7 @@ pub fn encode_structural_place(bytes: &mut Vec<u8>, place: StructuralPlaceDeclar
 pub(super) fn encode_structural_type(bytes: &mut Vec<u8>, declaration: &StructuralTypeDeclaration) {
     crate::codec_bytes::push_encoded(bytes, declaration.id.get().to_le_bytes());
     bytes.extend_from_slice(&declaration.identity.0.to_le_bytes());
+    bytes.extend_from_slice(&declaration.declaration_identity.0.to_le_bytes());
     bytes.push(u8::from(declaration.owns_linear_claim));
     bytes.push(u8::from(declaration.no_code_affine_cleanup));
     bytes.push(u8::from(declaration.descriptor_cleanup));
@@ -359,6 +360,7 @@ pub(super) fn encode_structural_type(bytes: &mut Vec<u8>, declaration: &Structur
             for case in cases {
                 crate::codec_bytes::push_encoded(bytes, case.id.get().to_le_bytes());
                 bytes.extend_from_slice(&case.identity.0.to_le_bytes());
+                bytes.extend_from_slice(&case.declaration_identity.0.to_le_bytes());
                 encode_structural_fields(bytes, &case.fields);
             }
         }
@@ -369,6 +371,7 @@ pub(super) fn encode_structural_type(bytes: &mut Vec<u8>, declaration: &Structur
             for case in cases {
                 crate::codec_bytes::push_encoded(bytes, case.id.get().to_le_bytes());
                 bytes.extend_from_slice(&case.identity.0.to_le_bytes());
+                bytes.extend_from_slice(&case.declaration_identity.0.to_le_bytes());
                 encode_structural_fields(bytes, &case.fields);
             }
         }
@@ -429,6 +432,7 @@ pub(super) fn encode_structural_fields(bytes: &mut Vec<u8>, fields: &[Structural
     for field in fields {
         crate::codec_bytes::push_encoded(bytes, field.id.get().to_le_bytes());
         bytes.extend_from_slice(&field.identity.0.to_le_bytes());
+        bytes.extend_from_slice(&field.declaration_identity.0.to_le_bytes());
         bytes.push(u8::from(field.inline_carrier.is_some()));
         if let Some(carrier) = field.inline_carrier {
             bytes.extend_from_slice(&carrier.get().to_le_bytes());
@@ -622,6 +626,7 @@ mod tests {
                 Some(StructuralAccess::WriteOnlyBorrow),
             ]
             .map(|access| StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
                 requires: Vec::new(),
                 quotient_carrier: None,
                 owns_linear_claim: false,
@@ -643,6 +648,7 @@ mod tests {
     #[test]
     fn logical_copy_permission_changes_encoded_identity() {
         assert_distinct_encodings([false, true].map(|flag| StructuralTypeDeclaration {
+            declaration_identity: Default::default(),
             requires: Vec::new(),
             quotient_carrier: None,
             owns_linear_claim: false,
@@ -663,6 +669,7 @@ mod tests {
     #[test]
     fn declaration_owned_linearity_changes_encoded_identity() {
         assert_distinct_encodings([false, true].map(|flag| StructuralTypeDeclaration {
+            declaration_identity: Default::default(),
             requires: Vec::new(),
             quotient_carrier: None,
             owns_linear_claim: flag,
@@ -778,6 +785,7 @@ mod tests {
     fn exact_inline_carrier_changes_field_identity() {
         let encodings = [None, Some(2), Some(3)].map(|identity| {
             let field = StructuralFieldDeclaration {
+                declaration_identity: Default::default(),
                 id: StructuralFieldId::new(1).unwrap(),
                 identity: terminal_psi::TerminalIdentityIndex(1),
                 relevance: BindingRelevance::Relevant,
@@ -814,6 +822,7 @@ mod tests {
         ];
         let identities = fields.map(|(carrier, predicate)| {
             let field = StructuralFieldDeclaration {
+                declaration_identity: Default::default(),
                 inline_carrier: None,
                 storage: None,
                 id: StructuralFieldId::new(1).unwrap(),

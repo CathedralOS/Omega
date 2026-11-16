@@ -1337,6 +1337,7 @@ mod signature_tests {
             }),
             structural_types: abstract_operations::StructuralTypeCatalog::new(
                 vec![terminal_psi::StructuralTypeDeclaration {
+                    declaration_identity: Default::default(),
                     requires: Vec::new(),
                     quotient_carrier: None,
                     owns_linear_claim: false,

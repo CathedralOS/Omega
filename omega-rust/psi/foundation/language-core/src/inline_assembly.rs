@@ -565,6 +565,12 @@ pub enum AsmGlobalDescriptorTableOperation {
 }
 
 impl AsmGlobalDescriptorTableOperation {
+    /// SGDT writes its memory operand; LGDT reads it. Keep this direction
+    /// with the action so admission and operand effects agree.
+    pub const fn writes_operand(self) -> bool {
+        matches!(self, Self::Store)
+    }
+
     pub const fn mnemonic(self) -> &'static str {
         match self {
             Self::Store => "sgdt",
@@ -1246,10 +1252,6 @@ impl AsmOperandConstraint {
         self.maximum_literal
     }
 
-    pub const fn requires_writable_place(self) -> bool {
-        matches!(self.access, AsmOperandAccess::Write)
-    }
-
     pub const fn requires_place(self) -> bool {
         matches!(
             self.access,
@@ -1462,20 +1464,6 @@ pub fn asm_intrinsic_mnemonic(intrinsic_name: &str) -> Option<&'static str> {
         "asm#wrmsr" => Some("wrmsr"),
         _ => None,
     }
-}
-
-pub fn asm_intrinsic_retains_flag_place(intrinsic_name: &str) -> bool {
-    let Some(mnemonic) = asm_intrinsic_mnemonic(intrinsic_name) else {
-        return false;
-    };
-    matches!(
-        asm_catalog_entry(mnemonic),
-        Some(AsmCatalogEntry::Contract(contract))
-            if matches!(
-                contract.flags_data_flow,
-                AsmFlagsDataFlow::SnapshotToOperand | AsmFlagsDataFlow::RestoreFromOperand
-            )
-    )
 }
 
 pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {

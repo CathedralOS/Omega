@@ -1,5 +1,5 @@
-// The returned sequence keeps a field computed at runtime. Psi runs this program.
-// Native realization still needs backing that outlives the machine that builds it.
+// The returned sequence keeps its runtime field through return and by-value calls.
+// Both engines must preserve its owned backing after the creating machine returns.
 data Ticket { kind: u8; number: u32; }
 machine issued(number: u32) -> [Ticket] { [Ticket { kind: 2u8, number: number }] }
 machine counted(tickets: [Ticket]) -> u64 { tickets.len }

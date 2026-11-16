@@ -612,8 +612,12 @@ impl Lowering<'_> {
         acknowledgement: terminal_psi::CallAcknowledgement,
     ) -> Evaluation<()> {
         let routes = self.call_routes(callee, required_contract)?;
-        let crash_continuations =
-            canonical::substituted_routes(routes, &arguments.scalars, self.id)?;
+        let crash_continuations = canonical::substituted_routes(
+            routes,
+            &arguments.scalars,
+            &self.tables.values,
+            self.id,
+        )?;
         let site = self.current()?;
         let before = self.here()?;
         // state_contracts.md, "Terminal calls in transition arms": "A
@@ -857,8 +861,12 @@ impl Lowering<'_> {
         // Both declarations owe the caller's same-cause coverage. A boundary
         // retains these routes on its declaration instead of a second encoded
         // continuation roster; the checker restates them at the actual call.
-        let crash_continuations =
-            canonical::substituted_routes(routes, &arguments.scalars, self.id)?;
+        let crash_continuations = canonical::substituted_routes(
+            routes,
+            &arguments.scalars,
+            &self.tables.values,
+            self.id,
+        )?;
         let before = self.here()?;
         let operation = self.operation_identity(source);
         self.call_formations.push(terminal_psi::CallFormation {

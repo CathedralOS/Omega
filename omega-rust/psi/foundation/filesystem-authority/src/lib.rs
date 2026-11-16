@@ -73,9 +73,6 @@ pub mod open_flags {
     pub const fn o_creat(flags: i32) -> bool {
         (flags >> O_CREAT_BIT) & 1 != 0
     }
-    pub const fn o_excl(flags: i32) -> bool {
-        (flags >> O_EXCL_BIT) & 1 != 0
-    }
     pub const fn o_trunc(flags: i32) -> bool {
         (flags >> O_TRUNC_BIT) & 1 != 0
     }
@@ -87,18 +84,6 @@ pub mod open_flags {
         let access = flags & 0x3;
         access == 1 || access == 2 || o_creat(flags) || o_trunc(flags) || o_append(flags)
     }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FilesystemHostOperandKind {
-    PathBytes,
-    Bytes,
-    I32,
-    U32,
-    I64,
-    U64,
-    MutableBytes,
-    MutableI64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -118,9 +103,6 @@ macro_rules! filesystem_operations {
                 Some(match name { $( $name => Self::$variant, )* _ => return None })
             }
             pub const fn operation_tag(self) -> u16 { self as u16 }
-            pub const fn operand_kinds(self) -> &'static [FilesystemHostOperandKind] {
-                match self { $( Self::$variant => &[ $( FilesystemHostOperandKind::$operand, )* ], )* }
-            }
             pub const fn result_kind(self) -> FilesystemHostResultKind {
                 match self { $( Self::$variant => FilesystemHostResultKind::$result, )* }
             }

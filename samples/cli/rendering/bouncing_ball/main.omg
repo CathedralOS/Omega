@@ -37,7 +37,7 @@ data Main {
 
 // Perform one step of the simulation.
 // Computes new_pos = pos + vel, then applies bounce rules.
-machine Main::step(main: &mut Main) {
+machine step(main: &mut Main) {
     let new_pos: i32 in Wrapping = main.s.pos + main.s.vel;
     transition new_pos > 9 {
         true -> upper_bounce(main, new_pos)
@@ -70,21 +70,21 @@ machine Main::step(main: &mut Main) {
     }
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("bouncing_ball: 1D integer physics -- 8 steps in a [0,9] box with wall reflection");
     // Initialize: pos=0, vel=3.
-    main.s.pos = 0;
-    main.s.vel = 3;
+    main.s.pos = 0 as +Wrapping;
+    main.s.vel = 3 as +Wrapping;
 
     // Run 8 steps.
-    Main::step(main);
-    Main::step(main);
-    Main::step(main);
-    Main::step(main);
-    Main::step(main);
-    Main::step(main);
-    Main::step(main);
-    Main::step(main);
+    step(main);
+    step(main);
+    step(main);
+    step(main);
+    step(main);
+    step(main);
+    step(main);
+    step(main);
 
     // After 8 steps: pos=6, vel=3.
     // Exit code = pos + 64 = 70.
@@ -98,14 +98,14 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     machine good(main: &mut Main) {
         Console::write_line("PASS: ball at pos 6 after 8 steps, 6 + 64 == 70 (exit 70)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(70);
     }
 
     machine bad(main: &mut Main) {
         Console::write_line("FAIL: final position wrong -- expected pos 6 (exit 71)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(71);
     }
 }
@@ -113,5 +113,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

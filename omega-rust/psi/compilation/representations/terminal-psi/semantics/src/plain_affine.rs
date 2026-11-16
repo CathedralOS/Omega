@@ -626,7 +626,7 @@ fn live_entries(
                     .kind
                     .storage_uses()
                     .into_iter()
-                    .filter_map(storage_root)
+                    .filter_map(|(storage, _)| storage_root(storage))
                 {
                     before.insert(valid(used)?);
                 }
@@ -2324,7 +2324,7 @@ impl Analysis<'_> {
                 self.read(state, projection.root, &path, site)
             }
             StructuralStorageUse::Canonical { root, path }
-            | StructuralStorageUse::ObservedField { root, path } => {
+            | StructuralStorageUse::ObservedField { root, path, .. } => {
                 self.read(state, root, path, site)
             }
             StructuralStorageUse::Type(_) => Ok(()),
@@ -2592,13 +2592,14 @@ impl Analysis<'_> {
                     terminal_psi::OperationProjection {
                         root: source.place,
                         path: &source.path,
+                        field: None,
                     }
                     .into(),
                     site,
                 )?;
             }
             kind => {
-                for used in kind.storage_uses() {
+                for (used, _) in kind.storage_uses() {
                     self.storage_use(state, used, site)?;
                 }
             }
@@ -4114,6 +4115,7 @@ mod tests {
         };
 
         let member = |raw, child| StructuralFieldDeclaration {
+            declaration_identity: Default::default(),
             id: StructuralFieldId::new(raw).unwrap(),
             identity: TerminalIdentityIndex(raw as u32),
             relevance: BindingRelevance::Relevant,
@@ -4122,6 +4124,7 @@ mod tests {
             inline_carrier: None,
         };
         let record = |raw, fields| StructuralTypeDeclaration {
+            declaration_identity: Default::default(),
             id: StructuralTypeId::new(raw).unwrap(),
             identity: TerminalIdentityIndex(raw as u32),
             owns_linear_claim: false,
@@ -4563,11 +4566,13 @@ mod tests {
             fields: vec![fields[0].clone()],
             cases: vec![
                 StructuralCaseDeclaration {
+                    declaration_identity: Default::default(),
                     id: StructuralCaseId::new(1).unwrap(),
                     identity: Identity(10),
                     fields: vec![fields[1].clone()],
                 },
                 StructuralCaseDeclaration {
+                    declaration_identity: Default::default(),
                     id: StructuralCaseId::new(2).unwrap(),
                     identity: Identity(11),
                     fields: vec![second_payload],
@@ -4626,6 +4631,7 @@ mod tests {
             unreachable!()
         };
         fields.push(StructuralFieldDeclaration {
+            declaration_identity: Default::default(),
             id: StructuralFieldId::new(5).unwrap(),
             identity: Identity(50),
             relevance: BindingRelevance::Erased,

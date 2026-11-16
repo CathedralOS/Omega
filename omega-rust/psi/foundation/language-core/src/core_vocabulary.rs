@@ -133,30 +133,11 @@ pub enum ReflectionDeclaration {
     VisitActiveFieldsMut,
 }
 
-impl ReflectionDeclaration {
-    /// Whether this is one of the field-visiting operations.
-    pub const fn is_field_visitor(self) -> bool {
-        matches!(
-            self,
-            Self::VisitRuntimeFields
-                | Self::VisitRuntimeFieldsMut
-                | Self::InspectRecordFields
-                | Self::VisitActiveFields
-                | Self::VisitActiveFieldsMut
-        )
-    }
-}
-
 impl CoreVocabulary {
     /// Whether this is the `extent.omg` domain declared with member `name`.
     /// Names `extent.omg` does not declare never match.
     pub fn is_extent_domain_named(self, name: &str) -> bool {
         matches!(self, Self::ExtentDomain(domain) if domain.name() == name)
-    }
-
-    /// Whether this is one of `reflect.omg`'s field-visiting operations.
-    pub const fn is_reflection_field_visitor(self) -> bool {
-        matches!(self, Self::Reflection(declaration) if declaration.is_field_visitor())
     }
 }
 

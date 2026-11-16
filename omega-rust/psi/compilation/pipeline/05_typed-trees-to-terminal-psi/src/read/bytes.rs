@@ -628,9 +628,10 @@ impl Program<'_> {
         };
         // A view in a domain is served where the checker judges what it
         // holds: a data field, whose every store it judges from the bytes
-        // supplied, and the cast that makes a value for one
-        // (`QualifiedViews`). A local, formal or result of such a type would
-        // owe its predicates at moves and calls that nothing judges yet.
+        // supplied; a formal, whose domain's predicates every call owes as
+        // entry requirements (`formal_value_type`); and the cast that makes a
+        // value for either (`QualifiedViews`). A local or result of such a
+        // type would owe its predicates at moves that nothing judges yet.
         let mut qualification = Qualification::NONE;
         if !domains.is_empty() {
             if !self.qualified_views {

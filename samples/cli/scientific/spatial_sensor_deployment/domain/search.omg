@@ -101,7 +101,7 @@ machine deployment_cost(problem: &Problem, mask: u64 in Wrapping) -> u64 in Wrap
     }
 }
 
-machine Search::solve(search: &mut Search, problem: &Problem) {
+machine solve(search: &mut Search, problem: &Problem) {
     search.mask = 0; search.cost = 0; search.score = 0; search.code = 0; search.ties = 0;
     transition { _ -> subset(search, problem, 0) }
     machine subset(search: &mut Search, problem: &Problem, mask: u64 in Wrapping) {

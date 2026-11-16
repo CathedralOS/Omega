@@ -27,7 +27,7 @@ data Main {
     grid: [i32; 364]; // 26 x 14, padded; real cells rows 1..12, cols 1..24
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Clock + Console {
+machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
     Console::write_line("game_of_life_glider: a glider crossing a 24x12 field, animated in place");
     transition { _ -> block clear_grid(main, 0) }
 
@@ -57,7 +57,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Clock + Console {
         }
     }
     machine render(main: &mut Main, generation: i32) {
-        let rendered: bool = Main::render(main);
+        let rendered: bool = main_render(main);
         transition rendered {
             true -> block advance(main, generation)
             _ -> block bad(main)
@@ -84,14 +84,14 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Clock + Console {
         Console::write_line("PASS: 40 generations rendered (exit 0)");
         Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
-        _ = block Console::read_line(&mut pause);
+        _ = block Console::read_line(&mut pause[..]);
         ProcessExit::exit_process(0);
     }
     machine bad(main: &mut Main) {
         Console::write_line("FAIL: internal bounds check failed (exit 1)");
         Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
-        _ = block Console::read_line(&mut pause);
+        _ = block Console::read_line(&mut pause[..]);
         ProcessExit::exit_process(1);
     }
 }
@@ -206,7 +206,7 @@ requires cell_index >= 0 && cell_index < 364
 
 // Rendering owns its row buffer for one invocation. The grid and bindings stay
 // in Main; row/column positions travel as values on the edges that use them.
-machine Main::render(main: &mut Main) -> bool reaches ProcessExit + Console {
+machine main_render(main: &mut Main) -> bool reaches ProcessExit + Console {
     let mut home: [u8; 3] in Utf8 = "XXX";
     home[0] = 27;
     home[1] = 91;
@@ -287,5 +287,5 @@ machine Main::render(main: &mut Main) -> bool reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Clock + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

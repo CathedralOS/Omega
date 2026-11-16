@@ -353,13 +353,6 @@ pub mod build_requests {
         pub action: TerminalBuildRequestOperation,
     }
 
-    pub fn is_project_request_protocol(
-        symbols: &symbols::SymbolTable,
-        declaration: symbols::SymbolHandle,
-    ) -> bool {
-        is_build_protocol(symbols, declaration, "BuildRequestOperations")
-    }
-
     /// The toolchain protocol whose operations carry a Build selection's
     /// designated operands (`Build::bind`, `Build::select_provider`, ...).
     pub const SELECTION_PROTOCOL: &str = "BuildBindingOperations";
@@ -938,6 +931,82 @@ pub mod conformance_identity {
         }
     }
 
+    /// A generated body's source publisher and receiver calculate its identity
+    /// from the same complete arguments. Value arguments retain the checked
+    /// binder's carrier as well as their canonical scalar value.
+    pub struct MachineApplicationCommitment(DomainDigestEncoder);
+
+    impl MachineApplicationCommitment {
+        pub fn new(callable: &str) -> Result<Self, &'static str> {
+            use std::hash::Hash;
+            if callable.is_empty() {
+                return Err("machine application has no exact template callable identity");
+            }
+            let mut commitment = Self(DomainDigestEncoder::new(
+                b"omega.lowered-machine-static-application.v1\0",
+            ));
+            callable.hash(&mut commitment);
+            Ok(commitment)
+        }
+
+        pub fn type_argument(&mut self, identity: &str) -> Result<(), &'static str> {
+            use std::hash::Hash;
+            if identity.is_empty() {
+                return Err("machine application has an empty type argument");
+            }
+            identity.hash(self);
+            Ok(())
+        }
+
+        pub fn const_argument(
+            &mut self,
+            value: &crate::const_value::CanonicalConstValue,
+        ) -> Result<(), &'static str> {
+            use std::hash::Hash;
+            if value.type_name.is_empty() || !value.is_scalar() {
+                return Err("machine application has no checked scalar carrier and value");
+            }
+            (
+                "canonical-value.v2",
+                value.type_name.as_str(),
+                value.encoding.as_str(),
+            )
+                .hash(self);
+            Ok(())
+        }
+
+        pub fn conformance_argument(&mut self, identity: &str) -> Result<(), &'static str> {
+            use std::hash::Hash;
+            if identity.is_empty() {
+                return Err("machine application has an empty implementation identity");
+            }
+            ("implementation", identity).hash(self);
+            Ok(())
+        }
+
+        pub fn machine_argument(&mut self, identity: &str) -> Result<(), &'static str> {
+            use std::hash::Hash;
+            if identity.is_empty() {
+                return Err("machine application has an empty callable argument identity");
+            }
+            ("machine", identity).hash(self);
+            Ok(())
+        }
+
+        pub fn finish(self) -> [u8; 32] {
+            self.0.finish()
+        }
+    }
+
+    impl std::hash::Hasher for MachineApplicationCommitment {
+        fn finish(&self) -> u64 {
+            0
+        }
+        fn write(&mut self, bytes: &[u8]) {
+            self.0.raw(bytes);
+        }
+    }
+
     /// The source publisher and artifact receiver must identify the same
     /// applied public member. Preserve the existing type/value hash sequence;
     /// another operand category needs its complete contract before use here.
@@ -945,27 +1014,12 @@ pub mod conformance_identity {
         callable: &str,
         arguments: &[MachineOperandSelectionIdentity],
     ) -> Result<[u8; 32], &'static str> {
-        use std::hash::{Hash, Hasher};
-        struct Commitment(DomainDigestEncoder);
-        impl Hasher for Commitment {
-            fn finish(&self) -> u64 {
-                0
-            }
-            fn write(&mut self, bytes: &[u8]) {
-                self.0.raw(bytes);
-            }
-        }
-        if callable.is_empty() {
-            return Err("applied requirement has no exact template callable identity");
-        }
-        let mut commitment = Commitment(DomainDigestEncoder::new(
-            b"omega.lowered-machine-static-application.v1\0",
-        ));
-        callable.hash(&mut commitment);
+        use std::hash::Hash;
+        let mut commitment = MachineApplicationCommitment::new(callable)?;
         for argument in arguments {
             match argument {
                 MachineOperandSelectionIdentity::Type(identity) if !identity.is_empty() => {
-                    identity.hash(&mut commitment);
+                    commitment.type_argument(identity)?;
                 }
                 MachineOperandSelectionIdentity::Const(identity) if !identity.is_empty() => {
                     ("value", identity.as_str()).hash(&mut commitment);
@@ -977,7 +1031,7 @@ pub mod conformance_identity {
                 }
             }
         }
-        Ok(commitment.0.finish())
+        Ok(commitment.finish())
     }
 
     pub fn source_identity_commitments(bytes: &[u8]) -> (u64, [u8; 32]) {
@@ -1328,10 +1382,6 @@ mod machine_termination {
     }
 
     impl MachineSupplyMode {
-        pub const fn is_checked_body(self) -> bool {
-            matches!(self, Self::CheckedBody)
-        }
-
         pub const fn is_boundary_declaration(self) -> bool {
             matches!(
                 self,
@@ -1429,6 +1479,7 @@ mod machine_termination {
         pub namespace: &'static str,
         pub name: &'static str,
         pub parameter: &'static str,
+        pub subject_count: usize,
         pub result: &'static str,
     }
 
@@ -1465,17 +1516,20 @@ mod machine_termination {
         }
 
         pub fn catalog_declaration(self) -> Option<RankingViewDeclaration> {
-            match self {
-                Self::NAT_DESCENDING => Some(RankingViewDeclaration {
-                    view: self,
-                    source: RANKING_VIEW_CORE_SOURCE,
-                    namespace: "Nat",
-                    name: "Descending",
-                    parameter: "u64",
-                    result: "u64",
-                }),
-                _ => None,
-            }
+            let (name, subject_count) = match self {
+                Self::NAT_DESCENDING => ("Descending", 1),
+                Self::NAT_BOUNDED_DISTANCE => ("BoundedDistance", 2),
+                _ => return None,
+            };
+            Some(RankingViewDeclaration {
+                view: self,
+                source: RANKING_VIEW_CORE_SOURCE,
+                namespace: "Nat",
+                name,
+                parameter: "u64",
+                subject_count,
+                result: "u64",
+            })
         }
 
         pub fn from_catalog_declaration(
@@ -1768,32 +1822,6 @@ pub mod provider_declarations {
 }
 pub mod quotient_correspondence {
     #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
-    pub struct QuotientCallableIdentity {
-        pub declaration: String,
-        pub overload: String,
-    }
-
-    #[derive(
-        Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record,
-    )]
-    pub enum QuotientCorrespondenceOperationKind {
-        Lift,
-        LiftWithForwardPreconditionTransport,
-        Define,
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
-    pub struct QuotientStaticApplication {
-        pub bindings: Vec<String>,
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
-    pub struct QuotientMachineApplication {
-        pub callable: QuotientCallableIdentity,
-        pub static_application: QuotientStaticApplication,
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
     pub struct QuotientRelationIdentity {
         pub quotient_declaration: String,
         pub quotient_type: String,
@@ -1810,206 +1838,12 @@ pub mod quotient_correspondence {
         },
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
-    pub enum QuotientRuntimeArgument {
-        PublicParameter {
-            public_position: u32,
-        },
-        ClosedLiteral {
-            value_identity: String,
-            representative_type: String,
-        },
-    }
-
-    #[derive(
-        Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record,
-    )]
-    pub enum QuotientContractOwner {
-        Machine,
-        State,
-    }
-
-    #[derive(
-        Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record,
-    )]
-    pub struct QuotientContractFactCoordinate {
-        pub owner: QuotientContractOwner,
-        pub contract_position: u32,
-        pub fact_position: u32,
-    }
-
-    #[derive(
-        Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record,
-    )]
-    pub enum QuotientTheoremApplicationSide {
-        Left,
-        Right,
-    }
-
-    #[derive(
-        Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record,
-    )]
-    pub struct QuotientForwardPreconditionTransportFact {
-        pub application: QuotientTheoremApplicationSide,
-        pub source: QuotientContractFactCoordinate,
-        pub actual: QuotientContractFactCoordinate,
-    }
-
-    pub type QuotientTheoremLegalityFact = QuotientForwardPreconditionTransportFact;
-
-    #[derive(
-        Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record,
-    )]
-    pub enum QuotientTheoremParameterRole {
-        QuotientLeft { input_position: u32 },
-        QuotientRight { input_position: u32 },
-        Shared { input_position: u32 },
-    }
-
-    #[derive(
-        Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record,
-    )]
-    pub struct QuotientTheoremParameter {
-        pub theorem_position: u32,
-        pub role: QuotientTheoremParameterRole,
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
-    pub struct QuotientTheoremRelationPremise {
-        pub expected_position: u32,
-        pub actual: QuotientContractFactCoordinate,
-        pub relation: String,
-        pub left_parameter: u32,
-        pub right_parameter: u32,
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
-    pub struct QuotientRepresentativeApplication {
-        pub arguments: Vec<u32>,
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
-    pub enum QuotientResultRelation {
-        Quotient(String),
-        ExactEquality(String),
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
-    pub struct QuotientTheoremConclusion {
-        pub actual: QuotientContractFactCoordinate,
-        pub relation: QuotientResultRelation,
-        pub left: QuotientRepresentativeApplication,
-        pub right: QuotientRepresentativeApplication,
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
-    pub struct QuotientCongruenceCorrespondence {
-        pub parameters: Vec<QuotientTheoremParameter>,
-        pub relation_premises: Vec<QuotientTheoremRelationPremise>,
-        pub legality_premises: Vec<QuotientTheoremLegalityFact>,
-        pub conclusion: QuotientTheoremConclusion,
-    }
-
     #[derive(
         Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record,
     )]
     pub enum QuotientTheoremRole {
         Congruence,
         ForwardPreconditionTransport,
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
-    pub struct QuotientForwardPreconditionTransportCorrespondence {
-        pub public_premises: Vec<QuotientForwardPreconditionTransportFact>,
-        pub representative_conclusions: Vec<QuotientForwardPreconditionTransportFact>,
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
-    pub enum QuotientTheoremCorrespondence {
-        Congruence(QuotientCongruenceCorrespondence),
-        ForwardPreconditionTransport(QuotientForwardPreconditionTransportCorrespondence),
-    }
-
-    #[derive(
-        Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record,
-    )]
-    pub enum QuotientPurityCertificate {
-        PureClosure,
-    }
-
-    #[derive(
-        Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record,
-    )]
-    pub enum QuotientTerminationCertificate {
-        Unconditional,
-    }
-
-    #[derive(
-        Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record,
-    )]
-    pub enum QuotientCrashCertificate {
-        CrashFree,
-    }
-
-    #[derive(
-        Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record,
-    )]
-    pub struct QuotientRepresentativeEligibility {
-        pub purity: QuotientPurityCertificate,
-        pub termination: QuotientTerminationCertificate,
-    }
-
-    #[derive(
-        Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record,
-    )]
-    pub struct QuotientTheoremEligibility {
-        pub purity: QuotientPurityCertificate,
-        pub termination: QuotientTerminationCertificate,
-        pub crash: QuotientCrashCertificate,
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
-    pub struct QuotientTheoremEvidence {
-        pub role: QuotientTheoremRole,
-        pub selected_application: QuotientMachineApplication,
-        pub correspondence: QuotientTheoremCorrespondence,
-        pub eligibility: QuotientTheoremEligibility,
-    }
-
-    #[derive(
-        Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record,
-    )]
-    pub struct QuotientStateForwarding {
-        pub source_position: u32,
-        pub target_position: u32,
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
-    pub enum QuotientResultFlow {
-        Direct {
-            statement_position: u32,
-            immutable_alias_count: u32,
-        },
-        Forwarded {
-            machine_state_count: u32,
-            result_state_position: u32,
-            statement_position: u32,
-            immutable_alias_count: u32,
-            forwarding: Vec<QuotientStateForwarding>,
-        },
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
-    pub struct QuotientCorrespondenceJudgment {
-        pub operation_kind: QuotientCorrespondenceOperationKind,
-        pub public_operation: QuotientCallableIdentity,
-        pub representative: QuotientMachineApplication,
-        pub input_relations: Vec<QuotientPositionalRelation>,
-        pub result_relation: QuotientPositionalRelation,
-        pub runtime_arguments: Vec<QuotientRuntimeArgument>,
-        pub theorem_evidence: Vec<QuotientTheoremEvidence>,
-        pub representative_eligibility: QuotientRepresentativeEligibility,
-        pub result_flow: QuotientResultFlow,
     }
 }
 mod semantic_domains {
@@ -2511,12 +2345,6 @@ pub mod value_domain {
                 Self::Finite => "Finite",
             }
         }
-
-        pub fn proof_name(self) -> &'static str {
-            match self {
-                Self::Finite => "finite",
-            }
-        }
     }
 }
 pub mod wire {
@@ -2553,13 +2381,6 @@ pub mod wire {
         pub require_unknown_preservation: bool,
         pub require_canonical: bool,
         pub require_complete_migration: bool,
-    }
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub struct WireScalarRange {
-        pub minimum: i64,
-        pub maximum: i64,
-        pub signed: bool,
     }
 }
 
@@ -2611,13 +2432,6 @@ pub mod native_bindings {
     pub struct NativeLocatorCase<'value, Value> {
         pub name: &'value str,
         pub fields: Vec<(&'value str, Value)>,
-    }
-
-    pub fn decode_binding_value(
-        value: &BuildTimeValue,
-        widths: [u64; 3],
-    ) -> Result<NativeBindingLocator, String> {
-        decode_native_locator(value, widths)
     }
 
     pub fn decode_native_locator<Value: NativeLocatorValue>(

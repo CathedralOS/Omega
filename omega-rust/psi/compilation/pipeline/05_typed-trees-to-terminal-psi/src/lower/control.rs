@@ -352,8 +352,13 @@ impl Lowering<'_> {
                 source,
             } => {
                 let cases: Vec<usize> = arms.iter().map(|(case, _, _)| *case).collect();
-                let (blocks, rest) =
-                    continuing!(self.select(subject, &cases, default.is_some(), *source, None));
+                let (blocks, rest) = continuing!(self.select(
+                    subject,
+                    &cases,
+                    default.as_ref().map(|(_, arm)| *arm),
+                    *source,
+                    None
+                ));
                 // Each arm completes the machine, so what one binds (the home
                 // a loan gives a local) is no other arm's.
                 let bound = self.slots.clone();
@@ -668,8 +673,13 @@ impl Lowering<'_> {
             })
             .collect::<Checked<Vec<usize>>>()?;
         let decided_in = self.current()?;
-        let (blocks, rest) =
-            continuing!(self.select(subject, &cases, default.is_some(), source, capture));
+        let (blocks, rest) = continuing!(self.select(
+            subject,
+            &cases,
+            default.map(|value| value.source),
+            source,
+            capture
+        ));
         let bodies = arms
             .iter()
             .map(|(_, value)| value)
@@ -883,9 +893,9 @@ impl Lowering<'_> {
         Ok(Reached::Value(result))
     }
 
-    /// `value as +D` for a domain with predicates: a jump, at the cast, to
-    /// a block whose one parameter is the cast's result and whose invariant
-    /// is the domain's predicates of that parameter. control_flow.md:
+    /// Prove a cast's conditions before continuing in a block that records
+    /// them. Domain addition and exact carrier conversion share this step;
+    /// the block parameter keeps the operand's existing value. control_flow.md:
     /// "Every arrival proves the predicate under simultaneous
     /// destination-parameter to actual-argument substitution, before
     /// destination hypotheses become available." The edge is therefore
@@ -893,19 +903,22 @@ impl Lowering<'_> {
     /// Prove them for this value."), and the block is where the result is
     /// known to satisfy them. Nothing is computed: the parameter is the
     /// operand's value.
-    pub(super) fn prove_membership(
+    pub(super) fn establish_predicates(
         &mut self,
         operand: ValueId,
         scalar_type: ScalarType,
+        qualification: crate::body::Qualification,
         clauses: &[Proposition],
-        stated: &str,
+        stated: Option<&terminal_check_tables::program::CastCondition>,
         source: SourceOrigin,
     ) -> Checked<ValueId> {
         let id = self.id;
         let established = self.block(source);
-        self.sources
-            .memberships
-            .push((established, stated.to_owned()));
+        if let Some(stated) = stated {
+            self.sources
+                .predicate_establishments
+                .push((established, stated.clone()));
+        }
         let result = self.value(
             scalar_type,
             ValueOrigin::BlockParameter {
@@ -916,7 +929,12 @@ impl Lowering<'_> {
         self.parameter(established, result, scalar_type)?;
         let mut predicate = Vec::with_capacity(clauses.len());
         for clause in clauses {
-            predicate.push(canonical::substitute(clause, &[result], id)?);
+            predicate.push(canonical::substitute(
+                clause,
+                &[result],
+                &self.tables.values,
+                id,
+            )?);
         }
         self.invariants.push(terminal_psi::ScalarBlockInvariant {
             machine: id,
@@ -927,16 +945,28 @@ impl Lowering<'_> {
         let edge = semantic_vocabulary::EdgeId::new(self.tables.edges.len() as u64 + 1)
             .ok_or_else(|| self.internal("qualification edge identity overflow"))?;
         self.jump(established, vec![operand], source)?;
-        self.qualifications
-            .catalog
-            .coercions
-            .push(terminal_psi::ScalarQualificationCoercion {
-                machine: id,
-                edge,
-                argument_ordinal: 0,
-                source: operand,
-                destination: result,
-            });
+        let original = self
+            .value_qualifications
+            .get((operand.get() - 1) as usize)
+            .copied()
+            .flatten()
+            .ok_or_else(|| self.internal("cast operand has no declared qualification"))?;
+        let before = self.qualifications.scalar(id, scalar_type, original)?;
+        let after = self.qualifications.scalar(id, scalar_type, qualification)?;
+        // A logical predicate needs an ordinary same-value edge. Publish a
+        // membership coercion only when the declared membership set changes.
+        if before != after {
+            self.qualifications
+                .catalog
+                .coercions
+                .push(terminal_psi::ScalarQualificationCoercion {
+                    machine: id,
+                    edge,
+                    argument_ordinal: 0,
+                    source: operand,
+                    destination: result,
+                });
+        }
         self.enter(established);
         Ok(result)
     }

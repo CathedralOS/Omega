@@ -114,10 +114,9 @@ fn the_field_carries_its_predicates_on_its_type() {
 }
 
 /// What this slice does not judge is refused by name, never accepted: the
-/// literal without the cast that would give it the domain, a view in a
-/// domain anywhere but a field, a domain that is no primitive byte
-/// predicate, one the empty view is not in, and a store whose bytes come
-/// from another field rather than a literal.
+/// literal without the cast that would give it the domain, a domain that is
+/// no primitive byte predicate, one the empty view is not in, and a store
+/// whose bytes come from another field rather than a literal.
 #[test]
 fn what_no_bytes_decide_is_refused() {
     let declarations = r#"
@@ -138,10 +137,6 @@ data Rejection<'reason> { reason: &'reason [u8] in Text; }
         "{}",
         verdict(&uncast)
     );
-    let formal = format!(
-        "{declarations}machine keep(text: &[u8] in Text) {{ }}\nmachine build_entry() {{ keep(\"x\" as +Text); }}"
-    );
-    assert_ne!(verdict(&formal), "accepted");
     let copied = format!(
         "{declarations}machine copy(from: &Rejection, into: &mut Rejection) {{ into.reason = from.reason; }}\n\
          machine build_entry() {{ let a: Rejection = Rejection {{ reason: \"x\" as +Text }}; let mut b: Rejection; copy(&a, &mut b); }}"
@@ -197,5 +192,42 @@ fn byte_predicate_spelling_needs_its_exact_domain_call() {
     assert!(
         reason.starts_with("type byte view in a domain that is not a primitive byte predicate"),
         "{shadowed}\n{reason}"
+    );
+}
+
+/// A formal in a byte domain, `name: &[u8] in Name`, owes the domain's
+/// primitive byte predicate at entry: every caller proves it of the bytes it
+/// passes, and the body may rely on it (byte_views.md: "An ordinary or
+/// boundary shared-byte argument may satisfy its formal's primitive byte
+/// domains from these reconstructed predicates"). The forwarding call passes
+/// the caller's own formal, whose entry requirement is that same predicate
+/// of the same bytes. The twins differ only in the bytes the entry passes.
+fn forwarded(bytes: &str) -> String {
+    format!(
+        r#"
+domain [u8]::Name
+requires
+    no_nul(self);
+machine keep(name: &[u8] in Name) {{ }}
+machine forward(name: &[u8] in Name) {{ keep(name); }}
+machine build_entry() {{ forward("{bytes}" as +Name); }}
+"#
+    )
+}
+
+#[test]
+fn a_formal_in_a_byte_domain_requires_its_predicate_of_the_bytes_passed() {
+    assert_eq!(verdict(&forwarded("plain")), "accepted");
+    let Ok(RouteVerdict::Rejected { unproved, .. }) = judge_build(&forwarded(r"pla\x00in")) else {
+        panic!("not rejected");
+    };
+    let statements: Vec<&str> = unproved.iter().map(|one| one.statement.as_str()).collect();
+    assert_eq!(
+        statements,
+        [
+            "cannot prove requires contract for call forward from build_entry: no_nul(self) \
+          (needs fact `no_nul(self)` here; establish it before the call via a prior contract \
+          guarantee, domain membership, or guard) in state `entry`"
+        ]
     );
 }

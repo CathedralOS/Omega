@@ -236,8 +236,9 @@ mod declaration_values {
     use crate::constant::initializer_normalization;
     use crate::constant::substitution::semantic_const_name;
     use crate::lowering::expression::lower_expression_into_table;
-    use crate::preparation::generic_data::canonicalize_selected_declared_const_definition;
-    use crate::preparation::generic_data::prove_const_literal_predicates;
+    use crate::preparation::generic_data::{
+        canonicalize_selected_declared_const_definition, const_destination_requires_proof,
+    };
     use crate::tables::syntax_expressions;
     use crate::tables::syntax_items;
     use crate::tables::syntax_type_references;
@@ -356,6 +357,12 @@ mod declaration_values {
         selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
     ) -> Result<EvaluatedConstant, String> {
         use language_core::constant_value::EvaluatedConstant;
+        // A literal payload does not establish the selected declaration's
+        // predicates. Keep it pending until its ordinary initializer is
+        // checked and admitted for evaluation.
+        if const_destination_requires_proof(syntax, definition, selection) {
+            return Err("constant requires its checked initializer computation".into());
+        }
         if let Some(normalization) = &definition.normalization {
             return Ok(normalization.result_value.clone());
         }
@@ -474,6 +481,7 @@ mod declaration_values {
     ) -> Result<(), Diagnostic> {
         if definition.normalization.is_some()
             || crate::constant::requires_const_initializer_evaluation(syntax, definition)
+            || const_destination_requires_proof(syntax, definition, selection)
         {
             // Resolution retains the request and its declaration identities.
             // Only an accepted invocation can supply a computed value.
@@ -515,14 +523,6 @@ mod declaration_values {
                     ))
                     .with_source_span(definition.name.source_span())
                 })?;
-        } else {
-            prove_const_literal_predicates(syntax, definition, selection).map_err(|reason| {
-                Diagnostic::error(format!(
-                    "constant `{}` is invalid: {reason}",
-                    semantic_const_name(syntax, definition)
-                ))
-                .with_source_span(definition.name.source_span())
-            })?;
         }
         validate_scalar_initializer(syntax, definition, selection).map_err(|reason| {
             Diagnostic::error(format!(
@@ -545,6 +545,11 @@ mod declaration_values {
             && definition.normalization.is_none()
             && !has_scalar_initializer(syntax, definition)
             && !crate::constant::requires_const_initializer_evaluation(syntax, definition)
+            && !const_destination_requires_proof(
+                syntax,
+                definition,
+                lowerer.constant_selection.as_ref(),
+            )
         {
             if crate::preparation::module_normalization::module_literal_constant(
                 syntax,
@@ -1254,21 +1259,6 @@ pub(crate) mod initializer_dependencies {
         })
     }
 
-    pub(crate) fn collect(
-        program: &SymbolResolvedTrees,
-        root: ExpressionHandle,
-        selected_calls: Option<&[(SourceSpan, SourceSpan)]>,
-    ) -> Result<ConstInitializerDependencies, String> {
-        let mut collector = Collector {
-            expressions: vec![DependencyWork::unscoped(root)],
-            initializer_expressions: vec![DependencyWork::unscoped(root)],
-            selected_calls,
-            ..Collector::new(program)
-        };
-        collector.collect()?;
-        Ok(collector.dependencies)
-    }
-
     /*
         A declaration's destination participates in readiness independently of the
         expression leaves. In particular an empty/literal array still demands its
@@ -1330,36 +1320,6 @@ pub(crate) mod initializer_dependencies {
         }
 
         Ok(collector.dependencies)
-    }
-
-    pub(crate) fn expression_at_source(
-        program: &SymbolResolvedTrees,
-        root: ExpressionHandle,
-        source: SourceSpan,
-    ) -> Result<ExpressionHandle, String> {
-        let mut collector = Collector {
-            expressions: vec![DependencyWork::unscoped(root)],
-            follow_dependencies: false,
-            ..Collector::new(program)
-        };
-        let mut selected = None;
-        while let Some(work) = collector.expressions.pop() {
-            collector.lexical_owner = work.lexical_owner;
-            let expression = work.value;
-            if collector.visited_expressions.contains(&work) {
-                continue;
-            }
-            collector.visited_expressions.push(work);
-            if program.tables.bodies.expressions.source_span(expression) == source {
-                if selected.is_some() {
-                    return Err("initializer leaf source correspondence is ambiguous".to_owned());
-                }
-                selected = Some(expression);
-            }
-            collector.expression(expression)?;
-        }
-        selected
-            .ok_or_else(|| "initializer leaf is absent from its retained original root".to_owned())
     }
 
     /*

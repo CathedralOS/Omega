@@ -255,6 +255,7 @@ mod tests {
     }
     fn declaration(raw: u64, shape: StructuralTypeShape) -> StructuralTypeDeclaration {
         StructuralTypeDeclaration {
+            declaration_identity: Default::default(),
             id: ty(raw),
             identity: TerminalIdentityIndex(raw as u32),
             shape,
@@ -352,6 +353,7 @@ mod tests {
         let scalar =
             |bits| ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, bits).unwrap());
         let field = |raw| StructuralFieldDeclaration {
+            declaration_identity: Default::default(),
             id: StructuralFieldId::new(raw).unwrap(),
             identity: TerminalIdentityIndex(raw as u32),
             field_type: StructuralFieldType::Scalar(scalar(64)),

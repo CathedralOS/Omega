@@ -6,7 +6,9 @@ Both axes are one judgment. A machine publishes a row of service identities
 on each: its written ceiling when it has one, else what its body's calls
 contribute. So one containment decides the written and the derived case, and
 it is judged per call: what the callee publishes must lie inside what the
-caller publishes. The callee's published row is the only thing read of it.
+caller publishes. A proof-only witness of an installation-bound requirement
+checks fixed contributions now; its selected abstract children are resolved
+and bounded at installation. Ordinary authored ceilings stay pinned.
 
 `wiki/spec/language/effects.md`, for reach: "derived body reach =
 normalize(contributions from calls)" and "derived body reach subset-of
@@ -36,6 +38,7 @@ a selector value is refused in a module that declares services.
 */
 
 use semantic_vocabulary::{InvocationSite, MachineId, ServiceId, TargetMachineCallable};
+use std::borrow::Cow;
 use terminal_check_tables::edges::Callee;
 use terminal_check_tables::{CheckTables, Checked, Construct, RefusalReason};
 use terminal_psi::{BoundaryMachineDeclaration, TerminalMachine, TerminalModule};
@@ -119,7 +122,19 @@ fn row(module: &TerminalModule, machine: MachineId, axis: Axis, row: &[ServiceId
     Ok(())
 }
 
-pub(crate) fn judge(module: &TerminalModule, tables: &CheckTables) -> Checked<Vec<Excess>> {
+pub(crate) fn judge(
+    module: &TerminalModule,
+    tables: &CheckTables,
+    installation_bound_refinement: Option<MachineId>,
+) -> Checked<Vec<Excess>> {
+    if installation_bound_refinement
+        .is_some_and(|root| module.entry != Some(TargetMachineCallable::Machine(root)))
+    {
+        return Err(fault(
+            installation_bound_refinement.expect("present refinement root"),
+            "installation reach refinement does not name its proof root",
+        ));
+    }
     for machine in &module.machines {
         for axis in Axis::ALL {
             row(module, machine.id, axis, axis.of_machine(machine))?;
@@ -164,10 +179,27 @@ pub(crate) fn judge(module: &TerminalModule, tables: &CheckTables) -> Checked<Ve
         }
     }
     if let Some(TargetMachineCallable::Machine(entry)) = module.entry {
+        // An unresolved installation row is bounded by its requirement, not
+        // an unconditional contribution to this root's concrete services.
+        let root_ceiling = if module
+            .root_service_reach
+            .installation_dependencies
+            .is_empty()
+        {
+            Cow::Borrowed(module.root_service_reach.concrete.as_slice())
+        } else {
+            let mut ceiling = module.root_service_reach.concrete.clone();
+            for dependency in &module.root_service_reach.installation_dependencies {
+                ceiling.extend(dependency.upper_bound.iter().copied());
+            }
+            ceiling.sort_unstable();
+            ceiling.dedup();
+            Cow::Owned(ceiling)
+        };
         let published = module
             .machine(entry)
             .map(|machine| machine.published_service_ceiling.as_slice());
-        if published != Some(module.root_service_reach.concrete.as_slice()) {
+        if published != Some(root_ceiling.as_ref()) {
             return Err(fault(
                 entry,
                 "root service reach is not the entry's published row",
@@ -175,6 +207,11 @@ pub(crate) fn judge(module: &TerminalModule, tables: &CheckTables) -> Checked<Ve
         }
     }
     let mut found = Vec::new();
+    let context = CallCeilings {
+        module,
+        tables,
+        installation_bound_refinement,
+    };
     for caller in &module.machines {
         let rows = tables
             .machines
@@ -202,21 +239,13 @@ pub(crate) fn judge(module: &TerminalModule, tables: &CheckTables) -> Checked<Ve
                 | InvocationSite::InvokeNoNormal(edge)
                 | InvocationSite::Cleanup { edge, .. } => Construct::Edge(edge),
             };
-            contribution(
-                module,
-                caller,
-                callee,
-                call.required_contract,
-                at,
-                &mut found,
-            )?;
+            context.contribution(caller, callee, call.required_contract, at, &mut found)?;
         }
         for formation in &caller.call_formations {
             if let (terminal_psi::CallSite::Edge(edge), Some(callee)) =
                 (formation.site, formation.tail_callee)
             {
-                contribution(
-                    module,
+                context.contribution(
                     caller,
                     callee.into(),
                     None,
@@ -231,47 +260,162 @@ pub(crate) fn judge(module: &TerminalModule, tables: &CheckTables) -> Checked<Ve
 
 /// Frame reuse changes execution into a jump, not the published interface
 /// charged to the caller. Every retained call uses the same containment.
-fn contribution(
+struct CallCeilings<'module> {
+    module: &'module TerminalModule,
+    tables: &'module CheckTables,
+    installation_bound_refinement: Option<MachineId>,
+}
+
+impl CallCeilings<'_> {
+    fn contribution(
+        &self,
+        caller: &TerminalMachine,
+        callee: TargetMachineCallable,
+        required_contract: Option<semantic_vocabulary::ContractId>,
+        at: Construct,
+        found: &mut Vec<Excess>,
+    ) -> Checked<()> {
+        let module = self.module;
+        let tables = self.tables;
+        for axis in Axis::ALL {
+            let contributes = match callee {
+                TargetMachineCallable::Machine(id) => module
+                    .invocation_machine_contract(id, required_contract)
+                    .map(|contract| axis.of_contract(contract)),
+                TargetMachineCallable::Boundary(id) => module
+                    .boundary_machine(id)
+                    .map(|boundary| axis.of_boundary(boundary)),
+            }
+            .ok_or_else(|| {
+                refusal(
+                    RefusalReason::ForeignIdentity,
+                    caller.id,
+                    at,
+                    "callee declaration is unavailable",
+                )
+            })?;
+            let ceiling = axis.of_machine(caller);
+            let contributes = if axis == Axis::Reach
+                && self.installation_bound_refinement == Some(caller.id)
+                && contributes
+                    .iter()
+                    .any(|service| ceiling.binary_search(service).is_err())
+            {
+                Cow::Owned(fixed_refinement_reach(
+                    module,
+                    tables,
+                    caller.id,
+                    callee,
+                    required_contract,
+                )?)
+            } else {
+                Cow::Borrowed(contributes)
+            };
+            let outside: Vec<_> = contributes
+                .iter()
+                .copied()
+                .filter(|service| ceiling.binary_search(service).is_err())
+                .collect();
+            if !outside.is_empty() {
+                found.push(Excess {
+                    axis,
+                    machine: caller.id,
+                    at,
+                    callee,
+                    contributes: contributes.to_vec(),
+                    outside,
+                });
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Only the proof of an abstract installation requirement may leave its child
+/// rows conditional. Explicit machine headers and ordinary boundary headers
+/// remain pinned; inferred helpers contribute their known calls and services.
+fn fixed_refinement_reach(
     module: &TerminalModule,
-    caller: &TerminalMachine,
+    tables: &CheckTables,
+    from: MachineId,
     callee: TargetMachineCallable,
     required_contract: Option<semantic_vocabulary::ContractId>,
-    at: Construct,
-    found: &mut Vec<Excess>,
-) -> Checked<()> {
-    for axis in Axis::ALL {
-        let contributes = match callee {
-            TargetMachineCallable::Machine(id) => module
-                .invocation_machine_contract(id, required_contract)
-                .map(|contract| axis.of_contract(contract)),
-            TargetMachineCallable::Boundary(id) => module
-                .boundary_machine(id)
-                .map(|boundary| axis.of_boundary(boundary)),
-        }
-        .ok_or_else(|| {
-            refusal(
-                RefusalReason::ForeignIdentity,
-                caller.id,
-                at,
-                "callee declaration is unavailable",
-            )
-        })?;
-        let ceiling = axis.of_machine(caller);
-        let outside: Vec<_> = contributes
-            .iter()
-            .copied()
-            .filter(|service| ceiling.binary_search(service).is_err())
-            .collect();
-        if !outside.is_empty() {
-            found.push(Excess {
-                axis,
-                machine: caller.id,
-                at,
-                callee,
-                contributes: contributes.to_vec(),
-                outside,
-            });
+) -> Checked<Vec<ServiceId>> {
+    let mut pending = vec![(callee, required_contract)];
+    let mut visited = tables.machines.map(|_, _| false);
+    let mut fixed = Vec::new();
+    while let Some((callee, required_contract)) = pending.pop() {
+        match callee {
+            TargetMachineCallable::Boundary(id) => {
+                let boundary = module
+                    .boundary_machine(id)
+                    .ok_or_else(|| fault(from, "refinement lost a boundary declaration"))?;
+                if !boundary.service_reach_is_installation_bound {
+                    fixed.extend(boundary.published_service_ceiling.iter().copied());
+                }
+            }
+            TargetMachineCallable::Machine(id) => {
+                let contract = module
+                    .invocation_machine_contract(id, required_contract)
+                    .ok_or_else(|| fault(from, "refinement lost a machine contract"))?;
+                if required_contract.is_some() || contract.declared_service_reach.is_some() {
+                    fixed.extend(contract.published_service_ceiling.iter().copied());
+                    continue;
+                }
+                let seen = visited
+                    .get_mut(id)
+                    .ok_or_else(|| fault(from, "refinement machine has no checking rows"))?;
+                if std::mem::replace(seen, true) {
+                    continue;
+                }
+                let body = crate::terminal_machine(&module.machines, id, from)?;
+                if body.blocks.is_empty() {
+                    return Err(fault(from, "inferred reach has no executable body"));
+                }
+                let rows = tables
+                    .machines
+                    .get(id)
+                    .ok_or_else(|| fault(from, "refinement lost a machine's checking rows"))?;
+                // Generated owned cleanup uses these same exact invocation rows,
+                // including the selected consumer and its required contract.
+                for (_, call) in rows.invocations.iter() {
+                    match call.callee {
+                        Callee::Declared(callee) => pending.push((callee, call.required_contract)),
+                        Callee::Selected { .. } => {
+                            return Err(refusal(
+                                RefusalReason::Unsupported,
+                                from,
+                                Construct::Machine,
+                                "installation refinement reach through a selector value",
+                            ));
+                        }
+                    }
+                }
+                for formation in &body.call_formations {
+                    if let (terminal_psi::CallSite::Edge(_), Some(callee)) =
+                        (formation.site, formation.tail_callee)
+                    {
+                        pending.push((callee.into(), None));
+                    }
+                }
+                for operation in body.operations() {
+                    let service = match &operation.kind {
+                        terminal_psi::OperationKind::PortWrite { service, .. } => Some(*service),
+                        terminal_psi::OperationKind::RegisterAccess { service, .. } => *service,
+                        _ => None,
+                    };
+                    if let Some(service) = service {
+                        let declaration = module
+                            .service(service)
+                            .ok_or_else(|| fault(from, "refinement lost an instruction service"))?;
+                        fixed.push(service);
+                        fixed.extend(declaration.parents.iter().copied());
+                    }
+                }
+            }
         }
     }
-    Ok(())
+    fixed.sort_unstable();
+    fixed.dedup();
+    Ok(fixed)
 }

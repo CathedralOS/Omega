@@ -270,6 +270,7 @@ pub(crate) mod capabilities {
         }
         let mut imports = BTreeSet::new();
         let mut missing_providers = BTreeSet::new();
+        let mut installation_bound_call = false;
         let mut access_candidates = Vec::new();
         let mut external_completion = None;
         let mut external_demands = BTreeSet::new();
@@ -341,7 +342,7 @@ pub(crate) mod capabilities {
                             .structural()
                             .map(|result| result.structural_type),
                     );
-                    for storage in operation.kind.storage_uses() {
+                    for (storage, _) in operation.kind.storage_uses() {
                         terminal_semantics::storage_operand_dependencies(
                             machine,
                             &declarations,
@@ -448,6 +449,8 @@ pub(crate) mod capabilities {
                         }
                         OperationKind::BoundaryCall { boundary, .. } => {
                             let declaration = program.verified_boundary_machine(boundary)?;
+                            installation_bound_call |=
+                                declaration.service_reach_is_installation_bound;
                             if crate::embedding::program::interpreter_owns_boundary_execution(
                                 declaration,
                             ) {
@@ -492,7 +495,9 @@ pub(crate) mod capabilities {
                                     imports.insert(*boundary);
                                     None
                                 }
-                                None if program.has_provider(boundary) => {
+                                None if declaration.service_reach_is_installation_bound
+                                    || program.has_provider(boundary) =>
+                                {
                                     missing_providers.insert(*boundary);
                                     None
                                 }
@@ -618,6 +623,19 @@ pub(crate) mod capabilities {
                 scalar_entry_conditions.push(application);
             }
         }
+        if installation_bound_call && missing_providers.is_empty() {
+            let calls = installation
+                .into_iter()
+                .flat_map(|installation| &installation.supplies)
+                .filter_map(|(&boundary, supply)| match supply {
+                    AdmittedBoundarySupply::CheckedProvider(machine) => Some((boundary, *machine)),
+                    _ => None,
+                });
+            terminal_installation::SynchronousCallGraph::new(&program.catalogs, None)
+                .and_then(|graph| graph.with_boundary_calls(calls))
+                .and_then(|graph| graph.validate_installed_service_reach(entry))
+                .map_err(TerminalInterpretError::InstallationServiceReach)?;
+        }
         Ok(TerminalExecutionRequirements {
             imports: imports.into_iter().collect(),
             missing_providers: missing_providers.into_iter().collect(),
@@ -739,6 +757,7 @@ pub(crate) mod capabilities {
             let entry = MachineId::new(1).unwrap();
             let mut module = TerminalModule::for_entry(entry);
             let declaration = |id, shape| terminal_psi::StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
                 requires: Vec::new(),
                 quotient_carrier: None,
                 id: StructuralTypeId::new(id).unwrap(),
@@ -869,6 +888,7 @@ pub(crate) mod capabilities {
                 result_lifetimes: None,
                 reference_outputs: Vec::new(),
                 fixed_service_reach: Vec::new(),
+                service_reach_is_installation_bound: false,
                 owning_service: None,
                 published_synchronous_entries: Vec::new(),
                 published_service_ceiling: Vec::new(),
@@ -885,6 +905,7 @@ pub(crate) mod capabilities {
             let array = StructuralTypeId::new(3).unwrap();
             let borrowed = StructuralTypeId::new(4).unwrap();
             let declaration = |id, shape| terminal_psi::StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
                 requires: Vec::new(),
                 quotient_carrier: None,
                 id,
@@ -998,6 +1019,60 @@ pub(crate) mod capabilities {
                 completion_receipts: Vec::new(),
                 requirement_obligations: Vec::new(),
             }
+        }
+
+        #[test]
+        fn installation_bound_calls_require_a_selected_row_within_the_bound() {
+            let mut program = program();
+            let boundary = BoundaryMachineId::new(1).unwrap();
+            let selected = MachineId::new(2).unwrap();
+            let service = semantic_vocabulary::ServiceId::new(1).unwrap();
+            set_machine(
+                &mut program,
+                MachineId::new(1).unwrap(),
+                machine(0, vec![boundary_call(boundary)]),
+            );
+            set_machine(&mut program, selected, machine(0, Vec::new()));
+            let catalogs = program.fixture_module_mut();
+            catalogs.boundary_machines[0].kind =
+                semantic_vocabulary::BoundaryRequirementKind::Trait;
+            catalogs.boundary_machines[0].service_reach_is_installation_bound = true;
+            let identity = intern_identity(catalogs, "X");
+            catalogs.services.push(terminal_psi::ServiceDeclaration {
+                id: service,
+                identity,
+                parents: Vec::new(),
+            });
+            // Even without a catalog candidate, an abstract requirement is
+            // an unresolved installation obligation, never an implicit import.
+            assert_eq!(check(&program, None).unwrap().missing_providers, [boundary]);
+            let installation = TerminalRuntimeSupplies {
+                provider_selections: None,
+                x86_flags: None,
+                memory_ordering: None,
+                code_identity: program.identity.clone(),
+                entry: None,
+                supplies: BTreeMap::from([(
+                    boundary,
+                    AdmittedBoundarySupply::CheckedProvider(selected),
+                )]),
+                assumed_bindings: Vec::new(),
+                folded_constant_target: None,
+                target_machines: None,
+                target_layouts: None,
+                native_code_layouts: None,
+            };
+            check(&program, Some(&installation)).expect("the selected empty row fits");
+            let body = &mut program.fixture_module_mut().machines[1];
+            body.contract.declared_service_reach = Some(vec![service]);
+            body.contract.published_service_ceiling = vec![service];
+            assert!(
+                matches!(check(&program, Some(&installation)), Err(TerminalInterpretError::InstallationServiceReach(reason)) if reason.contains("exceeds its published upper bound"))
+            );
+            program.fixture_module_mut().boundary_machines[0].published_service_ceiling =
+                vec![service];
+            check(&program, Some(&installation))
+                .expect("the same selected row fits the wider bound");
         }
 
         #[test]

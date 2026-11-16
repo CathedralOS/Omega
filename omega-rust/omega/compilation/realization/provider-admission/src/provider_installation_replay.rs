@@ -494,6 +494,7 @@ mod external_completion_tests {
         let required_type = StructuralTypeId::new(1).unwrap();
         let unrelated_type = StructuralTypeId::new(2).unwrap();
         let types = [required_type, unrelated_type].map(|id| StructuralTypeDeclaration {
+            declaration_identity: Default::default(),
             id,
             identity: terminal_psi::TerminalIdentityIndex::ABSENT,
             quotient_carrier: None,
@@ -579,6 +580,8 @@ mod external_completion_tests {
         let requirement = terminal_psi::TerminalIdentityIndex(1);
         let owner = terminal_psi::TerminalIdentityIndex(2);
         let domain = terminal_psi::StructuralDomainDeclaration {
+            subject_identity: Default::default(),
+            access_policy: None,
             id: semantic_vocabulary::StructuralDomainId::new(1).unwrap(),
             semantic_domain: semantic_vocabulary::DomainSemanticId::new(1).unwrap(),
             identity: terminal_psi::TerminalIdentityIndex(3),

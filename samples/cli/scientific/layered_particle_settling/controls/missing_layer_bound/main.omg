@@ -5,7 +5,7 @@ data Main { density: i32; }
 machine inspect(layers: &[Layer; 3], index: u64) -> i32 {
     layers[index].density
 }
-machine Main::main(main: &mut Main) {
+machine main(main: &mut Main) {
     let layers: [Layer; 3] = [Layer { density: 2, drag: 2 }, Layer { density: 3, drag: 1 }, Layer { density: 4, drag: 4 }];
     main.density = inspect(&layers, 1);
 }

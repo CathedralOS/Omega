@@ -2907,10 +2907,9 @@ pub(crate) mod tests {
         }
         assert_ne!(descriptions[0], descriptions[1]);
         let used = query_machine(&source, "used");
+        let used_entry = program.entry(used, used, &[]).unwrap();
         assert_eq!(
-            program
-                .entry(used, used, &[])
-                .unwrap()
+            used_entry
                 .invoke(target(), &mut terminal_work::WorkMeter::unbounded())
                 .unwrap(),
             BuildTimeValue::Int(7)
@@ -2980,6 +2979,144 @@ pub(crate) mod tests {
         .and_then(|identity| source.type_identity_text(identity))
         .unwrap();
         assert_eq!(original.1[1], invoked_identity.as_bytes());
+        // Use the actual generated body and its checked argument account.
+        // A matching template or argument count cannot hide a changed value.
+        let entries = [used];
+        let request = terminal_production::TerminalSourceCompilation {
+            declaration_metadata: &[],
+            entries: &entries,
+            subjects: &[],
+            purpose: source::DependencyScope::Product,
+            selected: &[],
+            bindings: &[],
+            supplies: &[],
+        };
+        let (portable, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+            source.clone(),
+            &typed_trees_to_typed_trees::PreparationRequest::settled(),
+        )
+        .expect("prepare the same original source for ordinary portable publication");
+        let portable = terminal_production::AcceptedTerminalSource::judge(
+            std::sync::Arc::new(portable),
+            request,
+            terminal_codec::TerminalPublication::Portable,
+        )
+        .expect("normally judge the same selected call as an ordinary product");
+        let bytes = terminal_codec::encode_module(portable.module())
+            .expect("encode the actual typed const account with the ordinary source program");
+        let mut module = terminal_codec::decode_module(&bytes)
+            .expect("the independent receiver checks the same actual application");
+        let received = terminal_interpreter::TerminalProgram::load(&bytes)
+            .expect("execute the actual received bytes rather than the source product");
+        let mut instance = received
+            .instantiate(Default::default())
+            .expect("the original scalar program needs no external supply");
+        let terminal_interpreter::TerminalExecutionStatus::Complete(
+            terminal_interpreter::TerminalExecutionResult::Scalar(value),
+        ) = instance
+            .invoke(&mut terminal_work::WorkMeter::unbounded())
+            .expect("run the same original selected call after transport")
+        else {
+            panic!("the original selected call completes with its scalar result")
+        };
+        assert_eq!(
+            crate::terminal_values::scalar_result(instance.program(), value).unwrap(),
+            BuildTimeValue::Int(7)
+        );
+        let mut bodies = module.machines.iter().filter(|machine| {
+            machine
+                .declaration
+                .as_ref()
+                .and_then(|declaration| declaration.specialization.as_ref())
+                .is_some_and(|application| {
+                    module
+                        .identities
+                        .text(application.template_semantic_declaration)
+                        .map(str::as_bytes)
+                        == Some(original.1[0].as_slice())
+                })
+        });
+        let body = bodies.next().expect("one actual generated selected body");
+        assert!(bodies.next().is_none(), "the actual application is unique");
+        let current = body.id;
+        let application = body
+            .declaration
+            .as_ref()
+            .unwrap()
+            .specialization
+            .as_ref()
+            .unwrap();
+        let declaration = application.template.clone();
+        let identity = terminal_psi::CheckedMachineDeclaration::callable_evidence_identity(
+            module
+                .identities
+                .text(application.template_callable)
+                .unwrap(),
+            Some(&application.commitment),
+        );
+        let mut identities = std::mem::take(&mut module.identities).into_builder();
+        let machine_identity = identities.intern(&identity);
+        module.identities = identities.build();
+        let caller = (
+            original.clone(),
+            terminal_psi::StructuralEstablishmentRoute::ExactMachine {
+                declaration,
+                machine_identity,
+            },
+        );
+        assert!(
+            terminal_semantics::structural_qualifications::caller_matches_machine(
+                &module, current, &caller
+            )
+            .expect("the same declaration, entry, signature and actual u128 argument match")
+        );
+        let mut changed_value = caller;
+        let applied = std::str::from_utf8(&changed_value.0.1[1]).unwrap();
+        let value = "170141183460469231731687303715884105728";
+        assert_eq!(applied.matches(value).count(), 1);
+        changed_value.0.1[1] = applied
+            .replace(value, "170141183460469231731687303715884105729")
+            .into_bytes();
+        assert!(
+            !terminal_semantics::structural_qualifications::caller_matches_machine(
+                &module,
+                current,
+                &changed_value
+            )
+            .expect("a different value cannot borrow the checked application's caller identity")
+        );
+        // Changing both descriptions cannot reuse the old application's hash,
+        // even when its body, source identity and route are left untouched.
+        let mut changed_account = module.clone();
+        let body = changed_account
+            .machines
+            .iter_mut()
+            .find(|body| body.id == current)
+            .unwrap();
+        let terminal_psi::ClosedReachParameter::Const { argument } =
+            &mut body.closed_reach_application.as_mut().unwrap().telescope[0]
+        else {
+            panic!("the exact generated body retains its scalar argument")
+        };
+        assert_eq!(argument.encoding.matches(value).count(), 1);
+        argument.encoding = argument
+            .encoding
+            .replace(value, "170141183460469231731687303715884105729");
+        let error = terminal_semantics::structural_qualifications::caller_matches_machine(
+            &changed_account,
+            current,
+            &changed_value,
+        )
+        .expect_err("matching altered descriptions cannot authenticate an unchanged commitment");
+        assert_eq!(
+            error.detail,
+            "machine application arguments differ from their retained commitment"
+        );
+        assert_eq!(
+            terminal_semantics::closed_reach::validate_closed_reach_applications(&changed_account),
+            Err("machine application arguments differ from their retained commitment"),
+            "the independent receiving owner rejects the same unused argument inconsistency",
+        );
         let typed_trees::static_applications::StaticMachineBindingValue::Const(value) =
             binding.value
         else {

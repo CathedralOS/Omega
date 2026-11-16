@@ -18,8 +18,8 @@ requires direct == true
 machine main() crashes Trap {
     let flag: bool = false;
     let kept: bool = match flag { true -> true, false -> true };
-    let direct: bool in Held = kept;
-    transition hold(direct) {
+    let direct: bool in Held = kept as +Held;
+    transition hold(direct as -Held) {
         true -> done()
         _ -> bad()
     }

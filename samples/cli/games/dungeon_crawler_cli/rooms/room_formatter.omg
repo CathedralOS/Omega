@@ -1,9 +1,3 @@
-use text::buffer;
-use events::events;
-use player::player_state;
-use rooms::map;
-use rooms::room_lookup;
-use rooms::rooms;
 
 data RoomFormatter {
     lookup: RoomLookup;
@@ -12,7 +6,7 @@ data RoomFormatter {
 // Writers replace the whole output buffer. The active render chain retains
 // the caller's Utf8 qualification through each mutable loan.
 
-machine RoomFormatter::write_current_cell(level: Level,
+machine write_current_cell(level: Level,
     cell: CellId,
     out_line: &mut TextBuffer)
 {
@@ -22,15 +16,15 @@ machine RoomFormatter::write_current_cell(level: Level,
     }
 
     machine gate_title(out_line: &mut TextBuffer) {
-        TextBuffer::set(out_line, "== Gate ==");
+        text_buffer_set(out_line, "== Gate ==");
     }
 
     machine branch_title(out_line: &mut TextBuffer) {
-        TextBuffer::set(out_line, "== Branch Room ==");
+        text_buffer_set(out_line, "== Branch Room ==");
     }
 }
 
-machine RoomFormatter::write_room_info(
+machine write_room_info(
     room_formatter: &mut RoomFormatter,
     level: Level,
     cell: CellId,
@@ -38,11 +32,11 @@ machine RoomFormatter::write_room_info(
 )
 {
     let mut room: Room;
-    RoomLookup::find_room(level, cell, &mut room);
-    TextBuffer::set(out_line, RoomDescription::live(&room.description));
+    find_room(level, cell, &mut room);
+    text_buffer_set(out_line, room_description_live(&room.description));
 }
 
-machine RoomFormatter::write_room_event(
+machine write_room_event(
     room_formatter: &mut RoomFormatter,
     level: Level,
     cell: CellId,
@@ -50,7 +44,7 @@ machine RoomFormatter::write_room_event(
 )
 {
     let mut room: Room;
-    RoomLookup::find_room(level, cell, &mut room);
+    find_room(level, cell, &mut room);
 
     transition {
         room.event.kind == RoomEventKind::FountainOfLife && room.event.consumed == false -> describe_fountain(out_line)
@@ -62,29 +56,29 @@ machine RoomFormatter::write_room_event(
 
 
     machine describe_fountain(out_line: &mut TextBuffer) {
-        TextBuffer::set(out_line, "A fountain of life glows here. Type use to drink.");
+        text_buffer_set(out_line, "A fountain of life glows here. Type use to drink.");
     }
 
     machine describe_treasure(out_line: &mut TextBuffer) {
-        TextBuffer::set(out_line, "A treasure cache rests against the wall. Type use to claim it.");
+        text_buffer_set(out_line, "A treasure cache rests against the wall. Type use to claim it.");
     }
 
     machine describe_gold(out_line: &mut TextBuffer) {
-        TextBuffer::set(out_line, "Loose gold glitters in the dust. Type use to collect it.");
+        text_buffer_set(out_line, "Loose gold glitters in the dust. Type use to collect it.");
     }
 
     machine describe_enemy(enemy_name: EnemyName,
         out_line: &mut TextBuffer)
     {
-        TextBuffer::join(out_line, EnemyName::live(&enemy_name), " blocks the way. Type fight.");
+        join(out_line, enemy_name_live(&enemy_name), " blocks the way. Type fight.");
     }
 
     machine quiet_room(out_line: &mut TextBuffer) {
-        TextBuffer::set(out_line, "The room is quiet.");
+        text_buffer_set(out_line, "The room is quiet.");
     }
 }
 
-machine RoomFormatter::write_adjacent_rooms(level: Level,
+machine write_adjacent_rooms(level: Level,
     cell: CellId,
     out_line: &mut TextBuffer)
 {
@@ -102,39 +96,39 @@ machine RoomFormatter::write_adjacent_rooms(level: Level,
 
 
     machine gate_paths(out_line: &mut TextBuffer) {
-        TextBuffer::set(out_line, "[Paths] north");
+        text_buffer_set(out_line, "[Paths] north");
     }
 
     machine room_one_paths(out_line: &mut TextBuffer) {
-        TextBuffer::set(out_line, "[Paths] south | north | east");
+        text_buffer_set(out_line, "[Paths] south | north | east");
     }
 
     machine room_two_paths(out_line: &mut TextBuffer) {
-        TextBuffer::set(out_line, "[Paths] south | north | west");
+        text_buffer_set(out_line, "[Paths] south | north | west");
     }
 
     machine room_three_paths(out_line: &mut TextBuffer) {
-        TextBuffer::set(out_line, "[Paths] south | north | east");
+        text_buffer_set(out_line, "[Paths] south | north | east");
     }
 
     machine room_four_paths(out_line: &mut TextBuffer) {
-        TextBuffer::set(out_line, "[Paths] south");
+        text_buffer_set(out_line, "[Paths] south");
     }
 
     machine side_east_paths(out_line: &mut TextBuffer) {
-        TextBuffer::set(out_line, "[Paths] west");
+        text_buffer_set(out_line, "[Paths] west");
     }
 
     machine side_west_paths(out_line: &mut TextBuffer) {
-        TextBuffer::set(out_line, "[Paths] east");
+        text_buffer_set(out_line, "[Paths] east");
     }
 
     machine no_paths(out_line: &mut TextBuffer) {
-        TextBuffer::set(out_line, "[Paths] none");
+        text_buffer_set(out_line, "[Paths] none");
     }
 }
 
-machine RoomFormatter::write_inventory(player: Player,
+machine write_inventory(player: Player,
     out_line: &mut TextBuffer)
 {
     transition player.inventory.gold >= 30 {
@@ -167,11 +161,11 @@ machine RoomFormatter::write_inventory(player: Player,
     }
 
     machine inventory_zero_empty(out_line: &mut TextBuffer) {
-        TextBuffer::set(out_line, "Inv: 0 gold. Pack empty.");
+        text_buffer_set(out_line, "Inv: 0 gold. Pack empty.");
     }
 
     machine inventory_zero_with_item(out_line: &mut TextBuffer) {
-        TextBuffer::set(out_line, "Inv: 0 gold. Pack holds a charm.");
+        text_buffer_set(out_line, "Inv: 0 gold. Pack holds a charm.");
     }
 
     machine inventory_six(player: Player,
@@ -183,11 +177,11 @@ machine RoomFormatter::write_inventory(player: Player,
     }
 
     machine inventory_six_only(out_line: &mut TextBuffer) {
-        TextBuffer::set(out_line, "Inv: 6 gold. A few scavenged coins.");
+        text_buffer_set(out_line, "Inv: 6 gold. A few scavenged coins.");
     }
 
     machine inventory_six_with_item(out_line: &mut TextBuffer) {
-        TextBuffer::set(out_line, "Inv: 6 gold. A few coins and a charm.");
+        text_buffer_set(out_line, "Inv: 6 gold. A few coins and a charm.");
     }
 
     machine inventory_twenty_four(player: Player,
@@ -199,19 +193,19 @@ machine RoomFormatter::write_inventory(player: Player,
     }
 
     machine inventory_twenty_four_only(out_line: &mut TextBuffer) {
-        TextBuffer::set(out_line, "Inv: 24 gold. A rich little haul.");
+        text_buffer_set(out_line, "Inv: 24 gold. A rich little haul.");
     }
 
     machine inventory_twenty_four_with_item(out_line: &mut TextBuffer) {
-        TextBuffer::set(out_line, "Inv: 24 gold. A rich haul and a charm.");
+        text_buffer_set(out_line, "Inv: 24 gold. A rich haul and a charm.");
     }
 
     machine inventory_thirty(out_line: &mut TextBuffer) {
-        TextBuffer::set(out_line, "Inv: 30 gold. Purse heavy, charm secured.");
+        text_buffer_set(out_line, "Inv: 30 gold. Purse heavy, charm secured.");
     }
 }
 
-machine RoomFormatter::write_character(player: Player,
+machine write_character(player: Player,
     out_line: &mut TextBuffer)
 {
     transition player.health * 2 <= player.max_health {
@@ -229,14 +223,14 @@ machine RoomFormatter::write_character(player: Player,
     }
 
     machine wounded_character(out_line: &mut TextBuffer) {
-        TextBuffer::set(out_line, "Character: wounded, stubborn, still standing.");
+        text_buffer_set(out_line, "Character: wounded, stubborn, still standing.");
     }
 
     machine seasoned_character(out_line: &mut TextBuffer) {
-        TextBuffer::set(out_line, "Character: seasoned enough to worry the dungeon.");
+        text_buffer_set(out_line, "Character: seasoned enough to worry the dungeon.");
     }
 
     machine ready_character(out_line: &mut TextBuffer) {
-        TextBuffer::set(out_line, "Character: ready for trouble.");
+        text_buffer_set(out_line, "Character: ready for trouble.");
     }
 }

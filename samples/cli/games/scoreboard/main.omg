@@ -23,7 +23,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("scoreboard: sums three player records stored in an array of structs");
     main.players[0].id = 1;
     main.players[0].score = 30;
@@ -39,7 +39,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     machine done(main: &mut Main) {
         Console::write_line("PASS: scores 30+25+15 total 70 (the exit code)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(main.total);
     }
 }
@@ -47,5 +47,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

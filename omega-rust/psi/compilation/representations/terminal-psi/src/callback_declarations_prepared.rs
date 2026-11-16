@@ -70,39 +70,6 @@ impl PreparedCallbackDeclarations {
         }
     }
 
-    pub fn installed_roots(
-        &self,
-        calling_requirements: &[CallbackRequirementId],
-    ) -> Result<Vec<CallbackUseId>, Vec<diagnostics::Diagnostic>> {
-        let mut roots = Vec::new();
-        let mut errors = Vec::new();
-        for &usage in &self.installed_uses {
-            let selected = self.declarations.uses.get(usage);
-            let declaration = self.declarations.declaration(selected);
-            if !declaration.has_checked_entry || !declaration.satisfaction_is_boundary {
-                errors.push(diagnostics::Diagnostic::error(
-                    "interrupt installation requires its checked callback entry contract",
-                ));
-            } else if calling_requirements
-                .iter()
-                .filter(|requirement| **requirement == selected.requirement)
-                .count()
-                != 1
-            {
-                errors.push(diagnostics::Diagnostic::error(
-                    "interrupt installation requires one selected callback calling plan",
-                ));
-            } else {
-                roots.push(usage);
-            }
-        }
-        if errors.is_empty() {
-            Ok(roots)
-        } else {
-            Err(errors)
-        }
-    }
-
     pub fn calling_requirements<'a>(
         &self,
         declarations: impl IntoIterator<Item = (&'a str, SymbolHandle)>,
@@ -562,6 +529,7 @@ mod correspondence_tests {
         let mut specialized = original.clone();
         specialized.body.specialization = Some(terminal_psi::CheckedMachineSpecialization {
             capture: None,
+            template_entry: original.body.state.clone(),
             template: original.body.machine.clone(),
             template_callable: original.body.callable,
             template_semantic_declaration: original.body.semantic_declaration,

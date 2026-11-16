@@ -2660,6 +2660,7 @@ pub(crate) mod tests {
     ) -> Result<RuntimeRows<PlaceId, TerminalStructuralValue>, TerminalInterpretError> {
         let declarations = [
             terminal_psi::StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
                 requires: Vec::new(),
                 quotient_carrier: None,
                 id: structural_type(1),
@@ -2673,6 +2674,7 @@ pub(crate) mod tests {
                 scalar_restriction: None,
             },
             terminal_psi::StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
                 requires: Vec::new(),
                 quotient_carrier: None,
                 id: structural_type(2),

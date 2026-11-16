@@ -197,6 +197,19 @@ impl AcceptedClosure {
                 branch.condition,
             ));
         }
+        // A `_` arm after arms naming every declared case of the subject is
+        // an authored branch no arrival takes: lowering left it out, and it
+        // is one warning at the arm (state_contracts.md, "Unreachable
+        // branches").
+        for (machine, arm) in self.elaboration.dead_wildcards() {
+            let owner = describe::owner(self.elaboration.names.get(machine), arm);
+            advisories.push(located(
+                Diagnostic::warning(format!(
+                    "unreachable branch: the `_` arm in {owner} can never run; an earlier arm names every declared case"
+                )),
+                arm,
+            ));
+        }
         advisories
     }
 }
@@ -232,6 +245,8 @@ impl RoutePublication {
 /// Why an accepted closure could not be published.
 #[derive(Debug)]
 pub enum PublicationError {
+    /// A conditional installation refinement is a proof problem, not a program.
+    InstallationReachRefinement,
     /// The module retains an open source binder, an opaque rigid value,
     /// a static-value formal or an abstract requirement: a generic check
     /// form, which is never encoded (generics.md, "Generic bodies use the
@@ -286,6 +301,9 @@ impl AcceptedClosure {
     }
 
     fn validate_publication(&self) -> Result<(), PublicationError> {
+        if self.elaboration.installation_bound_refinement.is_some() {
+            return Err(PublicationError::InstallationReachRefinement);
+        }
         if !self.elaboration.requirements.is_empty()
             || !self.elaboration.generic_binders.is_empty()
             || self
@@ -1273,7 +1291,11 @@ fn conclude(
     if let Some(first) = unsupported.verdict(Roster::of(&elaboration), further) {
         return Ok(RouteVerdict::FallBack(first));
     }
-    let exceeded = match crate::ceilings::judge(&elaboration.module, &elaboration.tables) {
+    let exceeded = match crate::ceilings::judge(
+        &elaboration.module,
+        &elaboration.tables,
+        elaboration.installation_bound_refinement,
+    ) {
         Ok(found) => found
             .into_iter()
             .map(|excess| exceeded_reach(&elaboration, excess))

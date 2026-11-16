@@ -677,17 +677,19 @@ rules.
 #### Policy domains
 
 Named decision: `policy-operator-plain-operand`, confirmed 2026-11-13.
+Named decision: `policy-bitwise-and-shift-counts`, ratified 2026-11-16.
 
-`Wrapping`, `Saturating` and `Trapping` remain qualifications for a value whose
-every operation should use one policy. They are `omega::core` domains, not
-separately specified arithmetic. For each fixed integer carrier, core declares
-each unsuffixed arithmetic operator for two operands carrying the domain and
-for one such operand with a plain operand of the same carrier in either order, so
-`counter + 1` needs no cast. The operator is the corresponding suffixed
+`Wrapping`, `Saturating` and `Trapping` remain qualifications for a value's
+arithmetic policy. They are `omega::core` domains, not separately specified
+arithmetic. For each fixed integer carrier, core declares each unsuffixed
+arithmetic operator (`+`, `-`, `*`, `/`, `%`) for two operands carrying the
+domain and for one such operand with a plain operand of the same carrier in
+either order, so `counter + 1` needs no cast. The operator is the corresponding suffixed
 operation on the operands with the domain removed, and its result carries the
 same domain. Core declares the comparisons for the same operand shapes; they
-compare the stored values and return `bool`. `Trapping`'s operators publish
-`crashes Trap`. Their role and the float policy rows are unchanged.
+compare the stored values and return `bool`. Arithmetic and shift overloads
+whose selected policy is `Trapping` publish `crashes Trap`; comparisons and
+bitwise operations publish `crashes none`. The float policy rows are unchanged.
 
 The plain operand may be a landed literal, local, parameter, field projection
 or call result. Its expression form does not change overload eligibility.
@@ -696,13 +698,55 @@ for `(T in D, T in D)`, `(T in D, T)` and `(T, T in D)`, returning `T in D`.
 Plain-plus-plain remains Exact and returns plain `T`. The mixed comparison
 signatures instead return `bool` and compare the stored values.
 
+Core also declares the fixed-width integer bitwise operators for these shapes.
+Here `D` stands for each of the three core policy domains; it introduces no
+generic-policy syntax.
+
+| Operators | Operand types | Result |
+| --- | --- | --- |
+| `&`, `\|`, `^` | `(T in D, T in D)` | `T in D` |
+| `&`, `\|`, `^` | `(T in D, T)` | `T in D` |
+| `&`, `\|`, `^` | `(T, T in D)` | `T in D` |
+| `~` | `(T in D)` | `T in D` |
+
+Each bitwise implementation explicitly removes any parameter policy
+qualification, applies the ordinary bitwise primitive and establishes the
+result's same policy. The bits follow the [fixed-width bitwise rules](#shift-counts).
+The operation itself adds no overflow obligation or crash condition, including
+on `Trapping` values. Computing an operand still owes that expression's own
+obligations and may trap.
+
+Unsuffixed `<<` and `>>` declarations are asymmetric. For every admitted
+integer count carrier `U`, each shifted-value row below has all four count
+signatures: `U`, `U in Wrapping`, `U in Saturating` and `U in Trapping`. The
+count need not match the value's width or signedness. These are all sixteen combinations,
+including differently qualified operands and a plain value with a qualified count.
+
+| Shifted value | Shift policy | Result |
+| --- | --- | --- |
+| Plain `T` | Exact | `T` |
+| `T in Wrapping` | Wrapping | `T in Wrapping` |
+| `T in Saturating` | Saturating | `T in Saturating` |
+| `T in Trapping` | Trapping | `T in Trapping` |
+
+The selected declaration explicitly removes each parameter's named policy,
+uses the shifted value's Exact or suffixed shift, and establishes the declared
+result qualification. The count supplies its stored integer value. Its policy
+neither selects shift behavior nor transfers to the result; it supplies no
+proof that the count is in range. The [count laws](#shift-counts) and left-shift
+result obligations remain unchanged. For example, with a `u64 in Wrapping`
+count storing `33`, `1u32 << count` fails the Exact count obligation, while
+`(1u32 as +Wrapping) << count` returns `2` with type `u32 in Wrapping`.
+
 This is exact matching of declared parameter types, not implicit conversion or
 a rule that one operand's policy wins. The selected implementation explicitly
-removes qualifications where needed, uses its chosen suffixed operation and
-qualifies the arithmetic result. The caller's plain input stays plain. Core
-does not supply a Wrapping-plus-Saturating overload; incompatible domains,
-additional qualifications and other carrier combinations require a fitting
-declaration or an explicit source conversion/cast, never an inferred one.
+removes qualifications where needed, uses its chosen primitive operation and
+establishes the declared result qualifications. The caller's plain input stays
+plain. Core supplies no mixed-policy overload for arithmetic, comparisons or
+binary bitwise operations. Additional qualifications and carrier combinations
+outside the declared signatures require a fitting declaration or an explicit
+source conversion/cast, never an inferred one. In particular, a count carrying
+`Wrapping & SomeOtherDomain` matches none of the four count signatures.
 
 Selection is local to each operation. With `hash` of type `u32 in Wrapping`
 and `byte` of type `u32`, `hash + (byte + 1)` selects Exact for the inner
@@ -717,8 +761,9 @@ of them. A policy domain is added and removed only by a
 [domain cast](domains.md#domain-casts), like every other domain.
 
 Use a suffixed operator when one operation needs a policy. A qualified binding
-makes every later operation on it use that policy, and `as -Wrapping` removes
-the domain before Exact use. A `Trapping` qualification in particular says nothing about the
+selects its policy for arithmetic and when it is the shifted value; using it as
+a count changes no other value's policy. `as -Wrapping` explicitly removes that
+domain. A `Trapping` qualification in particular says nothing about the
 value it qualifies: a returned Trapping result is the exact value.
 
 ### Integer quotient and remainder
@@ -791,6 +836,11 @@ width or extend shift/bitwise operations to `i` or `u`.
 
 Exact left-shift result representability is a separate obligation. Hardware
 masking cannot discharge the Exact count proof or silently change its meaning.
+Check or reduce the original count before any narrowing. Wrapping uses the
+value's semantic width, including non-power-of-two widths such as `u13`.
+The count's own computation retains its independently selected operators;
+the shift does not change their behavior retroactively. See the
+[declared count signatures](#policy-domains) for policy-qualified counts.
 
 The suffixed shifts take the matching row: `<<%` and `>>%` reduce the count,
 `<<|` and `>>|` keep the Exact count proof, and `<<!` and `>>!` trap on an

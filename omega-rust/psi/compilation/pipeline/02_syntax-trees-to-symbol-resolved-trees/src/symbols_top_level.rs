@@ -284,15 +284,6 @@ mod machines {
                     .then_some(machine.symbol)
             })
             .collect::<Vec<_>>();
-        let token_requirement_symbols = program
-            .machines
-            .iter()
-            .filter_map(|machine| {
-                (machine.spelling.is_some()
-                    && top_level_requirement_symbols.contains(&machine.symbol))
-                .then_some(machine.symbol)
-            })
-            .collect::<Vec<_>>();
         let mut diagnostics = Vec::new();
         let (refinement_symbols, trait_proposition_slots, trait_machine_identity_slots) =
             trait_parameter_tables(program);
@@ -521,16 +512,16 @@ trait_machine_identity_slots: &trait_machine_identity_slots,
                         requirement.source_span(),
                     )
                     .unwrap_or_else(SymbolHandle::invalid);
-                let token_family = !matches!(
+                let requirement_family = !matches!(
                     symbols.lookup_signature_free_top_level_from_source_matching(
                         &path,
                         &[SymbolKind::Machine],
                         requirement.source_span(),
-                        |candidate| token_requirement_symbols.contains(&candidate),
+                        |candidate| top_level_requirement_symbols.contains(&candidate),
                     ),
                     symbols::SymbolLookup::NotFound
                 );
-                (path, symbol, requirement.source_span(), token_family)
+                (path, symbol, requirement.source_span(), requirement_family)
             });
             let target_is_trait = match exact_requirement {
                 Some((_, _, _, true)) => {

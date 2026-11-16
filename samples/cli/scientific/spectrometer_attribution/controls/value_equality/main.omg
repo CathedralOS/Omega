@@ -12,7 +12,7 @@ public data Main { }
 // sharing the carrier of a resultless law must not grant proposition equality.
 machine same(left: f64, right: f64) -> bool { left == right }
 
-public machine Main::main(application: &mut Main) reaches ProcessExit + Console
+public machine main(application: &mut Main) reaches ProcessExit + Console
 invokes Console
 blocks
 crashes Trap

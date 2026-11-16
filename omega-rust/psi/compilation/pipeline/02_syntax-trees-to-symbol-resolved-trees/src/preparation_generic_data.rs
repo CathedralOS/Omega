@@ -3593,7 +3593,7 @@ pub(in crate::preparation::generic_data) use arguments::{
 pub(crate) use const_evaluation::{
     ConstFactValue, ConstScalarSpelling, ConstScalarValue, closed_fixed_array_length,
     evaluate_const_fact_binary, evaluate_const_fact_expression, evaluate_const_membership_fact,
-    fold_closed_scalar_initializers, prove_const_literal_predicates,
+    fold_closed_scalar_initializers,
 };
 pub(in crate::preparation::generic_data) use const_evaluation::{
     ConstPredicateAdmission, EvaluatedConst, canonicalize_closed_domain_indices,
@@ -3651,48 +3651,6 @@ pub(super) fn qualification_names_itself(definition: &ConstDefinition) -> bool {
             qualification.destination == definition.type_reference
                 && qualification.initializer == definition.value
         })
-}
-
-pub(crate) fn canonicalize_pending_initializer_payload(
-    syntax: &SyntaxTrees,
-    definition: &ConstDefinition,
-    selection: Option<&ConstantSelection>,
-) -> Result<crate::resolution::ConstInitializerPayload, String> {
-    let mut payload = definition.clone();
-    while let TypeReferenceNode::Constrained { base_type, .. } =
-        syntax_type_references(syntax).type_reference(payload.type_reference)
-    {
-        payload.type_reference = *base_type;
-    }
-    let value = canonicalize_selected_declaration_value_with_admission(
-        syntax,
-        &payload,
-        selection,
-        ConstPredicateAdmission::PendingDestination,
-    )?;
-    Ok(crate::resolution::ConstInitializerPayload {
-        value,
-        pending_destination: if let Some(obligation) = &definition.pending_qualification {
-            if obligation.declaration != definition.name.source_span()
-                || obligation.initializer != definition.value
-            {
-                return Err(
-                    "private constant payload drifted from its pending destination".to_owned(),
-                );
-            }
-            Some(obligation.clone())
-        } else if !qualification_names_itself(definition)
-            && const_destination_requires_proof(syntax, definition, selection)
-        {
-            Some(crate::resolution::ConstDestinationObligation {
-                declaration: definition.name.source_span(),
-                destination: definition.type_reference,
-                initializer: definition.value,
-            })
-        } else {
-            None
-        },
-    })
 }
 
 /*

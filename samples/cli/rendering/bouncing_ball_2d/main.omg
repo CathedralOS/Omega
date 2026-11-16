@@ -14,15 +14,6 @@ use omega::language::core::I32::from_f64;
 use omega_language_std::Console;
 use omega_language_std::Clock;
 
-domain [u8]::Utf8
-requires
-    valid_utf8(self);
-domain [u8; 24]::Utf8
-requires
-    valid_utf8(self);
-domain [u8; 3]::Utf8
-requires
-    valid_utf8(self);
 
 data Main
 requires
@@ -30,8 +21,8 @@ requires
     && 0 <= self.y && self.y <= 12
     && 0 <= self.x && self.x <= 24
 {
-    line: [u8; 24] in Utf8;
-    home: [u8; 3] in Utf8;
+    line: [u8; 24];
+    home: [u8; 3];
     bx: f64;
     by: f64;
     vx: f64;
@@ -44,7 +35,7 @@ requires
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Clock + Console {
+machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
     Console::write_line("bouncing_ball_2d: a ball under gravity animated in a 24x12 box for 70 frames");
     main.line = "                        ";
     main.home = "XXX";
@@ -64,7 +55,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Clock + Console {
         transition main.frame < 70 { true -> block frame_start(main) _ -> block finish(main) }
     }
     machine frame_start(main: &mut Main) {
-        Console::write(main.home);
+        Console::write(&main.home[..]);
         main.y = 0;
         transition { _ -> block row_loop(main) }
     }
@@ -105,7 +96,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Clock + Console {
         transition { _ -> block col_loop(main) }
     }
     machine emit_row(main: &mut Main) {
-        Console::write_line(main.line);
+        Console::write_line(&main.line[..]);
         transition main.y >= 0 && main.y < 12 { true -> block y_bump(main) _ -> block row_loop(main) }
     }
     machine y_bump(main: &mut Main) {
@@ -170,7 +161,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Clock + Console {
     machine finish(main: &mut Main) {
         Console::write_line("done: 70 frames of gravity-bounce animation complete (exit 0)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(0);
     }
 }
@@ -178,5 +169,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Clock + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Clock + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

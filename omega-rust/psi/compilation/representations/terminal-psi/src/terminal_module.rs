@@ -1147,13 +1147,14 @@ pub use types::{
     ScalarFloatRange, ScalarIntegerRange, ScalarPrimitiveQualification, ScalarQualificationCatalog,
     ScalarQualificationCoercion, ScalarQualificationSet, ScalarReturnOrigin,
     ScalarReturnQualification, ScalarReturnSite, StructuralCaseDeclaration,
-    StructuralContentProjection, StructuralDomainDeclaration, StructuralDomainPredicate,
-    StructuralEstablishmentRoute, StructuralFieldDeclaration, StructuralFieldType,
-    StructuralPathQualification, StructuralQualificationChange, StructuralReferentIdentity,
-    StructuralTypeDeclaration, StructuralTypeShape, field_by_identity, find_structural_case,
-    find_structural_type, live_field, live_field_by_id, live_field_by_identity, live_field_entry,
-    structural_case_by_identity, structural_case_initializer_path, structural_case_position,
-    structural_children, structural_type_by_identity, structural_type_contains_reference,
+    StructuralContentProjection, StructuralDomainAccessPlan, StructuralDomainDeclaration,
+    StructuralDomainPredicate, StructuralEstablishmentRoute, StructuralFieldDeclaration,
+    StructuralFieldType, StructuralPathQualification, StructuralQualificationChange,
+    StructuralReferentIdentity, StructuralTypeDeclaration, StructuralTypeShape, field_by_identity,
+    find_structural_case, find_structural_type, live_field, live_field_by_id,
+    live_field_by_identity, live_field_entry, structural_case_by_identity,
+    structural_case_initializer_path, structural_case_position, structural_children,
+    structural_type_by_identity, structural_type_contains_reference,
     structural_type_contains_reference_by, structural_type_has_borrowed_storage_by,
     unique_structural_declaration,
 };
@@ -1573,6 +1574,16 @@ impl TerminalModule {
         self.boundary_machines
             .iter()
             .find(|declaration| declaration.id == id)
+    }
+
+    /// Exact requirements whose selected service rows remain to be supplied.
+    /// Keep the declaration's bound distinct from an ordinary pinned row.
+    pub fn installation_reach_requirements(&self) -> Vec<semantic_vocabulary::BoundaryMachineId> {
+        self.boundary_machines
+            .iter()
+            .filter(|boundary| boundary.service_reach_is_installation_bound)
+            .map(|boundary| boundary.id)
+            .collect()
     }
 
     pub fn for_entry(entry: MachineId) -> Self {

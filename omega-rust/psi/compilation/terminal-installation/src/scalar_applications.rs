@@ -1715,6 +1715,7 @@ pub(crate) mod abi_storage_tests {
                 module
                     .structural_types
                     .push(terminal_psi::StructuralTypeDeclaration {
+                        declaration_identity: Default::default(),
                         requires: Vec::new(),
                         id: StructuralTypeId::new(ordinal as u64 + 1).unwrap(),
                         identity: identities.intern(&format!("storage-{ordinal}")),

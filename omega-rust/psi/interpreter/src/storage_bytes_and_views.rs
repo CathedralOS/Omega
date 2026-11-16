@@ -5424,6 +5424,7 @@ pub(crate) mod element_views {
                     .into_iter()
                     .enumerate()
                     .map(|(index, scalar)| StructuralFieldDeclaration {
+                        declaration_identity: Default::default(),
                         inline_carrier: None,
                         id: StructuralFieldId::new(index as u64 + 1).unwrap(),
                         identity: identities.intern(if index == 0 { "wide" } else { "byte" }),
@@ -5436,6 +5437,7 @@ pub(crate) mod element_views {
                 let mut module = TerminalModule::declarations();
                 module.identities = identities.build();
                 module.structural_types.push(StructuralTypeDeclaration {
+                    declaration_identity: Default::default(),
                     quotient_carrier: None,
                     id: root,
                     identity: record,
@@ -5454,6 +5456,7 @@ pub(crate) mod element_views {
                 let unserved =
                     ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 128).unwrap());
                 module.structural_types.push(StructuralTypeDeclaration {
+                    declaration_identity: Default::default(),
                     quotient_carrier: None,
                     id: StructuralTypeId::new(2).unwrap(),
                     identity: unserved_identity,

@@ -119,21 +119,58 @@ impl Program<'_> {
             (Some(from), Some(to)) if from == to
         ) {
             operand
-        } else if matches!(
-            (source_type.scalar(), target.scalar()),
-            (
-                Some(ScalarType::IeeeFloat(
-                    semantic_vocabulary::IeeeFloatFormat::Binary32
-                )),
-                Some(ScalarType::IeeeFloat(
-                    semantic_vocabulary::IeeeFloatFormat::Binary64
-                ))
-            )
-        ) {
-            // Every binary32 value is exactly representable in binary64.
-            // Narrowing needs a representability proof; a rounding conversion
-            // alone cannot justify an exact carrier cast.
-            self.exact_numeric_conversion(id, operand, source)?
+        } else if let (Some(ScalarType::IeeeFloat(from)), Some(ScalarType::IeeeFloat(to))) =
+            (source_type.scalar(), target.scalar())
+        {
+            use language_semantics::numeric_intrinsics::{NumericIntrinsic, NumericType};
+            let numeric = |format| match format {
+                semantic_vocabulary::IeeeFloatFormat::Binary32 => NumericType::F32,
+                semantic_vocabulary::IeeeFloatFormat::Binary64 => NumericType::F64,
+            };
+            let operand = if from.can_exactly_widen_to(to) {
+                operand
+            } else {
+                // The obligation names only this source, before the rounded
+                // conversion's result exists. A live guarantee must establish
+                // the same-format roundtrip; the goal cannot establish itself.
+                let source_term = semantic_vocabulary::ScalarTerm::value(
+                    semantic_vocabulary::ValueId::new(1).expect("fixed predicate formal"),
+                    ScalarType::IeeeFloat(from),
+                );
+                let clause =
+                    semantic_vocabulary::FloatMeaningClause::conversion_roundtrip(source_term, to)
+                        .map_err(|detail| {
+                            refuse(id, Construct::Machine, Unserved::Expression(detail))
+                        })?;
+                Expression {
+                    result: operand.result,
+                    kind: ExpressionKind::Establish {
+                        operand: Box::new(operand),
+                        clauses: vec![semantic_vocabulary::Proposition::FloatMeaningEqual(clause)],
+                        stated: terminal_check_tables::program::CastCondition::ExactRepresentation(
+                            format!(
+                                "the float value is exactly representable in {}",
+                                match to {
+                                    semantic_vocabulary::IeeeFloatFormat::Binary32 => "f32",
+                                    semantic_vocabulary::IeeeFloatFormat::Binary64 => "f64",
+                                }
+                            ),
+                        ),
+                    },
+                    call_context: None,
+                    source,
+                }
+            };
+            self.exact_numeric_conversion(
+                id,
+                NumericIntrinsic::Conversion {
+                    source: numeric(from),
+                    target: numeric(to),
+                    domain: ArithmeticDomain::Exact,
+                },
+                operand,
+                source,
+            )?
         } else {
             let (Some(ScalarType::Integer(from)), Some(carrier @ ScalarType::Integer(to))) =
                 (source_type.scalar(), target.scalar())
@@ -175,16 +212,11 @@ impl Program<'_> {
     fn exact_numeric_conversion(
         &mut self,
         id: MachineId,
+        meaning: language_semantics::numeric_intrinsics::NumericIntrinsic,
         operand: Expression,
         source: SourceOrigin,
     ) -> Checked<Expression> {
-        use language_semantics::numeric_intrinsics::{NumericIntrinsic, NumericType};
         let unavailable = |detail| refuse(id, Construct::Machine, Unserved::Expression(detail));
-        let meaning = NumericIntrinsic::Conversion {
-            source: NumericType::F32,
-            target: NumericType::F64,
-            domain: numerics::arithmetic::ArithmeticDomain::Exact,
-        };
         let declaration = terminal_semantics::numeric_primitives::declaration_path(meaning)
             .map_err(unavailable)?;
         let target = self.typed.symbols
@@ -405,7 +437,10 @@ impl Program<'_> {
                             kind: ExpressionKind::Establish {
                                 operand: Box::new(operand),
                                 clauses,
-                                stated,
+                                stated:
+                                    terminal_check_tables::program::CastCondition::DomainMembership(
+                                        stated,
+                                    ),
                             },
                             result: Some(result),
                             source,

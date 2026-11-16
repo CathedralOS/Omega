@@ -1218,7 +1218,6 @@ mod terminator {
     use target_operations::{TargetControlSuccessor, TargetControlTerminator};
     use terminal_psi::BoundaryMachineDeclaration;
     use terminal_psi::{StructuralAccess, StructuralMultiplicity, TerminalAffineCleanupAction};
-    use terminal_semantics::descriptor_results::is_descriptor;
 
     fn disposable_view_carrier(
         live: &LiveDefinitions,
@@ -1710,7 +1709,14 @@ mod terminator {
                     .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
                 plain_home_cleanup(function, live, structural_types, cleanup_actions)?;
                 let cleanup_actions = cleanup_actions.clone();
-                if is_descriptor(structural_types.values().copied(), result.structural_type) {
+                if structural_types
+                    .get(result.structural_type)
+                    .is_some_and(|declaration| {
+                        calling_conventions::terminal_layout::is_native_view_descriptor(
+                            &declaration.shape,
+                        )
+                    })
+                {
                     let source_type = live
                         .structural_homes
                         .get(source)
@@ -2055,6 +2061,7 @@ mod terminator {
             let kind = ExternalCompletionKind::ProcessExit;
             let completion = BoundaryCompletion::External(kind);
             let types = [empty, inhabited].map(|id| StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
                 id,
                 identity: terminal_psi::TerminalIdentityIndex::ABSENT,
                 quotient_carrier: None,

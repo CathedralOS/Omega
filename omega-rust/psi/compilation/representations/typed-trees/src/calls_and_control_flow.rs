@@ -5,655 +5,7 @@ symbol/identity names (`names`) in `TypedTrees`.
 */
 
 pub mod calls {
-    pub mod application_graph {
-        use crate::TypedTrees;
-        use crate::references;
-        use semantic_vocabulary::proof_applications::{
-            ProofApplicationMachine, ProofApplicationPlan, ProofApplicationTargetMember,
-            ProofDeclarationDependencies,
-        };
-        use symbols::SymbolHandle;
 
-        pub fn source_application_plan(typed: &TypedTrees) -> ProofApplicationPlan<SymbolHandle> {
-            let mut plan = ProofApplicationPlan::default();
-            let mut declarations = references::collect_program_declarations(typed);
-            declarations.retain(|owner| typed.machine_by_symbol(*owner).is_none());
-            for owner in typed.traits() {
-                declarations.extend(
-                    typed
-                        .trait_machine_signatures(owner)
-                        .iter()
-                        .map(|signature| signature.symbol),
-                );
-                declarations.extend(
-                    owner
-                        .refinement_clauses
-                        .iter()
-                        .map(|row| row.signature.symbol),
-                );
-            }
-            declarations.sort_unstable_by_key(|owner| (owner.arena_index(), owner.generation()));
-            declarations.dedup();
-            plan.declarations = plan.symbols.insert_many(declarations.iter().copied());
-            for (declaration, dependencies) in
-                references::collect_declaration_symbol_dependencies(typed)
-            {
-                let dependencies = dependencies
-                    .into_iter()
-                    .map(|symbol| {
-                        typed
-                            .trait_machine_signature(symbol)
-                            .map_or(symbol, |(owner, _)| owner.symbol)
-                    })
-                    .filter(|dependency| {
-                        typed.machine_by_symbol(*dependency).is_none()
-                            && declarations.contains(dependency)
-                    });
-                let dependencies = plan.symbols.insert_many(dependencies);
-                let signatures = match typed.trait_definition_by_symbol(declaration) {
-                    Some(owner) => plan.symbols.insert_many(
-                        typed
-                            .trait_machine_signatures(owner)
-                            .iter()
-                            .map(|signature| signature.symbol)
-                            .chain(
-                                owner
-                                    .refinement_clauses
-                                    .iter()
-                                    .map(|row| row.signature.symbol),
-                            ),
-                    ),
-                    None => Default::default(),
-                };
-                plan.declaration_dependencies
-                    .insert(ProofDeclarationDependencies {
-                        declaration,
-                        dependencies,
-                        signatures,
-                    });
-            }
-            for machine in typed.machines() {
-                let states = plan.symbols.insert_many(
-                    typed
-                        .machine_states(machine)
-                        .iter()
-                        .map(|state| state.symbol),
-                );
-                let binders = plan.symbols.insert_many(
-                    typed
-                        .machine_kind_type_parameters(machine)
-                        .map(|binder| binder.symbol),
-                );
-                let family_members = typed
-                    .target_machine_families
-                    .iter()
-                    .find(|family| family.canonical == machine.symbol)
-                    .map(|family| {
-                        plan.target_members
-                            .insert_many(family.members.iter().map(|member| {
-                                ProofApplicationTargetMember {
-                                    target: member.target.as_str().to_owned(),
-                                    machine: member.machine,
-                                }
-                            }))
-                    })
-                    .unwrap_or_default();
-                plan.machines.insert(ProofApplicationMachine {
-                    machine: machine.symbol,
-                    states,
-                    binders,
-                    authored_target: typed.machine_authored_target(machine).map(str::to_owned),
-                    source_target: typed.source_target_context(machine).map(str::to_owned),
-                    family_interface: machine.target_family_interface,
-                    family_members,
-                    dynamic_realizations: Default::default(),
-                    product_selected: true,
-                });
-            }
-            plan.provider_candidates
-                .insert_many(typed.conformances().iter().flat_map(|conformance| {
-                    conformance
-                        .rows
-                        .iter()
-                        .map(|row| (row.requirement, row.realization_machine))
-                }));
-            for machine in typed.machines() {
-                plan.provider_candidates.insert_many(
-                    typed
-                        .machine_trait_conformances(machine)
-                        .iter()
-                        .filter(|clause| clause.requirement_symbol.is_valid())
-                        .map(|clause| (clause.requirement_symbol, machine.symbol)),
-                );
-            }
-            plan
-        }
-    }
-    pub mod boundary {
-        use crate::TypedTrees;
-        use crate::signature::StateSignature;
-        use crate::statement::TableCall;
-
-        pub fn called_boundary_signature<'program>(
-            program: &'program TypedTrees,
-            call: &TableCall,
-        ) -> Option<&'program StateSignature> {
-            let (declaration, signature) = if let Some(dispatch) = &call.static_requirement_dispatch
-            {
-                let declaration = program.trait_definition_by_symbol(dispatch.declaring_trait)?;
-                let signature =
-                    program.trait_machine_signature_by_symbol(declaration, dispatch.requirement)?;
-                (declaration, signature)
-            } else {
-                program.trait_machine_signature(call.target_symbol)?
-            };
-            declaration.is_boundary.then_some(signature)
-        }
-    }
-
-    pub mod finite_family {
-        use crate::TypedTrees;
-        use crate::expression::BinaryOperator;
-        use crate::expression::ExpressionNode::Binary;
-        use crate::expression::ExpressionNode::Name;
-        use crate::signature::StateSignature;
-        use crate::types;
-        use language_semantics::const_value::FiniteScalarValue;
-
-        #[derive(Debug, Clone, PartialEq, Eq)]
-        pub struct FamilyTuple {
-            pub values: Box<[FiniteScalarValue]>,
-        }
-
-        #[derive(Debug, Clone, PartialEq, Eq)]
-        pub enum FamilyProbe {
-            NotFinite(String),
-            Finite {
-                arity: usize,
-                tuples: Vec<FamilyTuple>,
-            },
-        }
-
-        impl TypedTrees {
-            pub fn finite_signature_family(&self, signature: &StateSignature) -> FamilyProbe {
-                self.finite_declaration_family(
-                    signature.symbol,
-                    !signature.lifetime_parameters.is_empty(),
-                    self.state_signature_type_parameters(signature),
-                    self.state_signature_contracts(signature),
-                )
-            }
-
-            pub fn finite_machine_family(&self, machine: &crate::machine::Machine) -> FamilyProbe {
-                self.finite_declaration_family(
-                    machine.symbol,
-                    !machine.lifetime_parameters.is_empty(),
-                    self.machine_type_parameters(machine),
-                    self.machine_contracts(machine),
-                )
-            }
-
-            pub fn finite_value_binder_in_scope(
-                &self,
-                mut owner: symbols::SymbolHandle,
-                binder: symbols::SymbolHandle,
-            ) -> bool {
-                let mut visited = Vec::new();
-                while owner.is_valid() {
-                    owner = self.lifetime_declaration_owner(owner);
-                    if !owner.is_valid() || visited.contains(&owner) {
-                        return false;
-                    }
-                    if let Some(machine) = self.machine_declaration_for_lexical_scope(owner) {
-                        if let Some(parameter) = self
-                            .machine_type_parameters(machine)
-                            .iter()
-                            .find(|parameter| parameter.symbol == binder)
-                        {
-                            return matches!(
-                                parameter.kind,
-                                crate::data::TypeParameterKind::Value { .. }
-                            ) && matches!(
-                                self.finite_machine_family(machine),
-                                FamilyProbe::Finite { .. }
-                            );
-                        }
-                    } else if self.symbols.get(owner).kind == symbols::SymbolKind::Machine {
-                        return false;
-                    }
-                    visited.push(owner);
-                    owner = self.declaration_scope_parent(owner);
-                }
-                false
-            }
-
-            fn finite_declaration_family(
-                &self,
-                owner: symbols::SymbolHandle,
-                has_lifetimes: bool,
-                type_parameters: &[crate::data::TypeParameter],
-                contracts: &[crate::signature::SignatureContract],
-            ) -> FamilyProbe {
-                if has_lifetimes {
-                    return FamilyProbe::NotFinite(
-                "invocation lifetimes are arbitrary regions, not an enumerable value roster"
-                    .to_owned(),
-            );
-                }
-                let binders = type_parameters
-                    .iter()
-                    .filter(|parameter| {
-                        matches!(
-                            parameter.kind,
-                            crate::data::TypeParameterKind::Const { .. }
-                                | crate::data::TypeParameterKind::Value { .. }
-                        )
-                    })
-                    .collect::<Vec<_>>();
-                if binders.len() != type_parameters.len() {
-                    return FamilyProbe::NotFinite(
-                "the requirement carries non-value generic binders, which value equality cannot enumerate"
-                    .to_owned(),
-            );
-                }
-                let mut family = FamilyProbe::NotFinite(
-                    "declares no finite-family `requires` clause".to_owned(),
-                );
-                for fact in contracts
-                    .iter()
-                    .filter(|contract| {
-                        contract.kind == crate::signature::SignatureContractKind::Requires
-                    })
-                    .flat_map(|contract| self.proof_facts.span_or_empty(contract.facts))
-                {
-                    let Some(root) = fact.as_expression() else {
-                        continue;
-                    };
-                    let candidate = self.explicit_signature_family(owner, &binders, *root);
-                    if matches!(&candidate, FamilyProbe::Finite { .. }) {
-                        if matches!(&family, FamilyProbe::Finite { .. }) {
-                            return FamilyProbe::NotFinite(
-                        "the finite family must be one explicit disjunction of complete binder equalities".to_owned(),
-                    );
-                        }
-                        family = candidate;
-                    } else if !matches!(&family, FamilyProbe::Finite { .. }) {
-                        family = candidate;
-                    }
-                }
-                family
-            }
-
-            fn explicit_signature_family(
-                &self,
-                owner: symbols::SymbolHandle,
-                binders: &[&crate::data::TypeParameter],
-                root: crate::expression::ExpressionHandle,
-            ) -> FamilyProbe {
-                let mut tuples = Vec::new();
-                for alternative in self.binary_chain_leaves(root, BinaryOperator::Or) {
-                    let mut assignments: Vec<Option<FiniteScalarValue>> = vec![None; binders.len()];
-                    for conjunct in self.binary_chain_leaves(alternative, BinaryOperator::And) {
-                        let Some((binder_index, value)) =
-                            self.equality_assignment(owner, binders, conjunct)
-                        else {
-                            return FamilyProbe::NotFinite(
-                        "the `requires` clause is not explicit `Binder == literal` equalities; opaque \
-                         predicates and inequalities do not enumerate a finite family"
-                            .to_owned(),
-                    );
-                        };
-                        if assignments[binder_index].is_some() {
-                            return FamilyProbe::NotFinite(
-                                "an alternative binds the same value binder more than once"
-                                    .to_owned(),
-                            );
-                        }
-                        assignments[binder_index] = Some(value);
-                    }
-                    if assignments.iter().any(Option::is_none) {
-                        return FamilyProbe::NotFinite(
-                    "an alternative does not bind every value binder; a finite family requires \
-                     complete tuples so authored correlations are preserved"
-                        .to_owned(),
-                );
-                    }
-                    let tuple = assignments
-                        .into_iter()
-                        .map(|value| value.expect("complete alternative tuple"))
-                        .collect::<Vec<_>>();
-                    tuples.push(FamilyTuple {
-                        values: tuple.into_boxed_slice(),
-                    });
-                }
-                // Preserve the published roster ordering while keeping the
-                // scalar values, rather than reparsing keys for later checks.
-                tuples.sort_by_cached_key(|tuple| {
-                    tuple
-                        .values
-                        .iter()
-                        .map(|value| value.canonical_identity())
-                        .collect::<Vec<_>>()
-                });
-                tuples.dedup_by(|left, right| left.values == right.values);
-                FamilyProbe::Finite {
-                    arity: binders.len(),
-                    tuples,
-                }
-            }
-
-            fn binary_chain_leaves(
-                &self,
-                expression: crate::expression::ExpressionHandle,
-                operator: BinaryOperator,
-            ) -> Vec<crate::expression::ExpressionHandle> {
-                let mut leaves = Vec::new();
-                let mut stack = vec![expression];
-                while let Some(current) = stack.pop() {
-                    match self.expression_table.expression(current) {
-                        Binary(binary) if binary.operator == operator => {
-                            stack.push(binary.right);
-                            stack.push(binary.left);
-                        }
-                        _ => leaves.push(current),
-                    }
-                }
-                leaves
-            }
-
-            fn equality_assignment(
-                &self,
-                owner: symbols::SymbolHandle,
-                binders: &[&crate::data::TypeParameter],
-                expression: crate::expression::ExpressionHandle,
-            ) -> Option<(usize, FiniteScalarValue)> {
-                let Binary(binary) = self.expression_table.expression(expression) else {
-                    return None;
-                };
-                if binary.operator != BinaryOperator::Equal {
-                    return None;
-                }
-                let (binder, value) = match (
-                    self.binder_operand(binders, binary.left),
-                    self.binder_operand(binders, binary.right),
-                    self.literal_operand(owner, binary.left),
-                    self.literal_operand(owner, binary.right),
-                ) {
-                    (Some(binder), None, None, Some(value))
-                    | (None, Some(binder), Some(value), None) => (binder, value),
-                    _ => return None,
-                };
-                let carrier = match &binders[binder].kind {
-                    crate::data::TypeParameterKind::Const { type_reference }
-                    | crate::data::TypeParameterKind::Value { type_reference } => *type_reference,
-                    _ => return None,
-                };
-                self.value_fits_carrier(carrier, value)
-                    .then_some((binder, value))
-            }
-
-            fn binder_operand(
-                &self,
-                binders: &[&crate::data::TypeParameter],
-                expression: crate::expression::ExpressionHandle,
-            ) -> Option<usize> {
-                let Name(path) = self.expression_table.expression(expression) else {
-                    return None;
-                };
-                let members = self.expression_table.name_path_members(path.members);
-                let [member] = members else { return None };
-                binders.iter().position(|parameter| {
-                    if path.symbol.is_valid() {
-                        parameter.symbol == path.symbol
-                    } else {
-                        parameter.name.as_str() == member.as_str()
-                    }
-                })
-            }
-
-            fn literal_operand(
-                &self,
-                owner: symbols::SymbolHandle,
-                expression: crate::expression::ExpressionHandle,
-            ) -> Option<FiniteScalarValue> {
-                match self.expression_table.expression(expression) {
-                    crate::expression::ExpressionNode::Integer(literal) => {
-                        let value = literal
-                            .value_i64()
-                            .map(i128::from)
-                            .or_else(|| literal.value_u64().map(i128::from))?;
-                        Some(FiniteScalarValue::Integer(value))
-                    }
-                    crate::expression::ExpressionNode::Boolean(value) => {
-                        Some(FiniteScalarValue::Boolean(*value))
-                    }
-                    Name(path) => {
-                        let members = self.expression_table.name_path_members(path.members);
-                        let [member] = members else { return None };
-                        let selected = if path.symbol.is_valid() {
-                            path.symbol
-                        } else {
-                            self.symbols.find_top_level_by_name_and_kinds_from_source(
-                                member.as_str(),
-                                &[symbols::SymbolKind::Const],
-                                self.symbols.symbol_provenance_source_span(owner)?,
-                            )?
-                        };
-                        let declaration = self
-                            .const_declarations()
-                            .iter()
-                            .find(|declaration| declaration.symbol == selected)?;
-                        let value = language_semantics::const_value::CanonicalConstValue::new(
-                            self.display_type_reference(declaration.declared_type),
-                            declaration.evaluated_value.as_ref()?.encoding()?.to_owned(),
-                            member.as_str(),
-                        );
-                        FiniteScalarValue::from_decoded(&value.decode_encoding()?)
-                    }
-                    _ => None,
-                }
-            }
-
-            fn value_fits_carrier(
-                &self,
-                carrier: types::TypeReferenceHandle,
-                value: FiniteScalarValue,
-            ) -> bool {
-                let Some(primitive) = self.primitive_type_reference(carrier) else {
-                    return false;
-                };
-                match value {
-                    FiniteScalarValue::Integer(value) => primitive
-                        .integer_bounds()
-                        .is_some_and(|(low, high)| low <= value && value <= high),
-                    FiniteScalarValue::Boolean(_) => primitive == types::PrimitiveType::Bool,
-                }
-            }
-        }
-    }
-    pub(crate) mod operand_order {
-        use crate::static_applications::StaticMachineApplicationHandle;
-        use crate::{
-            TypedTrees, expression::ExpressionNode, static_applications::StaticMachineBindingValue,
-        };
-
-        pub struct CallArgumentEvaluationOrder {
-            positions: Vec<usize>,
-            position: usize,
-            count: usize,
-        }
-
-        impl CallArgumentEvaluationOrder {
-            pub fn is_natural(&self) -> bool {
-                self.positions.is_empty()
-            }
-        }
-
-        impl Iterator for CallArgumentEvaluationOrder {
-            type Item = usize;
-
-            fn next(&mut self) -> Option<usize> {
-                if self.position == self.count {
-                    return None;
-                }
-                let position = self.position;
-                self.position += 1;
-                Some(self.positions.get(position).copied().unwrap_or(position))
-            }
-        }
-
-        impl TypedTrees {
-            pub fn call_argument_evaluation_order(
-                &self,
-                application: StaticMachineApplicationHandle,
-                target: symbols::SymbolHandle,
-                count: usize,
-            ) -> Result<CallArgumentEvaluationOrder, &'static str> {
-                let natural = || CallArgumentEvaluationOrder {
-                    positions: Vec::new(),
-                    position: 0,
-                    count,
-                };
-                if !application.is_valid() {
-                    return Ok(natural());
-                }
-                let table = &self.expression_table;
-                let values = table
-                    .static_machine_application_bindings(application)
-                    .iter()
-                    .filter_map(|binding| match binding.value {
-                        StaticMachineBindingValue::RuntimeValue { expression, .. } => {
-                            Some((binding.parameter, expression))
-                        }
-                        _ => None,
-                    })
-                    .collect::<Vec<_>>();
-                if values.is_empty() {
-                    return Ok(natural());
-                }
-                let closed = self.closed_requirement_application(target);
-                let parameters = if let Some(closed) = &closed {
-                    Some(self.state_signature_parameters(closed.signature))
-                } else if let Some(state) = self.state_by_symbol(target) {
-                    Some(self.state_parameters(state))
-                } else if let Some(machine) = self.machine_by_symbol(target) {
-                    self.machine_states(machine)
-                        .first()
-                        .map(|state| self.state_parameters(state))
-                } else {
-                    self.trait_machine_signature(target)
-                        .map(|(_, signature)| self.state_signature_parameters(signature))
-                        .or_else(|| {
-                            self.machine_parameter_signature(target)
-                                .map(|(_, signature)| self.state_signature_parameters(signature))
-                        })
-                        .or_else(|| {
-                            if !target.is_valid() {
-                                return None;
-                            }
-                            let binder = self.symbols.get(target).parent;
-                            if !binder.is_valid()
-                                || self.symbols.get(binder).kind
-                                    != symbols::SymbolKind::ConformanceParameter
-                            {
-                                return None;
-                            }
-                            let owner = self.symbols.get(binder).parent;
-                            self.evidence_bound_requirement(owner, binder, target)
-                                .ok()
-                                .flatten()
-                                .map(|bound| self.state_signature_parameters(bound.signature))
-                        })
-                }
-                .ok_or("runtime operand order lost its exact receiving declaration")?;
-                if parameters.len() != count {
-                    return Err(
-                        "runtime operand order differs from its complete executable roster",
-                    );
-                }
-                let mut runtime = Vec::with_capacity(values.len());
-                for (binder, expression) in values {
-                    let mut matches = parameters
-                        .iter()
-                        .enumerate()
-                        .filter(|(_, parameter)| derives_from(self, parameter.symbol, binder));
-                    let position = matches.next().map(|(position, _)| position);
-                    if matches.next().is_some() {
-                        return Err("runtime operand order repeats a receiving Value formal");
-                    }
-                    runtime.push((position, expression));
-                }
-                if runtime.iter().all(|(position, _)| position.is_none())
-                    && closed.is_none_or(|closed| {
-                        closed
-                            .local_arguments
-                            .iter()
-                            .all(|argument| argument.static_operand().is_some())
-                    })
-                {
-                    return Ok(natural());
-                }
-                let runtime_positions = runtime
-                    .iter()
-                    .map(|(position, _)| {
-                        position.ok_or("runtime operand order lost a receiving Value formal")
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
-                for (ordinal, position) in runtime_positions.iter().enumerate() {
-                    if runtime_positions[..ordinal].contains(position) {
-                        return Err("runtime operand order maps independent binders to one formal");
-                    }
-                }
-                let mut explicit = Vec::new();
-                let mut inferred = Vec::new();
-                for ((_, mut expression), position) in runtime.into_iter().zip(&runtime_positions) {
-                    while expression.is_valid() {
-                        match table.expression(expression) {
-                            ExpressionNode::Member(member) => expression = member.receiver,
-                            _ => break,
-                        }
-                    }
-                    let positions = if expression.is_valid()
-                        && self.saved_argument_source(expression).is_some()
-                    {
-                        &mut inferred
-                    } else {
-                        &mut explicit
-                    };
-                    positions.push(*position);
-                }
-                explicit
-                    .extend((0..count).filter(|position| !runtime_positions.contains(position)));
-                explicit.extend(inferred);
-                if explicit.iter().copied().eq(0..count) {
-                    return Ok(natural());
-                }
-                Ok(CallArgumentEvaluationOrder {
-                    positions: explicit,
-                    position: 0,
-                    count,
-                })
-            }
-        }
-
-        fn derives_from(
-            program: &TypedTrees,
-            mut symbol: symbols::SymbolHandle,
-            binder: symbols::SymbolHandle,
-        ) -> bool {
-            while symbol.is_valid() {
-                if symbol == binder {
-                    return true;
-                }
-                let preceding = program.symbols.get(symbol).generated_from;
-                if !preceding.is_valid() || preceding.arena_index() >= symbol.arena_index() {
-                    return false;
-                }
-                symbol = preceding;
-            }
-            false
-        }
-    }
     pub mod signature {
         use crate::name::Identifier;
         use crate::types::TypeReferenceHandle;
@@ -1041,8 +393,9 @@ pub mod calls {
     }
     use crate::expression::ExpressionNode::Name;
     use crate::expression::TableCallExpression;
-    pub use operand_order::CallArgumentEvaluationOrder;
 
+    // Readers use this typed declaration relation to distinguish a namespace
+    // qualifier from an extra runtime argument, without re-reading source.
     impl crate::TypedTrees {
         pub fn call_has_no_runtime_receiver_for_target(&self, call: &TableCallExpression) -> bool {
             if let Some(owner) = self.machine_holding_state(call.target_symbol)
@@ -1114,7 +467,7 @@ pub mod calls {
             Name(path) if path.symbol == owner.symbol)
         }
 
-        pub fn call_has_no_runtime_receiver(
+        fn call_has_no_runtime_receiver(
             &self,
             call: &TableCallExpression,
             owner: &crate::machine::Machine,
@@ -1446,22 +799,62 @@ pub mod control_flow {
             {
                 return None;
             }
-            let operator = crate::operator::resolve_satisfied_checked_operator_for_conformance(
-                program,
-                machine,
-                conformance,
-            )?;
-            if let Some(requirement) =
+            // A requirement's name can denote several input/result-domain
+            // overloads. Resolve its complete signature independently of any
+            // token binding; named catalog calls use the same declaration.
+            let path = format!("{}::{}", conformance.name, requirement_name);
+            let matches = |symbol| {
+                if let Some(requirement) = program.machine_by_symbol(symbol)
+                    && requirement.supply_mode
+                        == language_semantics::MachineSupplyMode::TopLevelRequirement
+                {
+                    let Some(entry) = program.machine_states(requirement).first() else {
+                        return false;
+                    };
+                    return crate::callable_signature_shapes::realizes_signature(
+                        program,
+                        machine,
+                        program.machine_type_parameters(requirement),
+                        program.state_parameters(entry),
+                        entry.return_type,
+                    );
+                }
                 program
-                    .machines_with_symbol(operator.symbol)
-                    .find(|requirement| {
-                        requirement.supply_mode
-                            == language_semantics::MachineSupplyMode::TopLevelRequirement
+                    .operator_definition_by_symbol(symbol)
+                    .is_some_and(|operator| {
+                        crate::callable_signature_shapes::realizes_signature(
+                            program,
+                            machine,
+                            program.operator_type_parameters(operator),
+                            program.operator_parameters(operator),
+                            operator.return_type,
+                        )
                     })
+            };
+            let selected = program
+                .symbols
+                .lookup_signature_free_top_level_from_source_matching(
+                    &path,
+                    &[symbols::SymbolKind::Machine, symbols::SymbolKind::Operator],
+                    conformance.requirement_source_span.unwrap_or_default(),
+                    matches,
+                )
+                .unique()?;
+            if conformance.requirement_symbol.is_valid()
+                && conformance.requirement_symbol != selected
             {
-                return Some(SatisfiedDeclaration::TopLevelRequirement(requirement));
+                return None;
             }
-            Some(SatisfiedDeclaration::Operator(operator))
+            if let Some(requirement) = program.machine_by_symbol(selected)
+                && requirement.supply_mode
+                    == language_semantics::MachineSupplyMode::TopLevelRequirement
+            {
+                Some(SatisfiedDeclaration::TopLevelRequirement(requirement))
+            } else {
+                program
+                    .operator_definition_by_symbol(selected)
+                    .map(SatisfiedDeclaration::Operator)
+            }
         }
 
         pub fn machine_by_symbol(machines: &[Machine], symbol: SymbolHandle) -> Option<&Machine> {
@@ -1733,11 +1126,6 @@ pub mod control_flow {
                         .zip(self.position(right))
                         .is_some_and(|(left, right)| left < right)
                 }
-                pub fn at_or_before(&self, left: usize, right: usize) -> bool {
-                    self.position(left)
-                        .zip(self.position(right))
-                        .is_some_and(|(left, right)| left <= right)
-                }
                 pub fn latest(&self, left: usize, right: usize) -> Option<usize> {
                     Some(if self.position(left)? < self.position(right)? {
                         right
@@ -1814,39 +1202,6 @@ pub mod control_flow {
             }
 
             impl StatementTable {
-                pub fn admitted_execution_order(
-                    &self,
-                    statements: HandleSpan<StatementNode>,
-                ) -> StatementExecutionOrder {
-                    let indices = self
-                        .finite_execution_order(statements)
-                        .expect("typed statement control shape was admitted")
-                        .expect("finite assembly control was admitted");
-                    let mut positions = vec![0; statements.len()];
-                    for (position, source) in indices.iter().copied().enumerate() {
-                        positions[source] = position + 1;
-                    }
-                    StatementExecutionOrder {
-                        source_count: statements.len(),
-                        indices,
-                        positions,
-                    }
-                }
-
-                pub fn admitted_execution_statements(
-                    &self,
-                    statements: HandleSpan<StatementNode>,
-                ) -> StatementExecutionIter<'_> {
-                    let order = self
-                        .finite_execution_order(statements)
-                        .expect("typed statement control shape was admitted")
-                        .expect("finite assembly control was admitted");
-                    StatementExecutionIter {
-                        statements: self.statements(statements),
-                        order: order.into_iter(),
-                    }
-                }
-
                 pub fn finite_execution_order(
                     &self,
                     statements: HandleSpan<StatementNode>,
@@ -2726,6 +2081,12 @@ pub mod control_flow {
         }
 
         impl StatementTable {
+            pub(crate) fn finish_output_page(&mut self) {
+                // Calls can acquire source applications after body completion;
+                // keep that rewrite separate without splitting their children.
+                self.statements.finish_append_page();
+            }
+
             pub fn insert_transition_patterns(
                 &mut self,
                 patterns: impl IntoIterator<Item = TransitionPattern>,
@@ -2956,34 +2317,12 @@ pub mod control_flow {
                 self.statements.span(span)
             }
 
-            pub fn indexed_statements(
-                &self,
-                span: HandleSpan<StatementNode>,
-            ) -> impl Iterator<Item = (usize, &StatementNode)> {
-                self.statements(span).iter().enumerate()
-            }
-
-            pub fn statement_at(
-                &self,
-                state: &crate::state::State,
-                index: usize,
-            ) -> Option<&StatementNode> {
-                self.statements(state.statement_nodes).get(index)
-            }
-
             pub fn iter_statements(
                 &self,
                 span: HandleSpan<StatementNode>,
             ) -> impl Iterator<Item = (StatementHandle, &StatementNode)> {
                 span.handles()
                     .map(|handle| (handle, self.statements.get(handle)))
-            }
-
-            pub fn statements_mut(
-                &mut self,
-                span: HandleSpan<StatementNode>,
-            ) -> &mut [StatementNode] {
-                self.binding_statements_mut().span_mut_or_empty(span)
             }
 
             pub fn expression_handles(
@@ -3002,18 +2341,6 @@ pub mod control_flow {
                 handle: TransitionTargetHandle,
             ) -> &TransitionTargetNode {
                 self.transition_targets.get(handle)
-            }
-
-            pub fn named_transition_target(
-                &self,
-                handle: TransitionTargetHandle,
-            ) -> Option<(&TableNamePath, HandleSpan<ExpressionHandle>)> {
-                match self.transition_target(handle) {
-                    TransitionTargetNode::Named {
-                        path, arguments, ..
-                    } => Some((path, *arguments)),
-                    _ => None,
-                }
             }
 
             pub fn transition_target_mut(
@@ -3102,20 +2429,6 @@ pub mod control_flow {
         }
 
         impl StatementNode {
-            pub fn as_assembly_fact(&self) -> Option<&TableAssemblyFact> {
-                let StatementNode::AssemblyFact(fact) = self else {
-                    return None;
-                };
-                Some(fact)
-            }
-
-            pub fn as_assignment(&self) -> Option<&TableAssignment> {
-                let StatementNode::Assignment(assignment) = self else {
-                    return None;
-                };
-                Some(assignment)
-            }
-
             pub fn as_call(&self) -> Option<&TableCall> {
                 let StatementNode::Call(call) = self else {
                     return None;

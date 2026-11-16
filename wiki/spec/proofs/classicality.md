@@ -49,11 +49,12 @@ and trusted admissions require their own soundness justification.
 | `IntegerOrderDiscreteness` | Constructive-decidable | `x ≤ c` to `x < c + 1` by literal adjacency; sound because the fixed-integer order is discrete and decidable. |
 | `IntegerSubtractOrder` | Constructive-decidable | `r = a − b ∧ 0 < b ⊢ r < a` over exact fixed integers. |
 | `IntegerAddOrder` | Constructive-decidable | `r = a + b ∧ 0 < b ⊢ a < r` over exact fixed integers. |
-| `IntegerSubtractAntitone` | Constructive-decidable | `p = m − x ∧ q = m − y ∧ y < x ⊢ p < q` over exact fixed integers with one minuend. |
+| `IntegerSubtractAntitone` | Constructive-decidable | `p = m − x ∧ q = m − y ∧ y < x ⊢ p < q` over exact fixed integers with one minuend. With unsigned saturating subtraction, ordered minuends and oppositely ordered subtrahends give nonstrict order. Strict order requires one strict operand comparison and a positive larger difference. |
 | `IntegerMathOrderTranslation` | Constructive | `a <= b` implies `a + t <= b + t` over mathematical integers, derived from the existing addition monotonicity law. It introduces neither a new assumption nor a finite operation. |
 | `IntegerOrderAntisymmetry` | Constructive | Two opposite nonstrict integer bounds establish equality by the existing order antisymmetry law. No excluded middle or new assumption is introduced. |
 | `IntegerLessOrEqualTransitivity`, `IntegerStrictOrderTransitivity` | Constructive | Order composition with an exact shared middle; strict chains require at least one strict edge. |
 | `IeeeFloatOrderChain` | Constructive-decidable, **provisional** | A nonempty chain of independently checked IEEE `<` and `<=` premises composes at the exact same-format middle terms. A strict conclusion requires a strict premise; NaN-inclusive complements provide no edge. This statement is trusted, not derived by the mathematical core, under [kernel rule admission](foundation.md#admitting-an-arithmetic-rule). The `float_range_delivery/local` program needs it to weaken `value <= 0.25` to `value <= 0.5`. An independent 32-encoding IEEE model checks every pair and all 32,768 triples in both permanent formats, including signed zeros, infinities and NaNs; a complete-input-contract twin removes the upper bound and must reject. |
+| `FloatMeaningNormalization` | Constructive-decidable, **provisional** | The checker composes independently checked, same-format meaning equations by congruence and evaluates closed catalog applications. It cancels binary32 → binary64 → binary32 only when the inner meaning has an actual binary32 projection or literal witness. Binary64 includes every binary32 finite value: precision 53 ≥ 24, maximum exponent 1023 ≥ 127, and minimum subnormal exponent −1074 ≤ −149; both formats preserve signed zeros, infinities and semantic NaN. The conversion law is trusted, not derived by the mathematical core, under [kernel rule admission](foundation.md#admitting-an-arithmetic-rule). The `exact_narrowing` fixture needs a prior widening guarantee; its twin adds 2^-30 and must reject. An independent miniature model enumerates all 32 source encodings, verifies exact embedding and round-trip meaning, and exercises the real checker; three deficient formats separately expose precision, maximum-exponent and minimum-subnormal failures. This rule introduces no IEEE equality or raw-bit identity. |
 | `IntegerOrderSubstitution` | Constructive | Replaces exactly one endpoint through a proved equality; never changes strictness. |
 | `IntegerAffineBound`, `IntegerExactAddDefinitionBound`, `IntegerExactSubtractDefinitionBound`, `IntegerCastBound`, `IntegerCorrelatedForbiddenRoots` | Constructive-decidable | Checked witness conversion over the decidable fixed-integer fragment; each accepted use re-records the witness's cited semantic-axiom roster — they carry trusted admissions as premises, never as silent steps (`cites_semantic_axioms`). |
 | `IntegerRemainderWithinDividend` | Constructive-decidable, **provisional** | The `IntegerAffineBound` form for an exact remainder by a divisor that is not a literal: `min(a, 0) ≤ a % d ≤ max(a, 0)` once `0 < d` or `d < −1` is proved. The statement is trusted, not derived by the mathematical core; it was admitted under the `kernel-rule-admission` decision in the [foundation](foundation.md), is checked against computed arithmetic on every pair of `i8` and `u8` operands, and cites its result equation like the other bound rules. `AcceptedProofRule::is_provisional` marks it. |
@@ -176,11 +177,13 @@ and retain their premise dependencies. Trusted rows record their admissions.
 The ledger exposes those routes for review; its exhaustiveness does not prove
 that reconstruction or rule implementations preserve the claimed boundary.
 
-The certificate proof-system marker is 6 and accepts only the current rule
+The certificate proof-system marker is 7 and accepts only the current rule
 vocabulary. `ClosedIeeeFloatRelation` decides exact same-format literal leaves
 using IEEE semantics; it does not infer reflexivity for an unknown value.
 `IeeeFloatOrderChain` checks every supplied premise certificate and retains its
 assumption and semantic-axiom closure. These certificates and seals are held in
 memory; their canonical fingerprint encoding appends primitive tag 4 and rule
-tag 29, including every ordered child. This adds no stored `ProofNode` decoder
+tag 29, including every ordered child. `FloatMeaningNormalization` appends rule
+tag 30 with every ordered premise certificate and retains their full dependency
+closure. This adds no stored `ProofNode` decoder
 and changes no `PSITERM`, `PSICORE` or native record envelope.

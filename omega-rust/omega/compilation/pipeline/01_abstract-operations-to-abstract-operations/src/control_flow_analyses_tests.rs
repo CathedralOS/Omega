@@ -65,6 +65,7 @@ fn case_plan() -> AbstractOperationPlan {
         .into_iter()
         .enumerate()
         .map(|(position, name)| StructuralCaseDeclaration {
+            declaration_identity: Default::default(),
             id: StructuralCaseId::new(position as u64 + 1).unwrap(),
             identity: identities.intern(name),
             fields: Vec::new(),
@@ -89,6 +90,7 @@ fn case_plan() -> AbstractOperationPlan {
         },
         entry: MachineId::new(1).unwrap(),
         structural_types: vec![StructuralTypeDeclaration {
+            declaration_identity: Default::default(),
             quotient_carrier: None,
             id: StructuralTypeId::new(1).unwrap(),
             identity: sum_identity,

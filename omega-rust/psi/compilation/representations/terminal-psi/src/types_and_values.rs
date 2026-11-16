@@ -246,6 +246,20 @@ pub mod types {
             DomainSemanticId, StructuralDomainId, StructuralTypeId,
         };
 
+        /// Keep the same plan while linking its descriptions to this module's
+        /// checked fields and functions. Erased fields keep their description
+        /// but have no storage path. These links supply no backing by themselves.
+        pub type StructuralDomainAccessPlan = access_plans::AccessPlan<
+            (
+                language_semantics::reflection::SchemaNodeHandle,
+                Option<Vec<StructuralPathSegment>>,
+            ),
+            (
+                language_semantics::reflection::CallableDescription,
+                StructuralEstablishmentRoute,
+            ),
+        >;
+
         #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
         pub struct StructuralDomainDeclaration {
             pub required_memberships: Option<Vec<DomainSemanticId>>,
@@ -255,11 +269,18 @@ pub mod types {
             pub semantic_domain: DomainSemanticId,
             pub identity: TerminalIdentityIndex,
             pub carrier: StructuralTypeId,
+            /// Identity of the complete type selected by this domain, including
+            /// lifetime and static arguments. The storage type can erase these
+            /// details and cannot stand in for them.
+            pub subject_identity: TerminalIdentityIndex,
             pub content_projection: Option<StructuralContentProjection>,
             pub byte_predicate: Option<crate::ByteSequencePredicate>,
             /// None adds no issuer restriction; Some(empty) permits nobody.
             /// This is separate from predicate truth and backing authority.
             pub establishment_routes: Option<Vec<StructuralEstablishmentRoute>>,
+            /// Returned rules are independent of predicates and issuance.
+            /// They require exact field/caller checks and backing supply.
+            pub access_policy: Option<StructuralDomainAccessPlan>,
         }
 
         #[cfg(test)]
@@ -271,6 +292,8 @@ pub mod types {
             #[test]
             fn explicit_empty_issuance_is_not_an_unrestricted_predicate() {
                 let mut domain = StructuralDomainDeclaration {
+                    subject_identity: Default::default(),
+                    access_policy: None,
                     required_memberships: Some(Vec::new()),
                     complete_predicate_theory: true,
                     predicate: None,
@@ -301,6 +324,13 @@ pub mod types {
                     && self.has_no_required_memberships()
                     && self.establishment_routes.is_none()
                     && self.content_projection.is_none()
+                    && self.access_policy.as_ref().is_none_or(|plan| {
+                        plan.issuance.is_none()
+                            && plan.readers.is_empty()
+                            && plan.writers.is_empty()
+                            && plan.observations.is_empty()
+                            && plan.reach.services().len() == 0
+                    })
             }
 
             pub fn authorizes_boundary_requirement(
@@ -468,15 +498,6 @@ pub mod types {
                         domain: row.domain,
                     });
                 }
-            }
-
-            pub fn select_rows(rows: &[Self], path: &[StructuralPathSegment]) -> Vec<Self> {
-                let (whole, projected) = Self::select(&[], rows, path);
-                let mut selected = Vec::with_capacity(whole.len() + projected.len());
-                Self::append_under(&whole, &projected, &[], &mut selected);
-                selected.sort();
-                selected.dedup();
-                selected
             }
 
             pub fn select(
@@ -711,6 +732,8 @@ pub mod types {
 
         #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
         pub struct StructuralTypeDeclaration {
+            /// Exact source owner; absent for compiler-generated declarations.
+            pub declaration_identity: TerminalIdentityIndex,
             pub quotient_carrier: Option<StructuralTypeId>,
             pub id: StructuralTypeId,
             pub identity: TerminalIdentityIndex,
@@ -792,8 +815,64 @@ pub mod types {
             AtomicCell(semantic_vocabulary::AtomicCellType),
         }
 
+        impl StructuralTypeShape {
+            pub fn cases(&self) -> &[StructuralCaseDeclaration] {
+                match self {
+                    Self::Sum { cases } | Self::Mixed { cases, .. } => cases,
+                    _ => &[],
+                }
+            }
+
+            pub fn cases_mut(&mut self) -> &mut [StructuralCaseDeclaration] {
+                match self {
+                    Self::Sum { cases } | Self::Mixed { cases, .. } => cases,
+                    _ => &mut [],
+                }
+            }
+
+            pub fn fields_with_case(
+                &self,
+            ) -> impl Iterator<
+                Item = (
+                    Option<&StructuralCaseDeclaration>,
+                    &StructuralFieldDeclaration,
+                ),
+            > {
+                let fields = match self {
+                    Self::Record { fields, .. } | Self::Mixed { fields, .. } => fields.as_slice(),
+                    _ => &[],
+                };
+                fields.iter().map(|field| (None, field)).chain(
+                    self.cases()
+                        .iter()
+                        .flat_map(|case| case.fields.iter().map(move |field| (Some(case), field))),
+                )
+            }
+
+            pub fn fields(&self) -> impl Iterator<Item = &StructuralFieldDeclaration> {
+                self.fields_with_case().map(|(_, field)| field)
+            }
+
+            pub fn fields_mut(&mut self) -> impl Iterator<Item = &mut StructuralFieldDeclaration> {
+                let (fields, cases): (
+                    &mut [StructuralFieldDeclaration],
+                    &mut [StructuralCaseDeclaration],
+                ) = match self {
+                    Self::Record { fields, .. } => (fields, &mut []),
+                    Self::Sum { cases } => (&mut [], cases),
+                    Self::Mixed { fields, cases } => (fields, cases),
+                    _ => (&mut [], &mut []),
+                };
+                fields
+                    .iter_mut()
+                    .chain(cases.iter_mut().flat_map(|case| &mut case.fields))
+            }
+        }
+
         #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
         pub struct StructuralCaseDeclaration {
+            /// Exact source owner; absent for compiler-generated declarations.
+            pub declaration_identity: TerminalIdentityIndex,
             pub id: StructuralCaseId,
             pub identity: TerminalIdentityIndex,
             pub fields: Vec<StructuralFieldDeclaration>,
@@ -801,6 +880,9 @@ pub mod types {
 
         #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
         pub struct StructuralFieldDeclaration {
+            /// A compiler-generated field has no source declaration and cannot
+            /// satisfy a policy naming a source field, even if its name matches.
+            pub declaration_identity: TerminalIdentityIndex,
             pub inline_carrier: Option<StructuralTypeId>,
             pub id: StructuralFieldId,
             pub identity: TerminalIdentityIndex,
@@ -1520,6 +1602,7 @@ pub mod types {
                 let array = StructuralTypeId::new(4).unwrap();
                 let types = vec![
                     StructuralTypeDeclaration {
+                        declaration_identity: Default::default(),
                         requires: Vec::new(),
                         quotient_carrier: None,
                         owns_linear_claim: false,
@@ -1536,6 +1619,7 @@ pub mod types {
                         },
                     },
                     StructuralTypeDeclaration {
+                        declaration_identity: Default::default(),
                         requires: Vec::new(),
                         quotient_carrier: None,
                         owns_linear_claim: false,
@@ -1549,6 +1633,7 @@ pub mod types {
                         shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
                     },
                     StructuralTypeDeclaration {
+                        declaration_identity: Default::default(),
                         requires: Vec::new(),
                         quotient_carrier: None,
                         owns_linear_claim: false,
@@ -1561,6 +1646,7 @@ pub mod types {
                         identity: crate::TerminalIdentityIndex(3),
                         shape: StructuralTypeShape::Record {
                             fields: vec![StructuralFieldDeclaration {
+                                declaration_identity: Default::default(),
                                 inline_carrier: None,
                                 id: StructuralFieldId::new(1).unwrap(),
                                 identity: crate::TerminalIdentityIndex(4),
@@ -1572,6 +1658,7 @@ pub mod types {
                         },
                     },
                     StructuralTypeDeclaration {
+                        declaration_identity: Default::default(),
                         requires: Vec::new(),
                         quotient_carrier: None,
                         owns_linear_claim: false,
@@ -1595,9 +1682,9 @@ pub mod types {
     }
 
     pub use qualifications::{
-        ResultQualificationEstablishment, StructuralContentProjection, StructuralDomainDeclaration,
-        StructuralDomainPredicate, StructuralEstablishmentRoute, StructuralPathQualification,
-        StructuralQualificationChange,
+        ResultQualificationEstablishment, StructuralContentProjection, StructuralDomainAccessPlan,
+        StructuralDomainDeclaration, StructuralDomainPredicate, StructuralEstablishmentRoute,
+        StructuralPathQualification, StructuralQualificationChange,
     };
     pub use scalar_qualifications::{
         ScalarDomainDeclaration, ScalarDomainEstablishmentRoute, ScalarDomainPredicate,
@@ -1795,6 +1882,9 @@ pub mod values {
         pub struct OperationProjection<'a> {
             pub root: PlaceId,
             pub path: &'a [StructuralPathSegment],
+            /// The final canonical field, when the instruction keeps it outside
+            /// its authored path. Operand consumers must not lose this selector.
+            pub field: Option<StructuralFieldId>,
         }
 
         #[derive(Debug, Clone, Copy)]
@@ -1808,6 +1898,7 @@ pub mod values {
             ObservedField {
                 root: PlaceId,
                 path: &'a [semantic_vocabulary::CanonicalStructuralPathSegment],
+                field: StructuralFieldId,
             },
             Element {
                 descriptor: OperationProjection<'a>,
@@ -1823,24 +1914,6 @@ pub mod values {
         }
 
         impl OperationKind {
-            pub fn structural_observation_source(&self) -> Option<PlaceId> {
-                match self {
-                    Self::ElementViewLength { source }
-                    | Self::ElementViewRead { source, .. }
-                    | Self::ByteSequenceLength { source } => Some(source.place),
-                    Self::PrimitiveScalarRead { source, .. }
-                    | Self::StructuralByteSequenceFieldLength { source, .. }
-                    | Self::StructuralByteSequenceFieldRead { source, .. }
-                    | Self::StructuralCaseMembership { source, .. }
-                    | Self::StructuralLeafCopy { source, .. }
-                    | Self::StructuralCaseLeafCopy { source, .. }
-                    | Self::ByteSequenceRead { source, .. }
-                    | Self::BooleanStructuralField { source, .. }
-                    | Self::ScalarStructuralField { source, .. } => Some(*source),
-                    _ => None,
-                }
-            }
-
             pub fn map_structural_uses(&mut self, map: &mut impl FnMut(PlaceId) -> PlaceId) {
                 self.map_structural_uses_with_access(&mut |place, _| map(place));
             }
@@ -2018,7 +2091,7 @@ pub mod values {
 
             pub fn structural_projections(&self) -> Vec<OperationProjection<'_>> {
                 let mut projections = Vec::new();
-                for storage in self.storage_uses() {
+                for (storage, _) in self.storage_uses() {
                     match storage {
                         StructuralStorageUse::Projection(projection) => {
                             projections.push(projection)
@@ -2035,8 +2108,18 @@ pub mod values {
                 projections
             }
 
-            pub fn storage_uses(&self) -> Vec<StructuralStorageUse<'_>> {
-                let mut projections = Vec::new();
+            /// Keep content effects with the same operands used for ownership
+            /// and layout checks. Transporting a descriptor does not read its
+            /// pointee; calls obtain delegated effects from their contracts.
+            pub fn storage_uses(
+                &self,
+            ) -> Vec<(
+                StructuralStorageUse<'_>,
+                Option<access_plans::AccessOperation>,
+            )> {
+                use access_plans::AccessOperation::{CompoundMutation, Read, Take, Write};
+                let mut uses = Vec::new();
+                let mut push = |storage, operation| uses.push((storage, operation));
                 match self {
                     Self::ActivateTaskRegister {
                         gdt,
@@ -2045,41 +2128,62 @@ pub mod values {
                         ..
                     } => {
                         for source in [gdt, task_state, scratch] {
-                            projections.push(argument_projection(source).into());
+                            push(argument_projection(source).into(), Some(CompoundMutation));
                         }
                     }
                     Self::ReloadSegmentDescriptors { gdt, scratch, .. } => {
                         for source in [gdt, scratch] {
-                            projections.push(argument_projection(source).into());
+                            push(argument_projection(source).into(), Some(CompoundMutation));
                         }
                     }
-                    Self::ReadTaskRegister { .. } | Self::ReadSegmentSelector { .. } => {}
-                    Self::EstablishNativeCodeLayout { .. } => {}
+                    Self::ReadTaskRegister { .. }
+                    | Self::ReadSegmentSelector { .. }
+                    | Self::EstablishNativeCodeLayout { .. } => {}
                     Self::EstablishActivationClaim { backing_type, .. } => {
-                        projections.push(StructuralStorageUse::Type(*backing_type));
+                        push(StructuralStorageUse::Type(*backing_type), None);
                     }
                     Self::EstablishByteSequenceConcatenation { left, right, .. }
                     | Self::ByteSequenceEqual { left, right } => {
                         for operand in [left, right] {
-                            projections.push(argument_projection(operand.argument()).into());
+                            push(operand.storage_projection().into(), Some(Read));
                         }
                     }
                     Self::ByteSequencePredicate { operand, .. } => {
-                        projections.push(argument_projection(operand.argument()).into());
+                        push(operand.storage_projection().into(), Some(Read));
                     }
                     Self::ReleaseActivationClaim { source, .. }
-                    | Self::SplitActivationClaim { source, .. }
-                    | Self::StorageAddress { source }
-                    | Self::GlobalDescriptorTable { source, .. }
-                    | Self::MoveStructuralValue { source }
-                    | Self::DecomposeStructuralValue { subject: source }
+                    | Self::SplitActivationClaim { source, .. } => {
+                        push(argument_projection(source).into(), Some(CompoundMutation));
+                    }
+                    Self::StorageAddress { source }
                     | Self::EstablishAccessReference { source, .. }
-                    | Self::EstablishReference { source, .. }
-                    | Self::ElementViewLength { source }
+                    | Self::EstablishReference { source, .. } => {
+                        push(argument_projection(source).into(), None);
+                    }
+                    Self::MoveStructuralValue { source }
+                    | Self::DecomposeStructuralValue { subject: source } => {
+                        push(
+                            argument_projection(source).into(),
+                            projected_transfer_operation(source),
+                        );
+                    }
+                    Self::GlobalDescriptorTable {
+                        operation, source, ..
+                    } => {
+                        push(
+                            argument_projection(source).into(),
+                            Some(if operation.writes_operand() {
+                                Write
+                            } else {
+                                Read
+                            }),
+                        );
+                    }
+                    Self::ElementViewLength { source }
                     | Self::ByteSequenceLength { source }
                     | Self::ByteSequenceSubslice { source, .. }
                     | Self::ElementViewSubslice { source, .. } => {
-                        projections.push(argument_projection(source).into());
+                        push(argument_projection(source).into(), Some(Read));
                     }
                     Self::EstablishElementView {
                         source, element, ..
@@ -2087,150 +2191,277 @@ pub mod values {
                     | Self::EstablishMutableElementView {
                         source, element, ..
                     } => {
-                        projections.push(argument_projection(source).into());
-                        projections.push(StructuralStorageUse::Type(*element));
+                        push(argument_projection(source).into(), None);
+                        push(StructuralStorageUse::Type(*element), None);
                     }
                     Self::MergeActivationClaim { lower, upper, .. } => {
-                        projections.push(argument_projection(lower).into());
-                        projections.push(argument_projection(upper).into());
+                        for source in [lower, upper] {
+                            push(argument_projection(source).into(), Some(CompoundMutation));
+                        }
                     }
                     Self::TransformContent {
                         source, parents, ..
                     } => {
-                        projections.push(argument_projection(source).into());
-                        projections.extend(parents.iter().map(|parent| {
-                            StructuralStorageUse::Projection(argument_projection(parent))
-                        }));
+                        push(argument_projection(source).into(), Some(CompoundMutation));
+                        for parent in parents {
+                            push(argument_projection(parent).into(), Some(Read));
+                        }
                     }
                     Self::ElementViewWrite {
                         destination, path, ..
                     } => {
-                        projections.push(StructuralStorageUse::Element {
-                            descriptor: argument_projection(destination),
-                            path,
-                        });
+                        push(
+                            StructuralStorageUse::Element {
+                                descriptor: argument_projection(destination),
+                                path,
+                            },
+                            Some(Write),
+                        );
                     }
                     Self::ElementViewRead { source, path, .. } => {
-                        projections.push(StructuralStorageUse::Element {
-                            descriptor: argument_projection(source),
-                            path,
-                        });
+                        push(
+                            StructuralStorageUse::Element {
+                                descriptor: argument_projection(source),
+                                path,
+                            },
+                            Some(Read),
+                        );
                     }
                     Self::PrimitiveScalarRead { source, path }
-                    | Self::ReleaseReference { source, path }
-                    | Self::AtomicAccess {
-                        place: source,
-                        path,
-                        ..
-                    }
-                    | Self::StructuralByteSequenceFieldLength { source, path, .. }
-                    | Self::StructuralByteSequenceFieldRead { source, path, .. }
                     | Self::StructuralCaseMembership { source, path, .. }
-                    | Self::StructuralLeafCopy { source, path }
-                    | Self::MoveStructuralField { source, path, .. } => {
-                        projections.push(
+                    | Self::StructuralLeafCopy { source, path } => {
+                        push(
                             OperationProjection {
                                 root: *source,
                                 path,
+                                field: None,
                             }
                             .into(),
+                            Some(Read),
+                        );
+                    }
+                    Self::StructuralByteSequenceFieldLength {
+                        source,
+                        path,
+                        field,
+                    }
+                    | Self::StructuralByteSequenceFieldRead {
+                        source,
+                        path,
+                        field,
+                        ..
+                    } => {
+                        push(
+                            OperationProjection {
+                                root: *source,
+                                path,
+                                field: Some(*field),
+                            }
+                            .into(),
+                            Some(Read),
+                        );
+                    }
+                    Self::ReleaseReference { source, path } => {
+                        push(
+                            OperationProjection {
+                                root: *source,
+                                path,
+                                field: None,
+                            }
+                            .into(),
+                            None,
+                        );
+                    }
+                    Self::AtomicAccess {
+                        place, path, event, ..
+                    } => {
+                        let operation =
+                            access_plans::AccessOperation::Atomic(event.access_operation());
+                        push(
+                            OperationProjection {
+                                root: *place,
+                                path,
+                                field: None,
+                            }
+                            .into(),
+                            Some(operation),
+                        );
+                    }
+                    Self::MoveStructuralField {
+                        source,
+                        path,
+                        field,
+                    } => {
+                        push(
+                            OperationProjection {
+                                root: *source,
+                                path,
+                                field: *field,
+                            }
+                            .into(),
+                            (field.is_some() || !path.is_empty()).then_some(Take),
                         );
                     }
                     Self::WriteOnlyPrimitiveStore {
                         destination, path, ..
-                    }
-                    | Self::StructuralByteSequenceFieldByteStore {
-                        destination, path, ..
-                    }
-                    | Self::StructuralScalarFieldStore {
-                        destination, path, ..
-                    } => projections.push(
-                        OperationProjection {
-                            root: *destination,
-                            path,
-                        }
-                        .into(),
-                    ),
-                    Self::StructuralByteSequenceFieldStore {
-                        destination,
-                        path,
-                        source,
-                        ..
-                    }
-                    | Self::StructuralByteViewFieldStore {
-                        destination,
-                        path,
-                        source,
-                        ..
                     } => {
-                        projections.push(
+                        push(
                             OperationProjection {
                                 root: *destination,
                                 path,
+                                field: None,
                             }
                             .into(),
+                            Some(Write),
                         );
-                        projections.push(StructuralStorageUse::Place(*source));
+                    }
+                    Self::StructuralByteSequenceFieldByteStore {
+                        destination,
+                        path,
+                        field,
+                        ..
+                    }
+                    | Self::StructuralScalarFieldStore {
+                        destination,
+                        path,
+                        field,
+                        ..
+                    } => {
+                        push(
+                            OperationProjection {
+                                root: *destination,
+                                path,
+                                field: Some(*field),
+                            }
+                            .into(),
+                            Some(Write),
+                        );
+                    }
+                    Self::StructuralByteSequenceFieldStore {
+                        destination,
+                        path,
+                        field,
+                        source,
+                        ..
+                    } => {
+                        push(
+                            OperationProjection {
+                                root: *destination,
+                                path,
+                                field: Some(*field),
+                            }
+                            .into(),
+                            Some(Write),
+                        );
+                        push(StructuralStorageUse::Place(*source), Some(Read));
+                    }
+                    Self::StructuralByteViewFieldStore {
+                        destination,
+                        path,
+                        field,
+                        source,
+                        ..
+                    } => {
+                        push(
+                            OperationProjection {
+                                root: *destination,
+                                path,
+                                field: *field,
+                            }
+                            .into(),
+                            Some(Write),
+                        );
+                        push(StructuralStorageUse::Place(*source), None);
                     }
                     Self::StoreStructuralField {
                         destination,
                         path,
+                        field,
                         value,
                         ..
                     } => {
-                        projections.push(
+                        push(
                             OperationProjection {
                                 root: *destination,
                                 path,
+                                field: *field,
                             }
                             .into(),
+                            Some(Write),
                         );
-                        projections.push(argument_projection(value).into());
+                        push(
+                            argument_projection(value).into(),
+                            projected_transfer_operation(value),
+                        );
                     }
                     Self::EstablishStructuralArray { elements } => {
-                        projections.extend(elements.iter().map(|element| {
-                            StructuralStorageUse::Projection(argument_projection(element))
-                        }));
+                        for element in elements {
+                            push(
+                                argument_projection(element).into(),
+                                projected_transfer_operation(element),
+                            );
+                        }
                     }
                     Self::EstablishRecord { fields }
                     | Self::EstablishStructuralCase { fields, .. } => {
-                        projections.extend(fields.iter().filter_map(|field| match &field.value {
-                            crate::RecordFieldValue::Structural(value) => {
-                                Some(StructuralStorageUse::Projection(argument_projection(value)))
+                        for field in fields {
+                            if let crate::RecordFieldValue::Structural(value) = &field.value {
+                                push(
+                                    argument_projection(value).into(),
+                                    projected_transfer_operation(value),
+                                );
                             }
-                            crate::RecordFieldValue::Scalar { .. } => None,
-                        }));
+                        }
                     }
-                    crate::call_structural_argument_variants!(structural_arguments) => projections
-                        .extend(structural_arguments.iter().map(|argument| {
-                            StructuralStorageUse::Projection(argument_projection(argument))
-                        })),
+                    crate::call_structural_argument_variants!(structural_arguments) => {
+                        for argument in structural_arguments {
+                            push(
+                                argument_projection(argument).into(),
+                                projected_transfer_operation(argument),
+                            );
+                        }
+                    }
                     Self::StructuralCaseLeafCopy { source, path } => {
-                        projections.push(StructuralStorageUse::Canonical {
-                            root: *source,
-                            path,
-                        });
+                        push(
+                            StructuralStorageUse::Canonical {
+                                root: *source,
+                                path,
+                            },
+                            Some(Read),
+                        );
                     }
-                    Self::BooleanStructuralField { source, path, .. }
-                    | Self::ScalarStructuralField { source, path, .. } => {
-                        projections.push(StructuralStorageUse::ObservedField {
-                            root: *source,
-                            path,
-                        });
+                    Self::BooleanStructuralField {
+                        source,
+                        path,
+                        field,
+                    }
+                    | Self::ScalarStructuralField {
+                        source,
+                        path,
+                        field,
+                    } => {
+                        push(
+                            StructuralStorageUse::ObservedField {
+                                root: *source,
+                                path,
+                                field: *field,
+                            },
+                            Some(Read),
+                        );
                     }
                     Self::ByteSequenceRead { source, .. } => {
-                        projections.push(StructuralStorageUse::Place(*source));
+                        push(StructuralStorageUse::Place(*source), Some(Read))
                     }
                     Self::ByteSequenceWrite { destination, .. } => {
-                        projections.push(StructuralStorageUse::Place(*destination));
+                        push(StructuralStorageUse::Place(*destination), Some(Write))
                     }
                     Self::ByteSequenceStore {
                         destination,
                         source,
                         ..
                     } => {
-                        projections.push(StructuralStorageUse::Place(*destination));
-                        projections.push(StructuralStorageUse::Place(*source));
+                        push(StructuralStorageUse::Place(*destination), Some(Write));
+                        push(StructuralStorageUse::Place(*source), Some(Read));
                     }
                     Self::EstablishScalarArray { .. }
                     | Self::EstablishZeroedStructural { .. }
@@ -2244,7 +2475,7 @@ pub mod values {
                     | Self::ReadScalarApplication { .. }
                     | scalar_predicate_operations!() => {}
                 }
-                projections
+                uses
             }
 
             pub fn structural_projection_paths_mut(
@@ -2356,8 +2587,16 @@ pub mod values {
             }
         }
 
+        fn projected_transfer_operation(
+            argument: &crate::StructuralArgument,
+        ) -> Option<access_plans::AccessOperation> {
+            (argument.access == StructuralAccess::Owned && !argument.path.is_empty())
+                .then_some(access_plans::AccessOperation::Take)
+        }
+
         fn argument_projection(argument: &crate::StructuralArgument) -> OperationProjection<'_> {
             OperationProjection {
+                field: None,
                 root: argument.place,
                 path: &argument.path,
             }
@@ -2396,6 +2635,139 @@ pub mod values {
                     path: vec![runtime()],
                     access: StructuralAccess::SharedBorrow,
                 }
+            }
+
+            #[test]
+            fn storage_uses_keep_field_effects_separate_from_descriptor_transport() {
+                use crate::{AtomicAccessEvent, MemoryOrdering, StructuralStorageUse};
+                use access_plans::{
+                    AccessOperation::{Atomic, Read, Take, Write},
+                    AtomicAccessOperation,
+                };
+                let field = StructuralFieldId::new(7).unwrap();
+                let read = OperationKind::StructuralByteSequenceFieldLength {
+                    source: place(1),
+                    path: Vec::new(),
+                    field,
+                };
+                let uses = read.storage_uses();
+                let StructuralStorageUse::Projection(projection) = uses[0].0 else {
+                    panic!("the same operand roster retains the field projection")
+                };
+                assert_eq!(projection.root, place(1));
+                assert_eq!(projection.field, Some(field));
+                assert_eq!(uses[0].1, Some(Read));
+                let scalar = OperationKind::ScalarStructuralField {
+                    source: place(1),
+                    path: Vec::new(),
+                    field,
+                };
+                let uses = scalar.storage_uses();
+                assert!(
+                    matches!(uses[0].0, StructuralStorageUse::ObservedField { field: actual, .. } if actual == field)
+                );
+                assert_eq!(uses[0].1, Some(Read));
+                let source = StructuralArgument {
+                    place: place(1),
+                    path: vec![StructuralPathSegment::Referent],
+                    access: StructuralAccess::SharedBorrow,
+                };
+                let borrow = OperationKind::EstablishReference {
+                    source: source.clone(),
+                    storage: None,
+                };
+                assert_eq!(
+                    borrow.storage_uses()[0].1,
+                    None,
+                    "forming a reference does not inspect its pointee"
+                );
+                let read = OperationKind::PrimitiveScalarRead {
+                    source: place(1),
+                    path: source.path,
+                };
+                assert_eq!(read.storage_uses()[0].1, Some(Read));
+                for (event, expected) in [
+                    (
+                        AtomicAccessEvent::Load {
+                            ordering: MemoryOrdering::Receive,
+                        },
+                        AtomicAccessOperation::Load(MemoryOrdering::Receive),
+                    ),
+                    (
+                        AtomicAccessEvent::Store {
+                            value: ValueId::new(1).unwrap(),
+                            ordering: MemoryOrdering::Publish,
+                        },
+                        AtomicAccessOperation::Store(MemoryOrdering::Publish),
+                    ),
+                    (
+                        AtomicAccessEvent::Swap {
+                            value: ValueId::new(1).unwrap(),
+                            ordering: MemoryOrdering::GlobalOrder,
+                        },
+                        AtomicAccessOperation::Swap(MemoryOrdering::GlobalOrder),
+                    ),
+                ] {
+                    let access = OperationKind::AtomicAccess {
+                        place: place(1),
+                        path: Vec::new(),
+                        event,
+                        resident_obligation: None,
+                    };
+                    assert_eq!(access.storage_uses()[0].1, Some(Atomic(expected)));
+                }
+                use crate::control_flow::ByteSequenceOperand;
+                let bytes = ByteSequenceOperand::Field {
+                    source: StructuralArgument {
+                        place: place(1),
+                        path: Vec::new(),
+                        access: StructuralAccess::SharedBorrow,
+                    },
+                    field,
+                    length: ValueId::new(1).unwrap(),
+                };
+                let equal = OperationKind::ByteSequenceEqual {
+                    left: bytes.clone(),
+                    right: bytes,
+                };
+                for (operand, operation) in equal.storage_uses() {
+                    let StructuralStorageUse::Projection(projection) = operand else {
+                        panic!("both byte fields retain projections")
+                    };
+                    assert_eq!(projection.field, Some(field));
+                    assert_eq!(operation, Some(Read));
+                }
+                for (action, expected) in [
+                    (crate::GlobalDescriptorTableOperation::Store, Write),
+                    (crate::GlobalDescriptorTableOperation::Load, Read),
+                ] {
+                    let operation = OperationKind::GlobalDescriptorTable {
+                        service: semantic_vocabulary::ServiceId::new(1).unwrap(),
+                        operation: action,
+                        source: StructuralArgument {
+                            place: place(1),
+                            path: Vec::new(),
+                            access: StructuralAccess::MutableBorrow,
+                        },
+                    };
+                    assert_eq!(operation.storage_uses()[0].1, Some(expected));
+                }
+                let whole = OperationKind::MoveStructuralField {
+                    source: place(1),
+                    path: Vec::new(),
+                    field: None,
+                };
+                assert_eq!(
+                    whole.storage_uses()[0].1,
+                    None,
+                    "moving a whole value retains its restrictions"
+                );
+                let field = OperationKind::MoveStructuralField {
+                    source: place(1),
+                    path: Vec::new(),
+                    field: Some(field),
+                };
+                assert_eq!(field.storage_uses()[0].1, Some(Take));
             }
 
             #[test]
@@ -2687,26 +3059,6 @@ pub mod values {
                 }
             }
         }
-
-        impl ReferenceOriginSource {
-            pub fn exact_argument(&self) -> Option<StructuralArgument> {
-                if self.extent != semantic_vocabulary::ReferenceOriginExtent::Projected {
-                    return None;
-                }
-                Some(StructuralArgument {
-                    place: self.place,
-                    path: self
-                        .path
-                        .iter()
-                        .map(|projection| match projection {
-                            ReferenceOriginProjection::Exact(segment) => Some(segment.clone()),
-                            ReferenceOriginProjection::Element => None,
-                        })
-                        .collect::<Option<Vec<_>>>()?,
-                    access: self.access,
-                })
-            }
-        }
     }
     pub(crate) mod signatures {
         use crate::terminal_module::TerminalIdentityIndex;
@@ -2783,8 +3135,6 @@ pub mod values {
                     .iter()
                     .find(|parameter| parameter.place == place)
             }
-
-
 
             pub fn is_unqualified_root(&self) -> bool {
                 matches!(

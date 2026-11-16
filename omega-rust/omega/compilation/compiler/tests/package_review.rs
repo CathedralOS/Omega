@@ -21,16 +21,18 @@ fn kept_fixture(relative: &str) -> PathBuf {
 
 #[test]
 fn reusable_package_checks_declarations_without_deploying_unused_float_bodies() {
-    // These libraries have no program entry. Their UEFI target request belongs
-    // to this package check; the positive also covers ordinary source checking.
-    let target = "uefi_x86_64";
-    let mut failures = Vec::new();
-    for (fixture, refusal) in [
+    check_reusable_package_cases(&[
         ("pass/float/rootless_target_realization_scope", None),
         (
             "packages/selected-provider-unsupported-target",
             Some("the target declares no floating-point realization table"),
         ),
+    ]);
+}
+
+#[test]
+fn reusable_package_checks_invalid_unused_declarations() {
+    check_reusable_package_cases(&[
         (
             "fail/constants/unused_scalar_constant_range",
             Some("scalar constant `VALUE` is invalid"),
@@ -39,7 +41,15 @@ fn reusable_package_checks_declarations_without_deploying_unused_float_bodies() 
             "fail/proofs/ordinary_denotational_call_requires_normal_return",
             Some("has no observation-free, reach-free, crash-free value denotation"),
         ),
-    ] {
+    ]);
+}
+
+fn check_reusable_package_cases(cases: &[(&str, Option<&str>)]) {
+    // These libraries have no program entry. Their UEFI target request belongs
+    // to this package check; the positive also covers ordinary source checking.
+    let target = "uefi_x86_64";
+    let mut failures = Vec::new();
+    for &(fixture, refusal) in cases {
         let source = kept_fixture(fixture).join("main.omg");
         let result = fixture_package_inputs::reviewed_repository_fixture_package_inputs(
             &source,
@@ -111,6 +121,34 @@ fn review_retains_installation_reach_across_staggered_dependency_resolution() {
         .unwrap();
     assert!(requirement.contains("A::visit"), "{requirement}");
     assert_eq!(dependency.upper_bound.len(), 2);
+    let abstract_requirements = module.installation_reach_requirements();
+    assert_eq!(abstract_requirements.len(), 4);
+    for boundary in &module.boundary_machines {
+        if boundary.service_reach_is_installation_bound {
+            assert!(boundary.fixed_service_reach.is_empty());
+            assert_eq!(boundary.published_service_ceiling.len(), 2);
+        }
+    }
+    let encoded = terminal_codec::encode_module(module).expect("retained installation module");
+    let decoded =
+        terminal_codec::decode_module(&encoded).expect("installation declaration roundtrip");
+    assert_eq!(
+        decoded.installation_reach_requirements(),
+        abstract_requirements
+    );
+    let mut fixed = decoded.clone();
+    let required = fixed
+        .boundary_machines
+        .iter_mut()
+        .find(|boundary| boundary.identity == dependency.requirement_identity)
+        .expect("exact root requirement");
+    required.service_reach_is_installation_bound = false;
+    assert!(matches!(
+        terminal_codec::decode_module(&terminal_codec::encode_module(&fixed).unwrap()),
+        Err(terminal_codec::CodecError::MalformedStructuralFoundation(
+            "installation reach dependency names a fixed requirement"
+        ))
+    ));
     let selected = checked.execution().plans();
     assert_eq!(
         selected.resolve_root_service_reach(module).unwrap().len(),
@@ -189,6 +227,130 @@ fn review_retains_installation_reach_across_staggered_dependency_resolution() {
         assert_eq!(names(reach.upper_bound()), ["X", "Y"]);
         assert_eq!(names(reach.resolved()), resolved);
     }
+}
+
+#[test]
+fn narrow_installation_bound_uses_the_selected_child_row() {
+    let target = "linux_x86_64";
+    let mut failures = Vec::new();
+    for (fixture, refusal) in [
+        ("pass/providers/narrow_installation_reach", None),
+        (
+            "fail/providers/narrow_installation_reach",
+            Some("exceeds its published upper bound"),
+        ),
+    ] {
+        let source = kept_fixture(fixture).join("main.omg");
+        let result = fixture_package_inputs::reviewed_repository_fixture_package_inputs(
+            &source,
+            Some(target),
+        )
+        .and_then(|mut prepared| {
+            fixture_package_inputs::check_fixture(&mut prepared, target, Default::default())
+        });
+        match (result, refusal) {
+            (Ok(checked), None) => {
+                let selected = checked.execution().plans();
+                let plan = selected
+                    .plans()
+                    .iter()
+                    .find(|plan| plan.provider_type == "AProvider")
+                    .expect("selected bounded parent");
+                let row = selected
+                    .installation_reach_resolutions()
+                    .iter()
+                    .find(|row| row.provider_plan_report_identity == plan.report_fingerprint())
+                    .expect("resolved parent row");
+                assert_eq!(row.resolved_row.len(), 1);
+                let module = checked.terminal_publication().accepted().unwrap().module();
+                assert_eq!(
+                    selected.resolve_root_service_reach(module).unwrap().len(),
+                    2
+                );
+                check_reopened_installation_reach(module, selected.plans());
+            }
+            (Err(errors), Some(expected))
+                if errors.iter().any(|error| error.message.contains(expected)) => {}
+            (Err(errors), _) => failures.push(format!("{fixture}: {errors:?}")),
+            (Ok(_), Some(expected)) => {
+                failures.push(format!("{fixture}: accepted instead of {expected:?}"));
+            }
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+/// Reopening code must check the selected bodies, rather than trust the
+/// producer's saved resolved rows or substitute a requirement's wider bound.
+fn check_reopened_installation_reach(
+    module: &terminal_psi::TerminalModule,
+    plans: &[effects::provider_plan::ProviderPlan],
+) {
+    let encoded = terminal_codec::encode_module(module).unwrap();
+    let mut reopened = terminal_codec::decode_module(&encoded).unwrap();
+    let calls = backend_plan::selected_checked_invocation_rows(plans, &reopened)
+        .unwrap()
+        .into_iter()
+        .flat_map(|row| row.candidates)
+        .map(|candidate| {
+            (
+                candidate.conformance.boundary,
+                candidate.conformance.candidate,
+            )
+        })
+        .collect::<Vec<_>>();
+    let terminal_psi::TargetMachineCallable::Machine(entry) = reopened.entry.unwrap() else {
+        panic!("fixture has an executable root");
+    };
+    let check = |module: &terminal_psi::TerminalModule, calls: &[_]| {
+        terminal_installation::SynchronousCallGraph::new(module, None)
+            .unwrap()
+            .with_boundary_calls(calls.iter().copied())
+            .unwrap()
+            .validate_installed_service_reach(entry)
+    };
+    check(&reopened, &calls).expect("reopened narrower child fits its parent");
+    let parent = reopened
+        .boundary_machines
+        .iter()
+        .position(|boundary| {
+            reopened
+                .identities
+                .text(boundary.identity)
+                .unwrap()
+                .contains("A::visit")
+        })
+        .unwrap();
+    let child = reopened
+        .boundary_machines
+        .iter()
+        .find(|boundary| {
+            reopened
+                .identities
+                .text(boundary.identity)
+                .unwrap()
+                .contains("B::visit")
+        })
+        .unwrap()
+        .id;
+    let incomplete = calls
+        .iter()
+        .copied()
+        .filter(|(boundary, _)| *boundary != child)
+        .collect::<Vec<_>>();
+    assert!(
+        check(&reopened, &incomplete)
+            .unwrap_err()
+            .contains("no checked selected provider")
+    );
+    reopened.boundary_machines[parent]
+        .published_service_ceiling
+        .clear();
+    assert!(
+        check(&reopened, &calls)
+            .unwrap_err()
+            .contains("exceeds its published upper bound")
+    );
 }
 
 #[test]
@@ -313,6 +475,126 @@ fn review_policy_round_trip_preserves_inferred_imported_reach() {
             .callables()
             .iter()
             .all(|callable| callable.identity().path() != "Mark::read")
+    );
+}
+
+#[test]
+fn imported_provider_review_keeps_reach_and_invocation_separate() {
+    use review_evidence::record::{PackageReviewNominalOwner, PackageReviewSynchronousInvocation};
+
+    let probes = fixture_package_inputs::repo_root().join("samples/cli/probes");
+    let support = reviewed_and_recovered(
+        &probes.join("reviewed_service_rows_support/main.omg"),
+        "macos_arm64",
+    );
+    let application = reviewed_and_recovered(
+        &probes.join("reviewed_service_rows/main.omg"),
+        "macos_arm64",
+    );
+    let [plan] = application.selected_providers().plans() else {
+        panic!("one selected provider for imported Operations");
+    };
+    let owner = plan.schema_declaration();
+    assert_eq!(owner.path(), "Operations");
+    assert_eq!(
+        owner.owner(),
+        PackageReviewNominalOwner::Package(support.package())
+    );
+    assert_eq!(plan.methods().len(), 2);
+    for (name, expected) in [
+        ("read", &["Operations", "ReadCapability"][..]),
+        ("identity", &["Operations"][..]),
+    ] {
+        let method = plan
+            .methods()
+            .iter()
+            .find(|method| method.name() == name)
+            .unwrap();
+        assert_eq!(method.requirement_owner(), owner);
+        assert_eq!(method.service_reach(), expected);
+        let authority = method.authority().service_reach();
+        assert!(
+            authority
+                .iter()
+                .all(|service| service.owner() == owner.owner())
+        );
+        assert_eq!(
+            authority
+                .iter()
+                .map(|service| service.path())
+                .collect::<Vec<_>>(),
+            expected
+        );
+    }
+
+    for (name, expected) in [
+        ("read_value", &["ReadCapability"][..]),
+        ("pure_value", &[][..]),
+    ] {
+        let callable = support
+            .callables()
+            .callables()
+            .iter()
+            .find(|callable| callable.identity().path() == name)
+            .unwrap();
+        let reach = callable.checked_service_reach().realized().unwrap();
+        assert!(reach.iter().all(|service| service.owner() == owner.owner()));
+        assert_eq!(
+            reach
+                .iter()
+                .map(|service| service.path())
+                .collect::<Vec<_>>(),
+            expected
+        );
+        assert_eq!(
+            callable.declared_synchronous_invocations(),
+            Some([PackageReviewSynchronousInvocation::Service(owner.clone())].as_slice())
+        );
+    }
+}
+
+#[test]
+fn selected_affine_provider_reopens_with_its_published_authority() {
+    use review_evidence::record::PackageReviewSynchronousInvocation;
+
+    let sample = fixture_package_inputs::repo_root()
+        .join("samples/cli/facts/foreign_indirect_float_record_result/target_body/main.omg");
+    let package = reviewed_and_recovered(&sample, "macos_arm64");
+    let plan = package
+        .selected_providers()
+        .plans()
+        .iter()
+        .find(|plan| plan.schema_declaration().path() == "AffineObservation")
+        .expect("the selected AffineObservation implementation");
+    let [method] = plan.methods() else {
+        panic!("the selected service has exactly one method");
+    };
+    assert_eq!(method.requirement().path(), "AffineObservation::observe");
+    assert_eq!(
+        method.service_reach(),
+        ["AffineObservation", "AffineTransforms"]
+    );
+    assert_eq!(method.synchronous_invocations(), ["AffineTransforms"]);
+    let [invocation] = method.authority().synchronous_invocations() else {
+        panic!("the selected requirement publishes one synchronous entry");
+    };
+    let PackageReviewSynchronousInvocation::Service(service) = invocation else {
+        panic!("the authored entry names a service");
+    };
+    assert_eq!(service.path(), "AffineTransforms");
+    let requirement = package
+        .callables()
+        .callables()
+        .iter()
+        .find(|callable| callable.identity() == method.requirement())
+        .expect("the exact callable declaration");
+    assert_eq!(
+        requirement.declared_service_reach(),
+        Some(std::slice::from_ref(service))
+    );
+    assert_eq!(
+        requirement.declared_synchronous_invocations(),
+        Some(std::slice::from_ref(invocation)),
     );
 }
 
@@ -980,6 +1262,38 @@ fn toolchain_boundary_applications_recover_against_their_owner_qualified_require
 }
 
 #[test]
+fn rootless_package_reviews_its_explicit_provider_without_an_entry() {
+    let source = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "rootless-selected-review",
+        false,
+    )
+    .unwrap();
+    std::fs::write(
+        source.path().join("main.omg"),
+        "public boundary trait Answer { machine read() -> u32 reaches none crashes none; }\n\
+         SelectedAnswer satisfies Answer { machine read() -> u32 { 7u32 } }\n\
+         public machine answer() -> u32 { Answer::read() }\n",
+    )
+    .unwrap();
+    std::fs::write(
+        source.path().join("build.omg"),
+        "machine build(builder: &mut Build) {\n\
+         Build::package(builder, \"rootless_selected\");\n\
+         Build::select_provider<Answer, SelectedAnswer>(builder, uefi_x86_64);\n\
+         }\n",
+    )
+    .unwrap();
+    let recovered = reviewed_and_recovered(&source.path().join("main.omg"), "uefi_x86_64");
+    let [plan] = recovered.selected_providers().plans() else {
+        panic!("the explicit choice retains one checked provider without an entry");
+    };
+    assert_eq!(plan.provider_type(), "SelectedAnswer");
+    assert_eq!(plan.schema_declaration().path(), "Answer");
+    assert_eq!(plan.target(), "uefi_x86_64");
+    assert!(recovered.boundary_applications().realizations().is_empty());
+}
+
+#[test]
 fn numeric_library_review_does_not_deploy_unused_calls() {
     let source = platform_custody::temporary_directory::TemporaryDirectory::create(
         "unused-numeric-review",
@@ -1023,6 +1337,54 @@ fn numeric_review_retains_calls_inside_a_selected_provider() {
             }),
         "an arithmetic call reached only through a provider is still deployed"
     );
+}
+
+#[test]
+fn native_process_exit_review_preserves_its_source_type_without_a_calling_result() {
+    use semantic_vocabulary::{BoundaryCompletion, ExternalCompletionKind};
+
+    let fixture = kept_fixture("run/effects/native_process_exit_review/main.omg");
+    for target in [
+        "linux_x86_64",
+        "linux_arm64",
+        "macos_arm64",
+        "windows_x86_64",
+    ] {
+        let recovered = reviewed_and_recovered(&fixture, target);
+        let [binding] = recovered.native_bindings() else {
+            panic!("one canonical process exit binding for {target}");
+        };
+        let method = binding.method();
+        assert!(
+            method
+                .requirement()
+                .path()
+                .ends_with("ProcessExit::exit_process")
+        );
+        assert_eq!(
+            method.completion(),
+            BoundaryCompletion::External(ExternalCompletionKind::ProcessExit)
+        );
+        assert!(method.terminates_guarantee());
+        let source_result = method.signature().result().expect("source result type");
+        assert!(source_result.canonical().contains("Never"));
+        assert!(
+            recovered
+                .callables()
+                .callables()
+                .iter()
+                .all(|callable| callable.identity() != method.requirement())
+        );
+        assert_eq!(
+            method.authority().service_reach(),
+            std::slice::from_ref(method.requirement_owner())
+        );
+        let [calling] = method.calling() else {
+            panic!("one validated calling application for {target}");
+        };
+        assert!(calling.semantic_result().is_none());
+        assert!(calling.physical().result().is_none());
+    }
 }
 
 #[test]

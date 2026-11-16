@@ -34,13 +34,13 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("traffic_light: cycles Red -> Green -> Yellow through 4 advances");
     // Start: Red (zero-initialized), advances = 0.
-    Main::advance(main);  // Red    -> Green,  advances = 1
-    Main::advance(main);  // Green  -> Yellow, advances = 2
-    Main::advance(main);  // Yellow -> Red,    advances = 3
-    Main::advance(main);  // Red    -> Green,  advances = 4
+    advance(main);  // Red    -> Green,  advances = 1
+    advance(main);  // Green  -> Yellow, advances = 2
+    advance(main);  // Yellow -> Red,    advances = 3
+    advance(main);  // Red    -> Green,  advances = 4
 
     // After 4 advances the light should be Green and advances == 4.
     transition main.light.advances == 4 {
@@ -58,27 +58,27 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     machine good(main: &mut Main) {
         Console::write_line("PASS: 4 advances landed on Green as expected (exit 70)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(70);
     }
 
     machine bad_count(main: &mut Main) {
         Console::write_line("FAIL: the advance count was not 4 (exit 71)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(71);
     }
 
     machine bad_phase(main: &mut Main) {
         Console::write_line("FAIL: the final phase was not Green (exit 72)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(72);
     }
 }
 
 // Advance the light one phase: Red->Green, Green->Yellow, Yellow->Red.
-machine Main::advance(main: &mut Main) {
+machine advance(main: &mut Main) {
     main.light.advances = (main.light.advances + 1) % 101;
 
     transition main.light.phase {
@@ -103,5 +103,5 @@ machine Main::advance(main: &mut Main) {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

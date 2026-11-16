@@ -13,7 +13,7 @@ data Application {
     width: i32 in Wrapping; index: i32 in Wrapping; cutoff: i32 in Wrapping;
     threshold: f64; input_energy: f64; coefficient_energy: f64; retained_energy: f64;
 }
-machine Application::main(application: &mut Application) reaches ProcessExit + Console crashes Trap {
+machine main(application: &mut Application) reaches ProcessExit + Console crashes Trap {
     let length: Number = block number(&mut application.reader);
     let threshold: Number = block number(&mut application.reader);
     let levels: Number = block number(&mut application.reader);
@@ -222,5 +222,5 @@ requires index < 32
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console crashes Trap {
     let mut entry_storage: Application;
-    block Application::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

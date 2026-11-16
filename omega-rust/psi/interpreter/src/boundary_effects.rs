@@ -520,6 +520,7 @@ pub(crate) mod boundary_predicates {
                 result_lifetimes: None,
                 reference_outputs: Vec::new(),
                 fixed_service_reach: Vec::new(),
+                service_reach_is_installation_bound: false,
                 owning_service: None,
                 published_synchronous_entries: Vec::new(),
                 published_service_ceiling: Vec::new(),
@@ -2904,6 +2905,7 @@ pub(crate) mod results {
                         .fixture_module_mut()
                         .structural_types
                         .push(StructuralTypeDeclaration {
+                            declaration_identity: Default::default(),
                             requires: Vec::new(),
                             quotient_carrier: None,
                             id: structural_type,

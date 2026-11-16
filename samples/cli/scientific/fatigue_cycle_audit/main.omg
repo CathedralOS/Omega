@@ -11,17 +11,17 @@ data Main {
     audit: Audit;
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
-    block Input::read(&mut main.input);
-    Input::validate(&mut main.input);
+machine main(main: &mut Main) reaches ProcessExit + Console {
+    block read(&mut main.input);
+    validate(&mut main.input);
     transition main.input.valid {
         true -> calculate(main)
         false -> invalid(main)
     }
     machine calculate(main: &mut Main) {
-        Audit::prepare(&mut main.audit, &main.input);
-        Audit::count(&mut main.audit);
-        Report::write(&mut main.audit);
+        prepare(&mut main.audit, &main.input);
+        count(&mut main.audit);
+        write(&mut main.audit);
         ProcessExit::exit_process(0);
     }
     machine invalid(main: &mut Main) {
@@ -33,5 +33,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

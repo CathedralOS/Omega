@@ -21,9 +21,9 @@ machine number(main: &mut Main, value: i32 in Wrapping) reaches Console {
 machine fraction(main: &mut Main, numerator: i32 in Wrapping, denominator: i32 in Wrapping) reaches Console {
     number(main, numerator); Console::write("/"); number(main, denominator); Console::write(" ");
 }
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("LANDCOVER exact planar area; enter fixture 1..6 (7..9 invalid)");
-    let read: LineReadResult = block Console::read_line(&mut main.input);
+    let read: LineReadResult = block Console::read_line(&mut main.input[..]);
     transition read {
         LineReadResult::LineComplete { count } -> length(main, count)
         _ -> invalid(main)
@@ -125,5 +125,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

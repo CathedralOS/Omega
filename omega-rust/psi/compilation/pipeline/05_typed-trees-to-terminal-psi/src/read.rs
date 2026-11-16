@@ -33,6 +33,7 @@ mod calls;
 mod calls_visibility_tests;
 mod carriers;
 mod casts;
+mod clause_calls;
 mod constant_values;
 mod contracts;
 mod expressions;
@@ -139,6 +140,9 @@ pub(crate) struct Program<'t> {
         ),
     >,
     resolving_services: Vec<SymbolHandle>,
+    /// The machines whose bodies a contract clause is unfolding, innermost
+    /// last (`clause_calls`): a recursive predicate is refused.
+    unfolding_calls: Vec<SymbolHandle>,
     /// The services a Build selection awaits a provider for, in first-read
     /// order (`designate`, `publish_readiness`).
     readiness: Vec<semantic_vocabulary::ServiceId>,
@@ -168,6 +172,10 @@ pub(crate) struct Program<'t> {
     /// such a parameter by its symbol is that type (`value_type`). Empty
     /// while a closed machine is read.
     scope: Vec<(SymbolHandle, ValueType)>,
+    /// A generic declaration checks its contract without claiming executable
+    /// storage for a compound symbolic type. These types belong only to that
+    /// schema form; demanded applications use ordinary formals and loans.
+    schema_types: Option<Vec<typed_trees::type_identity::NormalizedTypeIdentity>>,
     /// `scope` of each machine, pushed with its signature and restored
     /// when its body is read.
     scopes: IdTable<MachineId, Vec<(SymbolHandle, ValueType)>>,
@@ -375,6 +383,7 @@ impl<'t> Program<'t> {
             boundary_services: IdTable::default(),
             services: IdTable::default(),
             resolving_services: Vec::new(),
+            unfolding_calls: Vec::new(),
             readiness: Vec::new(),
             names: IdTable::default(),
             rigid,
@@ -384,6 +393,7 @@ impl<'t> Program<'t> {
             outcome_subjects: None,
             selections: Vec::new(),
             scope: Vec::new(),
+            schema_types: None,
             scopes: IdTable::default(),
             width_scope: Vec::new(),
             width_scopes: IdTable::default(),
@@ -1492,7 +1502,7 @@ mod tests {
         );
         assert_eq!(
             detail(&mut program, &scope, lookalike),
-            "contract call in a clause term"
+            "call target is not a machine declaration"
         );
         for expression in [missing_argument, extra_argument] {
             assert_eq!(
@@ -2729,7 +2739,7 @@ mod tests {
         );
         assert_eq!(
             detail(&served, spelled_embed),
-            "contract call in a clause term"
+            "call target is not a machine declaration"
         );
         let guard = scope(MathematicalTerms::Refused(
             "mathematical comparison in a crash route guard",

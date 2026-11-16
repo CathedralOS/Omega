@@ -152,7 +152,7 @@ pub(crate) fn unproved(
         ),
         ObligationKind::ArrivalInvariant { edge } => {
             head_arrival(elaboration, machine, tables, edge, site)
-                .or_else(|| membership_arrival(elaboration, machine, tables, edge, names, site))
+                .or_else(|| cast_predicate_arrival(elaboration, machine, tables, edge, names, site))
                 .unwrap_or_else(|| {
                     format!("cannot prove block invariant in {}", owner(names, site))
                 })
@@ -207,11 +207,12 @@ pub(crate) fn unproved(
 /// machine's state. The calling machine is the one whose names record a
 /// call at the arrival's site. `None` for a join, whose predicate the
 /// checker inferred, and for the entry's jump, which no call made.
-/// The failed arrival at the block a cast `value as +D` continues in: the
-/// cast did not prove the predicates of `D` of its operand
-/// (`wiki/spec/language/domains.md`, "Domain-only casts": "Has predicates |
-/// Prove them for this value."). `None` for any other arrival.
-fn membership_arrival(
+/// A cast's conditions were not established on arrival at its continuation.
+/// The same proof step serves domain predicates and exact representability;
+/// the refusal names which one failed, so a domain cast still says that the
+/// value is not shown to be in the domain it adds.
+/// `None` for an arrival that does not establish a cast predicate.
+fn cast_predicate_arrival(
     elaboration: &Elaboration,
     machine: MachineId,
     tables: &MachineTables,
@@ -224,17 +225,26 @@ fn membership_arrival(
     else {
         return None;
     };
-    let stated = &elaboration
+    use terminal_check_tables::program::CastCondition;
+    let (claim, stated) = match &elaboration
         .sources
         .get(machine)?
-        .memberships
+        .predicate_establishments
         .iter()
         .find(|(block, _)| *block == established)?
-        .1;
+        .1
+    {
+        CastCondition::DomainMembership(stated) => {
+            ("the value of this cast is in the domain it adds", stated)
+        }
+        CastCondition::ExactRepresentation(stated) => {
+            ("the required condition of this cast", stated)
+        }
+    };
     Some(format!(
-        "cannot prove the value of this cast is in the domain it adds in {}: {stated} (needs \
-         that fact about the operand here; establish it before the cast via a guard, a prior \
-         contract guarantee or a `requires` of this machine)",
+        "cannot prove {claim} in {}: {stated} (needs that fact about the operand here; \
+         establish it before the cast via a guard, a prior contract guarantee or a `requires` \
+         of this machine)",
         owner(names, site)
     ))
 }

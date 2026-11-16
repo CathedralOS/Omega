@@ -2022,6 +2022,7 @@ pub(crate) mod component_contents {
                 let declaration =
                     |identities: &mut TerminalIdentityTableBuilder, ordinal, identity, shape| {
                         StructuralTypeDeclaration {
+                            declaration_identity: Default::default(),
                             requires: Vec::new(),
                             quotient_carrier: None,
                             id: StructuralTypeId::new(offset + ordinal).unwrap(),
@@ -2039,6 +2040,7 @@ pub(crate) mod component_contents {
                              ordinal,
                              identity,
                              field_type| StructuralFieldDeclaration {
+                    declaration_identity: Default::default(),
                     inline_carrier: None,
                     id: StructuralFieldId::new(offset + ordinal).unwrap(),
                     identity: identities.intern(identity),
@@ -2059,6 +2061,7 @@ pub(crate) mod component_contents {
                     StructuralFieldType::Structural(StructuralTypeId::new(offset + 2).unwrap()),
                 );
                 let case = StructuralCaseDeclaration {
+                    declaration_identity: Default::default(),
                     id: StructuralCaseId::new(offset + 70).unwrap(),
                     identity: identities.intern("Active"),
                     fields: vec![payload],

@@ -11,8 +11,8 @@ use chronology::input;
 // The application owns the input backing across the blocking provider call.
 data Main { bytes: [u8; 32]; }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
-    let read: LineReadResult = block Console::read_line(&mut main.bytes);
+machine main(main: &mut Main) reaches ProcessExit + Console {
+    let read: LineReadResult = block Console::read_line(&mut main.bytes[..]);
     transition read {
         LineReadResult::LineComplete { count } -> input(main, count)
         LineReadResult::EndOfInput { count } -> input(main, count)
@@ -105,5 +105,5 @@ machine number(main: &mut Main, value: i32 in Wrapping) reaches Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

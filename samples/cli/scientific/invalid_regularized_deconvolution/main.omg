@@ -4,5 +4,5 @@ requires source >= 0 && source < 32
 { input[source] }
 machine main() {
     let input: [f64; 32];
-    let value: f64 = convolution_sample(&input, 32);
+    let value: f64 = convolution_sample(&input, 32 as +Wrapping);
 }

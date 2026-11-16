@@ -658,7 +658,9 @@ pub(crate) mod descriptor_operands {
             return Err(invalid());
         }
         let length = match shape {
-            StructuralTypeShape::ElementView { .. } => builder
+            StructuralTypeShape::ElementView {
+                access: Some(_), ..
+            } => builder
                 .transport
                 .element_view(source.place)
                 .map(|view| view.element_length),
@@ -700,7 +702,11 @@ pub(crate) mod descriptor_operands {
             &geometry,
         )?;
         let leaf_indices = &indices[leaf_index..];
-        let address_width = if matches!(shape, StructuralTypeShape::FixedArray { .. }) {
+        let address_width = if matches!(
+            shape,
+            StructuralTypeShape::FixedArray { .. }
+                | StructuralTypeShape::ElementView { access: None, .. }
+        ) {
             0
         } else {
             8
@@ -715,7 +721,9 @@ pub(crate) mod descriptor_operands {
         )?;
         let output = transport_register(builder, source.place, geometry.byte_offset)?;
         match shape {
-            StructuralTypeShape::ElementView { .. }
+            StructuralTypeShape::ElementView {
+                access: Some(_), ..
+            }
             | StructuralTypeShape::ByteSequence(
                 terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
                 | terminal_psi::ByteSequenceCarrier::BoundedView { .. },
@@ -738,6 +746,16 @@ pub(crate) mod descriptor_operands {
                     SelectedMemoryAccessRole::ReadPlace,
                 )?;
                 builder.emit_load64(displacement, pointer, output, provenance(row))?;
+            }
+            StructuralTypeShape::ElementView { access: None, .. } => {
+                let layout = function
+                    .geometry()
+                    .owned_sequence(geometry.selected)
+                    .map_err(|_| invalid())?;
+                let offset = displacement
+                    .checked_add(layout.elements_offset)
+                    .ok_or_else(invalid)?;
+                builder.emit_address_offset(offset, pointer, output, provenance(row))?;
             }
             StructuralTypeShape::ByteSequence(
                 terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
@@ -2636,7 +2654,7 @@ pub(crate) mod indirect_results {
         let Some(placement) = source.call_plan.result.as_ref() else {
             return Ok(());
         };
-        let Some(register) = indirect_result(placement, source.call_plan.policy) else {
+        let Some(register) = indirect_result(placement) else {
             return Ok(());
         };
         if source.call_plan.policy
@@ -2667,10 +2685,10 @@ pub(crate) mod indirect_results {
         row: &LegalizedScalarInstruction,
         builder: &mut Builder<'_>,
     ) -> Result<Option<VirtualRegisterId>, SelectedInstructionError> {
-        let Some((result, placement, policy)) = call_completion(source, row) else {
+        let Some((result, placement)) = call_completion(source, row) else {
             return Ok(None);
         };
-        if indirect_result(placement, policy).is_none() {
+        if indirect_result(placement).is_none() {
             return Ok(None);
         }
         let slot = LocalStorageSlotId::Structural {
@@ -2703,7 +2721,7 @@ pub(crate) mod indirect_results {
         row: &LegalizedScalarInstruction,
         builder: &mut Builder<'_>,
     ) -> Result<(), SelectedInstructionError> {
-        let (result, placement, _) = call_completion(source, row).ok_or_else(|| invalid())?;
+        let (result, placement) = call_completion(source, row).ok_or_else(|| invalid())?;
         let slot = LocalStorageSlotId::Structural {
             operation: row.operation,
             place: result.place,
@@ -3598,14 +3616,8 @@ pub(crate) mod structural_array {
         row: &LegalizedScalarInstruction,
         builder: &mut Builder<'_>,
     ) -> Result<(), SelectedInstructionError> {
-        if crate::selection::structural_array_input::owned_sequence(source, row)
-            .ok_or_else(|| super::invalid())?
-        {
-            return owned_sequence(row, builder);
-        }
-        let (element_shape, offsets) =
-            crate::selection::structural_array_input::elements(source, row)
-                .ok_or_else(super::invalid)?;
+        let input = crate::selection::structural_array_input::elements(source, row)
+            .ok_or_else(super::invalid)?;
         let LegalizedScalarInstructionKind::EstablishStructuralArray {
             result,
             elements,
@@ -3615,7 +3627,26 @@ pub(crate) mod structural_array {
             return Err(super::invalid());
         };
         let pointer = record::initialize_storage(row, builder, result.place, *shape)?;
-        for (argument, offset) in elements.iter().zip(offsets) {
+        if let Some(length) = input.live_length {
+            let value = super::transport_register(builder, result.place, 0)?;
+            builder.emit_materialize_i64(
+                semantic_vocabulary::IntegerValue::Unsigned(u128::from(length)),
+                value,
+                super::provenance(row),
+            )?;
+            record::store(
+                builder,
+                row,
+                result.place,
+                pointer,
+                0,
+                8,
+                value,
+                Vec::new(),
+                Vec::new(),
+            )?;
+        }
+        for (argument, offset) in elements.iter().zip(input.offsets) {
             record::write_structural_operand(
                 source,
                 row,
@@ -3624,64 +3655,10 @@ pub(crate) mod structural_array {
                 pointer,
                 argument,
                 offset,
-                element_shape,
+                input.element_shape,
             )?;
         }
         builder.transport.pointers.push((result.place, pointer));
-        Ok(())
-    }
-    /// An owned element sequence's roster sits in the image's read-only literal pool, which
-    /// legalization checked against the constant elements. The sequence itself is its
-    /// stored-length descriptor: the pool address, then the element count.
-    fn owned_sequence(
-        row: &LegalizedScalarInstruction,
-        builder: &mut Builder<'_>,
-    ) -> Result<(), SelectedInstructionError> {
-        use super::local_storage::{address, store};
-        let LegalizedScalarInstructionKind::EstablishStructuralArray {
-            result, elements, ..
-        } = &row.kind
-        else {
-            return Err(super::invalid());
-        };
-        if builder
-            .transport
-            .pointers
-            .iter()
-            .any(|(place, _)| *place == result.place)
-        {
-            return Err(super::invalid());
-        }
-        let count = u64::try_from(elements.len()).map_err(|_| super::invalid())?;
-        let slot = builder
-            .transport
-            .push_structural_local_slot(row.operation, result.place, 16, 8);
-        let backing = super::transport_register(builder, result.place, 0)?;
-        builder.emit(
-            selected_instructions::SelectedInstructionKind::ImageAddress {
-                reference: selected_instructions::SelectedImageAddressReference::ByteLiteral {
-                    operation: row.operation,
-                    place: result.place,
-                },
-            },
-            builder
-                .constraints
-                .keys
-                .byte_literal_image_address
-                .ok_or_else(|| super::invalid())?,
-            &[backing],
-            super::provenance(row),
-        )?;
-        store(builder, row, slot, 0, backing)?;
-        let length = super::transport_register(builder, result.place, 8)?;
-        builder.emit_materialize_i64(
-            semantic_vocabulary::IntegerValue::Unsigned(u128::from(count)),
-            length,
-            super::provenance(row),
-        )?;
-        store(builder, row, slot, 8, length)?;
-        let descriptor = address(builder, row, slot, 0, 16, true)?;
-        builder.transport.pointers.push((result.place, descriptor));
         Ok(())
     }
 }

@@ -1218,6 +1218,7 @@ pub(crate) mod instance {
                 let place = PlaceId::new(1).unwrap();
                 let mut identities = module.identities.clone().into_builder();
                 module.structural_types.push(StructuralTypeDeclaration {
+                    declaration_identity: Default::default(),
                     id: structural_type,
                     identity: identities.intern("borrowed Boolean"),
                     quotient_carrier: None,
@@ -1331,14 +1332,12 @@ pub(crate) mod instance {
         TerminalStorageObservationError, TerminalStorageObservationValue,
     };
     pub(crate) mod returned_loans {
-        use super::TerminalInstance;
         use crate::boundary::values::TerminalStructuralValue;
         use crate::engine::execution::TerminalExecution;
-        use crate::storage::reference::EntryReferenceBackings;
         use semantic_vocabulary::{
             CanonicalStructuralPathSegment as Path, PlaceId, StructuralTypeId,
         };
-        use terminal_psi::{StructuralAccess, StructuralTypeShape};
+        use terminal_psi::StructuralAccess;
 
         #[derive(Debug, Clone, PartialEq, Eq)]
         pub enum TerminalReturnedLoanError {
@@ -1366,90 +1365,6 @@ pub(crate) mod instance {
             path: Vec<Path>,
             referent: StructuralTypeId,
             access: StructuralAccess,
-        }
-
-        impl<'artifact> TerminalInstance<'_, 'artifact> {
-            pub fn retain_returned_loans(&mut self) -> Result<(), TerminalReturnedLoanError> {
-                let execution = self
-                    .execution
-                    .as_mut()
-                    .ok_or(TerminalReturnedLoanError::Closed)?;
-                if !execution.entry_storage_open {
-                    return Err(TerminalReturnedLoanError::AdmissionAfterStart);
-                }
-                if execution.entry_reference_backings.is_some() {
-                    return Err(TerminalReturnedLoanError::AdmissionAlreadyProvided);
-                }
-                if execution
-                    .program
-                    .machine(execution.current_machine)?
-                    .result
-                    .structural()
-                    .is_none_or(|signature| signature.reference_sources.is_empty())
-                {
-                    return Err(TerminalReturnedLoanError::NoReferenceResult);
-                }
-                execution.entry_reference_backings = Some(EntryReferenceBackings::default());
-                Ok(())
-            }
-
-            pub fn returned_loan(
-                &self,
-                path: &[Path],
-            ) -> Result<TerminalReturnedLoan<'_, 'artifact>, TerminalReturnedLoanError>
-            {
-                let execution = self
-                    .execution
-                    .as_ref()
-                    .ok_or(TerminalReturnedLoanError::Closed)?;
-                if execution.entry_reference_backings.is_none() {
-                    return Err(TerminalReturnedLoanError::AdmissionRequired);
-                }
-                let result = match execution.result.as_ref() {
-                    Some(crate::TerminalExecutionResult::Structural(result)) => result,
-                    Some(crate::TerminalExecutionResult::ScalarCase(_)) => {
-                        return Err(TerminalReturnedLoanError::UnknownPath);
-                    }
-                    Some(_) => return Err(TerminalReturnedLoanError::NoReferenceResult),
-                    None => return Err(TerminalReturnedLoanError::NormalReturnRequired),
-                };
-                let signature = execution
-                    .program
-                    .machine(execution.current_machine)?
-                    .result
-                    .structural()
-                    .ok_or(TerminalReturnedLoanError::NoReferenceResult)?;
-                let types = execution.structural_types();
-                let tip = terminal_semantics::canonical_structural_path_tip(
-                    types.values(),
-                    signature.structural_type,
-                    path,
-                )
-                .ok_or(TerminalReturnedLoanError::UnknownPath)?;
-                let StructuralTypeShape::Reference { referent, access } = tip.shape else {
-                    return Err(TerminalReturnedLoanError::NoReferenceResult);
-                };
-                let storage_path = terminal_semantics::canonical_structural_storage_path(
-                    types.values(),
-                    signature.structural_type,
-                    path,
-                )
-                .ok_or(TerminalReturnedLoanError::UnknownPath)?;
-                if !signature.reference_sources.iter().any(|source| source.path == storage_path)
-            || !crate::boundary::structural_inputs::case_membership::case_projection_in_value_is_active(
-                &types, &result.value, execution.structural_cases.as_map(), &storage_path,
-            )? {
-            return Err(TerminalReturnedLoanError::UnknownPath);
-        }
-                Ok(TerminalReturnedLoan {
-                    execution,
-                    carrier: &result.value,
-                    source: signature.place,
-                    path: path.to_vec(),
-                    referent,
-                    access,
-                })
-            }
         }
 
         impl TerminalReturnedLoan<'_, '_> {

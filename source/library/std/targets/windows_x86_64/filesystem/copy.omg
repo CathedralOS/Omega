@@ -9,7 +9,7 @@ use omega::language::core::FilesystemMetadataQuery;
 use omega::language::core::FilesystemMetadataMutation;
 use omega::language::core::FilesystemNamespaceMutation;
 
-windows_x86_64 machine windows_filesystem_copy(from: &[u8] in Path, to: &[u8] in Path, buffer: &mut [u8], cap: u64) -> IoResult
+machine windows_filesystem_copy(from: &[u8] in Path, to: &[u8] in Path, buffer: &mut [u8], cap: u64) -> IoResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery
 invokes WindowsFilesystemHost
 {

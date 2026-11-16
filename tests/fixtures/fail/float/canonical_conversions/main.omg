@@ -1,0 +1,28 @@
+// Expected refusal: an i64 input cannot enter the named i32 conversion.
+use omega::language::core::F32;
+use omega::language::core::F64;
+use omega::language::core::F32::from_i64;
+use omega::language::core::F32::from_f64;
+use omega::language::core::F64::from_i32;
+use omega::language::core::F64::from_u32;
+use omega::language::core::F64::from_u64;
+use omega::language::core::F64::from_f32;
+
+machine signed(value: i64) -> f64 { F64::from_i32(value) }
+machine unsigned(value: u32) -> f64 { F64::from_u32(value) }
+machine rounded32(value: i64) -> f32 { F32::from_i64(value) }
+machine rounded64(value: u64) -> f64 { F64::from_u64(value) }
+machine narrowed(value: f64) -> f32 { F32::from_f64(value) }
+machine widened(value: f32) -> f64 { F64::from_f32(value) }
+
+machine main() crashes Trap {
+    transition signed(-37) == -37.0f64 && signed(41) == 41.0f64
+        && unsigned(4294967295) == 4294967295.0f64
+        && rounded32(16777217) == 16777216.0f32
+        && rounded64(9007199254740993) == 9007199254740992.0f64
+        && narrowed(1.000000059604644775390625f64) == 1.0f32
+        && widened(-1.25f32) == -1.25f64
+    { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

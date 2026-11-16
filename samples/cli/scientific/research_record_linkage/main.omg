@@ -12,8 +12,8 @@ data Main {
     linkage: Linkage;
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console blocks crashes Trap {
-    block Input::read(&mut main.input);
+machine main(main: &mut Main) reaches ProcessExit + Console blocks crashes Trap {
+    block read(&mut main.input);
     transition main.input.valid && main.input.tokens[0] > 0 &&
                main.input.tokens[25] < 4 && main.input.tokens[26] < 4 && main.input.tokens[27] < 4 &&
                (main.input.tokens[25] == 0 || main.input.tokens[25] != main.input.tokens[26]) &&
@@ -33,7 +33,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console blocks crashes
         main.linkage.truth[0] = main.input.tokens[25];
         main.linkage.truth[1] = main.input.tokens[26];
         main.linkage.truth[2] = main.input.tokens[27];
-        Linkage::solve(&mut main.linkage);
+        solve(&mut main.linkage);
         report(&main.linkage);
         // The process result fingerprints every computed report field. The CLI's
         // Terminal comparison observes termination.
@@ -48,5 +48,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console blocks crashes
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console blocks crashes Trap {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

@@ -36,8 +36,8 @@ public machine normalize(reference: &Sequence, position: u64 in Wrapping,
     machine base_match(reference: &Sequence, position: u64 in Wrapping,
                      removed: &Sequence, inserted: &Sequence,
                      result: &mut Normalization, index: u64 in Wrapping) {
-        let observed: u64 in Wrapping = Sequence::base(reference, position + index);
-        let declared: u64 in Wrapping = Sequence::base(removed, index);
+        let observed: u64 in Wrapping = sequence_base(reference, position + index);
+        let declared: u64 in Wrapping = sequence_base(removed, index);
         transition observed == declared {
             true -> reference_match(reference, position, removed, inserted, result, index + 1)
             _ -> mismatch(result)
@@ -47,9 +47,9 @@ public machine normalize(reference: &Sequence, position: u64 in Wrapping,
     machine construct(reference: &Sequence, position: u64 in Wrapping,
                     removed: &Sequence, inserted: &Sequence, result: &mut Normalization) {
         result.haplotype.length = 0;
-        let prefix: bool = Sequence::copy_range(reference, 0, position, &mut result.haplotype);
-        let middle: bool = Sequence::copy_range(inserted, 0, inserted.length, &mut result.haplotype);
-        let suffix: bool = Sequence::copy_range(reference, position + removed.length,
+        let prefix: bool = copy_range(reference, 0, position, &mut result.haplotype);
+        let middle: bool = copy_range(inserted, 0, inserted.length, &mut result.haplotype);
+        let suffix: bool = copy_range(reference, position + removed.length,
             reference.length - position - removed.length, &mut result.haplotype);
         transition prefix && middle && suffix {
             true -> classify(reference, result)
@@ -57,7 +57,7 @@ public machine normalize(reference: &Sequence, position: u64 in Wrapping,
         }
     }
     machine classify(reference: &Sequence, result: &mut Normalization) {
-        let unchanged: bool = Sequence::equal(reference, &result.haplotype);
+        let unchanged: bool = equal(reference, &result.haplotype);
         transition unchanged {
             true -> noop(result)
             _ -> start(reference, result)
@@ -111,7 +111,7 @@ public machine normalize(reference: &Sequence, position: u64 in Wrapping,
         result.canonical.position = position;
         result.canonical.removed = removed;
         result.canonical.inserted.length = 0;
-        let copied: bool = Sequence::copy_range(&result.haplotype, position, inserted, &mut result.canonical.inserted);
+        let copied: bool = copy_range(&result.haplotype, position, inserted, &mut result.canonical.inserted);
         result.cost = removed + inserted;
         transition copied {
             true -> width_scan(reference, result, position, removed + 1)
@@ -141,8 +141,8 @@ machine equivalent_edit(reference: &Sequence, haplotype: &Sequence,
     }
     machine prefix_item(reference: &Sequence, haplotype: &Sequence, position: u64 in Wrapping,
                       removed: u64 in Wrapping, inserted: u64 in Wrapping, index: u64 in Wrapping) -> bool {
-        let first: u64 in Wrapping = Sequence::base(reference, index);
-        let second: u64 in Wrapping = Sequence::base(haplotype, index);
+        let first: u64 in Wrapping = sequence_base(reference, index);
+        let second: u64 in Wrapping = sequence_base(haplotype, index);
         transition first == second {
             true -> prefix(reference, haplotype, position, removed, inserted, index + 1)
             _ -> false
@@ -157,8 +157,8 @@ machine equivalent_edit(reference: &Sequence, haplotype: &Sequence,
     }
     machine suffix_item(reference: &Sequence, haplotype: &Sequence, position: u64 in Wrapping,
                       removed: u64 in Wrapping, inserted: u64 in Wrapping, index: u64 in Wrapping) -> bool {
-        let first: u64 in Wrapping = Sequence::base(reference, position + removed + index);
-        let second: u64 in Wrapping = Sequence::base(haplotype, position + inserted + index);
+        let first: u64 in Wrapping = sequence_base(reference, position + removed + index);
+        let second: u64 in Wrapping = sequence_base(haplotype, position + inserted + index);
         transition first == second {
             true -> suffix(reference, haplotype, position, removed, inserted, index + 1)
             _ -> false

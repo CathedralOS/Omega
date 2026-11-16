@@ -2516,6 +2516,7 @@ pub(crate) mod scalar_observations {
             let array = StructuralTypeId::new(2).unwrap();
             let reference = StructuralTypeId::new(3).unwrap();
             let declaration = |id, shape| StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
                 requires: Vec::new(),
                 id,
                 identity: TerminalIdentityIndex(id.get() as u32),

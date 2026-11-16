@@ -14,7 +14,7 @@ data Orbit {
 machine coordinate(value: f64) -> f64
 requires value == value && value >= -1000000.0 && value <= 1000000.0 { value }
 
-machine Orbit::diagnostics(orbit: &mut Orbit) {
+machine diagnostics(orbit: &mut Orbit) {
     let radius: f64 = F64::square_root(orbit.x * orbit.x + orbit.y * orbit.y);
     let speed_squared: f64 = orbit.vx * orbit.vx + orbit.vy * orbit.vy;
     orbit.energy = 0.5 * speed_squared - orbit.parameter / radius;
@@ -22,7 +22,7 @@ machine Orbit::diagnostics(orbit: &mut Orbit) {
     orbit.radial = orbit.x * orbit.vx + orbit.y * orbit.vy;
 }
 
-machine Orbit::step(orbit: &mut Orbit) {
+machine step(orbit: &mut Orbit) {
     orbit.periapsis = false;
     orbit.previous_radial = orbit.radial;
     let radius_squared: f64 = orbit.x * orbit.x + orbit.y * orbit.y;
@@ -68,7 +68,7 @@ machine Orbit::step(orbit: &mut Orbit) {
         orbit.x = x; orbit.y = y;
         orbit.vx = half_vx + 0.5 * orbit.timestep * factor * x;
         orbit.vy = half_vy + 0.5 * orbit.timestep * factor * y;
-        Orbit::diagnostics(orbit);
+        diagnostics(orbit);
         transition orbit.previous_radial < 0.0 && orbit.radial >= 0.0 {
             true -> event(orbit) false -> done()
         }

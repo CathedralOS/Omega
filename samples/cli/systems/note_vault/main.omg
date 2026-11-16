@@ -39,8 +39,8 @@ use omega_language_std::system_time_now;
 data Main {
 }
 
-machine Main::main(context: &mut Main) reaches ProcessExit + Console + DirectoryEnumeration + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation + TimeHost {
-    let passed: i32 in Wrapping = 0;
+machine main(context: &mut Main) reaches ProcessExit + Console + DirectoryEnumeration + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation + TimeHost {
+    let passed: i32 in Wrapping = 0 as +Wrapping;
     // 1. The vault lives in a DEEP directory (create_dir_all's dispatched
     // mkall walkers).
     let unit_result: UnitResult = block FilesystemService::create_dir_all("omega_vault/notes/current");
@@ -119,7 +119,7 @@ machine Main::main(context: &mut Main) reaches ProcessExit + Console + Directory
         let mut back: [u8; 64];
         let next_passed: i32 in Wrapping = passed + 1;
         // 8. Read back and spot-check first ('v') and last ('\n' = 10) bytes.
-        let io_result: IoResult = block FilesystemService::read_all("omega_vault/notes/current/vault.txt", &mut back, 64);
+        let io_result: IoResult = block FilesystemService::read_all("omega_vault/notes/current/vault.txt", &mut back[..], 64);
         transition io_result { IoResult::Ok { count } -> block readback_ck(context, next_passed, count, back[0]) _ -> done(context, next_passed) }
     }
     machine readback_ck(context: &mut Main, passed: i32 in Wrapping, count: u64, head: u8) {
@@ -151,7 +151,7 @@ machine Main::main(context: &mut Main) reaches ProcessExit + Console + Directory
         let mut scratch: [u8; 64];
         let next_passed: i32 in Wrapping = passed + 1;
         // 10. Snapshot the compacted vault.
-        let io_result: IoResult = block FilesystemService::copy("omega_vault/notes/current/vault.txt", "omega_vault/notes/current/vault.bak", &mut scratch, 64);
+        let io_result: IoResult = block FilesystemService::copy("omega_vault/notes/current/vault.txt", "omega_vault/notes/current/vault.bak", &mut scratch[..], 64);
         transition io_result { IoResult::Ok { count } -> block backup_ck(context, next_passed, count) _ -> done(context, next_passed) }
     }
     machine backup_ck(context: &mut Main, passed: i32 in Wrapping, count: u64) {
@@ -195,5 +195,5 @@ machine Main::main(context: &mut Main) reaches ProcessExit + Console + Directory
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console + DirectoryEnumeration + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation + TimeHost {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

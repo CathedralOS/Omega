@@ -10422,6 +10422,7 @@ mod value_custody {
         ) {
             let types = (1..=3)
                 .map(|raw| StructuralTypeDeclaration {
+                    declaration_identity: Default::default(),
                     id: id(raw),
                     identity: TerminalIdentityIndex(raw as u32),
                     quotient_carrier: None,
@@ -10830,6 +10831,7 @@ mod value_custody {
             mixed.identity = TerminalIdentityIndex(4);
             mixed.shape = StructuralTypeShape::Mixed {
                 fields: vec![terminal_psi::StructuralFieldDeclaration {
+                    declaration_identity: Default::default(),
                     inline_carrier: None,
                     id: id(1),
                     identity: field,
@@ -10839,6 +10841,7 @@ mod value_custody {
                 }],
                 cases: [1, 2]
                     .map(|raw| terminal_psi::StructuralCaseDeclaration {
+                        declaration_identity: Default::default(),
                         id: id(raw),
                         identity: TerminalIdentityIndex(10 + raw as u32),
                         fields: Vec::new(),

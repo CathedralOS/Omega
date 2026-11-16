@@ -73,6 +73,7 @@ pub(super) fn encode_type(
     }
     crate::codec_bytes::push_encoded(bytes, declaration.id.get().to_le_bytes());
     crate::codec_bytes::push_encoded(bytes, declaration.identity.0.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, declaration.declaration_identity.0.to_le_bytes());
     bytes.push(u8::from(declaration.owns_linear_claim));
     bytes.push(u8::from(declaration.no_code_affine_cleanup));
     bytes.push(u8::from(declaration.descriptor_cleanup));
@@ -188,6 +189,7 @@ pub(super) fn decode_type(
     };
     let id = decode_id(cursor, StructuralTypeId::new)?;
     let identity = terminal_psi::TerminalIdentityIndex(cursor.u32()?);
+    let declaration_identity = terminal_psi::TerminalIdentityIndex(cursor.u32()?);
     let owns_linear_claim = decode_bool(cursor)?;
     let no_code_affine_cleanup = decode_bool(cursor)?;
     let descriptor_cleanup = decode_bool(cursor)?;
@@ -302,6 +304,7 @@ pub(super) fn decode_type(
         tag => return Err(FixedViewCopyDecodeError::UnknownStructuralTypeShape(tag)),
     };
     Ok(StructuralTypeDeclaration {
+        declaration_identity,
         requires: Vec::new(),
         quotient_carrier,
         owns_linear_claim,
@@ -366,6 +369,7 @@ fn encode_cases(
 ) -> Result<(), terminal_codec::CodecError> {
     length(bytes, cases.len());
     for case in cases {
+        crate::codec_bytes::push_encoded(bytes, case.declaration_identity.0.to_le_bytes());
         crate::codec_bytes::push_encoded(bytes, case.id.get().to_le_bytes());
         crate::codec_bytes::push_encoded(bytes, case.identity.0.to_le_bytes());
         encode_fields(bytes, &case.fields)?;
@@ -378,6 +382,7 @@ fn decode_cases(
 ) -> Result<Vec<StructuralCaseDeclaration>, FixedViewCopyDecodeError> {
     decode_list::<_, FixedViewCopyDecodeError>(cursor, |cursor| {
         Ok(StructuralCaseDeclaration {
+            declaration_identity: terminal_psi::TerminalIdentityIndex(cursor.u32()?),
             id: decode_id(cursor, StructuralCaseId::new)?,
             identity: terminal_psi::TerminalIdentityIndex(cursor.u32()?),
             fields: decode_fields(cursor)?,
@@ -393,6 +398,7 @@ fn encode_fields(
     for field in fields {
         crate::codec_bytes::push_encoded(bytes, field.id.get().to_le_bytes());
         crate::codec_bytes::push_encoded(bytes, field.identity.0.to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, field.declaration_identity.0.to_le_bytes());
         encode_option_u64(bytes, field.inline_carrier.map(|carrier| carrier.get()));
         bytes.push(match field.relevance {
             BindingRelevance::Relevant => 1,
@@ -409,6 +415,7 @@ fn decode_fields(
     decode_list(cursor, |cursor| {
         let id = decode_id(cursor, StructuralFieldId::new)?;
         let identity = terminal_psi::TerminalIdentityIndex(cursor.u32()?);
+        let declaration_identity = terminal_psi::TerminalIdentityIndex(cursor.u32()?);
         let inline_carrier = match cursor.byte()? {
             0 => None,
             1 => Some(decode_id(cursor, StructuralTypeId::new)?),
@@ -421,6 +428,7 @@ fn decode_fields(
         };
         let field_type = decode_scalar_restriction(cursor)?;
         Ok(StructuralFieldDeclaration {
+            declaration_identity,
             inline_carrier,
             storage: None,
             id,
@@ -1062,6 +1070,7 @@ mod tests {
         let mut encodings = Vec::new();
         for copyable in [false, true] {
             let declaration = StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
                 requires: Vec::new(),
                 quotient_carrier: None,
                 owns_linear_claim: false,
@@ -1092,6 +1101,7 @@ mod tests {
         let mut encodings = Vec::new();
         for owns_linear_claim in [false, true] {
             let declaration = StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
                 requires: Vec::new(),
                 quotient_carrier: None,
                 owns_linear_claim,
@@ -1127,6 +1137,7 @@ mod tests {
             Some(StructuralAccess::WriteOnlyBorrow),
         ] {
             let declaration = StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
                 requires: Vec::new(),
                 quotient_carrier: None,
                 owns_linear_claim: false,
@@ -1161,6 +1172,7 @@ mod tests {
             ScalarTerm::boolean(true),
         );
         let declaration = StructuralTypeDeclaration {
+            declaration_identity: TerminalIdentityIndex(17),
             requires: Vec::new(),
             quotient_carrier: None,
             owns_linear_claim: false,
@@ -1174,6 +1186,7 @@ mod tests {
             shape: StructuralTypeShape::Record {
                 storage: terminal_psi::StructuralRecordStorage::Packed,
                 fields: vec![StructuralFieldDeclaration {
+                    declaration_identity: TerminalIdentityIndex(18),
                     inline_carrier: Some(StructuralTypeId::new(8).unwrap()),
                     storage: None,
                     id: semantic_vocabulary::StructuralFieldId::new(1).unwrap(),
@@ -1206,6 +1219,7 @@ mod tests {
     #[test]
     fn retired_binding_carrier_tag_decodes_as_an_unknown_shape() {
         let record = StructuralTypeDeclaration {
+            declaration_identity: Default::default(),
             requires: Vec::new(),
             quotient_carrier: None,
             owns_linear_claim: false,
@@ -1276,6 +1290,7 @@ mod tests {
             (StructuralAccess::WriteOnlyBorrow, true),
         ] {
             let declaration = StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
                 requires: Vec::new(),
                 quotient_carrier: None,
                 owns_linear_claim: false,
@@ -1363,6 +1378,7 @@ mod tests {
             Some(StructuralAccess::WriteOnlyBorrow),
         ] {
             let declaration = StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
                 requires: Vec::new(),
                 quotient_carrier: None,
                 owns_linear_claim: false,

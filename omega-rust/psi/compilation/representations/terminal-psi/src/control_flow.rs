@@ -68,6 +68,38 @@ pub(crate) mod atomic {
     }
 
     impl<Operand: Copy> AtomicAccessEvent<Operand> {
+        /// Keep the same atomic family and ordering when an operand consumer
+        /// asks what access the instruction performs. Ordinary read/write labels
+        /// cannot express the atomic contract or its shared receiver.
+        pub const fn access_operation(self) -> access_plans::AtomicAccessOperation {
+            use access_plans::AtomicAccessOperation as Access;
+            match self {
+                Self::Load { ordering } => Access::Load(ordering),
+                Self::Store { ordering, .. } => Access::Store(ordering),
+                Self::ReadModifyWrite {
+                    operation,
+                    ordering,
+                    ..
+                } => match operation {
+                    AtomicReadModifyWrite::FetchAdd => Access::FetchAdd(ordering),
+                    AtomicReadModifyWrite::FetchSub => Access::FetchSub(ordering),
+                    AtomicReadModifyWrite::FetchAnd => Access::FetchAnd(ordering),
+                    AtomicReadModifyWrite::FetchOr => Access::FetchOr(ordering),
+                    AtomicReadModifyWrite::FetchXor => Access::FetchXor(ordering),
+                },
+                Self::Swap { ordering, .. } => Access::Swap(ordering),
+                Self::CompareExchange {
+                    success, failure, ..
+                } => Access::CompareExchange { success, failure },
+                Self::CompareExchangeOnce {
+                    custody,
+                    success,
+                    failure,
+                    ..
+                } => Access::single_attempt(custody.observation, success, failure),
+            }
+        }
+
         pub const fn replacement(self) -> Option<Operand> {
             match self {
                 Self::Store { value, .. } | Self::Swap { value, .. } => Some(value),
@@ -1109,6 +1141,20 @@ pub(crate) mod operations {
         pub const fn argument(&self) -> &StructuralArgument {
             match self {
                 Self::Whole { source, .. } | Self::Field { source, .. } => source,
+            }
+        }
+
+        /// Field operands keep their final selector outside the common
+        /// argument path. All storage consumers need that same complete operand.
+        pub fn storage_projection(&self) -> crate::OperationProjection<'_> {
+            let source = self.argument();
+            crate::OperationProjection {
+                root: source.place,
+                path: &source.path,
+                field: match self {
+                    Self::Whole { .. } => None,
+                    Self::Field { field, .. } => Some(*field),
+                },
             }
         }
 
@@ -2543,6 +2589,7 @@ pub(crate) mod termination {
             let mut projections = Vec::new();
             fn argument(argument: &StructuralArgument) -> crate::OperationProjection<'_> {
                 crate::OperationProjection {
+                    field: None,
                     root: argument.place,
                     path: &argument.path,
                 }
@@ -2574,12 +2621,14 @@ pub(crate) mod termination {
                 Self::StructuralCase { source, path, .. }
                 | Self::EliminateEmpty { source, path, .. } => {
                     projections.push(crate::OperationProjection {
+                        field: None,
                         root: *source,
                         path,
                     });
                 }
                 Self::ReturnStructural { source, .. } => {
                     projections.push(crate::OperationProjection {
+                        field: None,
                         root: *source,
                         path: &[],
                     });
@@ -2589,6 +2638,7 @@ pub(crate) mod termination {
             for (_, actions) in self.cleanup_rosters() {
                 for action in actions {
                     projections.push(crate::OperationProjection {
+                        field: None,
                         root: action.place(),
                         path: action.path(),
                     });

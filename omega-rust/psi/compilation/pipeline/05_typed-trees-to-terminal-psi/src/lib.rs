@@ -653,7 +653,16 @@ fn elaborate_witness_with_captures(
         expected,
     )?;
     let callee = program.implementation(implementation, declaring_trait, requirement)?;
-    elaborate_witness_call(program, entry, callee)
+    let mut elaboration = elaborate_witness_call(program, entry, callee)?;
+    if typed
+        .trait_machine_signature(requirement)
+        .is_some_and(|(owner, signature)| {
+            owner.is_boundary && signature.service_reach_is_installation_bound
+        })
+    {
+        elaboration.installation_bound_refinement = Some(entry);
+    }
+    Ok(elaboration)
 }
 
 fn elaborate_witness_call(
@@ -871,7 +880,9 @@ fn finish_reading_into<'source>(
             Unserved::Declaration(reason),
         )
     })?;
+    qualifications::publish_access_plans(diagnostic, &program, &mut elaboration.module)?;
     source.records = program.source_record_correspondence(diagnostic)?;
+    program.publish_source_declarations(diagnostic, &source.records, &mut elaboration.module)?;
     source.readiness = program.publish_readiness(diagnostic, &mut elaboration.module)?;
     for selected in &mut program.selections {
         if let Some(required) = selected.required_contract {
@@ -1269,6 +1280,7 @@ fn lower_generic_for<'source>(
         selected_calls: Vec::new(),
         prepared_applications: Vec::new(),
         program: Elaboration {
+            installation_bound_refinement: None,
             module,
             tables,
             sources,

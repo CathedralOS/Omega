@@ -3,10 +3,10 @@
 //! compiler ranking theory.
 
 use super::{Program, Slot};
-use crate::body::{Expression, ValueType};
+use crate::body::{Expression, ExpressionKind, Policy, Strict, ValueType};
 use crate::{Unserved, refuse};
 use language_semantics::{RankingViewId, RankingViewSelection};
-use semantic_vocabulary::{IntegerSign, MachineId, ScalarType};
+use semantic_vocabulary::{IntegerSign, IntegerType, MachineId, ScalarType};
 use terminal_check_tables::{Checked, Construct};
 use typed_trees::machine::Machine;
 
@@ -40,6 +40,11 @@ impl Program<'_> {
                         "selected ranking view is not an admitted compiler ranking declaration",
                     ));
                 }
+                let catalog = RankingViewId::canonical(declaration.name.as_str())
+                    .and_then(RankingViewId::catalog_declaration)
+                    .ok_or_else(|| {
+                        unsupported("selected ranking declaration has no catalog row")
+                    })?;
                 if declaration.supply_mode
                     != language_semantics::MachineSupplyMode::CompilerProvided
                     || declaration.body_is_present
@@ -73,11 +78,13 @@ impl Program<'_> {
                         "selected ranking declaration needs exactly one entry",
                     ));
                 };
-                let [parameter] = self.typed.state_parameters(entry) else {
-                    return Err(unsupported(
-                        "selected ranking declaration needs exactly one subject",
-                    ));
-                };
+                let parameters = self.typed.state_parameters(entry);
+                if parameters.len() != catalog.subject_count {
+                    return Err(unsupported(match catalog.subject_count {
+                        1 => "selected ranking declaration needs exactly one subject",
+                        _ => "selected ranking declaration has another subject count",
+                    }));
+                }
                 let plain_u64 = |reference| {
                     self.typed
                         .type_reference_table
@@ -88,11 +95,12 @@ impl Program<'_> {
                                 if self.typed.symbols.builtin_type_atom(*symbol) == Some(symbols::BuiltinTypeAtom::U64)
                         )
                 };
-                if parameter.is_const
-                    || parameter.is_mutable
-                    || parameter.relevance != language_core::BindingRelevance::Relevant
-                    || !plain_u64(parameter.type_reference)
-                    || !plain_u64(entry.return_type)
+                if parameters.iter().any(|parameter| {
+                    parameter.is_const
+                        || parameter.is_mutable
+                        || parameter.relevance != language_core::BindingRelevance::Relevant
+                        || !plain_u64(parameter.type_reference)
+                }) || !plain_u64(entry.return_type)
                     || !entry.contracts.is_empty()
                     || !entry.statement_nodes.is_empty()
                 {
@@ -100,7 +108,7 @@ impl Program<'_> {
                         "selected ranking declaration must have its exact plain u64 to u64 header",
                     ));
                 }
-                (RankingViewId::NAT_DESCENDING, false)
+                (catalog.view, false)
             }
             RankingViewSelection::Unresolved | RankingViewSelection::Builtin(_) => {
                 return Err(unsupported(
@@ -138,72 +146,122 @@ impl Program<'_> {
         let subjects = typed_trees::ranking::resolve_machine_witness_subjects(self.typed, machine)
             .filter(|subjects| !subjects.is_empty())
             .ok_or_else(|| unsupported("ranking subjects have no resolved expressions"))?;
-        if matches!(
-            view,
-            RankingViewId::NAT_DESCENDING | RankingViewId::SLICE_LENGTH
-        ) && subjects.len() != 1
+        let rank = match (view, subjects.as_slice()) {
+            (RankingViewId::NAT_BOUNDED_DISTANCE, [lower, upper]) => {
+                self.distance(id, slots, *lower, *upper, default)?
+            }
+            (RankingViewId::NAT_DESCENDING, [subject]) => {
+                let value = self.expression(id, slots, *subject, None)?;
+                natural_subject(id, &value, default)?;
+                value
+            }
+            (RankingViewId::SLICE_LENGTH, [subject]) => {
+                let value = self.expression(id, slots, *subject, None)?;
+                let source = value.source;
+                self.measured_collection(
+                    id,
+                    value,
+                    typed_trees::expression::CollectionMeasure::Length,
+                    source,
+                )?
+            }
+            (RankingViewId::NAT_BOUNDED_DISTANCE, _) => {
+                return Err(unsupported(
+                    "bounded distance requires exactly two subjects",
+                ));
+            }
+            (RankingViewId::NAT_DESCENDING | RankingViewId::SLICE_LENGTH, _) => {
+                return Err(unsupported(
+                    "selected ranking view requires exactly one subject",
+                ));
+            }
+            _ => {
+                return Err(unsupported(
+                    "ranking view has no normalized integer relation",
+                ));
+            }
+        };
+        if !matches!(rank.result, Some(ValueType::Scalar(ScalarType::Integer(integer), _))
+            if !integer.is_address() && integer.bits().is_some())
         {
-            return Err(unsupported(
-                "selected ranking view requires exactly one subject",
+            return Err(unsupported("ranking needs a closed finite integer carrier"));
+        }
+        Ok(Some(vec![rank]))
+    }
+
+    fn distance(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        lower: typed_trees::expression::ExpressionHandle,
+        upper: typed_trees::expression::ExpressionHandle,
+        default: bool,
+    ) -> Checked<Expression> {
+        use typed_trees::expression::ExpressionNode;
+        let anonymous = |node: &ExpressionNode| matches!(node, ExpressionNode::Integer(literal) if literal.landing().is_none());
+        let lower_anonymous = anonymous(self.node(id, lower)?);
+        let upper_anonymous = anonymous(self.node(id, upper)?);
+        let (lower, upper) = if lower_anonymous && !upper_anonymous {
+            let upper = self.expression(id, slots, upper, None)?;
+            let lower = self.expression(id, slots, lower, upper.result)?;
+            (lower, upper)
+        } else {
+            let lower_context = lower_anonymous.then_some(ValueType::plain(ScalarType::Integer(
+                catalog_natural_carrier(),
+            )));
+            let lower = self.expression(id, slots, lower, lower_context)?;
+            let upper_context = if upper_anonymous { lower.result } else { None };
+            let upper = self.expression(id, slots, upper, upper_context)?;
+            (lower, upper)
+        };
+        let lower_type = natural_subject(id, &lower, default)?;
+        let upper_type = natural_subject(id, &upper, default)?;
+        if lower_type != upper_type {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Contract("bounded distance needs one common unsigned integer carrier"),
             ));
         }
-        let mut ranks = Vec::with_capacity(subjects.len());
-        for subject in subjects {
-            let value = self.expression(id, slots, subject, None)?;
-            let rank = match view {
-                RankingViewId::NAT_DESCENDING => {
-                    let Some(ValueType::Scalar(ScalarType::Integer(integer), _)) = value.result
-                    else {
-                        return Err(unsupported(
-                            "natural ranking needs an unsigned integer subject",
-                        ));
-                    };
-                    if integer.sign() != IntegerSign::Unsigned {
-                        return Err(unsupported(
-                            "natural ranking needs an unsigned integer subject",
-                        ));
-                    }
-                    let catalog_carrier =
-                        semantic_vocabulary::IntegerType::new(IntegerSign::Unsigned, 64)
-                            .expect("u64 is a valid carrier");
-                    if !default
-                        && integer != catalog_carrier
-                        && !integer.can_widen_to(catalog_carrier)
-                    {
-                        return Err(unsupported(
-                            "selected natural ranking subject cannot embed exactly in its u64 input",
-                        ));
-                    }
-                    // The sealed view is the identity descending order on u64.
-                    // A smaller unsigned input forms through the same total
-                    // widening rule used by ordinary numeric conversions. Its
-                    // source order is exactly the restriction of that order,
-                    // so canonical checking can retain the original carrier
-                    // and prove the same comparisons without runtime casts.
-                    value
-                }
-                RankingViewId::SLICE_LENGTH => {
-                    let source = value.source;
-                    self.measured_collection(
-                        id,
-                        value,
-                        typed_trees::expression::CollectionMeasure::Length,
-                        source,
-                    )?
-                }
-                _ => {
-                    return Err(unsupported(
-                        "ranking view has no normalized integer relation",
-                    ));
-                }
-            };
-            if !matches!(rank.result, Some(ValueType::Scalar(ScalarType::Integer(integer), _))
-                if !integer.is_address() && integer.bits().is_some())
-            {
-                return Err(unsupported("ranking needs a closed finite integer carrier"));
-            }
-            ranks.push(rank);
-        }
-        Ok(Some(ranks))
+        // Both operands are natural, so unsigned saturating subtraction is
+        // exactly the selected view, including the zero plateau past the limit.
+        Ok(Expression {
+            call_context: None,
+            source: lower.source,
+            kind: ExpressionKind::Strict {
+                operation: Strict::Subtract,
+                policy: Some(Policy::Saturating),
+                left: Box::new(upper),
+                right: Box::new(lower),
+            },
+            result: Some(ValueType::plain(ScalarType::Integer(lower_type))),
+        })
     }
+}
+
+fn catalog_natural_carrier() -> IntegerType {
+    IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is a valid carrier")
+}
+
+fn natural_subject(id: MachineId, value: &Expression, default: bool) -> Checked<IntegerType> {
+    let unsupported = |detail| refuse(id, Construct::Machine, Unserved::Contract(detail));
+    let Some(ValueType::Scalar(ScalarType::Integer(integer), _)) = value.result else {
+        return Err(unsupported(
+            "natural ranking needs an unsigned integer subject",
+        ));
+    };
+    if integer.sign() != IntegerSign::Unsigned {
+        return Err(unsupported(
+            "natural ranking needs an unsigned integer subject",
+        ));
+    }
+    let catalog = catalog_natural_carrier();
+    // Restricting the u64 order and clamped difference to a smaller unsigned
+    // carrier preserves both denotations and avoids executing widening casts.
+    if !default && integer != catalog && !integer.can_widen_to(catalog) {
+        return Err(unsupported(
+            "selected natural ranking subject cannot embed exactly in its u64 input",
+        ));
+    }
+    Ok(integer)
 }

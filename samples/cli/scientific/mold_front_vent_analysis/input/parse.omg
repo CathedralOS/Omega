@@ -99,6 +99,6 @@ public machine parse_input(text: &[u8], cavity: &mut Cavity) -> bool {
         cavity.gates = gates;
         cavity.vents = vents;
         cavity.budget = budget;
-        Cavity::valid(cavity)
+        valid(cavity)
     }
 }

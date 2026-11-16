@@ -7,7 +7,7 @@ use study::model;
 
 data Main { study: study::model::Study; }
 
-machine Main::number(main: &mut Main, value: i32 in Wrapping) reaches Console {
+machine number(main: &mut Main, value: i32 in Wrapping) reaches Console {
     transition value < 0 { true -> negative(main, value) _ -> leading(main, value) }
     machine negative(main: &mut Main, value: i32 in Wrapping) {
         Console::write("-");
@@ -47,7 +47,7 @@ machine Main::number(main: &mut Main, value: i32 in Wrapping) reaches Console {
     }
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("crossed_gauge_study: exact crossed random-effects sample; all numbers /32");
     transition { _ -> block header(main) }
     machine header(main: &mut Main) {
@@ -59,7 +59,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     }
     machine header_byte(main: &mut Main, value: i32) {
         transition value {
-            50 -> block read(main, 0)
+            50 -> block read(main, 0 as +Wrapping)
             49 -> insufficient(main)
             32 -> block header(main)
             10 -> block header(main)
@@ -94,7 +94,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     }
     machine store(main: &mut Main, index: i32 in Wrapping, value: i32) {
         main.study.values[index] = (value as i32 in Wrapping) - 48;
-        main.study.present[index] = 1;
+        main.study.present[index] = 1 as +Wrapping;
         transition { _ -> block read(main, index + 1) }
     }
     machine missing(main: &mut Main, index: i32 in Wrapping, value: i32) {
@@ -104,8 +104,8 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
         }
     }
     machine absent(main: &mut Main, index: i32 in Wrapping) {
-        main.study.values[index] = 0;
-        main.study.present[index] = 0;
+        main.study.values[index] = 0 as +Wrapping;
+        main.study.present[index] = 0 as +Wrapping;
         transition { _ -> block read(main, index + 1) }
     }
     machine finish(main: &mut Main, index: i32 in Wrapping) {
@@ -119,46 +119,46 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
         Console::write_line("identifiable: parts=2 operators=2 repeats=2; df=1,1,1,4 total=7");
         Console::write("ss_part=");
         let part_sum_of_squares: i32 in Wrapping = main.study.part;
-        Main::number(main, part_sum_of_squares);
+        number(main, part_sum_of_squares);
         Console::write("ss_operator=");
         let operator_sum_of_squares: i32 in Wrapping = main.study.operator_effect;
-        Main::number(main, operator_sum_of_squares);
+        number(main, operator_sum_of_squares);
         Console::write("ss_interaction=");
         let interaction_sum_of_squares: i32 in Wrapping = main.study.interaction;
-        Main::number(main, interaction_sum_of_squares);
+        number(main, interaction_sum_of_squares);
         Console::write("ss_error=");
         let error_sum_of_squares: i32 in Wrapping = main.study.error;
-        Main::number(main, error_sum_of_squares);
+        number(main, error_sum_of_squares);
         Console::write("ss_total=");
         let total_sum_of_squares: i32 in Wrapping = main.study.total;
-        Main::number(main, total_sum_of_squares);
+        number(main, total_sum_of_squares);
         Console::write("ms_error=");
         let error_mean_square: i32 in Wrapping = main.study.repeatability;
-        Main::number(main, error_mean_square);
+        number(main, error_mean_square);
         Console::write("raw_part=");
         let raw_part_component: i32 in Wrapping = main.study.part_variance;
-        Main::number(main, raw_part_component);
+        number(main, raw_part_component);
         Console::write("raw_operator=");
         let raw_operator_component: i32 in Wrapping = main.study.operator_variance;
-        Main::number(main, raw_operator_component);
+        number(main, raw_operator_component);
         Console::write("raw_interaction=");
         let raw_interaction_component: i32 in Wrapping = main.study.interaction_variance;
-        Main::number(main, raw_interaction_component);
+        number(main, raw_interaction_component);
         Console::write("repeatability=");
         let repeatability_component: i32 in Wrapping = main.study.repeatability;
-        Main::number(main, repeatability_component);
+        number(main, repeatability_component);
         Console::write("part_variance=");
         let clamped_part_component: i32 in Wrapping = study::model::nonnegative(main.study.part_variance);
-        Main::number(main, clamped_part_component);
+        number(main, clamped_part_component);
         Console::write("operator_variance=");
         let clamped_operator_component: i32 in Wrapping = study::model::nonnegative(main.study.operator_variance);
-        Main::number(main, clamped_operator_component);
+        number(main, clamped_operator_component);
         Console::write("interaction_variance=");
         let clamped_interaction_component: i32 in Wrapping = study::model::nonnegative(main.study.interaction_variance);
-        Main::number(main, clamped_interaction_component);
+        number(main, clamped_interaction_component);
         Console::write("gauge_variance=");
         let gauge_component: i32 in Wrapping = main.study.repeatability + study::model::nonnegative(main.study.operator_variance) + study::model::nonnegative(main.study.interaction_variance);
-        Main::number(main, gauge_component);
+        number(main, gauge_component);
         Console::write_line("interaction: retained; negative components clamped individually; no pooling");
         ProcessExit::exit_process(0);
     }
@@ -183,5 +183,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

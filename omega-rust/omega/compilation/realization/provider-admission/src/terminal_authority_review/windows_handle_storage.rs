@@ -1579,6 +1579,7 @@ mod tests {
         use terminal_psi::{ByteSequenceCarrier, StructuralAccess, StructuralTypeDeclaration};
         let id = |value| StructuralTypeId::new(value).unwrap();
         let declaration = |value: u32, shape| StructuralTypeDeclaration {
+            declaration_identity: Default::default(),
             requires: Vec::new(),
             id: id(u64::from(value)),
             identity: terminal_psi::TerminalIdentityIndex(value),
@@ -1841,6 +1842,7 @@ mod tests {
             ),
         ]
         .map(|(value, shape)| terminal_psi::StructuralTypeDeclaration {
+            declaration_identity: Default::default(),
             requires: Vec::new(),
             id: id(value),
             identity: terminal_psi::TerminalIdentityIndex(value as u32),

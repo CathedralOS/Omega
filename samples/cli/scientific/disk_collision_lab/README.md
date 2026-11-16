@@ -71,7 +71,7 @@ then reads index 2. It must reject for the documented array bounds rule;
 parser or missing-entry diagnostic is not a successful control. The positive
 application guards all runtime indices before access.
 
-Build metadata binds exact `Main::main` entry contracts for Linux x86-64,
+Build metadata binds exact `main` entry contracts for Linux x86-64,
 Windows x86-64 and macOS arm64. Execution evidence here is host-specific;
 other hosts require their own provider/package preparation and validation.
 See `VALIDATION.md` for exact measured commands, revisions and remaining limits.

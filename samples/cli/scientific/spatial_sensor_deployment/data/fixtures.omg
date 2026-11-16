@@ -1,5 +1,5 @@
 use domain::model;
-machine Problem::load(problem: &mut Problem, variant: u64 in Wrapping) {
+machine load(problem: &mut Problem, variant: u64 in Wrapping) {
     problem.sites[0].x = 0; problem.sites[0].y = 0;
     problem.sites[0].cost = 2; problem.sites[0].capacity = 2; problem.sites[0].radius = 2;
     problem.sites[1].x = 3; problem.sites[1].y = 0;

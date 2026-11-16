@@ -15,7 +15,7 @@ use crate::record::{
     PackageReviewCheckedServiceReach, PackageReviewCrashInterface, PackageReviewInstallationReach,
     PackageReviewNominalIdentity, PackageReviewNominalOwner,
     PackageReviewSelectedInstallationReach, PackageReviewSignatureParameter,
-    PackageReviewWriteFrameCompleteness,
+    PackageReviewSynchronousInvocation, PackageReviewWriteFrameCompleteness,
 };
 use backend_plan::SelectedCheckedInvocationRow;
 use build_time_evaluation::provider_declarations::{
@@ -71,12 +71,14 @@ pub(super) struct AcceptedDeclarations<'module> {
     bodies: Vec<&'module TerminalMachine>,
     behaviors: Vec<&'module UnoptimizedMachineBehavior>,
     authored_reach_owners: Vec<SymbolHandle>,
+    service_origins: &'module [(ServiceId, SymbolHandle)],
     service_names: &'module [(ServiceId, PackageReviewNominalIdentity)],
 }
 
 impl<'module> AcceptedDeclarations<'module> {
     pub(super) fn new(
         accepted: &'module source_compiler::AcceptedTerminalSource,
+        service_origins: &'module [(ServiceId, SymbolHandle)],
         service_names: &'module [(ServiceId, PackageReviewNominalIdentity)],
         plans: &[ProviderPlan],
     ) -> Self {
@@ -110,6 +112,7 @@ impl<'module> AcceptedDeclarations<'module> {
             bodies,
             behaviors,
             authored_reach_owners,
+            service_origins,
             service_names,
         }
     }
@@ -119,6 +122,29 @@ impl<'module> AcceptedDeclarations<'module> {
             .binary_search_by_key(&symbol_key(owner), |symbol| symbol_key(*symbol))
             .is_ok()
     }
+
+    fn source_service_names<'source, Name: Ord>(
+        &'source self,
+        services: &[ServiceId],
+        name: impl Fn(&'source TraitDefinition) -> Name,
+    ) -> Result<Vec<Name>, Vec<Diagnostic>> {
+        let source = self.accepted.source();
+        let mut names = services
+            .iter()
+            .map(|service| {
+                let index = self
+                    .service_origins
+                    .binary_search_by_key(service, |(id, _)| *id)
+                    .map_err(|_| unavailable("the selected service's exact source"))?;
+                source
+                    .trait_definition_by_symbol(self.service_origins[index].1)
+                    .map(&name)
+                    .ok_or_else(|| unavailable("the selected service's authored name"))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        names.sort_unstable();
+        Ok(names)
+    }
 }
 
 impl PackageReviewInput<'_> {
@@ -126,12 +152,12 @@ impl PackageReviewInput<'_> {
         &self,
         package: PackageKeyIdentity,
         target: TargetProfile,
-        service_origins: &[(ServiceId, SymbolHandle)],
         declarations: &AcceptedDeclarations<'_>,
         native_bindings: &[(PackagePolicyNativeBinding, PackagePolicyCallable)],
     ) -> Result<ReviewedProviders, Vec<Diagnostic>> {
         let checked = self.compilation();
         let selected = checked.execution().plans();
+        let service_origins = declarations.service_origins;
         let accepted = declarations.accepted;
         let module = accepted.module();
         let mut review = ReviewedProviders {
@@ -288,6 +314,12 @@ impl PackageReviewInput<'_> {
         review: &mut ReviewedProviders,
     ) -> Result<(), Vec<Diagnostic>> {
         let typed = self.typed();
+        let mut native_owners = native_bindings
+            .iter()
+            .map(|(binding, _)| binding.method.requirement_owner())
+            .collect::<Vec<_>>();
+        native_owners.sort_unstable();
+        native_owners.dedup();
         let original_boundaries = &declarations.accepted.closure().elaboration.boundaries;
         // The checked roster names each requirement even without a provider.
         // Join its source declarations by the service and signature identities.
@@ -315,54 +347,61 @@ impl PackageReviewInput<'_> {
             let Some(trait_declaration) = typed.trait_definition_by_symbol(owner) else {
                 continue;
             };
-            if (!trait_declaration.is_public && native_bindings.is_empty())
-                || !closed_service(typed, trait_declaration)
-                || !self.owns(owner, package)?
+            let local_service = self.owns(owner, package)?;
+            let publish_trait = local_service && trait_declaration.is_public;
+            if !closed_service(typed, trait_declaration)
+                || (!publish_trait && native_owners.is_empty())
             {
                 continue;
             }
+            let service_identity = self.nominal(owner)?;
+            if !publish_trait && native_owners.binary_search(&&service_identity).is_err() {
+                continue;
+            }
             let signatures = typed.trait_machine_signatures(trait_declaration);
-            if signatures.len() != rows.len() || rows.windows(2).any(|pair| pair[0].1 == pair[1].1)
+            if (local_service && signatures.len() != rows.len())
+                || rows.windows(2).any(|pair| pair[0].1 == pair[1].1)
             {
                 return Err(unavailable("the complete public requirement roster"));
             }
             let mut callables = Vec::with_capacity(rows.len());
-            for signature in signatures {
-                let index = rows
-                    .binary_search_by_key(&symbol_key(signature.symbol), |(_, original, _)| {
-                        symbol_key(*original)
-                    })
-                    .map_err(|_| unavailable("one exact public service requirement"))?;
-                let boundary = rows[index].2;
-                let identity = self.nominal(signature.symbol)?;
+            for &(_, original, boundary) in rows {
+                let (_, signature) = typed
+                    .trait_machine_signature(original)
+                    .filter(|(declaration, _)| declaration.symbol == owner)
+                    .ok_or_else(|| unavailable("one exact public service requirement"))?;
+                let identity = self.nominal(original)?;
                 let callable = match native_bindings
                     .binary_search_by(|(binding, _)| binding.method.requirement.cmp(&identity))
                 {
                     Ok(index) => native_bindings[index].1.clone(),
-                    Err(_) if trait_declaration.is_public => {
+                    Err(_) if publish_trait => {
                         self.checked_requirement(signature, boundary, identity, declarations)?
                     }
                     Err(_) => break,
                 };
-                callables.push((boundary.id, callable));
+                callables.push((boundary, callable));
             }
-            // A private declaration is retained only with its complete
-            // authored native supply. An unrelated private row stays refused.
+            // A package can supply an imported requirement without owning or
+            // re-exporting its trait. Only the exact authored binding covers it.
             if callables.len() != rows.len() {
                 continue;
             }
-            if trait_declaration.is_public {
+            if publish_trait {
                 let requirements = callables
                     .iter()
                     .map(|(_, callable)| service_requirement(callable))
                     .collect();
                 review
                     .public_traits
-                    .push(service_trait(self.nominal(owner)?, requirements));
+                    .push(service_trait(service_identity, requirements));
             }
             for (boundary, callable) in callables {
-                review.boundaries.push(boundary);
-                review.callables.push(callable);
+                review.boundaries.push(boundary.id);
+                review.services.extend(&boundary.published_service_ceiling);
+                if local_service {
+                    review.callables.push(callable);
+                }
             }
             review.slots.push(owner);
             review.services.push(service);
@@ -544,7 +583,6 @@ impl PackageReviewInput<'_> {
                 requirement.clone(),
             )?;
             let (projected, callable) = self.checked_method(
-                service,
                 signature,
                 boundary,
                 method,
@@ -565,6 +603,10 @@ impl PackageReviewInput<'_> {
             rows.push(row);
             review.boundaries.push(boundary.id);
             review.services.push(service_id);
+            review.services.extend(&boundary.published_service_ceiling);
+            review
+                .services
+                .extend(&boundary.published_synchronous_entries);
         }
         if local_service && service.is_public {
             review.public_traits.push(service_trait(
@@ -689,40 +731,33 @@ impl PackageReviewInput<'_> {
             .machines
             .get(candidate)
             .ok_or_else(|| unavailable("the selected provider's original declaration"))?;
-        // A checked realization with no authored reach clause can carry
-        // its governing requirement's ceiling in the execution contract.
-        // The method row already publishes that ceiling, and the checked
-        // body still owes its own empty reach in this projection.
+        // The selected method publishes both ceilings. The exact checked
+        // realization may use a subset of each, regardless of whether the
+        // reach ceiling is fixed or settled at installation.
         let installation_reach =
             self.checked_installation_reach(declarations, plan, row, boundary)?;
-        let unrepresented_reach = if installation_reach.is_some() {
-            reach.iter().any(|service| {
+        let outside_reach = reach
+            .iter()
+            .chain(&body.contract.published_service_ceiling)
+            .any(|service| {
                 boundary
                     .published_service_ceiling
                     .binary_search(service)
                     .is_err()
-            }) || body
-                .contract
-                .published_service_ceiling
-                .iter()
-                .any(|service| {
-                    boundary
-                        .published_service_ceiling
-                        .binary_search(service)
-                        .is_err()
-                })
-        } else {
-            !reach.is_empty()
-                || (!body.contract.published_service_ceiling.is_empty()
-                    && (body.contract.published_service_ceiling
-                        != boundary.published_service_ceiling
-                        || declarations.has_authored_reach(realization)))
-        };
-        if unrepresented_reach
-            || !invocations.is_empty()
+            });
+        let outside_invocations = invocations
+            .iter()
+            .chain(&body.contract.published_synchronous_entries)
+            .any(|service| {
+                boundary
+                    .published_synchronous_entries
+                    .binary_search(service)
+                    .is_err()
+            });
+        if outside_reach
+            || outside_invocations
             || may_suspend
             || may_block
-            || !body.contract.published_synchronous_entries.is_empty()
             || !body.contract.crash_routes.is_empty()
             || body.contract.published_may_block
             || body.contract.published_may_suspend
@@ -752,7 +787,6 @@ impl PackageReviewInput<'_> {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn checked_method(
         &self,
-        service: &TraitDefinition,
         signature: &StateSignature,
         boundary: &BoundaryMachineDeclaration,
         method: &ServiceMethod,
@@ -761,44 +795,43 @@ impl PackageReviewInput<'_> {
         requirement_owner: PackageReviewNominalIdentity,
         declarations: &AcceptedDeclarations<'_>,
     ) -> Result<(PackagePolicyServiceMethod, PackagePolicyCallable), Vec<Diagnostic>> {
-        let source = self.typed();
-        let declared_service = source
-            .service_reaches
-            .id_for_symbol(service.symbol)
-            .and_then(|service| source.service_reaches.definition(service))
-            .ok_or_else(|| unavailable("the selected requirement's own service"))?;
-        let mut authority = vec![requirement_owner.clone()];
-        let ceiling_matches = if signature.service_reach_is_installation_bound {
-            authority.extend(reviewed_services(
-                declarations.service_names,
-                &boundary.published_service_ceiling,
-            )?);
-            authority.sort();
-            authority.dedup();
-            let mut names = authority
-                .iter()
-                .map(PackageReviewNominalIdentity::path)
-                .collect::<Vec<_>>();
-            names.sort_unstable();
-            names
-                == method
-                    .service_reach
-                    .iter()
-                    .map(String::as_str)
-                    .collect::<Vec<_>>()
-        } else {
-            method.service_reach.as_slice() == [declared_service.name.as_str()]
-                && boundary
-                    .published_service_ceiling
-                    .iter()
-                    .all(|id| Some(*id) == boundary.owning_service)
-        };
+        let owner = boundary
+            .owning_service
+            .ok_or_else(|| unavailable("the selected requirement's owning service"))?;
+        let owner_index = declarations
+            .service_names
+            .binary_search_by_key(&owner, |(service, _)| *service)
+            .map_err(|_| unavailable("the selected requirement's own service"))?;
+        if declarations.service_names[owner_index].1 != requirement_owner {
+            return Err(unavailable(
+                "the selected requirement's exact owning service",
+            ));
+        }
+
+        // Provider authority includes the selected slot. Calls contribute only
+        // the requirement's own reach, which the callable below publishes.
+        let mut reach = boundary.published_service_ceiling.clone();
+        reach.push(owner);
+        reach.sort_unstable();
+        reach.dedup();
+        let authority = reviewed_services(declarations.service_names, &reach)?;
+        // The plan stores source names. Resolve those from the same checked
+        // coordinates, even when the nominal identities have qualified paths.
+        let ceiling_matches = declarations
+            .source_service_names(&reach, |declaration| declaration.name.as_str())?
+            .into_iter()
+            .eq(method.service_reach.iter().map(String::as_str));
+        let invocations = &boundary.published_synchronous_entries;
+        let source = declarations.accepted.source();
+        let invocations_match = declarations.source_service_names(invocations, |declaration| {
+            source.trait_declaration_path(declaration)
+        })? == method.synchronous_invocations;
         if method.completion != boundary.completion
             || method.terminates_guarantee != boundary.unconditional_termination
             || !ceiling_matches
             || !method.entry_claims.is_empty()
             || !method.result_claims.is_empty()
-            || !method.synchronous_invocations.is_empty()
+            || !invocations_match
             || boundary.declaration.as_ref().is_none_or(|declaration| {
                 method.may_suspend != declaration.source.published_may_suspend
                     || method.may_block != declaration.source.published_may_block
@@ -811,6 +844,10 @@ impl PackageReviewInput<'_> {
         }
         let callable =
             self.checked_requirement(signature, boundary, requirement.clone(), declarations)?;
+        let invocation_authority = callable
+            .declared_synchronous_invocations
+            .clone()
+            .ok_or_else(|| unavailable("the selected requirement's synchronous entry ceiling"))?;
         let selected = service_method_policy(
             method,
             schema,
@@ -830,7 +867,7 @@ impl PackageReviewInput<'_> {
             },
             PackagePolicyServiceAuthority {
                 service_reach: authority,
-                synchronous_invocations: Vec::new(),
+                synchronous_invocations: invocation_authority,
                 progress_premises: Vec::new(),
             },
         );
@@ -849,6 +886,10 @@ impl PackageReviewInput<'_> {
             .declaration
             .as_ref()
             .ok_or_else(|| unavailable("the exact checked boundary declaration"))?;
+        // An external completion retains its source result type for review,
+        // but cannot deliver storage to the caller.
+        let completes_normally =
+            boundary.completion == semantic_vocabulary::BoundaryCompletion::NormalReturn;
         if !signature.lifetime_parameters.is_empty()
             || !signature.type_parameters.is_empty()
             || !signature.conformance_bounds.is_empty()
@@ -861,7 +902,6 @@ impl PackageReviewInput<'_> {
             || boundary.role != BoundaryDeclarationRole::Callable
             || declaration.execution != CheckedBoundaryExecution::Provider
             || !declaration.method_arguments.is_empty()
-            || !boundary.published_synchronous_entries.is_empty()
             || boundary.structural_parameters.iter().any(|parameter| {
                 !parameter.is_unqualified_root()
                     || !parameter.additional_input_qualifications.is_empty()
@@ -876,7 +916,7 @@ impl PackageReviewInput<'_> {
             || !boundary.content_guarantees.is_empty()
             || !boundary.result_reference_regions.is_empty()
             || matches!(&boundary.result, terminal_psi::BoundaryMachineResult::Structural(result)
-                if result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+                if (completes_normally && result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted)
                     || !result.qualifications.is_empty()
                     || !result.projected_qualifications.is_empty())
             || boundary
@@ -956,7 +996,15 @@ impl PackageReviewInput<'_> {
             },
             checked_service_reach: PackageReviewCheckedServiceReach::NoCheckedBody,
             unresolved_installation_reaches,
-            declared_synchronous_invocations: Some(Vec::new()),
+            declared_synchronous_invocations: Some(
+                reviewed_services(
+                    declarations.service_names,
+                    &boundary.published_synchronous_entries,
+                )?
+                .into_iter()
+                .map(PackageReviewSynchronousInvocation::Service)
+                .collect(),
+            ),
             realized_synchronous_invocations: Vec::new(),
             capability_flows: Vec::new(),
             reachable_capability_flows: Vec::new(),

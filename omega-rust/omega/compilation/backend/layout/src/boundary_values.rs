@@ -61,6 +61,62 @@ impl BoundaryValueLayout {
         }
     }
 
+    /// Compares one published value to its canonical layout, independent of
+    /// its indices in the signature. Each field keeps its offset and carrier.
+    pub fn matches_value(&self, expected: u16, actual: &BoundaryValueGraph<'_>, root: u16) -> bool {
+        let (Some(expected), Some(published)) = (
+            self.shapes.get(usize::from(expected)),
+            actual.shapes.get(usize::from(root)),
+        ) else {
+            return false;
+        };
+        if expected.byte_size != published.byte_size || expected.alignment != published.alignment {
+            return false;
+        }
+        // Recursion follows the bounded, acyclic value tree built by this
+        // layout. A published child index alone cannot drive traversal.
+        match (expected.class, published.class) {
+            (
+                BoundaryValueClass::FixedArray { element, length },
+                BoundaryValueClass::FixedArray {
+                    element: other_element,
+                    length: other_length,
+                },
+            ) => length == other_length && self.matches_value(element, actual, other_element),
+            (
+                BoundaryValueClass::Record {
+                    first_field,
+                    field_count,
+                },
+                BoundaryValueClass::Record {
+                    first_field: other_first,
+                    field_count: other_count,
+                },
+            ) => {
+                let length = usize::from(field_count);
+                let first = usize::from(first_field);
+                let other_first = usize::from(other_first);
+                field_count == other_count
+                    && actual
+                        .fields
+                        .get(other_first..other_first + length)
+                        .is_some_and(|fields| {
+                            self.fields[first..first + length].iter().zip(fields).all(
+                                |(expected, published)| {
+                                    expected.byte_offset == published.byte_offset
+                                        && self.matches_value(
+                                            expected.shape,
+                                            actual,
+                                            published.shape,
+                                        )
+                                },
+                            )
+                        })
+            }
+            _ => expected.class == published.class,
+        }
+    }
+
     pub fn into_parts(
         self,
     ) -> (
@@ -565,7 +621,9 @@ mod tests {
         BOUNDARY_VALUE_SHAPE_CAPACITY, BoundaryValueLayout, TerminalBoundaryRecipes,
         append_boundary_value_shape,
     };
-    use calling_conventions::{BoundaryValueClass, BoundaryValueShape, ValueShape};
+    use calling_conventions::{
+        BoundaryValueClass, BoundaryValueGraph, BoundaryValueShape, ValueShape,
+    };
     use semantic_vocabulary::{
         IeeeFloatFormat, IntegerSign, IntegerType, ScalarApplicationId, ScalarType,
         StructuralFieldId, StructuralTypeId,
@@ -666,6 +724,7 @@ mod tests {
             ),
         ] {
             module.structural_types.push(StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
                 requires: Vec::new(),
                 quotient_carrier: None,
                 id,
@@ -776,6 +835,7 @@ mod tests {
             self.module
                 .structural_types
                 .push(StructuralTypeDeclaration {
+                    declaration_identity: Default::default(),
                     requires: Vec::new(),
                     quotient_carrier: None,
                     id,
@@ -801,6 +861,7 @@ mod tests {
                 .map(|(field_name, field_type)| {
                     self.field_count += 1;
                     StructuralFieldDeclaration {
+                        declaration_identity: Default::default(),
                         inline_carrier: None,
                         id: StructuralFieldId::new(self.field_count).expect("fixture field"),
                         identity: self.identities.intern(&format!("{name}::{field_name}")),
@@ -883,6 +944,7 @@ mod tests {
             .expect("repeated");
         assert_ne!(padded_root, repeated_root);
         let graph = values.graph();
+        assert!(values.matches_value(padded_root, &graph, repeated_root));
         for (root, offsets) in [
             (padded_root, [0, 8]),
             (floats_root, [0, 4]),
@@ -899,6 +961,22 @@ mod tests {
             let fields = &graph.fields[usize::from(first_field)..usize::from(first_field) + 2];
             assert_eq!([fields[0].byte_offset, fields[1].byte_offset], offsets);
         }
+        let field = graph.fields.len() - 1;
+        let mut shapes = graph.shapes.to_vec();
+        let mut fields = graph.fields.to_vec();
+        let carrier = usize::from(fields[field].shape);
+        shapes[carrier].class = BoundaryValueClass::Float;
+        let wrong_carrier = BoundaryValueGraph {
+            shapes: &shapes,
+            fields: graph.fields,
+        };
+        assert!(!values.matches_value(padded_root, &wrong_carrier, repeated_root));
+        fields[field].byte_offset = 4;
+        let wrong_offset = BoundaryValueGraph {
+            shapes: graph.shapes,
+            fields: &fields,
+        };
+        assert!(!values.matches_value(padded_root, &wrong_offset, repeated_root));
     }
 
     #[test]

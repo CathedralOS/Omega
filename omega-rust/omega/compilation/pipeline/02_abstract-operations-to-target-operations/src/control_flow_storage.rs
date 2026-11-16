@@ -3407,16 +3407,15 @@ pub(crate) mod records {
             {
                 Vec::new()
             }
-            // An owned sequence's elements live in the read-only literal pool, so its
-            // descriptor stays valid after the creating machine returns. Only a roster of
-            // constant scalar records has pool bytes; anything else is refused here.
             (StructuralTypeShape::ElementView { access: None, .. }, None)
-                if target_operations::constant_element_roster(
-                    function.blocks.iter().flat_map(|block| &block.operations),
-                    operation,
-                    &**types,
-                )
-                .is_some() =>
+                if elements.is_some_and(|elements| {
+                    types
+                        .owned_sequence(result.structural_type)
+                        .is_ok_and(|layout| {
+                            u64::try_from(elements.len())
+                                .is_ok_and(|length| length <= layout.capacity)
+                        })
+                }) =>
             {
                 Vec::new()
             }

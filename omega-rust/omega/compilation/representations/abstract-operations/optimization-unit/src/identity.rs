@@ -411,6 +411,10 @@ pub(crate) mod proposition_encoding {
                                 bytes.u8(1);
                                 bytes.u32(slot.0);
                             }
+                            Operand::Integer(source) => {
+                                bytes.u8(2);
+                                encode_scalar_term(bytes, source);
+                            }
                         });
                     }
                 });
@@ -879,6 +883,7 @@ pub(crate) mod runtime_evidence_encoding {
                     declaration.specialization.as_ref(),
                     |bytes, specialization| {
                         bytes.u32(specialization.template.identity().0);
+                        bytes.u32(specialization.template_entry.identity().0);
                         bytes.u32(specialization.template_callable.0);
                         bytes.u32(specialization.template_semantic_declaration.0);
                         bytes.bytes(&specialization.commitment);
@@ -1398,6 +1403,7 @@ pub(crate) mod structural_encoding {
             encode_boundary_content_guarantee,
         );
         encode_ids(bytes, &declaration.fixed_service_reach);
+        bytes.boolean(declaration.service_reach_is_installation_bound);
         encode_optional(
             bytes,
             declaration.owning_service.as_ref(),
@@ -1721,6 +1727,7 @@ pub(crate) mod structural_encoding {
         }
         bytes.id(declaration.id);
         bytes.u32(declaration.identity.0);
+        bytes.u32(declaration.declaration_identity.0);
         bytes.u8(u8::from(declaration.no_code_affine_cleanup));
         bytes.u8(u8::from(declaration.owns_linear_claim));
         bytes.u8(u8::from(declaration.descriptor_cleanup));
@@ -1819,6 +1826,7 @@ pub(crate) mod structural_encoding {
                 for case in cases {
                     bytes.id(case.id);
                     bytes.u32(case.identity.0);
+                    bytes.u32(case.declaration_identity.0);
                     bytes.slice(&case.fields, encode_structural_field);
                 }
             }
@@ -1829,6 +1837,7 @@ pub(crate) mod structural_encoding {
                 for case in cases {
                     bytes.id(case.id);
                     bytes.u32(case.identity.0);
+                    bytes.u32(case.declaration_identity.0);
                     bytes.slice(&case.fields, encode_structural_field);
                 }
             }
@@ -1882,52 +1891,9 @@ pub(crate) mod structural_encoding {
         bytes: &mut CanonicalBytes,
         declaration: &StructuralDomainDeclaration,
     ) {
-        bytes.id(declaration.id);
-        bytes.id(declaration.semantic_domain);
-        bytes.u32(declaration.identity.0);
-        bytes.id(declaration.carrier);
-        bytes.boolean(declaration.complete_predicate_theory);
-        encode_optional(
-            bytes,
-            declaration.required_memberships.as_ref(),
-            |bytes, required| encode_ids(bytes, required),
-        );
-        encode_optional(
-            bytes,
-            declaration.establishment_routes.as_ref(),
-            |bytes, routes| {
-                bytes.slice(routes, |bytes, route| {
-                    bytes.u8(match route {
-                        terminal_psi::StructuralEstablishmentRoute::CheckedRequirement {
-                            ..
-                        } => 1,
-                        terminal_psi::StructuralEstablishmentRoute::ExactMachine { .. } => 2,
-                        terminal_psi::StructuralEstablishmentRoute::BoundaryRequirement {
-                            ..
-                        } => 3,
-                    });
-                    bytes.u32(route.declaration().identity().0);
-                    bytes.u32(route.identity().0);
-                });
-            },
-        );
-        encode_optional(bytes, declaration.predicate.as_ref(), |bytes, predicate| {
-            bytes.id(predicate.subject);
-            encode_proposition(bytes, &predicate.proposition);
-        });
-        bytes.u8(declaration
-            .byte_predicate
-            .map_or(0, |predicate| predicate.mask_bit()));
-        encode_optional(
-            bytes,
-            declaration.content_projection.as_ref(),
-            |bytes, projection| {
-                bytes.id(projection.identity.domain);
-                bytes.u64(projection.identity.projection_report_fingerprint);
-                encode_content_algebra(bytes, &projection.algebra);
-                encode_content_projection_expression(bytes, &projection.expression);
-            },
-        );
+        let encoded = terminal_codec::encode_structural_domain_declaration(declaration)
+            .expect("a checked domain declaration has a bounded canonical encoding");
+        bytes.bytes(&encoded);
     }
 
     pub(super) fn encode_structural_field(
@@ -1936,6 +1902,7 @@ pub(crate) mod structural_encoding {
     ) {
         bytes.id(field.id);
         bytes.u32(field.identity.0);
+        bytes.u32(field.declaration_identity.0);
         bytes.u8(u8::from(field.inline_carrier.is_some()));
         if let Some(carrier) = field.inline_carrier {
             bytes.id(carrier);
@@ -2116,6 +2083,7 @@ pub(crate) mod structural_encoding {
         fn exact_inline_carrier_changes_field_identity() {
             let encodings = [None, Some(2), Some(3)].map(|identity| {
                 let field = terminal_psi::StructuralFieldDeclaration {
+                    declaration_identity: Default::default(),
                     id: semantic_vocabulary::StructuralFieldId::new(1).unwrap(),
                     identity: terminal_psi::TerminalIdentityIndex(1),
                     relevance: terminal_psi::BindingRelevance::Relevant,
@@ -2175,6 +2143,7 @@ pub(crate) mod structural_encoding {
             let mut encodings = Vec::new();
             for copyable in [false, true] {
                 let declaration = StructuralTypeDeclaration {
+                    declaration_identity: Default::default(),
                     requires: Vec::new(),
                     quotient_carrier: None,
                     owns_linear_claim: false,
@@ -2382,6 +2351,7 @@ pub(crate) mod structural_encoding {
                 program_local_root_introductions: Vec::new(),
                 content_guarantees: Vec::new(),
                 fixed_service_reach: Vec::new(),
+                service_reach_is_installation_bound: false,
                 owning_service: None,
                 published_synchronous_entries: Vec::new(),
                 published_service_ceiling: Vec::new(),
@@ -5307,5 +5277,42 @@ mod float_meaning_identity_tests {
         let mut changed = clause;
         std::mem::swap(&mut changed.left, &mut changed.right);
         assert_ne!(original, bytes(changed));
+    }
+
+    #[test]
+    fn float_meaning_identity_keeps_integer_operands() {
+        use numerics::{
+            float_semantics::FloatSemanticValueKind::Integer, integer_carrier::FixedInteger,
+        };
+        let carrier = FixedInteger::signed(32);
+        let integer =
+            ScalarType::Integer(semantic_vocabulary::IntegerType::from_fixed(carrier).unwrap());
+        let operation = FloatSemanticOperation::from_source_identity(
+            "FloatSemantics",
+            "from_integer",
+            &[Format, Integer(carrier)],
+            Meaning,
+        )
+        .unwrap();
+        let clause = FloatMeaningClause::result_equation(
+            ScalarTerm::value(
+                ValueId::new(2).unwrap(),
+                ScalarType::IeeeFloat(IeeeFloatFormat::Binary64),
+            ),
+            operation.contract_identity(),
+            IeeeFloatFormat::Binary64,
+            [ScalarTerm::value(ValueId::new(1).unwrap(), integer)],
+        )
+        .unwrap();
+        let changed = clause
+            .map_sources::<&'static str>(|source| {
+                Ok(if source.scalar_type() == integer {
+                    ScalarTerm::value(ValueId::new(3).unwrap(), integer)
+                } else {
+                    source.clone()
+                })
+            })
+            .unwrap();
+        assert_ne!(bytes(clause), bytes(changed));
     }
 }

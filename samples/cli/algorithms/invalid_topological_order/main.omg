@@ -10,7 +10,7 @@ data Topo {
 
 machine mark_emitted(t: &mut Topo, node: u64)
 requires node < 8 {
-    t.emitted[node] = 1;
+    t.emitted[node] = 1u64 as +Wrapping;
 }
 
 data Main {

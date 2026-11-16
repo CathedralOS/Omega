@@ -22,7 +22,7 @@ data Main {
     event: i32;
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     transition { _ -> block read(main) }
     machine read(main: &mut Main) {
         transition main.bytes >= 0 && main.bytes < 256 {
@@ -296,5 +296,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

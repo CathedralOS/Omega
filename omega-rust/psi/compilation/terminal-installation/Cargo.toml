@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+flow-effects = { path = "../../foundation/flow-effects" }
 arena = { path = "../../foundation/arena" }
 numerics = { path = "../../foundation/numerics" }
 proof-admission = { path = "../proof-admission" }
@@ -14,3 +15,6 @@ semantic-vocabulary = { path = "../../foundation/semantic-vocabulary" }
 terminal-psi = { path = "../representations/terminal-psi" }
 terminal-codec = { path = "../representations/terminal-psi/codec" }
 terminal-semantics = { path = "../representations/terminal-psi/semantics" }
+
+[dev-dependencies]
+language-semantics = { path = "../../foundation/language-semantics" }

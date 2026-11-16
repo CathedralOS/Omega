@@ -624,6 +624,7 @@ pub(crate) mod errors {
         CompletionReceiptMismatch,
         ProviderInstallationIdentityMismatch,
         FoldedConstantClosure(&'static str),
+        InstallationServiceReach(String),
         EntryResultObservation(&'static str),
         UnclosedScalarApplication(semantic_vocabulary::ScalarApplicationId),
         ScalarApplicationEvaluation(String),
@@ -1810,6 +1811,7 @@ pub(crate) mod values {
 
             fn field(value: u32, field_type: StructuralFieldType) -> StructuralFieldDeclaration {
                 StructuralFieldDeclaration {
+                    declaration_identity: Default::default(),
                     inline_carrier: None,
                     id: StructuralFieldId::new(value.into()).unwrap(),
                     identity: TerminalIdentityIndex(value),
@@ -1821,6 +1823,7 @@ pub(crate) mod values {
 
             fn declaration(value: u32, shape: StructuralTypeShape) -> StructuralTypeDeclaration {
                 StructuralTypeDeclaration {
+                    declaration_identity: Default::default(),
                     requires: Vec::new(),
                     quotient_carrier: None,
                     id: identity(value),
@@ -2311,6 +2314,7 @@ pub(crate) mod values {
         }
         fn declaration() -> StructuralTypeDeclaration {
             StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
                 requires: Vec::new(),
                 quotient_carrier: None,
                 id: StructuralTypeId::new(1).unwrap(),
@@ -2323,6 +2327,7 @@ pub(crate) mod values {
                 shape: StructuralTypeShape::Record {
                     fields: (1..=2)
                         .map(|id| StructuralFieldDeclaration {
+                            declaration_identity: Default::default(),
                             inline_carrier: None,
                             id: StructuralFieldId::new(id).unwrap(),
                             identity: TerminalIdentityIndex(id as u32),
@@ -2396,6 +2401,7 @@ pub(crate) mod values {
             let mut sum = record;
             sum.shape = StructuralTypeShape::Sum {
                 cases: vec![terminal_psi::StructuralCaseDeclaration {
+                    declaration_identity: Default::default(),
                     id: case,
                     identity: TerminalIdentityIndex(3),
                     fields,

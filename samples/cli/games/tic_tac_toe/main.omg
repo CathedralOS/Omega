@@ -39,14 +39,14 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("tic_tac_toe: replays a scripted game where X wins the top row");
     // Scripted moves.
-    Main::play(main, 0, 1);  // X plays cell 0
-    Main::play(main, 3, 2);  // O plays cell 3
-    Main::play(main, 1, 1);  // X plays cell 1
-    Main::play(main, 4, 2);  // O plays cell 4
-    Main::play(main, 2, 1);  // X plays cell 2 -> X wins
+    play(main, 0, 1);  // X plays cell 0
+    play(main, 3, 2);  // O plays cell 3
+    play(main, 1, 1);  // X plays cell 1
+    play(main, 4, 2);  // O plays cell 4
+    play(main, 2, 1);  // X plays cell 2 -> X wins
 
     // Verify move count is 5.
     transition main.board.move_count == 5 {
@@ -88,27 +88,27 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     machine good(main: &mut Main) {
         Console::write_line("PASS: X owns the top row after 5 moves (exit 70)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(70);
     }
 
     machine bad_count(main: &mut Main) {
         Console::write_line("FAIL: move count was not 5 after the script (exit 71)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(71);
     }
 
     machine bad_winner(main: &mut Main) {
         Console::write_line("FAIL: the board did not show X winning the top row (exit 72)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(72);
     }
 }
 
 // Place a piece on the board: cell=which cell, player=1 for X, 2 for O.
-machine Main::play(main: &mut Main, cell: i32, player: i32) {
+machine play(main: &mut Main, cell: i32, player: i32) {
     main.board.move_count = (main.board.move_count + 1) % 10;
     transition cell == 0 {
         true -> set0(main, player)
@@ -170,5 +170,5 @@ machine Main::play(main: &mut Main, cell: i32, player: i32) {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

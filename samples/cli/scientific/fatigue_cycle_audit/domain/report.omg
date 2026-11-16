@@ -5,14 +5,14 @@ public data Report {}
 
 // Fixed-width decimal columns avoid floating projection and preserve exact
 // rational numerators. Every reachable number is below 10000.
-machine Report::number(number: u64 in Wrapping) reaches Console {
+machine number(number: u64 in Wrapping) reaches Console {
     Console::write_byte(((number / 1000) % 10 + 48) as i32);
     Console::write_byte(((number / 100) % 10 + 48) as i32);
     Console::write_byte(((number / 10) % 10 + 48) as i32);
     Console::write_byte((number % 10 + 48) as i32);
 }
 
-machine Report::write(audit: &mut Audit) reaches Console {
+machine write(audit: &mut Audit) reaches Console {
     Console::write_line("range,half_units,damage_numerator,damage_denominator,cumulative_numerator");
     audit.index = 0;
     audit.current = 0;
@@ -32,15 +32,15 @@ machine Report::write(audit: &mut Audit) reaches Console {
     }
     machine emit(audit: &mut Audit) {
         audit.current = audit.current + audit.middle;
-        Report::number(audit.range);
+        number(audit.range);
         Console::write_byte(44);
-        Report::number(audit.weight);
+        number(audit.weight);
         Console::write_byte(44);
-        Report::number(audit.middle);
+        number(audit.middle);
         Console::write_byte(44);
-        Report::number(audit.denominator);
+        number(audit.denominator);
         Console::write_byte(44);
-        Report::number(audit.current);
+        number(audit.current);
         Console::write_byte(10);
         transition audit.index < 16 { true -> next(audit) false -> total(audit) }
     }
@@ -50,9 +50,9 @@ machine Report::write(audit: &mut Audit) reaches Console {
     }
     machine total(audit: &mut Audit) {
         Console::write("total,");
-        Report::number(audit.total);
+        number(audit.total);
         Console::write_byte(44);
-        Report::number(audit.denominator);
+        number(audit.denominator);
         Console::write_byte(10);
     }
 }

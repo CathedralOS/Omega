@@ -10,7 +10,7 @@ use omega::language::core::FilesystemMetadataMutation;
 use omega::language::core::DirectoryEnumeration;
 use omega::language::core::FilesystemNamespaceMutation;
 
-windows_x86_64 machine windows_remove_tree(path: &[u8] in Path) -> i32
+machine windows_remove_tree(path: &[u8] in Path) -> i32
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery + DirectoryEnumeration {
     let root: i64 in WindowsPrivateNonalertFileOrAbsent = block windows_removal_open_root(path);
     transition (root as -WindowsPrivateNonalertFileOrAbsent) != 0 { true -> block inspect(root) false -> failed() }

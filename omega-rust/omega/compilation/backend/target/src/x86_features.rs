@@ -42,17 +42,6 @@ impl X86ScalarFmaSlot {
             Self::Binary64 => "x86_64::VFMADD132SD",
         }
     }
-
-    pub const fn selected_plan_requirement_identity(self) -> &'static str {
-        match self {
-            Self::Binary32 => {
-                "operator::F32::fused_multiply_add(named(name(f32)),named(name(f32)),named(name(f32)))->named(name(f32))"
-            }
-            Self::Binary64 => {
-                "operator::F64::fused_multiply_add(named(name(f64)),named(name(f64)),named(name(f64)))->named(name(f64))"
-            }
-        }
-    }
 }
 
 pub const X86_SCALAR_FMA_REQUIRED_FEATURES: [X86TargetFeature; 2] =
