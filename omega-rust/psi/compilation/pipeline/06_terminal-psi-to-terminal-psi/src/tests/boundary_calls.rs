@@ -280,11 +280,25 @@ machine entry() reaches Child {}
         "boundary trait Other: Parent<bool> {}
 boundary trait Child: Parent<i32> + Other {}",
     );
-    let refused = form(typed(&conflicting))
-        .expect_err("two different parent applications cannot become one schema");
+    let conflicting = typed(&conflicting);
+    let child = conflicting
+        .traits()
+        .iter()
+        .find(|owner| owner.name.as_str() == "Child")
+        .unwrap();
+    let refused = match typed_trees::service_declarations::projection::from_typed(
+        typed_trees::provider_declarations::ProviderPlanningContext::new(
+            &conflicting,
+            source::DependencyScope::Product,
+        ),
+        child,
+    ) {
+        Err(refused) => refused,
+        Ok(_) => panic!("two different parent applications cannot become one schema"),
+    };
     assert!(
         refused
-            .detail
+            .message
             .contains("inherited with different applications"),
         "{refused:?}"
     );
