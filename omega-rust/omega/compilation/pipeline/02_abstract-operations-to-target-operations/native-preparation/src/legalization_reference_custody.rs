@@ -1130,8 +1130,7 @@ pub(crate) mod descriptor_backing {
                 }
                 let step = current.flow.get(&position).ok_or_else(|| invalid())?;
                 for input in step
-                    .inputs
-                    .iter()
+                    .observed_inputs()
                     .chain(step.derivations.iter().map(|(source, _)| source))
                     .chain(step.successors.iter().flat_map(|edge| {
                         edge.bindings
@@ -1148,7 +1147,7 @@ pub(crate) mod descriptor_backing {
                     );
                 }
                 let mut slots = BTreeSet::new();
-                for input in &step.inputs {
+                for input in step.observed_inputs() {
                     let Some(ty) = current.place_types.get(&input.root) else {
                         continue;
                     };
