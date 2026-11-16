@@ -131,13 +131,6 @@ framework or a list of unimplemented features.
 - Cost: Root-roster order decides a Build provider operand. Delete the fallback, or make it report ambiguity and check import exposure, and refuse unresolved operands.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/modules.md
 
-### The language guide says a module declaration goes at the top of a file; the compiler accepts it anywhere
-- Category: The documents disagree
-- Where: [guide chapter 15](wiki/language_guide/chapter_15_modules_imports_visibility.md#L25), [parser](omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/declarations.rs#L2448), [later header found deliberately](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lowering.rs#L685)
-- Saw: The guide says "A module declaration goes at the top of a file"; modules.md gives no position, the parser accepts `module m;` after other declarations, and `declared_module_path` scans the whole file, so `machine f() {} module m;` puts `f` in module `m`.
-- Cost: The guide states a rule nothing enforces. Refuse a header after a declaration and say so in modules.md, or soften the guide.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/language_guide/chapter_15_modules_imports_visibility.md
-
 ### Specialization never checks a type parameter's `[copy]`, `[linear]` or `carry` bound against the supplied type
 - Category: One idea, several implementations
 - Where: [Operand::read](omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/passes/specialization.rs#L1095), [named_type](omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/passes/specialization.rs#L1537), [generate](omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/passes/specialization.rs#L2257), [callable applications refuse bounds](omega-rust/psi/compilation/representations/typed-trees/src/callable_applications.rs#L419)

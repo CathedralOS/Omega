@@ -22,8 +22,10 @@ adding and updating dependencies.
 module dungeon::combat;
 ```
 
-A module declaration goes at the top of a file. Files that name the same
-module share it. `::` separates names and `.` selects fields:
+A module declaration names the module that every declaration in its file
+belongs to. Write it near the top, before the file's declarations; the
+compiler does not check where it appears. Files that name the same module
+share it. `::` separates names and `.` selects fields:
 
 ```omega
 let room: dungeon::rooms::Room = dungeon::rooms::create();
