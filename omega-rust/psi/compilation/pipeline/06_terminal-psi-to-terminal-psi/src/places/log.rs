@@ -616,6 +616,36 @@ impl<'a> Storage<'a> {
                         StructuralAccess::Owned | StructuralAccess::SharedBorrow => {}
                     }
                 }
+                // The callee can also store through the `&mut` references
+                // an argument carries. Each such referent is a write of the
+                // call, after every argument's own row, in the order
+                // lowering writes them (`publish_write_frames`).
+                for argument in kind.structural_arguments() {
+                    if !matches!(
+                        argument.access,
+                        StructuralAccess::MutableBorrow | StructuralAccess::Owned
+                    ) {
+                        continue;
+                    }
+                    let lent = self.argument(argument, concerns)?;
+                    let Shape::Typed(structural_type) = self.shape(&lent, concerns)? else {
+                        continue;
+                    };
+                    let referents = terminal_semantics::borrowed_storage::carried_exclusive_referents(
+                        self.types,
+                        structural_type,
+                        argument.access,
+                    )
+                    .ok_or_else(|| {
+                        self.unsupported(
+                            concerns,
+                            "a call argument carries references whose referents have no exact paths",
+                        )
+                    })?;
+                    for referent in referents {
+                        rows.push((beneath(&lent, &referent)?, Stored::Established));
+                    }
+                }
             }
             // An operation over scalar values alone, by Terminal semantics'
             // own word. Anything else may store somewhere this derivation

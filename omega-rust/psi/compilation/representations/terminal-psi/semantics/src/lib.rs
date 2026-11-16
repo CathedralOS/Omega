@@ -655,7 +655,8 @@ pub use structural::primitive_place::{
 pub use structural::record_field::{
     CasePayloadCarrier, RecordFieldCarrier, SequenceFieldObservation, case_payload_carrier,
     observed_field_backing_access, observed_field_declaration, projected_field_declaration,
-    record_field_carrier, runtime_structural_field, sequence_field_allows_observation,
+    record_field_carrier, resolved_structural_path, runtime_structural_field,
+    sequence_field_allows_observation,
     static_field_projection,
 };
 pub use structural::shared_mutation::{SharedMutation, shared_mutation};

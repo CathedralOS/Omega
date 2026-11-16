@@ -317,6 +317,41 @@ machine entry() {{
     assert!(stale.contains("unproved"), "{stale}");
 }
 
+/// A callee lent or given the record stores through the reference it
+/// carries, so the call ends what the caller knew of the cell that
+/// reference reaches, just as the same store written in the caller does
+/// above. dependent_values.md, "Mutation frames": a fact survives a call
+/// only when its storage is disjoint from the callee's frame, aliases
+/// included. The twin whose callee stores nothing proves the same `need`.
+#[test]
+fn a_callee_store_through_a_lent_record_ends_facts_about_the_original_cell() {
+    let program = |formal: &str, actual: &str, store: &str| {
+        format!(
+            r#"{CARRIER}
+machine need(value: u64) requires value == 5 {{ }}
+machine update(carrier: {formal}, incoming: u64) {{ {store} }}
+machine entry() {{
+    let mut cell: Cell = Cell {{ before: 11, value: 5, after: 17 }};
+    let mut carrier: Carrier = Carrier {{ cell: &mut cell }};
+    update({actual}, 73);
+    need(cell.value);
+}}
+"#
+        )
+    };
+    for (formal, actual) in [("&mut Carrier", "&mut carrier"), ("Carrier", "carrier")] {
+        assert_eq!(
+            run(&program(formal, actual, "")),
+            Ok(terminal_interpreter::TerminalExecutionStatus::Complete(
+                terminal_interpreter::TerminalExecutionResult::Unit
+            )),
+            "{formal}"
+        );
+        let stale = run(&program(formal, actual, "carrier.cell.value = incoming;")).unwrap_err();
+        assert!(stale.contains("unproved"), "{formal}: {stale}");
+    }
+}
+
 /// The same replacement of an exclusive reference: the record gives up the
 /// first cell and writes the second. The entry traps unless the first cell
 /// still reads 5 and the second reads the 9 stored after the assignment, so
