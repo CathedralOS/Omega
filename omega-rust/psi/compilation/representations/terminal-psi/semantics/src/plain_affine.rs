@@ -1935,8 +1935,9 @@ impl Analysis<'_> {
     }
 
     /// Walks one block from `state` and returns its normal edges, each with
-    /// the frontier it carries and the disposals it performs. A root the
-    /// successor does not read again is disposed of on the edge. With
+    /// the frontier it carries and the disposals it performs. An unread root
+    /// is disposed of only when its remaining value permits implicit cleanup;
+    /// other obligations remain live across internal edges. With
     /// `entering`, the fixpoint's frontiers, a root the successor reads but
     /// does not own is disposed of too: another arrival transferred it.
     fn walk(
@@ -2008,7 +2009,8 @@ impl Analysis<'_> {
                 .ok_or(Error::malformed("terminator has no edge"))?,
         );
         if let Some(flow) = &mut self.claim_flow {
-            flow.terminal(&mut state.claims, &block.terminator, entering.is_some())?;
+            flow.terminal(&mut state.claims, &block.terminator, entering.is_some())
+                .map_err(|error| error.at(site))?;
         }
         match &block.terminator {
             Terminator::StructuralCase { source, path, .. } => {
@@ -2239,11 +2241,18 @@ impl Analysis<'_> {
                     });
                     let read_there = pinned || needed.is_some_and(|needed| needed.contains(place));
                     let there = owned_there.map(|there| there.regions[raw].as_ref());
-                    if read_there && there.is_none_or(|there| there.is_some()) {
+                    let still_owed = !read_there
+                        && target.is_some()
+                        && self
+                            .needs_explicit_disposition(place, region)
+                            .map_err(|error| error.at(Site::Edge(edge)))?;
+                    if (read_there || still_owed) && there.is_none_or(|there| there.is_some()) {
                         if let Some(Some(there)) = there
                             && there != region
                         {
-                            let discards = self.equalize(place, region, there, residual_budget)?;
+                            let discards = self
+                                .equalize(place, region, there, residual_budget)
+                                .map_err(|error| error.at(Site::Edge(edge)))?;
                             for action in &discards {
                                 self.restore_reference_leaves(
                                     &outgoing,
@@ -2260,7 +2269,9 @@ impl Analysis<'_> {
                         }
                         retained.push(place);
                     } else {
-                        let disposal = self.dispose(place, region, residual_budget)?;
+                        let disposal = self
+                            .dispose(place, region, residual_budget)
+                            .map_err(|error| error.at(Site::Edge(edge)))?;
                         for action in &disposal {
                             if !matches!(action, TerminalAffineCleanupAction::RetireHome(_)) {
                                 self.restore_reference_leaves(
@@ -3069,6 +3080,24 @@ impl Analysis<'_> {
         Ok(())
     }
 
+    /// Unread storage still owes its value unless ordinary cleanup is allowed
+    /// or every component has moved out of an unclaimed home. Retiring that
+    /// empty home grants no disposition of a surviving value or root claim.
+    fn needs_explicit_disposition(&self, place: PlaceId, region: &Region) -> Result<bool, Error> {
+        let info = self
+            .root(place)?
+            .ok_or(Error::malformed("missing affine owner"))?;
+        if info.multiplicity != terminal_psi::StructuralMultiplicity::Linear
+            && self.can_dispose(info.structural_type)?
+        {
+            return Ok(false);
+        }
+        let declaration = &self.types[index(info.structural_type.get())?];
+        Ok(declaration.owns_linear_claim
+            || region.whole
+            || !self.vacant_region(place, region, &[])?)
+    }
+
     fn dispose(
         &self,
         place: PlaceId,
@@ -3080,22 +3109,15 @@ impl Analysis<'_> {
             .root(place)?
             .ok_or(Error::malformed("missing affine owner"))?;
         let declaration = &self.types[index(info.structural_type.get())?];
-        if info.multiplicity == terminal_psi::StructuralMultiplicity::Linear
-            || !self.can_dispose(info.structural_type)?
-        {
-            // Moving every component can leave an allocated, empty home.
-            // Retirement never settles a declaration-owned root claim; its
-            // complete value must instead be transferred or consumed explicitly.
-            // The independent claim owner still checks any RetireHome action.
-            if !declaration.owns_linear_claim
-                && !region.whole
-                && self.vacant_region(place, region, &[])?
-            {
-                return Ok(vec![TerminalAffineCleanupAction::RetireHome(place)]);
-            }
+        if self.needs_explicit_disposition(place, region)? {
             return Err(Error::unsupported(
                 "normal edge cannot implicitly dispose storage without an authorized disposition",
             ));
+        }
+        if info.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+            || !self.can_dispose(info.structural_type)?
+        {
+            return Ok(vec![TerminalAffineCleanupAction::RetireHome(place)]);
         }
         if region.contains_partition(&[])
             || declaration.nominal_cleanup.is_some()
@@ -4029,6 +4051,48 @@ mod tests {
         duplicate.id = id(2);
         machine.blocks[1].operations.push(duplicate);
         assert!(!plan(&machine, &types).unwrap().unavailable.is_empty());
+    }
+
+    #[test]
+    fn an_unread_linear_value_survives_an_internal_edge_to_a_crash() {
+        use terminal_psi::{EntryClaim, StructuralMultiplicity, Terminator};
+        let types = transfer_only_types(true);
+        let mut machine = transferring(&[id(3)], &[], Vec::new());
+        machine.contract.structural_parameters[0].multiplicity = StructuralMultiplicity::Linear;
+        machine.contract.entry_claims.push(EntryClaim {
+            claim: id(1),
+            input: id(1),
+            path: Vec::new(),
+        });
+        machine.blocks[1].terminator = Terminator::Crash {
+            edge: id(2),
+            cause: terminal_psi::CrashCause::Trap,
+            site_guard: Vec::new(),
+            frontier_lower_bound: Vec::new(),
+        };
+        for mode in [None, Some(claims::Mode::Verify)] {
+            let planned = analyze(&machine, &types, true, None, None, mode).unwrap();
+            assert!(planned.cleanup.is_empty(), "abandonment is not disposal");
+            assert!(planned.unavailable.is_empty());
+            assert_eq!(planned.claims.is_some(), mode.is_some());
+        }
+
+        // Only the target's outcome changes. A normal return must account
+        // for the same declared value and its still-live entry claim.
+        machine.blocks[1].terminator = Terminator::ReturnUnit {
+            edge: id(2),
+            cleanup_actions: Vec::new(),
+        };
+        for mode in [None, Some(claims::Mode::Verify)] {
+            let error = analyze(&machine, &types, true, None, None, mode).unwrap_err();
+            assert_eq!(error.site(), Some(Site::Edge(id(2))));
+            let expected = if mode.is_some() {
+                "a normal return leaves an untransferred logical claim"
+            } else {
+                "normal edge cannot implicitly dispose storage without an authorized disposition"
+            };
+            assert!(matches!(error, Error::Unsupported { detail, .. } if detail == expected));
+        }
     }
 
     #[test]

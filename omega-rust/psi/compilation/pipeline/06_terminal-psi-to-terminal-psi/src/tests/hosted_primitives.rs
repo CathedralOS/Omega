@@ -97,15 +97,17 @@ fn hosted_primitive_retains_distinct_source_and_public_completion() {
             .expect("independent primitive receiving");
     assert_eq!(received.semantic_bytes(), closed.semantic_bytes());
 
+    let primitive_semantic = module.identities.text(primitive.identity).unwrap();
+    let counterfeit_semantic =
+        primitive_semantic.replacen("ProcessExitPrimitive", "ProcessExitPrimitivf", 1);
+    assert_ne!(primitive_semantic, counterfeit_semantic);
+
     // Equal-length substitutions change only the identity text, preserving its
     // coordinates and every copied proof header. Rejection must authenticate
     // the exact catalog declaration, rather than notice a detached header.
     for (original, replacement) in [
         ("ProcessExit::exit_process", "ProcessExit::fake_process"),
-        (
-            "toolchain::ProcessExitPrimitive",
-            "toolchain::ProcessExitPrimitivf",
-        ),
+        (primitive_semantic, counterfeit_semantic.as_str()),
         (
             r"path\(ProcessExitPrimitive\)",
             r"path\(ProcessExitPrimitivf\)",

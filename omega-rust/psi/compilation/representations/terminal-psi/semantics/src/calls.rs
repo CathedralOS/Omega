@@ -788,7 +788,7 @@ pub mod closed_conformances {
             HostedOperation, SealedDeclarationSite, SealedIntrinsic, SealedIntrinsicCatalog,
         };
         use language_semantics::type_identity::encoding::{
-            CoordinateTag, atom, bare, byte_atom, compound,
+            CoordinateTag, atom, bare, byte_atom, callable_declaration_path, compound,
         };
         use language_semantics::type_identity::vocabulary::{Label, NameForm, OwnerForm, TypeForm};
         static IDENTITIES: std::sync::OnceLock<HostedProcessExitIdentities> =
@@ -883,15 +883,23 @@ pub mod closed_conformances {
                     ],
                 )
             };
+            let primitive_callable = callable(primitive.1);
+            let requirement_callable = callable(requirement_member);
             HostedProcessExitIdentities {
                 primitive: exact_nominal(primitive, primitive.1),
                 primitive_entry: exact_nominal(primitive, &format!("{}::entry", primitive.1)),
-                primitive_semantic: format!("toolchain::{}", primitive.1),
-                primitive_callable: callable(primitive.1),
+                primitive_semantic: format!(
+                    "toolchain::{}",
+                    callable_declaration_path(primitive.1, &primitive_callable)
+                ),
+                primitive_callable,
                 requirement_owner: exact_nominal(requirement, requirement.1),
                 requirement_member: exact_nominal(requirement, requirement_member),
-                requirement_semantic: format!("toolchain::{requirement_member}"),
-                requirement_callable: callable(requirement_member),
+                requirement_semantic: format!(
+                    "toolchain::{}",
+                    callable_declaration_path(requirement_member, &requirement_callable)
+                ),
+                requirement_callable,
                 parameter,
                 result: result_type,
             }
