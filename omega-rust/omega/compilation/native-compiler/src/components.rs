@@ -26,7 +26,7 @@ pub(crate) struct PreparedComponent<'input> {
     compilation: &'input ComponentCompilation<'input>,
     pub(crate) calls: Vec<AdmittedNativeComponentCall<'input>>,
     pub(crate) scalars: crate::NativeScalarCompletion<'input>,
-    exports: Vec<terminal_psi_to_abstract_operations::PreparedNativeWork<'input>>,
+    exports: Vec<terminal_psi_to_abstract_operations::PreparedNativeExecution>,
 }
 
 pub(crate) fn prepare_components<'input>(
@@ -45,21 +45,19 @@ pub(crate) fn prepare_components<'input>(
             .exports()
             .iter()
             .map(|export| {
-                terminal_psi_to_abstract_operations::prepare_native_callable_execution(
-                    proposal,
-                    input.authorization(),
-                    terminal_psi::TargetMachineCallable::Machine(export.candidate.candidate),
-                )?
-                .with_evidence(input.evidence().cloned())
+                proposal
+                    .prepare_native_callable_execution(
+                        input.authorization(),
+                        terminal_psi::TargetMachineCallable::Machine(export.candidate.candidate),
+                    )?
+                    .with_operation_evidence(artifact, input.evidence().cloned())
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let scalars = crate::NativeScalarCompletion::new(
-            artifact,
-            proposal,
-            exports
-                .iter()
-                .flat_map(|work| work.scalar_application_demand().iter().copied()),
-        );
+        let mut demand = Vec::new();
+        for execution in &exports {
+            demand.extend(execution.scalar_application_demand(proposal.target_profile())?);
+        }
+        let scalars = crate::NativeScalarCompletion::new(artifact, proposal, demand);
         prepared.push(PreparedComponent {
             compilation,
             calls,
