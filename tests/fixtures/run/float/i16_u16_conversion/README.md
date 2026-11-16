@@ -32,13 +32,27 @@ helper has no returned storage or writable parameters, and Build uses the same
 host-call summaries. The baseline twin also failed on unresolved calls, so that
 observation did not establish enforcement of the missing upper bound.
 
-The fresh optimized 8378f867b0e9 producer ran the unchanged positive in native
-and Psi on macos_arm64: exit 0 and empty output in 15.116 seconds. The twin
-rejected exactly the missing upper bound in 13.440 seconds. All four source file
-hashes match the baseline.
+Integrating the runtime-reflection changes exposed a policy-removal failure in
+this same program. Domain accounting replaced the written policy with Exact,
+so reference checking mistook `-Trapping` for an unresolved named domain. The
+compiler now keeps that written identity separately from the settled result
+type. Missing and stale named-domain references still reject.
 
-The roster and publication/reload/reject checks passed. Four derived bad-input
-cases passed in Psi and native, checking Trap at the actual named boundary and
-the host trap signal. Two-crate strict all-target Clippy, boundary, formatting
-and rules checks passed. The [Build](build.omg) binds all four hosted targets;
-other hosts were not executed.
+The fresh optimized e9151ff67411 producer includes that integration and repair.
+It ran the unchanged positive in native and Psi on macos_arm64: exit 0 and empty
+output in 15.240 seconds. The twin rejected exactly the missing upper bound in
+13.168 seconds. All four source file hashes match the baseline.
+
+At 8378f867b0e9, the roster and publication/reload/reject checks passed. Four
+derived bad-input cases passed in Psi and native, checking Trap at the actual
+named boundary and the host trap signal. Those observations retain their source
+identity. The fresh original pair exercises all twelve conversions after
+integration; it does not repeat those four bad-input runs.
+
+The three focused policy/reference controls pass: all policies keep their
+written identity through add/keep/remove, result types retain their independent
+qualifications, and missing/stale named domains still reject. Strict all-target
+Clippy passed for the three newly adjusted crates. Earlier language-core and
+compiler Clippy results remain tied to 8378. Boundary, formatting and rules
+checks pass. The [Build](build.omg) binds all four hosted targets; other hosts
+were not executed.
