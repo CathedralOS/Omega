@@ -526,9 +526,15 @@ s.low = 12; s.high = 20; width(s)` is valid: the first store breaks
   obligation is the window's identity; its verdict is `Discharged::Window`,
   which keeps why the clause was not proved there. A construction makes a
   value and opens nothing: its unproved clause is still `Unproved`.
+  A call that lends a place exclusively (`&mut` or `&write`) is a store
+  into every value above that place: the callee may write anything beneath
+  it, so `bump(&mut s.low)` owes `Span`'s clauses for `s` and opens a window
+  when they are not proved over what the call left there. The lent place's
+  own type owes nothing at the call: it is the callee's formal, which the
+  callee proves at handback, as a replaced field arrives formed.
 - **Preserving.** A store that writes no storage a clause names (the
-  places the one substitution meets in the clause, `Storage::untouched`)
-  keeps that clause as it was: `Discharged::Preserved`, no window and no
+  places the one substitution meets in the clause, `Storage::untouched`;
+  for a call, every region the write log says it may write) keeps that clause as it was: `Discharged::Preserved`, no window and no
   closing. A store that proves a clause over the place's values is a
   restoring write ("Construction and every restoring write prove the owning
   default-domain clauses"), and closes that clause's window on that place.
@@ -546,8 +552,8 @@ s.low = 12; s.high = 20; width(s)` is valid: the first store breaks
   | Specification | Lowered construct |
   | --- | --- |
   | "A read relying on the domain or a dependent coupling." | a whole read of the place or of a place containing it: `StructuralLeafCopy`, a record operand of a literal, a record stored into a field; and a field read or a dispatch's bound payload beneath the place that takes a clause of its storage's type as a premise (`read_premises` or `payload_premises` not empty). A field read or dispatch with no premise, and a case test, rely on nothing and consume nothing. |
-  | "Borrow creation or a call consuming the affected domain." | a call's record argument; this route passes records by value, copied first, so it is that copy, and the call itself (next row). Borrows are refused by elaboration. |
-  | "Transfer, return, scope expiration or loan handback ..." | a record passed on a `Jump` edge; and every `Return`, `ReturnUnit`, `ReturnStructural` and `InvokeNoNormal`, on its edge, which ends the scope of every place of the machine. A `Crash` consumes nothing: "A crash may abandon an open window". An `ExternalCompletion` consumes nothing either: process exit "may abandon outstanding in-domain obligations, including linear obligations, without cleanup or discharge claims" ([process exit](../../../../../wiki/spec/language/process_exit.md#abandonment-and-survivors)); a record it took as an argument would be read like a `Jump`'s. Loans are refused by elaboration. |
+  | "Borrow creation or a call consuming the affected domain." | a call's record argument; this route passes records by value, copied first, so it is that copy, and the call itself (next row). |
+  | "Transfer, return, scope expiration or loan handback ..." | a record passed on a `Jump` edge; and every `Return`, `ReturnUnit`, `ReturnStructural` and `InvokeNoNormal`, on its edge, which ends the scope of every place of the machine. A `Crash` consumes nothing: "A crash may abandon an open window". An `ExternalCompletion` consumes nothing either: process exit "may abandon outstanding in-domain obligations, including linear obligations, without cleanup or discharge claims" ([process exit](../../../../../wiki/spec/language/process_exit.md#abandonment-and-survivors)); a record it took as an argument would be read like a `Jump`'s. |
   | "Boundary/capability-carrying calls that may observe or expose the affected storage" | every call operation, for every window open at it. |
 
   "A call need not close an unrelated domain window when its complete

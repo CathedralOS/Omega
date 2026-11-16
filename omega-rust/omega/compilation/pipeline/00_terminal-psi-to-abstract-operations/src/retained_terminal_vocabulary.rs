@@ -168,6 +168,7 @@ mod calling {
         2 => Aapcs64,
         3 => LinuxSyscallX86_64,
         4 => LinuxSyscallAarch64,
+        5 => DarwinAapcs64,
     });
 
     record_variants!(calling_conventions::EntryControl {

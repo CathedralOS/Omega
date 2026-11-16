@@ -986,10 +986,17 @@ fn typed_const_records_forward_the_declared_value_and_reject_another_schema() {
         path: Box::new([Identifier::generated("Selected")]),
         ..Default::default()
     };
-    let operand = super::Operand::read(&mut program, selected, &parameter.kind, &forwarded)
-        .unwrap_or_else(|_| {
-            panic!("forward the original Const value without changing its binder kind")
-        });
+    let operand = super::Operand::read(
+        &mut program,
+        &typed_trees::data::TypeParameter {
+            symbol: selected,
+            ..parameter.clone()
+        },
+        &forwarded,
+    )
+    .unwrap_or_else(|_| {
+        panic!("forward the original Const value without changing its binder kind")
+    });
     assert!(operand.is_open(&program));
     assert!(matches!(operand.value, StaticMachineBindingValue::Const(_)));
     assert_eq!(operand.argument, forwarded);

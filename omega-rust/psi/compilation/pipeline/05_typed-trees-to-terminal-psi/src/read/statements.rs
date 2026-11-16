@@ -158,10 +158,17 @@ impl Program<'_> {
                     return Err(assigned(self, &value, value_type));
                 }
                 self.authorized(id, value_type, Access::Replace)?;
-                // A borrowed formal already names the caller's storage.
-                // Replace there through the same captured-place store as a
-                // field; only an owned value binding may acquire a new root.
-                Ok(if slots[slot].homed || slots[slot].borrowed.is_some() {
+                // A record local, a homed scalar and a borrowed formal all
+                // name storage that loans may still observe. Replace there
+                // through the same captured-place store as a field
+                // (structural_access.md: "Root, field, and indexed
+                // destinations do not change construction semantics"), so
+                // the checker sees the write. Only an unhomed scalar takes a
+                // new SSA binding.
+                let stored = slots[slot].homed
+                    || slots[slot].borrowed.is_some()
+                    || matches!(value_type, ValueType::Record(..));
+                Ok(if stored {
                     Statement::Store {
                         destination: crate::Expression {
                             call_context: None,

@@ -587,6 +587,30 @@ impl Program<'_> {
             }
             return self.byte_element(machine, slots, base, indexed.index, source);
         }
+        // A range of a shared typed view (`&[T]`) is the same window as a
+        // byte range: it keeps the view's backing region, and lowering checks
+        // `start <= end <= len` against the view's own length. A mutable view
+        // would need its exclusive loan kept live through the window, which
+        // this read path does not establish, so it stays refused.
+        if let typed_trees::expression::ExpressionNode::Range(range) =
+            self.node(machine, indexed.index)?
+        {
+            if matches!(
+                self.data_type(machine, array.record())?.shape,
+                StorageShape::ElementView {
+                    access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                    ..
+                }
+            ) {
+                self.collection_range_selection(machine, handle, array.record())?;
+                return self.collection_window(machine, slots, base, range, source);
+            }
+            return Err(refuse(
+                machine,
+                Construct::Machine,
+                Unserved::Expression("range of a collection that is not a shared view"),
+            ));
+        }
         let (element, qualification, extent) = self.array_element(machine, array)?;
         let stored_length = matches!(extent, CollectionExtent::StoredLength);
         if stored_length && access == Access::Read && !self.data_type(machine, element)?.copyable {

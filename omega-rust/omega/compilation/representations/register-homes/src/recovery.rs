@@ -14,6 +14,7 @@ before admitting any transformation.
 
 #[cfg(test)]
 mod codec_tests;
+mod execution_facts;
 mod fixed_view_copy_codec;
 mod program_contracts;
 mod publication;
@@ -1007,6 +1008,7 @@ pub struct FixedViewCopyDestination {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FixedViewCopyDecodeError {
+    InvalidExecutionFacts(target_vocabulary::NativeExecutionFactsError),
     InvalidCodeCatalog {
         catalog: &'static str,
         cause: terminal_wire::CodecError,

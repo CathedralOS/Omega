@@ -14,8 +14,8 @@
 //     — sysinfoapi.h, "DLL: Kernel32.dll", minimum Windows 8 / Server 2012.
 //     `std/time_host.omg`'s header selects this call for this target.
 //   `VOID Sleep(DWORD dwMilliseconds)` — kernel32; `std/build.omg` binds it
-//     for `Clock` and for `WindowsTimeRead::sleep`, since the millisecond
-//     count IS the whole requirement signature.
+//     for `WindowsClockWait::sleep` and `WindowsTimeRead::sleep`. Both
+//     callers keep 0xFFFFFFFF (`INFINITE`) away from it.
 //
 // The four raw requirements below are backed by native rows in `std/build.omg`,
 // not by forwarding declarations in this file.
@@ -111,11 +111,27 @@ public WindowsTimeHost satisfies TimeHost {
         11644473600
     }
 
+    // `Sleep` reads 0xFFFFFFFF as `INFINITE`, and `sleep_for` saturates long
+    // durations to exactly that count, so the maximum waits in two finite
+    // halves and returns like the POSIX providers' split waits.
     machine sleep(milliseconds: u32)
     reaches TimeHost
     invokes WindowsTimeRead
     blocks
     {
-        block WindowsTimeRead::sleep(milliseconds);
+        transition milliseconds == 4294967295 {
+            true -> block in_halves()
+            _ -> block at_once(milliseconds)
+        }
+
+        machine at_once(milliseconds: u32) {
+            block WindowsTimeRead::sleep(milliseconds);
+        }
+
+        // 2147483647 + 2147483648 == 4294967295.
+        machine in_halves() {
+            block WindowsTimeRead::sleep(2147483647);
+            block WindowsTimeRead::sleep(2147483648);
+        }
     }
 }
