@@ -11,7 +11,6 @@ use omega::language::core::FilesystemMetadataMutation;
 use omega::language::core::FilesystemNamespaceMutation;
 
 machine windows_filesystem_opened(handle: u64) -> OpenResult
-invokes WindowsFilesystemHost
 {
     transition handle != 0 {
         true -> (OpenResult::Ok { file: File { handle: handle } })
@@ -25,7 +24,6 @@ invokes WindowsFilesystemHost
 
 machine windows_filesystem_open_with(path: &[u8] in Path, options: OpenOptions) -> OpenResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
-invokes WindowsFilesystemHost
 {
     // Truncation requires random-write access. Append-only access cannot
     // satisfy it, and must not be upgraded just to make a flag combination fit.
@@ -77,7 +75,6 @@ invokes WindowsFilesystemHost
 
 machine windows_filesystem_open(path: &[u8] in Path) -> OpenResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
-invokes WindowsFilesystemHost
 {
     let options: OpenOptions;
     block windows_filesystem_open_with(path, options)
@@ -85,7 +82,6 @@ invokes WindowsFilesystemHost
 
 machine windows_filesystem_create(path: &[u8] in Path) -> OpenResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
-invokes WindowsFilesystemHost
 {
     block windows_filesystem_open_with(path, OpenOptions {
         read: false, write: true, append: false, truncate: true, create: true, create_new: false
@@ -94,7 +90,6 @@ invokes WindowsFilesystemHost
 
 machine windows_filesystem_create_new(path: &[u8] in Path) -> OpenResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
-invokes WindowsFilesystemHost
 {
     block windows_filesystem_open_with(path, OpenOptions {
         read: true, write: true, append: false, truncate: false, create: false, create_new: true
@@ -103,7 +98,6 @@ invokes WindowsFilesystemHost
 
 machine windows_filesystem_append(path: &[u8] in Path) -> OpenResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
-invokes WindowsFilesystemHost
 {
     block windows_filesystem_open_with(path, OpenOptions {
         read: false, write: false, append: true, truncate: false, create: false, create_new: false
@@ -112,7 +106,6 @@ invokes WindowsFilesystemHost
 
 machine windows_filesystem_read(file: File, buffer: &mut [u8], count: u64) -> IoResult
 reaches FilesystemContentRead
-invokes WindowsFilesystemHost
 {
     transition file.handle != 0 && count <= buffer.len {
         true -> block transfer(file, buffer, count)
@@ -132,7 +125,6 @@ invokes WindowsFilesystemHost
 
 machine windows_filesystem_write(file: File, bytes: &[u8]) -> IoResult
 reaches FilesystemContentWrite
-invokes WindowsFilesystemHost
 {
     transition file.handle != 0 {
         true -> block transfer(file, bytes)
@@ -149,7 +141,6 @@ invokes WindowsFilesystemHost
 // acquiring their temporary independent object; retain the actual short count.
 machine windows_filesystem_read_at(file: File, buffer: &mut [u8], count: u64, offset: i64) -> IoResult
 reaches FilesystemContentRead
-invokes WindowsFilesystemHost
 {
     transition file.handle != 0 {
         true -> block validate(file, buffer, count, offset)
@@ -169,7 +160,6 @@ invokes WindowsFilesystemHost
 
 machine windows_filesystem_write_at(file: File, bytes: &[u8], offset: i64) -> IoResult
 reaches FilesystemContentWrite
-invokes WindowsFilesystemHost
 {
     transition file.handle != 0 {
         true -> block validate(file, bytes, offset)
@@ -188,7 +178,6 @@ invokes WindowsFilesystemHost
 }
 
 machine windows_filesystem_close(file: File) -> UnitResult
-invokes WindowsFilesystemHost
 {
     transition file.handle != 0 {
         true -> block release(file)
@@ -201,7 +190,6 @@ invokes WindowsFilesystemHost
 }
 
 machine windows_filesystem_sync(file: File) -> UnitResult
-invokes WindowsFilesystemHost
 {
     transition file.handle != 0 {
         true -> block flush(file)
@@ -214,7 +202,6 @@ invokes WindowsFilesystemHost
 }
 
 machine windows_filesystem_clone(file: File) -> OpenResult
-invokes WindowsFilesystemHost
 {
     transition file.handle != 0 {
         true -> duplicate(file)
@@ -228,7 +215,6 @@ invokes WindowsFilesystemHost
 
 machine windows_filesystem_set_length(file: File, length: i64) -> UnitResult
 reaches FilesystemContentWrite + FilesystemMetadataMutation
-invokes WindowsFilesystemHost
 {
     transition file.handle != 0 {
         true -> block validate(file, length)

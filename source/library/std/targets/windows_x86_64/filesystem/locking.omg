@@ -3,23 +3,18 @@
 // denied access and unmatched unlocks remain errors. No service reach is added.
 
 machine windows_filesystem_lock(file: File) -> UnitResult
-invokes WindowsFilesystemHost
 { windows_filesystem_unit(block WindowsFilesystemHost::lock_file(file.handle, true, false)) }
 
 machine windows_filesystem_lock_shared(file: File) -> UnitResult
-invokes WindowsFilesystemHost
 { windows_filesystem_unit(block WindowsFilesystemHost::lock_file(file.handle, false, false)) }
 
 machine windows_filesystem_try_lock(file: File) -> TryLockResult
-invokes WindowsFilesystemHost
 { windows_filesystem_try_lock_result(block WindowsFilesystemHost::lock_file(file.handle, true, true)) }
 
 machine windows_filesystem_try_lock_shared(file: File) -> TryLockResult
-invokes WindowsFilesystemHost
 { windows_filesystem_try_lock_result(block WindowsFilesystemHost::lock_file(file.handle, false, true)) }
 
 machine windows_filesystem_unlock(file: File) -> UnitResult
-invokes WindowsFilesystemHost
 { windows_filesystem_unit(block WindowsFilesystemHost::unlock_file(file.handle)) }
 
 machine windows_filesystem_try_lock_result(status: i32) -> TryLockResult {
