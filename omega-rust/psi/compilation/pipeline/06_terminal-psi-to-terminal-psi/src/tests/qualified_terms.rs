@@ -155,6 +155,9 @@ fn invocation(text: &str) -> Checked<typed_trees_to_terminal_psi::Elaboration> {
     typed_trees_to_terminal_psi::elaborate_for(
         &frozen,
         typed_trees_to_terminal_psi::Compilation {
+            calling: None,
+            providers: None,
+
             declaration_metadata: &[],
             entries: &[entry],
             subjects: &[],

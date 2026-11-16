@@ -5,6 +5,7 @@ use terminal_check_tables::values::{ValueOrigin, ValueRow};
 #[test]
 fn false_ieee_assumptions_use_checked_contradiction_with_the_actual_equation() {
     use semantic_vocabulary::{IeeeFloatComparisonKind, IeeeFloatFormat, IeeeFloatValue};
+    let mut activity = ProofSearchActivity::default();
     for format in [IeeeFloatFormat::Binary32, IeeeFloatFormat::Binary64] {
         let scalar = ScalarType::IeeeFloat(format);
         let mut values = IdTable::default();
@@ -48,7 +49,8 @@ fn false_ieee_assumptions_use_checked_contradiction_with_the_actual_equation() {
         .unwrap();
         for (literal, excludes) in [(quarter, true), (nan, false)] {
             let axioms = [Proposition::Equal(value.clone(), literal)];
-            let result = Prover::new(&context, &[], &axioms, &values).prove(&excludes_invalid);
+            let result = Prover::new(&context, &[], &axioms, &values, &mut activity)
+                .prove(&excludes_invalid);
             assert_eq!(result.is_ok(), excludes);
             if let Ok(proof) = result {
                 let accepted = proof_admission::accept_certificate(
@@ -64,7 +66,7 @@ fn false_ieee_assumptions_use_checked_contradiction_with_the_actual_equation() {
                 assert_eq!(accepted.semantic_axioms[0].index, 0);
             }
             let assumptions = [Proposition::Truth, unordered.clone()];
-            let result = Prover::new(&context, &assumptions, &axioms, &values)
+            let result = Prover::new(&context, &assumptions, &axioms, &values, &mut activity)
                 .prove(&Proposition::Falsehood);
             assert_eq!(result.is_ok(), excludes);
             if let Ok(proof) = result {
@@ -87,6 +89,7 @@ fn false_ieee_assumptions_use_checked_contradiction_with_the_actual_equation() {
 
 #[test]
 fn a_later_named_result_can_bound_the_same_expression_more_tightly() {
+    let mut activity = ProofSearchActivity::default();
     let integer = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
     let scalar_type = ScalarType::Integer(integer);
     let mut values = IdTable::default();
@@ -121,7 +124,7 @@ fn a_later_named_result_can_bound_the_same_expression_more_tightly() {
     let context =
         PropositionContext::from_value_types(values.iter().map(|(id, row)| (id, row.scalar_type)))
             .unwrap();
-    let mut prover = Prover::new(&context, &assumptions, &axioms, &values);
+    let mut prover = Prover::new(&context, &assumptions, &axioms, &values, &mut activity);
     let (literal, proof) = prover.side(&expression, Direction::Upper).unwrap();
     assert_eq!(literal, endpoint);
     let goal = Proposition::LessOrEqual(expression, limit);
@@ -131,6 +134,7 @@ fn a_later_named_result_can_bound_the_same_expression_more_tightly() {
 
 #[test]
 fn policy_translation_maps_bounds_only_with_the_required_headroom() {
+    let mut activity = ProofSearchActivity::default();
     let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
     let scalar_type = ScalarType::Integer(integer);
     let mut values = IdTable::default();
@@ -169,14 +173,14 @@ fn policy_translation_maps_bounds_only_with_the_required_headroom() {
     ] {
         let axioms = [Proposition::Equal(result.clone(), expression)];
         let assumptions = [guard];
-        let mut prover = Prover::new(&context, &assumptions, &axioms, &values);
+        let mut prover = Prover::new(&context, &assumptions, &axioms, &values, &mut activity);
         for goal in [&dependent_bound, &ordinary_bound] {
             let proof = prover.prove(goal).unwrap();
             proof_admission::accept_certificate(&context, goal, &assumptions, &axioms, &proof)
                 .unwrap();
         }
         assert!(
-            Prover::new(&context, &[], &axioms, &values)
+            Prover::new(&context, &[], &axioms, &values, &mut activity)
                 .prove(&dependent_bound)
                 .is_err()
         );
@@ -185,6 +189,7 @@ fn policy_translation_maps_bounds_only_with_the_required_headroom() {
 
 #[test]
 fn remaining_capacity_bounds_the_exact_sum_and_its_use() {
+    let mut activity = ProofSearchActivity::default();
     let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
     let scalar_type = ScalarType::Integer(integer);
     let mut values = IdTable::default();
@@ -231,7 +236,7 @@ fn remaining_capacity_bounds_the_exact_sum_and_its_use() {
         (&sum_fits, arithmetic_axioms.as_slice()),
         (&next_in_bounds, evaluated_axioms.as_slice()),
     ] {
-        let proof = Prover::new(&context, &assumptions, axioms, &values)
+        let proof = Prover::new(&context, &assumptions, axioms, &values, &mut activity)
             .prove(goal)
             .unwrap();
         proof_admission::accept_certificate(&context, goal, &assumptions, axioms, &proof).unwrap();
@@ -240,7 +245,7 @@ fn remaining_capacity_bounds_the_exact_sum_and_its_use() {
             Proposition::LessOrEqual(capacity.clone(), count.clone()),
         ];
         assert!(
-            Prover::new(&context, &reversed, axioms, &values)
+            Prover::new(&context, &reversed, axioms, &values, &mut activity)
                 .prove(goal)
                 .is_err()
         );
@@ -250,6 +255,7 @@ fn remaining_capacity_bounds_the_exact_sum_and_its_use() {
 #[test]
 fn ieee_order_search_uses_only_connected_ordered_premises() {
     use semantic_vocabulary::{IeeeFloatComparisonKind as Kind, IeeeFloatFormat, IeeeFloatValue};
+    let mut activity = ProofSearchActivity::default();
     let format = IeeeFloatFormat::Binary64;
     let scalar = ScalarType::IeeeFloat(format);
     let mut values = IdTable::default();
@@ -278,12 +284,12 @@ fn ieee_order_search_uses_only_connected_ordered_premises() {
     );
     let context = PropositionContext::from_value_types([(id, scalar)]).unwrap();
     let assumptions = [premise.clone()];
-    let proof = Prover::new(&context, &assumptions, &[], &values)
+    let proof = Prover::new(&context, &assumptions, &[], &values, &mut activity)
         .prove(&goal)
         .unwrap();
     proof_admission::accept_certificate(&context, &goal, &assumptions, &[], &proof).unwrap();
     assert!(
-        Prover::new(&context, &[], &[], &values)
+        Prover::new(&context, &[], &[], &values, &mut activity)
             .prove(&goal)
             .is_err()
     );
@@ -293,7 +299,7 @@ fn ieee_order_search_uses_only_connected_ordered_premises() {
         value.clone(),
     );
     assert!(
-        Prover::new(&context, &[complement], &[], &values)
+        Prover::new(&context, &[complement], &[], &values, &mut activity)
             .prove(&goal)
             .is_err()
     );
@@ -303,7 +309,7 @@ fn ieee_order_search_uses_only_connected_ordered_premises() {
         literal(0x7ff8_0000_0000_0042),
     );
     assert!(
-        Prover::new(&context, &[nan_bound], &[], &values)
+        Prover::new(&context, &[nan_bound], &[], &values, &mut activity)
             .prove(&goal)
             .is_err()
     );
@@ -311,7 +317,7 @@ fn ieee_order_search_uses_only_connected_ordered_premises() {
     let zero_bound = relation(Kind::LessOrEqual, value.clone(), literal(0));
     let zero_goal = relation(Kind::LessOrEqual, value, negative_zero);
     let assumptions = [zero_bound];
-    let proof = Prover::new(&context, &assumptions, &[], &values)
+    let proof = Prover::new(&context, &assumptions, &[], &values, &mut activity)
         .prove(&zero_goal)
         .unwrap();
     proof_admission::accept_certificate(&context, &zero_goal, &assumptions, &[], &proof).unwrap();
@@ -320,6 +326,7 @@ fn ieee_order_search_uses_only_connected_ordered_premises() {
 #[test]
 fn ieee_literal_and_copy_equations_reach_the_closed_kernel_judgment() {
     use semantic_vocabulary::{IeeeFloatComparisonKind, IeeeFloatFormat, IeeeFloatValue};
+    let mut activity = ProofSearchActivity::default();
     for format in [IeeeFloatFormat::Binary32, IeeeFloatFormat::Binary64] {
         let scalar = ScalarType::IeeeFloat(format);
         let mut values = IdTable::default();
@@ -363,7 +370,7 @@ fn ieee_literal_and_copy_equations_reach_the_closed_kernel_judgment() {
                 Proposition::Equal(value.clone(), literal),
                 Proposition::Equal(copied.clone(), value.clone()),
             ];
-            let result = Prover::new(&context, &[], &axioms, &values).prove(&goal);
+            let result = Prover::new(&context, &[], &axioms, &values, &mut activity).prove(&goal);
             assert_eq!(result.is_ok(), expected);
             if let Ok(proof) = result {
                 let accepted =
@@ -378,6 +385,7 @@ fn ieee_literal_and_copy_equations_reach_the_closed_kernel_judgment() {
 #[test]
 fn compound_exact_orders_prove_value_relations_and_reject_unsound_variants() {
     use proof_admission::MathematicalCoreDecision;
+    let mut activity = ProofSearchActivity::default();
 
     let u64_type = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
     let u64_scalar = ScalarType::Integer(u64_type);
@@ -443,7 +451,7 @@ fn compound_exact_orders_prove_value_relations_and_reject_unsound_variants() {
         ),
     ] {
         let assumptions = [assumption];
-        let proof = Prover::new(&context, &assumptions, &[], &values)
+        let proof = Prover::new(&context, &assumptions, &[], &values, &mut activity)
             .prove(goal)
             .unwrap_or_else(|err| panic!("failed on {assumptions:?} |- {goal:?}: {err}"));
         let accepted =
@@ -483,7 +491,7 @@ fn compound_exact_orders_prove_value_relations_and_reject_unsound_variants() {
     ] {
         let assumptions = [assumption];
         assert!(
-            Prover::new(&context, &assumptions, &[], &values)
+            Prover::new(&context, &assumptions, &[], &values, &mut activity)
                 .prove(&invalid_goal)
                 .is_err(),
             "unexpectedly proved {assumptions:?} |- {invalid_goal:?}"
@@ -516,18 +524,30 @@ fn compound_exact_orders_prove_value_relations_and_reject_unsound_variants() {
         Proposition::LessOrEqual(a, signed_diff),
     ] {
         assert!(
-            Prover::new(&signed_context, &[unguarded], &[], &signed_values)
-                .prove(&signed_goal)
-                .is_err()
+            Prover::new(
+                &signed_context,
+                &[unguarded],
+                &[],
+                &signed_values,
+                &mut activity
+            )
+            .prove(&signed_goal)
+            .is_err()
         );
     }
     let guarded = [
         Proposition::LessThan(signed_sum, b),
         Proposition::LessOrEqual(signed_zero, d),
     ];
-    let proof = Prover::new(&signed_context, &guarded, &[], &signed_values)
-        .prove(&signed_strict_goal)
-        .unwrap();
+    let proof = Prover::new(
+        &signed_context,
+        &guarded,
+        &[],
+        &signed_values,
+        &mut activity,
+    )
+    .prove(&signed_strict_goal)
+    .unwrap();
     let accepted = proof_admission::accept_certificate(
         &signed_context,
         &signed_strict_goal,
@@ -544,6 +564,7 @@ fn compound_exact_orders_prove_value_relations_and_reject_unsound_variants() {
 
 #[test]
 fn compound_constant_offsets_tighten_literal_and_chained_bounds_without_poisoning_ssa_results() {
+    let mut activity = ProofSearchActivity::default();
     let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
     let u8_scalar = ScalarType::Integer(u8_type);
     let mut values = IdTable::default();
@@ -575,7 +596,7 @@ fn compound_constant_offsets_tighten_literal_and_chained_bounds_without_poisonin
 
     // `index + 1 < 4` tightens `index` all the way to `<= 2`, not just `<= 3`.
     let assumptions = [Proposition::LessThan(add(&index, &lit(1)), lit(4))];
-    let mut prover = Prover::new(&context, &assumptions, &[], &values);
+    let mut prover = Prover::new(&context, &assumptions, &[], &values, &mut activity);
     assert_eq!(
         prover.literal_bounds(index_id),
         (None, Some(IntegerValue::Unsigned(2)))
@@ -596,7 +617,7 @@ fn compound_constant_offsets_tighten_literal_and_chained_bounds_without_poisonin
         Proposition::LessOrEqual(limit, lit(10)),
         Proposition::LessThan(lit(0), sub(&count, &lit(1))),
     ];
-    let mut prover = Prover::new(&context, &chained, &[], &values);
+    let mut prover = Prover::new(&context, &chained, &[], &values, &mut activity);
     for goal in [
         Proposition::LessOrEqual(index.clone(), lit(8)),
         Proposition::LessOrEqual(lit(2), count.clone()),
@@ -618,7 +639,13 @@ fn compound_constant_offsets_tighten_literal_and_chained_bounds_without_poisonin
     // Querying `index`'s upper bound first must not poison an SSA result `next = index + 1`.
     let ssa_assumptions = [Proposition::LessOrEqual(index.clone(), lit(5))];
     let ssa_axioms = [Proposition::Equal(next.clone(), add(&index, &lit(1)))];
-    let mut prover = Prover::new(&context, &ssa_assumptions, &ssa_axioms, &values);
+    let mut prover = Prover::new(
+        &context,
+        &ssa_assumptions,
+        &ssa_axioms,
+        &values,
+        &mut activity,
+    );
     assert_eq!(
         prover.literal_bounds(index_id),
         (None, Some(IntegerValue::Unsigned(5)))

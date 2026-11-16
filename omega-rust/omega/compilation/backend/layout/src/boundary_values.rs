@@ -433,6 +433,9 @@ impl<'module> TerminalBoundaryRecipes<'module> {
             return Err("boundary scalar projection changes its supplied type".into());
         }
         let recipe = match closed {
+            ClosedScalarType::Callable(_) => {
+                return Err("local machine value requires an admitted boundary proxy".into());
+            }
             ClosedScalarType::Boolean => BoundaryValueRecipe::Integer { byte_size: 1 },
             ClosedScalarType::Integer(integer) if integer.bits() % 8 == 0 => {
                 BoundaryValueRecipe::Integer {

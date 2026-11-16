@@ -699,8 +699,11 @@ pub(crate) mod construction {
             }),
         )
         .map_err(|_| SelectedInstructionError::custody())?;
-        let backings =
-            super::foreign_scalar_backings::ForeignScalarBackings::new(target, &native_geometry);
+        let backings = super::foreign_scalar_backings::ForeignScalarBackings::new(
+            target,
+            &native_geometry,
+            legalized.callable_invocations(),
+        )?;
         let mut functions = target
             .scalar_functions
             .iter()
@@ -1009,6 +1012,9 @@ pub(crate) mod foreign_scalar_backings {
         geometries: &'program crate::native_geometry::NativeGeometries<'program>,
         incoming: BTreeMap<MachineId, Vec<(usize, &'program LegalizedScalarCall)>>,
         opaque_ingress: BTreeSet<MachineId>,
+        unresolved_callable_ingress: bool,
+        callable_invocations:
+            &'program terminal_semantics::callable_values::ReachableCallableInvocations,
     }
     struct Coordinate {
         function: usize,
@@ -1020,34 +1026,118 @@ pub(crate) mod foreign_scalar_backings {
         pub(crate) fn new(
             program: &'program LegalizedOperationPlan,
             geometries: &'program crate::native_geometry::NativeGeometries<'program>,
-        ) -> Self {
+            callable_invocations: &'program terminal_semantics::callable_values::ReachableCallableInvocations,
+        ) -> Result<Self, SelectedInstructionError> {
             let mut context = Self {
                 program,
                 geometries,
                 incoming: BTreeMap::new(),
                 opaque_ingress: BTreeSet::from([program.entry]),
+                unresolved_callable_ingress: false,
+                callable_invocations,
             };
             for (position, function) in program.scalar_functions.iter().enumerate() {
                 for instruction in function.instructions() {
                     if let I::Call(call) = &instruction.kind {
-                        context.retain_call(position, call);
+                        context.retain_call(
+                            position,
+                            target_vocabulary::CallSiteOwner::Operation(instruction.operation),
+                            call,
+                        )?;
                     }
                 }
                 for block in &function.blocks {
-                    if let T::InvokeNoNormal { call, .. } = &block.terminator {
-                        context.retain_call(position, call);
+                    if let T::InvokeNoNormal { psi_edge, call, .. } = &block.terminator {
+                        context.retain_call(
+                            position,
+                            target_vocabulary::CallSiteOwner::InvokeNoNormal(*psi_edge),
+                            call,
+                        )?;
+                    }
+                    for (owner, call) in block.terminator.cleanup_calls() {
+                        context.retain_call(position, *owner, call)?;
                     }
                 }
             }
-            context
+            Ok(context)
         }
-        fn retain_call(&mut self, caller: usize, call: &'program LegalizedScalarCall) {
+
+        fn retain_call(
+            &mut self,
+            caller: usize,
+            owner: target_vocabulary::CallSiteOwner,
+            call: &'program LegalizedScalarCall,
+        ) -> Result<(), SelectedInstructionError> {
             match call.target {
                 target_vocabulary::NativeCallTarget::Machine(callee) => {
                     self.incoming
                         .entry(callee)
                         .or_default()
                         .push((caller, call));
+                }
+                target_vocabulary::NativeCallTarget::Callable { callee, contract } => {
+                    use terminal_semantics::callable_values::{
+                        CallableInvocationSite, CallableInvocationTarget,
+                    };
+                    let machine = self.program.scalar_functions[caller].machine;
+                    let site = match owner {
+                        target_vocabulary::CallSiteOwner::Operation(operation) => {
+                            CallableInvocationSite::Invocation(
+                                semantic_vocabulary::InvocationSite::Operation(operation),
+                            )
+                        }
+                        target_vocabulary::CallSiteOwner::InvokeNoNormal(edge) => {
+                            CallableInvocationSite::Invocation(
+                                semantic_vocabulary::InvocationSite::InvokeNoNormal(edge),
+                            )
+                        }
+                        target_vocabulary::CallSiteOwner::ExternalCompletion(edge) => {
+                            CallableInvocationSite::Invocation(
+                                semantic_vocabulary::InvocationSite::ExternalCompletion(edge),
+                            )
+                        }
+                        target_vocabulary::CallSiteOwner::CleanupAction {
+                            edge,
+                            action_ordinal,
+                        } => CallableInvocationSite::CleanupAction {
+                            edge,
+                            action_ordinal,
+                        },
+                        target_vocabulary::CallSiteOwner::Installation { .. } => {
+                            return Err(SelectedInstructionError::custody_because(
+                                "installed operation cannot impersonate a callable source invocation",
+                            ));
+                        }
+                    };
+                    let Some(invocation) = self.callable_invocations.site(machine, site) else {
+                        if self
+                            .callable_invocations
+                            .reached_machines
+                            .binary_search(&machine)
+                            .is_ok()
+                        {
+                            return Err(SelectedInstructionError::custody_because(
+                                "callable backing query lost its reached source occurrence",
+                            ));
+                        }
+                        return Ok(());
+                    };
+                    if invocation.invocation.target
+                        != CallableInvocationTarget::Value(callee, contract)
+                    {
+                        return Err(SelectedInstructionError::custody_because(
+                            "callable backing query changed its evaluated code operand or contract",
+                        ));
+                    }
+                    if !invocation.targets_are_resolved() {
+                        self.unresolved_callable_ingress = true;
+                    }
+                    for machine in &invocation.selected_machines {
+                        self.incoming
+                            .entry(*machine)
+                            .or_default()
+                            .push((caller, call));
+                    }
                 }
                 target_vocabulary::NativeCallTarget::Dynamic { .. } => {
                     self.opaque_ingress.extend(
@@ -1059,7 +1149,9 @@ pub(crate) mod foreign_scalar_backings {
                     );
                 }
             }
+            Ok(())
         }
+
         pub(crate) fn matches(
             &self,
             function: &crate::native_geometry::NativeFunction<'_>,
@@ -1146,7 +1238,9 @@ pub(crate) mod foreign_scalar_backings {
                         }
                     }
                     if let StructuralPlaceKind::Parameter { position } = declaration.kind {
-                        if self.opaque_ingress.contains(&function.machine) {
+                        if self.unresolved_callable_ingress
+                            || self.opaque_ingress.contains(&function.machine)
+                        {
                             return Ok(false);
                         }
                         let Some(calls) = self

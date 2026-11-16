@@ -94,7 +94,6 @@ impl DangerousServiceDiscovery {
         .map_err(unavailable)?;
         let mut roots = publication
             .roster()?
-            .compilation()
             .entries
             .iter()
             .map(|declaration| {

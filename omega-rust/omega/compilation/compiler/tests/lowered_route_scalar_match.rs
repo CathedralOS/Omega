@@ -34,6 +34,13 @@ fn judged(name: &str, source: &str) -> RouteVerdict {
     judge(elaborate(
         &frontier.typed,
         Compilation {
+            calling: frontier
+                .normalization
+                .calling
+                .borrow(&frontier.typed)
+                .selection(),
+            providers: frontier.provider_selections(),
+
             declaration_metadata: &[],
             entries: &frontier.entries,
             subjects: &[frontier.subject],

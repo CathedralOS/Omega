@@ -821,6 +821,160 @@ pub(crate) mod conformance_blocks {
         }
     }
 
+    /*
+        A named value selects the same public member as a call through that
+        implementation. Resolve it before recording its authored path selections;
+        the separate typed application still owns the complete public signature.
+        Restrict work to this resolution's actual expression frontier.
+    */
+    pub(crate) fn bind_named_implementation_values(
+        program: &mut SymbolResolvedTrees,
+        work: &[symbol_resolved_trees::expression::ExpressionHandle],
+    ) -> Result<(), Diagnostic> {
+        use symbol_resolved_trees::expression::ExpressionNode;
+        use symbols::JoinedPath;
+
+        let mut routing = ProvisionalBodyCallRouting::new(program);
+        let mut selected = Vec::new();
+        for &expression in work {
+            let table = &program.tables.bodies.expressions;
+            let ExpressionNode::Name(path) = table.expression(expression) else {
+                continue;
+            };
+            if path.static_application.is_valid() || !path.head_symbol.is_valid() {
+                continue;
+            }
+            let at = table.source_span(expression);
+            let refuse = |reason: &str| Diagnostic::error(reason).with_source_span(at);
+            let nodes = program.symbols.symbols().nodes();
+            if !nodes.is_valid(path.head_symbol) {
+                return Err(refuse("named implementation value has a stale declaration"));
+            }
+            let root_kind = program.symbols.get(path.head_symbol).kind;
+            if path.symbol.is_valid()
+                || !matches!(root_kind, SymbolKind::Module | SymbolKind::Conformance)
+            {
+                continue;
+            }
+            let names = table.name_path_members(path.members);
+            if names.is_empty() || names.len() != path.members.count() as usize {
+                return Err(refuse("named implementation value has a stale member path"));
+            }
+            let Some((member, namespace_names)) =
+                names.split_last().filter(|(_, prefix)| !prefix.is_empty())
+            else {
+                // A bare namespace remains an ordinary static operand or receiver.
+                continue;
+            };
+            let namespace_source = source::SourceSpan::new(
+                namespace_names[0].source_span().source_id,
+                source::Span::new(
+                    namespace_names[0].source_span().span.start,
+                    namespace_names
+                        .last()
+                        .expect("nonempty namespace")
+                        .source_span()
+                        .span
+                        .end,
+                ),
+            );
+            let namespace = match program
+                .symbols
+                .lookup_top_level_by_name_and_kinds_from_source_matching(
+                    &namespace_names.joined_path(),
+                    &[SymbolKind::Conformance],
+                    namespace_source,
+                    |_| true,
+                ) {
+                SymbolLookup::Unique(namespace) => namespace,
+                SymbolLookup::Ambiguous { .. } => {
+                    return Err(refuse(
+                        "named implementation value has an ambiguous namespace",
+                    ));
+                }
+                SymbolLookup::NotFound if root_kind == SymbolKind::Module => continue,
+                SymbolLookup::NotFound => {
+                    return Err(refuse(
+                        "named implementation value lost its selected namespace",
+                    ));
+                }
+            };
+            // The canonical source lookup owns visibility. The retained root
+            // still owns this path: a same-spelled map under another module or
+            // behind a value binding cannot replace it.
+            let mut namespace_path = Vec::new();
+            let mut current = namespace;
+            for _ in namespace_names {
+                if !nodes.is_valid(current) {
+                    return Err(refuse(
+                        "named implementation namespace has a stale declaration",
+                    ));
+                }
+                namespace_path.push(current);
+                if current == path.head_symbol {
+                    break;
+                }
+                current = program.symbols.namespace_parent(current);
+            }
+            if namespace_path.last() != Some(&path.head_symbol) {
+                return Err(refuse(
+                    "named implementation value changed its selected root",
+                ));
+            }
+            namespace_path.reverse();
+            let namespace_start = namespace_names.len() - namespace_path.len();
+            let binding = routing
+                .named_member_binding(namespace, None, member)
+                .map_err(|reason| refuse(&reason))?;
+            if !nodes.is_valid(binding.original) {
+                return Err(refuse(
+                    "named implementation value differs from its exact requirement row",
+                ));
+            }
+            let member_symbols = table.name_path_member_symbols(path.member_symbols);
+            if member_symbols.len() != names.len()
+                || member_symbols
+                    .iter()
+                    .any(|symbol| symbol.is_valid() && !nodes.is_valid(*symbol))
+                || member_symbols[..namespace_start]
+                    .iter()
+                    .any(|symbol| symbol.is_valid())
+                || member_symbols[namespace_start..namespace_names.len()]
+                    .iter()
+                    .zip(&namespace_path)
+                    .any(|(retained, selected)| retained.is_valid() && retained != selected)
+                || member_symbols
+                    .last()
+                    .is_some_and(|symbol| symbol.is_valid())
+            {
+                return Err(refuse(
+                    "named implementation value has stale or mismatched path selections",
+                ));
+            }
+            namespace_path.push(binding.original);
+            selected.push((
+                expression,
+                path.member_symbols,
+                namespace_start,
+                namespace_path,
+            ));
+        }
+        for (expression, members, start, namespace_path) in selected {
+            let table = &mut program.tables.bodies.expressions;
+            for (position, &declaration) in namespace_path.iter().enumerate() {
+                let offset = u32::try_from(start + position)
+                    .map_err(|_| Diagnostic::error("named implementation path offset overflow"))?;
+                table.set_name_path_member_symbol_at_offset(members, offset, declaration);
+            }
+            let requirement = *namespace_path.last().expect("selected public member");
+            let ExpressionNode::Name(path) = table.expression_mut(expression) else {
+                unreachable!("selected named value changed expression kind");
+            };
+            path.symbol = requirement;
+        }
+        Ok(())
+    }
+
     fn named_implementation_requirement(
         implementation_rows: &[(SymbolHandle, Vec<(DiagnosticName, SymbolHandle)>)],
         site: &super::body_calls::CallSite<'_>,
@@ -1104,6 +1258,17 @@ pub(crate) mod conformance_blocks {
                 } else {
                     return Ok(None);
                 };
+            self.named_member_binding(implementation, explicit_requirement, site.member)
+                .map(Some)
+        }
+
+        fn named_member_binding(
+            &mut self,
+            implementation: SymbolHandle,
+            explicit_requirement: Option<SymbolHandle>,
+            member: &DiagnosticName,
+        ) -> Result<ResolvedAuthoredCallBinding, String> {
+            let program = self.program;
             let rows = &self.prepared_conformance(implementation)?.rows;
             let requirement = if let Some(requirement) = explicit_requirement {
                 requirement
@@ -1111,13 +1276,13 @@ pub(crate) mod conformance_blocks {
                 named_requirement(
                     rows.iter()
                         .map(|row| (&row.requirement_name, row.requirement)),
-                    site.member.as_str(),
+                    member.as_str(),
                 )
                 .map_err(|reason| {
                     format!(
                         "named implementation `{}` {reason} for `{}`",
                         program.symbols.display_path(implementation, "::"),
-                        site.member,
+                        member,
                     )
                 })?
             };
@@ -1132,10 +1297,10 @@ pub(crate) mod conformance_blocks {
                     "named implementation call has ambiguous exact requirement rows".into(),
                 );
             }
-            Ok(Some(ResolvedAuthoredCallBinding {
+            Ok(ResolvedAuthoredCallBinding {
                 selected,
                 original: requirement,
-            }))
+            })
         }
 
         fn prepared_conformance(
@@ -2319,9 +2484,10 @@ pub(crate) mod domain_establishment {
                 traversal.bindings.truncate(previous_binding_count);
                 return result;
             }
-            TypeReference::Slice(_) | TypeReference::ConstExpression(_) | TypeReference::Unit => {
-                return Ok(());
-            }
+            TypeReference::Slice(_)
+            | TypeReference::ConstExpression(_)
+            | TypeReference::Callable { .. }
+            | TypeReference::Unit => return Ok(()),
         };
         for constraint in program
             .tables
@@ -3404,9 +3570,17 @@ pub(crate) mod service_reaches {
             .traits
             .iter()
             .flat_map(|definition| program.trait_machine_signatures(definition.machines))
+            .chain(
+                program
+                    .tables
+                    .declarations
+                    .runtime_callable_contracts
+                    .iter()
+                    .map(|(_, contract)| &contract.signature),
+            )
             .map(|signature| {
                 let pending =
-                    pending_signature_service_reach(signature_service_reaches, signature.symbol);
+                    pending_signature_service_reach(signature_service_reaches, signature.symbol)?;
                 validate_signature_service_reaches(program, &services, signature, pending)?;
                 let (row, authored) = pending.reaches.resolve(
                     &program.symbols,
@@ -3432,15 +3606,45 @@ pub(crate) mod service_reaches {
             .iter()
             .map(|definition| definition.machines)
             .collect::<Vec<_>>();
+        let mut prepared_rows = signature_rows.iter();
+        let mut apply_signature_row = |signature: &mut StateSignature| -> Result<(), Diagnostic> {
+            let (symbol, row, _) = prepared_rows.next().ok_or_else(|| {
+                Diagnostic::error("callable signature has no prepared normalized service-reach row")
+            })?;
+            if *symbol != signature.symbol {
+                return Err(Diagnostic::error(
+                    "normalized service-reach row does not match its exact callable signature",
+                ));
+            }
+            signature.service_reach_row = *row;
+            Ok(())
+        };
         let signature_arena = &mut program.tables.declarations.trait_machine_signatures;
         for span in signature_spans {
             for signature in signature_arena.span_mut_or_empty(span) {
-                signature.service_reach_row = signature_rows
-                    .iter()
-                    .find(|(symbol, _, _)| *symbol == signature.symbol)
-                    .map(|(_, row, _)| *row)
-                    .unwrap_or(ServiceReachRowTable::EMPTY_ROW);
+                apply_signature_row(signature)?;
             }
+        }
+
+        let runtime_contracts = program
+            .tables
+            .declarations
+            .runtime_callable_contracts
+            .iter()
+            .map(|(handle, _)| handle)
+            .collect::<Vec<_>>();
+        for handle in runtime_contracts {
+            let contract = program
+                .tables
+                .declarations
+                .runtime_callable_contracts
+                .get_mut(handle);
+            apply_signature_row(&mut contract.signature)?;
+        }
+        if prepared_rows.next().is_some() {
+            return Err(Diagnostic::error(
+                "normalized service-reach rows outnumber their exact callable signatures",
+            ));
         }
 
         let parameter_authored_rows = normalize_machine_parameter_rows(
@@ -3464,11 +3668,15 @@ pub(crate) mod service_reaches {
     fn pending_signature_service_reach(
         pending: &[PendingSignatureServiceReach],
         symbol: SymbolHandle,
-    ) -> &PendingSignatureServiceReach {
+    ) -> Result<&PendingSignatureServiceReach, Diagnostic> {
         pending
             .iter()
             .find(|entry| entry.symbol == symbol)
-            .expect("resolved state signature retains its pending authored service row")
+            .ok_or_else(|| {
+                Diagnostic::error(
+                    "resolved callable signature has no exact pending authored service-reach row",
+                )
+            })
     }
 
     fn validate_signature_service_reaches(
@@ -3615,6 +3823,15 @@ pub(crate) mod service_reaches {
             );
         }
 
+        roots.extend(
+            program
+                .tables
+                .declarations
+                .runtime_callable_contracts
+                .iter()
+                .map(|(_, contract)| contract.signature.type_parameters),
+        );
+
         let type_parameters = &program.tables.declarations.data_type_parameters;
         let mut spans = Vec::new();
         for root in roots {
@@ -3633,7 +3850,7 @@ pub(crate) mod service_reaches {
                 continue;
             };
             let pending =
-                pending_signature_service_reach(signature_service_reaches, contract.symbol);
+                pending_signature_service_reach(signature_service_reaches, contract.symbol)?;
             validate_signature_service_reaches(program, services, contract, pending)?;
             let (row, authored) = pending.reaches.resolve(
                 &program.symbols,
@@ -4700,6 +4917,11 @@ pub(crate) fn finalize_authored_selections(lowerer: &mut Lowerer) -> Result<(), 
                 .then_some(expression)
         })
         .collect::<Vec<_>>();
+    conformance_blocks::bind_named_implementation_values(
+        &mut lowerer.symbol_resolved_trees,
+        &expression_work,
+    )
+    .map_err(|diagnostic| vec![diagnostic])?;
     authored_selections::finalize_authored_expression_selections(
         &mut lowerer.symbol_resolved_trees,
         &expression_work,
@@ -4808,6 +5030,7 @@ macro_rules! leaf_carrier_type_reference_pattern {
             | symbol_resolved_trees::types::TypeReference::Slice(_)
             | symbol_resolved_trees::types::TypeReference::Generic(_)
             | symbol_resolved_trees::types::TypeReference::ConstExpression(_)
+            | symbol_resolved_trees::types::TypeReference::Callable { .. }
             | symbol_resolved_trees::types::TypeReference::Named { .. }
             | symbol_resolved_trees::types::TypeReference::Unit
     };
@@ -4818,3 +5041,133 @@ pub(super) use leaf_carrier_type_reference_pattern;
 use machine_parameter_requirements::normalize_nominal_machine_parameter_requirements;
 use machine_parameter_requirements::normalize_trait_machine_requirement_arguments;
 use signature_free_requirements::validate_signature_free_requirement_compatibility;
+
+#[cfg(test)]
+mod runtime_callable_reach_tests {
+    use std::sync::Arc;
+    use symbol_resolved_trees::SymbolResolvedTrees;
+
+    fn parse(text: &str, source: source::SourceId) -> syntax_trees::SyntaxTrees {
+        let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
+        tokens_to_syntax_trees::parse_syntax_trees_with_id(source, &tokens).unwrap()
+    }
+
+    fn check_rows(program: &SymbolResolvedTrees) {
+        let contracts = program
+            .tables
+            .declarations
+            .runtime_callable_contracts
+            .iter()
+            .map(|(_, contract)| &contract.signature)
+            .collect::<Vec<_>>();
+        assert_eq!(contracts.len(), 3);
+        let service = program
+            .traits
+            .iter()
+            .find(|declaration| declaration.name.as_str() == "Io")
+            .unwrap()
+            .symbol;
+        let service_id = program.service_reaches.id_for_symbol(service).unwrap();
+        for (position, signature) in contracts.iter().enumerate() {
+            let authored = program
+                .authored_service_reach_rows_for(signature.symbol)
+                .collect::<Vec<_>>();
+            let normalized = program
+                .service_reach_rows
+                .services(signature.service_reach_row);
+            assert!(
+                signature.blocks,
+                "operational metadata remains independent of reach"
+            );
+            match position {
+                0 => {
+                    assert_eq!(
+                        authored.len(),
+                        1,
+                        "explicit reaches none retains writtenness"
+                    );
+                    assert_eq!(authored[0].owner, signature.symbol);
+                    assert!(!authored[0].keyword_source_spans.is_empty());
+                    assert!(authored[0].targets.is_empty());
+                    assert!(normalized.is_empty());
+                }
+                1 => {
+                    assert_eq!(authored.len(), 1);
+                    assert_eq!(authored[0].owner, signature.symbol);
+                    assert_eq!(authored[0].targets.len(), 1);
+                    assert_eq!(authored[0].targets[0].service, service);
+                    assert_eq!(normalized, &[service_id]);
+                }
+                2 => {
+                    assert!(
+                        authored.is_empty(),
+                        "omission must not become authored reaches none"
+                    );
+                    assert!(normalized.is_empty());
+                }
+                _ => unreachable!(),
+            }
+        }
+    }
+
+    #[test]
+    fn runtime_callable_reach_rows_keep_authored_and_omitted_ceilings_across_seeding() {
+        let text = r#"
+boundary trait Io { machine read() reaches none crashes none; }
+machine hold(
+    first: machine() -> u32 reaches none blocks crashes none,
+    second: machine() -> u32 reaches Io blocks crashes none,
+    third: machine() -> u32 blocks crashes none,
+    value: u32
+) {}
+"#;
+        let mut sources = source::SourceMap::default();
+        let source = sources
+            .add("callable/base.omg".into(), text.into())
+            .source_id;
+        let sources = Arc::new(sources);
+        let base = crate::resolve(crate::ResolutionRequest {
+            syntax: parse(text, source),
+            sources: Some(Arc::clone(&sources)),
+            top_level_bindings: Vec::new(),
+            retained_base: None,
+        })
+        .unwrap();
+        check_rows(&base);
+        let original_rows = base.authored_service_reach_rows.clone();
+        let original_contracts = base
+            .tables
+            .declarations
+            .runtime_callable_contracts
+            .iter()
+            .map(|(handle, contract)| (handle, contract.signature.clone()))
+            .collect::<Vec<_>>();
+        let mut extended_sources = sources.as_ref().clone();
+        let added = "machine extension() {}";
+        let extension = extended_sources
+            .add("callable/extension.omg".into(), added.into())
+            .source_id;
+        let resumed = crate::resolve_extension(crate::ExtensionRequest {
+            base: Arc::new(base),
+            base_declarations: Arc::new(parse(text, source)),
+            syntax: parse(added, extension),
+            sources: Arc::new(extended_sources),
+            top_level_bindings: Vec::new(),
+        })
+        .unwrap();
+        check_rows(resumed.trees());
+        assert_eq!(resumed.trees().authored_service_reach_rows, original_rows);
+        for (handle, signature) in original_contracts {
+            assert_eq!(
+                resumed
+                    .trees()
+                    .tables
+                    .declarations
+                    .runtime_callable_contracts
+                    .get(handle)
+                    .signature,
+                signature
+            );
+        }
+    }
+}

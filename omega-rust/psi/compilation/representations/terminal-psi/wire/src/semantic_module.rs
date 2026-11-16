@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 283`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 284`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -652,7 +652,7 @@ pub(crate) mod canonical_order {
             module
                 .evidence_contract_lanes
                 .iter()
-                .map(|lane| (lane.machine, lane.kind, lane.position)),
+                .map(|lane| (lane.owner, lane.kind, lane.position)),
             "evidence contract lanes by machine, kind, and position",
         )?;
         require_increasing(
@@ -1324,7 +1324,7 @@ pub(crate) mod external_provider_wire {
     use super::CodecError;
     use super::machine_declaration_wire;
     use super::wire::{Reader, Writer};
-    use super::wire_fields::{ExternalPackage, Field};
+    use super::wire_fields::{ExternalPackage, Field, Optional};
     use language_semantics::ExternalBindingIdentity;
     use terminal_psi::TerminalIdentityIndex;
     use terminal_psi::{
@@ -1352,6 +1352,10 @@ pub(crate) mod external_provider_wire {
                 ),
             )?);
         }
+        Optional::<crate::service_schema_wire::SealedIntrinsic>::write(
+            writer,
+            &candidate.sealed_intrinsic,
+        )?;
         writer.boolean(candidate.target.is_some());
         if let Some(target) = &candidate.target {
             writer.string("external provider target membership", target)?;
@@ -1404,6 +1408,8 @@ pub(crate) mod external_provider_wire {
         } else {
             None
         };
+        let sealed_intrinsic =
+            Optional::<crate::service_schema_wire::SealedIntrinsic>::read(reader)?;
         let target = if reader.boolean()? {
             Some(reader.string("external provider target membership")?)
         } else {
@@ -1442,6 +1448,7 @@ pub(crate) mod external_provider_wire {
             requirement_package,
             requirement_schema,
             numeric_intrinsic,
+            sealed_intrinsic,
             target,
             realization,
             realization_package,
@@ -1848,7 +1855,7 @@ pub(crate) mod machine_wire {
         ClaimBinding, Field, Id, List, Multiplicity, OptionalId, Path, QualificationSet, Scalar,
         delegated_fields, wire_enum, wire_record,
     };
-    use crate::sections::semantic_module::wire::decode_counted;
+    use crate::semantic_module::wire::decode_counted;
 
     use super::wire_fields::Flag;
     use terminal_psi::{CallAcknowledgement, CallFormation, CallOrigin, CallSite};
@@ -2292,7 +2299,7 @@ pub(crate) mod reach_application_wire {
     use super::CodecError;
     use super::structural_signature_wire::encode_service_ceiling;
     use super::wire::{Reader, Writer};
-    use crate::sections::semantic_module::wire::{
+    use crate::semantic_module::wire::{
         decode_counted, decode_ids, decode_optional_id, encode_optional_id,
     };
     use terminal_psi::TerminalIdentityIndex;
@@ -2957,6 +2964,7 @@ mod external_provider_tests {
         ));
         module.identities = identity_table(8);
         module.external_providers = vec![ExternalProviderConformance {
+            sealed_intrinsic: None,
             requirement: NominalDeclarationIdentity::new(TerminalIdentityIndex(3)),
             requirement_identity: TerminalIdentityIndex(3),
             requirement_package: None,
@@ -4589,7 +4597,7 @@ mod routed_scalar_tests {
 #[cfg(test)]
 pub(crate) mod entry_tests {
 
-    use crate::sections::semantic_module::module_wire::encode_raw;
+    use crate::semantic_module::module_wire::encode_raw;
     use crate::{CodecError, decode_module, encode_module};
     use semantic_vocabulary::{BlockId, BoundaryMachineId, ContractId, EdgeId, MachineId};
     use terminal_psi::{
@@ -4751,46 +4759,11 @@ pub(crate) use wire::{Reader, Writer, decode_canonical, decode_counted};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
-// Marker 275 changes retained compiler-evaluation invocation refusals.
-// Marker 274 adds authenticated hosted-primitive requirement links to the
-// machine contract layout retained by marker 273. A 273 artifact has no such
-// execution link and cannot be read as this declaration grammar.
-// Marker 273 moves a public requirement's declared result lifetime groups
-// from each static method tuple onto the machine contract both selected and
-// rigid calls read. A 272 artifact keeps them on the method tuple instead.
-// Marker 271 retains boundary logical result lifetimes independently of spatial regions.
-// Marker 270 removes executable target-family catalogs and portable family heads.
-// Marker 269 retains complete primitive scalar storage types and predicate
-// establishment completions. Earlier catalogs cannot express either judgment.
-// Marker 268 retains the declared public result lifetime groups separately from body origins.
-// Marker 267 lets the existing record-invariant wrapper retain any record
-// storage shape. Earlier packed-only tag17 bytes cannot supply that nested shape.
-// Marker 266 retains the integer carrier in float semantic conversion identities.
-// A finite catalog ordinal from an earlier artifact cannot express that identity.
-// Marker 265 distinguishes entry field observations from current observations.
-// A 264 artifact cannot be read as that schema. Marker 264 retains each selected
-// call's public contract and closed application
-// separately from its executable body. Marker 263 operational ceilings and call
-// acknowledgements, 262 opaque contexts, 261 write summaries and the earlier
-// numeric and finite-family identities remain part of the same format.
-// Marker 272 retains each structural value's explicit qualification changes
-// (`value as +D`, `value as -D`) and their issuer routes. A 271 artifact has no
-// row a qualified structural parameter could have arrived through.
-// Marker 278 retains typed integer operands in canonical float-result equations,
-// alongside 277's installation-bound service rows. A 277 reader cannot
-// authenticate a from-integer result contract.
-// Marker 279 also retains complete domain access rules and source identities
-// for their subject, cases and fields. A 278 artifact lacks these receiving
-// checks; the prior float and installation data remain part of this format.
-// Marker 280 retains transparent scalar predicate bodies and their own formals.
-// A 279 artifact cannot state declaration-time arithmetic formation for them.
-// Marker 281 adds total integer-result conversion and exact-cast predicates.
-// Marker 282 adds exact integer-to-float predicates.
-// Marker 283 combines those predicates with owned nominal cleanup selections,
-// ordinary owned cleanup actions, and consuming decomposition. Both preceding
-// layouts used 282; neither supplies this combined schema, and borrowed cleanup
-// action tags cannot acquire owned-transfer meaning.
-pub(crate) const FORMAT_MARKER: u16 = 283;
+// Marker 284 combines complete callable/source/installation identities and
+// scalar predicates with owned nominal cleanup and consuming decomposition.
+// Candidate marker282 and incoming marker283 are distinct predecessors; neither
+// supplies this combined schema. Existing callable operation tags stay stable.
+pub(crate) const FORMAT_MARKER: u16 = 284;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
@@ -4814,7 +4787,9 @@ pub fn encode_closed_execution_module(
 ) -> Result<(Vec<u8>, crate::ClosedTypeCatalog), CodecError> {
     scalar_qualification_wire::validate(&module.scalar_qualifications)?;
     validate_canonical_order(module)?;
-    module_wire::encode_raw_closed(module)
+    let (bytes, mut types) = module_wire::encode_raw_closed(module)?;
+    types.record_callables(module);
+    Ok((bytes, types))
 }
 
 /// The complete domain declaration has one encoding for artifact transport
@@ -4876,7 +4851,8 @@ pub fn decode_closed_parts(
         &mut proof_admission::Budget::default(),
     )?;
     dynamic_result_admission::validate_dynamic_descriptor_results(&module)?;
-    let (canonical, types) = module_wire::encode_raw_closed(&module)?;
+    let (canonical, mut types) = module_wire::encode_raw_closed(&module)?;
+    types.record_callables(&module);
     if canonical != bytes {
         return Err(CodecError::NonCanonicalEncoding);
     }
@@ -5866,15 +5842,28 @@ mod format_marker_tests {
     use super::*;
 
     #[test]
+    fn predecessor_vocabularies_are_refused_before_payload_interpretation() {
+        for vocabulary in [136u16, 137, 138, 139, 140, 141] {
+            for payload in [&[][..], &[0xff, 0xff, 0xff][..]] {
+                let mut bytes = MAGIC.to_vec();
+                bytes.extend_from_slice(&FORMAT_MARKER.to_le_bytes());
+                bytes.extend_from_slice(&vocabulary.to_le_bytes());
+                bytes.extend_from_slice(payload);
+                assert!(matches!(
+                    decode_module(&bytes),
+                    Err(CodecError::UnsupportedVocabularyMarker(marker)) if marker == vocabulary
+                ));
+            }
+        }
+    }
+
+    #[test]
     fn legacy_semantic_markers_are_refused_before_payload_interpretation() {
-        // Independent Id and interrupt layouts both used 252 (and earlier
-        // independent Id and relocation layouts both used 251).
-        // Neither body may be interpreted as the combined layout, regardless
-        // of which payload follows their shared legacy marker. Marker 260's finite
-        // float conversion ordinal also cannot supply the retained carrier identity.
+        // Independent predecessors shared markers through 280; main also used 281.
+        // None may enter the combined grammar, regardless of payload.
         for legacy in [
             250u16, 251, 252, 256, 260, 261, 264, 265, 266, 267, 268, 269, 270, 271, 272, 273, 274,
-            275, 276, 277, 278, 279, 280, 281, 282,
+            275, 276, 277, 278, 279, 280, 281, 282, 283,
         ] {
             for payload in [&[][..], &[0xff, 0xff, 0xff][..]] {
                 let mut bytes = MAGIC.to_vec();

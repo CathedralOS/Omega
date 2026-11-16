@@ -57,6 +57,7 @@ impl ClauseBindings for Named {
                 path: selected.to_vec(),
             }),
             ScalarType::IeeeFloat(_) => Err("a floating-point clause observation"),
+            ScalarType::Callable(_) => Err("a machine-value clause observation"),
         }
     }
 

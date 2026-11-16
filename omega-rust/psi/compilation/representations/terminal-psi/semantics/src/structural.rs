@@ -4671,6 +4671,9 @@ pub(crate) mod structural_effect {
                         ))
                         .collect();
                     let field_term = match result.scalar_type {
+                        // The ordinary storage read retains the code value.
+                        // Opaque code has no mathematical field equation.
+                        ScalarType::Callable(_) => return Ok(None),
                         ScalarType::Integer(integer) => {
                             ScalarTerm::integer_field_path(*source, field_path, integer)
                         }
@@ -6607,44 +6610,92 @@ pub(crate) mod zeroed_structural {
         consumed.iter().all(|consumed| *consumed).then_some(leaves)
     }
 
+    /// Judge the actual default bytes of each selected carrier. A byte view
+    /// starts empty; a fixed array contains its literal count of zero octets.
+    pub(crate) fn zeroed_byte_qualifications_hold<'a, 'path>(
+        types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+        domains: impl Iterator<Item = &'a terminal_psi::StructuralDomainDeclaration> + Clone,
+        root: StructuralTypeId,
+        mut qualifications: impl Iterator<
+            Item = (
+                &'path [StructuralPathSegment],
+                semantic_vocabulary::StructuralDomainId,
+            ),
+        >,
+    ) -> bool {
+        qualifications.all(|(path, domain)| {
+            for (index, segment) in path.iter().enumerate() {
+                if let StructuralPathSegment::Case(selected) = segment {
+                    let Some(parent) =
+                        crate::runtime_structural_path_tip(types.clone(), root, &path[..index])
+                    else {
+                        return false;
+                    };
+                    let cases = match &parent.shape {
+                        StructuralTypeShape::Sum { cases }
+                        | StructuralTypeShape::Mixed { cases, .. } => cases,
+                        _ => return false,
+                    };
+                    if cases.first().map(|case| case.id) != Some(*selected) {
+                        return false;
+                    }
+                }
+            }
+            let Some(carrier) = crate::runtime_structural_path_tip(types.clone(), root, path)
+            else {
+                return false;
+            };
+            let Some(predicates) =
+                crate::byte_qualification_predicates_in(domains.clone(), carrier.id, &[domain])
+            else {
+                return false;
+            };
+            match carrier.shape {
+                StructuralTypeShape::ByteSequence(carrier)
+                    if carrier.is_owned_or_shared_byte_carrier() =>
+                {
+                    predicates.holds_for(&[])
+                }
+                StructuralTypeShape::FixedArray {
+                    element,
+                    length: terminal_psi::ArrayExtent::Literal(length),
+                } => {
+                    if !types.clone().any(|ty| {
+                        ty.id == element
+                            && matches!(ty.shape,
+                                StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
+                                    if integer.sign() == IntegerSign::Unsigned
+                                        && integer.bits() == Some(8)
+                                        && !integer.is_address())
+                    }) {
+                        return false;
+                    }
+                    predicates.predicates().all(|predicate| match predicate {
+                        terminal_psi::ByteSequencePredicate::ValidUtf8
+                        | terminal_psi::ByteSequencePredicate::AsciiOnly => true,
+                        terminal_psi::ByteSequencePredicate::NoNul => length == 0,
+                        terminal_psi::ByteSequencePredicate::NonEmpty => length != 0,
+                    })
+                }
+                _ => false,
+            }
+        })
+    }
+
     pub fn zeroed_projected_byte_qualifications_hold<'a>(
         types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
         domains: impl Iterator<Item = &'a terminal_psi::StructuralDomainDeclaration> + Clone,
         root: StructuralTypeId,
         qualifications: &[terminal_psi::StructuralPathQualification],
     ) -> bool {
-        qualifications.iter().all(|row| {
-            let Some(domain) = domains.clone().find(|domain| domain.id == row.domain) else { return false; };
-            // The structural qualification judgment establishes ordinary
-            // memberships. This check only decides predicates from bytes.
-            let Some(predicate) = domain.byte_predicate else { return true; };
-            if row.path.is_empty() { return false; }
-            for (index, segment) in row.path.iter().enumerate() {
-                if let StructuralPathSegment::Case(selected) = segment {
-                    let Some(parent) = crate::runtime_structural_path_tip(types.clone(), root, &row.path[..index]) else { return false; };
-                    let cases = match &parent.shape {
-                        StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => cases,
-                        _ => return false,
-                    };
-                    if cases.first().map(|case| case.id) != Some(*selected) { return false; }
-                }
-            }
-            let Some(carrier) = crate::runtime_structural_path_tip(types.clone(), root, &row.path) else { return false; };
-            let StructuralTypeShape::FixedArray { element, length: terminal_psi::ArrayExtent::Literal(length) } = carrier.shape else { return false; };
-            if !types.clone().any(|ty| ty.id == element && matches!(ty.shape,
-                StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
-                    if integer.sign() == IntegerSign::Unsigned && integer.bits() == Some(8) && !integer.is_address())) {
-                return false;
-            }
-            domain.carrier == carrier.id
-                && domain.content_projection.is_none()
-                && domain.establishment_routes.is_none()
-                && domain.has_no_required_memberships()
-                && match predicate {
-                    terminal_psi::ByteSequencePredicate::ValidUtf8 | terminal_psi::ByteSequencePredicate::AsciiOnly => true,
-                    terminal_psi::ByteSequencePredicate::NoNul => length == 0,
-                    terminal_psi::ByteSequencePredicate::NonEmpty => length != 0,
-                }
-        })
+        qualifications.iter().all(|row| !row.path.is_empty())
+            && zeroed_byte_qualifications_hold(
+                types,
+                domains,
+                root,
+                qualifications
+                    .iter()
+                    .map(|row| (row.path.as_slice(), row.domain)),
+            )
     }
 }

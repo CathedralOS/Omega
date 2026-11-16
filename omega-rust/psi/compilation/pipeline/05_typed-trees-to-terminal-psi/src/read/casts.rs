@@ -333,7 +333,7 @@ impl Program<'_> {
             .find_top_level_by_name_and_kinds_from_source_matching(
                 &declaration,
                 &[symbols::SymbolKind::Machine, symbols::SymbolKind::Operator],
-                source.authored_span().unwrap_or_default(),
+                source.span().unwrap_or_default(),
                 |symbol| {
                     self.typed.symbols.sealed_intrinsic(symbol)
                         == Some(language_core::sealed_intrinsics::SealedIntrinsic::FloatOperationRequirement)
@@ -342,8 +342,8 @@ impl Program<'_> {
             ).ok_or_else(|| unavailable("exact carrier conversion has no canonical declaration"))?;
         let boundary = self.boundary_declaration(id, target)?;
         let signature = self
-            .boundary_signatures
-            .get(boundary)
+            .boundaries
+            .signature(boundary)
             .ok_or_else(|| unavailable("exact carrier conversion lost its signature"))?;
         if signature.parameters.len() != 1
             || operand.result != signature.parameters.first().copied()
@@ -355,9 +355,8 @@ impl Program<'_> {
         Ok(Expression {
             call_context: None,
             kind: ExpressionKind::Call {
-                callee: semantic_vocabulary::TargetMachineCallable::Boundary(boundary),
+                callee: crate::body::CallTarget::Boundary { boundary },
                 required_contract: None,
-                source_call: None,
                 static_reach_binding: None,
                 arguments: vec![operand],
                 designated: None,
@@ -403,7 +402,7 @@ impl Program<'_> {
         // variable its use decides, as a literal takes the lifetime its use
         // requires.
         let elision = std::mem::replace(&mut self.elision, super::regions::Elision::Variables);
-        let result = self.qualified_view_type(id, cast.result_type);
+        let result = self.value_type(id, cast.result_type);
         self.elision = elision;
         let result = result?;
         // A literal lands in the carrier of the type the cast gives it
@@ -491,8 +490,10 @@ impl Program<'_> {
                             },
                             carrier,
                         )?,
-                        // A literal supplies its octets directly to the
-                        // existing byte predicate checks at calls and stores.
+                        // Primitive byte qualifications remain structural
+                        // memberships. Lowering states them on the produced
+                        // descriptor and the receiver checks the actual
+                        // literal bytes; no scalar proof substitutes for it.
                         (ValueType::Record(row, _, _), Some(_))
                             if matches!(operand.kind, ExpressionKind::ByteLiteral(_))
                                 && self.is_view(id, row)?
@@ -547,21 +548,6 @@ impl Program<'_> {
                     }
                 }
                 _ => {
-                    // `("text" as +Utf8) as -Utf8`: the predicate a literal
-                    // was given is judged only where a field stores it
-                    // (`domain_entry`, the `Add` arm), so removing it again
-                    // before any store would leave it judged nowhere.
-                    let mut beneath: &Expression = &operand;
-                    while let ExpressionKind::Requalify(inner) = &beneath.kind {
-                        beneath = inner.as_ref();
-                    }
-                    if !std::ptr::eq(beneath, &operand)
-                        && matches!(beneath.kind, ExpressionKind::ByteLiteral(_))
-                    {
-                        return unserved(
-                            "removal of a byte predicate a quoted literal was just given",
-                        );
-                    }
                     self.domain_removal(id, domain, operand_type)?;
                 }
             }

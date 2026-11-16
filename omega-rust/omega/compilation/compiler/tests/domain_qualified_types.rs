@@ -110,8 +110,14 @@ fn verdicts_beside(name: &str, machines: &str, beside: &[(&str, &str)]) -> Vec<S
                 subjects: &[frontier.subject],
                 purpose: source::DependencyScope::Product,
                 selected: &frontier.selected,
+                calling: frontier
+                    .normalization
+                    .calling
+                    .borrow(&frontier.typed)
+                    .selection(),
+                providers: frontier.provider_selections(),
                 bindings: &frontier.bindings,
-                supplies: &[],
+                supplies: &frontier.supplies,
             },
             terminal_codec::TerminalPublication::Portable,
         )

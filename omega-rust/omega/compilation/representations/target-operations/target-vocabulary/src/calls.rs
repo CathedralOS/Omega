@@ -150,6 +150,7 @@ impl TargetUnitScalarCallArgument {
 pub enum TargetStructuralResultContract {
     Machine(StructuralResultDeclaration),
     Requirement(BoundaryStructuralResultDeclaration),
+    Callable(BoundaryStructuralResultDeclaration),
 }
 
 /// Conservative backing alternatives consumed by descriptor selection. Opaque

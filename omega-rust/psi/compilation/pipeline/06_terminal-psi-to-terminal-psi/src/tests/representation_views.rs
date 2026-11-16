@@ -241,6 +241,8 @@ machine take(bytes: &[u8]) { }";
                 subjects: &[None],
                 purpose: source::DependencyScope::Product,
                 selected: &[],
+                calling: None,
+                providers: None,
                 bindings: &[],
                 supplies: &[],
             },

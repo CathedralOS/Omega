@@ -436,6 +436,7 @@ pub fn validate_boundary(
     let parameter_name = carrier_name(signature.operand);
     let expected_result = result_scalar_type(meaning)?;
     let result_name = match expected_result {
+        ScalarType::Callable(_) => return Err("numeric primitive has a callable result"),
         ScalarType::Boolean => "bool".to_owned(),
         ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => "f32".to_owned(),
         ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64) => "f64".to_owned(),

@@ -51,18 +51,18 @@ use semantic_vocabulary::{
     BlockId, CrashCause, EdgeId, IdTable, InvocationSite, MachineId, ObligationId, Proposition,
     ScalarType, StructuralTypeId, ValueId,
 };
-use terminal_check_tables::edges::{Actual, Callee, Destination};
+use terminal_check_tables::edges::{Actual, Destination};
 use terminal_check_tables::obligations::{CrashSite, ObligationKind};
 use terminal_check_tables::values::ValueOrigin;
 use terminal_check_tables::{
     Checked, Construct, InvocationId, MachineTables, ProgramPoint, Refusal, RefusalReason,
 };
 use terminal_psi::{
-    BoundaryParameterKind, ModuleInvocationInputs, OperationKind, StructuralTypeDeclaration,
+    BoundaryParameterKind, CrashRouteBucket, OperationKind, StructuralTypeDeclaration,
     TerminalMachine, TerminalMachineResult, Terminator, ValueDeclaration,
 };
 
-use crate::{refusal, semantics_refusal};
+use crate::{call_contracts, refusal, semantics_refusal};
 
 fn index(raw: u64) -> usize {
     usize::try_from(raw - 1).unwrap_or(usize::MAX)
@@ -355,10 +355,10 @@ impl Minted<'_> {
     fn call(
         &mut self,
         site: InvocationSite,
-        inputs: ModuleInvocationInputs<'_, semantic_vocabulary::TargetMachineCallable>,
+        inputs: call_contracts::Inputs<'_>,
         before: ProgramPoint,
         concerns: Construct,
-    ) -> Checked<()> {
+    ) -> Checked<Vec<CrashRouteBucket>> {
         let position = self
             .invocations
             .binary_search_by_key(&site, |(site, _, _)| *site)
@@ -376,9 +376,7 @@ impl Minted<'_> {
             Construct::Invocation(invocation),
         )?;
         let concerns = Construct::Invocation(invocation);
-        if row.callee != Callee::Declared(inputs.callee)
-            || row.required_contract != inputs.required_contract
-        {
+        if row.callee != inputs.callee || row.required_contract != inputs.required_contract {
             return Err(self.foreign(concerns, "an invocation row names another callee"));
         }
         // The scalar lane and the record lane, each in argument order.
@@ -424,7 +422,8 @@ impl Minted<'_> {
                 "an invocation row's actuals are not the call's arguments",
             ));
         }
-        let callee = crate::callee(self.module, self.machine, invocation, row)?;
+        let call =
+            call_contracts::invocation(self.module, self.lowered, self.tables, invocation, row)?;
         if !inputs.claim_transfers.is_empty() || !inputs.completion_receipts.is_empty() {
             return Err(refusal(
                 RefusalReason::Unsupported,
@@ -433,20 +432,77 @@ impl Minted<'_> {
                 "call needs its exact claim-transfer and completion-receipt proof",
             ));
         }
-        let clauses = self
-            .module
-            .invocation_requires(callee, row.required_contract)
-            .ok_or_else(|| self.foreign(concerns, "callee has no canonical requires contract"))?
-            .len();
-        if inputs.requirement_obligations.len() != clauses
-            || row.requirements != inputs.requirement_obligations
+        crate::erased_actuals(&call.contract, inputs, self.machine, invocation)?;
+        if inputs.arguments.len() != call.contract.scalar_parameters.len()
+            || inputs.structural_arguments.len() != call.contract.structural_parameters.len()
+            || row.actuals.len() != call.contract.parameter_order.len()
         {
+            return Err(self.foreign(
+                concerns,
+                "call arguments do not cover the complete public signature",
+            ));
+        }
+        for (actual, kind) in row.actuals.iter().zip(call.contract.parameter_order) {
+            if !matches!(
+                (actual, kind),
+                (Actual::Value(_), BoundaryParameterKind::Scalar)
+                    | (Actual::Place(_), BoundaryParameterKind::Structural)
+            ) {
+                return Err(self.foreign(
+                    concerns,
+                    "invocation actual order differs from its public signature",
+                ));
+            }
+        }
+        for (position, actual) in inputs.arguments.iter().enumerate() {
+            if self
+                .tables
+                .values
+                .get(*actual)
+                .map(|value| value.scalar_type)
+                != call.contract.scalar_parameters.scalar_type(position)
+            {
+                return Err(self.foreign(
+                    concerns,
+                    "call argument type differs from its public formal",
+                ));
+            }
+        }
+        for (actual, formal) in inputs
+            .structural_arguments
+            .iter()
+            .zip(call.contract.structural_parameters)
+        {
+            if actual.access != formal.access {
+                return Err(self.foreign(
+                    concerns,
+                    "call structural access differs from its public formal",
+                ));
+            }
+        }
+        let crash_routes = terminal_codec::contract_forms::substituted_routes(
+            call.contract.crash_routes,
+            inputs.arguments,
+        )
+        .map_err(|detail| self.foreign(concerns, &detail))?;
+        if let Some(retained) = inputs.crash_continuations
+            && retained != crash_routes.as_slice()
+        {
+            return Err(self.foreign(
+                concerns,
+                "call crash continuations differ from its public contract",
+            ));
+        }
+        // Bodyless declarations keep their routes on the public header.
+        // The same substituted routes still owe coverage at this occurrence.
+        let clauses = call.contract.requires.len();
+        if inputs.requirements.len() != clauses || row.requirements != inputs.requirements {
             return Err(self.foreign(
                 concerns,
                 "a call does not owe one requirement per requires clause of its callee",
             ));
         }
-        for (clause, obligation) in inputs.requirement_obligations.iter().enumerate() {
+        for (clause, obligation) in inputs.requirements.iter().enumerate() {
             let clause = crate::position(clause, self.machine)?;
             self.claim(
                 *obligation,
@@ -455,7 +511,7 @@ impl Minted<'_> {
             )?;
         }
         self.invocations[position].2 = true;
-        Ok(())
+        Ok(crash_routes)
     }
 }
 
@@ -575,6 +631,33 @@ pub(crate) fn follow_the_lowered_form(
                 before_operation.resize(slot + 1, None);
             }
             before_operation[slot] = Some(before);
+            if let OperationKind::SelectMachine { descriptor } = operation.kind {
+                let descriptor = module.callables.descriptor(descriptor).ok_or_else(|| {
+                    minted.foreign(
+                        Construct::Operation(operation.id),
+                        "machine construction names no descriptor",
+                    )
+                })?;
+                if operation
+                    .result
+                    .as_scalar()
+                    .map(|result| result.scalar_type)
+                    != Some(ScalarType::Callable(descriptor.contract))
+                {
+                    return Err(minted.foreign(
+                        Construct::Operation(operation.id),
+                        "machine construction changes its retained callable type",
+                    ));
+                }
+                if module.callables.contract(descriptor.contract).is_none()
+                    || module.machine(descriptor.machine).is_none()
+                {
+                    return Err(minted.foreign(
+                        Construct::Operation(operation.id),
+                        "machine construction lost its contract or selected code",
+                    ));
+                }
+            }
             if let Some(semantics) =
                 terminal_semantics::proof_bearing_scalar_leaf_semantics(operation, types)
                     .map_err(semantics_refusal(id, operation.id))?
@@ -632,16 +715,8 @@ pub(crate) fn follow_the_lowered_form(
                     before,
                 )?;
             }
-            if let Some(inputs) = operation.declared_invocation() {
-                minted.call(
-                    InvocationSite::Operation(operation.id),
-                    inputs,
-                    before,
-                    Construct::Operation(operation.id),
-                )?;
-            }
-            // A Trapping operation is its own `Trap` site (numeric_values.md,
-            // "Overflow policies").
+            // A trapping primitive owes its own Trap coverage independently
+            // of the same operation's call-contract processing.
             if matches!(operation.kind, OperationKind::TrappingInteger { .. }) {
                 minted.owed(
                     ObligationKind::CrashCoverage {
@@ -652,23 +727,10 @@ pub(crate) fn follow_the_lowered_form(
                     Construct::Operation(operation.id),
                 )?;
             }
-            // A call that may return and crash is a crash site of its own,
-            // owing coverage per cause among its continuations.
-            if let Some(inputs) = operation.declared_invocation() {
-                let routes = match inputs.callee {
-                    terminal_psi::TargetMachineCallable::Machine(_) => inputs.crash_continuations,
-                    terminal_psi::TargetMachineCallable::Boundary(boundary) => {
-                        &module
-                            .boundary_machine(boundary)
-                            .ok_or_else(|| {
-                                minted.foreign(
-                                    Construct::Operation(operation.id),
-                                    "call names an absent boundary",
-                                )
-                            })?
-                            .crash_routes
-                    }
-                };
+            let site = InvocationSite::Operation(operation.id);
+            if let Some(inputs) = call_contracts::inputs_at(lowered, site)? {
+                let routes =
+                    minted.call(site, inputs, before, Construct::Operation(operation.id))?;
                 for bucket in routes {
                     minted.owed(
                         ObligationKind::CrashCoverage {
@@ -699,8 +761,20 @@ pub(crate) fn follow_the_lowered_form(
                 }
             }
         }
-        if let Some((site, inputs)) = block.terminator.declared_invocation() {
-            minted.call(site, inputs, before, Construct::Block(block.id))?;
+        if let Some(site) = call_contracts::terminator_site(&block.terminator)
+            && let Some(inputs) = call_contracts::inputs_at(lowered, site)?
+        {
+            let routes = minted.call(site, inputs, before, Construct::Block(block.id))?;
+            for bucket in routes {
+                minted.owed(
+                    ObligationKind::CrashCoverage {
+                        site: CrashSite::Block(block.id),
+                        cause: bucket.cause,
+                    },
+                    before,
+                    Construct::Block(block.id),
+                )?;
+            }
         }
         for (edge, actions) in block.terminator.cleanup_rosters() {
             for (ordinal, action) in actions.iter().enumerate() {
@@ -723,7 +797,7 @@ pub(crate) fn follow_the_lowered_form(
                             edge,
                             action_ordinal,
                         },
-                        crate::owned_cleanup::inputs(cleanup),
+                        call_contracts::Inputs::declared(crate::owned_cleanup::inputs(cleanup)),
                         ProgramPoint::BeforeCleanup {
                             edge,
                             action_ordinal,
@@ -737,27 +811,12 @@ pub(crate) fn follow_the_lowered_form(
         // cause, or each cause among a no-normal call's continuations.
         let site = CrashSite::Block(block.id);
         let concerns = Construct::Block(block.id);
-        match &block.terminator {
-            Terminator::Crash { cause, .. } => {
-                let kind = ObligationKind::CrashCoverage {
-                    site,
-                    cause: *cause,
-                };
-                minted.owed(kind, before, concerns)?;
-            }
-            Terminator::InvokeNoNormal {
-                crash_continuations,
-                ..
-            } => {
-                for bucket in crash_continuations {
-                    let kind = ObligationKind::CrashCoverage {
-                        site,
-                        cause: bucket.cause,
-                    };
-                    minted.owed(kind, before, concerns)?;
-                }
-            }
-            _ => {}
+        if let Terminator::Crash { cause, .. } = &block.terminator {
+            let kind = ObligationKind::CrashCoverage {
+                site,
+                cause: *cause,
+            };
+            minted.owed(kind, before, concerns)?;
         }
         // Every argument-passing edge owes its destination's predicate at
         // the edge, where the proof can see the selected incoming values.
@@ -837,19 +896,10 @@ pub(crate) fn follow_the_lowered_form(
         .min_by_key(|(_, invocation, _)| *invocation)
     {
         let concerns = Construct::Invocation(*invocation);
-        let row = terminal_check_tables::row(&tables.invocations, *invocation, id, concerns)?;
-        return Err(match row.callee {
-            Callee::Selected { .. } => refusal(
-                RefusalReason::Unsupported,
-                id,
-                concerns,
-                "call through a selector value",
-            ),
-            Callee::Declared(_) => minted.foreign(
-                concerns,
-                "an invocation row restates no call of this machine",
-            ),
-        });
+        return Err(minted.foreign(
+            concerns,
+            "an invocation row restates no call of this machine",
+        ));
     }
     Ok(())
 }

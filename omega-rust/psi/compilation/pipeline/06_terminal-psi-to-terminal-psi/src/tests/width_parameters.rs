@@ -37,7 +37,8 @@ fn widths(kind: &ObligationKind) -> bool {
 }
 
 fn positive(mut form: typed_trees_to_terminal_psi::Elaboration) {
-    let discharged = discharge(&mut form).expect("the actual width roster is valid");
+    let discharged = discharge(&mut form, &mut crate::ProofSearchActivity::default())
+        .expect("the actual width roster is valid");
     let questions = verdicts(&form, &discharged, 1, widths);
     assert_eq!(questions.len(), 1);
     let (question, verdict) = questions[0];
@@ -142,7 +143,7 @@ fn a_positive_width_does_not_authorize_the_wrong_body_guarantee() {
     let mut form = generic(
         "machine entry<const N: u64>(value: u<N>) -> u<N> requires N > 0u64 ensures result != value crashes none { value }",
     );
-    let discharged = discharge(&mut form).unwrap();
+    let discharged = discharge(&mut form, &mut crate::ProofSearchActivity::default()).unwrap();
     assert!(
         verdicts(&form, &discharged, 1, widths)
             .iter()
@@ -167,7 +168,7 @@ fn an_ordinary_const_value_is_not_an_integer_width_use() {
             .iter()
             .all(|(_, row)| !widths(&row.kind))
     );
-    let discharged = discharge(&mut form).unwrap();
+    let discharged = discharge(&mut form, &mut crate::ProofSearchActivity::default()).unwrap();
     assert!(
         discharged
             .machines

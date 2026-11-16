@@ -1090,6 +1090,9 @@ mod traversal {
                     }
                 }
                 ExpressionNode::Call(call) => {
+                    if call.callee.is_valid() {
+                        self.assign_expression_table_symbols(call.callee);
+                    }
                     for argument in &call.machine_arguments {
                         self.assign_static_argument_type_symbols(argument);
                     }

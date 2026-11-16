@@ -68,14 +68,17 @@ use crate::{Discharged, arrivals, decide, goal, push_knowledge, refusal};
 /// The declared and inferred predicates available at block entries. Both
 /// ordinary discharge and private-input inference prepare the same rows;
 /// `check` verifies their arrivals before downstream obligations use them.
-pub(crate) fn prepare(
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn prepare<'a>(
     lowered: &TerminalMachine,
     id: MachineId,
     tables: &mut MachineTables,
     graph: &Graph,
     context: &PropositionContext,
     invariants: &[ScalarBlockInvariant],
-    storage: &crate::places::Storage<'_>,
+    storage: &crate::places::Storage<'a>,
+    references: &mut terminal_semantics::descriptor_results::DescriptorAnalysis<'a>,
+    activity: &mut crate::ProofSearchActivity,
 ) -> Checked<Vec<(BlockId, Proposition)>> {
     let mut declared = Vec::new();
     for invariant in invariants.iter().filter(|row| row.machine == id) {
@@ -96,6 +99,7 @@ pub(crate) fn prepare(
         let predicate = crate::substitute(
             &invariant.predicate,
             &mut storage.at_join(
+                references,
                 tables,
                 &header.structural_parameters,
                 &arguments,
@@ -115,7 +119,7 @@ pub(crate) fn prepare(
         );
         declared.push((invariant.header, predicate));
     }
-    infer(lowered, id, tables, graph, context)?;
+    infer(lowered, id, tables, graph, context, activity)?;
     Ok(declared)
 }
 
@@ -278,6 +282,7 @@ pub(crate) fn infer(
     tables: &mut MachineTables,
     graph: &Graph,
     context: &PropositionContext,
+    activity: &mut crate::ProofSearchActivity,
 ) -> Checked<()> {
     for &block in graph.reverse_postorder()? {
         let join = &lowered.blocks[usize::try_from(block.get() - 1).expect("dense block position")];
@@ -307,7 +312,9 @@ pub(crate) fn infer(
                 skip = true;
                 break;
             };
-            let bounds = argument_bounds(id, tables, graph, context, join, at_edge, arguments);
+            let bounds = argument_bounds(
+                id, tables, graph, context, join, at_edge, arguments, activity,
+            );
             disjuncts.push(describe(
                 lowered,
                 id,
@@ -367,6 +374,7 @@ pub(crate) fn infer(
 /// Every arrival proves it again with the rest of the predicate. A bound that
 /// is only the carrier's, or an arrival whose hypotheses cannot be read, adds
 /// nothing.
+#[allow(clippy::too_many_arguments)]
 fn argument_bounds(
     id: MachineId,
     tables: &MachineTables,
@@ -375,6 +383,7 @@ fn argument_bounds(
     join: &terminal_psi::Block,
     at_edge: ProgramPoint,
     arguments: &[ValueId],
+    activity: &mut crate::ProofSearchActivity,
 ) -> Vec<Proposition> {
     let mut bounds = Vec::new();
     if !join
@@ -390,8 +399,13 @@ fn argument_bounds(
     let Ok(known) = crate::hypotheses(graph, tables, id, identity, at_edge) else {
         return bounds;
     };
-    let mut prover =
-        crate::prove::Prover::new(context, &known.assumptions, &known.axioms, &tables.values);
+    let mut prover = crate::prove::Prover::new(
+        context,
+        &known.assumptions,
+        &known.axioms,
+        &tables.values,
+        activity,
+    );
     for (parameter, argument) in join.parameters.iter().zip(arguments) {
         let ScalarType::Integer(integer) = parameter.scalar_type else {
             continue;
@@ -548,6 +562,9 @@ fn describe(
         .zip(join.parameters.iter().map(|parameter| parameter.id))
         .collect();
     for (parameter, argument) in join.parameters.iter().zip(arguments) {
+        if matches!(parameter.scalar_type, ScalarType::Callable(_)) {
+            continue;
+        }
         let binding = Proposition::Equal(
             ScalarTerm::value(parameter.id, parameter.scalar_type),
             ScalarTerm::value(*argument, parameter.scalar_type),
@@ -629,14 +646,16 @@ fn describe(
 /// The goal of `ArrivalInvariant { edge }`: its destination's predicate with
 /// each parameter replaced by the argument this edge passes. `Truth` when the
 /// destination has no predicate.
-pub(crate) fn arrival_goal(
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn arrival_goal<'a>(
     lowered: &TerminalMachine,
     id: MachineId,
     obligation: ObligationId,
     edge: EdgeId,
     tables: &MachineTables,
-    storage: &crate::places::Storage<'_>,
+    storage: &crate::places::Storage<'a>,
     invariants: &[ScalarBlockInvariant],
+    references: &mut terminal_semantics::descriptor_results::DescriptorAnalysis<'a>,
 ) -> Checked<Proposition> {
     let concerns = Construct::Obligation(obligation);
     let (target, arguments, structural) = storage.arrival(edge, concerns)?;
@@ -678,6 +697,7 @@ pub(crate) fn arrival_goal(
         .zip(arguments.iter().copied())
         .collect();
     let mut bindings = storage.at_join(
+        references,
         tables,
         &join.structural_parameters,
         structural,
@@ -747,10 +767,12 @@ pub(crate) struct Machine<'a> {
 /// every arrival is decided again, since one join's predicate may be a fact
 /// on another's arrival. Each round weakens at least one predicate, so this
 /// ends. Returns the weakened joins.
-pub(crate) fn check(
-    machine: &Machine<'_>,
+pub(crate) fn check<'a>(
+    machine: &Machine<'a>,
     tables: &mut MachineTables,
     decided: &mut [Option<Checked<Discharged>>],
+    activity: &mut crate::ProofSearchActivity,
+    references: &mut terminal_semantics::descriptor_results::DescriptorAnalysis<'a>,
 ) -> Checked<Vec<BlockId>> {
     let arrivals: Vec<(usize, ObligationId, EdgeId, ProgramPoint)> = tables
         .obligations
@@ -771,7 +793,7 @@ pub(crate) fn check(
             let verdict = goal(
                 machine.module,
                 machine.lowered,
-                machine.storage,
+                (machine.storage, references),
                 machine.id,
                 obligation,
                 &kind,
@@ -789,6 +811,7 @@ pub(crate) fn check(
                     point,
                     goal,
                     machine.unreached,
+                    activity,
                 )
                 .map(Discharged::Certificate)
             });

@@ -281,7 +281,20 @@ impl TerminalNativeRealizationProposal {
                     .map_err(|reason| vec![Diagnostic::error(reason)])?;
                 direct.push(leaf.plan.clone());
                 if let backend_plan::DirectBoundaryExecution::Foreign(binding) = &leaf.execution {
-                    external_bindings.push(binding.clone()?);
+                    let binding = binding.clone()?;
+                    let mut prior = external_bindings.iter().filter(|row| {
+                        row.target_name == binding.target_name
+                            && row.requirement_identity == binding.requirement_identity
+                    });
+                    match (prior.next(), prior.next()) {
+                        (Some(previous), None) if previous == &binding => {}
+                        (None, None) => external_bindings.push(binding),
+                        _ => {
+                            return Err(vec![Diagnostic::error(
+                                "direct boundary has competing retained external bindings",
+                            )]);
+                        }
+                    }
                 }
             }
         }

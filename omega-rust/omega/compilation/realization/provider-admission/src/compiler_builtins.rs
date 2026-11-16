@@ -514,7 +514,7 @@ fn validate_access_schema(
         StructuralAccess::MutableBorrow => "ref-mut",
         _ => return Err(invalid()),
     };
-    let scalar = primitive_identity(closed_scalar);
+    let (scalar, logical_bits) = primitive_access_carrier(closed_scalar)?;
     let mut parameters = vec![format!("{borrow}({accessor})")];
     let name = match demand.operation {
         TerminalAccessorKind::Read => "read",
@@ -594,12 +594,6 @@ fn validate_access_schema(
         .get(demand.access_slot as usize)
         .ok_or_else(invalid)?;
     let descriptor = placement.placement.access().field_descriptor(entry.key());
-    let logical_bits = match closed_scalar {
-        ClosedScalarType::Boolean => 8,
-        ClosedScalarType::Integer(integer) => u64::from(integer.bits()),
-        ClosedScalarType::IeeeFloat(IeeeFloatFormat::Binary32) => 32,
-        ClosedScalarType::IeeeFloat(IeeeFloatFormat::Binary64) => 64,
-    };
     let complete = if let Some(descriptor) = descriptor {
         matches!(descriptor.logical_extent().fragments(), [fragment]
         if fragment.source_bit_offset() == 0
@@ -620,23 +614,33 @@ fn validate_access_schema(
     Ok(())
 }
 
-fn primitive_identity(scalar: ClosedScalarType) -> String {
-    let name = match scalar {
-        ClosedScalarType::Boolean => "bool".to_owned(),
-        ClosedScalarType::Integer(integer) if integer.is_address() => "addr".to_owned(),
-        ClosedScalarType::Integer(integer) => format!(
-            "{}{}",
-            if integer.sign() == IntegerSign::Signed {
-                "i"
-            } else {
-                "u"
-            },
-            integer.bits()
+fn primitive_access_carrier(scalar: ClosedScalarType) -> Result<(String, u64), String> {
+    let (name, bits) = match scalar {
+        ClosedScalarType::Boolean => ("bool".to_owned(), 8),
+        ClosedScalarType::Integer(integer) if integer.is_address() => {
+            ("addr".to_owned(), u64::from(integer.bits()))
+        }
+        ClosedScalarType::Integer(integer) => (
+            format!(
+                "{}{}",
+                if integer.sign() == IntegerSign::Signed {
+                    "i"
+                } else {
+                    "u"
+                },
+                integer.bits()
+            ),
+            u64::from(integer.bits()),
         ),
-        ClosedScalarType::IeeeFloat(IeeeFloatFormat::Binary32) => "f32".to_owned(),
-        ClosedScalarType::IeeeFloat(IeeeFloatFormat::Binary64) => "f64".to_owned(),
+        ClosedScalarType::IeeeFloat(IeeeFloatFormat::Binary32) => ("f32".to_owned(), 32),
+        ClosedScalarType::IeeeFloat(IeeeFloatFormat::Binary64) => ("f64".to_owned(), 64),
+        ClosedScalarType::Callable(_) => {
+            return Err(
+                "native placed scalar access cannot carry local callable descriptors".to_owned(),
+            );
+        }
     };
-    format!("named(name({name}))")
+    Ok((format!("named(name({name}))"), bits))
 }
 
 fn require_access_backing_origins(
@@ -878,7 +882,9 @@ mod closed_width_tests {
             (ClosedIntegerType::address(48).unwrap(), "named(name(addr))"),
         ] {
             assert_eq!(
-                primitive_identity(ClosedScalarType::Integer(integer)),
+                primitive_access_carrier(ClosedScalarType::Integer(integer))
+                    .unwrap()
+                    .0,
                 expected
             );
         }

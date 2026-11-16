@@ -92,46 +92,44 @@ pub(crate) mod build_selections {
         BuildOperation, BuildSelectionRequest, RootBindingOperand,
     };
     use typed_trees::expression::{
-        BuildSelectionCall, ExpressionHandle, ExpressionNode, TableCallExpression, TableNamePath,
+        BuildSelectionCall, BuildSelectionInput, BuildSelectionInputs, BuildSelectionPhase,
+        ExpressionHandle, ExpressionNode, TableCallExpression, TableNamePath,
     };
 
     pub(crate) fn lower(
         source: &symbol_resolved_trees::SymbolResolvedTrees,
         target: &mut typed_trees::TypedTrees,
         request: typed_trees::expression::BuildSelectionRequest,
+        inputs: Vec<BuildSelectionInput>,
+        lexical_owner: symbols::SymbolHandle,
         mut arguments: Vec<ExpressionHandle>,
         acknowledgement: language_semantics::CallOperationalAcknowledgement,
     ) -> Result<ExpressionHandle, Diagnostic> {
         let source_span = request.source_span();
-        let mut operand_selections = Vec::new();
-        for operand in request.designated_operands() {
-            for (_, selection) in operand
-                .application
-                .as_ref()
-                .into_iter()
-                .flat_map(|graph| graph.selections.iter())
-            {
-                let kind = selection.kind.ok_or_else(|| {
-                    Diagnostic::error("designated operand lost its authored selection kind")
-                })?;
-                operand_selections.push(
-                    target
-                        .authored_declaration_selections()
-                        .source_coordinate_occurrence(
-                            selection.source_span,
-                            selection.exposure,
-                            kind,
-                        )
-                        .map_err(|reason| {
-                            Diagnostic::error(format!(
-                            "Build operand cannot rejoin its {kind:?} selection ({:?}): {reason}",
-                            selection.exposure
-                        ))
-                        .with_source_span(selection.source_span)
-                        })?,
+        if !source.symbols.symbols().nodes().is_valid(lexical_owner)
+            || source.symbols.get(lexical_owner).kind != symbols::SymbolKind::Machine
+        {
+            return Err(
+                Diagnostic::error("Build selection has no exact lexical machine owner")
+                    .with_source_span(source_span),
+            );
+        }
+        for input in &inputs {
+            let selection = target
+                .authored_declaration_selections()
+                .get(input.occurrence)
+                .ok_or_else(|| Diagnostic::error("Build input lost its exact ledger occurrence"))?;
+            if selection.target() != input.target {
+                return Err(
+                    Diagnostic::error("Build input changes its captured ledger target")
+                        .with_source_span(selection.source_span()),
                 );
             }
         }
+        let operand_selections = inputs
+            .iter()
+            .map(|input| input.occurrence)
+            .collect::<Vec<_>>();
         use language_semantics::build_requests::SelectionProtocolOperation as Protocol;
         let operation = match (&request, arguments.len()) {
             (BuildSelectionRequest::ProviderReadiness(_), 1) => Protocol::AwaitProvider,
@@ -254,6 +252,7 @@ pub(crate) mod build_selections {
                         operational_acknowledgement| {
             let arguments = table.insert_expression_handles(arguments);
             let expression = table.insert(ExpressionNode::Call(TableCallExpression {
+                runtime_call: None,
                 authored_call_selection: None,
                 authored_call_binding: None,
                 authored_machine_application: Default::default(),
@@ -303,7 +302,7 @@ pub(crate) mod build_selections {
                 Default::default(),
             );
         }
-        arguments[0] = emit(
+        let prepared = emit(
             preparation.symbol,
             crate::lowerer::name::lower_name(&preparation.name),
             receiver,
@@ -311,6 +310,7 @@ pub(crate) mod build_selections {
             prepared_selection,
             Default::default(),
         );
+        arguments[0] = prepared;
         let committed = emit(
             commit.symbol,
             crate::lowerer::name::lower_name(&commit.name),
@@ -319,6 +319,28 @@ pub(crate) mod build_selections {
             committed_selection,
             acknowledgement,
         );
+        table
+            .retain_build_selection_inputs(
+                prepared,
+                BuildSelectionInputs {
+                    request: prepared_selection,
+                    lexical_owner,
+                    phase: BuildSelectionPhase::Preparation,
+                    inputs: Vec::new(),
+                },
+            )
+            .map_err(|reason| Diagnostic::error(reason).with_source_span(source_span))?;
+        table
+            .retain_build_selection_inputs(
+                committed,
+                BuildSelectionInputs {
+                    request: committed_selection,
+                    lexical_owner,
+                    phase: BuildSelectionPhase::Commit,
+                    inputs,
+                },
+            )
+            .map_err(|reason| Diagnostic::error(reason).with_source_span(source_span))?;
         table.attach_authored_selection_occurrences(committed, operand_selections);
         Ok(committed)
     }
@@ -580,30 +602,43 @@ pub(crate) mod capture_product_operands {
     };
     use symbols::SymbolHandle;
 
+    pub(crate) struct Captured {
+        pub graph: ProductStaticOperandGraph,
+        pub inputs: Vec<typed_trees::expression::BuildSelectionInput>,
+    }
+
     pub(crate) fn capture(
         source: &SymbolResolvedTrees,
         typed: &mut typed_trees::TypedTrees,
         exposure: Option<SelectionExposure>,
         occurrences: &[language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId],
         argument: &source_expression::StaticMachineArgument,
-    ) -> Result<ProductStaticOperandGraph, Diagnostic> {
+        argument_ordinal: u32,
+    ) -> Result<Captured, Diagnostic> {
         let mut capture = Capture {
             source,
             typed,
             exposure,
             graph: ProductStaticOperandGraph::default(),
+            inputs: Vec::new(),
+            argument_ordinal,
             expressions: Vec::new(),
             captures: Vec::new(),
             active: Vec::new(),
         };
         capture.graph.root = capture.operand(argument, occurrences, true)?;
-        Ok(capture.graph)
+        Ok(Captured {
+            graph: capture.graph,
+            inputs: capture.inputs,
+        })
     }
     struct Capture<'a> {
         source: &'a SymbolResolvedTrees,
         typed: &'a mut typed_trees::TypedTrees,
         exposure: Option<SelectionExposure>,
         graph: ProductStaticOperandGraph,
+        inputs: Vec<typed_trees::expression::BuildSelectionInput>,
+        argument_ordinal: u32,
         expressions: Vec<(
             source_expression::ExpressionHandle,
             Handle<ProductOperandExpression>,
@@ -628,25 +663,23 @@ pub(crate) mod capture_product_operands {
             let selection = ledger.get(occurrence).ok_or_else(|| {
                 Diagnostic::error("original static input retains an unknown selection")
             })?;
-            let rejoined = ledger
-                .source_coordinate_occurrence(
-                    selection.source_span(),
-                    selection.exposure(),
-                    selection.kind(),
-                )
-                .map_err(|reason| {
-                    Diagnostic::error(format!(
-                        "captured static operand cannot rejoin its {:?} selection ({:?}): {reason}",
-                        selection.kind(),
-                        selection.exposure()
-                    ))
-                    .with_source_span(selection.source_span())
+            let retained = self
+                .typed
+                .authored_declaration_selections()
+                .get(occurrence)
+                .ok_or_else(|| {
+                    Diagnostic::error("captured static operand lost its typed selection occurrence")
                 })?;
-            if rejoined != occurrence {
-                return Err(Diagnostic::error(
-                    "original static input changed its exact selection attachment",
-                ));
-            }
+            self.inputs
+                .push(typed_trees::expression::BuildSelectionInput {
+                    occurrence,
+                    argument_ordinal: self.argument_ordinal,
+                    resolved_target: retained
+                        .target()
+                        .as_resolved()
+                        .map(|target| target.selected_symbol()),
+                    target: retained.target(),
+                });
             Ok(self.graph.selections.insert(ProductOperandSelection {
                 source_span: selection.source_span(),
                 exposure: selection.exposure(),
@@ -706,39 +739,34 @@ pub(crate) mod capture_product_operands {
             {
                 return Ok(Handle::invalid());
             }
-            let first = argument.path.first().expect("nonempty path").source_span();
-            let last = argument.path.last().expect("nonempty path").source_span();
-            if first.source_id != last.source_id {
+            let occurrence = argument.authored_selection.ok_or_else(|| {
+                Diagnostic::error(
+                    "original static input has no exact argument selection attachment",
+                )
+            })?;
+            if !occurrences.contains(&occurrence) {
                 return Err(Diagnostic::error(
-                    "original static input path crosses source owners",
+                    "static input attachment belongs to another original call",
                 ));
             }
-            let span = source::SourceSpan::new(
-                first.source_id,
-                source::Span::new(first.span.start, last.span.end),
-            );
-            let mut matching = occurrences.iter().copied().filter(|occurrence| {
-                self.source
-                    .authored_declaration_selections()
-                    .get(*occurrence)
-                    .is_some_and(|selection| {
-                        selection.source_span() == span
-                            && matches!(selection.kind(), Kind::StaticArgument | Kind::Conformance)
-                    })
-            });
-            let occurrence = matching.next().ok_or_else(|| {
-                Diagnostic::error(
-                    "original static input has no exact original-call selection attachment",
-                )
-                .with_source_span(span)
-            })?;
-            if matching.next().is_some() {
+            let selection = self
+                .source
+                .authored_declaration_selections()
+                .get(occurrence)
+                .ok_or_else(|| {
+                    Diagnostic::error("static input attachment has no current ledger row")
+                })?;
+            if !matches!(selection.kind(), Kind::StaticArgument | Kind::Conformance) {
                 return Err(Diagnostic::error(
-                    "original static input has ambiguous original-call selection attachments",
-                )
-                .with_source_span(span));
+                    "static input attachment has another selection kind",
+                ));
             }
-            self.retain_coordinate(occurrence, false)
+            let selection = self.retain_coordinate(occurrence, false)?;
+            self.inputs
+                .last_mut()
+                .expect("retained static input row")
+                .resolved_target = argument.authored_selection_target;
+            Ok(selection)
         }
         fn declaration(&self, symbol: SymbolHandle) -> Option<source::SourceSpan> {
             symbol
@@ -924,6 +952,9 @@ pub(crate) mod capture_product_operands {
             Source::ConstExpression(value) => {
                 ProductOperandType::ConstExpression(self.expression(value.expression)?)
             }
+            Source::Callable { .. } => {
+                return Err(Diagnostic::error("captured Product static type cannot yet retain a complete scoped callable contract"));
+            }
             Source::AliasUse { .. } => {
                 return Err(Diagnostic::error("captured Product static type cannot yet retain transparent alias application obligations"));
             }
@@ -997,26 +1028,23 @@ pub(crate) mod capture_product_operands {
                     )
                     .with_source_span(source.tables.bodies.expressions.source_span(expression))
                 })?;
-                let rejoined = ledger
-                    .source_coordinate_occurrence(
-                        selection.source_span(),
-                        selection.exposure(),
-                        selection.kind(),
-                    )
-                    .map_err(|reason| {
-                        Diagnostic::error(format!(
-                        "captured static operand cannot rejoin its {:?} selection ({:?}): {reason}",
-                        selection.kind(),
-                        selection.exposure()
-                    ))
-                    .with_source_span(selection.source_span())
+                let retained = self
+                    .typed
+                    .authored_declaration_selections()
+                    .get(occurrence)
+                    .ok_or_else(|| {
+                        Diagnostic::error("captured expression lost its typed selection occurrence")
                     })?;
-                if rejoined != occurrence {
-                    return Err(Diagnostic::error(
-                    "designated source expression selection changed its exact ledger association",
-                )
-                .with_source_span(selection.source_span()));
-                }
+                self.inputs
+                    .push(typed_trees::expression::BuildSelectionInput {
+                        occurrence,
+                        argument_ordinal: self.argument_ordinal,
+                        resolved_target: retained
+                            .target()
+                            .as_resolved()
+                            .map(|target| target.selected_symbol()),
+                        target: retained.target(),
+                    });
                 selections.push(ProductOperandSelection {
                     source_span: selection.source_span(),
                     exposure: selection.exposure(),
@@ -1317,6 +1345,7 @@ pub(crate) mod construction_destinations {
 
     struct ConstructionCall {
         target: SymbolHandle,
+        runtime_contract: Option<typed_trees::callable_values::RuntimeCallableContractHandle>,
         static_arguments: Vec<StaticMachineArgument>,
         arguments: Vec<ExpressionHandle>,
     }
@@ -1368,6 +1397,7 @@ pub(crate) mod construction_destinations {
                     collect_call_destinations(
                         program,
                         call.target_symbol,
+                        call.runtime_call.map(|binding| binding.contract),
                         &call.machine_arguments,
                         arguments,
                         &mut calls,
@@ -1412,15 +1442,13 @@ pub(crate) mod construction_destinations {
                         }
                         StatementNode::Assignment(assignment) => {
                             if needs_destination(program, assignment.value) {
-                                // A literal assigned to a field or array element
-                                // needs that destination's declared type. Bounds,
-                                // access and establishment are checked later. An
-                                // unavailable destination remains this machine's
-                                // deferred request rather than stopping its siblings.
+                                // One declared-place query supplies the exact
+                                // constructor application. Bounds, access and
+                                // establishment remain lowered judgments.
                                 match assigned_place_type(program, state, assignment.target) {
-                                    Some(receiving_type) => destinations.push((
+                                    Some(receiving) => destinations.push((
                                         assignment.value,
-                                        receiving_type,
+                                        receiving,
                                         machine.symbol,
                                     )),
                                     None => {
@@ -1436,6 +1464,7 @@ pub(crate) mod construction_destinations {
                         StatementNode::Call(call) => collect_call_destinations(
                             program,
                             call.target_symbol,
+                            call.runtime_call.map(|binding| binding.contract),
                             &call.machine_arguments,
                             program.statement_table.expression_handles(call.arguments),
                             &mut calls,
@@ -1464,6 +1493,7 @@ pub(crate) mod construction_destinations {
                                         collect_call_destinations(
                                             program,
                                             path.symbol,
+                                            None,
                                             &[],
                                             program.statement_table.expression_handles(*arguments),
                                             &mut calls,
@@ -1490,11 +1520,19 @@ pub(crate) mod construction_destinations {
             );
         }
         for call in calls {
-            if !call.target.is_valid() {
+            if !call.target.is_valid() && call.runtime_contract.is_none() {
                 pending_destinations.extend(call.arguments);
                 continue;
             }
-            let binders = program.declaration_type_parameters(call.target).to_vec();
+            let binders = if let Some(contract) = call.runtime_contract {
+                program
+                    .state_signature_type_parameters(
+                        &program.runtime_callable_contracts.get(contract).signature,
+                    )
+                    .to_vec()
+            } else {
+                program.declaration_type_parameters(call.target).to_vec()
+            };
             if binders.len() != call.static_arguments.len() {
                 continue;
             }
@@ -1505,11 +1543,19 @@ pub(crate) mod construction_destinations {
                     .map_err(Diagnostic::error)?;
                 substitutions.push((binder.symbol, actual));
             }
-            let Some(parameters) =
-                crate::typing_queries::call_target_parameters(program, call.target)
-            else {
-                // `collect_call_destinations` keeps only calls with an
-                // argument that needs its parameter's type.
+            let parameters = if let Some(contract) = call.runtime_contract {
+                Some(
+                    program.state_signature_parameters(
+                        &program
+                            .declared_callable_contract(contract)
+                            .map_err(Diagnostic::error)?
+                            .signature,
+                    ),
+                )
+            } else {
+                crate::typing_queries::call_target_parameters(program, call.target)?
+            };
+            let Some(parameters) = parameters else {
                 if let Some(argument) = call
                     .arguments
                     .iter()
@@ -1708,6 +1754,7 @@ pub(crate) mod construction_destinations {
     fn collect_call_destinations(
         program: &TypedTrees,
         target_symbol: SymbolHandle,
+        runtime_contract: Option<typed_trees::callable_values::RuntimeCallableContractHandle>,
         static_arguments: &[StaticMachineArgument],
         arguments: &[ExpressionHandle],
         calls: &mut Vec<ConstructionCall>,
@@ -1720,6 +1767,7 @@ pub(crate) mod construction_destinations {
         }
         calls.push(ConstructionCall {
             target: target_symbol,
+            runtime_contract,
             static_arguments: static_arguments.to_vec(),
             arguments: arguments.to_vec(),
         });
@@ -1728,7 +1776,11 @@ pub(crate) mod construction_destinations {
     fn needs_destination(program: &TypedTrees, value: ExpressionHandle) -> bool {
         value.is_valid()
             && match program.expression_table.expression(value) {
-                ExpressionNode::StructLiteral(_)
+                ExpressionNode::Name(_) => {
+                    crate::runtime_callables::named_value_needs_destination(program, value)
+                }
+                ExpressionNode::MachineValue(_)
+                | ExpressionNode::StructLiteral(_)
                 | ExpressionNode::Call(_)
                 | ExpressionNode::String(_)
                 | ExpressionNode::ArrayLiteral(_)
@@ -1917,6 +1969,14 @@ pub(crate) mod construction_destinations {
             destination: TypeReferenceHandle,
             mut lifetime_owner: SymbolHandle,
         ) -> Result<bool, Diagnostic> {
+            if crate::runtime_callables::prepare_named_value(
+                program,
+                value,
+                destination,
+                lifetime_owner,
+            )? {
+                return Ok(true);
+            }
             if program.expression_table.call_node(value).is_some() {
                 self.calls.select(program, value, Some(destination))?;
                 return Ok(true);
@@ -2084,6 +2144,427 @@ pub(crate) mod construction_destinations {
     #[cfg(test)]
     mod tests {
         use super::*;
+
+        #[test]
+        fn ordinary_named_call_arguments_need_no_constructor_signature() {
+            use symbols::{
+                BuiltinFunction, SymbolKind, SymbolNameRef, SymbolTableBuilder,
+                builtin_function_symbols,
+            };
+            use typed_trees::expression::{TableCallExpression, TableNamePath};
+
+            let mut symbols = SymbolTableBuilder::default();
+            let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+            let declarations = symbols.insert_children(
+                root,
+                builtin_function_symbols().into_iter().chain([
+                    (SymbolKind::Parameter, SymbolNameRef::Static("parameter")),
+                    (SymbolKind::Local, SymbolNameRef::Static("local")),
+                    (SymbolKind::Field, SymbolNameRef::Static("field")),
+                ]),
+            );
+            let mut program = TypedTrees {
+                symbols: symbols.finish(),
+                ..Default::default()
+            };
+            let intrinsic = program
+                .symbols
+                .builtin_function_symbol(BuiltinFunction::IntegerEmbed)
+                .unwrap();
+            let mut arguments = Vec::new();
+            for (symbol, name) in declarations.handles().skip(BuiltinFunction::COUNT).zip([
+                "parameter",
+                "local",
+                "field",
+            ]) {
+                let mut members = Default::default();
+                program
+                    .expression_table
+                    .push_name_path_member(&mut members, name.into());
+                let value = program
+                    .expression_table
+                    .insert(ExpressionNode::Name(TableNamePath {
+                        members,
+                        symbol,
+                        head_symbol: symbol,
+                        ..Default::default()
+                    }));
+                arguments.push(value);
+                let operands = program.expression_table.insert_expression_handles([value]);
+                program
+                    .expression_table
+                    .insert(ExpressionNode::Call(TableCallExpression {
+                        target_symbol: intrinsic,
+                        arguments: operands,
+                        ..Default::default()
+                    }));
+            }
+            prepare(
+                &symbol_resolved_trees::SymbolResolvedTrees::default(),
+                &mut program,
+                0,
+                0,
+                &[],
+            )
+            .expect("ordinary values keep their identity without a constructor destination");
+            for argument in arguments {
+                assert!(matches!(
+                    program.expression_table.expression(argument),
+                    ExpressionNode::Name(_)
+                ));
+                assert!(
+                    !program
+                        .expression_table
+                        .construction_required_type_reference(argument)
+                        .is_valid()
+                );
+            }
+            // A real contextual production still needs an authored telescope;
+            // this pass cannot manufacture a builtin's expected argument type.
+            let literal = program
+                .expression_table
+                .insert(ExpressionNode::String(b"value".to_vec().into()));
+            let operands = program
+                .expression_table
+                .insert_expression_handles([literal]);
+            program
+                .expression_table
+                .insert(ExpressionNode::Call(TableCallExpression {
+                    target_symbol: intrinsic,
+                    arguments: operands,
+                    ..Default::default()
+                }));
+            let error = prepare(
+                &symbol_resolved_trees::SymbolResolvedTrees::default(),
+                &mut program,
+                0,
+                0,
+                &[],
+            )
+            .unwrap_err();
+            assert!(
+                error.message.contains("selected call parameter types"),
+                "{error:?}"
+            );
+        }
+
+        #[test]
+        fn a_named_machine_argument_keeps_its_exact_callable_destination() {
+            use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+            use typed_trees::{
+                callable_values::RuntimeCallableContract,
+                expression::{TableCallExpression, TableNamePath},
+                machine::Machine,
+                signature::{StateParameter, StateSignature},
+                state::State,
+            };
+
+            let mut symbols = SymbolTableBuilder::default();
+            let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+            let machines = symbols.insert_children(
+                root,
+                [
+                    (SymbolKind::Machine, SymbolNameRef::Static("accept")),
+                    (SymbolKind::Machine, SymbolNameRef::Static("selected")),
+                ],
+            );
+            let (accept, selected) = (machines.handle_at(0), machines.handle_at(1));
+            let accept_children = symbols.insert_children(
+                accept,
+                [
+                    (SymbolKind::State, SymbolNameRef::Static("entry")),
+                    (SymbolKind::State, SymbolNameRef::Static("contract")),
+                ],
+            );
+            let selected_state = symbols
+                .insert_children(
+                    selected,
+                    [(SymbolKind::State, SymbolNameRef::Static("entry"))],
+                )
+                .handle_at(0);
+            let states = [accept_children.handle_at(0), selected_state];
+            let contract_symbol = accept_children.handle_at(1);
+            let parameter = symbols
+                .insert_children(
+                    states[0],
+                    [(SymbolKind::Parameter, SymbolNameRef::Static("step"))],
+                )
+                .handle_at(0);
+            let mut program = TypedTrees {
+                symbols: symbols.finish(),
+                ..Default::default()
+            };
+            let unit = program.type_reference_table.insert(TypeReferenceNode::Unit);
+            let contract = program
+                .runtime_callable_contracts
+                .insert(RuntimeCallableContract {
+                    lexical_owner: accept,
+                    signature: StateSignature {
+                        symbol: contract_symbol,
+                        name: "contract".into(),
+                        return_type: unit,
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                });
+            let expected = program
+                .type_reference_table
+                .insert(TypeReferenceNode::Callable { contract });
+            let parameters = program.state_parameters.insert_many([StateParameter {
+                symbol: parameter,
+                name: "step".into(),
+                type_reference: expected,
+                ..Default::default()
+            }]);
+            for (position, machine) in [accept, selected].into_iter().enumerate() {
+                let state = program.machine_states.insert_many([State {
+                    symbol: states[position],
+                    name: "entry".into(),
+                    parameters: if position == 0 {
+                        parameters
+                    } else {
+                        Default::default()
+                    },
+                    return_type: unit,
+                    ..Default::default()
+                }]);
+                program.push_machine(Machine {
+                    symbol: machine,
+                    name: if position == 0 {
+                        "accept".into()
+                    } else {
+                        "selected".into()
+                    },
+                    states: state,
+                    ..Default::default()
+                });
+            }
+            let mut members = Default::default();
+            program
+                .expression_table
+                .push_name_path_member(&mut members, "selected".into());
+            let argument = program
+                .expression_table
+                .insert(ExpressionNode::Name(TableNamePath {
+                    members,
+                    symbol: selected,
+                    head_symbol: selected,
+                    ..Default::default()
+                }));
+            let operands = program
+                .expression_table
+                .insert_expression_handles([argument]);
+            program
+                .expression_table
+                .insert(ExpressionNode::Call(TableCallExpression {
+                    target_symbol: accept,
+                    arguments: operands,
+                    ..Default::default()
+                }));
+            prepare(
+                &symbol_resolved_trees::SymbolResolvedTrees::default(),
+                &mut program,
+                0,
+                0,
+                &[],
+            )
+            .unwrap();
+            let ExpressionNode::MachineValue(value) = program.expression_table.expression(argument)
+            else {
+                panic!("named code lost its contextual callable construction");
+            };
+            assert_eq!(value.type_reference, expected);
+            assert_eq!(value.selected.symbol, states[1]);
+            assert_eq!(
+                program
+                    .expression_table
+                    .static_machine_application(value.application)
+                    .registration_operation,
+                selected
+            );
+            assert_eq!(
+                program
+                    .expression_table
+                    .construction_required_type_reference(argument),
+                expected
+            );
+            assert_eq!(
+                program
+                    .runtime_callable_contracts
+                    .get(contract)
+                    .signature
+                    .symbol,
+                contract_symbol
+            );
+        }
+
+        #[test]
+        fn assignment_receivers_preserve_declared_types_without_inventing_unknown_types() {
+            use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+            use typed_trees::{
+                data::DataDefinition,
+                expression::{TableNamePath, TableStructLiteral},
+                machine::Machine,
+                signature::StateParameter,
+                state::State,
+                statement::TableAssignment,
+            };
+
+            let mut symbols = SymbolTableBuilder::default();
+            let data = symbols.insert_root(SymbolKind::Data, SymbolNameRef::Static("Record"));
+            let owner = symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("owner"));
+            let state = symbols
+                .insert_children(owner, [(SymbolKind::State, SymbolNameRef::Static("entry"))])
+                .handles()
+                .next()
+                .unwrap();
+            let formal = symbols
+                .insert_children(
+                    state,
+                    [(SymbolKind::Parameter, SymbolNameRef::Static("target"))],
+                )
+                .handles()
+                .next()
+                .unwrap();
+            let mut program = TypedTrees {
+                symbols: symbols.finish(),
+                ..Default::default()
+            };
+            program.push_data_definition(DataDefinition {
+                symbol: data,
+                name: "Record".into(),
+                ..Default::default()
+            });
+            let declared = program
+                .type_reference_table
+                .insert(TypeReferenceNode::Named {
+                    symbol: data,
+                    name: "Record".into(),
+                });
+            program
+                .type_reference_table
+                .retain_operand_lifetime_owner(declared, state)
+                .expect("the formal's declared type retains its actual state scope");
+            let parameters = program.state_parameters.insert_many([StateParameter {
+                symbol: formal,
+                name: "target".into(),
+                type_reference: declared,
+                is_mutable: true,
+                ..Default::default()
+            }]);
+            let mut names = Default::default();
+            program
+                .expression_table
+                .push_name_path_member(&mut names, "target".into());
+            let target = program
+                .expression_table
+                .insert(ExpressionNode::Name(TableNamePath {
+                    members: names,
+                    head_symbol: formal,
+                    symbol: formal,
+                    ..Default::default()
+                }));
+            let mut missing_names = Default::default();
+            program
+                .expression_table
+                .push_name_path_member(&mut missing_names, "missing".into());
+            let missing = program
+                .expression_table
+                .insert(ExpressionNode::Name(TableNamePath {
+                    members: missing_names,
+                    ..Default::default()
+                }));
+            let mut literal = || {
+                program
+                    .expression_table
+                    .insert(ExpressionNode::StructLiteral(TableStructLiteral {
+                        type_symbol: data,
+                        type_name: "Record".into(),
+                        ..Default::default()
+                    }))
+            };
+            let value = literal();
+            let unknown_value = literal();
+            let body = program.statement_table.insert_statements([
+                StatementNode::Assignment(TableAssignment { target, value }),
+                StatementNode::Assignment(TableAssignment {
+                    target: missing,
+                    value: unknown_value,
+                }),
+            ]);
+            let states = program.machine_states.insert_many([State {
+                symbol: state,
+                name: "entry".into(),
+                parameters,
+                statement_nodes: body,
+                ..Default::default()
+            }]);
+            program.push_machine(Machine {
+                symbol: owner,
+                name: "owner".into(),
+                states,
+                ..Default::default()
+            });
+
+            prepare(
+                &symbol_resolved_trees::SymbolResolvedTrees::default(),
+                &mut program,
+                0,
+                0,
+                &[],
+            )
+            .expect("retaining source destinations grants no assignment verdict");
+            let statements = program.statement_table.statements(body);
+            let StatementNode::Assignment(known) = statements[0] else {
+                panic!("known assignment changed kind");
+            };
+            let StatementNode::Assignment(unknown) = statements[1] else {
+                panic!("unknown assignment changed kind");
+            };
+            assert_eq!((known.target, known.value), (target, value));
+            assert_eq!(
+                crate::typing_queries::declared_place_type(
+                    &program,
+                    &program.machine_states(&program.machines()[0])[0],
+                    target
+                )
+                .unwrap(),
+                declared
+            );
+            assert_eq!((unknown.target, unknown.value), (missing, unknown_value));
+            assert!(
+                !program
+                    .expression_table
+                    .construction_required_type_reference(unknown.value)
+                    .is_valid(),
+                "an unresolved destination must not invent its constructor application"
+            );
+            assert_eq!(
+                program
+                    .deferred_refusal(owner)
+                    .map(|refusal| refusal.request),
+                Some(typed_trees::deferred_refusals::DeferredRequest::AssignmentLiteralDestination),
+                "the unresolved destination remains its owner's unserved request"
+            );
+            let ExpressionNode::StructLiteral(literal) = program.expression_table.expression(value)
+            else {
+                panic!("source constructor changed kind");
+            };
+            assert_eq!(literal.application_type, declared);
+            assert_eq!(
+                program
+                    .type_reference_table
+                    .operand_lifetime_owner(literal.application_type),
+                state,
+                "constructor landing preserves the supplying formal's lifetime scope"
+            );
+            assert_eq!(
+                program
+                    .expression_table
+                    .construction_required_type_reference(value),
+                declared
+            );
+        }
 
         #[test]
         fn an_assigned_literal_lands_on_its_binding_or_refuses_its_own_machine() {
@@ -2468,6 +2949,7 @@ pub(crate) mod construction_destinations {
                     program
                         .expression_table
                         .insert(ExpressionNode::Call(TableCallExpression {
+                            runtime_call: None,
                             authored_call_selection: None,
                             authored_call_binding: None,
                             build_selection: Default::default(),
@@ -2973,6 +3455,7 @@ pub(crate) mod product_queries {
         )));
         let arguments = table.insert_expression_handles(arguments);
         let expression = table.insert(ExpressionNode::Call(TableCallExpression {
+            runtime_call: None,
             authored_call_selection: None,
             authored_call_binding: None,
             authored_machine_application: Default::default(),
@@ -3008,6 +3491,11 @@ pub(crate) mod product_selections {
         ProductDeclarationRequest, ProductOperandRole,
     };
     use symbols::JoinedPath;
+
+    pub(crate) struct Request {
+        pub request: typed_trees::expression::BuildSelectionRequest,
+        pub inputs: Vec<typed_trees::expression::BuildSelectionInput>,
+    }
 
     /*
         `builder.tests.group<Requirement>()` is the testing facet's spelling of
@@ -3075,7 +3563,7 @@ pub(crate) mod product_selections {
         ordinary_count: usize,
         evidence_count: usize,
         span: source::SourceSpan,
-    ) -> Result<Option<typed_trees::expression::BuildSelectionRequest>, Diagnostic> {
+    ) -> Result<Option<Request>, Diagnostic> {
         // The Build prelude's operations live in its module `Build`, and
         // static normalization folds a module qualifier into the written
         // name. A designated operation has no declaration for that name to
@@ -3125,12 +3613,13 @@ pub(crate) mod product_selections {
                 )
                 .with_source_span(span));
                 }
-                return Ok(Some(BuildSelectionRequest::Exclusion(
-                    EnumExclusionRequest {
+                return Ok(Some(Request {
+                    request: BuildSelectionRequest::Exclusion(EnumExclusionRequest {
                         source_span: span,
                         vocabulary,
-                    },
-                )));
+                    }),
+                    inputs: Vec::new(),
+                }));
             }
         }
         let Some(operation) = BuildOperation::from_call_target(name)
@@ -3205,7 +3694,58 @@ pub(crate) mod product_selections {
         } else {
             None
         };
-        let operands = operands.iter().skip(usize::from(requirement.is_some())).enumerate().map(|(position, operand)| {
+        let mut inputs = Vec::new();
+        for (position, operand) in operands.iter().enumerate() {
+            if let Some(occurrence) = operand.authored_selection {
+                if !occurrences.contains(&occurrence) {
+                    return Err(Diagnostic::error(
+                        "Build static input belongs to another original call",
+                    )
+                    .with_source_span(span));
+                }
+                let selection = typed
+                    .authored_declaration_selections()
+                    .get(occurrence)
+                    .ok_or_else(|| {
+                        Diagnostic::error("Build input retains an unknown authored selection")
+                            .with_source_span(span)
+                    })?;
+                if selection.top_level_static_argument_position() != Some(position) {
+                    return Err(Diagnostic::error(
+                        "Build input selection has another original argument position",
+                    )
+                    .with_source_span(span));
+                }
+                inputs.push(typed_trees::expression::BuildSelectionInput {
+                    occurrence,
+                    argument_ordinal: u32::try_from(position).map_err(|_| {
+                        Diagnostic::error("Build static argument position exceeds u32")
+                    })?,
+                    resolved_target: operand.authored_selection_target,
+                    target: selection.target(),
+                });
+            } else if operand.symbol.is_valid()
+                && !matches!(
+                    source.symbols.get(operand.symbol).kind,
+                    symbols::SymbolKind::Local
+                        | symbols::SymbolKind::Parameter
+                        | symbols::SymbolKind::TypeParameter
+                        | symbols::SymbolKind::ConformanceParameter
+                        | symbols::SymbolKind::MachineParameter
+                        | symbols::SymbolKind::PropositionParameter
+                        | symbols::SymbolKind::PropositionMachineParameter
+                )
+                && operand.path.iter().any(|name| name.is_source_backed())
+            {
+                return Err(Diagnostic::error(
+                    "Build declaration input has no exact authored argument attachment",
+                )
+                .with_source_span(span));
+            }
+        }
+        let first_designated = usize::from(requirement.is_some());
+        let operands = operands.iter().enumerate().skip(first_designated).map(|(original_position, operand)| {
+        let position = original_position - first_designated;
         let nominal_application = operand.application.is_some() && (matches!(operation.product_operand_role(position), Some(ProductOperandRole::BoundarySubject | ProductOperandRole::Provider)) || operation == BuildOperation::NativeBinding);
         if operand.type_reference.is_valid() || (operand.application.is_some() && !nominal_application)
             || operand.const_literal.is_some() || operand.evidence_projection.is_some()
@@ -3219,7 +3759,16 @@ pub(crate) mod product_selections {
             return Err(Diagnostic::error("Product operand has no single authored source coordinate")
                 .with_source_span(span));
         }
-        let application = nominal_application.then(|| crate::expressions::capture_product_operands::capture(source, typed, exposure, occurrences, operand).map(std::sync::Arc::new)).transpose()?;
+        let application = if nominal_application {
+            let captured = crate::expressions::capture_product_operands::capture(
+                source, typed, exposure, occurrences, operand,
+                u32::try_from(original_position).map_err(|_| Diagnostic::error("Build static argument position exceeds u32"))?,
+            )?;
+            inputs.extend(captured.inputs);
+            Some(std::sync::Arc::new(captured.graph))
+        } else {
+            None
+        };
         let leading = source::SourceSpan::new(first.source_id, source::Span::new(first.span.start, last.span.end));
         let source_span = application.as_ref().map_or(leading, |graph| graph.authored_operand_span(leading));
         Ok(ProductDeclarationOperand {
@@ -3228,22 +3777,35 @@ pub(crate) mod product_selections {
             source_span,
         })
     }).collect::<Result<Vec<_>, Diagnostic>>()?.into_boxed_slice();
-        if let Some(requirement) = requirement {
-            return Ok(Some(BuildSelectionRequest::ProviderReadiness(
+        inputs.sort_by_key(|input| (input.argument_ordinal, input.occurrence.ordinal()));
+        for pair in inputs.windows(2) {
+            if pair[0].argument_ordinal == pair[1].argument_ordinal
+                && pair[0].occurrence == pair[1].occurrence
+                && pair[0].target != pair[1].target
+            {
+                return Err(Diagnostic::error(
+                    "Build input occurrence changes its exact ledger target",
+                )
+                .with_source_span(span));
+            }
+        }
+        inputs.dedup();
+        let request = if let Some(requirement) = requirement {
+            BuildSelectionRequest::ProviderReadiness(
                 declaration_selection::ProviderReadinessRequest {
                     source_span: span,
                     requirement,
                     backing: operands[0].clone(),
                 },
-            )));
-        }
-        Ok(Some(BuildSelectionRequest::Declaration(
-            std::sync::Arc::new(ProductDeclarationRequest {
+            )
+        } else {
+            BuildSelectionRequest::Declaration(std::sync::Arc::new(ProductDeclarationRequest {
                 source_span: span,
                 operation,
                 operands,
-            }),
-        )))
+            }))
+        };
+        Ok(Some(Request { request, inputs }))
     }
 }
 

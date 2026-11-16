@@ -197,6 +197,7 @@ impl ValueShape {
 
     pub fn for_closed_scalar(scalar_type: ClosedScalarType) -> Option<Self> {
         match scalar_type {
+            ClosedScalarType::Callable(_) => Some(Self::integer(8, 8)),
             ClosedScalarType::Boolean => Some(Self::integer(1, 1)),
             ClosedScalarType::IeeeFloat(format) => Some(Self::float(format.byte_size())),
             ClosedScalarType::Integer(integer) => Self::for_closed_integer(integer),

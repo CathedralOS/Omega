@@ -27,7 +27,7 @@ use crate::{SourceOrigin, Unpositioned, Unserved, refuse};
 impl Lowering<'_> {
     pub(super) fn block(&mut self, source: SourceOrigin) -> BlockId {
         let block = self.blocks.push(Draft::default());
-        self.sources.blocks.push(source);
+        self.sources.blocks.push(source.into());
         self.inherit_ranking(block);
         block
     }
@@ -74,7 +74,7 @@ impl Lowering<'_> {
             destination,
             dispositions: Vec::new(),
         });
-        self.sources.edges.push(source);
+        self.sources.edges.push(source.into());
         Ok(edge)
     }
 
@@ -175,6 +175,9 @@ impl Lowering<'_> {
             structural_arguments,
             cleanup_actions,
         })?;
+        if let Some((owner, node)) = source.node() {
+            self.source_folded_calls.push((self.id, edge, owner, node));
+        }
         // The edge's `ArrivalInvariant` is minted with every other arrival's
         // (`Lowering::arrivals`), which also lists it on the head's
         // invariant row.
@@ -186,7 +189,7 @@ impl Lowering<'_> {
     fn loops<'e>(&self, expression: &'e Expression) -> Option<(MachineId, &'e [Expression])> {
         match &expression.kind {
             ExpressionKind::Call {
-                callee: semantic_vocabulary::TargetMachineCallable::Machine(callee),
+                callee: crate::body::CallTarget::Machine(callee),
                 arguments,
                 ..
             } if self.heads.iter().any(|head| head.member == *callee) => Some((*callee, arguments)),
@@ -416,14 +419,14 @@ impl Lowering<'_> {
                 self.sources.branches.push(crate::Branch {
                     block: arm,
                     decided_in,
-                    arm: *source,
-                    condition: guard.source,
+                    arm: (*source).into(),
+                    condition: guard.source.into(),
                 });
                 self.fallthrough = Some(crate::Branch {
                     block: rest,
                     decided_in,
-                    arm: *source,
-                    condition: guard.source,
+                    arm: (*source).into(),
+                    condition: guard.source.into(),
                 });
                 self.branch(
                     condition,
@@ -454,7 +457,7 @@ impl Lowering<'_> {
                     && self.point == Some(ProgramPoint::BlockEntry(fallthrough.block))
                 {
                     self.sources.branches.push(crate::Branch {
-                        arm: *source,
+                        arm: (*source).into(),
                         ..fallthrough
                     });
                 }
@@ -579,7 +582,7 @@ impl Lowering<'_> {
             destination: Destination::NoNormal,
             dispositions,
         });
-        self.sources.edges.push(source);
+        self.sources.edges.push(source.into());
         Ok(edge)
     }
 
@@ -766,8 +769,8 @@ impl Lowering<'_> {
         self.sources.branches.push(crate::Branch {
             block,
             decided_in,
-            arm,
-            condition,
+            arm: arm.into(),
+            condition: condition.into(),
         });
     }
 

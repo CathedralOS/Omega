@@ -657,41 +657,8 @@ machine configure_posix_filesystem_darwin(builder: &mut Build) {
         } });
 }
 
-// The remaining Windows and Darwin leaf bindings: console I/O and process
-// exit on msvcrt/kernel32, Win32 GUI calls on user32/gdi32, and the AppKit,
-// CoreGraphics and libSystem clock entries the macOS GUI providers call.
+// Console providers and raw host bindings are selected for each hosted target.
 machine configure_console(builder: &mut Build) {
-    Build::select_provider<Console, NativeConsole>(builder, windows_x86_64);
-    Build::select_provider<ConsoleHost, WindowsConsoleHost>(builder, windows_x86_64);
-    Build::select_provider<Console, NativeConsole>(builder, linux_x86_64);
-    Build::select_provider<ConsoleHost, PosixConsoleHost>(builder, linux_x86_64);
-    Build::select_provider<Console, NativeConsole>(builder, linux_arm64);
-    Build::select_provider<ConsoleHost, PosixConsoleHost>(builder, linux_arm64);
-    Build::select_provider<Console, NativeConsole>(builder, macos_arm64);
-    Build::select_provider<ConsoleHost, PosixConsoleHost>(builder, macos_arm64);
-    Build::select_provider<Console, NativeConsole>(builder, macos_x86_64);
-    Build::select_provider<ConsoleHost, PosixConsoleHost>(builder, macos_x86_64);
-    Build::bind<PosixConsoleIo::read>(builder, linux_x86_64, ForeignBinding::Syscall { number: 0 });
-    Build::bind<PosixConsoleIo::write>(builder, linux_x86_64, ForeignBinding::Syscall { number: 1 });
-    Build::bind<PosixConsoleIo::read>(builder, linux_arm64, ForeignBinding::Syscall { number: 63 });
-    Build::bind<PosixConsoleIo::write>(builder, linux_arm64, ForeignBinding::Syscall { number: 64 });
-    Build::bind<PosixConsoleIo::read>(builder, macos_arm64,
-        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
-            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_read"
-        } });
-    Build::bind<PosixConsoleIo::write>(builder, macos_arm64,
-        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
-            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_write"
-        } });
-    Build::bind<PosixConsoleIo::read>(builder, macos_x86_64,
-        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
-            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_read"
-        } });
-    Build::bind<PosixConsoleIo::write>(builder, macos_x86_64,
-        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
-            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_write"
-        } });
-
     Build::bind<WindowsConsoleIo::write>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "msvcrt.dll", export: "_write"
@@ -703,6 +670,35 @@ machine configure_console(builder: &mut Build) {
     Build::bind<WindowsConsoleIo::set_mode>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "msvcrt.dll", export: "_setmode"
+        } });
+
+    Build::select_provider<Console, WindowsConsole>(builder, windows_x86_64);
+    Build::select_provider<Console, LinuxX86Console>(builder, linux_x86_64);
+    Build::bind<LinuxX86ConsoleIo::read>(builder, linux_x86_64, ForeignBinding::Syscall { number: 0 });
+    Build::bind<LinuxX86ConsoleIo::write>(builder, linux_x86_64, ForeignBinding::Syscall { number: 1 });
+
+    Build::select_provider<Console, LinuxArm64Console>(builder, linux_arm64);
+    Build::bind<LinuxArm64ConsoleIo::read>(builder, linux_arm64, ForeignBinding::Syscall { number: 63 });
+    Build::bind<LinuxArm64ConsoleIo::write>(builder, linux_arm64, ForeignBinding::Syscall { number: 64 });
+
+    Build::select_provider<Console, DarwinArm64Console>(builder, macos_arm64);
+    Build::bind<DarwinArm64ConsoleIo::read>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_read"
+        } });
+    Build::bind<DarwinArm64ConsoleIo::write>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_write"
+        } });
+
+    Build::select_provider<Console, DarwinX86Console>(builder, macos_x86_64);
+    Build::bind<DarwinX86ConsoleIo::read>(builder, macos_x86_64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_read"
+        } });
+    Build::bind<DarwinX86ConsoleIo::write>(builder, macos_x86_64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_write"
         } });
 
 }
@@ -837,23 +833,12 @@ machine configure_macos_image(builder: &mut Build) {
         } });
 }
 
-// Each hosted target supplies canonical process termination through its native
-// binding. Linux exits the whole process, including any sibling threads.
+// Select the checked no-return wrapper. Its authenticated core primitive owns
+// full-process completion; selecting it grants no exit authority.
 machine configure_process_exit(builder: &mut Build) {
-    Build::bind<ProcessExit::exit_process>(builder, linux_x86_64,
-        ForeignBinding::Syscall { number: 231u64 });
-    Build::bind<ProcessExit::exit_process>(builder, linux_arm64,
-        ForeignBinding::Syscall { number: 94u64 });
-    Build::bind<ProcessExit::exit_process>(builder, macos_arm64,
-        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
-            install_name: "/usr/lib/libSystem.B.dylib", symbol: "__exit"
-        } });
-    Build::bind<ProcessExit::exit_process>(builder, macos_x86_64,
-        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
-            install_name: "/usr/lib/libSystem.B.dylib", symbol: "__exit"
-        } });
-    Build::bind<ProcessExit::exit_process>(builder, windows_x86_64,
-        ForeignBinding::DllImport { import: DllImport::PeByName {
-            library: "kernel32.dll", export: "ExitProcess"
-        } });
+    Build::select_provider<ProcessExit, NativeProcessExit>(builder, windows_x86_64);
+    Build::select_provider<ProcessExit, NativeProcessExit>(builder, linux_x86_64);
+    Build::select_provider<ProcessExit, NativeProcessExit>(builder, linux_arm64);
+    Build::select_provider<ProcessExit, NativeProcessExit>(builder, macos_arm64);
+    Build::select_provider<ProcessExit, NativeProcessExit>(builder, macos_x86_64);
 }

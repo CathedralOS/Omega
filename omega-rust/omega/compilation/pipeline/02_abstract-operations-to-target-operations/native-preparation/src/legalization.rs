@@ -45,6 +45,12 @@ pub(crate) mod model {
             operation: Option<semantic_vocabulary::OperationId>,
             reason: &'static str,
         },
+        CallableValueProvenance {
+            reason: &'static str,
+        },
+        CallableInvocationRoots {
+            reason: String,
+        },
         InstalledInterruptAssociation {
             operation: Option<semantic_vocabulary::OperationId>,
             reason: &'static str,
@@ -479,9 +485,12 @@ pub(crate) fn legalize_target_operations(
     _abstract_plan: &AbstractOperationPlan,
     unit: &optimization_unit::PsiOptimizationUnit,
     origins: crate::BoundaryOriginFacts<'_>,
+    callable_roots: &terminal_semantics::callable_values::CallableInvocationRoots,
     installed_interrupts: &provider_admission::AdmittedInstalledInterruptCohort,
     types: &crate::native_geometry::ModuleTypes,
 ) -> Result<legalized_operations::PreparedExecutionPlan, LegalizationError> {
+    let callable_invocations = crate::PreparedCallableInvocations::new(unit, callable_roots)
+        .map_err(|reason| LegalizationError::CallableValueProvenance { reason })?;
     prepare_execution_plan(
         target,
         PreparationEvidence {
@@ -491,6 +500,7 @@ pub(crate) fn legalize_target_operations(
             ownership_frontier_facts: &unit.ownership_frontier_facts,
         },
         origins,
+        &callable_invocations,
         installed_interrupts,
         types,
     )
@@ -549,6 +559,7 @@ pub fn prepare_execution_plan(
     target: &TargetOperationPlan,
     evidence: PreparationEvidence<'_>,
     origins: crate::BoundaryOriginFacts<'_>,
+    callable_invocations: &crate::PreparedCallableInvocations,
     installed_interrupts: &provider_admission::AdmittedInstalledInterruptCohort,
     types: &crate::native_geometry::ModuleTypes,
 ) -> Result<legalized_operations::PreparedExecutionPlan, LegalizationError> {
@@ -567,9 +578,14 @@ pub fn prepare_execution_plan(
         function_abis: function_abis(target)?,
         borrowed_storage_layouts: target.borrowed_storage_layouts.clone(),
     };
+    let (callable_invocations, entry_invocations) = callable_invocations
+        .for_target(target, evidence)
+        .map_err(|reason| LegalizationError::CallableValueProvenance { reason })?;
     Ok(legalized_operations::PreparedExecutionPlan::seal(
         plan,
         legalization_validator_identity(),
+        callable_invocations,
+        entry_invocations,
     ))
 }
 
