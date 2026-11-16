@@ -763,9 +763,9 @@ fn host_address_value(value: TerminalScalarValue) -> Result<u64, TerminalEffectR
             scalar_type,
             value: semantic_vocabulary::IntegerValue::Unsigned(0),
         } if carrier(scalar_type) => Ok(0),
-        TerminalScalarValue::Integer { scalar_type, .. } if carrier(scalar_type) => Err(
-            rejection("native import argument is not an address the host returned"),
-        ),
+        TerminalScalarValue::Integer { scalar_type, .. } if carrier(scalar_type) => Err(rejection(
+            "native import argument is not an address the host returned",
+        )),
         _ => Err(rejection(
             "native address argument lost its address carrier",
         )),

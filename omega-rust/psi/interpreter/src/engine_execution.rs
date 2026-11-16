@@ -3649,7 +3649,8 @@ pub(crate) mod scalar_operations {
                 dispatched_operation!(operation => IntegerEqual { left, right });
                 self.require_boolean_result(operation)?;
                 if let Some(ordering) = self.host_address_ordering(left, right)? {
-                    return self.store_scalar(operation, TerminalScalarValue::Boolean(ordering.is_eq()));
+                    return self
+                        .store_scalar(operation, TerminalScalarValue::Boolean(ordering.is_eq()));
                 }
                 let (left_type, left) = self.integer_operand(left)?;
                 let (right_type, right) = self.integer_operand(right)?;
@@ -4209,7 +4210,9 @@ pub(crate) mod scalar_operations {
             } => {
                 address != 0
                     && scalar_type.is_address()
-                    && scalar_type.admits(semantic_vocabulary::IntegerValue::Unsigned(u128::from(address)))
+                    && scalar_type.admits(semantic_vocabulary::IntegerValue::Unsigned(u128::from(
+                        address,
+                    )))
             }
             TerminalScalarValue::IeeeFloat(_) => true,
         }
