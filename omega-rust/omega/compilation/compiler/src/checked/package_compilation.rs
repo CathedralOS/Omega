@@ -366,11 +366,12 @@ impl CompilationSession {
         declaration_path: &str,
     ) -> Result<source_compiler::ProducedBuildProvider, CompileFailure> {
         super::run_on_compile_thread(|| {
-            let (_, _, inputs, rollback, prepared) = build.source.into_continuation();
+            let (_, target, inputs, rollback, prepared) = build.source.into_continuation();
             let source = super::checking::complete_prepared_build(prepared, Some(&inputs))?;
             let checked = super::checking::check_product_source(
                 source,
                 Some(&inputs),
+                std::slice::from_ref(&target),
                 &rollback,
                 None,
                 None,

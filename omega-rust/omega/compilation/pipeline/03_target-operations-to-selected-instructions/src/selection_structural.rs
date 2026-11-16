@@ -3853,7 +3853,8 @@ pub(crate) mod encoded_scalar {
         let definition = row.result.ok_or(invalid())?;
         if !matches!(
             definition.scalar_type,
-            semantic_vocabulary::ClosedScalarType::Integer(_)
+            semantic_vocabulary::ClosedScalarType::Callable(_)
+                | semantic_vocabulary::ClosedScalarType::Integer(_)
                 | semantic_vocabulary::ClosedScalarType::Boolean
                 | semantic_vocabulary::ClosedScalarType::IeeeFloat(_)
         ) {
@@ -3892,7 +3893,8 @@ pub(crate) mod encoded_scalar {
         if scalar.as_checking() != value.scalar_type
             || !matches!(
                 scalar,
-                semantic_vocabulary::ClosedScalarType::Integer(_)
+                semantic_vocabulary::ClosedScalarType::Callable(_)
+                    | semantic_vocabulary::ClosedScalarType::Integer(_)
                     | semantic_vocabulary::ClosedScalarType::Boolean
                     | semantic_vocabulary::ClosedScalarType::IeeeFloat(_)
             )

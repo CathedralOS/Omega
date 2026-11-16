@@ -554,6 +554,7 @@ pub mod control_flow {
 
         #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
         pub struct CallStorage {
+    pub callee: crate::expression::ExpressionHandle,
     pub target_is_static: bool,
             pub unresolved_name: symbols::UnresolvedName,
     pub receiver_root_symbol: SymbolHandle,
@@ -763,7 +764,58 @@ pub mod control_flow {
                 self.nodes.transition_targets.len()
             }
 
-            pub(crate) fn validate_authored_selection_rebase(
+            pub(crate) fn prepare_static_argument_rebases(
+                &self,
+                expressions: &crate::expression::ExpressionTable,
+                frontier: usize,
+                rebase: language_semantics::declaration_selection::AuthoredDeclarationSelectionSuffixRebase,
+            ) -> Result<
+                Vec<(
+                    Handle<StatementNode>,
+                    crate::expression::PreparedStaticArgumentRebase,
+                )>,
+                (),
+            > {
+                let mut prepared = Vec::new();
+                for (index, (handle, statement)) in self.nodes.statements.iter().enumerate() {
+                    let StatementNode::Call(call) = statement else {
+                        continue;
+                    };
+                    let arguments = expressions.prepare_static_argument_rebase(
+                        &call.machine_arguments,
+                        |occurrence| {
+                            if index < frontier {
+                                rebase.retain_base(occurrence)
+                            } else {
+                                rebase.rebase_appended(occurrence)
+                            }
+                        },
+                    )?;
+                    if index >= frontier {
+                        prepared.push((handle, arguments));
+                    }
+                }
+                Ok(prepared)
+            }
+
+            pub(crate) fn apply_static_argument_rebases(
+                &mut self,
+                expressions: &mut crate::expression::ExpressionTable,
+                prepared: Vec<(
+                    Handle<StatementNode>,
+                    crate::expression::PreparedStaticArgumentRebase,
+                )>,
+            ) {
+                for (handle, arguments) in prepared {
+                    let arguments = expressions.apply_static_argument_rebase(arguments);
+                    let StatementNode::Call(call) = self.nodes.statements.get_mut(handle) else {
+                        unreachable!("prepared folded call remains current")
+                    };
+                    call.machine_arguments = arguments;
+                }
+            }
+
+            pub(crate) fn validate_selection_occurrence_remap(
                 &self,
                 statement_frontier: usize,
                 transition_target_frontier: usize,
@@ -816,7 +868,7 @@ pub mod control_flow {
                 Ok(())
             }
 
-            pub(crate) fn apply_authored_selection_rebase(
+            pub(crate) fn remap_selection_occurrences(
                 &mut self,
                 statement_frontier: usize,
                 transition_target_frontier: usize,
@@ -938,6 +990,14 @@ pub mod control_flow {
                                 .span_or_empty(call.receiver),
                         );
                         self.insert(StatementNode::Call(TableCall {
+                            callee: if call.callee.is_valid() {
+                                transplant
+                                    .source_expressions
+                                    .copy_into(expressions, call.callee)
+                            } else {
+                                crate::expression::ExpressionHandle::invalid()
+                            },
+                            target_is_static: call.target_is_static,
                             unresolved_name: call.unresolved_name,
                             receiver_root_symbol: call.receiver_root_symbol,
                             receiver_symbol: call.receiver_symbol,
@@ -1219,6 +1279,8 @@ pub mod control_flow {
 
         #[derive(Debug, Clone, PartialEq, Eq, Default, compiler_storage::Record)]
         pub struct TableCall {
+    pub callee: crate::expression::ExpressionHandle,
+    pub target_is_static: bool,
     pub unresolved_name: symbols::UnresolvedName,
     pub receiver_root_symbol: SymbolHandle,
     pub receiver_symbol: SymbolHandle,
@@ -1404,9 +1466,9 @@ pub mod control_flow {
                     });
 
                 table
-                    .validate_authored_selection_rebase(0, 0, rebase)
+                    .validate_selection_occurrence_remap(0, 0, rebase)
                     .expect("extension-owned folded stores");
-                table.apply_authored_selection_rebase(0, 0, rebase);
+                table.remap_selection_occurrences(0, 0, rebase);
 
                 let StatementNode::Call(call) = table.statement(Handle::from_arena_index(1)) else {
                     panic!("folded call")

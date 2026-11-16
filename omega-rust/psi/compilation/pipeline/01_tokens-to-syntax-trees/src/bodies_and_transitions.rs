@@ -1209,6 +1209,20 @@ pub(crate) mod bodies {
                     input: Input<'tokens, 'source>,
                     bindings: &[DestructureBindings],
                 ) -> ParseResult<'tokens, 'source, TransitionTargetHandle> {
+                    // An acknowledgement changes the call envelope, not
+                    // whether a static path is a terminal machine target.
+                    // Keep the original parse mode for prefixes and classify
+                    // only the complete call afterwards.
+                    let acknowledged =
+                        input.at_contextual("suspend") || input.at_contextual("block");
+                    let mut acknowledged_path = input;
+                    if acknowledged_path.at_contextual("suspend") {
+                        acknowledged_path = acknowledged_path.take_contextual("suspend")?;
+                    }
+                    if acknowledged_path.at_contextual("block") {
+                        acknowledged_path = acknowledged_path.take_contextual("block")?;
+                    }
+                    let acknowledged_target = acknowledged && acknowledged_path.at_name_like();
                     let target_shaped = !has_unary_expression_prefix(input)?
                         && !input.at_keyword(KeywordKind::True)
                         && !input.at_keyword(KeywordKind::False)
@@ -1238,7 +1252,11 @@ pub(crate) mod bodies {
                     });
 
                     Ok((
-                        classify_transition_target_handle(syntax_trees, expression, target_shaped)?,
+                        classify_transition_target_handle(
+                            syntax_trees,
+                            expression,
+                            target_shaped || acknowledged_target,
+                        )?,
                         rest,
                     ))
                 }
@@ -1305,6 +1323,7 @@ pub(crate) mod bodies {
                     let arguments =
                         copy_expression_handles_to_statement_table(syntax_trees, call.arguments);
                     Ok(TransitionTargetNode::Named {
+                        operational_acknowledgement: call.operational_acknowledgement,
                         path,
                         arguments,
                         evidence_arguments: call.evidence_arguments,

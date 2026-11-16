@@ -57,7 +57,16 @@ impl AcceptedTerminalSource {
         retain_installation_reach(&mut prepared.program)?;
         let verdicts = terminal_psi_to_terminal_psi::judge_compilation(prepared.program);
         let advisories = advisories(&verdicts);
+        let forms = verdicts.len();
         let closure = accept_compilation(verdicts)?;
+        if forms == 0
+            || prepared.source.forms.len() != forms
+            || prepared.source.forms.iter().any(Option::is_none)
+        {
+            return Err(vec![route_defect(
+                "accepted forms lost their exact source correspondence",
+            )]);
+        }
         Ok(Self {
             source,
             closure,
@@ -80,19 +89,12 @@ impl AcceptedTerminalSource {
             semantic_vocabulary::InvocationSite,
         ),
     > + '_ {
-        self.correspondence
-            .calls
-            .iter()
-            .flat_map(move |(caller, calls)| {
-                calls
-                    .iter()
-                    .filter_map(move |(member, retained, statement, site)| {
-                        (*retained == expression
-                            && !statement.is_valid()
-                            && self.closure.elaboration.machines.get(*member) == Some(&declaration))
-                        .then_some((caller, *site))
-                    })
-            })
+        self.correspondence().calls.iter().filter_map(move |call| {
+            (call.source == typed_trees::SourceNode::Expression(expression)
+                && call.owner == declaration
+                && self.closure.elaboration.machines.get(call.source_member) == Some(&declaration))
+            .then_some((call.machine, call.site))
+        })
     }
 
     /// The advisory diagnostics of the accepted compilation: warnings and
@@ -141,6 +143,17 @@ impl AcceptedTerminalSource {
                 })
             })?;
         let elaboration = &self.closure.elaboration;
+        let selections = crate::source_selection_publication::prepare(
+            self,
+            program.view().module(),
+            custody.invocation_sources,
+        )
+        .map_err(|diagnostic| vec![diagnostic])?;
+        let source_selections = crate::TerminalSourceSelections::new(
+            program.view(),
+            selections.questions,
+            selections.invocation_consent,
+        );
         let mut provenance = terminal_psi::TerminalMachineProvenance::default();
         for (machine, symbol) in elaboration.machines.iter() {
             let name = elaboration.names.get(machine).ok_or_else(|| {
@@ -169,9 +182,8 @@ impl AcceptedTerminalSource {
             .collect();
         // The published module is the elaboration's module, so the rows
         // name the artifact's own operations and original source formations.
-        let companions =
-            crate::build_companions::produce(&self.source, elaboration, &self.correspondence)
-                .map_err(|diagnostic| vec![diagnostic])?;
+        let companions = crate::build_companions::produce(self, program.view().module())
+            .map_err(|diagnostic| vec![diagnostic])?;
         crate::build_bindings::validate_companions(
             program.view(),
             &companions.bindings,
@@ -198,19 +210,16 @@ impl AcceptedTerminalSource {
             build_filesystem,
             applications,
             provenance,
-            source_records: self.correspondence.records.clone(),
+            source_records: self.correspondence().records.clone(),
+            source_selections: Some(Arc::new(source_selections)),
         })
     }
 
     /// What this accepted Build program asks of its host, read from the
     /// same rows `produce` publishes.
     pub fn build_protocol_use(&self) -> Result<crate::BuildProtocolUse, Vec<Diagnostic>> {
-        let companions = crate::build_companions::produce(
-            &self.source,
-            &self.closure.elaboration,
-            &self.correspondence,
-        )
-        .map_err(|diagnostic| vec![diagnostic])?;
+        let companions = crate::build_companions::produce(self, &self.closure.elaboration.module)
+            .map_err(|diagnostic| vec![diagnostic])?;
         Ok(crate::BuildProtocolUse {
             reaches_outside: companions.unowned != 0,
             filesystem: !companions.filesystem.is_empty(),
@@ -234,7 +243,7 @@ impl AcceptedTerminalSource {
             .map(|(_, symbol)| *symbol)
             .chain(elaboration.boundaries.iter().map(|(_, symbol)| *symbol))
             .chain(
-                self.correspondence
+                self.correspondence()
                     .records
                     .iter()
                     .map(|record| record.declaration),
@@ -296,7 +305,7 @@ impl AcceptedTerminalSource {
         let elaboration = &self.closure.elaboration;
         let lost = |detail: &str| {
             Diagnostic::error(format!(
-                "no product route yet: accepted boundary declarations {detail}"
+                "cannot determine executable boundary supply: {detail}"
             ))
         };
         if elaboration.module.boundary_machines.len() != elaboration.boundaries.len() {
@@ -357,6 +366,82 @@ impl AcceptedTerminalSource {
             });
         }
         Ok(declared)
+    }
+
+    /// Follow the entry and its demanded scalar evaluations through actual
+    /// invocations and exact selected code values. Retained headers are not roots.
+    pub fn boundary_calls_reached(
+        &self,
+        entry: semantic_vocabulary::MachineId,
+        implementations: &[crate::CallableBoundaryImplementation],
+        target: Option<&str>,
+    ) -> Result<Vec<semantic_vocabulary::BoundaryMachineId>, Diagnostic> {
+        Ok(self
+            .boundary_call_reach(entry, implementations, target)?
+            .boundaries)
+    }
+
+    /// Preserve the actual invoked-machine summary alongside boundary demand.
+    /// Both projections include the same demanded scalar evaluations and exact
+    /// selected implementations; a retained body alone contributes neither.
+    pub fn boundary_call_reach(
+        &self,
+        entry: semantic_vocabulary::MachineId,
+        implementations: &[crate::CallableBoundaryImplementation],
+        target: Option<&str>,
+    ) -> Result<terminal_semantics::callable_values::ReachedBoundaryCalls, Diagnostic> {
+        let module = self.module();
+        let defect = |detail| {
+            Diagnostic::error(format!(
+                "cannot determine executable boundary supply: {detail}"
+            ))
+        };
+        let graph = terminal_installation::SynchronousCallGraph::new(module, None)
+            .and_then(|graph| {
+                graph.with_boundary_calls(
+                    implementations
+                        .iter()
+                        .map(|row| (row.boundary, row.machine)),
+                )
+            })
+            .map_err(defect)?;
+        let scalar_roots = graph
+            .scalar_evaluation_roots(&[entry], target)
+            .map_err(defect)?;
+        let mut roots = vec![entry];
+        let mut boundaries = Vec::new();
+        let mut reached_machines = Vec::new();
+        for root in scalar_roots {
+            match root {
+                semantic_vocabulary::TargetMachineCallable::Machine(machine) => roots.push(machine),
+                semantic_vocabulary::TargetMachineCallable::Boundary(boundary) => {
+                    boundaries.push(boundary);
+                    if let Some(row) = implementations.iter().find(|row| row.boundary == boundary) {
+                        roots.push(row.machine);
+                    }
+                }
+            }
+        }
+        roots.sort_unstable();
+        roots.dedup();
+        for root in roots {
+            let reached = terminal_semantics::callable_values::boundary_call_reach(
+                module,
+                root,
+                implementations,
+            )
+            .map_err(|detail| defect(detail.to_owned()))?;
+            boundaries.extend(reached.boundaries);
+            reached_machines.extend(reached.reached_machines);
+        }
+        boundaries.sort_unstable();
+        boundaries.dedup();
+        reached_machines.sort_unstable();
+        reached_machines.dedup();
+        Ok(terminal_semantics::callable_values::ReachedBoundaryCalls {
+            boundaries,
+            reached_machines,
+        })
     }
 
     /// The supply a Build names as the backing of a provider readiness
@@ -521,6 +606,28 @@ impl AcceptedTerminalSource {
 
     pub fn closure(&self) -> &AcceptedClosure {
         &self.closure
+    }
+
+    /// Source record associations for the accepted executable form.
+    pub fn source_records(&self) -> &[typed_trees::SourceRecordCorrespondence] {
+        &self.correspondence().records
+    }
+
+    pub(crate) fn correspondence(&self) -> &typed_trees_to_terminal_psi::SourceFormCorrespondence {
+        self.correspondence.forms[0]
+            .as_ref()
+            .expect("judge retained every accepted source form")
+    }
+
+    pub(crate) fn selection_forms(
+        &self,
+    ) -> impl ExactSizeIterator<
+        Item = Option<&typed_trees_to_terminal_psi::selection_questions::RawSelectionQuestions>,
+    > {
+        self.correspondence.forms.iter().map(|form| {
+            form.as_ref()
+                .and_then(|form| form.selection_questions.as_ref())
+        })
     }
 
     pub const fn publication(&self) -> terminal_codec::TerminalPublication {
@@ -707,50 +814,73 @@ fn build_backing<'source>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use semantic_vocabulary::{IdTable, MachineId};
-    use typed_trees_to_terminal_psi::{Body, CrashCeiling, Signature, Termination};
+    use typed_trees_to_terminal_psi::Compilation;
 
-    fn elaboration() -> typed_trees_to_terminal_psi::Elaboration {
-        let mut bodies = IdTable::default();
-        bodies.push(Body {
-            slots: Vec::new(),
-            statements: Vec::new(),
-        });
-        let mut signatures = IdTable::default();
-        signatures.push(Signature {
-            operational: Default::default(),
-            parameters: Vec::new(),
-            erased: Vec::new(),
-            borrowed: Vec::new(),
-            result: None,
-            requires: Vec::new(),
-            ensures: Vec::new(),
-            reaches: typed_trees_to_terminal_psi::Ceiling::Inferred,
-            invokes: typed_trees_to_terminal_psi::Ceiling::Inferred,
-            crashes: CrashCeiling::Authored(Vec::new()),
-            termination: Termination::Silent,
-            ranking: None,
-        });
-        typed_trees_to_terminal_psi::lower_bodies(
-            MachineId::new(1).unwrap(),
-            &bodies,
-            &signatures,
-            &IdTable::default(),
+    fn elaboration(
+        publication: terminal_codec::TerminalPublication,
+    ) -> typed_trees_to_terminal_psi::Elaboration {
+        const TEXT: &str = "machine entry() crashes none {}";
+        let package = semantic_vocabulary::PackageKeyIdentity::from_digest([0xa7; 32]).unwrap();
+        let mut sources = source::SourceMap::default();
+        let source = sources
+            .add_checked_instance(
+                "accepted/source.omg".into(),
+                TEXT,
+                "accepted".into(),
+                Some(package),
+                source::SourceOrigin::User,
+                source::SourceResolutionStratum::Base,
+                source::DependencyScope::Product,
+            )
+            .source_id;
+        let tokens = source_files_to_tokens::Lexer::new(TEXT).tokenize().unwrap();
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(source, &tokens).unwrap();
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+                syntax,
+                sources: Some(Arc::new(sources)),
+                top_level_bindings: Vec::new(),
+                retained_base: None,
+            },
+        )
+        .unwrap();
+        let typed =
+            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+        let machines = typed.machines();
+        assert_eq!(
+            machines.len(),
+            1,
+            "publication fixture must retain its one actual source machine"
+        );
+        let entry = machines.at(0);
+        typed_trees_to_terminal_psi::elaborate_for(
+            &typed,
+            Compilation {
+                declaration_metadata: &[],
+                entries: &[entry.symbol],
+                subjects: &[],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                calling: None,
+                providers: None,
+                supplies: &[],
+            },
+            publication,
         )
         .unwrap()
     }
 
     fn accepted() -> RouteVerdict {
-        terminal_psi_to_terminal_psi::judge(Ok(elaboration())).unwrap()
+        terminal_psi_to_terminal_psi::judge(Ok(elaboration(
+            terminal_codec::TerminalPublication::Portable,
+        )))
+        .unwrap()
     }
 
     #[test]
     fn invocation_publication_keeps_the_judged_module_and_scope() {
-        let mut stated = elaboration();
-        // Raw test bodies declare no identities. Supply the real scope before
-        // judgment; production receives it from structural lowering itself.
-        stated.module.identities =
-            terminal_psi::TerminalIdentityTableBuilder::for_invocation().build();
+        let stated = elaboration(terminal_codec::TerminalPublication::Invocation);
         let closure = accept_compilation(vec![
             terminal_psi_to_terminal_psi::judge(Ok(stated))
                 .map_err(CompilationRefusal::Elaboration),

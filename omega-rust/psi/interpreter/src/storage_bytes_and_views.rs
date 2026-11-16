@@ -5586,7 +5586,10 @@ pub(crate) mod element_views {
             value: TerminalScalarValue,
             target: ScalarType,
         ) -> Result<TerminalScalarValue, TerminalInterpretError> {
-            let input = crate::boundary::values::scalar_view_value(&value);
+            if value.scalar_type() == target {
+                return Ok(value);
+            }
+            let input = crate::boundary::values::scalar_view_value(&value).ok_or_else(malformed)?;
             let output = scalar_reference_view_value(value.scalar_type(), target, input)
                 .or_else(|| {
                     ScalarRepresentationViewPair::classify(value.scalar_type(), target)?.view(input)

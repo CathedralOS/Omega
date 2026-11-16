@@ -733,9 +733,75 @@ pub mod reflection {
                 argument_owner,
                 root_owner_identity,
                 root_application_identity,
+                &[],
+                &mut Vec::new(),
                 &mut found,
             )?;
             Ok(found)
+        }
+
+        /// Signature roots retain the binders in scope at each type operand.
+        /// Their canonical type identity describes the binders themselves;
+        /// nominal graph edges name declarations outside that namespace.
+        struct SignatureSchemaTypes<'typed> {
+            typed: &'typed TypedTrees,
+            roots: Vec<(TypeReferenceHandle, Vec<SymbolHandle>)>,
+            scopes: Vec<Vec<SymbolHandle>>,
+            pending_binders: Vec<SymbolHandle>,
+            expressions: Vec<(crate::expression::ExpressionHandle, Vec<SymbolHandle>)>,
+        }
+
+        impl Extend<SymbolHandle> for SignatureSchemaTypes<'_> {
+            fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, _: T) {}
+        }
+
+        impl crate::references::TypedReferences for SignatureSchemaTypes<'_> {
+            fn derived_declaration_references(&self) -> bool {
+                false
+            }
+
+            fn callable_signature(&mut self, signature: &crate::signature::StateSignature) {
+                self.pending_binders = self
+                    .typed
+                    .state_signature_type_parameters(signature)
+                    .iter()
+                    .map(|parameter| parameter.symbol)
+                    .chain(
+                        self.typed
+                            .state_signature_parameters(signature)
+                            .iter()
+                            .map(|parameter| parameter.symbol),
+                    )
+                    .collect();
+                self.pending_binders.push(signature.symbol);
+                if let Some(children) = self.typed.symbols.child_handles(signature.symbol) {
+                    self.pending_binders.extend(children);
+                }
+            }
+
+            fn enter_lexical_scope(&mut self, _: SymbolHandle) {
+                self.scopes.push(std::mem::take(&mut self.pending_binders));
+            }
+
+            fn leave_lexical_scope(&mut self) {
+                self.scopes.pop();
+            }
+
+            fn type_reference(&mut self, reference: TypeReferenceHandle) -> bool {
+                let bound = self.scopes.iter().flatten().copied().collect();
+                self.roots.push((reference, bound));
+                false
+            }
+
+            fn expression(&mut self, expression: crate::expression::ExpressionHandle) -> bool {
+                let context = self.scopes.iter().flatten().copied().collect();
+                let occurrence = (expression, context);
+                if self.expressions.contains(&occurrence) {
+                    return false;
+                }
+                self.expressions.push(occurrence);
+                true
+            }
         }
 
         fn collect_nominal_expectations(
@@ -744,6 +810,8 @@ pub mod reflection {
             argument_owner: SymbolHandle,
             root_owner_identity: &str,
             root_application_identity: Option<&str>,
+            bound: &[SymbolHandle],
+            active_contracts: &mut Vec<crate::callable_values::RuntimeCallableContractHandle>,
             found: &mut Vec<NominalExpectation>,
         ) -> Result<(), String> {
             let mut intern = |symbol: SymbolHandle,
@@ -751,6 +819,9 @@ pub mod reflection {
                               application: TypeReferenceHandle,
                               bare_named: bool|
              -> Result<(), String> {
+                if bound.contains(&symbol) {
+                    return Ok(());
+                }
                 let (owner_identity, _) =
                     exact_symbol_identity(typed, symbol).map_err(|message| {
                         format!(
@@ -776,6 +847,57 @@ pub mod reflection {
             };
 
             match typed.type_reference_table.type_reference(type_reference) {
+                TypeReferenceNode::Callable { contract } => {
+                    if !typed.runtime_callable_contracts.is_valid(*contract) {
+                        return Err("schema callable type names a stale contract".to_owned());
+                    }
+                    // Recursive signatures retain their exact row in the type
+                    // identity; expand each dependency cycle only once.
+                    if active_contracts.contains(contract) {
+                        return Ok(());
+                    }
+                    let row = typed.runtime_callable_contracts.get(*contract);
+                    if !typed.symbols.symbols().nodes().is_valid(row.lexical_owner)
+                        || !typed
+                            .symbols
+                            .symbols()
+                            .nodes()
+                            .is_valid(row.signature.symbol)
+                    {
+                        return Err(
+                            "schema callable contract has no declaration namespace".to_owned()
+                        );
+                    }
+                    typed
+                        .runtime_callable_contract_identity(*contract, &[])
+                        .map_err(|error| {
+                            format!("schema callable contract cannot be described: {error}")
+                        })?;
+                    active_contracts.push(*contract);
+                    let mut inputs = SignatureSchemaTypes {
+                        typed,
+                        roots: Vec::new(),
+                        scopes: vec![bound.to_vec()],
+                        pending_binders: Vec::new(),
+                        expressions: Vec::new(),
+                    };
+                    crate::references::visit_signature(typed, &mut inputs, &row.signature);
+                    for (reference, own_bound) in inputs.roots {
+                        // Own signature binders are masked separately; free
+                        // applications keep the enclosing operand's owner.
+                        collect_nominal_expectations(
+                            typed,
+                            reference,
+                            argument_owner,
+                            root_owner_identity,
+                            root_application_identity,
+                            &own_bound,
+                            active_contracts,
+                            found,
+                        )?;
+                    }
+                    active_contracts.pop();
+                }
                 TypeReferenceNode::Named { symbol, name } => {
                     intern(*symbol, name.as_str(), type_reference, true)?;
                 }
@@ -805,6 +927,8 @@ pub mod reflection {
                             argument_owner,
                             root_owner_identity,
                             root_application_identity,
+                            bound,
+                            active_contracts,
                             found,
                         )?;
                     }
@@ -816,6 +940,8 @@ pub mod reflection {
                         argument_owner,
                         root_owner_identity,
                         root_application_identity,
+                        bound,
+                        active_contracts,
                         found,
                     )?;
                 }
@@ -826,6 +952,8 @@ pub mod reflection {
                         argument_owner,
                         root_owner_identity,
                         root_application_identity,
+                        bound,
+                        active_contracts,
                         found,
                     )?;
                 }
@@ -837,6 +965,8 @@ pub mod reflection {
                         argument_owner,
                         root_owner_identity,
                         root_application_identity,
+                        bound,
+                        active_contracts,
                         found,
                     )?;
                 }

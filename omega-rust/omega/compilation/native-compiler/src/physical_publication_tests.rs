@@ -179,7 +179,14 @@ fn check_published_plan(
         "the entry was selected"
     );
 
-    let reseal = |plan| PreparedExecutionPlan::seal(plan, published.receipt().validator());
+    let reseal = |plan| {
+        PreparedExecutionPlan::seal(
+            plan,
+            published.receipt().validator(),
+            std::sync::Arc::new(published.callable_invocations().clone()),
+            published.entry_callable_invocations().to_vec(),
+        )
+    };
     let mut changed_abi = published.plan().clone();
     changed_abi
         .function_abis

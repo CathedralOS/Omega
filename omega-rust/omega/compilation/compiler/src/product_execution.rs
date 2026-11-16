@@ -1,21 +1,10 @@
-/*
-We plan each requested compilation stop (`Check`, `Terminal`, `Native`,
-`Inspection`, or `Component`) and finish its product.
+// One product path publishes the accepted program, checks its target conditions,
+// and admits package permissions. Executable stops then join its actual entry,
+// arrival plans and settled provider declarations; application completion owns
+// native compilation and publication.
 
-The compiler owns batch ordering and shared Terminal production. A `Check` or
-`Inspection` stop joins the shared portable Terminal batch: each accepted
-source selection is produced once, its target-local scalar conditions and task activations are
-checked against the target's settled provider plans, and permission and trust
-admission run on the sealed `CheckedCompilation`, so planning alone never
-grants authority to publish.
-
-A `Terminal`, `Native` or `Component` stop is an executable product. It needs
-the selected program entry, callback roots and the native declarations of its
-provider plans, formed from the accepted artifact and the settled plans.
-Nothing on the lowered route produces those yet, so `ProductRequest::plan`
-refuses these stops by name instead of reading a retained copy of them.
-*/
-
+#[path = "executable.rs"]
+mod executable;
 #[path = "product_execution_inspection.rs"]
 mod inspection;
 
@@ -265,33 +254,27 @@ pub(crate) enum ProductRequest {
 }
 
 pub(crate) enum TerminalCompilation {
-    Checking(CheckingCompilation),
+    Product(TargetCompilation),
     Inspection(inspection::InspectionCompilation),
 }
 
-pub(crate) struct CheckingCompilation {
+pub(crate) struct TargetCompilation {
     realization: SelectedProductTarget,
-    package_inputs: Option<package_compilation::PackageCompilationInputs>,
     report: ProductReportPlan,
     permissions: Option<TerminalPermissionAcceptance>,
     selections: OptimizationSelections,
 }
 
-impl CheckingCompilation {
+impl TargetCompilation {
     pub(crate) fn new(
         realization: SelectedProductTarget,
-        package_inputs: Option<package_compilation::PackageCompilationInputs>,
+        _package_inputs: Option<package_compilation::PackageCompilationInputs>,
         report: ProductReportPlan,
         permissions: Option<TerminalPermissionAcceptance>,
     ) -> Self {
-        let selections = realization
-            .custody
-            .terminal_publication
-            .optimizations()
-            .clone();
+        let selections = report.optimizations().clone();
         Self {
             realization,
-            package_inputs,
             report,
             permissions,
             selections,
@@ -320,6 +303,9 @@ impl CheckingCompilation {
                 ),
             });
         }
+        let runtime_product = self
+            .report
+            .needs_terminal(&self.realization.custody.build_admission);
         let runtime_policy = std::sync::Arc::clone(&self.realization.runtime_policy);
         let checked = self.realization.into_checked_compilation()?;
         let accounting = checked.source_completion_accounting().clone();
@@ -328,7 +314,7 @@ impl CheckingCompilation {
                 &checked,
                 &runtime_policy,
                 self.permissions.as_ref(),
-                self.report.needs_terminal(checked.build_admission()),
+                runtime_product,
             )?;
             checked
                 .admit_trust()
@@ -341,30 +327,8 @@ impl CheckingCompilation {
                     mut settlement,
                     rollback,
                 } => {
-                    let (signature, application) =
-                        crate::terminal::prepare_program_entry(&checked)?;
-                    let plans = crate::terminal::prepare_entry_calling_plans(
-                        &checked,
-                        &produced.program,
-                        self.package_inputs.as_ref(),
-                        &signature,
-                    )?;
-                    let (terminal, _, _) = crate::terminal::prepare_native_application(
-                        &checked,
-                        produced,
-                        native_compiler::NativeProgramEntrySettlement::new(
-                            &signature,
-                            Some((
-                                &plans.semantic_calling_application,
-                                &plans.physical_calling_application,
-                                &plans.storage_entry,
-                            )),
-                        ),
-                        application,
-                        settlement.application().clone(),
-                        rollback.effective(),
-                        None,
-                    )?;
+                    let (terminal, _, _) =
+                        executable::prepare(&checked, produced, &self.selections, None)?;
                     *settlement.source_completion_accounting_mut() = accounting.clone();
                     settlement
                         .finish_terminal(terminal, rollback.into_receipt())
@@ -376,31 +340,15 @@ impl CheckingCompilation {
                     request,
                     rollback,
                 } => {
-                    let (signature, application) =
-                        crate::terminal::prepare_program_entry(&checked)?;
-                    let plans = crate::terminal::prepare_entry_calling_plans(
-                        &checked,
-                        &produced.program,
-                        self.package_inputs.as_ref(),
-                        &signature,
-                    )?;
                     let (terminal, accepted_package_permissions, retained_native_inputs) =
-                        crate::terminal::prepare_native_application(
-                            &checked,
-                            produced,
-                            native_compiler::NativeProgramEntrySettlement::new(
-                                &signature,
-                                Some((
-                                    &plans.semantic_calling_application,
-                                    &plans.physical_calling_application,
-                                    &plans.storage_entry,
-                                )),
-                            ),
-                            application,
-                            settlement.application().clone(),
-                            rollback.effective(),
-                            Some(&request),
-                        )?;
+                        executable::prepare(&checked, produced, &self.selections, Some(&request))?;
+                    if checked.execution().realization().composition_modes().any(|mode| {
+                        mode == language_semantics::declaration_selection::CompositionMode::Independent
+                    }) {
+                        return Err(CompilationProductError::Production(vec![Diagnostic::error(
+                            "native composition needs the selected independent components' verified products",
+                        )]));
+                    }
                     *settlement.source_completion_accounting_mut() = accounting.clone();
                     Ok(CompilationOutput::Native(Box::new(
                         products::PendingNativeProduct {
@@ -488,7 +436,7 @@ impl ProductRequest {
         }
         // The accepted Terminal module always exists on this route, so every
         // non-executing stop checks its target-local conditions against it.
-        Ok(TerminalCompilation::Checking(CheckingCompilation::new(
+        Ok(TerminalCompilation::Product(TargetCompilation::new(
             realization,
             package_inputs,
             report,
@@ -508,14 +456,14 @@ impl TerminalCompilation {
         &self,
     ) -> &build_time_evaluation::SourceCompletionAccounting {
         match self {
-            Self::Checking(product) => &product.realization.custody.source_completion_accounting,
+            Self::Product(product) => &product.realization.custody.source_completion_accounting,
             Self::Inspection(product) => product.source_completion_accounting(),
         }
     }
 
     pub(crate) fn terminal_request(&mut self) -> TerminalProductRequest<'_> {
         match self {
-            Self::Checking(product) => product.terminal_request(),
+            Self::Product(product) => product.terminal_request(),
             Self::Inspection(product) => product.terminal_request(),
         }
     }
@@ -525,7 +473,7 @@ impl TerminalCompilation {
         produced: crate::terminal::ProducedTerminalProduct,
     ) -> Result<CompilationOutput, CompilationProductError> {
         match self {
-            Self::Checking(product) => product.finish(produced),
+            Self::Product(product) => product.finish(produced),
             Self::Inspection(product) => product.finish(produced),
         }
     }

@@ -6,7 +6,7 @@ use omega_language_std::Console;
 
 data Main { }
 
-machine Main::main(main: &mut Main)
+machine run(main: &mut Main)
 reaches ProcessExit + Console
 {
     Console::write_line("console-exit-process");
@@ -18,5 +18,5 @@ machine entry_start()
 reaches ProcessExit + Console
 {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    run(&mut entry_storage);
 }

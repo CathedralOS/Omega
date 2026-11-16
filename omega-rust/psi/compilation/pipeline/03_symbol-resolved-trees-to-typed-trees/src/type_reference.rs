@@ -2348,6 +2348,13 @@ pub(crate) mod direct {
                     .type_reference_table
                     .insert(typed::types::TypeReferenceNode::ConstExpression(expression)))
             }
+            resolved::types::TypeReference::Callable { contract, .. } => {
+                let contract =
+                    crate::runtime_callables::lower_contract_reference(typed_trees, *contract)?;
+                Ok(typed_trees
+                    .type_reference_table
+                    .insert(typed::types::TypeReferenceNode::Callable { contract }))
+            }
             resolved::types::TypeReference::Named { symbol, name, .. } => {
                 super::lower_named_type_reference(
                     source_trees,
@@ -3386,6 +3393,13 @@ pub(crate) mod table {
                 Ok(typed_trees
                     .type_reference_table
                     .insert(typed::types::TypeReferenceNode::ConstExpression(expression)))
+            }
+            resolved::types::TypeReferenceNode::Callable { contract } => {
+                let contract =
+                    crate::runtime_callables::lower_contract_reference(typed_trees, *contract)?;
+                Ok(typed_trees
+                    .type_reference_table
+                    .insert(typed::types::TypeReferenceNode::Callable { contract }))
             }
             resolved::types::TypeReferenceNode::Named { symbol, name } => {
                 super::lower_named_type_reference(

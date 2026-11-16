@@ -27,6 +27,7 @@ use terminal_psi::PrimitiveJudgment;
 /// producer. The prover borrows their types from the owner supplying them.
 pub(crate) trait ProofValues {
     fn count(&self) -> usize;
+    fn identity(&self, position: usize) -> Option<ValueId>;
     fn scalar_type(&self, value: ValueId) -> Option<ScalarType>;
 
     // Declaration-only values have no storage origin.
@@ -38,6 +39,10 @@ pub(crate) trait ProofValues {
 impl ProofValues for IdTable<ValueId, ValueRow> {
     fn count(&self) -> usize {
         self.len()
+    }
+
+    fn identity(&self, position: usize) -> Option<ValueId> {
+        self.keys().nth(position)
     }
 
     fn scalar_type(&self, value: ValueId) -> Option<ScalarType> {
@@ -295,13 +300,14 @@ impl Known {
             arrival_equations: Vec::new(),
             arrival_definitions: IdTable::default(),
         };
-        let mut defined: IdTable<ValueId, Option<usize>> = IdTable::default();
-        for _ in 0..values.count() {
-            defined.push(None);
-        }
-        // A premise may relate an operation's result to another value. Its
-        // checked definition still names what the operation did. Equivalent
-        // copies keep the first citation so repeated facts retain their proof.
+        let mut defined: IdTable<ValueId, Option<usize>> =
+            IdTable::from_rows((0..values.count()).map(|position| {
+                let identity = values
+                    .identity(position)
+                    .expect("proof value owner retains each actual input identity");
+                (identity, None)
+            }))
+            .expect("proof value owner retains its exact contiguous identity namespace");
         for (index, &fact) in result.equations.iter().enumerate() {
             let fact = &result.facts[fact];
             let Proposition::Equal(ScalarTerm::Value { id, .. }, _) = &fact.proposition else {

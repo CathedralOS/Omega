@@ -24,7 +24,8 @@ fn form(clauses: Vec<Proposition>) -> Checked<()> {
         requires: clauses,
         ..machine(vec![u32_type(), u32_type()], vec![returns(unsigned(0))])
     }])?;
-    crate::formation::module(&elaboration.module, &[])
+    let mut activity = crate::ProofSearchActivity::default();
+    crate::formation::module(&elaboration.module, &[], &mut activity)
 }
 
 #[test]
@@ -98,8 +99,9 @@ fn a_bodyless_contract_is_not_exempt_from_formation() {
     let mut declared = elaboration.module.machines[0].contract.clone();
     declared.requires = vec![nonnegative(subtract(formal(1, u32_type()), number(1)))];
     elaboration.module.declaration_contracts.push(declared);
+    let mut activity = crate::ProofSearchActivity::default();
     assert_eq!(
-        crate::prepare_replay(&mut elaboration)
+        crate::prepare_replay(&mut elaboration, &mut activity)
             .err()
             .unwrap()
             .reason,
@@ -128,7 +130,8 @@ fn predicate_definitions_form_without_assuming_their_bodies() {
                 nonnegative(subtract(input.clone(), number(1))),
             ]),
         });
-    let error = crate::formation::module(&module, &[]).unwrap_err();
+    let mut activity = crate::ProofSearchActivity::default();
+    let error = crate::formation::module(&module, &[], &mut activity).unwrap_err();
     assert_eq!(error.reason, RefusalReason::Violation);
     assert!(
         error
@@ -137,7 +140,7 @@ fn predicate_definitions_form_without_assuming_their_bodies() {
     );
     module.scalar_predicate_definitions[0].body =
         nonnegative(subtract(number(u32::MAX.into()), input));
-    crate::formation::module(&module, &[]).unwrap();
+    crate::formation::module(&module, &[], &mut activity).unwrap();
 }
 
 #[test]
@@ -150,7 +153,8 @@ fn guarantees_cannot_form_an_input_precondition() {
         obligation: id(1),
         proposition: Proposition::LessOrEqual(number(1), formal(1, u32_type())),
     });
-    assert!(crate::formation::module(&elaboration.module, &[]).is_err());
+    let mut activity = crate::ProofSearchActivity::default();
+    assert!(crate::formation::module(&elaboration.module, &[], &mut activity).is_err());
 }
 
 #[test]
@@ -163,9 +167,10 @@ fn replay_formation_is_an_explicit_searching_entrance() {
         ..machine(vec![u32_type()], vec![returns(unsigned(0))])
     }])
     .unwrap();
-    let before = crate::prove::SEARCHES.with(std::cell::Cell::get);
-    let _scope = crate::prepare_replay(&mut elaboration).unwrap();
-    assert!(crate::prove::SEARCHES.with(std::cell::Cell::get) > before);
+    let mut activity = crate::ProofSearchActivity::default();
+    let before = activity.started();
+    let _scope = crate::prepare_replay(&mut elaboration, &mut activity).unwrap();
+    assert!(activity.started() > before);
 }
 
 fn source_result(text: &str) -> RouteVerdict {
@@ -369,14 +374,15 @@ machine build_entry() {}
     predicate.subject = id(7);
     predicate.proposition =
         Proposition::LessOrEqual(subtract(number_field, number(1)), number(u32::MAX.into()));
-    crate::formation::module(module, &[]).unwrap();
+    let mut activity = crate::ProofSearchActivity::default();
+    crate::formation::module(module, &[], &mut activity).unwrap();
 
     module.structural_domains[0]
         .predicate
         .as_mut()
         .unwrap()
         .subject = id(8);
-    let refusal = crate::formation::module(module, &[]).unwrap_err();
+    let refusal = crate::formation::module(module, &[], &mut activity).unwrap_err();
     assert_eq!(refusal.reason, RefusalReason::Unsupported);
     assert!(
         refusal

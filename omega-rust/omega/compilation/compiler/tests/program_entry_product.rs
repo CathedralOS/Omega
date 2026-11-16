@@ -1,5 +1,87 @@
 //! The selected Build entry joins the actual accepted publication, rather than
 //! selecting an ambient `main` or publishing a second judgment.
+
+#[path = "support/fixture_package_inputs.rs"]
+mod fixture_package_inputs;
+
+#[test]
+fn declaration_only_checking_preserves_role_and_requires_an_entry_for_execution() {
+    for (operation, role) in [
+        ("package", build_declarations::BuildDeclarationKind::Package),
+        (
+            "application",
+            build_declarations::BuildDeclarationKind::Application,
+        ),
+    ] {
+        let root = fixture_package_inputs::repo_root()
+            .join("build")
+            .join(format!(
+                "omega-declaration-only-{}-{operation}",
+                std::process::id()
+            ));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let main = root.join("main.omg");
+        std::fs::write(&main, "public data Item { value: u64; }\n").unwrap();
+        std::fs::write(
+            root.join("build.omg"),
+            format!(
+                "machine build(builder: &mut Build) {{ Build::{operation}(builder, \"entryless\"); }}\n"
+            ),
+        )
+        .unwrap();
+        std::thread::scope(|scope| {
+            compiler::checked::spawn_compile_worker(scope, || {
+                let mut prepared =
+                    fixture_package_inputs::reviewed_repository_fixture_package_inputs(
+                        &main,
+                        Some("macos_arm64"),
+                    )?;
+                let checked = fixture_package_inputs::check_fixture(
+                    &mut prepared,
+                    "macos_arm64",
+                    Default::default(),
+                )?;
+                assert_eq!(
+                    checked.build().project_declaration.as_ref().unwrap().kind(),
+                    role
+                );
+                assert_eq!(
+                    checked.build_admission().application.is_some(),
+                    role == build_declarations::BuildDeclarationKind::Application
+                );
+                assert!(checked.build().config.root_bindings.is_empty());
+                assert!(
+                    checked
+                        .terminal_publication()
+                        .accepted()
+                        .unwrap()
+                        .module()
+                        .program_entry_contracts
+                        .is_empty()
+                );
+                let refusal = compiler::prepare_program_entry(&checked)
+                    .expect_err("execution still needs an actual checked entry");
+                assert_eq!(refusal.len(), 1);
+                assert_eq!(
+                    refusal[0].message,
+                    "target `macos_arm64` has no unique checked entry contract"
+                );
+                drop(checked);
+                drop(prepared);
+                Ok::<(), Vec<diagnostics::Diagnostic>>(())
+            })
+            .unwrap()
+            .join()
+            .unwrap()
+        })
+        .unwrap_or_else(|diagnostics| {
+            panic!("{operation} source checking needs no executable entry: {diagnostics:?}")
+        });
+        std::fs::remove_dir_all(root).unwrap();
+    }
+}
+
 #[test]
 fn trait_implementation_nomination_uses_the_exact_binder_and_nominal_bound() {
     let source_text = "trait A {}\ntrait B {}\nGood satisfies A {}\nWrong satisfies B {}\ntrait Holder<Policy satisfies A> {}\ntrait OtherHolder<Policy satisfies B> {}\nboundary trait Chosen: Holder<Good> {}\nboundary trait Other: OtherHolder<Wrong> {}\n";

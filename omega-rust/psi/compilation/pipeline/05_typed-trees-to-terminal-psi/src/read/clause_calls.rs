@@ -203,7 +203,7 @@ impl Program<'_> {
         }
         let mut bound = Vec::with_capacity(parameters.len());
         for (parameter, &argument) in parameters.iter().zip(arguments) {
-            let (value_type, erased, borrowed) = self.formal(id, parameter)?;
+            let (value_type, erased, borrowed) = self.formal(id, parameter, None)?;
             if erased || borrowed.is_some() || parameter.is_mutable {
                 return unserved("called machine in a clause takes a non-value parameter");
             }

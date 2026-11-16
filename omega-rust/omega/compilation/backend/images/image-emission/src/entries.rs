@@ -9,7 +9,7 @@ standalone native foreign-call adapter images.
 
 pub(crate) mod callable_entry_transport {
     mod body_footprint {
-        use std::collections::{BTreeMap, BTreeSet};
+        use std::collections::BTreeSet;
 
         use calling_conventions::{
             MachineRegister, MachineState, MachineStateSet, Preemption, RegisterSet,
@@ -95,6 +95,8 @@ pub(crate) mod callable_entry_transport {
                 "interrupt body lacks retained emission custody",
             ))?;
             let source = replay.0.source().source().source().source();
+            let callable_invocations = crate::callable_calls::prepare_from(source, entry)
+                .map_err(|reason| Error::PhysicalEntry(diagnostics::Diagnostic::error(reason)))?;
             let model = source.register_environment().physical().model();
             let encoding = source.encoding();
             let encoded_rows = index_encoded_rows(
@@ -118,8 +120,9 @@ pub(crate) mod callable_entry_transport {
                 MachineStateSet::empty(),
                 MachineStateSet::empty(),
             );
-            let mut visited = BTreeSet::new();
+            let mut visited = semantic_vocabulary::IdSet::<MachineId>::default();
             let mut pending = vec![entry];
+            pending.extend(callable_invocations.roots.iter().copied());
             let mut frame_floating_control = false;
             let mut opaque_control = false;
             while let Some(machine) = pending.pop() {
@@ -203,13 +206,37 @@ pub(crate) mod callable_entry_transport {
                         footprint.effects(model, effects)?;
                         continue;
                     }
-                    let encoded = encoded_rows
-                        .get(&(machine, row.instruction))
+                    let encoded = encoded_row(&encoded_rows, machine, row.instruction)
                         .and_then(|row| encoding.encoded().footprint(row.footprint))
                         .ok_or(Error::Mismatch(
                             "interrupt instruction lacks retained encoded effects",
                         ))?;
                     if is_call(encoded.encoded.control) {
+                        let instruction = selected
+                            .instructions()
+                            .find(|instruction| instruction.id == row.instruction)
+                            .ok_or(Error::Mismatch(
+                                "native call has no exact selected instruction",
+                            ))?;
+                        if matches!(
+                            instruction.kind.call_target(),
+                            Some(selected_instructions::SelectedCallTarget::Callable { .. })
+                        ) {
+                            let call = selected_instructions::calls::dynamic::call_record(
+                                selected,
+                                instruction,
+                            )
+                            .ok_or(Error::Mismatch(
+                                "callable CPU footprint lost its selected call contract",
+                            ))?;
+                            if let Some(callees) =
+                                callable_cpu_targets(source, callable_invocations, machine, call)?
+                            {
+                                pending.extend(callees.iter().copied());
+                            }
+                            footprint.decoded(model, encoded)?;
+                            continue;
+                        }
                         let call = selected
                             .normalized_foreign_calls
                             .iter()
@@ -337,13 +364,91 @@ pub(crate) mod callable_entry_transport {
             Ok(collected)
         }
 
+        fn callable_cpu_targets<'a>(
+            source: &machine_emission::StagedOptimizedFunctionFragmentEmissionSource,
+            invocations: &'a terminal_semantics::callable_values::ReachableCallableInvocations,
+            machine: MachineId,
+            call: &selected_instructions::SelectedCallContract,
+        ) -> Result<Option<&'a [MachineId]>, Error> {
+            let target_operations::NativeCallTarget::Callable { callee, contract } =
+                call.call.target
+            else {
+                return Err(Error::Mismatch(
+                    "callable CPU footprint has another native call target",
+                ));
+            };
+            let target_operations::CallSiteOwner::Operation(operation) = call.owner else {
+                return Err(Error::Mismatch(
+                    "callable CPU footprint has another source invocation route",
+                ));
+            };
+            let body = source
+                .optimized_target()
+                .optimized()
+                .unit()
+                .function(machine)
+                .ok_or(Error::Mismatch(
+                    "callable CPU footprint has no exact optimized caller",
+                ))?;
+            let mut source_calls = body
+                .block_nodes()
+                .filter(|node| node.operation.psi_operation() == Some(operation));
+            let source_call = source_calls.next().ok_or(Error::Mismatch(
+                "callable CPU footprint lost its source operation",
+            ))?;
+            if source_calls.next().is_some()
+                || !matches!(source_call.operation,
+                abstract_operations::AbstractOperation::CallStructural {
+                    callee: abstract_operations::AbstractCallTarget::Callable {
+                        callee: source_callee, contract: source_contract,
+                    }, ..
+                } if source_callee == callee && source_contract == contract)
+            {
+                return Err(Error::Mismatch(
+                    "callable CPU footprint changed its evaluated source callee",
+                ));
+            }
+            let Some(invocation) = invocations
+                .operation(machine, operation)
+                .map_err(Error::Mismatch)?
+            else {
+                if invocations
+                    .reached_machines
+                    .binary_search(&machine)
+                    .is_err()
+                {
+                    return Err(Error::Unsupported(
+                        "callable CPU footprint lacks an admitted invocation context for its native caller",
+                    ));
+                }
+                // This authenticated source occurrence is outside every
+                // feasible execution path from the observed entry.
+                return Ok(None);
+            };
+            if invocation.invocation.target
+                != terminal_semantics::callable_values::CallableInvocationTarget::Value(
+                    callee, contract,
+                )
+                || invocation.invocation.boundary.is_some()
+            {
+                return Err(Error::Mismatch(
+                    "callable CPU footprint changed its retained invocation",
+                ));
+            }
+            if !invocation.targets_are_resolved() {
+                return Err(Error::Unsupported(
+                    "callable CPU footprint has unresolved code and no admitted physical state ceiling",
+                ));
+            }
+            Ok(Some(invocation.selected_machines.as_slice()))
+        }
+
         fn index_encoded_rows(
             owners: impl IntoIterator<Item = (MachineId, SelectedInstructionId)>,
             rows: &[SelectedFormEncodingRow],
-        ) -> Result<BTreeMap<(MachineId, SelectedInstructionId), &SelectedFormEncodingRow>, Error>
-        {
+        ) -> Result<Vec<(MachineId, &SelectedFormEncodingRow)>, Error> {
             let mut encoded = rows.iter();
-            let mut indexed = BTreeMap::new();
+            let mut indexed = Vec::with_capacity(rows.len());
             for owner in owners {
                 let row = encoded.next().ok_or(Error::Mismatch(
                     "interrupt encoding omits a physical instruction",
@@ -353,18 +458,34 @@ pub(crate) mod callable_entry_transport {
                         "interrupt encoding differs from physical instruction order",
                     ));
                 }
-                if indexed.insert(owner, row).is_some() {
-                    return Err(Error::Mismatch(
-                        "interrupt function repeats a physical instruction identity",
-                    ));
-                }
+                indexed.push((owner.0, row));
             }
             if encoded.next().is_some() {
                 return Err(Error::Mismatch(
                     "interrupt encoding has an unowned physical instruction",
                 ));
             }
+            indexed.sort_unstable_by_key(|(machine, row)| (*machine, row.instruction));
+            if indexed.windows(2).any(|pair| {
+                pair[0].0 == pair[1].0 && pair[0].1.instruction == pair[1].1.instruction
+            }) {
+                return Err(Error::Mismatch(
+                    "interrupt function repeats a physical instruction identity",
+                ));
+            }
             Ok(indexed)
+        }
+
+        fn encoded_row<'a>(
+            rows: &[(MachineId, &'a SelectedFormEncodingRow)],
+            machine: MachineId,
+            instruction: SelectedInstructionId,
+        ) -> Option<&'a SelectedFormEncodingRow> {
+            rows.binary_search_by_key(&(machine, instruction), |(owner, row)| {
+                (*owner, row.instruction)
+            })
+            .ok()
+            .map(|position| rows[position].1)
         }
 
         fn check_mask_operation(
@@ -798,7 +919,11 @@ pub(crate) mod callable_entry_transport {
                     .decoded(
                         model,
                         store
-                            .footprint(indexed[&(first, SelectedInstructionId(0))].footprint)
+                            .footprint(
+                                encoded_row(&indexed, first, SelectedInstructionId(0))
+                                    .unwrap()
+                                    .footprint,
+                            )
                             .unwrap(),
                     )
                     .unwrap();
@@ -814,7 +939,11 @@ pub(crate) mod callable_entry_transport {
                     .decoded(
                         model,
                         store
-                            .footprint(indexed[&(second, SelectedInstructionId(0))].footprint)
+                            .footprint(
+                                encoded_row(&indexed, second, SelectedInstructionId(0))
+                                    .unwrap()
+                                    .footprint,
+                            )
                             .unwrap(),
                     )
                     .unwrap();
@@ -829,6 +958,19 @@ pub(crate) mod callable_entry_transport {
                 assert!(index_encoded_rows([owners[0], owners[2], owners[3]], &rows).is_err());
                 assert!(index_encoded_rows(owners, &rows[..3]).is_err());
                 assert!(index_encoded_rows(owners[..3].iter().copied(), &rows).is_err());
+                assert!(
+                    index_encoded_rows([owners[0], owners[1], owners[0], owners[1]], &rows)
+                        .is_err()
+                );
+                assert!(encoded_row(&indexed, first, SelectedInstructionId(2)).is_none());
+                assert!(
+                    encoded_row(
+                        &indexed,
+                        MachineId::new(21).unwrap(),
+                        SelectedInstructionId(0)
+                    )
+                    .is_none()
+                );
             }
         }
     }

@@ -189,7 +189,7 @@ impl DeferredRequest {
                 "holding a mathematical call with an argument no pass builds at its parameter's type yet"
             }
             Self::CallParameterSelection => {
-                "holding a call whose callee's parameter types typing does not select yet"
+                "holding a call without selected call parameter types for argument construction"
             }
             Self::TargetFamilyGenericSignature => {
                 "of a generic machine with one body per target, whose bodies typing does not compare with their shared signature yet"

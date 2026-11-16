@@ -75,11 +75,11 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-### Native compilation stops halfway for Build's constant evaluator
-- Category: knowledge crossing a boundary
+### Every native caller evaluates constants between two driver calls
+- Category: one idea, several implementations
 - Where: [native completion](omega-rust/omega/build-system/orchestration/src/compile/native_completion.rs#L123), [scalar completion](omega-rust/omega/compilation/native-compiler/src/scalar_completion.rs), [Build's completer](omega-rust/omega/build-system/build-settings/src/activation/scalar_completion.rs#L20)
-- Saw: `native_compiler::prepare` returns a half-built compile. Each caller then runs `build_settings::scalar_completion::complete`, the Psi constant evaluator, on every `NativeScalarCompletion` and hands the results back before `native_compiler::compile` lowers anything. The demand comes from the native execution scope (`scalar_application_demand`), which reads only the Terminal module and target layouts.
-- Cost: The Omega pipeline leaves for another pipeline in the middle and every caller repeats the prepare, evaluate, compile sequence. Complete the demand from the Terminal product and target inputs before the native driver starts, pass the completed scalars in `NativeCompileRequest`, and delete `NativeScalarCompletion` and the split entry.
+- Saw: Omega 00 now runs whole inside `native_compiler::compile`, but callers still call `native_compiler::prepare`, run `build_settings::scalar_completion::complete` on every `NativeScalarCompletion`, then call `compile`. Preparation reads only the retained Terminal product and its native proposal (`TerminalNativeRealizationProposal::prepare_native_execution`, `PreparedNativeExecution::scalar_application_demand`). Product checking separately completes the same artifact's conditions with an empty demand (`ProducedTerminalProduct::check_conditions`).
+- Cost: Orchestration, the review example and compiler tests each repeat the prepare, evaluate, compile sequence, and conditions are evaluated twice. Select the execution and complete its demand once where the retained native product is formed, pass the completed scalars in `NativeCompileRequest`, and delete `NativeScalarCompletion` and the split entry.
 - Reported: 2026-11-16, pi, while checking that only the native driver calls Omega stages.
 
 ### Emission libraries keep earlier stage outputs beside the final layout
@@ -95,6 +95,27 @@ framework or a list of unimplemented features.
 - Saw: A recast checks the enclosing record's alignment, but its geometry query has no carrier layout for a sibling sum. The checker supplies the retained target's record resolver without its case-tag layout. An exact `PosixFilesystem` reduction refuses a whole aligned 144-byte field. Changing only the sibling `ErrorKind` field to `u32` yields native and Psi exit 0 on macOS arm64.
 - Cost: The standard-library POSIX stat decoders still refuse the whole buffer. Pass the existing target carrier layout to projected storage checks, preserve the short and misaligned refusals, and replay the unchanged [note vault](https://github.com/CathedralOS/Omega/pull/3722).
 - Reported: 2026-11-15, Codex, while validating shared recasts of an aligned record field.
+
+### Specialization failures discard the reason they stopped
+- Category: Verifying costs more than writing
+- Where: [specialization](omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/passes/specialization.rs)
+- Saw: many specialization checks still return `Stop::Unserved(None)`. The Console binding replay reached an anonymous nested-parameter mismatch; adding the missing reason required another optimized compiler build and replay. The current repair gives that mismatch a reason, but adjacent shape, lookup and argument checks still discard theirs.
+- Cost: the next failure names only the unavailable application, hiding the failed check. Carry each check's reason through the existing refusal path so one replay identifies the repair, without changing which programs are accepted.
+- Reported: 2026-11-15, Codex, while restoring Console preparation for stored-machine execution
+
+### Focused compiler controls spend twenty-two minutes in code generation
+- Category: Verifying costs more than writing
+- Where: [compiler test targets](omega-rust/omega/compilation/compiler/Cargo.toml#L110), [compiler feature alignment](omega-rust/omega/compilation/compiler/Cargo.toml#L102), and the `coherent-native-controls-24-01` receipt in continuation claim `18e81ab82af520780000000018e96239`
+- Saw: On macOS arm64 at `a827cf2c269`, a fixed-source nextest selection of 24 controls across 12 binaries spent 22m17s building before 176.905s of test execution. The command used the retained CLI feature union, optimization level 1, two codegen units and three jobs; 1,219 tests were not selected. Actual compiler processes remained active. After integrating main `a2684962ce882`, 13 selected unit controls across six crates spent 15m49s building and 0.414s running on the same host and budget (`merge-a268-direct-controls-01`, with exact source patch and input records retained in the active claim). The source of this build cost has not been established.
+- Cost: The recorded twelve-binary replay spent twenty-two minutes building before exposing the next semantic refusal. A later three-binary replay at c16df641c12 built in 2m51s; that smaller selection does not identify the earlier cost. Measure the actual invalidation and compiled-target work, then repair the responsible build or test ownership while retaining the selected controls and exact-source optimized producer checks.
+- Reported: 2026-11-14, Codex, while carrying stored-machine programs through Console and native-binding preparation
+
+### Callback and interrupt records lose the machine that owns their operation
+- Category: Re-deriving
+- Where: [terminal-psi/src/lib.rs:352](omega-rust/psi/compilation/representations/terminal-psi/src/lib.rs#L352), [executable preparation](omega-rust/omega/compilation/compiler/src/executable.rs), and [codec/src/foundation_validation.rs:2261](omega-rust/psi/compilation/representations/terminal-psi/codec/src/foundation_validation.rs#L2261)
+- Saw: each lowered machine allocates operation IDs from its own fresh `MachineSources`, but callback and interrupt records retain only `OperationId`. Executable preparation searches every reached machine for that number, while codec interrupt validation collects all machines into a map keyed by the same bare ID. Stage05 currently emits neither roster; the existing constructors are fixtures and decoding, and no failing customer execution was observed.
+- Cost: equal operation numbers in different machines can select an unrelated reached use or overwrite an installation site. Preserve the owning machine with the operation through the record, encoding and consumers so each registration names its actual call.
+- Reported: 2026-11-14, Codex, while reviewing stored-machine executable preparation
 
 ### Selected-body activation copies retained side records
 - Category: re-deriving

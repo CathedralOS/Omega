@@ -34,6 +34,13 @@ mod calls {
         child_type_references: &arena::Arena<symbol_resolved_trees::types::TypeReference>,
         symbols: &SymbolTable,
     ) -> SymbolHandle {
+        if symbol_resolved_trees::callable_values::callee_uses_value_binding(
+            symbols,
+            expression_table,
+            call.callee,
+        ) {
+            return SymbolHandle::invalid();
+        }
         if call.receiver.is_valid() {
             if receiver_needs_result_type(expression_table, call.receiver) {
                 return SymbolHandle::invalid();

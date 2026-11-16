@@ -10,7 +10,6 @@ dependencies = [
  "native-vocabulary",
  "optimization-core",
  "semantic-vocabulary",
- "terminal-codec",
  "terminal-psi",
 ]
 
@@ -2489,6 +2488,7 @@ dependencies = [
  "diagnostics",
  "language-core",
  "language-semantics",
+ "optimization",
  "semantic-vocabulary",
  "source",
  "source-files-to-tokens",
@@ -2832,6 +2832,7 @@ dependencies = [
  "provider-selection",
  "semantic-vocabulary",
  "target",
+ "target-operations",
  "task-plans",
  "terminal-codec",
  "terminal-installation",

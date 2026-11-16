@@ -6,6 +6,10 @@
 
 use products::{CheckedCompilation, CompileFailure};
 
+pub use products::{
+    SourceCallingInputs as CallingInputs, SourceProgramEntryInput as ProgramEntryInput,
+};
+
 /// What to check: either form the session already checks.
 pub enum TypedFrontierRequest {
     /// A package Product, as `CompilationSession::check_package_build` takes it.
@@ -39,6 +43,14 @@ pub struct TypedFrontier {
     pub selected: Vec<symbols::SymbolHandle>,
     /// The distinct visible-continuation obligations of the executed bindings.
     pub bindings: Vec<typed_trees::callable_signature_shapes::BoundCallableShape>,
+    pub supplies: Vec<source_compiler::TerminalSourceSupply>,
+    pub normalization: std::sync::Arc<products::SourceNormalizationInputs>,
+}
+
+impl TypedFrontier {
+    pub fn provider_selections(&self) -> Option<source_compiler::TerminalProviderSelections<'_>> {
+        self.normalization.providers(&self.typed)
+    }
 }
 
 /// What the product path concluded after receiving its typed source.

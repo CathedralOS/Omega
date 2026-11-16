@@ -18,9 +18,10 @@ travel in Terminal Psi's two lanes.
 
 use language_core::ReferenceAccess;
 use semantic_vocabulary::{
-    InvocationSite, MachineId, ObligationId, OperationId, PlaceId, ScalarTerm, ValueId,
+    CallableContractId, InvocationSite, MachineId, ObligationId, OperationId, PlaceId, ScalarTerm,
+    ValueId,
 };
-use terminal_check_tables::edges::{Actual, Callee, Disposition, Fate, InvocationRow};
+use terminal_check_tables::edges::{Actual, Callee, InvocationRow};
 use terminal_check_tables::obligations::{CrashSite, ExecutionSite, Lender, ObligationKind};
 use terminal_check_tables::{
     Checked, Construct, ExactPlaceId, ProgramPoint, Refusal, RefusalReason,
@@ -28,7 +29,7 @@ use terminal_check_tables::{
 use terminal_psi::{OperationKind, StructuralAccess, StructuralArgument, Terminator};
 
 use super::{Evaluation, Lowering, Reached, Value};
-use crate::body::{Expression, ExpressionKind, ValueType};
+use crate::body::{CallTarget, CrashCeiling, Expression, ExpressionKind, Signature, ValueType};
 use crate::canonical;
 use crate::outcome::Outcome;
 use crate::{SourceOrigin, Unserved, refuse};
@@ -241,39 +242,189 @@ impl ArgumentHome {
     }
 }
 
+/// One loan a call forms. `formation` is the access the program wrote and
+/// the loan's occurrence records; `lent` is the formal's access, the one the
+/// callee receives (`ReferenceAccess::forms`).
+pub(super) struct CallLoan {
+    place: ExactPlaceId,
+    formation: ReferenceAccess,
+    lent: ReferenceAccess,
+    lender: Lender,
+}
+
 /// A call's evaluated arguments.
-struct Arguments {
+pub(super) struct Arguments {
     /// In authored formal order, as the invocation row holds them.
-    actuals: Vec<Actual>,
+    pub(super) actuals: Vec<Actual>,
     /// The scalar lane: the values a callee clause's formals stand for.
-    scalars: Vec<ValueId>,
+    pub(super) scalars: Vec<ValueId>,
     /// The structural lane in formal order: each record argument's root,
     /// whole and owned, and each loan's place with the loan's access.
-    structural: Vec<(PlaceId, Vec<super::places::Step>, StructuralAccess)>,
-    /// The homes created while staging owned values and shared descriptors.
-    /// One normal continuation retires both, after all call loans end.
+    pub(super) structural: Vec<(PlaceId, Vec<super::places::Step>, StructuralAccess)>,
+    /// Homes staged for owned values or captured borrowed descriptors. A
+    /// normal continuation retires them only after its call loans end.
     homes: Vec<ArgumentHome>,
-    /// One per loan, in formal order: the place lent, its access and where
-    /// the authority comes from.
-    loans: Vec<(ExactPlaceId, ReferenceAccess, Lender)>,
+    /// One per loan, in formal order, retaining formation and callee access.
+    pub(super) loans: Vec<CallLoan>,
     /// The erased lane: the term each `[erased]` formal stands for, in
     /// position order. Nothing was evaluated for it, and it is not among
     /// `actuals`: an invocation row's actual is a value or a place, and the
     /// checker reads these terms from the call itself.
-    erased: Vec<ScalarTerm>,
+    pub(super) erased: Vec<ScalarTerm>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(super) enum EvaluatedCallTarget {
+    Machine(MachineId),
+    Selected {
+        callable: ValueId,
+        contract: CallableContractId,
+    },
+    Boundary {
+        boundary: semantic_vocabulary::BoundaryMachineId,
+    },
 }
 
 impl Lowering<'_> {
+    fn target_signature(
+        &self,
+        target: &CallTarget,
+        required_contract: Option<semantic_vocabulary::ContractId>,
+    ) -> Checked<Signature> {
+        if let Some(required) = required_contract {
+            let target = match target {
+                CallTarget::Machine(machine) => (*machine).into(),
+                CallTarget::Boundary { boundary } => {
+                    semantic_vocabulary::TargetMachineCallable::Boundary(*boundary)
+                }
+                CallTarget::Selected { .. } => {
+                    return Err(
+                        self.internal("selected callable also names a declared public contract")
+                    );
+                }
+            };
+            return self
+                .signatures
+                .invocation(target, Some(required), self.id)
+                .cloned();
+        }
+        match target {
+            CallTarget::Machine(machine) => terminal_check_tables::row(
+                self.signatures.machines,
+                *machine,
+                self.id,
+                Construct::Machine,
+            )
+            .cloned(),
+            CallTarget::Selected { contract, .. } => self
+                .callables
+                .contracts
+                .get(*contract)
+                .map(|contract| contract.signature.clone())
+                .ok_or_else(|| self.internal("selected call has no retained public contract")),
+            CallTarget::Boundary { boundary, .. } => self.boundary_signature(*boundary),
+        }
+    }
+
+    fn evaluated_target(&mut self, target: &CallTarget) -> Evaluation<EvaluatedCallTarget> {
+        match target {
+            CallTarget::Machine(machine) => {
+                Ok(Reached::Value(EvaluatedCallTarget::Machine(*machine)))
+            }
+            CallTarget::Boundary { boundary } => {
+                Ok(Reached::Value(EvaluatedCallTarget::Boundary {
+                    boundary: *boundary,
+                }))
+            }
+            CallTarget::Selected { callable, contract } => {
+                if !matches!(callable.result,
+                    Some(ValueType::Scalar(semantic_vocabulary::ScalarType::Callable(found), _))
+                        if found == *contract
+                ) {
+                    return Err(self.internal(
+                        "selected call's evaluated operand changes its public contract",
+                    ));
+                }
+                let callable = continuing!(self.scalar(callable));
+                Ok(Reached::Value(EvaluatedCallTarget::Selected {
+                    callable,
+                    contract: *contract,
+                }))
+            }
+        }
+    }
+
+    fn target_outcome(
+        &self,
+        target: &CallTarget,
+        required_contract: Option<semantic_vocabulary::ContractId>,
+    ) -> Checked<Outcome> {
+        let mut outcome = match target {
+            CallTarget::Machine(machine) => self.outcome(*machine).cloned(),
+            CallTarget::Boundary { boundary, .. } => self.boundary_outcome(*boundary),
+            CallTarget::Selected { contract, .. } => {
+                let row = self.callables.contracts.get(*contract).ok_or_else(|| {
+                    self.internal("selected call has no retained public contract")
+                })?;
+                let signature = self.target_signature(target, None)?;
+                let crash_routes = match signature.crashes {
+                    CrashCeiling::Authored(routes) => routes,
+                    CrashCeiling::DeclaredNone => Vec::new(),
+                    CrashCeiling::Inferred => {
+                        return Err(self.internal("selected call has an open crash ceiling"));
+                    }
+                };
+                // An unknown callable may return. A selected body cannot narrow
+                // this public continuation or contribute private guarantees.
+                Ok(Outcome {
+                    operational: [row.envelope.suspends, row.envelope.blocks],
+                    completes_normally: true,
+                    crash_routes,
+                    service_reach: match signature.reaches {
+                        crate::Ceiling::Authored(row) => row,
+                        crate::Ceiling::Inferred => {
+                            return Err(
+                                self.internal("selected callable has no published service ceiling")
+                            );
+                        }
+                    },
+                    fixed_service_reach: None,
+                    synchronous_entries: match signature.invokes {
+                        crate::Ceiling::Authored(row) => row,
+                        crate::Ceiling::Inferred => {
+                            return Err(
+                                self.internal("selected callable has no published entry ceiling")
+                            );
+                        }
+                    },
+                })
+            }
+        }?;
+        if required_contract.is_some() {
+            let signature = self.target_signature(target, required_contract)?;
+            // A routed public requirement keeps its own continuation and
+            // written bounds; only omitted clauses use the completed source.
+            outcome.completes_normally = true;
+            outcome.operational = signature.operational.published(outcome.operational);
+            if let Some(routes) = signature.declared_crash_routes() {
+                outcome.crash_routes = routes.to_vec();
+            }
+            if let crate::Ceiling::Authored(row) = signature.reaches {
+                outcome.service_reach = row;
+            }
+            if let crate::Ceiling::Authored(row) = signature.invokes {
+                outcome.synchronous_entries = row;
+            }
+        }
+        Ok(outcome)
+    }
+
     /// Evaluates a call's arguments left to right.
     fn arguments(
         &mut self,
-        callee: semantic_vocabulary::TargetMachineCallable,
-        required_contract: Option<semantic_vocabulary::ContractId>,
+        signature: &Signature,
         arguments: &[Expression],
     ) -> Evaluation<Arguments> {
-        let signature = self
-            .signatures
-            .invocation(callee, required_contract, self.id)?;
         let mut evaluated = Arguments {
             actuals: Vec::with_capacity(arguments.len()),
             scalars: Vec::new(),
@@ -298,7 +449,12 @@ impl Lowering<'_> {
                 let lent = continuing!(self.lend(place, *access));
                 evaluated.actuals.push(Actual::Place(lent.place));
                 evaluated.structural.push(lent.argument);
-                evaluated.loans.push((lent.place, *access, lent.lender));
+                evaluated.loans.push(CallLoan {
+                    place: lent.place,
+                    formation: *access,
+                    lent: *access,
+                    lender: lent.lender,
+                });
                 evaluated
                     .homes
                     .extend(lent.temporary.map(ArgumentHome::BorrowedDescriptor));
@@ -359,7 +515,8 @@ impl Lowering<'_> {
         Vec<StructuralArgument>,
         Vec<terminal_psi::TerminalAffineCleanupAction>,
     )> {
-        let captured = continuing!(self.arguments(callee.into(), None, arguments));
+        let signature = self.signatures.get(callee.into(), self.id)?.clone();
+        let captured = continuing!(self.arguments(&signature, arguments));
         if !captured.erased.is_empty() {
             return Err(self.internal("a loop transfer carries erased arguments"));
         }
@@ -376,7 +533,7 @@ impl Lowering<'_> {
         Ok(Reached::Value((captured.scalars, structural, cleanup)))
     }
 
-    fn structural_arguments(
+    pub(super) fn structural_arguments(
         &mut self,
         captured: Vec<(PlaceId, Vec<super::places::Step>, StructuralAccess)>,
         site: ExecutionSite,
@@ -398,37 +555,51 @@ impl Lowering<'_> {
     /// formal order. loans.md: "Loan resource | Exact occurrence, owner
     /// lineage, captured place, access, parent lifetime, and restoration
     /// obligation." The occurrence is the call: each loan is formed for it
-    /// and ends when it returns, so none is live on any edge.
-    fn loans(
+    /// and ends when it returns. A call that never returns carries its
+    /// loans on its terminal edge instead. Formation uses the access written
+    /// by the caller, even when the callee receives weaker access.
+    pub(super) fn loans(
         &mut self,
-        loans: &[(ExactPlaceId, ReferenceAccess, Lender)],
+        loans: &[CallLoan],
         before: ProgramPoint,
         source: SourceOrigin,
-    ) {
-        for (captured, access, lender) in loans {
-            self.obligation(
-                ObligationKind::Loan {
-                    captured: *captured,
-                    access: *access,
-                    lender: *lender,
-                },
-                before,
-                source,
-            );
-        }
+    ) -> Vec<ObligationId> {
+        loans
+            .iter()
+            .map(|loan| {
+                self.obligation(
+                    ObligationKind::Loan {
+                        captured: loan.place,
+                        access: loan.formation,
+                        lender: loan.lender,
+                    },
+                    before,
+                    source,
+                )
+            })
+            .collect()
+    }
+
+    pub(super) fn terminal_loan_dispositions(
+        loans: &[ObligationId],
+        fate: terminal_check_tables::edges::Fate,
+    ) -> Vec<terminal_check_tables::edges::Disposition> {
+        loans
+            .iter()
+            .map(|loan| terminal_check_tables::edges::Disposition {
+                obligation: *loan,
+                fate,
+            })
+            .collect()
     }
 
     /// What an exclusive loan's callee may have stored: anything beneath the
     /// lent place, from the call's normal continuation on. Nothing else the
     /// caller holds changes, so siblings keep what they held.
-    fn returned_loans(
-        &mut self,
-        loans: &[(ExactPlaceId, ReferenceAccess, Lender)],
-        operation: OperationId,
-    ) -> Checked<()> {
-        for (captured, access, _) in loans {
-            if access.is_exclusive() {
-                self.unknown_contents(*captured, operation)?;
+    fn returned_loans(&mut self, loans: &[CallLoan], operation: OperationId) -> Checked<()> {
+        for loan in loans {
+            if loan.lent.is_exclusive() {
+                self.unknown_contents(loan.place, operation)?;
             }
         }
         Ok(())
@@ -442,18 +613,16 @@ impl Lowering<'_> {
     /// outcomes stay within their source visibility; an abstract requirement
     /// cannot inherit its implementation's private non-return fact.
     fn completes_normally(
-        &self,
-        callable: semantic_vocabulary::TargetMachineCallable,
+        &mut self,
+        callable: &CallTarget,
         required_contract: Option<semantic_vocabulary::ContractId>,
         arguments: &Arguments,
     ) -> Checked<bool> {
-        let signature = self
-            .signatures
-            .invocation(callable, required_contract, self.id)?;
+        let signature = self.target_signature(callable, required_contract)?;
         if crate::inhabitation::excludes_result(&self.records.inhabitation, signature.result) {
             return Ok(false);
         }
-        if self.published_postcondition_is_false(signature, arguments)? {
+        if self.published_postcondition_is_false(&signature, arguments)? {
             return Ok(false);
         }
         // Requirement routing does not publish the chosen body's outcome.
@@ -462,11 +631,10 @@ impl Lowering<'_> {
             return Ok(true);
         }
         Ok(match callable {
-            semantic_vocabulary::TargetMachineCallable::Machine(callee) => {
-                self.outcome(callee)?.completes_normally
-            }
-            semantic_vocabulary::TargetMachineCallable::Boundary(boundary) => {
-                self.signatures.completion(boundary, self.id)?
+            CallTarget::Selected { .. } => true,
+            CallTarget::Machine(callee) => self.outcome(*callee)?.completes_normally,
+            CallTarget::Boundary { boundary } => {
+                self.signatures.completion(*boundary, self.id)?
                     == semantic_vocabulary::BoundaryCompletion::NormalReturn
             }
         })
@@ -475,7 +643,7 @@ impl Lowering<'_> {
     /// Bind genuine scalar formals once, with their exact declared carriers.
     /// A callee result ID cannot acquire a caller constant with the same number.
     fn published_postcondition_is_false(
-        &self,
+        &mut self,
         signature: &crate::body::Signature,
         arguments: &Arguments,
     ) -> Checked<bool> {
@@ -526,26 +694,30 @@ impl Lowering<'_> {
     }
 
     fn known_scalar(
-        &self,
+        &mut self,
         value: ValueId,
     ) -> Option<(
         semantic_vocabulary::ScalarType,
         semantic_vocabulary::IntegerValue,
     )> {
-        let mut constants = self.scalar_constants.borrow_mut();
-        while constants.registered_count() < self.tables.values.len() {
+        let values = &self.tables.values;
+        let operation_locations = &self.operation_locations;
+        let blocks = &self.blocks;
+        let types = DraftScalarValues { values };
+        let constants = &mut self.scalar_constants;
+        while constants.registered_count() < values.len() {
             let id = ValueId::new(
                 u64::try_from(constants.registered_count())
                     .ok()?
                     .checked_add(1)?,
             )?;
-            self.tables.values.get(id)?;
+            values.get(id)?;
             if !constants.register(id) {
                 return None;
             }
         }
         constants.value(value, |value| {
-            let row = self.tables.values.get(value)?;
+            let row = values.get(value)?;
             if row.rigid.is_some() {
                 return None;
             }
@@ -555,31 +727,10 @@ impl Lowering<'_> {
             else {
                 return None;
             };
-            let (block, ordinal) = self.operation_locations.get(operation)?.as_ref()?;
-            let operation = self.blocks.get(*block)?.operations.get(*ordinal)?;
-            terminal_semantics::scalar_operation_origin(operation, value, self)
+            let (block, ordinal) = operation_locations.get(operation)?.as_ref()?;
+            let operation = blocks.get(*block)?.operations.get(*ordinal)?;
+            terminal_semantics::scalar_operation_origin(operation, value, &types)
         })
-    }
-
-    fn call_routes(
-        &self,
-        callable: semantic_vocabulary::TargetMachineCallable,
-        required_contract: Option<semantic_vocabulary::ContractId>,
-    ) -> Checked<&[terminal_psi::CrashRouteBucket]> {
-        let signature = self
-            .signatures
-            .invocation(callable, required_contract, self.id)?;
-        if let Some(routes) = signature.declared_crash_routes() {
-            return Ok(routes);
-        }
-        match callable {
-            semantic_vocabulary::TargetMachineCallable::Machine(callee) => {
-                Ok(&self.outcome(callee)?.crash_routes)
-            }
-            semantic_vocabulary::TargetMachineCallable::Boundary(_) => {
-                Err(self.internal("a boundary call has no published crash ceiling"))
-            }
-        }
     }
 
     /// A call with no normal completion, wherever it is written: the
@@ -600,70 +751,50 @@ impl Lowering<'_> {
     /// receipt, cleanup successor, or post-exit frontier").
     fn invoke_no_normal(
         &mut self,
-        callee: semantic_vocabulary::TargetMachineCallable,
+        target: EvaluatedCallTarget,
         required_contract: Option<semantic_vocabulary::ContractId>,
-        source_call: Option<(
-            MachineId,
-            typed_trees::expression::ExpressionHandle,
-            typed_trees::statement::StatementHandle,
-        )>,
+        signature: &Signature,
         arguments: Arguments,
-        (source, static_reach_binding): (SourceOrigin, Option<u32>),
+        outcome: &Outcome,
         acknowledgement: terminal_psi::CallAcknowledgement,
-    ) -> Evaluation<()> {
-        let routes = self.call_routes(callee, required_contract)?;
+        source: SourceOrigin,
+        static_reach_binding: Option<u32>,
+    ) -> Checked<()> {
+        if let EvaluatedCallTarget::Boundary { boundary } = target {
+            return self.invoke_boundary_no_normal(boundary, arguments, acknowledgement, source);
+        }
+        let EvaluatedCallTarget::Machine(machine) = target else {
+            return Err(
+                self.internal("runtime callable has no no-normal public completion contract")
+            );
+        };
+        // This invocation retains the caller activation and the lent storage.
+        // It has no normal continuation at which a loan could be restored or
+        // its contents observed, but formation still owes the ordinary access
+        // and overlap judgments at the exact call site.
         let crash_continuations = canonical::substituted_routes(
-            routes,
+            &outcome.crash_routes,
             &arguments.scalars,
             &self.tables.values,
             self.id,
         )?;
         let site = self.current()?;
         let before = self.here()?;
-        // state_contracts.md, "Terminal calls in transition arms": "A
-        // caller-local loan carried into a terminal machine call closes at
-        // the last use of that loan and of every loan derived from it, even
-        // when that use is inside the callee's terminal chain". The callee
-        // never returns, so each loan is formed here like any call's and is
-        // handed to the transfer whole: this machine's edge consumes it and
-        // no place of this machine is read again.
-        let lent = self.tables.obligations.len();
-        self.loans(&arguments.loans, before, source);
-        let mut carried = Vec::with_capacity(arguments.loans.len());
-        for raw in lent + 1..=self.tables.obligations.len() {
-            let obligation = ObligationId::new(raw as u64)
-                .ok_or_else(|| self.internal("a loan of a no-normal call has no identity"))?;
-            carried.push(Disposition {
-                obligation,
-                fate: Fate::Consumed,
-            });
-        }
-        let edge = self.no_successor_edge(carried, source)?;
-        self.call_formations.push(terminal_psi::CallFormation {
-            site: terminal_psi::CallSite::Edge(edge),
-            acknowledgement,
-            tail_callee: None,
-        });
-        let invocation_site = match callee {
-            semantic_vocabulary::TargetMachineCallable::Machine(_) => {
-                InvocationSite::InvokeNoNormal(edge)
-            }
-            semantic_vocabulary::TargetMachineCallable::Boundary(_) => {
-                InvocationSite::ExternalCompletion(edge)
-            }
-        };
+        let loans = self.loans(&arguments.loans, before, source);
+        let edge = self.no_successor_edge(
+            Self::terminal_loan_dispositions(&loans, terminal_check_tables::edges::Fate::Consumed),
+            source,
+        )?;
         let requirements = self.invocation(
-            invocation_site,
-            callee,
+            InvocationSite::InvokeNoNormal(edge),
+            target,
             required_contract,
+            signature.requires.len(),
             &arguments.actuals,
             before,
             source,
+            acknowledgement,
         )?;
-        if let Some((selecting, expression, statement)) = source_call {
-            self.calls
-                .push((selecting, expression, statement, invocation_site));
-        }
         for bucket in &crash_continuations {
             self.obligation(
                 ObligationKind::CrashCoverage {
@@ -676,87 +807,83 @@ impl Lowering<'_> {
         }
         let structural_arguments =
             self.structural_arguments(arguments.structural, ExecutionSite::Block(site), source)?;
-        match callee {
-            semantic_vocabulary::TargetMachineCallable::Machine(callee) => self
-                .terminate(Terminator::InvokeNoNormal {
-                    edge,
-                    static_reach_binding,
-                    required_contract: self
-                        .signatures
-                        .canonical_contract(required_contract, self.id)?,
-                    callee,
-                    structural_arguments,
-                    arguments: arguments.scalars,
-                    erased_arguments: arguments.erased,
-                    erased_proof_arguments: Vec::new(),
-                    claim_transfers: Vec::new(),
-                    requirement_obligations: requirements,
-                    crash_continuations,
-                })
-                .map(Reached::Value),
-            semantic_vocabulary::TargetMachineCallable::Boundary(boundary) => {
-                let semantic_vocabulary::BoundaryCompletion::External(kind) =
-                    self.signatures.completion(boundary, self.id)?
-                else {
-                    return Err(self.internal("a returning boundary call as a terminator"));
-                };
-                // process_exit.md: the canonical operation "permits no
-                // source crash". Its declaration is the one place that could
-                // say otherwise, and the terminator has no continuation
-                // roster to hold a route. A caller that promises termination
-                // owes nothing more for it: "Under its requirements and
-                // admitted provider progress premises, the canonical
-                // operation eventually ends the bound domain", and "An exit
-                // leaf needs no further cycle decrease".
-                if !crash_continuations.is_empty() {
-                    return Err(refuse(
-                        self.id,
-                        Construct::Block(site),
-                        Unserved::Call("external completion that declares a crash route"),
-                    ));
-                }
-                if !arguments.erased.is_empty() {
-                    return Err(self.internal("boundary call carries erased runtime operands"));
-                }
-                self.terminate(Terminator::ExternalCompletion {
-                    edge,
-                    boundary,
-                    kind,
-                    arguments: arguments.scalars,
-                    structural_arguments,
-                    requirement_obligations: requirements,
-                    // calls_and_outcomes.md: "The frontier lower bound
-                    // reports obligations definitely live at the site." The
-                    // route mints no claim, so none is definitely live.
-                    frontier_lower_bound: Vec::new(),
-                })
-                .map(Reached::Value)
-            }
-        }
+        self.terminate(Terminator::InvokeNoNormal {
+            edge,
+            static_reach_binding,
+            required_contract: self
+                .signatures
+                .canonical_contract(required_contract, self.id)?,
+            callee: machine,
+            structural_arguments,
+            arguments: arguments.scalars,
+            erased_arguments: arguments.erased,
+            erased_proof_arguments: Vec::new(),
+            claim_transfers: Vec::new(),
+            requirement_obligations: requirements,
+            crash_continuations,
+        })
     }
 
     /// The invocation row of one call and its `CallRequirement` obligations,
     /// one per callee `requires` clause, created at the point before it.
-    fn invocation(
+    pub(super) fn invocation(
         &mut self,
         site: InvocationSite,
-        callee: semantic_vocabulary::TargetMachineCallable,
+        target: EvaluatedCallTarget,
         required_contract: Option<semantic_vocabulary::ContractId>,
+        clauses: usize,
         actuals: &[Actual],
         before: ProgramPoint,
         source: SourceOrigin,
+        acknowledgement: terminal_psi::CallAcknowledgement,
     ) -> Checked<Vec<ObligationId>> {
-        let clauses = self
-            .signatures
-            .invocation(callee, required_contract, self.id)?
-            .requires
-            .len();
+        self.call_formations.push(terminal_psi::CallFormation {
+            site: match site {
+                InvocationSite::Operation(operation) => {
+                    terminal_psi::CallSite::Operation(operation)
+                }
+                InvocationSite::InvokeNoNormal(edge) | InvocationSite::ExternalCompletion(edge) => {
+                    terminal_psi::CallSite::Edge(edge)
+                }
+                InvocationSite::Cleanup { .. } => {
+                    return Err(self.internal(
+                        "an owned cleanup invocation cannot use an ordinary source-call formation",
+                    ));
+                }
+            },
+            acknowledgement,
+            tail_callee: None,
+        });
+        if let SourceOrigin::AuthoredNode {
+            source_member,
+            owner,
+            node,
+            ..
+        } = source
+        {
+            self.source_calls
+                .push(typed_trees::SourceCallCorrespondence {
+                    machine: self.id,
+                    source_member,
+                    site,
+                    owner,
+                    source: node,
+                });
+        }
         let invocation = self.tables.invocations.push(InvocationRow {
             required_contract: self
                 .signatures
                 .canonical_contract(required_contract, self.id)?,
             site,
-            callee: Callee::Declared(callee),
+            callee: match target {
+                EvaluatedCallTarget::Machine(machine) => {
+                    Callee::Declared(semantic_vocabulary::TargetMachineCallable::Machine(machine))
+                }
+                EvaluatedCallTarget::Selected { callable, .. } => Callee::Selected { callable },
+                EvaluatedCallTarget::Boundary { boundary, .. } => Callee::Declared(
+                    semantic_vocabulary::TargetMachineCallable::Boundary(boundary),
+                ),
+            },
             actuals: actuals.to_vec(),
             requirements: Vec::new(),
         });
@@ -787,27 +914,20 @@ impl Lowering<'_> {
 
     pub(super) fn call(
         &mut self,
-        callable: semantic_vocabulary::TargetMachineCallable,
+        callee: &CallTarget,
         required_contract: Option<semantic_vocabulary::ContractId>,
         arguments: &[Expression],
         designated: Option<crate::body::DesignatedOperands>,
         result: Option<ValueType>,
-        (source, source_call, static_reach_binding): (
-            SourceOrigin,
-            Option<(
-                MachineId,
-                typed_trees::expression::ExpressionHandle,
-                typed_trees::statement::StatementHandle,
-            )>,
-            Option<u32>,
-        ),
+        (source, static_reach_binding): (SourceOrigin, Option<u32>),
         acknowledgement: terminal_psi::CallAcknowledgement,
     ) -> Evaluation<Value> {
-        let declared_result = self
-            .signatures
-            .invocation(callable, required_contract, self.id)?
-            .result;
-        match (result, declared_result) {
+        if designated.is_some() && !matches!(callee, CallTarget::Boundary { .. }) {
+            return Err(self.internal("designated operands on a call that is no boundary call"));
+        }
+        let signature = self.target_signature(callee, required_contract)?;
+        let outcome = self.target_outcome(callee, required_contract)?;
+        match (result, signature.result) {
             (Some(ValueType::Rigid(actual)), Some(ValueType::Rigid(declared)))
                 if actual == declared => {}
             (Some(ValueType::Rigid(_)), _) | (_, Some(ValueType::Rigid(_))) => {
@@ -815,74 +935,58 @@ impl Lowering<'_> {
             }
             _ => {}
         }
-        // A call with no normal completion is a terminator
-        // (`invoke_no_normal`) and has no value: the path it lies on ends at
-        // it, and so does the evaluation of whatever holds it
-        // (the explicit Ended evaluation outcome).
-        let arguments = continuing!(self.arguments(callable, required_contract, arguments));
-        if !self.completes_normally(callable, required_contract, &arguments)? {
-            if designated.is_some() {
-                return Err(self.internal("designated operands on a call that never returns"));
-            }
-            continuing!(self.invoke_no_normal(
-                callable,
-                required_contract,
-                source_call,
-                arguments,
-                (source, static_reach_binding),
-                acknowledgement
-            ));
-            return Ok(Reached::Ended(source));
-        }
-        if matches!(
-            callable,
-            semantic_vocabulary::TargetMachineCallable::Boundary(_)
-        ) && self.signature.termination != crate::Termination::Silent
-            && self.signatures.get(callable, self.id)?.termination == crate::Termination::Silent
+        if matches!(callee, CallTarget::Boundary { .. })
+            && self.signature.termination != crate::Termination::Silent
+            && signature.termination == crate::Termination::Silent
         {
             return Err(refuse(
                 self.id,
                 Construct::Machine,
-                Unserved::Call(
-                    "a terminating caller needs the boundary's published termination guarantee",
-                ),
+                Unserved::Call("boundary call without a termination guarantee"),
             ));
         }
-        if designated.is_some()
-            && !matches!(
-                callable,
-                semantic_vocabulary::TargetMachineCallable::Boundary(_)
-            )
-        {
-            return Err(self.internal("designated operands on a call that is no boundary call"));
+        // Capture the code value before any argument can write its backing.
+        // Both returning and terminal calls consume this same evaluated plan.
+        let target = continuing!(self.evaluated_target(callee));
+        let mut arguments = continuing!(self.arguments(&signature, arguments));
+        if !self.completes_normally(callee, required_contract, &arguments)? {
+            if designated.is_some() {
+                return Err(self.internal("designated operands on a call that never returns"));
+            }
+            self.invoke_no_normal(
+                target,
+                required_contract,
+                &signature,
+                arguments,
+                &outcome,
+                acknowledgement,
+                source,
+                static_reach_binding,
+            )?;
+            return Ok(Reached::Ended(source));
         }
-
-        let routes = self.call_routes(callable, required_contract)?;
-        // Both declarations owe the caller's same-cause coverage. A boundary
-        // retains these routes on its declaration instead of a second encoded
-        // continuation roster; the checker restates them at the actual call.
         let crash_continuations = canonical::substituted_routes(
-            routes,
+            &outcome.crash_routes,
             &arguments.scalars,
             &self.tables.values,
             self.id,
         )?;
         let before = self.here()?;
         let operation = self.operation_identity(source);
-        self.call_formations.push(terminal_psi::CallFormation {
-            site: terminal_psi::CallSite::Operation(operation),
-            acknowledgement,
-            tail_callee: None,
-        });
+        if let Some(designated) = designated {
+            self.designated.push((operation, designated));
+        }
         let requirements = self.invocation(
             InvocationSite::Operation(operation),
-            callable,
+            target,
             required_contract,
+            signature.requires.len(),
             &arguments.actuals,
             before,
             source,
+            acknowledgement,
         )?;
-        self.loans(&arguments.loans, before, source);
+        let _ = self.loans(&arguments.loans, before, source);
         for bucket in &crash_continuations {
             self.obligation(
                 ObligationKind::CrashCoverage {
@@ -894,19 +998,27 @@ impl Lowering<'_> {
             );
         }
         let structural_arguments = self.structural_arguments(
-            arguments.structural,
+            std::mem::take(&mut arguments.structural),
             ExecutionSite::Operation(operation),
             source,
         )?;
-        let erased_arguments = arguments.erased;
-        let scalars = arguments.scalars;
-        let kind = match callable {
-            semantic_vocabulary::TargetMachineCallable::Boundary(boundary) => {
+        let erased_arguments = std::mem::take(&mut arguments.erased);
+        let scalars = std::mem::take(&mut arguments.scalars);
+        let kind = match target {
+            EvaluatedCallTarget::Selected { callable, contract } => OperationKind::CallMachine {
+                callee: callable,
+                contract,
+                arguments: scalars,
+                erased_arguments,
+                erased_proof_arguments: Vec::new(),
+                structural_arguments,
+                claim_transfers: Vec::new(),
+                requirement_obligations: requirements,
+                crash_continuations,
+            },
+            EvaluatedCallTarget::Boundary { boundary } => {
                 if !erased_arguments.is_empty() {
-                    return Err(self.internal("boundary call carries erased runtime operands"));
-                }
-                if let Some(designated) = designated {
-                    self.designated.push((operation, designated));
+                    return Err(self.internal("boundary call cannot discard erased actuals"));
                 }
                 OperationKind::BoundaryCall {
                     boundary,
@@ -916,7 +1028,7 @@ impl Lowering<'_> {
                     requirement_obligations: requirements,
                 }
             }
-            semantic_vocabulary::TargetMachineCallable::Machine(callee) => match result {
+            EvaluatedCallTarget::Machine(callee) => match result {
                 Some(ValueType::Scalar(..) | ValueType::Rigid(_))
                     if structural_arguments.is_empty() =>
                 {
@@ -951,36 +1063,31 @@ impl Lowering<'_> {
                     requirement_obligations: requirements,
                     crash_continuations,
                 },
-                Some(ValueType::Record(_, _, _)) => {
-                    OperationKind::CallStructuralWithScalarArguments {
-                        callee,
-                        arguments: scalars,
-                        erased_arguments,
-                        erased_proof_arguments: Vec::new(),
-                        structural_arguments,
-                        claim_transfers: Vec::new(),
-                        requirement_obligations: requirements,
-                        crash_continuations,
-                        selected_evidence: Vec::new(),
-                    }
-                }
+                Some(ValueType::Record(..)) => OperationKind::CallStructuralWithScalarArguments {
+                    callee,
+                    arguments: scalars,
+                    erased_arguments,
+                    erased_proof_arguments: Vec::new(),
+                    structural_arguments,
+                    claim_transfers: Vec::new(),
+                    requirement_obligations: requirements,
+                    crash_continuations,
+                    selected_evidence: Vec::new(),
+                },
             },
         };
-        // The actual result keeps one constructor across both declaration
-        // classes; storage, unknown writes and loan restoration are shared.
         let value = match result {
-            Some(ValueType::Scalar(scalar, _)) => self.emit(operation, Some(scalar), kind)?,
-            None => self.emit(operation, None, kind)?,
-            Some(value_type @ ValueType::Record(record, qualification, _)) => {
-                let (root, exact) =
-                    self.produce_qualified(operation, record, qualification, kind)?;
+            Some(ValueType::Scalar(scalar_type, _)) => {
+                self.emit(operation, Some(scalar_type), kind)?
+            }
+            Some(value_type @ ValueType::Record(..)) => {
+                let (root, exact) = self.produce(operation, value_type, kind)?;
                 self.unknown_contents(exact, operation)?;
                 self.name_contents(exact, value_type)?;
                 Value::Record(root)
             }
+            None => self.emit(operation, None, kind)?,
             Some(ValueType::Rigid(rigid)) => {
-                // The ordinary call operation carries an opaque proof value.
-                // Its row retains the rigid identity, never facts of DECLARED_AS.
                 let value = self.rigid_value(
                     rigid,
                     terminal_check_tables::values::ValueOrigin::Operation(operation),
@@ -1007,14 +1114,6 @@ impl Lowering<'_> {
         }
         emitted.required_contract = canonical_contract;
         emitted.static_reach_binding = static_reach_binding;
-        if let Some((selecting, expression, statement)) = source_call {
-            self.calls.push((
-                selecting,
-                expression,
-                statement,
-                InvocationSite::Operation(operation),
-            ));
-        }
         self.returned_loans(&arguments.loans, operation)?;
         if !arguments.homes.is_empty() {
             let homes: Vec<_> = arguments.homes.iter().map(ArgumentHome::place).collect();
@@ -1024,9 +1123,14 @@ impl Lowering<'_> {
     }
 }
 
-impl terminal_semantics::ValueTypes for Lowering<'_> {
+/// Immutable scalar declarations borrowed separately from the mutable cache.
+struct DraftScalarValues<'a> {
+    values: &'a semantic_vocabulary::IdTable<ValueId, terminal_check_tables::values::ValueRow>,
+}
+
+impl terminal_semantics::ValueTypes for DraftScalarValues<'_> {
     fn value_type(&self, value: ValueId) -> Option<semantic_vocabulary::ScalarType> {
-        let row = self.tables.values.get(value)?;
+        let row = self.values.get(value)?;
         row.rigid.is_none().then_some(row.scalar_type)
     }
 }

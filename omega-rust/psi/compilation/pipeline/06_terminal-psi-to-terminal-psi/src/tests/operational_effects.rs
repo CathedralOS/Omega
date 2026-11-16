@@ -39,6 +39,8 @@ fn elaborate(
     typed_trees_to_terminal_psi::elaborate_for(
         &frozen,
         typed_trees_to_terminal_psi::Compilation {
+            calling: None,
+            providers: None,
             declaration_metadata: &[],
             entries: &[entry],
             subjects,
@@ -397,7 +399,11 @@ fn a_boundary_uses_its_published_envelope_even_without_a_waiting_body() {
 
 #[test]
 fn an_implementation_keeps_its_own_bound_and_owes_the_requirement_bound() {
-    fn witness(requirement: &str, supplied: &str, body: &str) -> RouteVerdict {
+    fn witness(
+        requirement: &str,
+        supplied: &str,
+        body: &str,
+    ) -> Vec<Result<RouteVerdict, crate::CompilationRefusal>> {
         let text = format!(
             r#"
             trait Probe {{ machine wait() -> u32 reaches none {requirement}; }}
@@ -406,45 +412,104 @@ fn an_implementation_keeps_its_own_bound_and_owes_the_requirement_bound() {
         "#
         );
         let typed = boundary_calls::typed(&text);
-        let owner = typed
-            .traits()
-            .iter()
-            .find(|row| row.name.as_str() == "Probe")
-            .unwrap()
-            .symbol;
-        let required = typed
-            .trait_machine_signatures
-            .iter()
-            .find(|(_, row)| row.name.as_str() == "wait")
-            .unwrap()
-            .1
-            .symbol;
         let implementation = typed
             .machines()
             .iter()
             .find(|row| row.name.as_str() == "implementation")
             .unwrap()
             .symbol;
-        judge(typed_trees_to_terminal_psi::elaborate_witness(
-            &typed,
-            owner,
-            required,
-            &[],
-            implementation,
-        ))
-        .unwrap()
+        let package = typed
+            .symbols
+            .symbol_product_package_identity(implementation)
+            .expect("the checked fixture has its actual package identity");
+        // The implementation body and its refinement are separate obligations.
+        // Check both in the same compilation instead of a bodyless logical form.
+        crate::judge_compilation(
+            typed_trees_to_terminal_psi::prepare_compilation(
+                &typed,
+                typed_trees_to_terminal_psi::Compilation {
+                    calling: None,
+                    providers: None,
+                    declaration_metadata: &[],
+                    entries: &[],
+                    subjects: &[Some(package)],
+                    purpose: source::DependencyScope::Product,
+                    selected: &[],
+                    bindings: &[],
+                    supplies: &[],
+                },
+                terminal_codec::TerminalPublication::Invocation,
+            )
+            .program,
+        )
     }
+    let allowed = witness("blocks", "", "7");
+    assert!(
+        !allowed.is_empty()
+            && allowed
+                .iter()
+                .all(|verdict| matches!(verdict, Ok(RouteVerdict::Accepted(_)))),
+        "{allowed:?}"
+    );
+    let check_form = allowed
+        .iter()
+        .filter_map(|verdict| match verdict {
+            Ok(RouteVerdict::Accepted(accepted)) => Some(accepted),
+            _ => None,
+        })
+        .find(|accepted| !accepted.elaboration.check_form_envelopes.is_empty())
+        .expect("the conformance proof retains its generated checking frame");
     assert!(matches!(
-        witness("blocks", "", "7"),
-        RouteVerdict::Accepted(_)
+        check_form.publish(),
+        Err(crate::PublicationError::GenericCheckForm)
     ));
+    assert!(matches!(
+        check_form.publish_invocation(),
+        Err(crate::PublicationError::GenericCheckForm)
+    ));
+    assert!(crate::ceilings::judge(&check_form.elaboration).is_ok());
+    let mut duplicate = check_form.elaboration.clone();
+    let frame = duplicate.check_form_envelopes[0].clone();
+    duplicate.check_form_envelopes.insert(0, frame);
+    let refused = crate::ceilings::judge(&duplicate).unwrap_err();
+    assert_eq!(
+        refused.reason,
+        RefusalReason::ForeignIdentity,
+        "{refused:?}"
+    );
     for refused in [
         witness("", "blocks", "7"),
         witness("blocks", "blocks false", "block helper()"),
     ] {
         assert!(
-            matches!(refused, RouteVerdict::Rejected { ref violations, .. }
-            if violations.iter().any(|violation| violation.message().contains("blocks ceiling is false"))),
+            refused
+                .iter()
+                .any(|verdict| matches!(verdict, Ok(RouteVerdict::Rejected { .. }))),
+            "{refused:?}"
+        );
+        assert!(
+            refused.iter().all(|verdict| match verdict {
+                Ok(RouteVerdict::Accepted(_)) => true,
+                Ok(RouteVerdict::Rejected {
+                    formations,
+                    violations,
+                    unproved,
+                    unestablished,
+                    conflicts,
+                    exceeded,
+                }) => {
+                    !violations.is_empty()
+                        && violations.iter().all(|violation| {
+                            violation.message().contains("blocks ceiling is false")
+                        })
+                        && formations.is_empty()
+                        && unproved.is_empty()
+                        && unestablished.is_empty()
+                        && conflicts.is_empty()
+                        && exceeded.is_empty()
+                }
+                _ => false,
+            }),
             "{refused:?}"
         );
     }
@@ -559,6 +624,8 @@ fn selected_verdicts(text: &str) -> Vec<Result<RouteVerdict, crate::CompilationR
         typed_trees_to_terminal_psi::prepare_compilation(
             &typed,
             typed_trees_to_terminal_psi::Compilation {
+                calling: None,
+                providers: None,
                 declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[],

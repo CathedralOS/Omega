@@ -14,6 +14,7 @@ use terminal_psi::{
     OperationKind, StructuralArgument, TerminalIntegerRankValue, TerminalMachine,
     TerminalNaturalCycle, TerminalNaturalRankComparison, TerminalRankedScc,
 };
+use terminal_semantics::descriptor_results::DescriptorAnalysis;
 
 /// A finite integer tuple cannot decrease forever in lexicographic order.
 /// Keep its carriers and private value bindings with this judgment, so the
@@ -123,11 +124,12 @@ impl Bindings {
     }
 }
 
-pub(crate) fn admit(
+pub(crate) fn admit<'source>(
     machine: &TerminalMachine,
     tables: &MachineTables,
     graph: &Graph,
-    storage: &Storage<'_>,
+    storage: &Storage<'source>,
+    references: &mut DescriptorAnalysis<'source>,
 ) -> Checked<Bindings> {
     let ranked = cycles(machine);
     let actual = if machine.ranked_scc.is_some()
@@ -174,11 +176,12 @@ pub(crate) fn admit(
         ));
     }
     let mut expected = Vec::new();
-    let normalizer = Normalize {
+    let mut normalizer = Normalize {
         machine,
         tables,
         graph,
         storage,
+        references,
         arguments: &arguments,
     };
     for (cycle_index, (cycle, members)) in ranked.iter().zip(&actual).enumerate() {
@@ -564,6 +567,7 @@ struct Normalize<'a, 'storage> {
     tables: &'a MachineTables,
     graph: &'a Graph,
     storage: &'a Storage<'storage>,
+    references: &'a mut DescriptorAnalysis<'storage>,
     arguments: &'a [EdgeArguments<'a>],
 }
 
@@ -602,7 +606,7 @@ impl Normalize<'_, '_> {
         Ok(())
     }
     fn corresponds(
-        &self,
+        &mut self,
         target: BlockId,
         rank: ValueId,
         successor: ValueId,
@@ -665,7 +669,7 @@ impl Normalize<'_, '_> {
         ))
     }
     fn value(
-        &self,
+        &mut self,
         value: ValueId,
         substitution: Option<(BlockId, EdgeId, &[ValueId])>,
         used: ProgramPoint,
@@ -675,12 +679,13 @@ impl Normalize<'_, '_> {
             .checked_sub(1)
             .ok_or_else(|| foreign(self.machine.id, "rank normalization does not end"))?;
         self.available(value, used)?;
-        let row = self
+        let origin = self
             .tables
             .values
             .get(value)
+            .map(|row| row.origin)
             .ok_or_else(|| foreign(self.machine.id, "rank value is undefined"))?;
-        match row.origin {
+        match origin {
             ValueOrigin::MachineParameter { .. } => Ok(RankValue::Scalar(value)),
             ValueOrigin::BlockParameter { block, position } => {
                 if let Some((target, edge, actuals)) = substitution
@@ -696,8 +701,8 @@ impl Normalize<'_, '_> {
             }
             ValueOrigin::Operation(producer) => {
                 let before = self.graph.locate(ProgramPoint::AfterOperation(producer))?;
-                let operation = self
-                    .machine
+                let machine = self.machine;
+                let operation = machine
                     .blocks
                     .get(usize::try_from(before.0.get() - 1).unwrap_or(usize::MAX))
                     .and_then(|block| block.operations.get(before.1 - 1))
@@ -732,6 +737,7 @@ impl Normalize<'_, '_> {
                         if let Some((target, edge, _)) = substitution {
                             if before.0 != target
                                 || !self.storage.rank_descriptor_kept(
+                                    self.references,
                                     &source,
                                     target,
                                     0,
@@ -782,9 +788,13 @@ impl Normalize<'_, '_> {
                                 .len()
                                 .min(last);
                             if before.0 != block
-                                || !self
-                                    .storage
-                                    .rank_descriptor_kept(&source, block, before.1, end)?
+                                || !self.storage.rank_descriptor_kept(
+                                    self.references,
+                                    &source,
+                                    block,
+                                    before.1,
+                                    end,
+                                )?
                             {
                                 return Err(foreign(
                                     self.machine.id,

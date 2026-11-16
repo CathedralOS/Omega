@@ -232,6 +232,8 @@ mod tests {
             program: typed_trees::TypedTrees::default(),
             accounting: Default::default(),
             compilation: crate::TerminalSourceCompilation {
+                calling: None,
+                providers: None,
                 declaration_metadata: &[],
                 entries: &[],
                 subjects: &[],
@@ -254,6 +256,8 @@ mod tests {
             program: typed_trees::TypedTrees::default(),
             accounting: Default::default(),
             compilation: crate::TerminalSourceCompilation {
+                calling: None,
+                providers: None,
                 declaration_metadata: &[],
                 entries: &[],
                 subjects: &[],
@@ -342,6 +346,8 @@ mod tests {
                 program: typed_trees::TypedTrees::default(),
                 accounting: Default::default(),
                 compilation: crate::TerminalSourceCompilation {
+                    calling: None,
+                    providers: None,
                     declaration_metadata: &[],
                     entries: &[],
                     subjects: &[],
@@ -393,6 +399,8 @@ mod tests {
             program: typed_trees::TypedTrees::default(),
             accounting: Default::default(),
             compilation: crate::TerminalSourceCompilation {
+                calling: None,
+                providers: None,
                 declaration_metadata: &[],
                 entries: &[],
                 subjects: &[],

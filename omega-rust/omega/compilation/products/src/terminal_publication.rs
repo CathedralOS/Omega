@@ -9,6 +9,88 @@ use optimization_core::OptimizationSelections;
 use source_compiler::PortableTerminalProgram;
 use std::sync::{Arc, OnceLock};
 
+/// The source choices bound after preparation to its actual returned owner.
+/// Rejudging a grown roster reuses these inputs; native consumers read only
+/// the canonical contracts those source choices formed in the module.
+#[derive(Debug, Clone, Default)]
+pub struct SourceNormalizationInputs {
+    pub calling: SourceCallingInputs,
+    pub providers: Vec<source_compiler::TerminalProviderSelectionInput>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct SourceCallingInputs {
+    pub applications: Vec<typed_trees::trait_definition::TraitApplicationEnvironment>,
+    pub entries: Vec<SourceProgramEntryInput>,
+}
+
+#[derive(Debug, Clone)]
+pub struct SourceProgramEntryInput {
+    pub target: String,
+    pub application: typed_trees::trait_definition::TraitApplicationEnvironment,
+    pub physical_source_digest: [u8; 32],
+    pub implementation: symbols::SymbolHandle,
+}
+
+pub struct SourceCallingContext<'source> {
+    source: &'source typed_trees::TypedTrees,
+    applications: &'source [typed_trees::trait_definition::TraitApplicationEnvironment],
+    entries: Vec<source_compiler::TerminalProgramEntryContractSelection<'source>>,
+}
+
+impl SourceCallingInputs {
+    pub fn borrow<'source>(
+        &'source self,
+        source: &'source typed_trees::TypedTrees,
+    ) -> SourceCallingContext<'source> {
+        SourceCallingContext {
+            source,
+            applications: &self.applications,
+            entries: self
+                .entries
+                .iter()
+                .map(
+                    |entry| source_compiler::TerminalProgramEntryContractSelection {
+                        target: &entry.target,
+                        application: &entry.application,
+                        physical_source_digest: entry.physical_source_digest,
+                        implementation: entry.implementation,
+                    },
+                )
+                .collect(),
+        }
+    }
+}
+
+impl SourceCallingContext<'_> {
+    pub fn selection(&self) -> Option<source_compiler::TerminalCallingPolicySelections<'_>> {
+        (!self.entries.is_empty() || !self.applications.is_empty()).then_some(
+            source_compiler::TerminalCallingPolicySelections {
+                source: self.source,
+                applications: self.applications,
+                entries: &self.entries,
+            },
+        )
+    }
+}
+
+impl SourceNormalizationInputs {
+    pub fn providers<'source>(
+        &'source self,
+        source: &'source typed_trees::TypedTrees,
+    ) -> Option<source_compiler::TerminalProviderSelections<'source>> {
+        (!self.providers.is_empty()).then_some(source_compiler::TerminalProviderSelections {
+            source,
+            choices: &self.providers,
+        })
+    }
+    fn is_empty(&self) -> bool {
+        self.providers.is_empty()
+            && self.calling.applications.is_empty()
+            && self.calling.entries.is_empty()
+    }
+}
+
 pub struct ProductTerminalPublication {
     optimizations: OptimizationSelections,
     program: OnceLock<Result<Arc<PortableTerminalProgram>, Vec<Diagnostic>>>,
@@ -41,12 +123,20 @@ pub struct ProductRoster {
     /// The providers chosen to supply boundary slots: the Build's own
     /// selections first, then what settlement chose for reached requirements.
     pub supplies: Vec<source_compiler::TerminalSourceSupply>,
+    pub normalization: Arc<SourceNormalizationInputs>,
 }
 
 impl ProductRoster {
     /// Borrow the full roster for source preparation and judgment alike.
-    pub fn compilation(&self) -> source_compiler::TerminalSourceCompilation<'_> {
-        source_compiler::TerminalSourceCompilation {
+    pub fn preparation_compilation(
+        &self,
+    ) -> Result<source_compiler::TerminalSourceCompilation<'_>, Vec<Diagnostic>> {
+        if !self.normalization.is_empty() {
+            return Err(vec![Diagnostic::error(
+                "source choices must bind to the actual prepared owner before judgment",
+            )]);
+        }
+        Ok(source_compiler::TerminalSourceCompilation {
             declaration_metadata: &self.declaration_metadata,
             entries: self
                 .inspection_root
@@ -57,7 +147,9 @@ impl ProductRoster {
             selected: &self.selected,
             bindings: &self.bindings,
             supplies: &self.supplies,
-        }
+            calling: None,
+            providers: None,
+        })
     }
 
     /// The lowered-form checker's judgment of this roster over `typed`: the
@@ -71,12 +163,23 @@ impl ProductRoster {
         &self,
         typed: Arc<typed_trees::FrozenTypedTrees>,
     ) -> Result<Arc<source_compiler::AcceptedTerminalSource>, Vec<Diagnostic>> {
-        source_compiler::AcceptedTerminalSource::judge(
-            typed,
-            self.compilation(),
+        let calling = self.normalization.calling.borrow(&typed);
+        let accepted = source_compiler::AcceptedTerminalSource::judge(
+            Arc::clone(&typed),
+            source_compiler::TerminalSourceCompilation {
+                declaration_metadata: &self.declaration_metadata,
+                entries: &self.entries,
+                subjects: std::slice::from_ref(&self.subject),
+                purpose: source::DependencyScope::Product,
+                selected: &self.selected,
+                bindings: &self.bindings,
+                supplies: &self.supplies,
+                calling: calling.selection(),
+                providers: self.normalization.providers(&typed),
+            },
             terminal_codec::TerminalPublication::Portable,
-        )
-        .map(Arc::new)
+        )?;
+        Ok(Arc::new(accepted))
     }
 }
 

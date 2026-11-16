@@ -14,13 +14,9 @@
 // `forward` for it.
 
 use super::*;
-use crate::prove::SEARCHES;
+use crate::ProofSearchActivity;
 use crate::reverify_specialization;
 use terminal_check_tables::values::RigidType;
-
-fn searches() -> usize {
-    SEARCHES.with(std::cell::Cell::get)
-}
 
 fn rigid() -> ValueType {
     ValueType::Rigid(RigidType(0))
@@ -109,8 +105,7 @@ fn relay(item_type: ValueType, bound: u128) -> Shape {
                 kind: ExpressionKind::Call {
                     required_contract: None,
                     static_reach_binding: None,
-                    source_call: None,
-                    callee: semantic_vocabulary::TargetMachineCallable::Machine(id(2)),
+                    callee: id::<MachineId>(2).into(),
                     arguments: vec![item(item_type), slot(1, u32_type())],
                     designated: None,
                 },
@@ -127,7 +122,7 @@ fn checked_once(bound: u128) -> (typed_trees_to_terminal_psi::Elaboration, Disch
         vec![relay(rigid(), bound), forward(rigid(), Vec::new())],
         &[2],
     );
-    let found = discharge(&mut form).unwrap();
+    let found = discharge(&mut form, &mut Default::default()).unwrap();
     (form, found)
 }
 
@@ -162,12 +157,25 @@ fn a_body_over_a_type_parameter_is_checked_once_and_carried_to_two_types() {
     }
     for item_type in [ValueType::plain(i32_type()), ValueType::plain(bool_type())] {
         let mut consumer = specialized(item_type, 11);
-        let generic = crate::prepare_replay(&mut form).unwrap();
-        let mut replay = crate::prepare_replay(&mut consumer).unwrap();
-        let before = searches();
-        let verdicts =
-            reverify_specialization(&generic, &found, id(1), &mut replay, id(1), &[]).unwrap();
-        assert_eq!(searches() - before, 0, "carrying a proof started a prover");
+        let mut activity = ProofSearchActivity::default();
+        let generic = crate::prepare_replay(&mut form, &mut activity).unwrap();
+        let mut replay = crate::prepare_replay(&mut consumer, &mut activity).unwrap();
+        let started = activity.started();
+        let verdicts = reverify_specialization(
+            &generic,
+            &found,
+            id(1),
+            &mut replay,
+            id(1),
+            &[],
+            &mut activity,
+        )
+        .unwrap();
+        assert_eq!(
+            activity.started(),
+            started,
+            "carrying a proof started a prover"
+        );
         assert_eq!(verdicts.len(), 3);
         for (obligation, verdict) in &verdicts {
             assert_kernel_checked(&consumer, 1, *obligation, verdict.as_ref().unwrap());
@@ -188,12 +196,21 @@ fn a_bound_the_callee_does_not_give_is_refused_for_every_type() {
         RefusalReason::Unproved(_)
     ));
     let mut consumer = specialized(ValueType::plain(i32_type()), 10);
-    let generic = crate::prepare_replay(&mut form).unwrap();
-    let mut replay = crate::prepare_replay(&mut consumer).unwrap();
-    let before = searches();
-    let verdicts =
-        reverify_specialization(&generic, &found, id(1), &mut replay, id(1), &[]).unwrap();
-    assert_eq!(searches() - before, 0);
+    let mut activity = ProofSearchActivity::default();
+    let generic = crate::prepare_replay(&mut form, &mut activity).unwrap();
+    let mut replay = crate::prepare_replay(&mut consumer, &mut activity).unwrap();
+    let started = activity.started();
+    let verdicts = reverify_specialization(
+        &generic,
+        &found,
+        id(1),
+        &mut replay,
+        id(1),
+        &[],
+        &mut activity,
+    )
+    .unwrap();
+    assert_eq!(activity.started(), started);
     let refusals: Vec<_> = verdicts
         .iter()
         .filter_map(|(_, verdict)| verdict.as_ref().err())
@@ -218,7 +235,7 @@ fn nothing_is_proved_from_the_type_a_rigid_value_is_declared_with() {
         ..relay(rigid(), 11)
     };
     let mut form = lowered(vec![assumes, forward(rigid(), Vec::new())], &[2]);
-    let found = discharge(&mut form).unwrap();
+    let found = discharge(&mut form, &mut Default::default()).unwrap();
     let decided = verdicts(&form, &found, 1, |kind| !published(kind));
     assert_eq!(decided.len(), 3);
     for (_, verdict) in decided {
@@ -232,7 +249,7 @@ fn nothing_is_proved_from_the_type_a_rigid_value_is_declared_with() {
         ..relay(rigid(), 11)
     };
     let mut form = lowered(vec![promises, forward(rigid(), Vec::new())], &[2]);
-    let found = discharge(&mut form).unwrap();
+    let found = discharge(&mut form, &mut Default::default()).unwrap();
     let (_, verdict) = verdicts(&form, &found, 1, guarantee)[0];
     assert_eq!(
         verdict.as_ref().unwrap_err().reason,
@@ -252,12 +269,21 @@ fn one_type_parameter_is_one_type_in_a_specialization() {
         statements: vec![returns(slot(2, u32_type()))],
     };
     let mut form = lowered(vec![both(rigid(), rigid())], &[]);
-    let found = discharge(&mut form).unwrap();
+    let found = discharge(&mut form, &mut Default::default()).unwrap();
     let mut carry = |left, right| {
         let mut consumer = lowered(vec![both(left, right)], &[]);
-        let generic = crate::prepare_replay(&mut form).unwrap();
-        let mut replay = crate::prepare_replay(&mut consumer).unwrap();
-        reverify_specialization(&generic, &found, id(1), &mut replay, id(1), &[])
+        let mut activity = crate::ProofSearchActivity::default();
+        let generic = crate::prepare_replay(&mut form, &mut activity).unwrap();
+        let mut replay = crate::prepare_replay(&mut consumer, &mut activity).unwrap();
+        reverify_specialization(
+            &generic,
+            &found,
+            id(1),
+            &mut replay,
+            id(1),
+            &[],
+            &mut activity,
+        )
     };
     let (int, boolean) = (ValueType::plain(i32_type()), ValueType::plain(bool_type()));
     assert_eq!(carry(int, int).unwrap().len(), 1);
@@ -313,10 +339,9 @@ fn rigid_result_transport(
     let call = Expression {
         call_context: None,
         kind: ExpressionKind::Call {
-            callee: semantic_vocabulary::TargetMachineCallable::Machine(id(2)),
+            callee: id::<MachineId>(2).into(),
             required_contract: None,
             static_reach_binding: None,
-            source_call: None,
             arguments: vec![item(input_type)],
             designated: None,
         },
@@ -377,7 +402,7 @@ fn a_call_result_keeps_its_rigid_identity_without_placeholder_facts() {
         .unwrap()
         .1;
     assert_eq!(result.rigid, Some(RigidType(0)));
-    let found = discharge(&mut form).unwrap();
+    let found = discharge(&mut form, &mut crate::ProofSearchActivity::default()).unwrap();
     let (_, verdict) = verdicts(&form, &found, 1, guarantee)[0];
     assert_eq!(
         verdict.as_ref().unwrap_err().reason,
@@ -531,7 +556,8 @@ fn a_generic_call_does_not_preserve_a_mutable_inputs_old_value() {
         .unwrap();
         // The callee's guarantee is proved with its own implementation, not
         // as the caller's obligation. Inspect this body's proofs independently.
-        let found = discharge(&mut form).unwrap();
+        let mut activity = crate::ProofSearchActivity::default();
+        let found = discharge(&mut form, &mut activity).unwrap();
         let root = found.machines.get(id(1)).unwrap();
         assert!(root.conflicts.is_empty(), "{:?}", root.conflicts);
         let (_, guarantee) = verdicts(&form, &found, 1, guarantee)[0];

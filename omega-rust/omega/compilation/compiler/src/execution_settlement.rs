@@ -1,15 +1,7 @@
-// Provider settlement chooses, for one target, the provider of every boundary
-// requirement the Product's accepted Terminal module reaches
-// (`provider_planning::target_supply`): a requirement with no declared supply
-// or with competing supplies rejects the program, and a module that reaches
-// none settles to no plan.
-//
-// What a product of that target then reads is small. `SelectedExecution` is
-// the target and its settled plans; `SelectedProviderCustody` joins it to the
-// accepted Terminal publication and to the source and Build custody the
-// checked source already owns. Nothing here is a retained copy of a later
-// product's inputs: a product derives what it needs from the plans and the
-// accepted artifact where it uses them.
+// Provider settlement follows actual invocations from the accepted entry.
+// Choosing a whole provider adds its exact boundary-to-body associations, then
+// the same call query substitutes actual arguments through those bodies. Code
+// retained by a map or descriptor never becomes an independent entry root.
 
 use crate::checked::CheckedCompilation;
 use crate::checked::PreparedProductTarget;
@@ -19,7 +11,7 @@ use products::{
     BuildAdmission, CheckedCompilationInputs, CheckedCompileOutcome, CheckedProductSource,
     CompileFailure,
 };
-use provider_planning::target_supply::{SettledTargetSupply, SlotSchema, SupplyPlanning};
+use provider_planning::target_supply::{SettledTargetSupply, SlotSchema};
 use selected_dispatch::SelectedExecution;
 use std::sync::Arc;
 
@@ -34,6 +26,9 @@ pub fn settled_slot_schemas(
 ) -> Vec<SlotSchema> {
     let mut schemas = Vec::<SlotSchema>::new();
     for requirement in settled.requirements() {
+        if requirement.supply.checked().is_none() {
+            continue;
+        }
         if requirement.supply.checked().is_none() {
             continue;
         }
@@ -55,8 +50,6 @@ pub(crate) struct SelectedProviderCustody {
     pub(crate) source_inspection: Arc<products::SelectedProviderSource>,
     pub(crate) build: Arc<products::ComputedBuildConfig>,
     pub(crate) build_admission: BuildAdmission,
-    pub(crate) provider_defaults:
-        Arc<[build_time_evaluation::provider_declarations::TargetProviderDefaults]>,
     pub(crate) sources: Arc<package_compilation::CheckedSourceCustody>,
     pub(crate) timings: CompileTimings,
 }
@@ -71,22 +64,8 @@ impl SelectedProductTarget {
         source: &CheckedProductSource,
         prepared: PreparedProductTarget,
     ) -> Result<Self, Vec<Diagnostic>> {
-        // Settlement rejects a demanded requirement with no supply or with
-        // competing supplies, then forms the plans of the chosen ones. A
-        // module that demands nothing settles to no plan.
-        let PreparedProductTarget { profile, supply } = prepared;
-        let settled = supply.settle()?;
-        let accepted = source.terminal_publication.accepted()?;
-        let schemas = settled_slot_schemas(accepted, &settled);
-        let execution = SelectedExecution::settle(
-            profile,
-            &settled,
-            SupplyPlanning {
-                module: accepted.module(),
-                schemas: &schemas,
-                installation_requirements: &accepted.installation_reach_requirements(),
-            },
-        )?;
+        let PreparedProductTarget { profile, entry } = prepared;
+        let execution = settle_execution(source, profile, entry)?;
         Ok(Self {
             runtime_policy: Arc::new(
                 review_evidence::permission_acceptance::PreparedRuntimePolicy::capture(source),
@@ -101,7 +80,6 @@ impl SelectedProductTarget {
                 execution,
                 build: Arc::clone(&source.computed_build_config),
                 build_admission: source.admission.clone(),
-                provider_defaults: Arc::clone(&source.provider_defaults),
                 sources: Arc::clone(&source.sources),
                 timings: source.timings.clone(),
             },
@@ -155,7 +133,6 @@ impl SelectedProductTarget {
             source_inspection,
             build,
             build_admission,
-            provider_defaults,
             sources,
             timings,
         } = self.custody;
@@ -165,7 +142,6 @@ impl SelectedProductTarget {
                 source_inspection,
                 build,
                 build_admission,
-                provider_defaults,
             },
             sources,
             timings,
@@ -175,6 +151,194 @@ impl SelectedProductTarget {
             CompileFailure::source_completion(diagnostics, source_completion_accounting.clone())
         })
         .map(|checked| checked.with_source_completion_accounting(source_completion_accounting))
+    }
+}
+
+/// Grow only the body bindings of actually chosen maps. Registering their
+/// other rows makes those bodies available at a call; it does not invoke them.
+fn selected_boundary_implementations(
+    module: &terminal_psi::TerminalModule,
+    realization: &provider_planning::target_supply::RealizedTargetSupply,
+) -> Result<Vec<source_compiler::CallableBoundaryImplementation>, Vec<Diagnostic>> {
+    let mut bindings = Vec::new();
+    for declaration in realization.provider_declarations() {
+        if !declaration.rows.iter().any(|row| {
+            matches!(
+                row.binding,
+                effects::provider_plan::ProviderBinding::CheckedAdapter { .. }
+            )
+        }) {
+            continue;
+        }
+        let selected = backend_plan::selected_provider_candidate_rows(declaration, module)
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        for row in selected {
+            for position in row.candidate_positions {
+                let candidate = module.provider_candidates.get(position).ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "chosen provider lost its authenticated candidate coordinate",
+                    )]
+                })?;
+                bindings.push(source_compiler::CallableBoundaryImplementation {
+                    boundary: candidate.boundary,
+                    machine: candidate.candidate,
+                });
+            }
+        }
+    }
+    bindings.sort_unstable();
+    bindings.dedup();
+    if bindings
+        .windows(2)
+        .any(|pair| pair[0].boundary == pair[1].boundary)
+    {
+        return Err(vec![Diagnostic::error(
+            "chosen provider has competing exact bodies for one boundary application",
+        )]);
+    }
+    Ok(bindings)
+}
+
+fn settle_execution(
+    source: &CheckedProductSource,
+    profile: Option<target::TargetProfile>,
+    entry: Option<semantic_vocabulary::MachineId>,
+) -> Result<SelectedExecution, Vec<Diagnostic>> {
+    use provider_planning::target_supply::{TargetSupplyRealizationRequest, realize_target_supply};
+    let accepted = source.terminal_publication.accepted()?;
+    let declared = accepted
+        .boundary_requirements_declared()
+        .map_err(|error| vec![error])?
+        .into_iter()
+        .map(
+            |row| provider_planning::target_supply::ReachedBoundaryRequirement {
+                boundary: row.boundary,
+                requirement: row.requirement,
+                slot: row.slot,
+                name: row.name,
+            },
+        )
+        .collect::<Vec<_>>();
+    let selected_requirements = provider_planning::target_supply::explicit_build_requirements(
+        &declared,
+        &source.computed_build_config.config.provider_selections,
+        profile.map(|profile| profile.target_name()),
+    );
+    let Some(target) = profile else {
+        if !selected_requirements.is_empty() {
+            return Err(declared
+                .iter()
+                .filter(|row| selected_requirements.binary_search(&row.boundary).is_ok())
+                .map(|row| {
+                    Diagnostic::error(format!(
+                        "boundary requirement `{}` requires an explicit deployment target",
+                        row.name,
+                    ))
+                })
+                .collect());
+        }
+        let roots = source
+            .terminal_publication
+            .roster()?
+            .entries
+            .iter()
+            .map(|symbol| {
+                accepted.machine_of(*symbol).ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "unscoped source lost its actual invocation root",
+                    )]
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let realization = provider_planning::target_supply::RealizedTargetSupply::unscoped(
+            accepted.module(),
+            &roots,
+        )
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        return SelectedExecution::from_realization(None, realization);
+    };
+    let mut bindings: Vec<source_compiler::CallableBoundaryImplementation> = Vec::new();
+    let mut execution_inputs = None::<(
+        Vec<semantic_vocabulary::BoundaryMachineId>,
+        provider_planning::target_supply::TargetSupplyExecutionInputs,
+    )>;
+    loop {
+        let (mut reached, invoked_machines) = match entry {
+            Some(entry) => {
+                let reach = accepted
+                    .boundary_call_reach(entry, &bindings, Some(target.target_name()))
+                    .map_err(|error| vec![error])?;
+                (reach.boundaries, reach.reached_machines)
+            }
+            None => (Vec::new(), Vec::new()),
+        };
+        // An explicit Build selection commits its exact requirements even in a
+        // reusable package. An invoked body already retains its exact actuals;
+        // query only otherwise dormant selected bodies as admission roots.
+        // Retained code and available defaults introduce no independent roots.
+        for binding in &bindings {
+            if selected_requirements
+                .binary_search(&binding.boundary)
+                .is_ok()
+                && invoked_machines.binary_search(&binding.machine).is_err()
+            {
+                reached.extend(
+                    accepted
+                        .boundary_calls_reached(
+                            binding.machine,
+                            &bindings,
+                            Some(target.target_name()),
+                        )
+                        .map_err(|error| vec![error])?,
+                );
+            }
+        }
+        reached.extend(selected_requirements.iter().copied());
+        reached.sort_unstable();
+        reached.dedup();
+        let inputs = match &execution_inputs {
+            Some((previous, inputs)) if *previous == reached => inputs.clone(),
+            _ => {
+                let mut timings = source.timings.clone();
+                let inputs = crate::terminal::prepare_provider_execution_inputs(
+                    &source.terminal_publication,
+                    &source.sources,
+                    &source.computed_build_config.config.native_bindings,
+                    target,
+                    &reached,
+                    &mut crate::observations::PsiStageTimings::new(&mut timings),
+                )?;
+                execution_inputs = Some((reached.clone(), inputs.clone()));
+                inputs
+            }
+        };
+        let realization =
+            realize_target_supply(TargetSupplyRealizationRequest::from_execution_inputs(
+                accepted.module(),
+                target.target_name(),
+                &reached,
+                inputs,
+            ))
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        let next = selected_boundary_implementations(accepted.module(), &realization)?;
+        if next == bindings {
+            let realization = realization
+                .resolve_installation_reach(
+                    accepted.module(),
+                    &accepted.installation_reach_requirements(),
+                )
+                .map_err(|reason| vec![Diagnostic::error(reason)])?;
+            return SelectedExecution::from_realization(profile, realization);
+        }
+        if bindings
+            .iter()
+            .any(|previous| next.binary_search(previous).is_err())
+        {
+            return Err(vec![Diagnostic::error(
+                "provider demand changed an already selected exact boundary body",
+            )]);
+        }
+        bindings = next;
     }
 }
 

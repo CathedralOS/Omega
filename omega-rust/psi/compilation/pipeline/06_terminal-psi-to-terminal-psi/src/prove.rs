@@ -303,14 +303,25 @@ enum Slot {
     Done(Option<Bound>),
 }
 
-#[cfg(test)]
-thread_local! {
-    /// How many provers were started on this thread: the reuse tests assert
-    /// that re-verifying a saved proof starts none.
-    pub(crate) static SEARCHES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+/// Searches started during one explicit proof invocation. Callers retain the
+/// activity across certificate reuse to detect any additional search.
+#[derive(Debug, Default)]
+pub struct ProofSearchActivity {
+    started: usize,
+}
+
+impl ProofSearchActivity {
+    pub fn started(&self) -> usize {
+        self.started
+    }
+
+    pub(crate) fn merge(&mut self, other: Self) {
+        self.started = self.started.saturating_add(other.started);
+    }
 }
 
 pub(crate) struct Prover<'a> {
+    activity: &'a mut ProofSearchActivity,
     context: &'a PropositionContext,
     assumptions: &'a [Proposition],
     axioms: &'a [Proposition],
@@ -327,8 +338,9 @@ pub(crate) struct Prover<'a> {
     arrival_equations: Vec<usize>,
     arrival_definitions: IdTable<ValueId, Option<usize>>,
     transport: crate::known::TransportInputs,
-    /// `[upper, lower]` per value, indexed by `ValueId - 1`.
-    bounds: Vec<[Slot; 2]>,
+    /// `[upper, lower]` in the exact declared value namespace. A contract
+    /// witness may begin at any real formal ID, not only at value one.
+    bounds: IdTable<ValueId, [Slot; 2]>,
     /// Whether a failed goal may split over a disjunctive fact. Guard
     /// contradiction search disables this to avoid re-entering itself.
     case_split: bool,
@@ -348,10 +360,6 @@ fn node(conclusion: Proposition, rule: ProofRule) -> ProofNode {
 
 fn primitive(conclusion: Proposition, judgment: PrimitiveJudgment) -> ProofNode {
     node(conclusion, ProofRule::Primitive(judgment))
-}
-
-fn value_index(value: ValueId) -> usize {
-    usize::try_from(value.get() - 1).unwrap_or(usize::MAX)
 }
 
 fn step(value: IntegerValue, increase: bool) -> Option<IntegerValue> {
@@ -542,9 +550,9 @@ impl<'a> Prover<'a> {
         assumptions: &'a [Proposition],
         axioms: &'a [Proposition],
         values: &'a dyn ProofValues,
+        activity: &'a mut ProofSearchActivity,
     ) -> Self {
-        #[cfg(test)]
-        SEARCHES.with(|searches| searches.set(searches.get() + 1));
+        activity.started = activity.started.saturating_add(1);
         let crate::known::Known {
             facts,
             equations,
@@ -554,7 +562,9 @@ impl<'a> Prover<'a> {
         } = crate::known::Known::new(context, assumptions, axioms, values);
         let float_integer_equalities = float_integer::Equalities::new(&facts);
         let transport = crate::known::TransportInputs::new(equations.len());
+        let bounds = definitions.map(|_, _| [Slot::Unknown, Slot::Unknown]);
         Self {
+            activity,
             context,
             assumptions,
             axioms,
@@ -566,9 +576,7 @@ impl<'a> Prover<'a> {
             arrival_equations,
             arrival_definitions,
             transport,
-            bounds: (0..values.count())
-                .map(|_| [Slot::Unknown, Slot::Unknown])
-                .collect(),
+            bounds,
             case_split: true,
             remaining_case_branches: CASE_BRANCH_BUDGET,
             active_cuts: Vec::new(),
@@ -1116,7 +1124,13 @@ impl<'a> Prover<'a> {
         }
         let mut assumptions = self.assumptions.to_vec();
         assumptions.push(part.clone());
-        let mut branch = Prover::new(self.context, &assumptions, self.axioms, self.values);
+        let mut branch = Prover::new(
+            self.context,
+            &assumptions,
+            self.axioms,
+            self.values,
+            self.activity,
+        );
         branch.case_split = self.case_split;
         branch.remaining_case_branches = self.remaining_case_branches;
         branch.active_cuts.clone_from(&self.active_cuts);
@@ -1196,7 +1210,13 @@ impl<'a> Prover<'a> {
     ) -> Result<ProofNode, Unproven> {
         let mut assumptions = self.assumptions.to_vec();
         assumptions.push(premise.clone());
-        let mut under = Prover::new(self.context, &assumptions, self.axioms, self.values);
+        let mut under = Prover::new(
+            self.context,
+            &assumptions,
+            self.axioms,
+            self.values,
+            self.activity,
+        );
         under.case_split = self.case_split;
         under.remaining_case_branches = self.remaining_case_branches;
         under.active_cuts.clone_from(&self.active_cuts);
@@ -1887,14 +1907,14 @@ impl<'a> Prover<'a> {
     /// subtract results ordered against their left operand. Each step is a
     /// node the kernel checks; the path is chained by order transitivity.
     fn relation(&mut self, from: &ScalarTerm, to: &ScalarTerm, strict: bool) -> Option<ProofNode> {
-        let mut visited: Vec<[bool; 2]> = vec![[false; 2]; self.values.count()];
+        let mut visited = self.bounds.map(|_, _| [false; 2]);
         let mut queue: std::collections::VecDeque<(ScalarTerm, ProofNode, bool)> =
             self.steps(from).into_iter().collect();
         while let Some((at, proof, at_strict)) = queue.pop_front() {
             let ScalarTerm::Value { id, .. } = &at else {
                 continue;
             };
-            let seen = visited.get_mut(value_index(*id))?;
+            let seen = visited.get_mut(*id)?;
             if seen[usize::from(at_strict)] {
                 continue;
             }
@@ -2464,10 +2484,7 @@ impl<'a> Prover<'a> {
 
     /// The best bound on `value` in `direction`, memoized for this goal set.
     fn bound(&mut self, value: ValueId, direction: Direction) -> Option<Bound> {
-        let slot = self
-            .bounds
-            .get(value_index(value))?
-            .get(direction.index())?;
+        let slot = self.bounds.get(value)?.get(direction.index())?;
         match slot {
             Slot::Done(bound) => return bound.clone(),
             // A relation cycle among hypotheses: this branch contributes
@@ -2475,9 +2492,9 @@ impl<'a> Prover<'a> {
             Slot::InProgress => return None,
             Slot::Unknown => {}
         }
-        self.bounds[value_index(value)][direction.index()] = Slot::InProgress;
+        self.bounds.get_mut(value)?[direction.index()] = Slot::InProgress;
         let best = self.search(value, direction);
-        self.bounds[value_index(value)][direction.index()] = Slot::Done(best.clone());
+        self.bounds.get_mut(value)?[direction.index()] = Slot::Done(best.clone());
         best
     }
 

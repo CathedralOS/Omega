@@ -116,6 +116,10 @@ pub enum NativeExecutionScopeError {
     TargetContext(String),
     InstalledInterrupt(String),
     MissingMachine(MachineId),
+    InvalidMachineDescriptor {
+        descriptor: semantic_vocabulary::MachineDescriptorId,
+        reason: &'static str,
+    },
     MissingBoundary(BoundaryMachineId),
     MissingSelectedCheckedProvider(BoundaryMachineId),
     CompetingSelectedCheckedProviders(BoundaryMachineId),
@@ -127,6 +131,10 @@ impl std::fmt::Display for NativeExecutionScopeError {
             Self::TargetContext(error) | Self::InstalledInterrupt(error) => {
                 formatter.write_str(error)
             }
+            Self::InvalidMachineDescriptor { descriptor, reason } => write!(
+                formatter,
+                "native machine selection {descriptor:?}: {reason}"
+            ),
             Self::MissingMachine(machine) => write!(
                 formatter,
                 "native execution scope reaches absent machine {machine:?}"
@@ -299,6 +307,28 @@ impl NativeExecutionScope {
                         pending.push(invocation.callee);
                     }
                     match &operation.kind {
+                        OperationKind::SelectMachine { descriptor } => {
+                            let invalid =
+                                |reason| NativeExecutionScopeError::InvalidMachineDescriptor {
+                                    descriptor: *descriptor,
+                                    reason,
+                                };
+                            let selected = module
+                                .callables
+                                .descriptor(*descriptor)
+                                .ok_or_else(|| invalid("selected descriptor is absent"))?;
+                            if operation.result.scalar().map(|value| value.scalar_type)
+                                != Some(semantic_vocabulary::ScalarType::Callable(
+                                    selected.contract,
+                                ))
+                                || module.callables.contract(selected.contract).is_none()
+                            {
+                                return Err(invalid(
+                                    "selected descriptor changes its callable contract",
+                                ));
+                            }
+                            pending.push(selected.machine);
+                        }
                         OperationKind::EstablishNativeCodeLayout { machine } => {
                             pending.push(*machine)
                         }

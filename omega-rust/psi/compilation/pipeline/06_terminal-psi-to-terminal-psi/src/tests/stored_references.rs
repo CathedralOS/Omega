@@ -143,6 +143,8 @@ pub(super) fn run(text: &str) -> Result<terminal_interpreter::TerminalExecutionS
             selected: &[],
             bindings: &[],
             supplies: &[],
+            calling: None,
+            providers: None,
         },
         terminal_codec::TerminalPublication::Invocation,
     );
@@ -488,6 +490,8 @@ fn a_missing_stored_reference_disposition_is_refused() {
             selected: &[],
             bindings: &[],
             supplies: &[],
+            calling: None,
+            providers: None,
         },
         terminal_codec::TerminalPublication::Invocation,
     )

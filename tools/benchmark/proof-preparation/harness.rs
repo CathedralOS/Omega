@@ -98,11 +98,17 @@ fn inputs(path: &std::path::Path) -> Vec<Input> {
             selected: &[],
             bindings: &[],
             supplies: &[],
+            calling: None,
+            providers: None,
         },
         terminal_codec::TerminalPublication::Invocation,
     )
     .unwrap();
-    let discharge = terminal_psi_to_terminal_psi::discharge(&mut elaboration).unwrap();
+    let discharge = terminal_psi_to_terminal_psi::discharge(
+        &mut elaboration,
+        &mut terminal_psi_to_terminal_psi::ProofSearchActivity::default(),
+    )
+    .unwrap();
     let mut inputs = Vec::new();
     for (machine, result) in discharge.machines.iter() {
         let tables = elaboration.tables.machines.get(machine).unwrap();
@@ -203,11 +209,13 @@ fn main() {
     };
     let repeats: usize = args.get(2).map_or(100, |text| text.parse().unwrap());
     for (index, input) in inputs.iter().enumerate() {
+        let mut activity = prove::ProofSearchActivity::default();
         let mut prover = prove::Prover::new(
             &input.context,
             &input.assumptions,
             &input.axioms,
             &input.values,
+            &mut activity,
         );
         let proof = prover.prove(&input.goal).unwrap();
         if let Some(expected) = &input.expected {
@@ -278,11 +286,13 @@ fn main() {
                     checksum += black_box(known.facts.len() + known.equations.len());
                     black_box(&known);
                 } else {
+                    let mut activity = prove::ProofSearchActivity::default();
                     let mut prover = prove::Prover::new(
                         &input.context,
                         &input.assumptions,
                         &input.axioms,
                         &input.values,
+                        &mut activity,
                     );
                     let proof = prover.prove(&input.goal).unwrap();
                     checksum += usize::from(black_box(&proof.conclusion) == &input.goal);

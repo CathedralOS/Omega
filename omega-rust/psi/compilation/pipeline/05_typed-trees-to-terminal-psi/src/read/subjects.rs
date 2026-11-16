@@ -138,11 +138,32 @@ impl Program<'_> {
     ) -> Checked<()> {
         let typed = self.typed;
         for symbol in selected {
+            if let Some(owner) = typed
+                .trait_definition_by_symbol(*symbol)
+                .filter(|owner| owner.is_boundary)
+            {
+                self.boundary_trait_declaration(entry, owner)?;
+                self.declared_service(entry, owner)?;
+                continue;
+            }
+            if self.trait_declaration(entry, *symbol)?
+                || self.conformance_declaration(entry, *symbol)?
+            {
+                self.admitted_declarations.include(*symbol);
+                continue;
+            }
+            if self.select_native_provider(entry, *symbol)? {
+                continue;
+            }
             if typed.machine_by_symbol(*symbol).is_some() {
                 let machine = self.machine(*symbol)?;
                 self.fixed_inputs.push(machine);
-            } else if self.data_declaration(*symbol).is_some() {
-                self.record(entry, *symbol)?;
+            } else if let Some(data) = self.data_declaration(*symbol) {
+                let names_only = names_only(data);
+                self.admitted_declarations.include(*symbol);
+                if !names_only {
+                    self.record(entry, *symbol)?;
+                }
             } else if let Some((_, requirement)) = typed
                 .trait_machine_signature(*symbol)
                 .filter(|(owner, requirement)| owner.is_boundary && requirement.symbol == *symbol)
@@ -328,6 +349,10 @@ impl Program<'_> {
                 if self.owner(entry, machine.symbol, subjects, purpose)? != Owner::Subject {
                     return Ok(());
                 }
+                if self.select_native_provider(entry, machine.symbol)? {
+                    return Ok(());
+                }
+                self.admitted_declarations.include(machine.symbol);
                 // A generic machine is checked once as written, as its own
                 // check form, not as a closed body
                 // (`Elaboration::generic_templates`). One whose only
@@ -349,6 +374,7 @@ impl Program<'_> {
                 {
                     return Ok(());
                 }
+                self.admitted_declarations.include(data.symbol);
                 // A declaration with type or const parameters has no record
                 // to resolve until a type applies it; it is read as written.
                 if data.type_parameters.is_empty() {
@@ -378,6 +404,7 @@ impl Program<'_> {
                 // Its predicates are stated wherever a type carries the
                 // domain; a declaration nothing uses must still be one the
                 // route reads.
+                self.admitted_declarations.include(domain.symbol);
                 self.declared_predicates(entry, domain)
             })();
             self.keep(read)?;
@@ -385,9 +412,19 @@ impl Program<'_> {
         for declared in typed.traits() {
             let read = (|| -> Checked<()> {
                 if self.owner(entry, declared.symbol, subjects, purpose)? == Owner::Subject {
-                    self.subject_trait(entry, declared).map_err(|refusal| {
-                        self.read_failure_at(refusal, declared.symbol, "the trait")
-                    })?;
+                    if declared.is_boundary {
+                        self.boundary_trait_declaration(entry, declared)
+                            .map_err(|refusal| {
+                                self.read_failure_at(refusal, declared.symbol, "the trait")
+                            })?;
+                        self.declared_service(entry, declared)?;
+                    } else {
+                        self.trait_declaration(entry, declared.symbol)
+                            .map_err(|refusal| {
+                                self.read_failure_at(refusal, declared.symbol, "the trait")
+                            })?;
+                    }
+                    self.admitted_declarations.include(declared.symbol);
                 }
                 Ok(())
             })();
@@ -396,10 +433,11 @@ impl Program<'_> {
         for declared in typed.conformances() {
             let read = (|| -> Checked<()> {
                 if self.owner(entry, declared.symbol, subjects, purpose)? == Owner::Subject {
-                    self.subject_implementation(entry, declared)
+                    self.conformance_declaration(entry, declared.symbol)
                         .map_err(|refusal| {
                             self.read_failure_at(refusal, declared.symbol, "the implementation")
                         })?;
+                    self.admitted_declarations.include(declared.symbol);
                 }
                 Ok(())
             })();
@@ -479,6 +517,7 @@ impl Program<'_> {
                     Unserved::Declaration("generic type alias"),
                 ));
             }
+            self.admitted_declarations.include(alias.symbol);
             self.value_type(entry, alias.expansion)?;
         }
         // One row per remaining declaration table of the typed trees' roots.
@@ -724,9 +763,33 @@ impl Program<'_> {
             | TypeReferenceNode::Reference { .. }
             | TypeReferenceNode::Slice { .. }
             | TypeReferenceNode::Constrained { .. }
+            | TypeReferenceNode::Callable { .. }
             | TypeReferenceNode::ConstExpression(_)
             | TypeReferenceNode::Unit => Err(unserved()),
         }
+    }
+
+    /// A generic schema is checked in its own source binder namespace. The
+    /// same declaration owner forms its complete requirement contracts.
+    pub(crate) fn generic_trait(
+        &mut self,
+        declared: &typed_trees::trait_definition::TraitDefinition,
+    ) -> Checked<()> {
+        let diagnostic = MachineId::new(1).expect("1 is nonzero");
+        self.generic_binders.extend(
+            self.typed
+                .trait_type_parameters(declared)
+                .iter()
+                .map(|parameter| parameter.symbol),
+        );
+        if !self.trait_declaration(diagnostic, declared.symbol)? {
+            return Err(refuse(
+                diagnostic,
+                Construct::Machine,
+                Unserved::Declaration("generic trait lost its actual declaration"),
+            ));
+        }
+        Ok(())
     }
 }
 
@@ -845,220 +908,6 @@ fn served_parent(
         }
     }
     Ok(())
-}
-
-impl<'t> Program<'t> {
-    /// A subject trait that only lists requirements declares contracts with
-    /// no body: there is nothing to prove of it, and each contract must be
-    /// one the route reads, or a requirement nothing reads would be accepted
-    /// without a row or a refusal.
-    fn subject_trait(
-        &mut self,
-        entry: MachineId,
-        declared: &'t typed_trees::trait_definition::TraitDefinition,
-    ) -> Checked<()> {
-        if let Err(unserved) = served_trait_header(self.typed, declared) {
-            return Err(refuse(
-                entry,
-                Construct::Machine,
-                Unserved::Declaration(unserved),
-            ));
-        }
-        if !declared.type_parameters.is_empty()
-            || self
-                .typed
-                .trait_machine_signatures(declared)
-                .iter()
-                .any(|requirement| !requirement.type_parameters.is_empty())
-        {
-            self.generic_templates.push(declared.symbol);
-            return Ok(());
-        }
-        self.trait_signatures(entry, declared, false)
-    }
-
-    /// A schema's generic check has no executable entry. Its actual header
-    /// types remain rigid while each requirement contract is read.
-    pub(crate) fn generic_trait(
-        &mut self,
-        declared: &'t typed_trees::trait_definition::TraitDefinition,
-    ) -> Checked<()> {
-        let diagnostic = MachineId::new(1).expect("1 is nonzero");
-        if let Err(unserved) = served_trait_header(self.typed, declared) {
-            return Err(refuse(
-                diagnostic,
-                Construct::Machine,
-                Unserved::Declaration(unserved),
-            ));
-        }
-        self.generic_binders.extend(
-            self.typed
-                .trait_type_parameters(declared)
-                .iter()
-                .map(|parameter| parameter.symbol),
-        );
-        let outer = std::mem::take(&mut self.scope);
-        self.scope = self
-            .typed
-            .trait_type_parameters(declared)
-            .iter()
-            .enumerate()
-            // An implementation binder is no type: a requirement that calls
-            // through it is refused where the call is read.
-            .filter(|(_, parameter)| parameter.kind == typed_trees::data::TypeParameterKind::Type)
-            .map(|(position, parameter)| {
-                (
-                    parameter.symbol,
-                    crate::body::ValueType::Rigid(terminal_check_tables::values::RigidType(
-                        position as u32,
-                    )),
-                )
-            })
-            .collect();
-        self.schema_types = Some(Vec::new());
-        let result = self.trait_signatures(diagnostic, declared, true);
-        self.schema_types = None;
-        self.scope = outer;
-        result
-    }
-
-    fn trait_signatures(
-        &mut self,
-        entry: MachineId,
-        declared: &'t typed_trees::trait_definition::TraitDefinition,
-        proof_form: bool,
-    ) -> Checked<()> {
-        for requirement in self.typed.trait_machine_signatures(declared) {
-            if proof_form {
-                // A genuine bodyless requirement stays abstract in this form;
-                // its invocation binders are rigid, not an empty application.
-                // Only actual closed calls publish executable public headers.
-                self.rigid_requirement(requirement)?;
-                continue;
-            }
-            let (signature, _) = self.requirement_signature(entry, requirement, &[])?;
-            let id = self.declaration_signatures.push(signature);
-            if self.declaration_selections.push(None) != id {
-                return Err(refuse(
-                    entry,
-                    Construct::Machine,
-                    Unserved::Declaration("public requirement lost its selection coordinate"),
-                ));
-            }
-            if self.declaration_sources.push(requirement) != id {
-                return Err(refuse(
-                    entry,
-                    Construct::Machine,
-                    Unserved::Declaration("public requirement lost its declaration coordinate"),
-                ));
-            }
-        }
-        Ok(())
-    }
-
-    /// A subject implementation of a trait that only lists requirements,
-    /// with no parameter of its own, owes one witness per requirement: the
-    /// machine its row selects refines that requirement. An implementation
-    /// that leaves a requirement without exactly one row is refused.
-    fn subject_implementation(
-        &mut self,
-        entry: MachineId,
-        declared: &'t typed_trees::trait_definition::Conformance,
-    ) -> Checked<()> {
-        let unserved = |what| refuse(entry, Construct::Machine, Unserved::Declaration(what));
-        use typed_trees::trait_definition::AppliedTraitScope;
-        let typed = self.typed;
-        let parameters = typed.conformance_type_parameters(declared);
-        let plain = declared.lifetime_parameters.is_empty()
-            && declared.trait_lifetime_arguments.is_empty()
-            && parameters.len() == declared.type_parameters.len()
-            && parameters.iter().all(|parameter| {
-                parameter.kind == typed_trees::data::TypeParameterKind::Type
-                    && parameter.bounds == typed_trees::data::DataProperties::default()
-            });
-        let Some(application) = plain
-            .then(|| AppliedTraitScope::from_conformance(typed, declared))
-            .flatten()
-            // Parent edges add no row to an implementation of a trait whose
-            // parents have no requirements; an inherited row is refused below.
-            .filter(|application| {
-                served_trait_header(typed, application.declaration).is_ok()
-                    && typed
-                        .trait_type_parameters(application.declaration)
-                        .iter()
-                        .all(|parameter| {
-                            parameter.kind == typed_trees::data::TypeParameterKind::Type
-                        })
-            })
-        else {
-            return Err(unserved(
-                "implementation with parameters or of a trait that has them",
-            ));
-        };
-        let implemented = application.declaration;
-        let requirements = typed.trait_machine_signatures(implemented);
-        if declared.rows.len() != requirements.len() {
-            return Err(unserved(
-                "implementation that does not give each requirement one machine",
-            ));
-        }
-        for requirement in requirements {
-            let mut rows = declared
-                .rows
-                .iter()
-                .filter(|row| row.requirement == requirement.symbol);
-            let (Some(row), None) = (rows.next(), rows.next()) else {
-                return Err(unserved(
-                    "implementation that does not give each requirement one machine",
-                ));
-            };
-            if row.declaring_trait != implemented.symbol {
-                return Err(unserved("implementation row of an inherited requirement"));
-            }
-            if row.source == typed_trees::trait_definition::ConformanceRowSource::Reference {
-                if !parameters.is_empty() {
-                    return Err(unserved("generic reference-row refinement"));
-                }
-                let Some(realization) = typed.machine_by_symbol(row.realization_machine) else {
-                    return Err(unserved(
-                        "selection row without an existing machine declaration",
-                    ));
-                };
-                // A row may select an established conformer's entry for
-                // the requirement it already implements. Keep that entry's
-                // advertised contract tied to its original requirement.
-                if let Some((owner, supplied)) = self.conformer_requirement(entry, realization)? {
-                    let same_requirement =
-                        owner == row.declaring_trait && supplied.symbol == row.requirement;
-                    // Prepared generic signatures retain their template symbol.
-                    // Even identical signatures can belong to different trait applications.
-                    let same_application = same_requirement
-                        && (implemented.type_parameters.is_empty()
-                            || typed
-                                .machine_conformance_requirement_scope(
-                                    realization.symbol,
-                                    owner,
-                                    supplied.symbol,
-                                )
-                                .map_err(unserved)?
-                                .is_some_and(|own| own.same_application(typed, &application)));
-                    if !same_application {
-                        return Err(unserved("selection row cannot rebind a declared conformer"));
-                    }
-                }
-            }
-            let witness = crate::ConformanceWitness {
-                declaring_trait: row.declaring_trait,
-                requirement: row.requirement,
-                implementation: row.realization_machine,
-                value_arguments: Vec::new(),
-            };
-            if !self.conformance_witnesses.contains(&witness) {
-                self.conformance_witnesses.push(witness);
-            }
-        }
-        Ok(())
-    }
 }
 
 /// Whether a data declaration declares a name and nothing else: no field or

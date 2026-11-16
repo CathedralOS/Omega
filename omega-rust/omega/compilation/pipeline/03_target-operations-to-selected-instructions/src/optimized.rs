@@ -206,6 +206,12 @@ pub(crate) mod input {
             self.prepared.plan()
         }
 
+        pub(crate) fn callable_invocations(
+            &self,
+        ) -> &'input terminal_semantics::callable_values::ReachableCallableInvocations {
+            self.prepared.callable_invocations()
+        }
+
         pub(crate) fn receipt(&self) -> PreparationReceipt {
             self.prepared.receipt()
         }
