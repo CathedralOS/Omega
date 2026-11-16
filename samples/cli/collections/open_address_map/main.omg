@@ -22,7 +22,7 @@ machine blank<K [copy], V [copy]>(table: &mut Table<K, V>, key: &K, value: &V) {
     transition { _ -> wipe(table, key, value, 0) }
 
     machine wipe(table: &mut Table<K, V>, key: &K, value: &V, slot: u64)
-    requires slot < 16;
+    requires slot < 16
     {
         table.slots[slot].key = key;
         table.slots[slot].value = value;
@@ -34,17 +34,15 @@ machine blank<K [copy], V [copy]>(table: &mut Table<K, V>, key: &K, value: &V) {
 // probe returns the slot in [0,16) holding `key`; for an absent key it
 // returns the first tombstone seen while scanning (for insertion reuse)
 // or the empty slot that ends the probe, or 16 when the table is full.
-machine probe<K, V, machine H, machine E>(table: &Table<K, V>, key: &K) -> u64
-requires machine H(key: &K) -> u64
-requires machine E(left: &K, right: &K) -> bool;
+machine probe<K, V, const H: machine(key: &K) -> u64, const E: machine(left: &K, right: &K) -> bool>(table: &Table<K, V>, key: &K) -> u64
 {
     let home: u64 = H(key) % 16;
     transition { _ -> scan(table, key, home, 0, 16) }
 
     machine scan(table: &Table<K, V>, key: &K, slot: u64, seen: u64, reusable: u64) -> u64
-    requires slot < 16;
-    requires seen < 16;
-    requires reusable <= 16;
+    requires slot < 16
+    requires seen < 16
+    requires reusable <= 16
     {
         transition table.slots[slot].tag == 0 {
             true -> open(table, key, slot, reusable)
@@ -53,16 +51,16 @@ requires machine E(left: &K, right: &K) -> bool;
     }
 
     machine open(table: &Table<K, V>, key: &K, slot: u64, reusable: u64) -> u64
-    requires slot < 16;
-    requires reusable <= 16;
+    requires slot < 16
+    requires reusable <= 16
     {
         transition reusable < 16 { true -> reusable _ -> slot }
     }
 
     machine live(table: &Table<K, V>, key: &K, slot: u64, seen: u64, reusable: u64) -> u64
-    requires slot < 16;
-    requires seen < 16;
-    requires reusable <= 16;
+    requires slot < 16
+    requires seen < 16
+    requires reusable <= 16
     {
         transition E(&table.slots[slot].key, key) && table.slots[slot].tag == 1 {
             true -> slot
@@ -71,9 +69,9 @@ requires machine E(left: &K, right: &K) -> bool;
     }
 
     machine dead(table: &Table<K, V>, key: &K, slot: u64, seen: u64, reusable: u64) -> u64
-    requires slot < 16;
-    requires seen < 16;
-    requires reusable <= 16;
+    requires slot < 16
+    requires seen < 16
+    requires reusable <= 16
     {
         transition table.slots[slot].tag == 2 {
             true -> tombstone(table, key, slot, seen, reusable)
@@ -82,9 +80,9 @@ requires machine E(left: &K, right: &K) -> bool;
     }
 
     machine tombstone(table: &Table<K, V>, key: &K, slot: u64, seen: u64, reusable: u64) -> u64
-    requires slot < 16;
-    requires seen < 16;
-    requires reusable <= 16;
+    requires slot < 16
+    requires seen < 16
+    requires reusable <= 16
     {
         transition reusable < 16 {
             true -> ahead(table, key, slot, seen, reusable)
@@ -93,9 +91,9 @@ requires machine E(left: &K, right: &K) -> bool;
     }
 
     machine ahead(table: &Table<K, V>, key: &K, slot: u64, seen: u64, reusable: u64) -> u64
-    requires slot < 16;
-    requires seen < 16;
-    requires reusable <= 16;
+    requires slot < 16
+    requires seen < 16
+    requires reusable <= 16
     {
         let next: u64 = (slot + 1) % 16;
         let more: u64 = seen + 1;
@@ -108,15 +106,13 @@ requires machine E(left: &K, right: &K) -> bool;
 
 // insert writes `key -> value`; an existing live key updates in place and
 // a tombstone or empty slot fills. A full table leaves the row unchanged.
-machine insert<K [copy], V [copy], machine H, machine E>(table: &mut Table<K, V>, key: &K, value: &V)
-requires machine H(key: &K) -> u64
-requires machine E(left: &K, right: &K) -> bool;
+machine insert<K [copy], V [copy], const H: machine(key: &K) -> u64, const E: machine(left: &K, right: &K) -> bool>(table: &mut Table<K, V>, key: &K, value: &V)
 {
     let slot: u64 = probe<H, E>(table, key);
     transition slot < 16 { true -> place(table, key, value, slot) _ -> full() }
 
     machine place(table: &mut Table<K, V>, key: &K, value: &V, slot: u64)
-    requires slot < 16;
+    requires slot < 16
     {
         transition table.slots[slot].tag == 1 {
             true -> update(table, value, slot)
@@ -125,13 +121,13 @@ requires machine E(left: &K, right: &K) -> bool;
     }
 
     machine update(table: &mut Table<K, V>, value: &V, slot: u64)
-    requires slot < 16;
+    requires slot < 16
     {
         table.slots[slot].value = value;
     }
 
     machine fill(table: &mut Table<K, V>, key: &K, value: &V, slot: u64)
-    requires slot < 16;
+    requires slot < 16
     {
         table.live = table.live + 1;
         table.slots[slot].key = key;
@@ -143,21 +139,19 @@ requires machine E(left: &K, right: &K) -> bool;
 }
 
 // remove tombstones a live key; absent keys leave the table unchanged.
-machine remove<K, V, machine H, machine E>(table: &mut Table<K, V>, key: &K)
-requires machine H(key: &K) -> u64
-requires machine E(left: &K, right: &K) -> bool;
+machine remove<K, V, const H: machine(key: &K) -> u64, const E: machine(left: &K, right: &K) -> bool>(table: &mut Table<K, V>, key: &K)
 {
     let slot: u64 = probe<H, E>(table, key);
     transition slot < 16 { true -> kill(table, slot) _ -> {} }
 
     machine kill(table: &mut Table<K, V>, slot: u64)
-    requires slot < 16;
+    requires slot < 16
     {
         transition table.slots[slot].tag == 1 { true -> drop_(table, slot) _ -> {} }
     }
 
     machine drop_(table: &mut Table<K, V>, slot: u64)
-    requires slot < 16;
+    requires slot < 16
     {
         table.live = table.live - 1;
         table.slots[slot].tag = 2;
@@ -165,15 +159,13 @@ requires machine E(left: &K, right: &K) -> bool;
 }
 
 // lookup reports the live value for `key`, or `miss` when absent.
-machine lookup<K, V [copy], machine H, machine E>(table: &Table<K, V>, key: &K, miss: &V) -> V
-requires machine H(key: &K) -> u64
-requires machine E(left: &K, right: &K) -> bool;
+machine lookup<K, V [copy], const H: machine(key: &K) -> u64, const E: machine(left: &K, right: &K) -> bool>(table: &Table<K, V>, key: &K, miss: &V) -> V
 {
     let slot: u64 = probe<H, E>(table, key);
     transition slot < 16 { true -> read(table, miss, slot) _ -> miss }
 
     machine read(table: &Table<K, V>, miss: &V, slot: u64) -> V
-    requires slot < 16;
+    requires slot < 16
     {
         let hit: V = table.slots[slot].value;
         transition table.slots[slot].tag == 1 {
