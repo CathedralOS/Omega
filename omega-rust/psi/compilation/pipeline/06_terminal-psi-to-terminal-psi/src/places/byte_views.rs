@@ -453,31 +453,20 @@ impl Storage<'_> {
     pub(super) fn representation_count_goal(
         &self,
         operation: &Operation,
+        types: &semantic_vocabulary::IdTable<ValueId, ScalarType>,
     ) -> Checked<semantic_vocabulary::Proposition> {
-        let concerns = Construct::Operation(operation.id);
-        let OperationKind::EstablishElementView {
-            region: terminal_psi::ElementViewRegion::WholeRepresentation { source_length, .. },
-            ..
-        } = operation.kind
-        else {
-            return Err(self.foreign(
-                concerns,
-                "representation count requested for another operation",
-            ));
-        };
-        let terminal_semantics::ElementViewRegionGeometry::WholeRepresentation {
-            source,
-            target,
-            ..
-        } = self.array_view_formation(operation)?
-        else {
-            return Err(self.foreign(concerns, "representation count has another geometry"));
-        };
-        terminal_semantics::whole_representation_count_goal(
-            source_length,
-            source.size / target.size,
-        )
-        .ok_or_else(|| self.foreign(concerns, "representation count has no exact fit goal"))
+        self.array_view_formation(operation)?;
+        terminal_semantics::operation_safety_goal(operation, types, self.types.iter(), |root| {
+            self.lowered.structural_place_type(root)
+        })
+        .map_err(crate::semantics_refusal(self.machine, operation.id))?
+        .map(|(_, goal)| goal)
+        .ok_or_else(|| {
+            self.foreign(
+                Construct::Operation(operation.id),
+                "representation count has no canonical operation goal",
+            )
+        })
     }
 
     /// `left == right` over two byte views, a `ByteSequenceEqual`.
@@ -915,10 +904,12 @@ impl Storage<'_> {
         {
             return Err(self.foreign(concerns, "a subslice endpoint or length is not a u64"));
         }
-        terminal_semantics::operation_safety_goal(operation, types)
-            .map_err(crate::semantics_refusal(self.machine, operation.id))?
-            .map(|(_, goal)| goal)
-            .ok_or_else(|| self.foreign(concerns, "a subslice has no canonical bounds goal"))
+        terminal_semantics::operation_safety_goal(operation, types, self.types.iter(), |root| {
+            self.lowered.structural_place_type(root)
+        })
+        .map_err(crate::semantics_refusal(self.machine, operation.id))?
+        .map(|(_, goal)| goal)
+        .ok_or_else(|| self.foreign(concerns, "a subslice has no canonical bounds goal"))
     }
 
     /// The reaching-storage walk has already followed copies at their capture

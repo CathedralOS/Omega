@@ -1421,7 +1421,13 @@ fn a_shared_collection_recast_keeps_payload_geometry_and_count_fit() {
             .count(),
         1
     );
-    accepted.publish_invocation().unwrap();
+    let publication = accepted.publish_invocation().unwrap();
+    terminal_codec::EvidenceSealValidator::new(
+        publication.artifact.semantic_module(),
+        &publication.seals.seals,
+    )
+    .validate_all()
+    .expect("native evidence receiving owns the same representation count goal");
 
     // The byte result alone cannot authenticate the operation's element.
     // Replacing only that element must not reinterpret a four-byte count
@@ -1469,6 +1475,16 @@ fn a_shared_collection_recast_keeps_payload_geometry_and_count_fit() {
         unreachable!()
     };
     *element = wrong_element;
+    let mismatched =
+        terminal_codec::EvidenceSealValidator::new(&changed.module, &publication.seals.seals)
+            .validate_all();
+    assert!(
+        matches!(
+            mismatched,
+            Err(terminal_codec::EvidenceSealValidationError::SealMismatch { .. })
+        ),
+        "the changed element must not reuse the old count evidence: {mismatched:?}"
+    );
     let refusal = judge(Ok(changed)).unwrap_err();
     assert_eq!(
         refusal.reason,

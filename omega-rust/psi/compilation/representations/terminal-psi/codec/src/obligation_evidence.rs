@@ -311,7 +311,15 @@ impl<'module> MachineEvidenceGoals<'module> {
             sites.push(site);
             if let Some(types) = &types
                 && let Ok(Some((obligation, proposition))) =
-                    terminal_semantics::operation_safety_goal(operation, types)
+                    terminal_semantics::operation_safety_goal(
+                        operation,
+                        types,
+                        structural_types.iter(),
+                        |root| {
+                            let places = places.get_or_insert_with(|| machine_place_types(machine));
+                            unique_by_id(places, root, |(place, _)| *place).and_then(|(_, ty)| *ty)
+                        },
+                    )
             {
                 goals.push(ExecutionEvidenceGoal {
                     site,

@@ -2173,7 +2173,7 @@ impl<'a> Storage<'a> {
                             self.foreign(concerns, "representation view owns another obligation")
                         );
                     }
-                    return self.representation_count_goal(operation);
+                    return self.representation_count_goal(operation, types);
                 }
                 if let OperationKind::ByteSequenceSubslice {
                     obligation: owned, ..
@@ -2426,10 +2426,12 @@ impl<'a> Storage<'a> {
                 },
             ));
         }
-        terminal_semantics::operation_safety_goal(operation, types)
-            .map_err(crate::semantics_refusal(self.machine, operation.id))?
-            .map(|(_, goal)| goal)
-            .ok_or_else(|| self.foreign(concerns, "a byte operation has no canonical bounds goal"))
+        terminal_semantics::operation_safety_goal(operation, types, self.types.iter(), |root| {
+            self.lowered.structural_place_type(root)
+        })
+        .map_err(crate::semantics_refusal(self.machine, operation.id))?
+        .map(|(_, goal)| goal)
+        .ok_or_else(|| self.foreign(concerns, "a byte operation has no canonical bounds goal"))
     }
 
     fn block(&self, id: BlockId) -> Checked<&'a Block> {

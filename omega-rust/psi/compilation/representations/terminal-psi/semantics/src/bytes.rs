@@ -6,16 +6,19 @@ byte-window reads and stores.
 pub(crate) mod operation_bounds {
     use crate::{OperationSemanticError, OperationSemanticTag, ValueTypes};
     use semantic_vocabulary::{
-        IntegerSign, IntegerType, ObligationId, Proposition, ScalarTerm, ScalarType,
+        IntegerSign, IntegerType, ObligationId, PlaceId, Proposition, ScalarTerm, ScalarType,
+        StructuralTypeId,
     };
-    use terminal_psi::{Operation, OperationKind};
+    use terminal_psi::{Operation, OperationKind, StructuralTypeDeclaration};
 
     /// The goal owned by an operation, shared by checking and evidence
     /// publication. Collection bounds do not establish their own source, access or
     /// measurement correspondence; those remain separate storage judgments.
-    pub fn operation_safety_goal(
+    pub fn operation_safety_goal<'structural>(
         operation: &Operation,
         types: &impl ValueTypes,
+        structural_types: impl Iterator<Item = &'structural StructuralTypeDeclaration> + Clone,
+        mut place_type: impl FnMut(PlaceId) -> Option<StructuralTypeId>,
     ) -> Result<Option<(ObligationId, Proposition)>, OperationSemanticError> {
         if let Some(semantics) = crate::proof_bearing_scalar_leaf_semantics(operation, types)? {
             return Ok(Some((
@@ -35,6 +38,50 @@ pub(crate) mod operation_bounds {
             Ok(ScalarTerm::value(id, count))
         };
         let (obligation, goal) = match &operation.kind {
+            OperationKind::EstablishElementView {
+                source,
+                element,
+                region:
+                    region @ terminal_psi::ElementViewRegion::WholeRepresentation {
+                        source_length,
+                        obligation,
+                    },
+                ..
+            } => {
+                let tag = OperationSemanticTag::for_operation(&operation.kind);
+                let _ = value(*source_length, tag)?;
+                let root = place_type(source.place)
+                    .ok_or(OperationSemanticError::OperandShapeMismatch(tag))?;
+                let collection = crate::runtime_structural_path_tip(
+                    structural_types.clone(),
+                    root,
+                    &source.path,
+                )
+                .ok_or(OperationSemanticError::OperandShapeMismatch(tag))?;
+                let Some(crate::ElementViewRegionGeometry::WholeRepresentation {
+                    source: source_layout,
+                    target: target_layout,
+                    ..
+                }) = crate::element_view_shape_region_geometry(
+                    structural_types,
+                    &collection.shape,
+                    *element,
+                    *region,
+                    source.access,
+                )
+                else {
+                    return Err(OperationSemanticError::OperandShapeMismatch(tag));
+                };
+                let factor = source_layout
+                    .size
+                    .checked_div(target_layout.size)
+                    .ok_or(OperationSemanticError::DenotationShapeMismatch(tag))?;
+                (
+                    *obligation,
+                    crate::whole_representation_count_goal(*source_length, factor)
+                        .ok_or(OperationSemanticError::DenotationShapeMismatch(tag))?,
+                )
+            }
             OperationKind::ByteSequenceRead {
                 index,
                 length,
