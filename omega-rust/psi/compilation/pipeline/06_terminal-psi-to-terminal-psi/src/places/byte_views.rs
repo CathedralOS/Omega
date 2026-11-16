@@ -360,64 +360,82 @@ impl Storage<'_> {
         Ok(terminal_semantics::CollectionExtent::Fixed(window.length))
     }
 
-    /// `left == right` over two byte views, a `ByteSequenceEqual`.
-    ///
-    /// structural_predicates.md: "Byte-sequence equality compares live
-    /// lengths and live byte prefixes." byte_views.md, of an evaluated
-    /// content predicate: "The operand retains its own dominating length
-    /// observation, readable access, and establishment." So each operand is
-    /// a whole view this machine may read, and the length it names is that
-    /// same view's measurement: the lowered form measures the left view,
-    /// then the right one, then compares, with nothing else between, so no
-    /// operation can have changed either extent. The result is a plain
-    /// `bool` and the comparison stores nothing.
-    pub(super) fn compared_byte_views(&self, operation: &Operation) -> Checked<()> {
+    /// The views observed by the two existing pure byte operations. This
+    /// roster drives both storage reads and their exact measurement checks.
+    pub(super) fn byte_observation_operands<'op>(
+        &self,
+        operation: &'op Operation,
+    ) -> Checked<[Option<&'op terminal_psi::control_flow::ByteSequenceOperand>; 2]> {
+        match &operation.kind {
+            OperationKind::ByteSequenceEqual { left, right } => Ok([Some(left), Some(right)]),
+            OperationKind::ByteSequencePredicate { operand, .. } => Ok([Some(operand), None]),
+            _ => Err(self.foreign(
+                Construct::Operation(operation.id),
+                "byte observations requested for another operation",
+            )),
+        }
+    }
+
+    pub(super) fn byte_operand_argument(
+        &self,
+        operand: &terminal_psi::control_flow::ByteSequenceOperand,
+        concerns: Construct,
+    ) -> Checked<StructuralArgument> {
+        use terminal_psi::control_flow::ByteSequenceOperand;
+        match operand {
+            ByteSequenceOperand::Whole { source, .. } => Ok(source.clone()),
+            ByteSequenceOperand::Field { source, field, .. } => {
+                if source.access != StructuralAccess::SharedBorrow {
+                    return Err(
+                        self.unsupported(concerns, "a byte observation without shared access")
+                    );
+                }
+                self.byte_field_argument(source.place, &source.path, *field, concerns)
+            }
+        }
+    }
+
+    /// Byte equality and predicates observe current bytes and store nothing.
+    /// Every operand still owes its own readable descriptor and directly
+    /// preceding length observation; a known Boolean never waives either.
+    pub(super) fn observed_byte_views(&self, operation: &Operation) -> Checked<()> {
         use terminal_psi::control_flow::ByteSequenceOperand;
         let concerns = Construct::Operation(operation.id);
-        let OperationKind::ByteSequenceEqual { left, right } = &operation.kind else {
-            return Err(self.foreign(
-                concerns,
-                "a byte comparison requested for another operation",
-            ));
-        };
+        let operands = self.byte_observation_operands(operation)?;
         if operation.result.scalar_ref().is_none_or(|result| {
             result.scalar_type != ScalarType::Boolean || result.qualifications != Default::default()
         }) {
-            return Err(self.foreign(concerns, "a byte comparison must produce a plain bool"));
+            return Err(self.foreign(concerns, "a byte observation must produce a plain bool"));
         }
         let (block, after) = self
             .graph
             .locate(ProgramPoint::AfterOperation(operation.id))?;
         let operations = &self.block(block)?.operations;
-        // `after` counts the comparison itself: the right view's
-        // measurement is two back, the left view's three back.
-        for (operand, back) in [(left, 3), (right, 2)] {
-            let ByteSequenceOperand::Whole { source, length } = operand else {
-                return Err(self.unsupported(concerns, "a comparison of a view stored in a field"));
-            };
-            if !source.path.is_empty() || source.access != StructuralAccess::SharedBorrow {
-                return Err(self.unsupported(
-                    concerns,
-                    "a byte comparison of a view that is not read whole and shared",
-                ));
+        let count = operands.iter().flatten().count();
+        for (ordinal, operand) in operands.into_iter().flatten().enumerate() {
+            let actual = self.byte_operand_argument(operand, concerns)?;
+            if actual.access != StructuralAccess::SharedBorrow {
+                return Err(self.unsupported(concerns, "a byte observation without shared access"));
             }
-            self.readable_byte_view(operation, source.place, &source.path)?;
-            let measured = after
-                .checked_sub(back)
+            self.readable_byte_view(operation, actual.place, &actual.path)?;
+            // `after` counts this operation. There is one measurement per
+            // operand, in order, and no operation between them and the read.
+            let measured = after.checked_sub(count + 1 - ordinal)
                 .and_then(|position| operations.get(position))
                 .is_some_and(|measurement| {
-                    matches!(&measurement.kind, OperationKind::ByteSequenceLength { source: measured }
-                        if measured.place == source.place && measured.path.is_empty())
-                        && measurement
-                            .result
-                            .scalar_ref()
-                            .is_some_and(|result| result.id == *length)
+                    let same = match (operand, &measurement.kind) {
+                        (ByteSequenceOperand::Whole { source, .. }, OperationKind::ByteSequenceLength { source: observed }) => source == observed,
+                        (ByteSequenceOperand::Field { source, field, .. }, OperationKind::StructuralByteSequenceFieldLength { source: root, path, field: observed }) => source.place == *root && source.path == *path && field == observed,
+                        _ => false,
+                    };
+                    same && measurement.result.scalar_ref().is_some_and(|result| {
+                        result.id == operand.length()
+                            && matches!(result.scalar_type, ScalarType::Integer(integer)
+                                if Ok(integer) == semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64))
+                    })
                 });
             if !measured {
-                return Err(self.unsupported(
-                    concerns,
-                    "a byte comparison whose length is not its view's measurement directly before it",
-                ));
+                return Err(self.unsupported(concerns, "a byte observation whose length is not its view's measurement directly before it"));
             }
         }
         Ok(())

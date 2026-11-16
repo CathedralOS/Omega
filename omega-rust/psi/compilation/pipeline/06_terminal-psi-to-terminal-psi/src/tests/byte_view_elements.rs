@@ -1134,6 +1134,72 @@ machine use(same: bool) { }",
 /// read whole and shared, or a result that is no plain `bool` is not
 /// accepted.
 #[test]
+fn byte_predicate_reads_keep_exact_measurements_and_shared_access() {
+    use super::build_purpose::{frontier_of, package, roster, symbol};
+    use terminal_psi::control_flow::ByteSequenceOperand;
+    let typed = frontier_of(
+        "machine product_entry() {}",
+        "machine build_entry(left: &[u8], right: &[u8]) { use(left == right); }
+machine use(same: bool) { }",
+    );
+    let entry = symbol(&typed, "build_entry");
+    let elaborate = || {
+        typed_trees_to_terminal_psi::elaborate_for(
+            &typed,
+            roster(&[entry], &[Some(package())], source::DependencyScope::Build),
+            terminal_codec::TerminalPublication::Invocation,
+        )
+        .unwrap()
+    };
+    let observe = |elaboration: &mut typed_trees_to_terminal_psi::Elaboration, predicate, fault| {
+        let operation = elaboration
+            .module
+            .machines
+            .iter_mut()
+            .flat_map(|machine| &mut machine.blocks)
+            .flat_map(|block| &mut block.operations)
+            .find(|operation| matches!(operation.kind, OperationKind::ByteSequenceEqual { .. }))
+            .unwrap();
+        let OperationKind::ByteSequenceEqual { left, right } = &operation.kind else {
+            unreachable!()
+        };
+        let mut operand = right.clone();
+        let ByteSequenceOperand::Whole { source, length } = &mut operand else {
+            panic!("the ordinary source produced a whole descriptor observation");
+        };
+        match fault {
+            0 => {}
+            1 => *length = left.length(),
+            2 => source.access = terminal_psi::StructuralAccess::MutableBorrow,
+            _ => unreachable!(),
+        }
+        // Keep the real result, surrounding measurements, source inputs and
+        // source write log. Only the pure byte operation changes; it must
+        // still derive no stores while checking the descriptor it observes.
+        operation.kind = OperationKind::ByteSequencePredicate { operand, predicate };
+    };
+    for predicate in semantic_vocabulary::ByteSequencePredicate::ALL {
+        let mut lowered = elaborate();
+        observe(&mut lowered, predicate, 0);
+        let accepted = judge(Ok(lowered)).unwrap();
+        assert!(
+            matches!(accepted, RouteVerdict::Accepted(_)),
+            "{accepted:?}"
+        );
+        for fault in [1, 2] {
+            let mut changed = elaborate();
+            observe(&mut changed, predicate, fault);
+            let refused = judge(Ok(changed)).unwrap();
+            let RouteVerdict::FallBack(ref refusal) = refused else {
+                panic!("a changed byte measurement/access must be refused: {refused:?}");
+            };
+            let detail = if fault == 1 { "measurement" } else { "shared" };
+            assert!(refusal.detail.contains(detail), "{refusal:?}");
+        }
+    }
+}
+
+#[test]
 fn a_byte_comparison_names_each_views_own_measurement() {
     use super::build_purpose::{frontier_of, package, roster, symbol};
     let typed = frontier_of(

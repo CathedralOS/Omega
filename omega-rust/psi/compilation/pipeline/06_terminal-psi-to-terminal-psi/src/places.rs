@@ -3501,10 +3501,16 @@ impl<'a> Storage<'a> {
                 &self.byte_field_argument(*source, path, *field, concerns)?,
                 concerns,
             )?]),
-            // Each compared view is read whole through its own descriptor.
-            OperationKind::ByteSequenceEqual { left, right } => [left, right]
+            // Predicate and equality reads keep each operand's exact field
+            // path, rather than treating its containing root as the view.
+            OperationKind::ByteSequenceEqual { .. }
+            | OperationKind::ByteSequencePredicate { .. } => self
+                .byte_observation_operands(operation)?
                 .into_iter()
-                .map(|operand| self.stored_at(operand.source(), &[], concerns))
+                .flatten()
+                .map(|operand| {
+                    self.argument(&self.byte_operand_argument(operand, concerns)?, concerns)
+                })
                 .collect(),
             OperationKind::StructuralCaseLeafCopy { .. } => {
                 Err(self.unsupported(concerns, "a case leaf copy"))
@@ -3678,6 +3684,8 @@ impl<'a> Storage<'a> {
             operation.kind,
             OperationKind::ByteSequenceRead { .. }
                 | OperationKind::StructuralByteSequenceFieldRead { .. }
+                | OperationKind::ByteSequenceEqual { .. }
+                | OperationKind::ByteSequencePredicate { .. }
         );
         Ok(self
             .operation_uses(operation)?
