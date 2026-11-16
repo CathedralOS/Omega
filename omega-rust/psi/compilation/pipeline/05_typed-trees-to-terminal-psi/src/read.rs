@@ -743,12 +743,19 @@ mod tests {
         let mut program = Program::new(&typed, false);
         let source = crate::SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent);
         let empty = program.records.push(plain_record());
+        program.record_sources.push(places::RecordSource {
+            declaration: SymbolHandle::invalid(),
+            application: None,
+            region_owner: SymbolHandle::invalid(),
+            fields: Vec::new(),
+            cases: Vec::new(),
+        });
         assert!(matches!(
             program
                 .zero_value(machine(), ValueType::record(empty), source)
                 .unwrap()
                 .kind,
-            ExpressionKind::Zero
+            ExpressionKind::Record { fields } if fields.is_empty()
         ));
         for (shape, expected) in [
             (
