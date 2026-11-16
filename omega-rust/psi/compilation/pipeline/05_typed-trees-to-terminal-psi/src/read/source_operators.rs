@@ -29,6 +29,39 @@ impl Program<'_> {
         Ok(())
     }
 
+    /// A static clause can be decided without forming a runtime expression.
+    /// Keep the exact operators its existing type query read, then apply the
+    /// same selection checks as every other builtin source operation.
+    pub(super) fn complete_type_clause_operators(
+        &mut self,
+        machine: MachineId,
+        operators: impl IntoIterator<Item = (SymbolHandle, ExpressionHandle)>,
+    ) -> Checked<()> {
+        let mut operators = operators.into_iter().peekable();
+        if operators.peek().is_none() {
+            return Ok(());
+        }
+        let boolean = self.operator_operand_reference(ValueType::plain(ScalarType::Boolean));
+        for (owner, expression) in operators {
+            let operands = match self.typed.expression_table.expression(expression) {
+                ExpressionNode::Binary(binary)
+                    if matches!(
+                        self.typed.expression_table.expression(binary.left),
+                        ExpressionNode::TypeExpression(_)
+                    ) && matches!(
+                        self.typed.expression_table.expression(binary.right),
+                        ExpressionNode::TypeExpression(_)
+                    ) =>
+                {
+                    [None, None]
+                }
+                _ => [boolean; 2],
+            };
+            self.complete_builtin_operator(machine, owner, expression, &operands)?;
+        }
+        Ok(())
+    }
+
     /// Reuse the retained source type of a successfully read operand. No type
     /// or declaration is manufactured when its source reference is absent.
     pub(super) fn operator_operand_reference(

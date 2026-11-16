@@ -2984,34 +2984,36 @@ impl<'t> Program<'t> {
         id: MachineId,
         expression: typed_trees::expression::ExpressionHandle,
         requirement: bool,
-    ) -> Checked<bool> {
+    ) -> Checked<(bool, Vec<typed_trees::expression::ExpressionHandle>)> {
         use super::types::TypeTruth;
         use typed_trees::expression::{BinaryOperator, ExpressionNode};
         let table = &self.typed.expression_table;
         if expression.is_valid()
             && matches!(table.expression(expression), ExpressionNode::Boolean(true))
         {
-            return Ok(true);
+            return Ok((true, Vec::new()));
         }
         let mut conjuncts = vec![expression];
         let mut stated = Vec::new();
+        let mut operators = Vec::new();
         while let Some(conjunct) = conjuncts.pop() {
+            let truth = self.clause_truth_reads(conjunct, &mut operators);
             if conjunct.is_valid()
                 && let ExpressionNode::Binary(binary) = table.expression(conjunct)
                 && binary.operator == BinaryOperator::And
-                && self.clause_truth(conjunct).is_none()
+                && truth.is_none()
             {
                 conjuncts.push(binary.right);
                 conjuncts.push(binary.left);
                 continue;
             }
-            stated.push(conjunct);
+            stated.push((conjunct, truth));
         }
         let mut nothing = true;
-        for conjunct in stated {
+        for (conjunct, truth) in stated {
             let text = || table.display_name(conjunct);
             let at = || crate::SourceOrigin::of(table.source_span(conjunct));
-            match self.clause_truth(conjunct) {
+            match truth {
                 Some(TypeTruth::Known(true)) => {}
                 Some(TypeTruth::Known(false)) if requirement && !self.premise_reading => {
                     return Err(crate::reject(
@@ -3061,7 +3063,9 @@ impl<'t> Program<'t> {
                 None => nothing = false,
             }
         }
-        Ok(nothing)
+        operators.sort_unstable();
+        operators.dedup();
+        Ok((nothing, operators))
     }
 
     /// A slice formal carries its borrowed descriptor. A loan of a stored

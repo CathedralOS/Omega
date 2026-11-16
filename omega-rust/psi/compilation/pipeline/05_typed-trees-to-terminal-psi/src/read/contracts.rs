@@ -280,7 +280,15 @@ impl Program<'_> {
             return logical.membership_clause(self, scope, membership).map(Some);
         }
         let expression = self.fact(id, fact)?;
-        if self.states_nothing(id, expression, requirement)? {
+        let (nothing, operators) = self.states_nothing(id, expression, requirement)?;
+        if !operators.is_empty() {
+            let owner = self.contract_operator_owner(id, scope)?;
+            self.complete_type_clause_operators(
+                id,
+                operators.into_iter().map(|expression| (owner, expression)),
+            )?;
+        }
+        if nothing {
             return Ok(None);
         }
         Ok(Some((
