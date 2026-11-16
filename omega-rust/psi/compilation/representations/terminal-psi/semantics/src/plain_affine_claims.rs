@@ -78,24 +78,30 @@ impl ClaimsState {
         }
         Ok(self.clone())
     }
-    fn remove(&mut self, identity: ClaimId) -> Result<ClaimLocation, Error> {
-        let slot = self
-            .claim_ids
-            .binary_search(&identity)
-            .map_err(|_| Error::malformed("claim capture names an undeclared identity"))?;
-        let claim = self.claims[slot]
-            .take()
-            .ok_or_else(|| Error::malformed("claim capture lost its exact identity"))?;
-        let place = self
-            .place_ids
-            .binary_search(&claim.place)
-            .map_err(|_| Error::malformed("claim capture lost its declared place"))?;
-        let position = self.at_place[place]
-            .binary_search(&slot)
-            .map_err(|_| Error::malformed("claim capture lost its place slot"))?;
-        self.at_place[place].remove(position);
-        self.live_count -= 1;
-        Ok(claim)
+    fn take_at(
+        &mut self,
+        place: PlaceId,
+        selected: impl Fn(&ClaimLocation) -> bool,
+    ) -> Vec<ClaimLocation> {
+        let Ok(position) = self.place_ids.binary_search(&place) else {
+            return Vec::new();
+        };
+        let mut moved = Vec::new();
+        let claims = &mut self.claims;
+        self.at_place[position].retain(|slot| {
+            if selected(
+                claims[*slot]
+                    .as_ref()
+                    .expect("place slots name live claims"),
+            ) {
+                moved.push(claims[*slot].take().expect("selected claim is live"));
+                false
+            } else {
+                true
+            }
+        });
+        self.live_count -= moved.len();
+        moved
     }
     fn take(&mut self, argument: &StructuralArgument) -> Result<Vec<ClaimLocation>, Error> {
         if argument.access != StructuralAccess::Owned {
@@ -118,19 +124,13 @@ impl ClaimsState {
                 "a projected move would split an intrinsic logical claim",
             ));
         }
-        let identities = self
-            .at(argument.place)
-            .filter(|claim| claim.path.starts_with(&argument.path))
-            .map(|claim| claim.identity)
-            .collect::<Vec<_>>();
-        identities
-            .into_iter()
-            .map(|identity| {
-                let mut claim = self.remove(identity)?;
-                claim.path.drain(..argument.path.len());
-                Ok(claim)
-            })
-            .collect()
+        let mut moved = self.take_at(argument.place, |claim| {
+            claim.path.starts_with(&argument.path)
+        });
+        for claim in &mut moved {
+            claim.path.drain(..argument.path.len());
+        }
+        Ok(moved)
     }
     fn put(&mut self, claim: ClaimLocation) -> Result<(), Error> {
         let slot = self
@@ -900,14 +900,10 @@ impl Flow {
         let Some(selected) = cases.iter().find(|case| case.edge == edge) else {
             return Ok(());
         };
-        let inactive = state.at(*source).filter(|claim| claim.path.starts_with(path))
-            .filter_map(|claim| {
-                matches!(claim.path.get(path.len()), Some(Path::Case(case)) if *case != selected.case)
-                    .then_some(claim.identity)
-            }).collect::<Vec<_>>();
-        for identity in inactive {
-            state.remove(identity)?;
-        }
+        state.take_at(*source, |claim| {
+            claim.path.starts_with(path)
+                && matches!(claim.path.get(path.len()), Some(Path::Case(case)) if *case != selected.case)
+        });
         Ok(())
     }
     pub fn successor(
