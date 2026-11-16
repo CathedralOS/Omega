@@ -128,7 +128,7 @@ const STAGE_CALL_ALLOWANCES: &[Allowance] = &[
         dependency: "omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations",
     },
     // Object replay and validation rerun stage 02 preparation and stage 03
-    // geometry helpers on the retained earlier program.
+    // geometry helpers on the earlier program an audit request retains.
     Allowance {
         owner: "omega-rust/omega/compilation/backend/images/image-emission",
         dependency: "omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations",
@@ -141,12 +141,8 @@ const STAGE_CALL_ALLOWANCES: &[Allowance] = &[
         owner: "omega-rust/omega/compilation/backend/images/image-emission",
         dependency: "omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions",
     },
-    // Fragment emission keeps stage 02's output beside the stage 09 layout,
-    // and frame staging names stage output types that live in stage crates.
-    Allowance {
-        owner: "omega-rust/omega/compilation/backend/machine-emission",
-        dependency: "omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations",
-    },
+    // Frame staging and the opt-in fixed-frame replay name stage output types
+    // that live in stage crates.
     Allowance {
         owner: "omega-rust/omega/compilation/backend/machine-emission",
         dependency: "omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes",
