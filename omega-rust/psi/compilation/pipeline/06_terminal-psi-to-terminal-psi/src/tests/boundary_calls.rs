@@ -118,6 +118,194 @@ fn source_boundary_calls_keep_their_actual_input_obligations() {
     );
 }
 
+fn source_service_signature(typed: &typed_trees::TypedTrees, owner: &str) -> [u8; 32] {
+    use typed_trees::service_declarations::{
+        projection::from_typed, provider_declarations::ProviderPlanningContext,
+    };
+    let declaration = typed
+        .traits()
+        .iter()
+        .find(|declaration| declaration.name.as_str() == owner)
+        .unwrap();
+    let surface = from_typed(
+        ProviderPlanningContext::new(typed, source::DependencyScope::Product),
+        declaration,
+    )
+    .unwrap();
+    let [method] = surface.declaration.methods.as_slice() else {
+        panic!("the source declares one service method");
+    };
+    method.declared_type_signature
+}
+
+fn published_service_signature(elaboration: &typed_trees_to_terminal_psi::Elaboration) -> [u8; 32] {
+    let [boundary] = elaboration.module.boundary_machines.as_slice() else {
+        panic!("one requirement is called");
+    };
+    let source = &boundary.declaration.as_ref().unwrap().source;
+    let parameters = source
+        .parameter_types
+        .iter()
+        .map(|identity| elaboration.module.identities.text(*identity).unwrap());
+    language_semantics::service_surface::declared_type_signature(
+        parameters,
+        elaboration
+            .module
+            .identities
+            .text(source.result_type)
+            .unwrap(),
+    )
+    .unwrap()
+}
+
+#[test]
+fn source_boundary_applied_signature_keeps_actual_types_and_caller_lifetimes() {
+    use typed_trees::trait_definition::{AppliedTraitScope, TraitApplicationArguments};
+    use typed_trees::type_identity::{
+        TypeIdentityRequest, descriptive_type_identity_in_region_scope,
+    };
+    let program = typed(
+        r#"
+boundary trait Write<'storage, Value> {
+    machine write(value: &'storage mut Value) -> &'storage mut Value reaches none crashes none;
+}
+machine carrier<'left, 'right>(first: &'left mut i32, second: &'right mut i64) -> i64 { 0 }
+"#,
+    );
+    let owner = program
+        .traits()
+        .iter()
+        .find(|owner| owner.name.as_str() == "Write")
+        .unwrap();
+    let signature = &program.trait_machine_signatures(owner)[0];
+    let caller = program
+        .machines()
+        .iter()
+        .find(|caller| caller.name.as_str() == "carrier")
+        .unwrap();
+    let mut states = program.machine_states(caller).iter();
+    let state = states.next().expect("one caller state");
+    assert!(states.next().is_none(), "one caller state");
+    let parameters = program.state_parameters(state);
+    let scalar = |position: usize| {
+        let typed_trees::types::TypeReferenceNode::Reference { referee, .. } = program
+            .type_reference_table
+            .type_reference(parameters[position].type_reference)
+        else {
+            panic!("the actual caller declares a reference");
+        };
+        *referee
+    };
+    let applied = |value, lifetime: &str| {
+        let scope = AppliedTraitScope::new(
+            &program,
+            owner,
+            TraitApplicationArguments {
+                lexical_owner: caller.symbol,
+                enclosing_data_applications: &[],
+                arguments: &[value],
+                lifetimes: &[lifetime.into()],
+            },
+        )
+        .unwrap();
+        program
+            .requirement_definition_types(&scope, signature)
+            .unwrap()
+    };
+    let left_i32 = applied(scalar(0), "left");
+    let left_i64 = applied(scalar(1), "left");
+    let right_i32 = applied(scalar(0), "right");
+    let caller_type = descriptive_type_identity_in_region_scope(
+        &program,
+        TypeIdentityRequest::package_qualified(parameters[0].type_reference),
+        caller.symbol,
+        caller.symbol,
+        &[],
+        &[],
+    )
+    .and_then(|identity| program.type_identity_text(identity))
+    .unwrap();
+    assert_eq!(left_i32.0, std::slice::from_ref(&caller_type));
+    assert_eq!(
+        left_i32.1, caller_type,
+        "the result keeps the same captured lifetime"
+    );
+    assert_eq!(
+        left_i32.2, 0,
+        "a supplied lifetime introduces no elided binder"
+    );
+    assert_ne!(
+        left_i32.0, left_i64.0,
+        "the actual type argument must survive"
+    );
+    assert_ne!(
+        left_i32.0, right_i32.0,
+        "caller lifetimes must remain distinct"
+    );
+    assert!(
+        !left_i32.0[0].contains("owner(schema)"),
+        "a captured caller lifetime is not a new invocation binder"
+    );
+}
+
+#[test]
+fn source_boundary_top_level_schema_keeps_independent_input_lifetimes() {
+    use typed_trees::service_declarations::{
+        projection::from_typed_boundary_requirement, provider_declarations::ProviderPlanningContext,
+    };
+    let program = typed(
+        r#"
+data Host {}
+boundary machine + Operations::write(left: &mut Host, right: &mut Host) reaches none crashes none;
+machine entry() {}
+"#,
+    );
+    let (program, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+        program,
+        &typed_trees_to_typed_trees::PreparationRequest::settled(),
+    )
+    .unwrap();
+    let requirement = program
+        .machines()
+        .iter()
+        .find(|requirement| requirement.name.as_str() == "Operations::write")
+        .unwrap();
+    let surface = from_typed_boundary_requirement(
+        ProviderPlanningContext::new(&program, source::DependencyScope::Product),
+        requirement,
+    )
+    .unwrap();
+    let (parameters, result) = program.machine_definition_types(requirement).unwrap();
+    assert!(parameters[0].contains("region(owner(schema),ordinal(0))"));
+    assert!(parameters[1].contains("region(owner(schema),ordinal(1))"));
+    let expected =
+        language_semantics::service_surface::declared_type_signature(parameters.iter(), &result)
+            .unwrap();
+    assert_eq!(
+        surface.declaration.methods[0].declared_type_signature,
+        expected
+    );
+}
+
+#[test]
+fn source_boundary_schema_and_header_share_elided_input_lifetimes() {
+    let source = r#"
+boundary trait Write {
+    machine write(left: &mut i64, right: &mut i64)
+    reaches none crashes none;
+}
+machine entry() {
+    let mut left: i64 = 17;
+    let mut right: i64 = 23;
+    Write::write(&mut left, &mut right);
+}
+"#;
+    let typed = typed(source);
+    let expected = source_service_signature(&typed, "Write");
+    let elaboration = invocation(typed).unwrap();
+    assert_eq!(published_service_signature(&elaboration), expected);
+}
+
 #[test]
 fn source_boundary_calls_retain_independent_input_lifetime_binders() {
     let source = r#"
@@ -131,7 +319,10 @@ machine entry() {
     Write::write(&mut left, &mut right);
 }
 "#;
-    let elaboration = invocation(typed(source)).unwrap();
+    let typed = typed(source);
+    let expected = source_service_signature(&typed, "Write");
+    let elaboration = invocation(typed).unwrap();
+    assert_eq!(published_service_signature(&elaboration), expected);
     let [boundary] = elaboration.module.boundary_machines.as_slice() else {
         panic!("one requirement is called");
     };
