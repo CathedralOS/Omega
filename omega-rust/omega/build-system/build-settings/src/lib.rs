@@ -29,8 +29,10 @@ machine build(build: &mut Build) {
   `Console`, so an omitted `build.omg` or empty `build` machine yields the hosted
   console default. `Unspecified(value)` provides a platform escape hatch without
   requiring a compiler release.
-- `freestanding` ("trust no host packages") is an explicit boolean field rather
-  than being conflated with `EfiApplication`.
+- `freestanding` grants machine-owner assembly authority to every target the
+  build binds. It selects no packages and removes no imports; whether this grant
+  belongs to the target profile instead is
+  `OWNER_QUESTIONS.md#freestanding-machine-owner-authority`.
 - `optimizations` is an exact set of individually named transformations (empty by
   default; duplicate selections reject rather than acting like coarse `-O`
   levels).

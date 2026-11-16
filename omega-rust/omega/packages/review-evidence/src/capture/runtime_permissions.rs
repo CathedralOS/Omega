@@ -12,7 +12,6 @@ use typed_trees::ProductSourceIdentity;
 pub struct PreparedRuntimePolicy {
     owner: Result<ProductSourceIdentity, Diagnostic>,
     sources: Arc<package_compilation::CheckedSourceCustody>,
-    evaluated_assumptions: usize,
 }
 
 impl PreparedRuntimePolicy {
@@ -23,12 +22,7 @@ impl PreparedRuntimePolicy {
                 .require_owner(&source.program)
                 .map(|()| ProductSourceIdentity::new(&source.program)),
             sources: Arc::clone(&source.sources),
-            evaluated_assumptions: source.computed_build_config.config.assumed_bindings.len(),
         }
-    }
-
-    pub(crate) fn evaluated_assumptions(&self) -> usize {
-        self.evaluated_assumptions
     }
 
     pub(crate) fn rows(

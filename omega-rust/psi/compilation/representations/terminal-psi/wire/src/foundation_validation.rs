@@ -11820,15 +11820,7 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
         .map_err(CodecError::MalformedStructuralFoundation)?;
     terminal_semantics::closed_conformances::validate_closed_conformances(module)
         .map_err(CodecError::MalformedStructuralFoundation)?;
-    let mut placed_coordinates = BTreeSet::new();
     for row in &module.access_view_inputs {
-        if !placed_coordinates.insert((
-            row.machine,
-            row.source_state_identity,
-            row.runtime_position,
-        )) {
-            return malformed("access-view inputs repeat one structural formal");
-        }
         access_view_input_parameter(module, row).map_err(CodecError::AccessViewInput)?;
     }
     validate_access_view_plans(module).map_err(CodecError::AccessViewPlan)?;
