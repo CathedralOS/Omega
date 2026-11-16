@@ -653,28 +653,32 @@ const PLAN_VALIDATOR_ENTRIES: &[&str] = &[
 ];
 /// The crate that defines the validator, and the one production caller: the
 /// explicit stage-validator request (`omega --validator ...`).
-const PLAN_VALIDATOR_OWNER: &str = "omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/native-preparation/";
-const PLAN_VALIDATOR_REQUEST: &str =
-    "omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments.rs";
+const PLAN_VALIDATOR_CALLERS: &[&str] = &[
+    "omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/native-preparation/",
+    "omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments.rs",
+];
+
+/// Stage 02's accessor for its working program.
+const WORKING_PROGRAM_ACCESSORS: &[&str] = &["working_program_for_validation("];
+/// Stage 02 and its preparation crate, and the one file through which image
+/// emission's replay validators read the working program.
+const WORKING_PROGRAM_READERS: &[&str] = &[
+    "omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/",
+    "omega-rust/omega/compilation/backend/images/image-emission/src/retained_working_program.rs",
+];
 
 fn is_test_source(relative: &str) -> bool {
     relative.contains("/tests/") || relative.ends_with("tests.rs")
 }
 
-fn line_calls_plan_validator(line: &str) -> bool {
+fn line_calls_any(line: &str, entries: &[&str]) -> bool {
     let code = line.trim_start();
-    !code.starts_with("//")
-        && PLAN_VALIDATOR_ENTRIES
-            .iter()
-            .any(|entry| code.contains(entry))
+    !code.starts_with("//") && entries.iter().any(|entry| code.contains(entry))
 }
 
-/// Ordinary compilation does not re-verify its own stage output
-/// (omega-rust/pipeline.md, "Verification placement"). Stage 02's validator
-/// derives the execution plan a second time, so a call to it from the default
-/// path would both hide a preparation bug and double the stage's work. Only
-/// the explicit validator request and tests may call it.
-pub fn plan_validator_call_violations(root: &Path) -> Vec<String> {
+/// Report each line under `omega-rust/omega` that calls one of `entries`
+/// outside the files or directories in `allowed` and outside tests.
+fn call_violations(root: &Path, entries: &[&str], allowed: &[&str], reason: &str) -> Vec<String> {
     let mut violations = Vec::new();
     let mut files = Vec::new();
     collect_rs_files(&root.join(OMEGA), &mut files);
@@ -684,21 +688,15 @@ pub fn plan_validator_call_violations(root: &Path) -> Vec<String> {
             .unwrap_or(&path)
             .to_string_lossy()
             .replace('\\', "/");
-        if rel.starts_with(PLAN_VALIDATOR_OWNER)
-            || rel == PLAN_VALIDATOR_REQUEST
-            || is_test_source(&rel)
-        {
+        if allowed.iter().any(|owner| rel.starts_with(owner)) || is_test_source(&rel) {
             continue;
         }
         let Ok(text) = fs::read_to_string(&path) else {
             continue;
         };
         for (index, line) in text.lines().enumerate() {
-            if line_calls_plan_validator(line) {
-                violations.push(format!(
-                    "{rel}:{}: stage 02's plan validator is called outside the explicit validator request and tests",
-                    index + 1
-                ));
+            if line_calls_any(line, entries) {
+                violations.push(format!("{rel}:{}: {reason}", index + 1));
             }
         }
     }
@@ -812,6 +810,32 @@ pub fn single_form_entry_violations(root: &Path) -> Vec<String> {
     violations
 }
 
+/// Ordinary compilation does not re-verify its own stage output
+/// (omega-rust/pipeline.md, "Verification placement"). Stage 02's validator
+/// derives the execution plan a second time, so a call to it from the default
+/// path would both hide a preparation bug and double the stage's work. Only
+/// the explicit validator request and tests may call it.
+pub fn plan_validator_call_violations(root: &Path) -> Vec<String> {
+    call_violations(
+        root,
+        PLAN_VALIDATOR_ENTRIES,
+        PLAN_VALIDATOR_CALLERS,
+        "stage 02's plan validator is called outside the explicit validator request and tests",
+    )
+}
+
+/// Stage 02 publishes the prepared execution plan; its working program is
+/// scratch that only stage 02 and validators of its output may read. A later
+/// stage that read it would depend on a form the plan was meant to replace.
+pub fn working_program_read_violations(root: &Path) -> Vec<String> {
+    call_violations(
+        root,
+        WORKING_PROGRAM_ACCESSORS,
+        WORKING_PROGRAM_READERS,
+        "stage 02's working program is read outside stage 02, its validators and tests; read the prepared execution plan",
+    )
+}
+
 pub fn representation_spelling_violations(root: &Path) -> Vec<String> {
     let mut violations = Vec::new();
     for owner in [PSI, OMEGA] {
@@ -875,6 +899,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         let mut violations = representation_spelling_violations(&root);
         violations.extend(plan_validator_call_violations(&root));
         violations.extend(single_form_entry_violations(&root));
+        violations.extend(working_program_read_violations(&root));
         violations.extend(transitive_forbidden_violations(
             &metadata,
             SELECTION_REPRESENTATIONS,
@@ -1099,20 +1124,32 @@ mod tests {
 
     #[test]
     fn only_requests_and_tests_may_call_the_plan_validator() {
-        assert!(line_calls_plan_validator(
-            "    native_preparation::verify_execution_plan(plan, target)?;"
+        assert!(line_calls_any(
+            "    native_preparation::verify_execution_plan(plan, target)?;",
+            PLAN_VALIDATOR_ENTRIES
         ));
-        assert!(line_calls_plan_validator(
-            "let _ = verify_target_operation_plan_with_closed_module("
+        assert!(line_calls_any(
+            "let _ = verify_target_operation_plan_with_closed_module(",
+            PLAN_VALIDATOR_ENTRIES
         ));
-        assert!(!line_calls_plan_validator(
-            "    /// (`native_preparation::verify_execution_plan(...)`)."
+        assert!(!line_calls_any(
+            "    /// (`native_preparation::verify_execution_plan(...)`).",
+            PLAN_VALIDATOR_ENTRIES
         ));
-        assert!(!line_calls_plan_validator(
-            "    native_preparation::prepare_execution_plan(target, evidence)?;"
+        assert!(!line_calls_any(
+            "    native_preparation::prepare_execution_plan(target, evidence)?;",
+            PLAN_VALIDATOR_ENTRIES
         ));
         assert!(is_test_source(
             "omega-rust/omega/compilation/native-compiler/src/physical_publication_tests.rs"
+        ));
+        assert!(line_calls_any(
+            "        .working_program_for_validation()",
+            WORKING_PROGRAM_ACCESSORS
+        ));
+        assert!(!line_calls_any(
+            "    /// `working_program_for_validation()` is for validators.",
+            WORKING_PROGRAM_ACCESSORS
         ));
         assert!(is_test_source(
             "omega-rust/omega/compilation/compiler/tests/executed_fixture_discovery.rs"

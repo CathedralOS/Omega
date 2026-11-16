@@ -2,8 +2,8 @@
 Canonical identity construction for `LegalizedOperationPlan` and its subordinate representations.
 
 We compute collision-resistant SHA-256 identity digests (`LegalizedOperationPlanIdentity`) over
-the canonical wire encoding of a legalized plan (`omega.terminal-legalized-operations.v85\0` and
-`ordinary-scalar-graph.v43\0`). Every optional field uses a tagged `0` / `1 + payload` frame
+the canonical wire encoding of a legalized plan (`omega.terminal-legalized-operations.v86\0` and
+`ordinary-scalar-graph.v44\0`). Every optional field uses a tagged `0` / `1 + payload` frame
 (`encode_option`) so an absent row and an empty payload never share bytes.
 */
 
@@ -15,6 +15,7 @@ borrow a unit's identity.
 */
 
 mod calling;
+mod function_abi;
 mod normalized_foreign;
 mod scalar_graph;
 mod structural;
@@ -48,7 +49,7 @@ pub fn legalized_operation_plan_identity(
     plan: &LegalizedOperationPlan,
 ) -> LegalizedOperationPlanIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-legalized-operations.v85\0");
+    bytes.extend_from_slice(b"omega.terminal-legalized-operations.v86\0");
     bytes.extend_from_slice(plan.psi.program_fingerprint.as_bytes());
     crate::codec_bytes::push_encoded(&mut bytes, plan.psi.vocabulary_marker.get().to_le_bytes());
     bytes.extend_from_slice(&plan.optimization_unit.bytes());
@@ -64,7 +65,15 @@ pub fn legalized_operation_plan_identity(
     for operation in &plan.installation_operations {
         crate::codec_bytes::push_encoded(&mut bytes, operation.get().to_le_bytes());
     }
-    bytes.extend_from_slice(b"ordinary-scalar-graph.v43\0");
+    encode_len(&mut bytes, plan.function_abis.len());
+    for abi in &plan.function_abis {
+        function_abi::encode_function_abi(&mut bytes, abi);
+    }
+    encode_len(&mut bytes, plan.borrowed_storage_layouts.len());
+    for layout in &plan.borrowed_storage_layouts {
+        function_abi::encode_borrowed_storage_layout(&mut bytes, layout);
+    }
+    bytes.extend_from_slice(b"ordinary-scalar-graph.v44\0");
     encode_len(&mut bytes, plan.scalar_functions.len());
     let mut cached_catalog = None;
     for function in &plan.scalar_functions {
