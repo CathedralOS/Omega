@@ -5191,16 +5191,21 @@ impl<'a> AtCall<'_, 'a> {
     }
 
     pub(crate) fn observations(&self) -> CallObservations<'_, 'a> {
-        let mut readable: Vec<_> = self
-            .callee_formals
-            .iter()
-            .enumerate()
-            .filter_map(|(position, formal)| {
-                self.readable_actual(formal)
-                    .ok()
-                    .map(|actual| (actual, position))
-            })
-            .collect();
+        let mut readable = Vec::new();
+        for (position, formal) in self.callee_formals.iter().enumerate() {
+            let Ok(actual) = self.readable_actual(formal) else {
+                continue;
+            };
+            let mut place = actual.clone();
+            for _ in 0..=self.storage.lowered.structural_places.len() {
+                let source = self.transfer_source(&place);
+                readable.push((place, position));
+                let Some(source) = source else {
+                    break;
+                };
+                place = source;
+            }
+        }
         readable.sort_unstable();
         CallObservations {
             call: self,
@@ -5209,6 +5214,39 @@ impl<'a> AtCall<'_, 'a> {
             projections: None,
             terms: Vec::new(),
         }
+    }
+
+    /// Find the source named by the operation that established this actual.
+    /// This only nominates a formal path. Its current contents are still
+    /// checked at the actual, so copies do not carry facts across overwrites.
+    fn transfer_source(&self, place: &Lineage) -> Option<Lineage> {
+        let storage = self.storage;
+        let StructuralPlaceKind::OperationResult { producer, .. } =
+            storage.root_kind(place.root, self.concerns).ok()?
+        else {
+            return None;
+        };
+        let point = storage
+            .graph
+            .locate(ProgramPoint::AfterOperation(producer))
+            .ok()?;
+        let start = storage
+            .log
+            .partition_point(|row| (row.block, row.position) < point);
+        storage.log[start..]
+            .iter()
+            .take_while(|row| (row.block, row.position) == point)
+            .find_map(|row| {
+                if row.lineage.root != place.root || !row.lineage.segments.is_empty() {
+                    return None;
+                }
+                let Stored::Moved(source) = &row.stored else {
+                    return None;
+                };
+                let mut source = source.clone();
+                source.segments.extend_from_slice(&place.segments);
+                (source != *place).then_some(source)
+            })
     }
 
     fn observed_place(&self, origin: ValueOrigin) -> Option<Lineage> {
@@ -5249,7 +5287,7 @@ impl<'a> AtCall<'_, 'a> {
 /// fixed for this call point, including observations that have no formal name.
 pub(crate) struct CallObservations<'s, 'a> {
     call: &'s AtCall<'s, 'a>,
-    readable: Vec<(&'s Lineage, usize)>,
+    readable: Vec<(Lineage, usize)>,
     extents: Option<Vec<(Lineage, usize, ValueId)>>,
     // Keep unvisited and unbound distinct. Only named observations keep a term.
     projections: Option<IdTable<ValueId, Option<Option<usize>>>>,
@@ -5279,9 +5317,15 @@ impl CallObservations<'_, '_> {
             let recorded = call.observed_place(row.origin)?;
             let (formal, path, held) =
                 if let Some((formal, path)) = formal_observation_path(&self.readable, &recorded) {
+                    let declaration = &call.callee_formals[formal];
+                    let mut actual =
+                        extended(call.readable_actual(declaration).ok()?.clone(), &path).ok()?;
+                    if matches!(recorded.segments.last(), Some(Segment::Extent)) {
+                        actual.segments.push(Segment::Extent);
+                    }
                     let held = call
-                        .held_at(&recorded)
-                        .observation(&recorded, scalar_type)
+                        .held_at(&actual)
+                        .observation(&actual, scalar_type)
                         .ok()?;
                     (formal, path, held)
                 } else if let (Some(Segment::Extent), ScalarType::Integer(integer)) =
@@ -5290,10 +5334,12 @@ impl CallObservations<'_, '_> {
                     // A reborrow can carry the observed extent in a new
                     // descriptor. Match the reaching value of that actual.
                     let extents = self.extents.get_or_insert_with(|| {
-                        let mut extents: Vec<_> = self
-                            .readable
+                        let mut extents: Vec<_> = call
+                            .callee_formals
                             .iter()
-                            .filter_map(|(actual, formal)| {
+                            .enumerate()
+                            .filter_map(|(formal, declaration)| {
+                                let actual = call.readable_actual(declaration).ok()?;
                                 let ScalarTerm::Value { id, .. } =
                                     call.held_at(actual).extent_of(actual, integer).ok()?
                                 else {
@@ -5302,7 +5348,7 @@ impl CallObservations<'_, '_> {
                                 let origin = call.tables.values.get(id)?.origin;
                                 let source = call.observed_place(origin)?;
                                 matches!(source.segments.last(), Some(Segment::Extent))
-                                    .then_some((source, *formal, id))
+                                    .then_some((source, formal, id))
                             })
                             .collect();
                         extents.sort_unstable();
@@ -5360,7 +5406,7 @@ impl CallObservations<'_, '_> {
 /// Only exact prefixes of this observation can name it. If several actuals
 /// match, keep the first formal in declaration order, even across prefixes.
 fn formal_observation_path(
-    readable: &[(&Lineage, usize)],
+    readable: &[(impl std::borrow::Borrow<Lineage>, usize)],
     recorded: &Lineage,
 ) -> Option<(usize, Vec<CanonicalStructuralPathSegment>)> {
     // A length is observed on the descriptor. Its formal term names that
@@ -5384,9 +5430,12 @@ fn formal_observation_path(
     let (formal, prefix) = (shortest..=subject.len())
         .filter_map(|length| {
             let prefix = (recorded.root, &subject[..length]);
-            let first = readable
-                .partition_point(|(actual, _)| (actual.root, actual.segments.as_slice()) < prefix);
+            let first = readable.partition_point(|(actual, _)| {
+                let actual = actual.borrow();
+                (actual.root, actual.segments.as_slice()) < prefix
+            });
             let (actual, formal) = readable.get(first)?;
+            let actual = actual.borrow();
             ((actual.root, actual.segments.as_slice()) == prefix).then_some((*formal, length))
         })
         .min()?;

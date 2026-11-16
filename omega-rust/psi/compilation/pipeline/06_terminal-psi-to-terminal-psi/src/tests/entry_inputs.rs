@@ -228,6 +228,37 @@ machine entry(bytes: &[u8], index: u64) -> u8 {
 }
 
 #[test]
+fn private_arrivals_preserve_the_guarded_field_of_an_owned_argument() {
+    let source = r#"
+data Character { point: u32; sibling: u32; }
+machine entry(character: Character) -> u32 {
+    transition character.GUARDED_FIELD < 65536 { true -> 0u32 false -> forward(character) }
+    machine forward(character: Character) -> u32 {
+        transition { _ -> encode(character) }
+    }
+    machine encode(character: Character) -> u32 {
+        character.point - 65536
+    }
+}
+"#;
+    let verdict = judge_source_arrivals(&source.replace("GUARDED_FIELD", "point"), 2);
+    let RouteVerdict::Accepted(accepted) = verdict else {
+        panic!("the field guard crosses both owned arguments: {verdict:?}");
+    };
+    accepted.publish_invocation().unwrap();
+
+    let verdict = judge_source_arrivals(&source.replace("GUARDED_FIELD", "sibling"), 2);
+    let RouteVerdict::Rejected { unproved, .. } = verdict else {
+        panic!("guarding the sibling leaves the subtraction unproved: {verdict:?}");
+    };
+    assert!(
+        unproved
+            .iter()
+            .any(|row| row.machine == id(3) && safety(&row.kind))
+    );
+}
+
+#[test]
 fn a_fixed_input_boundary_does_not_receive_its_callers_stronger_fact() {
     let entry = machine(vec![], vec![returns(call(2, vec![unsigned(2)]))]);
     let forward = machine(
@@ -369,4 +400,71 @@ fn a_private_helper_that_returns_nothing_receives_its_inferred_input() {
             .iter()
             .any(|row| row.machine == id(2) && safety(&row.kind))
     );
+}
+
+#[test]
+fn private_arrivals_can_discharge_compound_guards_on_owned_arguments() {
+    let source = r#"
+data OpenOptions {
+    read: bool;
+    write: bool;
+    append: bool;
+    truncate: bool;
+    create: bool;
+    create_new: bool;
+}
+machine entry(options: OpenOptions) -> u32
+{
+    // Truncation requires random-write access. Append-only access cannot
+    // satisfy it, and must not be upgraded just to make a flag combination fit.
+    transition options.truncate && (!options.write || options.append) && !options.create_new {
+        true -> 0u32
+        false -> access(options)
+    }
+    machine access(options: OpenOptions) -> u32 {
+        transition options.read || (!options.write && !options.append) {
+            true -> writable(options, 2147483648)
+            false -> writable(options, 0)
+        }
+    }
+    machine writable(options: OpenOptions, desired: u32) -> u32 {
+        transition options.append {
+            true -> disposition(options, desired | 1179924)
+            false -> ordinary_write(options, desired)
+        }
+    }
+    machine ordinary_write(options: OpenOptions, desired: u32) -> u32 {
+        transition options.write {
+            true -> disposition(options, desired | 1073741824)
+            false -> disposition(options, desired)
+        }
+    }
+    machine disposition(options: OpenOptions, desired: u32) -> u32 {
+        transition options.create_new {
+            true -> acquire(desired, 1)
+            false -> creating(options, desired)
+        }
+    }
+    machine creating(options: OpenOptions, desired: u32) -> u32 {
+        transition options.create {
+            true -> create_mode(options.truncate, desired)
+            false -> existing_mode(options.truncate, desired)
+        }
+    }
+    machine create_mode(truncate: bool, desired: u32) -> u32 {
+        transition truncate { true -> acquire(desired, 2) false -> acquire(desired, 4) }
+    }
+    machine existing_mode(truncate: bool, desired: u32) -> u32 {
+        transition truncate { true -> acquire(desired, 5) false -> acquire(desired, 3) }
+    }
+    machine acquire(desired: u32, disposition: u32) -> u32 {
+        desired | disposition
+    }
+}
+"#;
+    let verdict = judge_source_arrivals(source, 8);
+    let RouteVerdict::Accepted(accepted) = verdict else {
+        panic!("each option route establishes one inferred arrival: {verdict:?}");
+    };
+    accepted.publish_invocation().unwrap();
 }
