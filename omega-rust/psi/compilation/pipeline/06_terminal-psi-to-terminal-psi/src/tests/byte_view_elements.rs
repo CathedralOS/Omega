@@ -372,10 +372,15 @@ fn mutable_windows_reborrow_the_same_backing_without_moving_the_parent() {
         "use_byte(selected[0]);\n            bytes[0] = 9;",
         "bytes[0] = 9;\n            use_byte(selected[0]);",
     );
-    let refusal = verdict(&conflict);
+    let rejected = judge_build(&conflict);
+    let Ok(RouteVerdict::Rejected { conflicts, .. }) = rejected else {
+        panic!("the parent write must conflict with its live shared child: {rejected:?}");
+    };
     assert!(
-        refusal.contains("changed while a conflicting reference"),
-        "{refusal}"
+        conflicts
+            .iter()
+            .any(|conflict| conflict.conflict == crate::LoanConflict::ChangeWhileBorrowed),
+        "{conflicts:?}"
     );
 }
 
