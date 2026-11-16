@@ -198,8 +198,26 @@ machine entry() reaches Child {}
         .iter()
         .find(|owner| owner.name.as_str() == "Parent")
         .unwrap();
-    let parent_symbol = parent.symbol;
-    let required = program.trait_machine_signatures(parent)[0].symbol;
+    let child = program
+        .traits()
+        .iter()
+        .find(|owner| owner.name.as_str() == "Child")
+        .unwrap();
+    let projected = typed_trees::service_declarations::projection::from_typed(
+        typed_trees::provider_declarations::ProviderPlanningContext::new(
+            &program,
+            source::DependencyScope::Product,
+        ),
+        child,
+    )
+    .unwrap();
+    projected.validate_correspondence().unwrap();
+    assert_eq!(projected.requirements.len(), 1);
+    assert_eq!(projected.requirements[0].declaring_trait, parent.symbol);
+    assert_eq!(
+        projected.requirements[0].symbol,
+        program.trait_machine_signatures(parent)[0].symbol
+    );
     let form = |program: typed_trees::TypedTrees| {
         let child = program
             .traits()
@@ -225,7 +243,26 @@ machine entry() reaches Child {}
             terminal_codec::TerminalPublication::Invocation,
         )
     };
-    let elaboration = form(program).expect("the inherited schema keeps its original parent");
+    // The generic comparison above checks the typed projection. Standalone
+    // generic service publication remains unavailable. These nongeneric
+    // parents match the real hosted entry and must also lower and check.
+    let entry_program = typed(
+        r#"
+boundary trait Parent {
+    machine echo(value: i32) -> i32 reaches none crashes none;
+}
+boundary trait Child: Parent {}
+machine entry() reaches Child {}
+"#,
+    );
+    let parent = entry_program
+        .traits()
+        .iter()
+        .find(|owner| owner.name.as_str() == "Parent")
+        .unwrap();
+    let parent_symbol = parent.symbol;
+    let required = entry_program.trait_machine_signatures(parent)[0].symbol;
+    let elaboration = form(entry_program).expect("the inherited schema keeps its original parent");
     let parent_schema = elaboration
         .static_schemas
         .iter()
