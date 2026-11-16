@@ -10,7 +10,9 @@ use omega::language::core::ProcessExit;
 //  9     Permissions::Default only adds write bits; 0o555 becomes 0o777, not
 //        0o666.
 // 10     create_dir_all creates parents whose prefix ends past byte 255.
-// 12     remove_dir_all removes a directory of more than 4096 entries.
+// 11     create_dir_all stops at a parent that is a file.
+// 12     remove_dir_all removes a tree 21 directories deep.
+// 13     remove_dir_all removes a directory of more than 4096 entries.
 
 use omega_language_std::ErrorKind;
 use omega_language_std::File;
@@ -22,6 +24,7 @@ use omega_language_std::OpenResult;
 use omega_language_std::Permissions;
 use omega_language_std::PosixMetadataResult;
 use omega_language_std::UnitResult;
+use omega_language_std;
 
 use omega_language_std::FilesystemService;
 
@@ -29,32 +32,38 @@ data Main {
 }
 
 machine main(context: &mut Main) reaches ProcessExit + DirectoryEnumeration + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
-    let stale: UnitResult = block FilesystemService::remove_dir_all("omega_fs_rules");
-    let made: UnitResult = block FilesystemService::create_dir_all("omega_fs_rules");
+    let stale: UnitResult = block FilesystemService::remove_dir_all("omega_fs_rules" as +Path);
+    let made: UnitResult = block FilesystemService::create_dir_all("omega_fs_rules" as +Path);
     transition made { UnitResult::Ok -> block seed(context) _ -> done(1) }
 
     machine seed(context: &mut Main) {
-        let written: UnitResult = block FilesystemService::write_all("omega_fs_rules/keep.txt", "hello");
+        let written: UnitResult = block FilesystemService::write_all("omega_fs_rules/keep.txt" as +Path, "hello");
         transition written { UnitResult::Ok -> block read_only_truncate(context) _ -> done(2) }
     }
     machine read_only_truncate(context: &mut Main) {
-        let options: OpenOptions = OpenOptions { read: true, truncate: true };
-        let opened: OpenResult = block FilesystemService::open_with("omega_fs_rules/keep.txt", options);
+        let options: OpenOptions = OpenOptions { read: true, write: false, append: false, truncate: true, create: false, create_new: false };
+        let opened: OpenResult = block FilesystemService::open_with("omega_fs_rules/keep.txt" as +Path, options);
         transition opened {
-            OpenResult::Error { kind: ErrorKind::InvalidInput } -> block append_truncate(context)
+            OpenResult::Error { kind } -> block read_only_truncate_kind(context, kind)
             _ -> done(3)
         }
     }
+    machine read_only_truncate_kind(context: &mut Main, kind: ErrorKind) {
+        transition kind { ErrorKind::InvalidInput -> block append_truncate(context) _ -> done(3) }
+    }
     machine append_truncate(context: &mut Main) {
-        let options: OpenOptions = OpenOptions { append: true, truncate: true };
-        let opened: OpenResult = block FilesystemService::open_with("omega_fs_rules/keep.txt", options);
+        let options: OpenOptions = OpenOptions { read: false, write: false, append: true, truncate: true, create: false, create_new: false };
+        let opened: OpenResult = block FilesystemService::open_with("omega_fs_rules/keep.txt" as +Path, options);
         transition opened {
-            OpenResult::Error { kind: ErrorKind::InvalidInput } -> block intact(context)
+            OpenResult::Error { kind } -> block append_truncate_kind(context, kind)
             _ -> done(4)
         }
     }
+    machine append_truncate_kind(context: &mut Main, kind: ErrorKind) {
+        transition kind { ErrorKind::InvalidInput -> block intact(context) _ -> done(4) }
+    }
     machine intact(context: &mut Main) {
-        let found: MetadataResult = block FilesystemService::metadata_path("omega_fs_rules/keep.txt");
+        let found: MetadataResult = block FilesystemService::metadata_path("omega_fs_rules/keep.txt" as +Path);
         transition found {
             MetadataResult::Ok { meta } -> block intact_len(context, meta)
             _ -> done(5)
@@ -65,22 +74,28 @@ machine main(context: &mut Main) reaches ProcessExit + DirectoryEnumeration + Fi
     }
     machine oversized_read_all(context: &mut Main) {
         let mut buffer: [u8; 4];
-        let read: IoResult = block FilesystemService::read_all("omega_fs_rules/keep.txt", &mut buffer[..], 8);
+        let read: IoResult = block FilesystemService::read_all("omega_fs_rules/keep.txt" as +Path, &mut buffer[..], 8);
         transition read {
-            IoResult::Error { kind: ErrorKind::InvalidInput } -> block oversized_copy(context)
+            IoResult::Error { kind } -> block oversized_read_all_kind(context, kind)
             _ -> done(6)
         }
     }
+    machine oversized_read_all_kind(context: &mut Main, kind: ErrorKind) {
+        transition kind { ErrorKind::InvalidInput -> block oversized_copy(context) _ -> done(6) }
+    }
     machine oversized_copy(context: &mut Main) {
         let mut buffer: [u8; 4];
-        let copied: IoResult = block FilesystemService::copy("omega_fs_rules/keep.txt", "omega_fs_rules/copy.txt", &mut buffer[..], 8);
+        let copied: IoResult = block FilesystemService::copy("omega_fs_rules/keep.txt" as +Path, "omega_fs_rules/copy.txt" as +Path, &mut buffer[..], 8);
         transition copied {
-            IoResult::Error { kind: ErrorKind::InvalidInput } -> block oversized_read(context)
+            IoResult::Error { kind } -> block oversized_copy_kind(context, kind)
             _ -> done(7)
         }
     }
+    machine oversized_copy_kind(context: &mut Main, kind: ErrorKind) {
+        transition kind { ErrorKind::InvalidInput -> block oversized_read(context) _ -> done(7) }
+    }
     machine oversized_read(context: &mut Main) {
-        let opened: OpenResult = block FilesystemService::open("omega_fs_rules/keep.txt");
+        let opened: OpenResult = block FilesystemService::open("omega_fs_rules/keep.txt" as +Path);
         transition opened {
             OpenResult::Ok { file } -> block oversized_read_file(context, file)
             _ -> done(8)
@@ -91,14 +106,17 @@ machine main(context: &mut Main) reaches ProcessExit + DirectoryEnumeration + Fi
         let read: IoResult = block FilesystemService::read(file, &mut buffer[..], 8);
         let closed: UnitResult = block FilesystemService::close(file);
         transition read {
-            IoResult::Error { kind: ErrorKind::InvalidInput } -> block default_permissions(context)
+            IoResult::Error { kind } -> block oversized_read_file_kind(context, kind)
             _ -> done(8)
         }
     }
+    machine oversized_read_file_kind(context: &mut Main, kind: ErrorKind) {
+        transition kind { ErrorKind::InvalidInput -> block default_permissions(context) _ -> done(8) }
+    }
     machine default_permissions(context: &mut Main) {
-        let narrowed: UnitResult = block FilesystemService::set_permissions("omega_fs_rules/keep.txt", Permissions::Posix { mode: 365 });
-        let restored: UnitResult = block FilesystemService::set_permissions("omega_fs_rules/keep.txt", Permissions::Default);
-        let found: MetadataResult = block FilesystemService::metadata_path("omega_fs_rules/keep.txt");
+        let narrowed: UnitResult = block FilesystemService::set_permissions("omega_fs_rules/keep.txt" as +Path, Permissions::Posix { mode: 365 });
+        let restored: UnitResult = block FilesystemService::set_permissions("omega_fs_rules/keep.txt" as +Path, Permissions::Default);
+        let found: MetadataResult = block FilesystemService::metadata_path("omega_fs_rules/keep.txt" as +Path);
         transition found {
             MetadataResult::Ok { meta } -> block default_mode(context, meta)
             _ -> done(9)
@@ -114,42 +132,34 @@ machine main(context: &mut Main) reaches ProcessExit + DirectoryEnumeration + Fi
         transition mode == 511 { true -> block long_parents(context) _ -> done(9) }
     }
     machine long_parents(context: &mut Main) {
-        let made: UnitResult = block FilesystemService::create_dir_all("omega_fs_rules/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc/leaf");
+        let made: UnitResult = block FilesystemService::create_dir_all("omega_fs_rules/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc/leaf" as +Path);
         transition made { UnitResult::Ok -> block blocked_parent(context) _ -> done(10) }
     }
     machine blocked_parent(context: &mut Main) {
-        let made: UnitResult = block FilesystemService::create_dir_all("omega_fs_rules/keep.txt/inner/leaf");
-        transition made { UnitResult::Ok -> done(11) _ -> block wide(context) }
+        let made: UnitResult = block FilesystemService::create_dir_all("omega_fs_rules/keep.txt/inner/leaf" as +Path);
+        transition made { UnitResult::Ok -> done(11) _ -> block deep(context) }
     }
+    machine deep(context: &mut Main) {
+        let made: UnitResult = block FilesystemService::create_dir_all("omega_fs_rules/deep/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d" as +Path);
+        transition made { UnitResult::Ok -> block wide(context) _ -> done(12) }
+    }
+    // The test harness links omega_fs_rules_scratch to a temporary directory and
+    // fills its `wide` directory with 4200 files before each
+    // run; a program can only name paths from string literals.
     machine wide(context: &mut Main) {
-        let made: UnitResult = block FilesystemService::create_dir_all("omega_fs_rules/wide");
-        transition made { UnitResult::Ok -> block fill(context, 0, 4200) _ -> done(12) }
-    }
-    machine fill(context: &mut Main, index: u32, remaining: u32)
-    terminates by remaining
-    {
-        transition remaining > 0 && index < 17576 {
-            true -> block fill_one(context, index, remaining)
-            false -> block drain(context)
+        let removed: UnitResult = block FilesystemService::remove_dir_all("omega_fs_rules_wide" as +Path);
+        let present: bool = block FilesystemService::exists("omega_fs_rules_wide" as +Path);
+        transition removed {
+            UnitResult::Ok -> block wide_gone(context, present)
+            _ -> done(13)
         }
     }
-    machine fill_one(context: &mut Main, index: u32, remaining: u32)
-    requires remaining > 0 && index < 17576
-    terminates by remaining
-    {
-        let mut name: [u8; 23] = "omega_fs_rules/wide/aaa";
-        name[20] = 97 + (index / 676) as u8;
-        name[21] = 97 + ((index / 26) % 26) as u8;
-        name[22] = 97 + (index % 26) as u8;
-        let written: UnitResult = block FilesystemService::write_all(name[..] as +Path, "x");
-        transition written {
-            UnitResult::Ok -> block fill(context, index + 1, remaining - 1)
-            _ -> done(12)
-        }
+    machine wide_gone(context: &mut Main, present: bool) {
+        transition present { true -> done(13) false -> block drain(context) }
     }
     machine drain(context: &mut Main) {
-        let removed: UnitResult = block FilesystemService::remove_dir_all("omega_fs_rules");
-        let present: bool = block FilesystemService::exists("omega_fs_rules");
+        let removed: UnitResult = block FilesystemService::remove_dir_all("omega_fs_rules" as +Path);
+        let present: bool = block FilesystemService::exists("omega_fs_rules" as +Path);
         transition removed {
             UnitResult::Ok -> drained(present)
             _ -> done(12)
