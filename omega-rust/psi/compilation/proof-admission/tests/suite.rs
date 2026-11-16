@@ -3,6 +3,7 @@
 //! runs them all. A new `tests/<topic>.rs` joins by one `mod` line below.
 
 mod common;
+mod bitwise_sibling_premises;
 mod contradiction_elimination;
 mod equality_symmetry;
 mod exact_multiply_result_bound;
