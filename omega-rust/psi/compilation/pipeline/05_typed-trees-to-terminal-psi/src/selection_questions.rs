@@ -1188,6 +1188,139 @@ mod tests {
     }
 
     #[test]
+    fn cast_domain_dependencies_distinguish_absent_selected_and_invalid_coordinates() {
+        use numerics::integer_carrier::FixedInteger;
+        use numerics::literals::{IntegerLanding, IntegerLiteral, LandedIntegerType};
+        use typed_trees::types::TypeReferenceNode;
+
+        let mut builder = SymbolTableBuilder::default();
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let children = builder.insert_children(
+            root,
+            symbols::builtin_type_symbols().into_iter().chain([
+                (SymbolKind::Machine, SymbolNameRef::Static("convert")),
+                (SymbolKind::Domain, SymbolNameRef::Static("SelectedDomain")),
+            ]),
+        );
+        let owner = children.handles().nth(symbols::BUILTIN_TYPE_COUNT).unwrap();
+        let domain = children
+            .handles()
+            .nth(symbols::BUILTIN_TYPE_COUNT + 1)
+            .unwrap();
+        let state = builder
+            .insert_children(owner, [(SymbolKind::State, SymbolNameRef::Static("entry"))])
+            .handle_at(0);
+        let mut symbols = builder.finish();
+        symbols.install_integer_types([FixedInteger::U8, FixedInteger::U64]);
+        let mut typed = TypedTrees {
+            symbols,
+            ..Default::default()
+        };
+        let target_symbol = typed
+            .symbols
+            .builtin_atom_symbol(symbols::BuiltinTypeAtom::U64)
+            .unwrap();
+        let target = typed.type_reference_table.insert(TypeReferenceNode::Named {
+            symbol: target_symbol,
+            name: Identifier::generated("u64"),
+        });
+        assert_eq!(
+            typed
+                .type_reference_table
+                .primitive_type(target, &typed.symbols),
+            Some(symbols::PrimitiveType::U64)
+        );
+        let domain_id = typed.semantic_domains.intern("SelectedDomain");
+        typed.push_domain_definition(typed_trees::domain::DomainDefinition {
+            symbol: domain,
+            name: Identifier::generated("SelectedDomain"),
+            target_type: target,
+            semantic_id: domain_id,
+            ..Default::default()
+        });
+        let value = typed.expression_table.insert(ExpressionNode::Integer(
+            IntegerLiteral::from_value(42).with_landing(IntegerLanding {
+                landed_type: LandedIntegerType::U8,
+                domain: numerics::arithmetic::ArithmeticDomain::Exact,
+            }),
+        ));
+        let cast = typed.expression_table.insert(ExpressionNode::Cast(
+            typed_trees::expression::TableCastExpression {
+                value,
+                target_type: target,
+                result_type: target,
+                target_label: Default::default(),
+                domain: numerics::arithmetic::ArithmeticDomain::Exact,
+                semantic_domain: Default::default(),
+                semantic_domain_arguments: Default::default(),
+                semantic_domain_symbol: SymbolHandle::invalid(),
+                semantic_domain_id: language_semantics::SemanticDomainId::NULL,
+                form: language_core::cast_form::CastForm::Value,
+            },
+        ));
+        let statements = typed
+            .statement_table
+            .insert_statements([StatementNode::Expression(cast)]);
+        let states = typed.machine_states.insert_many([State {
+            symbol: state,
+            statement_nodes: statements,
+            ..Default::default()
+        }]);
+        typed.push_machine(Machine {
+            symbol: owner,
+            states,
+            ..Default::default()
+        });
+        let admitted = DeclarationSelection::from_symbols([owner]);
+        let operators = CompletedOperators::default();
+        let ordinary = capture(&typed, &admitted, &operators, &[]).unwrap();
+        assert!(ordinary.dependencies.iter().all(|dependency| {
+            dependency.target != domain && dependency.target != SymbolHandle::invalid()
+        }));
+
+        let mut domain_name = arena::HandleSpan::empty();
+        typed
+            .expression_table
+            .push_name_path_member(&mut domain_name, Identifier::generated("SelectedDomain"));
+        let ExpressionNode::Cast(node) = typed.expression_table.expression_mut(cast) else {
+            unreachable!()
+        };
+        node.semantic_domain = domain_name;
+        node.semantic_domain_id = domain_id;
+        let refusal = capture(&typed, &admitted, &operators, &[]).unwrap_err();
+        assert!(
+            refusal
+                .to_string()
+                .contains("missing or stale declaration coordinate"),
+            "{refusal}"
+        );
+
+        let ExpressionNode::Cast(node) = typed.expression_table.expression_mut(cast) else {
+            unreachable!()
+        };
+        node.semantic_domain_symbol = domain;
+        let selected = capture(&typed, &admitted, &operators, &[]).unwrap();
+        assert!(selected.dependencies.contains(&RawSelectionDependency {
+            lexical_owner: owner,
+            target: domain,
+            role: RawSelectionRole::Execution,
+            kind: RawDependencyKind::Declaration,
+        }));
+
+        let ExpressionNode::Cast(node) = typed.expression_table.expression_mut(cast) else {
+            unreachable!()
+        };
+        node.semantic_domain_symbol = SymbolHandle::from_parts(u32::MAX, 1);
+        let refusal = capture(&typed, &admitted, &operators, &[]).unwrap_err();
+        assert!(
+            refusal
+                .to_string()
+                .contains("missing or stale declaration coordinate"),
+            "{refusal}"
+        );
+    }
+
+    #[test]
     fn an_admitted_unresolved_occurrence_refuses_with_its_actual_binding_reason() {
         let (typed, a, b, _) = source();
         let refused = capture(

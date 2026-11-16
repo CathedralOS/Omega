@@ -3376,7 +3376,17 @@ pub fn visit_expression(
             if retained.derived_declaration_references() {
                 visit_type_reference(program, retained, cast.result_type);
             }
-            visit_symbol(retained, cast.semantic_domain_symbol);
+            // Ordinary carrier conversions and representation recasts have no
+            // named domain declaration. A retained named domain still needs
+            // its exact declaration, including when that coordinate is missing;
+            // every nonempty coordinate also reaches receiver authentication.
+            if cast.semantic_domain_symbol != SymbolHandle::invalid()
+                || !cast.semantic_domain.is_empty()
+                || !cast.semantic_domain_arguments.is_empty()
+                || cast.semantic_domain_id != language_semantics::SemanticDomainId::NULL
+            {
+                visit_symbol(retained, cast.semantic_domain_symbol);
+            }
             for argument in program.type_reference_handles(cast.semantic_domain_arguments) {
                 visit_type_reference(program, retained, *argument);
             }
