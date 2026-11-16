@@ -75,6 +75,20 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### A qualified collection gets builtin `[..]` indexing without a declared operator
+- Category: A verdict with nothing behind it
+- Where: [builtin meaning check](omega-rust/psi/compilation/representations/typed-trees/src/operator_declarations.rs#L2135), [typing selection](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/constructor_applications.rs#L74), [byte-view tests](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/byte_view_elements.rs#L593)
+- Saw: [operands](wiki/spec/language/domains.md#L752) says builtin operators accept unqualified operands only, and indexing "follows the same rule through its operator declarations ... a qualified collection or index has such a declaration or is cast" (L777). Typing selects builtin indexing when `has_builtin_spelled_expression_meaning` holds, but that function never checks operand qualification. So with `domain [u8]::Path requires no_nul(self)`, `let x: &[u8] = &path[0..p];` on a `&[u8] in Path` is accepted as builtin indexing with no declaration and no cast, and the byte-view tests assert that acceptance. A declared range operator is still honoured; only the no-declaration case falls through. Found by a blind checklist replay of #3789 and confirmed on main at fdc89014463.
+- Cost: Qualified values lose the rule that their operators come from declarations, and a test pins the gap. Refuse builtin meaning for qualified operands in `has_builtin_spelled_expression_meaning`, require a declaration or cast, and turn the pinning test into a refusal twin.
+- Reported: 2026-11-16, Claude Code, while testing a diff-triggered review checklist
+
+### The Omega-written compiler binds static arguments by kind instead of position
+- Category: One idea, several implementations
+- Where: [bind_static_arguments](source/psi/pipeline/03_symbol-resolved-trees-to-typed-trees/calls.omg#L379), [Rust positional binding](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/constructor_applications.rs#L1211)
+- Saw: [applications and specialization](wiki/spec/language/generics.md#L383) matches arguments "by exact constructor and parameter position", and allows omitting an argument only where inference determines one substitution (L396). The Omega-written `bind_static_arguments` gives a static argument naming a machine to the next machine binder and any other argument to the next other binder, accepting when the counts match. `pick<double>(b)` against `pick<T, machine K>` is accepted there with `double` bound to `K`; the Rust compiler binds supplied arguments positionally, so `double` lands at `T`. Found by a blind checklist replay of abb38f673db and confirmed on main at fdc89014463. The `<machine K>` spelling is itself retired under TYPED-STATIC-PARAMETERS.
+- Cost: The two compilers give the same call different meanings. Bind positionally, as Rust does, and refuse an argument whose kind does not fit its position.
+- Reported: 2026-11-16, Claude Code, while testing a diff-triggered review checklist
+
 ### macOS arm64 starts 16-byte-aligned register arguments on an even register, where Apple allows an odd one
 - Category: One idea, several implementations
 - Where: [even-register rounding](omega-rust/omega/compilation/backend/calling-conventions/src/plans/call_plan_evaluation.rs#L735), [Mach-O arm64 maps to Aapcs64](omega-rust/omega/compilation/backend/calling-conventions/src/plans/vocabulary.rs#L524), [pilot harness](https://github.com/CathedralOS/Omega/tree/work/pilot-abi-vs-clang)
