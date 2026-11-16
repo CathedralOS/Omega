@@ -1,7 +1,7 @@
 /*
 Wire envelope, round-trip, rejection precedence, and structural catalog tests for the fixed-view copy recovery codec.
 
-Verifies that `FixedViewCopyPlan` deterministic wire encoding (`OMGFCV\0\0` v114), authentication digests, stale-version rejection precedence, edge transport bindings, call-site owners, local and outgoing storage rosters, returned descriptor origins, and complete placement/lifecycle catalogs survive round-trip encoding and fail closed under tampering or truncation.
+Verifies that `FixedViewCopyPlan` deterministic wire encoding (`OMGFCV\0\0` v115), authentication digests, stale-version rejection precedence, edge transport bindings, call-site owners, local and outgoing storage rosters, returned descriptor origins, and complete placement/lifecycle catalogs survive round-trip encoding and fail closed under tampering or truncation.
 */
 
 use access_plans::{AccessFields, BoundaryReach, validate_placement};
@@ -116,6 +116,7 @@ fn shared_function() -> SelectedFunction {
     let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
     SelectedFunction {
         contracts: std::sync::Arc::new(selected_instructions::SelectedFunctionContracts {
+            structural_block_parameters: Vec::new(),
             machine: MachineId::new(1).unwrap(),
             attachment: None,
             provenance: Default::default(),
@@ -330,6 +331,7 @@ pub(super) fn function_with_operand(access: RegisterOperandAccess) -> SelectedFu
     };
     SelectedFunction {
         contracts: std::sync::Arc::new(selected_instructions::SelectedFunctionContracts {
+            structural_block_parameters: Vec::new(),
             machine: MachineId::new(1).unwrap(),
             attachment: None,
             provenance: Default::default(),
@@ -542,9 +544,55 @@ fn current_envelope_has_exact_header_and_deterministic_bytes() {
     let plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     let encoded = plan.encode().unwrap();
     assert_eq!(&encoded[..8], b"OMGFCV\0\0");
-    assert_eq!(&encoded[8..12], &114_u32.to_le_bytes());
+    assert_eq!(&encoded[8..12], &115_u32.to_le_bytes());
     assert_eq!(encoded, plan.encode().unwrap());
     assert_eq!(FixedViewCopyPlan::decode(&encoded).unwrap(), plan);
+}
+
+#[test]
+fn recovery_preserves_nonempty_block_declarations_and_rejects_duplicate_families() {
+    let mut plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
+    let parameter = terminal_psi::StructuralParameterDeclaration {
+        place: PlaceId::new(81).unwrap(),
+        position: 2,
+        structural_type: StructuralTypeId::new(82).unwrap(),
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+        access: terminal_psi::StructuralAccess::SharedBorrow,
+        qualifications: vec![StructuralDomainId::new(83).unwrap()],
+        projected_qualifications: vec![terminal_psi::StructuralPathQualification {
+            path: Vec::new(),
+            domain: StructuralDomainId::new(84).unwrap(),
+        }],
+        additional_input_qualifications: vec![terminal_psi::StructuralPathQualification {
+            path: Vec::new(),
+            domain: StructuralDomainId::new(85).unwrap(),
+        }],
+    };
+    let function = std::sync::Arc::make_mut(&mut plan.transformed)
+        .functions
+        .get_mut(0)
+        .unwrap();
+    function
+        .structural_block_parameters
+        .push((BlockId::new(86).unwrap(), vec![parameter.clone()].into()));
+    let encoded = plan.encode().unwrap();
+    let decoded = FixedViewCopyPlan::decode(&encoded).unwrap();
+    assert_eq!(decoded, plan);
+    assert_eq!(
+        decoded.transformed.functions[0]
+            .structural_block_parameter(BlockId::new(86).unwrap(), parameter.place),
+        Some(&parameter)
+    );
+    let function = std::sync::Arc::make_mut(&mut plan.transformed)
+        .functions
+        .get_mut(0)
+        .unwrap();
+    let duplicate = function.structural_block_parameters[0].clone();
+    function.structural_block_parameters.push(duplicate);
+    assert!(matches!(
+        FixedViewCopyPlan::decode(&plan.encode().unwrap()),
+        Err(FixedViewCopyDecodeError::InvalidStructuralBlockParameters)
+    ));
 }
 
 #[test]
