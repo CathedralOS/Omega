@@ -289,28 +289,38 @@ impl Program<'_> {
                 "boundary parent contract has no boundary owner",
             ));
         }
+        let scopes =
+            typed_trees::service_declarations::projection::inherited_scopes(typed, scope.clone())
+                .map_err(|diagnostic| services::unavailable(context, diagnostic.message))?;
         let mut ordinary = false;
-        scope
-            .try_visit(typed, &mut |view| {
-                if !view.declaration.is_boundary {
-                    ordinary = true;
-                    if view
-                        .parent_scopes(typed)?
-                        .iter()
-                        .any(|parent| parent.declaration.is_boundary)
-                    {
-                        return Err("ordinary contract trait inherits a boundary service");
-                    }
-                } else if view.declaration.symbol != scope.declaration.symbol
-                    && !typed.trait_machine_signatures(view.declaration).is_empty()
+        for view in &scopes {
+            if !view.declaration.is_boundary {
+                ordinary = true;
+                if view
+                    .parent_scopes(typed)
+                    .map_err(|reason| services::unavailable(context, reason))?
+                    .iter()
+                    .any(|parent| parent.declaration.is_boundary)
                 {
-                    return Err(
-                        "boundary schema needs its inherited callable requirement projection",
-                    );
+                    return Err(services::unavailable(
+                        context,
+                        "ordinary contract trait inherits a boundary service",
+                    ));
                 }
-                Ok(())
-            })
-            .map_err(|reason| services::unavailable(context, reason))?;
+            } else if view.declaration.symbol != scope.declaration.symbol {
+                // Each parent keeps its own schema. Authenticate its supplied
+                // types in that parent's application before the existing
+                // service and Calling owners retain the inherited questions.
+                for signature in typed.trait_machine_signatures(view.declaration) {
+                    typed
+                        .requirement_definition_types(view, signature)
+                        .ok_or_else(|| services::unavailable(
+                            context,
+                            "inherited boundary call lost its complete declared parameter and result types",
+                        ))?;
+                }
+            }
+        }
         if ordinary {
             let environment = scope.environment();
             if !self.boundary_parent_contracts.contains(&environment) {

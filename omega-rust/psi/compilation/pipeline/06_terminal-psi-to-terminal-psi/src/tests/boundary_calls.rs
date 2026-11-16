@@ -173,6 +173,137 @@ fn published_service_signature(elaboration: &typed_trees_to_terminal_psi::Elabor
     .unwrap()
 }
 
+// Inherited methods retain their parent's actual type argument and declaration.
+// Two paths applying that same parent differently cannot supply one schema.
+#[test]
+fn inherited_boundary_schemas_keep_declaring_applications_and_refuse_conflicts() {
+    let source = r#"
+boundary trait Parent<Value> {
+    machine echo(value: Value) -> Value reaches none crashes none;
+}
+boundary trait Child: Parent<i32> {}
+boundary trait Concrete {
+    machine echo(value: i32) -> i32 reaches none crashes none;
+}
+machine entry() reaches Child {}
+"#;
+    let program = typed(source);
+    assert_eq!(
+        source_service_signature(&program, "Child"),
+        source_service_signature(&program, "Concrete"),
+        "the inherited signature must use i32, not its unapplied parent binder"
+    );
+    let parent = program
+        .traits()
+        .iter()
+        .find(|owner| owner.name.as_str() == "Parent")
+        .unwrap();
+    let child = program
+        .traits()
+        .iter()
+        .find(|owner| owner.name.as_str() == "Child")
+        .unwrap();
+    let projected = typed_trees::service_declarations::projection::from_typed(
+        typed_trees::provider_declarations::ProviderPlanningContext::new(
+            &program,
+            source::DependencyScope::Product,
+        ),
+        child,
+    )
+    .unwrap();
+    projected.validate_correspondence().unwrap();
+    assert_eq!(projected.requirements.len(), 1);
+    assert_eq!(projected.requirements[0].declaring_trait, parent.symbol);
+    assert_eq!(
+        projected.requirements[0].symbol,
+        program.trait_machine_signatures(parent)[0].symbol
+    );
+    let form = |program: typed_trees::TypedTrees| {
+        let child = program
+            .traits()
+            .iter()
+            .find(|owner| owner.name.as_str() == "Child")
+            .unwrap()
+            .symbol;
+        let entry = entry(&program);
+        let frozen: typed_trees::FrozenTypedTrees = program.into();
+        typed_trees_to_terminal_psi::elaborate_for(
+            &frozen,
+            typed_trees_to_terminal_psi::Compilation {
+                calling: None,
+                providers: None,
+                declaration_metadata: &[child],
+                entries: &[entry],
+                subjects: &[],
+                purpose: source::DependencyScope::Product,
+                selected: &[child],
+                bindings: &[],
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Invocation,
+        )
+    };
+    // The generic comparison above checks the typed projection. Standalone
+    // generic service publication remains unavailable. These nongeneric
+    // parents match the real hosted entry and must also lower and check.
+    let entry_program = typed(
+        r#"
+boundary trait Parent {
+    machine echo(value: i32) -> i32 reaches none crashes none;
+}
+boundary trait Child: Parent {}
+machine entry() reaches Child {}
+"#,
+    );
+    let parent = entry_program
+        .traits()
+        .iter()
+        .find(|owner| owner.name.as_str() == "Parent")
+        .unwrap();
+    let parent_symbol = parent.symbol;
+    let required = entry_program.trait_machine_signatures(parent)[0].symbol;
+    let elaboration = form(entry_program).expect("the inherited schema keeps its original parent");
+    let parent_schema = elaboration
+        .static_schemas
+        .iter()
+        .find(|schema| schema.declaration == parent_symbol)
+        .expect("the parent still owns its requirement schema");
+    assert_eq!(parent_schema.requirements.len(), 1);
+    assert_eq!(parent_schema.requirements[0].declaration, required);
+    assert!(matches!(
+        judge(Ok(elaboration)).unwrap(),
+        RouteVerdict::Accepted(_)
+    ));
+
+    let conflicting = source.replace(
+        "boundary trait Child: Parent<i32> {}",
+        "boundary trait Other: Parent<bool> {}
+boundary trait Child: Parent<i32> + Other {}",
+    );
+    let conflicting = typed(&conflicting);
+    let child = conflicting
+        .traits()
+        .iter()
+        .find(|owner| owner.name.as_str() == "Child")
+        .unwrap();
+    let refused = match typed_trees::service_declarations::projection::from_typed(
+        typed_trees::provider_declarations::ProviderPlanningContext::new(
+            &conflicting,
+            source::DependencyScope::Product,
+        ),
+        child,
+    ) {
+        Err(refused) => refused,
+        Ok(_) => panic!("two different parent applications cannot become one schema"),
+    };
+    assert!(
+        refused
+            .message
+            .contains("inherited with different applications"),
+        "{refused:?}"
+    );
+}
+
 #[test]
 fn source_boundary_applied_signature_keeps_actual_types_and_caller_lifetimes() {
     use typed_trees::trait_definition::{AppliedTraitScope, TraitApplicationArguments};
