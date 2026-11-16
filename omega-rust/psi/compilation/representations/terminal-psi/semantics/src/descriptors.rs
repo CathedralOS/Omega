@@ -6100,8 +6100,14 @@ pub mod descriptor_results {
                     }
                     let mut after = before;
                     if machine.known_invocation(&current).is_some() {
-                        failure = "call payload write frame is invalid";
-                        match analysis.storage_writes(identity, current).ok()? {
+                        let writes = match analysis.storage_writes(identity, current) {
+                            Ok(writes) => writes,
+                            Err(reason) => {
+                                failure = reason;
+                                return None;
+                            }
+                        };
+                        match writes {
                             Some(writes) => {
                                 for location in writes {
                                     if let Some(contract) = after.values.get_mut(&location.root) {

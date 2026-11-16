@@ -4478,17 +4478,16 @@ pub(crate) mod engine {
             let machine = self
                 .machine(identity)
                 .ok_or("write frame owner disappeared")?;
-            let states = self
+            let positions: Vec<_> = self
                 .snapshots
                 .get(&identity)
                 .and_then(Option::as_ref)
                 .ok_or("write frame has no prepared storage flow")?
-                .clone();
+                .keys()
+                .copied()
+                .collect();
             let mut frame = Vec::new();
-            for position in machine.flow.keys().copied() {
-                let Some(before) = states.get(&position) else {
-                    continue;
-                };
+            for position in positions {
                 let Some(writes) = self.storage_writes(identity, position)? else {
                     return Ok(None);
                 };
