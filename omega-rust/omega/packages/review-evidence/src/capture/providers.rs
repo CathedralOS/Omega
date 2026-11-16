@@ -398,30 +398,43 @@ impl PackageReviewInput<'_> {
                     }
                     Err(_) => break,
                 };
-                callables.push((boundary, callable));
+                callables.push((original, boundary, callable));
             }
             // A package can supply an imported requirement without owning or
             // re-exporting its trait. Only the exact authored binding covers it.
             if callables.len() != rows.len() {
                 continue;
             }
+            // Closed occurrences share a declaration only through the exact
+            // original source symbol. Equal text from another declaration must
+            // retain the ordinary duplicate-identity refusal at assembly.
+            callables.sort_unstable_by_key(|(original, _, _)| symbol_key(*original));
+            let mut originals = Vec::with_capacity(templates.len());
+            for group in callables.chunk_by(|left, right| left.0 == right.0) {
+                let first = &group[0].2;
+                if group.iter().any(|(_, _, callable)| callable != first) {
+                    return Err(unavailable(
+                        "one complete contract for the original requirement",
+                    ));
+                }
+                originals.push(first.clone());
+            }
             if publish_trait {
-                let mut requirements = callables
+                let mut requirements = originals
                     .iter()
-                    .map(|(_, callable)| service_requirement(callable))
+                    .map(service_requirement)
                     .collect::<Vec<_>>();
                 requirements.sort_by(|left, right| left.identity.cmp(&right.identity));
-                requirements.dedup();
                 review
                     .public_traits
                     .push(service_trait(service_identity, requirements));
             }
-            for (boundary, callable) in callables {
+            for (_, boundary, _) in callables {
                 review.boundaries.push(boundary.id);
                 review.services.extend(&boundary.published_service_ceiling);
-                if local_service {
-                    review.callables.push(callable);
-                }
+            }
+            if local_service {
+                review.callables.extend(originals);
             }
             review.slots.push(owner);
             review.services.push(service);

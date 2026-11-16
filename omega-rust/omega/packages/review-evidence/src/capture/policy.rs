@@ -119,9 +119,6 @@ pub(super) fn project(
     let mut callables = declarations.callables(package, &services)?;
     callables.extend(providers.callables);
     callables.sort_by(|left, right| left.identity.cmp(&right.identity));
-    // Several closed uses can disclose one original declaration. Only an
-    // identical complete contract coalesces; conflicting rows still refuse.
-    callables.dedup();
     let mut policy = PackagePolicyBaseline {
         package,
         target,
