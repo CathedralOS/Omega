@@ -155,6 +155,11 @@ pub(crate) fn declare(
             (Ok(sources), Some(symbol), Some(signature)) => {
                 identities_of(&machine.published_service_ceiling).and_then(|reach| {
                     let entries = identities_of(&machine.published_synchronous_entries)?;
+                    let envelope = elaboration
+                        .module
+                        .callables
+                        .machine_envelope(machine.id)
+                        .ok_or("the machine has no completed operational envelope")?;
                     declaration(
                         typed,
                         sources,
@@ -165,10 +170,7 @@ pub(crate) fn declare(
                             Published {
                                 reach: &reach,
                                 entries: &entries,
-                                operational: [
-                                    machine.published_may_suspend,
-                                    machine.published_may_block,
-                                ],
+                                operational: [envelope.suspends, envelope.blocks],
                             },
                             binder_reach
                                 .get(machine.id)
@@ -322,11 +324,10 @@ pub(crate) fn declare(
     result.map(|()| prepared)
 }
 
-/// States, for each requirement a chosen provider supplies
-/// (`Elaboration::supplied`), that the module's machine for it realizes the
-/// requirement's boundary on behalf of that provider: one
-/// `ProviderCandidateConformance` row each, in the canonical order the
-/// module encodes them in.
+/// Prepares each exact supplied requirement's candidate intent. The complete
+/// compilation still owes its body/refinement witnesses; receiving catalog
+/// formation publishes these rows after those judgments. An identical retained
+/// static-provider question owns its row and its independent proof instead.
 ///
 /// A provider plan selects its checked adapters among these rows by the
 /// provider's declaration identity and each requirement's identity
@@ -334,8 +335,8 @@ pub(crate) fn declare(
 /// carries the identities this module already states: the boundary's
 /// callable identity, the machine's callable identity and package, the
 /// provider's exact-owner identity, and its path for reports. The machine is
-/// the one `supplied_slots` read as a root and the checker judged against
-/// the requirement, so no row names a provider nobody judged. The rows state
+/// the one `supplied_slots` reads as a root and retains a refinement witness
+/// for. Final publication still requires that complete judgment. The rows state
 /// no receiving application: the route declares only boundaries of traits
 /// with no parameters (`read/calls.rs`, `boundary`).
 pub(crate) fn provider_candidates(
@@ -343,14 +344,50 @@ pub(crate) fn provider_candidates(
     machines: &IdTable<MachineId, SymbolHandle>,
     boundaries: &IdTable<semantic_vocabulary::BoundaryMachineId, SymbolHandle>,
     supplied: &[crate::SuppliedRequirement],
+    static_conformances: &[terminal_check_tables::contracts::StaticConformanceQuestion],
     module: &mut terminal_psi::TerminalModule,
-) -> Result<(), &'static str> {
+) -> Result<Vec<terminal_psi::ProviderCandidateConformance>, &'static str> {
     if supplied.is_empty() {
-        return Ok(());
+        return Ok(Vec::new());
     }
     let sources =
         source::source_identity::toolchain_source_identities(typed.symbols.source_files())
             .map_err(|_| "a provider toolchain source has no exact identity")?;
+    let source_key = |provider: SymbolHandle, requirement: SymbolHandle| {
+        (
+            provider.arena_index(),
+            provider.generation(),
+            requirement.arena_index(),
+            requirement.generation(),
+        )
+    };
+    let mut static_providers = Vec::new();
+    for (position, question) in static_conformances.iter().enumerate() {
+        if question.provider.is_none() {
+            continue;
+        }
+        if !typed
+            .symbols
+            .symbols()
+            .nodes()
+            .is_valid(question.declaration)
+            || !typed
+                .symbols
+                .symbols()
+                .nodes()
+                .is_valid(question.requirement)
+        {
+            return Err("a static provider question has a stale source declaration");
+        }
+        static_providers.push((
+            source_key(
+                typed.implementation_value_head(question.declaration),
+                question.requirement,
+            ),
+            position,
+        ));
+    }
+    static_providers.sort_unstable_by_key(|(key, _)| *key);
     let mut identities = std::mem::take(&mut module.identities).into_builder();
     let rows = (|| {
         let mut rows = Vec::with_capacity(supplied.len());
@@ -378,6 +415,42 @@ pub(crate) fn provider_candidates(
             if path.is_empty() {
                 return Err("a provider has no declaration path");
             }
+            let provider_declaration = NominalDeclarationIdentity::new(nominal(
+                typed,
+                &sources,
+                row.provider,
+                &mut identities,
+            )?);
+            let key = source_key(
+                typed.implementation_value_head(row.provider),
+                row.requirement,
+            );
+            let begin = static_providers.partition_point(|(candidate, _)| *candidate < key);
+            let end = begin
+                + static_providers[begin..].partition_point(|(candidate, _)| *candidate == key);
+            if begin != end {
+                if end - begin != 1 {
+                    return Err("a supplied candidate has competing static provider questions");
+                }
+                let question = &static_conformances[static_providers[begin].1];
+                let stated = question
+                    .provider
+                    .as_ref()
+                    .ok_or("a static provider question lost its prepared candidate")?;
+                if stated.boundary != boundary
+                    || stated.declaration != provider_declaration
+                    || !matches!(
+                        question.implementation,
+                        terminal_check_tables::contracts::StaticImplementation::Machine(id)
+                            if id == row.machine
+                    )
+                {
+                    return Err("a static provider question changes its supplied candidate");
+                }
+                // The complete question retains this exact row and proves its
+                // required header before the one final catalog publication.
+                continue;
+            }
             rows.push(terminal_psi::ProviderCandidateConformance {
                 boundary,
                 requirement_identity: requirement,
@@ -386,12 +459,7 @@ pub(crate) fn provider_candidates(
                 receiving_application: terminal_psi::TerminalIdentityIndex::ABSENT,
                 receiving_region_arguments: Vec::new(),
                 provider_identity: identities.intern(&path),
-                provider_declaration: NominalDeclarationIdentity::new(nominal(
-                    typed,
-                    &sources,
-                    row.provider,
-                    &mut identities,
-                )?),
+                provider_declaration,
                 candidate_identity: callable,
                 source_candidate_identity: callable,
                 source_candidate_package_identity: typed.symbols.symbol_package_identity(symbol),
@@ -436,8 +504,7 @@ pub(crate) fn provider_candidates(
             row.candidate,
         )
     });
-    module.provider_candidates = rows;
-    Ok(())
+    Ok(rows)
 }
 
 fn declaration(
@@ -1311,7 +1378,7 @@ pub(crate) fn service_declaration_scope(
     Ok(file.dependency_scope)
 }
 
-fn service_declaration_commitment(
+pub(crate) fn service_declaration_commitment(
     typed: &TypedTrees,
     owner: &typed_trees::trait_definition::TraitDefinition,
 ) -> Result<[u8; 32], Diagnostic> {
@@ -1619,8 +1686,9 @@ pub(crate) fn trait_requirement(
         .state_parameters
         .span(requirement.parameters)
         .ok_or("boundary requirement lost its complete parameter span")?;
+    let scope = typed_trees::trait_definition::AppliedTraitScope::abstract_scope(owner);
     let (parameter_types, result_type, _) = typed
-        .requirement_definition_types(owner, requirement)
+        .requirement_definition_types(&scope, requirement)
         .ok_or("boundary requirement has no complete declared signature identity")?;
     let callable = typed.trait_requirement_callable_identity_text(owner, requirement);
     if callable.is_empty() {
@@ -1687,16 +1755,8 @@ fn requirement_application(
     ),
     &'static str,
 > {
-    use typed_trees::static_applications::StaticMachineBindingValue;
-    let (owner, template) = typed
-        .trait_machine_signature(closed.template)
-        .filter(|(owner, _)| owner.symbol == closed.declaring_trait)
-        .ok_or("a closed requirement's requirement has no typed-tree declaration")?;
-    let callable = typed.trait_requirement_callable_identity_text(owner, template);
-    if callable.is_empty() {
-        return Err("a closed requirement's requirement has no callable identity");
-    }
-    // Stated as a boundary's own semantic declaration is (`boundary`).
+    let application = RequirementApplicationSource::read(typed, closed)?;
+    // Keep the existing invocation-local owner when this is a private call.
     let semantic = match invocation_local(typed, closed.template, identities)? {
         Some(identity) => identity,
         None => identities.intern(
@@ -1705,69 +1765,121 @@ fn requirement_application(
                 .map_err(|_| "a closed requirement's requirement has no hermetic identity")?,
         ),
     };
-    let bindings = typed
-        .expression_table
-        .static_machine_application_bindings(closed.application);
-    if bindings.is_empty() || bindings.len() != closed.portable_local_arguments.len() {
-        return Err("a closed requirement binds other than one argument per parameter");
-    }
-    let mut selected = Vec::with_capacity(bindings.len());
-    let mut arguments = Vec::with_capacity(bindings.len());
-    for (binding, identity) in bindings.iter().zip(closed.portable_local_arguments) {
-        let text = typed
-            .type_identity_text(*identity)
-            .filter(|text| !text.is_empty())
-            .ok_or("a closed requirement's argument has no identity")?;
-        match &binding.value {
-            StaticMachineBindingValue::Type(_) => {
-                selected.push(
-                    language_semantics::conformance_identity::MachineOperandSelectionIdentity::Type(
-                        text.clone(),
-                    ),
-                );
-                arguments.push(terminal_psi::ClosedReachArgument::Type(
-                    identities.intern(&text),
-                ));
-            }
-            StaticMachineBindingValue::Const(_) => {
-                selected.push(language_semantics::conformance_identity::MachineOperandSelectionIdentity::Const(text.clone()));
-                arguments.push(terminal_psi::ClosedReachArgument::Const(
-                    identities.intern(&text),
-                ));
-            }
-            StaticMachineBindingValue::Conformance(_)
-            | StaticMachineBindingValue::RuntimeValue { .. }
-            | StaticMachineBindingValue::Machine(_) => {
-                return Err(
-                    "a closed requirement's application binds something other than a type or a value",
-                );
-            }
-        }
-    }
+    let arguments = application.publish_arguments(identities);
+    let template = nominal(typed, sources, closed.template, identities)?;
     Ok((
-        terminal_psi::CheckedMachineSpecialization {
-            capture: None,
-            template_entry: NominalDeclarationIdentity::new(nominal(
-                typed,
-                sources,
-                closed.template,
-                identities,
-            )?),
-            template: NominalDeclarationIdentity::new(nominal(
-                typed,
-                sources,
-                closed.template,
-                identities,
-            )?),
-            template_callable: identities.intern(&callable),
-            template_semantic_declaration: semantic,
-            commitment:
-                language_semantics::conformance_identity::requirement_application_commitment(
-                    &callable, &selected,
-                )?,
-        },
+        application.publish_specialization(template, semantic, identities),
         arguments,
     ))
+}
+
+#[derive(Debug, Clone)]
+enum RequirementArgumentSource {
+    Type(String),
+    Const(String),
+}
+
+/// Normalize an application once while its typed source is available. The
+/// publishing route interns these same identities into its own module table.
+#[derive(Debug, Clone)]
+struct RequirementApplicationSource {
+    callable: String,
+    arguments: Vec<RequirementArgumentSource>,
+    commitment: [u8; 32],
+}
+
+impl RequirementApplicationSource {
+    fn read(
+        typed: &TypedTrees,
+        closed: &typed_trees::ClosedRequirementApplication<'_>,
+    ) -> Result<Self, &'static str> {
+        use typed_trees::static_applications::StaticMachineBindingValue;
+        let (owner, template) = typed
+            .trait_machine_signature(closed.template)
+            .filter(|(owner, _)| owner.symbol == closed.declaring_trait)
+            .ok_or("a closed requirement's requirement has no typed-tree declaration")?;
+        let callable = typed.trait_requirement_callable_identity_text(owner, template);
+        if callable.is_empty() {
+            return Err("a closed requirement's requirement has no callable identity");
+        }
+        let bindings = typed
+            .expression_table
+            .static_machine_application_bindings(closed.application);
+        if bindings.is_empty() || bindings.len() != closed.portable_local_arguments.len() {
+            return Err("a closed requirement binds other than one argument per parameter");
+        }
+        let mut selected = Vec::with_capacity(bindings.len());
+        let mut arguments = Vec::with_capacity(bindings.len());
+        for (binding, identity) in bindings.iter().zip(closed.portable_local_arguments) {
+            let text = typed
+                .type_identity_text(*identity)
+                .filter(|text| !text.is_empty())
+                .ok_or("a closed requirement's argument has no identity")?;
+            match &binding.value {
+                StaticMachineBindingValue::Type(_) => {
+                    selected.push(
+                        language_semantics::conformance_identity::MachineOperandSelectionIdentity::Type(text.clone()),
+                    );
+                    arguments.push(RequirementArgumentSource::Type(text));
+                }
+                StaticMachineBindingValue::Const(_) => {
+                    selected.push(
+                        language_semantics::conformance_identity::MachineOperandSelectionIdentity::Const(text.clone()),
+                    );
+                    arguments.push(RequirementArgumentSource::Const(text));
+                }
+                StaticMachineBindingValue::Conformance(_)
+                | StaticMachineBindingValue::RuntimeValue { .. }
+                | StaticMachineBindingValue::Machine(_) => {
+                    return Err(
+                        "a closed requirement's application binds something other than a type or a value",
+                    );
+                }
+            }
+        }
+        let commitment =
+            language_semantics::conformance_identity::requirement_application_commitment(
+                &callable, &selected,
+            )?;
+        Ok(Self {
+            callable,
+            arguments,
+            commitment,
+        })
+    }
+
+    fn publish_arguments(
+        &self,
+        identities: &mut TerminalIdentityTableBuilder,
+    ) -> Vec<terminal_psi::ClosedReachArgument> {
+        self.arguments
+            .iter()
+            .map(|argument| match argument {
+                RequirementArgumentSource::Type(text) => {
+                    terminal_psi::ClosedReachArgument::Type(identities.intern(text))
+                }
+                RequirementArgumentSource::Const(text) => {
+                    terminal_psi::ClosedReachArgument::Const(identities.intern(text))
+                }
+            })
+            .collect()
+    }
+
+    fn publish_specialization(
+        &self,
+        template: terminal_psi::TerminalIdentityIndex,
+        semantic: terminal_psi::TerminalIdentityIndex,
+        identities: &mut TerminalIdentityTableBuilder,
+    ) -> terminal_psi::CheckedMachineSpecialization {
+        terminal_psi::CheckedMachineSpecialization {
+            capture: None,
+            template_entry: NominalDeclarationIdentity::new(template),
+            template: NominalDeclarationIdentity::new(template),
+            template_callable: identities.intern(&self.callable),
+            template_semantic_declaration: semantic,
+            commitment: self.commitment,
+        }
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1956,4 +2068,299 @@ fn invocation_local(
             symbol.generation()
         ))
         .map(Some)
+}
+
+/// A bodyless requirement keeps the declaration identities and formal types the
+/// reader resolved. Publication only adds the lowered public contract digest.
+#[derive(Debug, Clone)]
+pub(crate) struct BoundaryDeclarationSource {
+    pub callable: String,
+    pub owner: String,
+    machine: String,
+    state: String,
+    semantic: String,
+    parameter_types: Vec<String>,
+    parameter_modes: Vec<(bool, bool, language_core::BindingRelevance)>,
+    result_type: String,
+    may_suspend: bool,
+    may_block: bool,
+    application: Option<BoundaryApplicationSource>,
+}
+
+#[derive(Debug, Clone)]
+struct BoundaryApplicationSource {
+    template: String,
+    semantic: String,
+    application: RequirementApplicationSource,
+}
+
+impl BoundaryDeclarationSource {
+    pub(crate) fn method_arguments(
+        &self,
+        identities: &mut TerminalIdentityTableBuilder,
+    ) -> Vec<terminal_psi::ClosedReachArgument> {
+        self.application.as_ref().map_or_else(Vec::new, |source| {
+            source.application.publish_arguments(identities)
+        })
+    }
+}
+
+pub(crate) fn boundary_source(
+    typed: &TypedTrees,
+    source: SymbolHandle,
+    owner: SymbolHandle,
+    entry: SymbolHandle,
+    signature: &typed_trees::signature::StateSignature,
+    callable: String,
+) -> Result<BoundaryDeclarationSource, &'static str> {
+    let sources =
+        source::source_identity::toolchain_source_identities(typed.symbols.source_files())
+            .map_err(|_| "a boundary toolchain source has no exact identity")?;
+    if callable.is_empty() {
+        return Err("the boundary has no callable identity");
+    }
+    if let Some(machine) = typed.machine_by_symbol(source) {
+        let Some([state]) = typed.machine_states(machine).as_array() else {
+            return Err("the machine boundary has no exact entry declaration");
+        };
+        if entry != state.symbol {
+            return Err("the machine boundary names another entry declaration");
+        }
+    } else if entry != signature.symbol {
+        return Err("the boundary header names another entry declaration");
+    }
+    // A checked trait callable names its declaring trait in `machine` and
+    // its exact member in `state`, as `trait_requirement` does. A concrete
+    // realization instead keeps its own machine and generated entry.
+    let machine = if let Some((declaring, requirement)) = typed.trait_machine_signature(source) {
+        if declaring.symbol != owner || requirement.symbol != source || entry != requirement.symbol
+        {
+            return Err("the boundary requirement has another declaring trait or member");
+        }
+        owner
+    } else {
+        source
+    };
+    let formals = typed
+        .state_parameters
+        .span(signature.parameters)
+        .ok_or("the boundary parameter span does not resolve")?;
+    let type_text = |reference| {
+        typed
+            .type_identity_text(typed.package_qualified_type_identity(reference))
+            .filter(|text| !text.is_empty())
+            .ok_or("a boundary signature type has no exact identity")
+    };
+    let nominal_text = |symbol| {
+        typed
+            .exact_owner_nominal_identity(symbol, &sources)
+            .and_then(|identity| typed.type_identity_text(identity))
+            .filter(|identity| !identity.is_empty())
+            .ok_or("the boundary declaration has no exact package or toolchain authority")
+    };
+    Ok(BoundaryDeclarationSource {
+        callable,
+        owner: nominal_text(owner)?,
+        machine: nominal_text(machine)?,
+        state: nominal_text(entry)?,
+        semantic: typed
+            .normalized_hermetic_symbol_identity(source)
+            .map_err(|_| "the boundary has no hermetic declaration identity")?,
+        parameter_types: formals
+            .iter()
+            .map(|formal| type_text(formal.type_reference))
+            .collect::<Result<Vec<_>, _>>()?,
+        parameter_modes: formals
+            .iter()
+            .map(|formal| (formal.is_mutable, formal.is_const, formal.relevance))
+            .collect(),
+        result_type: type_text(signature.return_type)?,
+        may_suspend: signature.suspends,
+        may_block: signature.blocks,
+        application: typed
+            .closed_requirement_application(signature.symbol)
+            .map(|closed| -> Result<_, &'static str> {
+                Ok(BoundaryApplicationSource {
+                    template: nominal_text(closed.template)?,
+                    semantic: typed
+                        .normalized_hermetic_symbol_identity(closed.template)
+                        .map_err(
+                            |_| "a closed requirement's requirement has no hermetic identity",
+                        )?,
+                    application: RequirementApplicationSource::read(typed, &closed)?,
+                })
+            })
+            .transpose()?,
+    })
+}
+
+pub(crate) fn boundary_declaration(
+    source: &BoundaryDeclarationSource,
+    signature: &Signature,
+    proof: &terminal_psi::MachineContract,
+    identities: &mut TerminalIdentityTableBuilder,
+) -> CheckedMachineDeclaration {
+    let mut commitment = Commitment(DomainDigestEncoder::new(COMMITMENT_DOMAIN));
+    source.callable.hash(&mut commitment);
+    for (mode, type_text) in source.parameter_modes.iter().zip(&source.parameter_types) {
+        (mode.0, mode.1, mode.2, type_text).hash(&mut commitment);
+    }
+    source.result_type.hash(&mut commitment);
+    proof.requires.hash(&mut commitment);
+    for clause in &proof.ensures {
+        clause.proposition.hash(&mut commitment);
+    }
+    proof.crash_routes.hash(&mut commitment);
+    signature.termination.hash(&mut commitment);
+    let specialization = source.application.as_ref().map(|source| {
+        let template = identities.intern(&source.template);
+        let semantic = identities.intern(&source.semantic);
+        source
+            .application
+            .publish_specialization(template, semantic, identities)
+    });
+    CheckedMachineDeclaration {
+        machine: NominalDeclarationIdentity::new(identities.intern(&source.machine)),
+        state: NominalDeclarationIdentity::new(identities.intern(&source.state)),
+        semantic_declaration: identities.intern(&source.semantic),
+        parameter_types: source
+            .parameter_types
+            .iter()
+            .map(|identity| identities.intern(identity))
+            .collect(),
+        callable: identities.intern(&source.callable),
+        result_type: identities.intern(&source.result_type),
+        contract: commitment.0.finish(),
+        published_may_suspend: source.may_suspend,
+        published_may_block: source.may_block,
+        specialization,
+    }
+}
+
+/// A bodyless callable commits to its complete retained operational ceiling.
+/// Service identities are portable declaration identities, never module slots.
+pub(crate) fn provider_declaration(
+    source: &BoundaryDeclarationSource,
+    signature: &Signature,
+    proof: &terminal_psi::MachineContract,
+    envelope: &terminal_psi::TerminalCallableEnvelope,
+    services: &crate::reach::ServiceMap,
+    identities: &mut TerminalIdentityTableBuilder,
+) -> Result<CheckedMachineDeclaration, &'static str> {
+    let mut declaration = boundary_declaration(source, signature, proof, identities);
+    declaration.published_may_suspend = envelope.suspends;
+    declaration.published_may_block = envelope.blocks;
+    let mut commitment = Commitment(DomainDigestEncoder::new(
+        b"omega.lowered-boundary-contract.v1\0",
+    ));
+    declaration.contract.hash(&mut commitment);
+    for service in &envelope.service_reach {
+        services
+            .identity(*service)
+            .ok_or("native contract service is outside its canonical map")?
+            .hash(&mut commitment);
+    }
+    0xffu8.hash(&mut commitment);
+    for invocation in &envelope.invocations {
+        match invocation {
+            terminal_psi::TerminalCallableInvocation::Parameter(position) => {
+                0u8.hash(&mut commitment);
+                position.hash(&mut commitment);
+            }
+            terminal_psi::TerminalCallableInvocation::Service(service) => {
+                1u8.hash(&mut commitment);
+                services
+                    .identity(*service)
+                    .ok_or("native invocation is outside its canonical service map")?
+                    .hash(&mut commitment);
+            }
+        }
+    }
+    envelope.suspends.hash(&mut commitment);
+    envelope.blocks.hash(&mut commitment);
+    match &envelope.termination {
+        terminal_psi::TerminalCallableTermination::NotGuaranteed => 0u8.hash(&mut commitment),
+        terminal_psi::TerminalCallableTermination::Terminates { premises } => {
+            1u8.hash(&mut commitment);
+            premises.len().hash(&mut commitment);
+            for premise in premises {
+                premise.parameter.hash(&mut commitment);
+                premise.path.hash(&mut commitment);
+                premise.domain.hash(&mut commitment);
+            }
+        }
+    }
+    declaration.contract = commitment.0.finish();
+    Ok(declaration)
+}
+
+/// Retain the exact intrinsic source header before the publication phase.
+pub(crate) fn intrinsic_boundary_source(
+    typed: &TypedTrees,
+    symbol: SymbolHandle,
+) -> Result<BoundaryDeclarationSource, &'static str> {
+    if let Some(machine) = typed.machine_by_symbol(symbol) {
+        let Some([state]) = typed.machine_states(machine).as_array() else {
+            return Err("intrinsic has no exact entry");
+        };
+        let (declaration, signature) = typed
+            .bodyless_declaration(symbol)?
+            .ok_or("intrinsic has no bodyless signature")?;
+        // The authored machine owns the contracts; its sole generated state
+        // supplies the entry identity and runtime telescope independently.
+        if declaration != machine.symbol || signature.symbol != declaration {
+            return Err("intrinsic bodyless signature has another contract declaration");
+        }
+        return boundary_source(
+            typed,
+            symbol,
+            symbol,
+            state.symbol,
+            &signature,
+            typed
+                .machine_callable_identity_text(machine)
+                .ok_or("intrinsic has no callable identity")?,
+        );
+    }
+    let intrinsic =
+        typed_trees::declarations::intrinsic_requirements::IntrinsicRequirement::by_symbol(
+            typed, symbol,
+        )
+        .ok_or("intrinsic has no exact source declaration")?;
+    let sources =
+        source::source_identity::toolchain_source_identities(typed.symbols.source_files())
+            .map_err(|_| "intrinsic source has no exact identity")?;
+    let nominal = typed
+        .exact_owner_nominal_identity(symbol, &sources)
+        .and_then(|id| typed.type_identity_text(id))
+        .ok_or("intrinsic declaration has no exact owner")?;
+    let type_text = |reference| {
+        typed
+            .type_identity_text(typed.package_qualified_type_identity(reference))
+            .filter(|text| !text.is_empty())
+            .ok_or("intrinsic type has no exact identity")
+    };
+    Ok(BoundaryDeclarationSource {
+        callable: intrinsic.requirement_identity,
+        owner: nominal.clone(),
+        machine: nominal.clone(),
+        state: nominal,
+        semantic: typed
+            .normalized_hermetic_symbol_identity(symbol)
+            .map_err(|_| "intrinsic has no hermetic identity")?,
+        parameter_types: intrinsic
+            .parameters
+            .iter()
+            .map(|formal| type_text(formal.type_reference))
+            .collect::<Result<Vec<_>, _>>()?,
+        parameter_modes: intrinsic
+            .parameters
+            .iter()
+            .map(|formal| (formal.is_mutable, formal.is_const, formal.relevance))
+            .collect(),
+        result_type: type_text(intrinsic.return_type)?,
+        may_suspend: false,
+        may_block: false,
+        application: None,
+    })
 }

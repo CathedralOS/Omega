@@ -1,6 +1,6 @@
 /*
 We encode and decode the self-authenticating `FixedViewCopyPlan` artifact
-(`OMGFCV\0\0`, version 104), binding the source selected-instruction, live-range,
+(`OMGFCV\0\0`, version 109), binding the source selected-instruction, live-range,
 and legality roots, the required segment-home evidence, the inserted
 fixed-view copies, and the authenticated transformed `SelectedInstructionPlan`
 payload. Native-binding receipts and hosted imports remain distinct from finite
@@ -54,7 +54,10 @@ use super::selected_blocks::{decode_block, encode_block};
 use super::structural_contracts::{decode_contracts, encode_contracts};
 
 const MAGIC: &[u8; 8] = b"OMGFCV\0\0";
-pub(super) const VERSION: u32 = 104;
+// Recovery binds complete callable/numeric/installation contracts, saved domain
+// access policies and transparent scalar predicates with their exact identities.
+// Reject predecessor recovery schemas before reading their payload.
+pub(super) const VERSION: u32 = 109;
 pub(super) const ENVELOPE: Envelope = Envelope::new(MAGIC, VERSION);
 const ENVELOPE_DOMAIN: &[u8] = b"omega-fixed-view-copy-envelope-v62\0";
 
@@ -424,6 +427,10 @@ pub(super) fn decode_target(
 
 pub(super) fn encode_scalar(bytes: &mut Vec<u8>, scalar: ScalarType) -> Result<(), CodecError> {
     match scalar {
+        ScalarType::Callable(contract) => {
+            bytes.push(3);
+            crate::codec_bytes::push_encoded(bytes, contract.get().to_le_bytes());
+        }
         ScalarType::Boolean => bytes.push(0),
         ScalarType::Integer(integer) => {
             // Recovery execution artifacts retain the existing closed wire form;
@@ -456,6 +463,10 @@ pub(super) fn decode_scalar(
     cursor: &mut Cursor<'_>,
 ) -> Result<ScalarType, FixedViewCopyDecodeError> {
     match cursor.byte()? {
+        3 => Ok(ScalarType::Callable(decode_id(
+            cursor,
+            semantic_vocabulary::CallableContractId::new,
+        )?)),
         0 => Ok(ScalarType::Boolean),
         1 => {
             let carrier = cursor.byte()?;
@@ -581,6 +592,9 @@ pub(super) fn encode_ordinary_plan(
     crate::codec_bytes::push_encoded(bytes, plan.work_schedule.marker().to_le_bytes());
     encode_target(bytes, plan.target);
     crate::codec_bytes::push_encoded(bytes, plan.entry.get().to_le_bytes());
+    let borrowed_storage = plan.contracts.borrowed_storage_layouts.canonical_bytes();
+    length(bytes, borrowed_storage.len());
+    bytes.extend_from_slice(borrowed_storage);
     length(bytes, plan.functions.len());
     for function in &plan.functions {
         encode_function(bytes, function)?;
@@ -600,8 +614,15 @@ pub(super) fn decode_ordinary_plan(
         .ok_or(FixedViewCopyDecodeError::InvalidWorkSchedule(work_raw))?;
     let target = decode_target(cursor)?;
     let entry = decode_id(cursor, MachineId::new)?;
+    let borrowed_storage_length = cursor.length()?;
+    let borrowed_storage_layouts =
+        runtime_abi::NativeBorrowedStorageLayouts::decode(cursor.take(borrowed_storage_length)?)
+            .map_err(FixedViewCopyDecodeError::InvalidBorrowedStorage)?;
     let functions = decode_list(cursor, decode_function)?;
     Ok(SelectedInstructionPlan {
+        contracts: std::sync::Arc::new(selected_instructions::SelectedProgramContracts {
+            borrowed_storage_layouts,
+        }),
         psi: TerminalPsiIdentity {
             vocabulary_marker: marker,
             program_fingerprint: fingerprint,

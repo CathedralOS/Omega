@@ -45,7 +45,7 @@ Every other rejection is made where its rule is checked (`casts`,
 naming nothing in `services`), through the same `crate::reject`.
 */
 
-use semantic_vocabulary::{IeeeFloatFormat, IntegerSign, MachineId, ScalarType};
+use semantic_vocabulary::{IeeeFloatFormat, IntegerSign, IntegerWidth, MachineId, ScalarType};
 use terminal_check_tables::{Construct, Refusal};
 
 use super::Program;
@@ -292,19 +292,20 @@ pub(super) fn scalar_named(scalar: ScalarType) -> String {
         ScalarType::Boolean => "bool".to_owned(),
         ScalarType::Integer(integer) if integer.is_address() => "addr".to_owned(),
         ScalarType::Integer(integer) => {
-            let sign = match integer.sign() {
+            let prefix = match integer.sign() {
                 IntegerSign::Signed => 'i',
                 IntegerSign::Unsigned => 'u',
             };
             match integer.width() {
-                semantic_vocabulary::IntegerWidth::Bits(bits) => format!("{sign}{bits}"),
-                semantic_vocabulary::IntegerWidth::Parameter(_) => {
-                    format!("{sign}<width parameter>")
-                }
+                IntegerWidth::Bits(bits) => format!("{prefix}{bits}"),
+                // Proof input IDs depend on allocation order and are not
+                // the source name of this width parameter.
+                IntegerWidth::Parameter(_) => format!("{prefix}<width parameter>"),
             }
         }
         ScalarType::IeeeFloat(IeeeFloatFormat::Binary32) => "f32".to_owned(),
         ScalarType::IeeeFloat(IeeeFloatFormat::Binary64) => "f64".to_owned(),
+        ScalarType::Callable(contract) => format!("machine contract {}", contract.get()),
     }
 }
 

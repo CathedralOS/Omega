@@ -39,10 +39,10 @@ pub(super) fn walk<'a, E>(
             | ExpressionKind::ByteLiteral(_)
             | ExpressionKind::CollectionMeasure { .. }
             | ExpressionKind::ByteElement { .. }
-            | ExpressionKind::ArrayView { .. }
-            | ExpressionKind::RepresentationView { .. }
+            | ExpressionKind::CollectionView { .. }
             | ExpressionKind::CollectionSubslice { .. }
             | ExpressionKind::Boolean(_)
+            | ExpressionKind::MachineValue { .. }
             | ExpressionKind::Array { .. }
             | ExpressionKind::Record { .. }
             | ExpressionKind::Case { .. }

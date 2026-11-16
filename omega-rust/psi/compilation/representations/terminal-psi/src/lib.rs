@@ -29,6 +29,7 @@ target-neutral abstract operations by `00_terminal-psi-to-abstract-operations`.
 pub mod artifacts;
 pub mod boundary;
 mod call_contexts;
+pub mod callable_values;
 pub use call_contexts::{
     CallAcknowledgement, CallFormation, CallOrigin, CallSite, InvocationOwner,
 };
@@ -40,6 +41,11 @@ pub mod observation;
 #[macro_use]
 pub mod ownership;
 pub mod proof;
+pub mod service_schemas;
+pub use service_schemas::{
+    TerminalProgramEntryContract, TerminalProviderSelection, TerminalSealedNativeIntrinsic,
+    TerminalServiceSchema,
+};
 pub mod structural_path_encoding;
 pub mod terminal_module;
 pub mod types_and_values;
@@ -850,6 +856,12 @@ mod source_guards {
     }
 }
 
+pub use callable_values::{
+    TerminalBoundaryEnvelope, TerminalCallableCatalog, TerminalCallableContract,
+    TerminalCallableEnvelope, TerminalCallableEvidenceLane, TerminalCallableInvocation,
+    TerminalCallableTermination, TerminalCallableTerminationPremise, TerminalDeclarationEnvelope,
+    TerminalMachineDescriptor, TerminalMachineDescriptorOrigin, TerminalMachineEnvelope,
+};
 pub use language_core::BindingRelevance;
 pub use semantic_vocabulary::{
     BoundaryCompletion, BoundaryRequirementKind, ExternalCompletionKind,

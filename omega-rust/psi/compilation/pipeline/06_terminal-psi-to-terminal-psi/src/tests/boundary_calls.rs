@@ -6,14 +6,26 @@ use super::*;
 use std::sync::Arc;
 
 pub(super) fn typed(text: &str) -> typed_trees::TypedTrees {
-    try_typed(text).unwrap()
+    try_typed(text).expect("boundary-call fixture must pass source typing")
 }
 
-/// Typing's own verdict on `text`, for tests whose program typing must reject.
 pub(super) fn try_typed(text: &str) -> Result<typed_trees::TypedTrees, diagnostics::Diagnostic> {
+    // The boundary belongs to this fixture's user package. Its declared
+    // owner is required by ordinary header publication; it grants no
+    // toolchain identity or provider-execution authority.
+    let package = semantic_vocabulary::PackageKeyIdentity::from_digest([0xbc; 32])
+        .expect("nonempty fixture package identity");
     let mut sources = source::SourceMap::default();
     let source = sources
-        .add("boundary_calls/source.omg".into(), text.to_owned())
+        .add_checked_instance(
+            "boundary_calls/source.omg".into(),
+            text,
+            "boundary_calls".into(),
+            Some(package),
+            source::SourceOrigin::User,
+            source::SourceResolutionStratum::Base,
+            source::DependencyScope::Product,
+        )
         .source_id;
     let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
     let syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(source, &tokens).unwrap();
@@ -39,13 +51,16 @@ pub(super) fn entry(typed: &typed_trees::TypedTrees) -> symbols::SymbolHandle {
 }
 
 fn invocation(typed: typed_trees::TypedTrees) -> Checked<typed_trees_to_terminal_psi::Elaboration> {
-    // Anonymous source belongs to this activation. Do not give its interface
-    // a made-up package owner just to obtain a portable declaration identity.
+    // These are the package's actual declarations in this invocation's
+    // activation scope. No provider is installed or executed by the test.
     let entry = entry(&typed);
     let frozen: typed_trees::FrozenTypedTrees = typed.into();
     typed_trees_to_terminal_psi::elaborate_for(
         &frozen,
         typed_trees_to_terminal_psi::Compilation {
+            calling: None,
+            providers: None,
+
             declaration_metadata: &[],
             entries: &[entry],
             subjects: &[],
@@ -118,6 +133,194 @@ fn source_boundary_calls_keep_their_actual_input_obligations() {
     );
 }
 
+fn source_service_signature(typed: &typed_trees::TypedTrees, owner: &str) -> [u8; 32] {
+    use typed_trees::service_declarations::{
+        projection::from_typed, provider_declarations::ProviderPlanningContext,
+    };
+    let declaration = typed
+        .traits()
+        .iter()
+        .find(|declaration| declaration.name.as_str() == owner)
+        .unwrap();
+    let surface = from_typed(
+        ProviderPlanningContext::new(typed, source::DependencyScope::Product),
+        declaration,
+    )
+    .unwrap();
+    let [method] = surface.declaration.methods.as_slice() else {
+        panic!("the source declares one service method");
+    };
+    method.declared_type_signature
+}
+
+fn published_service_signature(elaboration: &typed_trees_to_terminal_psi::Elaboration) -> [u8; 32] {
+    let [boundary] = elaboration.module.boundary_machines.as_slice() else {
+        panic!("one requirement is called");
+    };
+    let source = &boundary.declaration.as_ref().unwrap().source;
+    let parameters = source
+        .parameter_types
+        .iter()
+        .map(|identity| elaboration.module.identities.text(*identity).unwrap());
+    language_semantics::service_surface::declared_type_signature(
+        parameters,
+        elaboration
+            .module
+            .identities
+            .text(source.result_type)
+            .unwrap(),
+    )
+    .unwrap()
+}
+
+#[test]
+fn source_boundary_applied_signature_keeps_actual_types_and_caller_lifetimes() {
+    use typed_trees::trait_definition::{AppliedTraitScope, TraitApplicationArguments};
+    use typed_trees::type_identity::{
+        TypeIdentityRequest, descriptive_type_identity_in_region_scope,
+    };
+    let program = typed(
+        r#"
+boundary trait Write<'storage, Value> {
+    machine write(value: &'storage mut Value) -> &'storage mut Value reaches none crashes none;
+}
+machine carrier<'left, 'right>(first: &'left mut i32, second: &'right mut i64) -> i64 { 0 }
+"#,
+    );
+    let owner = program
+        .traits()
+        .iter()
+        .find(|owner| owner.name.as_str() == "Write")
+        .unwrap();
+    let signature = &program.trait_machine_signatures(owner)[0];
+    let caller = program
+        .machines()
+        .iter()
+        .find(|caller| caller.name.as_str() == "carrier")
+        .unwrap();
+    let mut states = program.machine_states(caller).iter();
+    let state = states.next().expect("one caller state");
+    assert!(states.next().is_none(), "one caller state");
+    let parameters = program.state_parameters(state);
+    let scalar = |position: usize| {
+        let typed_trees::types::TypeReferenceNode::Reference { referee, .. } = program
+            .type_reference_table
+            .type_reference(parameters[position].type_reference)
+        else {
+            panic!("the actual caller declares a reference");
+        };
+        *referee
+    };
+    let applied = |value, lifetime: &str| {
+        let scope = AppliedTraitScope::new(
+            &program,
+            owner,
+            TraitApplicationArguments {
+                lexical_owner: caller.symbol,
+                enclosing_data_applications: &[],
+                arguments: &[value],
+                lifetimes: &[lifetime.into()],
+            },
+        )
+        .unwrap();
+        program
+            .requirement_definition_types(&scope, signature)
+            .unwrap()
+    };
+    let left_i32 = applied(scalar(0), "left");
+    let left_i64 = applied(scalar(1), "left");
+    let right_i32 = applied(scalar(0), "right");
+    let caller_type = descriptive_type_identity_in_region_scope(
+        &program,
+        TypeIdentityRequest::package_qualified(parameters[0].type_reference),
+        caller.symbol,
+        caller.symbol,
+        &[],
+        &[],
+    )
+    .and_then(|identity| program.type_identity_text(identity))
+    .unwrap();
+    assert_eq!(left_i32.0, std::slice::from_ref(&caller_type));
+    assert_eq!(
+        left_i32.1, caller_type,
+        "the result keeps the same captured lifetime"
+    );
+    assert_eq!(
+        left_i32.2, 0,
+        "a supplied lifetime introduces no elided binder"
+    );
+    assert_ne!(
+        left_i32.0, left_i64.0,
+        "the actual type argument must survive"
+    );
+    assert_ne!(
+        left_i32.0, right_i32.0,
+        "caller lifetimes must remain distinct"
+    );
+    assert!(
+        !left_i32.0[0].contains("owner(schema)"),
+        "a captured caller lifetime is not a new invocation binder"
+    );
+}
+
+#[test]
+fn source_boundary_top_level_schema_keeps_independent_input_lifetimes() {
+    use typed_trees::service_declarations::{
+        projection::from_typed_boundary_requirement, provider_declarations::ProviderPlanningContext,
+    };
+    let program = typed(
+        r#"
+data Host {}
+boundary machine + Operations::write(left: &mut Host, right: &mut Host) reaches none crashes none;
+machine entry() {}
+"#,
+    );
+    let (program, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+        program,
+        &typed_trees_to_typed_trees::PreparationRequest::settled(),
+    )
+    .unwrap();
+    let requirement = program
+        .machines()
+        .iter()
+        .find(|requirement| requirement.name.as_str() == "Operations::write")
+        .unwrap();
+    let surface = from_typed_boundary_requirement(
+        ProviderPlanningContext::new(&program, source::DependencyScope::Product),
+        requirement,
+    )
+    .unwrap();
+    let (parameters, result) = program.machine_definition_types(requirement).unwrap();
+    assert!(parameters[0].contains("region(owner(schema),ordinal(0))"));
+    assert!(parameters[1].contains("region(owner(schema),ordinal(1))"));
+    let expected =
+        language_semantics::service_surface::declared_type_signature(parameters.iter(), &result)
+            .unwrap();
+    assert_eq!(
+        surface.declaration.methods[0].declared_type_signature,
+        expected
+    );
+}
+
+#[test]
+fn source_boundary_schema_and_header_share_elided_input_lifetimes() {
+    let source = r#"
+boundary trait Write {
+    machine write(left: &mut i64, right: &mut i64)
+    reaches none crashes none;
+}
+machine entry() {
+    let mut left: i64 = 17;
+    let mut right: i64 = 23;
+    Write::write(&mut left, &mut right);
+}
+"#;
+    let typed = typed(source);
+    let expected = source_service_signature(&typed, "Write");
+    let elaboration = invocation(typed).unwrap();
+    assert_eq!(published_service_signature(&elaboration), expected);
+}
+
 #[test]
 fn source_boundary_calls_retain_independent_input_lifetime_binders() {
     let source = r#"
@@ -131,7 +334,10 @@ machine entry() {
     Write::write(&mut left, &mut right);
 }
 "#;
-    let elaboration = invocation(typed(source)).unwrap();
+    let typed = typed(source);
+    let expected = source_service_signature(&typed, "Write");
+    let elaboration = invocation(typed).unwrap();
+    assert_eq!(published_service_signature(&elaboration), expected);
     let [boundary] = elaboration.module.boundary_machines.as_slice() else {
         panic!("one requirement is called");
     };
@@ -213,6 +419,9 @@ fn read_applied_boundary(
     typed_trees_to_terminal_psi::elaborate_for(
         frozen,
         typed_trees_to_terminal_psi::Compilation {
+            calling: None,
+            providers: None,
+
             declaration_metadata: &[],
             entries: &[entry],
             subjects: &[],
@@ -270,6 +479,98 @@ fn a_boundary_requirement_is_judged_at_the_type_a_call_applies_it_at() {
         if unproved.iter().any(|row| matches!(row.kind, ObligationKind::CallRequirement { .. }))),
         "{verdict:?}"
     );
+
+    // Separate authored calls at the same tuple share a closed signature,
+    // but an application at another tuple must never authenticate that call.
+    let mut typed = applied_boundary_prepared(10).into_inner();
+    let calls = typed
+        .expression_table
+        .iter_expressions()
+        .filter_map(|(handle, node)| {
+            let typed_trees::expression::ExpressionNode::Call(call) = node else {
+                return None;
+            };
+            typed.closed_requirement_application(call.target_symbol)?;
+            Some((
+                handle,
+                call.target_symbol,
+                call.authored_machine_application,
+            ))
+        })
+        .collect::<Vec<_>>();
+    let [first, second, third] = calls.as_slice() else {
+        panic!("three authored applications of the boundary requirement");
+    };
+    assert_eq!(first.1, third.1);
+    assert_ne!(first.2, third.2);
+    assert_ne!(first.1, second.1);
+    assert!(
+        typed
+            .require_closed_requirement_call_application(first.1, third.2)
+            .is_ok()
+    );
+    let stale = typed_trees::static_applications::StaticMachineApplicationHandle::from_parts(
+        first.2.arena_index(),
+        first.2.generation() + 1,
+    );
+    assert_eq!(
+        typed.require_closed_requirement_call_application(first.1, stale),
+        Err("closed requirement call has a stale declaration or application"),
+    );
+    let original = typed
+        .expression_table
+        .static_machine_application_bindings(third.2)[0]
+        .value
+        .clone();
+    let changed = typed
+        .expression_table
+        .static_machine_application_bindings(second.2)[0]
+        .value
+        .clone();
+    typed
+        .expression_table
+        .static_machine_application_bindings_mut(third.2)[0]
+        .value = changed;
+    assert_eq!(
+        typed.require_closed_requirement_call_application(first.1, third.2),
+        Err("closed requirement call argument differs from its retained binding"),
+    );
+    let typed_trees::static_applications::StaticMachineBindingValue::Type(reference) = &original
+    else {
+        panic!("the original application binds its type parameter");
+    };
+    let stale_reference = typed_trees::types::TypeReferenceHandle::from_parts(
+        reference.arena_index(),
+        reference.generation() + 1,
+    );
+    typed
+        .expression_table
+        .static_machine_application_bindings_mut(third.2)[0]
+        .value = typed_trees::static_applications::StaticMachineBindingValue::Type(stale_reference);
+    assert_eq!(
+        typed.require_closed_requirement_call_application(first.1, third.2),
+        Err("closed requirement call has a stale operand input"),
+    );
+    typed
+        .expression_table
+        .static_machine_application_bindings_mut(third.2)[0]
+        .value = original;
+    assert_eq!(
+        typed.require_closed_requirement_call_application(first.1, second.2),
+        Err("closed requirement call selects another bound application"),
+    );
+    let typed_trees::expression::ExpressionNode::Call(call) =
+        typed.expression_table.expression_mut(first.0)
+    else {
+        panic!("the retained source occurrence is a call");
+    };
+    call.authored_machine_application = second.2;
+    let refusal = read_applied_boundary(&typed.into()).unwrap_err();
+    assert_eq!(refusal.reason, RefusalReason::Unsupported);
+    assert_eq!(
+        refusal.detail,
+        "call closed requirement call selects another bound application"
+    );
 }
 
 /// A boundary requirement with a value parameter, `take<const Count: u64>`,
@@ -310,6 +611,8 @@ fn claimed(
     typed_trees_to_terminal_psi::elaborate_for(
         frozen,
         typed_trees_to_terminal_psi::Compilation {
+            calling: None,
+            providers: None,
             declaration_metadata: &[],
             entries: &[entry],
             subjects: &[],
@@ -425,7 +728,8 @@ fn changed_boundary_effects_must_match_the_published_call_envelope() {
             .source;
         declaration.published_may_block = blocks;
         declaration.published_may_suspend = !blocks;
-        let refusal = discharge(&mut elaboration).unwrap_err();
+        let refusal =
+            discharge(&mut elaboration, &mut crate::ProofSearchActivity::default()).unwrap_err();
         assert_eq!(refusal.reason, RefusalReason::ForeignIdentity);
         assert_eq!(
             refusal.detail,
@@ -449,7 +753,8 @@ fn source_boundary_effects_still_require_their_invocation_proof() {
             .source;
         assert_eq!(published.published_may_suspend, effect == "suspends");
         assert_eq!(published.published_may_block, effect == "blocks");
-        let refusal = discharge(&mut elaboration).unwrap_err();
+        let refusal =
+            discharge(&mut elaboration, &mut crate::ProofSearchActivity::default()).unwrap_err();
         assert_eq!(refusal.reason, RefusalReason::Violation);
         let site = refusal
             .source_span
@@ -543,7 +848,7 @@ crashes none
 #[test]
 fn borrowed_generic_requirements_preserve_input_proofs_and_exclusive_loans() {
     let mut valid = borrowed_requirement("right", "< 10");
-    let discharged = discharge(&mut valid).unwrap();
+    let discharged = discharge(&mut valid, &mut crate::ProofSearchActivity::default()).unwrap();
     let entry = discharged.machines.get(id(1)).unwrap();
     assert!(entry.conflicts.is_empty());
     assert!(entry.unestablished().next().is_none());
@@ -554,7 +859,11 @@ fn borrowed_generic_requirements_preserve_input_proofs_and_exclusive_loans() {
     );
 
     let mut missing_input = borrowed_requirement("right", "<= 10");
-    let discharged = discharge(&mut missing_input).unwrap();
+    let discharged = discharge(
+        &mut missing_input,
+        &mut crate::ProofSearchActivity::default(),
+    )
+    .unwrap();
     assert!(
         discharged
             .machines
@@ -566,7 +875,7 @@ fn borrowed_generic_requirements_preserve_input_proofs_and_exclusive_loans() {
     );
 
     let mut alias = borrowed_requirement("left", "< 10");
-    let discharged = discharge(&mut alias).unwrap();
+    let discharged = discharge(&mut alias, &mut crate::ProofSearchActivity::default()).unwrap();
     assert!(!discharged.machines.get(id(1)).unwrap().conflicts.is_empty());
 }
 
@@ -592,6 +901,9 @@ machine entry() crashes none {{}}
         typed_trees_to_terminal_psi::prepare_compilation(
             &typed,
             typed_trees_to_terminal_psi::Compilation {
+                calling: None,
+                providers: None,
+
                 declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[None],
@@ -715,6 +1027,8 @@ pub(super) fn compilation_results_of(
     let prepared = typed_trees_to_terminal_psi::prepare_compilation(
         typed,
         typed_trees_to_terminal_psi::Compilation {
+            calling: None,
+            providers: None,
             declaration_metadata: &[],
             entries: &[entry],
             subjects: &[],
@@ -838,7 +1152,7 @@ fn recursive_named_calls_in_a_body_witness_keep_the_requirement_inputs() {
         member.symbol,
     )
     .unwrap();
-    let discharged = discharge(&mut witness).unwrap();
+    let discharged = discharge(&mut witness, &mut crate::ProofSearchActivity::default()).unwrap();
     let body = id(2);
     let tables = witness.tables.machines.get(body).unwrap();
     let judgments = discharged.machines.get(body).unwrap();
@@ -865,6 +1179,9 @@ fn a_boundary_conformer_is_not_a_named_direct_entry() {
         typed_trees_to_terminal_psi::prepare_compilation(
             &typed,
             typed_trees_to_terminal_psi::Compilation {
+                calling: None,
+                providers: None,
+
                 declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[],
@@ -901,6 +1218,9 @@ machine entry() -> u32 reaches none crashes none { chosen() }
         typed_trees_to_terminal_psi::prepare_compilation(
             &typed,
             typed_trees_to_terminal_psi::Compilation {
+                calling: None,
+                providers: None,
+
                 declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[],
@@ -942,6 +1262,8 @@ fn named_selected_calls_keep_their_public_reach_ceiling() {
             typed_trees_to_terminal_psi::prepare_compilation(
                 &typed,
                 typed_trees_to_terminal_psi::Compilation {
+                    calling: None,
+                    providers: None,
                     declaration_metadata: &[],
                     entries: &[entry],
                     subjects: &[],
@@ -996,6 +1318,9 @@ Rebound satisfies Other { Other::apply = previous; }
         typed_trees_to_terminal_psi::prepare_compilation(
             &typed,
             typed_trees_to_terminal_psi::Compilation {
+                calling: None,
+                providers: None,
+
                 declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[None],
@@ -1062,6 +1387,8 @@ machine entry() -> u32 reaches none crashes none {{ 7 }}
             typed_trees_to_terminal_psi::prepare_compilation(
                 &typed,
                 typed_trees_to_terminal_psi::Compilation {
+                    calling: None,
+                    providers: None,
                     declaration_metadata: &[],
                     entries: &[entry(&typed)],
                     subjects: &[None],
@@ -1154,6 +1481,9 @@ fn inline_parameter_read(
     typed_trees_to_terminal_psi::elaborate_for(
         prepared,
         typed_trees_to_terminal_psi::Compilation {
+            calling: None,
+            providers: None,
+
             declaration_metadata: &[],
             entries: &[entry],
             subjects: &[None],
@@ -1191,7 +1521,8 @@ fn an_owned_inline_parameter_dispatch_owes_the_requirement_inputs() {
     for (actual, accepted) in [("7", true), ("0", false)] {
         let mut elaboration = inline_parameter_dispatch(actual, "");
         let caller = elaboration.selections[0].caller;
-        let found = discharge(&mut elaboration).unwrap();
+        let found =
+            discharge(&mut elaboration, &mut crate::ProofSearchActivity::default()).unwrap();
         let tables = elaboration.tables.machines.get(caller).unwrap();
         let judgments = found.machines.get(caller).unwrap();
         let calls: Vec<_> = tables
@@ -1215,7 +1546,7 @@ fn an_owned_inline_parameter_dispatch_owes_the_requirement_inputs() {
 fn an_owned_inline_parameter_dispatch_exposes_only_the_requirement_guarantee() {
     let mut elaboration = inline_parameter_dispatch("7", "ensures result == 0");
     let caller = elaboration.selections[0].caller;
-    let found = discharge(&mut elaboration).unwrap();
+    let found = discharge(&mut elaboration, &mut crate::ProofSearchActivity::default()).unwrap();
     let tables = elaboration.tables.machines.get(caller).unwrap();
     let judgments = found.machines.get(caller).unwrap();
     assert!(
@@ -1498,7 +1829,86 @@ fn a_named_owned_inline_member_calls_through_its_requirement() {
 #[test]
 fn a_named_owned_member_keeps_public_inputs_and_guarantees() {
     for (actual, promised, bad_input) in [("0", "", true), ("7", "ensures result == 0", false)] {
-        let verdicts = declared_verdicts(&named_owned_source(actual, promised, "0"));
+        let program = typed(&named_owned_source(actual, promised, "0"));
+        let entry = entry(&program);
+        let mut conformances = program.conformances().iter();
+        let conformance = conformances
+            .next()
+            .expect("the authored Inline conformance");
+        assert!(conformances.next().is_none());
+        let [row] = conformance.rows.as_slice() else {
+            panic!("the named map owns exactly its authored Step::apply row");
+        };
+        assert_eq!(row.declaring_trait, conformance.trait_symbol);
+        assert!(row.source.owns_realization());
+        let prepared_source = typed_trees_to_terminal_psi::prepare_compilation(
+            &program,
+            typed_trees_to_terminal_psi::Compilation {
+                calling: None,
+                providers: None,
+                declaration_metadata: &[],
+                entries: &[entry],
+                subjects: &[],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Invocation,
+        );
+        assert_eq!(prepared_source.source.forms.len(), 3);
+        assert!(prepared_source.source.forms.iter().all(Option::is_some));
+        let terminal_check_tables::compilation::TerminalCompilation::Prepared(prepared) =
+            prepared_source.program
+        else {
+            panic!("the same authored program must reach ordinary Terminal judgment");
+        };
+        assert!(prepared.forms.is_empty());
+        assert!(prepared.arrivals.is_empty());
+        assert_eq!(prepared.witnesses.len(), 2);
+        // The body's independent conformance comes first. The separate
+        // selected-call signature witness belongs to this exact selection.
+        assert_eq!(prepared.selection_witnesses, [(0, 1)]);
+        let closure = prepared.closure.as_ref().expect("the actual entry closure");
+        assert_eq!(closure.machines.get(id(1)), Some(&entry));
+        let [selected] = closure.selections.as_slice() else {
+            panic!("the actual source makes one named call");
+        };
+        assert_eq!(selected.caller, id(1));
+        assert_eq!(selected.declaring_trait, row.declaring_trait);
+        assert_eq!(selected.requirement, row.requirement);
+        assert_eq!(
+            closure.machines.get(selected.implementation),
+            Some(&row.realization_machine)
+        );
+        assert!(selected.required_contract.is_some());
+        for witness in &prepared.witnesses {
+            let witness = witness
+                .as_ref()
+                .expect("both source witnesses were prepared");
+            let Some(semantic_vocabulary::TargetMachineCallable::Machine(root)) =
+                witness.module.entry
+            else {
+                panic!("each logical witness has its actual requirement root");
+            };
+            assert_eq!(witness.machines.get(root), Some(&row.requirement));
+            let bodies = witness
+                .machines
+                .values()
+                .filter(|symbol| **symbol == row.realization_machine)
+                .count();
+            assert_eq!(
+                bodies, 1,
+                "each witness checks the exact authored Inline body"
+            );
+        }
+        let verdicts = crate::judge_compilation(
+            terminal_check_tables::compilation::TerminalCompilation::Prepared(prepared),
+        )
+        .into_iter()
+        .map(Result::unwrap)
+        .collect::<Vec<_>>();
+        assert_eq!(verdicts.len(), 3, "{verdicts:?}");
         let RouteVerdict::Rejected { unproved, .. } = &verdicts[0] else {
             panic!("{verdicts:?}")
         };
@@ -1513,6 +1923,10 @@ fn a_named_owned_member_keeps_public_inputs_and_guarantees() {
         assert!(
             matches!(verdicts[1], RouteVerdict::Accepted(_)),
             "the own-body witness remains valid: {verdicts:?}"
+        );
+        assert!(
+            matches!(verdicts[2], RouteVerdict::Accepted(_)),
+            "the exact selected public signature witness remains valid: {verdicts:?}"
         );
     }
 }
@@ -2051,7 +2465,7 @@ fn generic_named_map_body_uses_its_own_rigid_telescope() {
         .unwrap();
     let mut form =
         typed_trees_to_terminal_psi::elaborate_generic(&program, row.realization_machine).unwrap();
-    let discharged = discharge(&mut form).unwrap();
+    let discharged = discharge(&mut form, &mut crate::ProofSearchActivity::default()).unwrap();
     let root = discharged
         .machines
         .get(id(1))
@@ -2519,6 +2933,8 @@ fn full_named_map_verdicts(typed: &typed_trees::TypedTrees) -> Vec<RouteVerdict>
         typed_trees_to_terminal_psi::prepare_compilation(
             typed,
             typed_trees_to_terminal_psi::Compilation {
+                calling: None,
+                providers: None,
                 declaration_metadata: &[],
                 entries: &[entry(typed)],
                 subjects: &[None],

@@ -669,107 +669,6 @@ pub(crate) mod record {
         use semantic_vocabulary::StructuralTypeId;
         use terminal_psi::{StructuralPathSegment, StructuralTypeShape};
 
-        pub(crate) mod aggregate {
-            use super::ConstructorStorage;
-            use crate::boundary::errors::{TerminalInterpretError, malformed};
-            use crate::boundary::values::{
-                ScalarAggregatePart, ScalarAggregatePlan, StructuralRuntimePlace,
-                StructuralScalarRuntimeField, TerminalScalarAggregateValue,
-            };
-            use crate::engine::execution::TerminalExecution;
-            use crate::storage::primitive_storage::PrimitiveStorageEndpoint;
-            use semantic_vocabulary::CanonicalStructuralPathSegment as Path;
-
-            impl ConstructorStorage {
-                pub(crate) fn stage_scalar_aggregate(
-                    &mut self,
-                    execution: &TerminalExecution,
-                    aggregate: &TerminalScalarAggregateValue,
-                    root: &StructuralRuntimePlace,
-                ) -> Result<(), TerminalInterpretError> {
-                    let destination = |path: &[Path]| {
-                        let mut destination = root.clone();
-                        destination.path.extend(
-                            terminal_semantics::canonical_structural_storage_path(
-                                execution.structural_types().values(),
-                                aggregate.structural_type,
-                                path,
-                            )
-                            .ok_or(malformed())?,
-                        );
-                        Ok::<_, TerminalInterpretError>(destination)
-                    };
-                    if let Some(selected) = aggregate.result_case {
-                        self.stage_case(root.clone(), aggregate.structural_type, selected)?;
-                        for (path, scalar) in &aggregate.fields {
-                            let [Path::Field(field)] = path.as_slice() else {
-                                return Err(malformed());
-                            };
-                            self.stage_scalar_endpoint(
-                                &PrimitiveStorageEndpoint::ScalarField(
-                                    StructuralScalarRuntimeField::case_payload(
-                                        root.clone(),
-                                        *field,
-                                    ),
-                                ),
-                                *scalar,
-                            )?;
-                        }
-                        return Ok(());
-                    }
-                    let plan = ScalarAggregatePlan::new(
-                        execution.structural_declaration(aggregate.structural_type)?,
-                        |identity| execution.structural_types().get(&identity),
-                    )?;
-                    let mut fields = aggregate.fields.iter();
-                    plan.storage_parts(|path, part| {
-                        let endpoint = match part {
-                            ScalarAggregatePart::Array {
-                                structural_type,
-                                count,
-                            } => {
-                                let elements = fields
-                                    .by_ref()
-                                    .take(count)
-                                    .map(|(_, value)| *value)
-                                    .collect::<Vec<_>>();
-                                if elements.len() != count {
-                                    return Err(malformed());
-                                }
-                                self.stage_array(
-                                    execution,
-                                    structural_type,
-                                    &elements,
-                                    &destination(path)?,
-                                )?;
-                                return Ok(());
-                            }
-                            ScalarAggregatePart::Primitive(_) => {
-                                PrimitiveStorageEndpoint::Scalar(destination(path)?)
-                            }
-                            ScalarAggregatePart::Field(_) => {
-                                let Some((Path::Field(field), parents)) = path.split_last() else {
-                                    return Err(malformed());
-                                };
-                                PrimitiveStorageEndpoint::ScalarField(
-                                    StructuralScalarRuntimeField::member(
-                                        destination(parents)?,
-                                        *field,
-                                    ),
-                                )
-                            }
-                        };
-                        let (_, scalar) = fields.next().ok_or(malformed())?;
-                        self.stage_scalar_endpoint(&endpoint, *scalar)
-                    })?;
-                    if fields.next().is_some() {
-                        return Err(malformed());
-                    }
-                    Ok(())
-                }
-            }
-        }
-
         pub(crate) enum ConstructorValue<'execution> {
             Access(TerminalStructuralValue),
             PackedScalars {
@@ -4351,7 +4250,7 @@ pub(crate) mod structural_storage {
         };
         use terminal_semantics::scalar_array_leaf_shape;
 
-        #[derive(Debug, Clone, PartialEq, Eq)]
+        #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
         pub enum TerminalStorageContents {
             Scalar {
                 value: TerminalScalarValue,
@@ -4369,7 +4268,7 @@ pub(crate) mod structural_storage {
             },
         }
 
-        #[derive(Debug, Clone, PartialEq, Eq)]
+        #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
         pub struct TerminalBoundaryStorageValue {
             pub path: Vec<Path>,
             pub contents: TerminalStorageContents,
@@ -4683,6 +4582,20 @@ pub(crate) mod structural_storage {
                                 structural_type: root,
                             },
                         });
+                        return Ok(());
+                    }
+                    // A zero-leaf schema can contain an enormous array of
+                    // empty records. Validate that schema once instead of
+                    // expanding absent storage. Erased obligations remain
+                    // explicit even when no executable leaf is stored.
+                    if let Ok(plan) =
+                        crate::boundary::values::AggregatePlan::new(declaration, |identity| {
+                            execution.structural_types().get(&identity)
+                        })
+                        && plan.count()? == 0
+                    {
+                        leaves.requires_erased_establishment |=
+                            plan.requires_erased_establishment();
                         return Ok(());
                     }
                     if execution.structural_types().get(element).is_some_and(|row| matches!(row.shape, StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(carrier)) if carrier.bits() == Some(8) && !carrier.is_address() && carrier.sign() == semantic_vocabulary::IntegerSign::Unsigned)) {

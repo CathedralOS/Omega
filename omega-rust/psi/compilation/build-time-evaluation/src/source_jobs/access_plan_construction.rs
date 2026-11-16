@@ -350,6 +350,8 @@ fn actual_policy_callers_keep_their_selected_declaration_after_transport() {
     let main = typed.realized_machine_named("main").unwrap().symbol;
     let entries = [main];
     let request = terminal_production::TerminalSourceCompilation {
+        calling: None,
+        providers: None,
         declaration_metadata: &[],
         entries: &entries,
         subjects: &[],

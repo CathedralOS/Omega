@@ -80,6 +80,78 @@ pub struct DirectBoundaryInput {
 }
 
 impl DirectBoundaryInput {
+    /// A Build binds this requirement itself; there is no forwarding machine
+    /// or supplied conformance to invent for its external execution.
+    pub(crate) fn from_boundary(
+        module: &terminal_psi::TerminalModule,
+        boundary: semantic_vocabulary::BoundaryMachineId,
+        mechanism: DirectBoundaryMechanism,
+    ) -> Result<Self, Diagnostic> {
+        let schema = backend_plan::DirectBoundaryLeaf::declared_schema(module, boundary)
+            .map_err(Diagnostic::error)?;
+        let boundary = module
+            .boundary_machine(boundary)
+            .ok_or_else(|| Diagnostic::error("direct binding lost its checked boundary"))?;
+        let declaration = boundary
+            .declaration
+            .as_ref()
+            .ok_or_else(|| Diagnostic::error("direct binding lost its source declaration"))?;
+        let text = |id| {
+            module
+                .identities
+                .text(id)
+                .filter(|value| !value.is_empty())
+                .map(str::to_owned)
+                .ok_or_else(|| {
+                    Diagnostic::error("direct binding has an unresolved source identity")
+                })
+        };
+        Ok(Self {
+            row_index: 0,
+            declaration_identity: text(declaration.source.semantic_declaration)?,
+            callable_identity: text(declaration.source.callable)?,
+            // A direct requirement has no selected named implementation.
+            realization_owner: String::new(),
+            realization_package: schema.surface.trait_package_identity,
+            mechanism,
+        })
+    }
+
+    /// Keep the exact external declaration the checker admitted. This adapter
+    /// describes a native leaf; receiving execution still admits its binding.
+    pub(crate) fn from_checked(
+        row_index: usize,
+        source: &terminal_psi::ExternalProviderConformance,
+        identities: &terminal_psi::TerminalIdentityTable,
+        mechanism: DirectBoundaryMechanism,
+    ) -> Result<Self, Diagnostic> {
+        source.validate(identities).map_err(Diagnostic::error)?;
+        let text = |identity| {
+            identities
+                .text(identity)
+                .filter(|value| !value.is_empty())
+                .map(str::to_owned)
+                .ok_or_else(|| {
+                    Diagnostic::error("native leaf lost a complete checked declaration identity")
+                })
+        };
+        Ok(Self {
+            row_index,
+            declaration_identity: text(source.realization.machine.identity())?,
+            callable_identity: text(source.realization.callable)?,
+            realization_owner: source
+                .provider
+                .as_ref()
+                .map(|provider| text(provider.identity))
+                .transpose()?
+                .unwrap_or_default(),
+            realization_package: source
+                .provider
+                .as_ref()
+                .and_then(|provider| provider.package),
+            mechanism,
+        })
+    }
     pub fn finish(
         &self,
         original: &ProviderPlan,
@@ -112,7 +184,9 @@ impl DirectBoundaryInput {
         declaration.trait_package_identity = self.realization_package;
         plan.rows[0].requirement_identity = plan.identities.intern(&self.callable_identity);
         plan.rows[0].declared_requirement_identity = plan.rows[0].requirement_identity;
-        plan.rows[0].calling_signature = None;
+        if self.callable_identity != requirement {
+            plan.rows[0].calling_signature = None;
+        }
         let [method] = declaration.methods.as_mut_slice() else {
             return Err(Diagnostic::error(
                 "boundary leaf does not bind one exact requirement contract",

@@ -16,6 +16,8 @@ use terminal_psi::{
 pub struct RuntimeEvidenceCatalog {
     psi: TerminalPsiIdentity,
     declarations: Vec<(MachineId, Option<CheckedMachineDeclaration>)>,
+    callables: terminal_psi::TerminalCallableCatalog,
+    proposition_declarations: Vec<terminal_psi::PropositionDeclaration>,
     applications: Vec<PropositionApplicationIdentity>,
     terms: Vec<EvidenceTermDeclaration>,
     lanes: Vec<EvidenceContractLane>,
@@ -63,11 +65,13 @@ impl RuntimeEvidenceCatalog {
     pub(crate) fn from_verified_module(psi: TerminalPsiIdentity, module: &TerminalModule) -> Self {
         Self {
             psi,
+            callables: module.callables.clone(),
             declarations: module
                 .machines
                 .iter()
                 .map(|machine| (machine.id, machine.declaration.clone()))
                 .collect(),
+            proposition_declarations: module.proposition_declarations.clone(),
             applications: module.proposition_applications.clone(),
             terms: module.evidence_terms.clone(),
             lanes: module.evidence_contract_lanes.clone(),
@@ -78,8 +82,14 @@ impl RuntimeEvidenceCatalog {
     pub fn psi(&self) -> TerminalPsiIdentity {
         self.psi
     }
+    pub fn callables(&self) -> &terminal_psi::TerminalCallableCatalog {
+        &self.callables
+    }
     pub fn declarations(&self) -> &[(MachineId, Option<CheckedMachineDeclaration>)] {
         &self.declarations
+    }
+    pub fn proposition_declarations(&self) -> &[terminal_psi::PropositionDeclaration] {
+        &self.proposition_declarations
     }
     pub fn applications(&self) -> &[PropositionApplicationIdentity] {
         &self.applications
@@ -118,7 +128,10 @@ pub fn validate_runtime_evidence_context(
     expected: TerminalPsiIdentity,
     module: &TerminalModule,
 ) -> Result<(), &'static str> {
-    if unit.psi != expected || unit.identities != module.identities {
+    if unit.psi != expected
+        || unit.identities != module.identities
+        || unit.callables != module.callables
+    {
         return Err("optimizer runtime evidence context belongs to another verified input");
     }
     let catalog = unit
@@ -126,6 +139,7 @@ pub fn validate_runtime_evidence_context(
         .as_ref()
         .ok_or("verified optimizer runtime evidence catalog is absent")?;
     if catalog.psi != expected
+        || catalog.callables != module.callables
         || !catalog
             .declarations
             .iter()
@@ -134,6 +148,7 @@ pub fn validate_runtime_evidence_context(
                 .machines
                 .iter()
                 .map(|machine| (machine.id, &machine.declaration)))
+        || catalog.proposition_declarations != module.proposition_declarations
         || catalog.applications != module.proposition_applications
         || catalog.terms != module.evidence_terms
         || catalog.lanes != module.evidence_contract_lanes
@@ -151,7 +166,9 @@ pub fn validate_runtime_evidence_context(
             || !function.evidence_contract_lanes.iter().eq(module
                 .evidence_contract_lanes
                 .iter()
-                .filter(|lane| lane.machine == function.machine))
+                .filter(|lane| {
+                    lane.owner == terminal_psi::EvidenceCallableOwner::Machine(function.machine)
+                }))
         {
             return Err("optimizer changed verified evidence contract custody");
         }
@@ -402,7 +419,9 @@ pub fn attach_verified_module_context(
         function.evidence_contract_lanes = module
             .evidence_contract_lanes
             .iter()
-            .filter(|lane| lane.machine == function.machine)
+            .filter(|lane| {
+                lane.owner == terminal_psi::EvidenceCallableOwner::Machine(function.machine)
+            })
             .cloned()
             .collect();
         function.declared_service_reach = source.declared_service_reach.clone().unwrap_or_default();

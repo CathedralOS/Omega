@@ -2,7 +2,7 @@
   Canonical SHA-256 identity producer for `SelectedInstructionPlan`.
 
   Owns the byte-stable encoding over which `SelectedInstructionPlanIdentity` is
-  derived (`omega.terminal-selected-instructions.v56\0`). The identity is
+  derived (`omega.terminal-selected-instructions.v57\0`). The identity is
   hierarchical: `Sha256` over the plan's roots and the ordered digests of its
   functions, each function digest (`omega.terminal-selected-instruction-function.v3\0`)
   retaining its static metadata, 64-register pages, local frame storage slots,
@@ -41,7 +41,7 @@ pub(crate) struct RetainedPlanPrefix {
 pub fn selected_instruction_plan_identity(
     plan: &SelectedInstructionPlan,
 ) -> SelectedInstructionPlanIdentity {
-    let domain = b"omega.terminal-selected-instructions.v56\0".as_slice();
+    let domain = b"omega.terminal-selected-instructions.v57\0".as_slice();
     let mut header_bytes = Vec::with_capacity(128);
     header_bytes.extend_from_slice(domain);
     header_bytes.extend_from_slice(plan.psi.program_fingerprint.as_bytes());
@@ -52,6 +52,7 @@ pub fn selected_instruction_plan_identity(
     push_encoded(&mut header_bytes, plan.work_schedule.marker().to_le_bytes());
     header_bytes.extend_from_slice(&plan.target.identity_bytes());
     push_encoded(&mut header_bytes, plan.entry.get().to_le_bytes());
+    header_bytes.extend_from_slice(&plan.contracts.borrowed_storage_layouts.identity_bytes());
     crate::codec_bytes::encode_len(&mut header_bytes, plan.functions.len());
 
     if let Some(retained) = plan.functions.retained_plan_prefix()
@@ -706,6 +707,10 @@ fn encode_work(bytes: &mut Vec<u8>, work: &[WorkSettlement]) {
 
 pub(crate) fn encode_scalar_type(bytes: &mut Vec<u8>, scalar_type: ScalarType) {
     match scalar_type {
+        ScalarType::Callable(contract) => {
+            bytes.push(3);
+            push_encoded(bytes, contract.get().to_le_bytes());
+        }
         ScalarType::Boolean => bytes.push(0),
         ScalarType::Integer(integer) => {
             bytes.push(1);
@@ -1491,6 +1496,7 @@ mod function_digest_tests {
 
     fn plan(functions: Vec<SelectedFunction>) -> SelectedInstructionPlan {
         SelectedInstructionPlan {
+            contracts: Default::default(),
             psi: TerminalPsiIdentity {
                 vocabulary_marker: VocabularyMarker::CURRENT,
                 program_fingerprint: SemanticFingerprint::from_bytes([1; 32]),
@@ -1509,11 +1515,11 @@ mod function_digest_tests {
     }
 
     #[test]
-    fn shared_function_chunks_keep_the_pre_split_canonical_identity() {
+    fn shared_function_chunks_keep_the_v3_canonical_identity() {
         let function = function(1);
-        // Measured from the unchanged fixture at aeedfbe7b9227, before contracts
-        // moved into shared storage. Storage ownership must not change bytes.
-        let expected = "640e588b5b7fb1c09f6e7f53de328ad3e4aac85de0d11ce22ca32bc62c931bb9";
+        // The owned-cleanup change c5a9992cb9aa3 removed nominal cleanup metadata
+        // and introduced function v3. Both storage views must bind its bytes.
+        let expected = "a8c14612d027017b3238046082a28345af2fc7481d5d006d7130c8ae7d3494fe";
         assert_eq!(
             crate::digest_encoder::hex(&super::selected_function_digest(&function)),
             expected

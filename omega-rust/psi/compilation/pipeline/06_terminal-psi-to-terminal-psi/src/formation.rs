@@ -28,9 +28,10 @@ pub struct ReplayScope<'a> {
     elaboration: &'a mut terminal_check_tables::program::Elaboration,
 }
 
-pub fn prepare_replay(
-    elaboration: &mut terminal_check_tables::program::Elaboration,
-) -> Checked<ReplayScope<'_>> {
+pub fn prepare_replay<'source>(
+    elaboration: &'source mut terminal_check_tables::program::Elaboration,
+    activity: &mut crate::ProofSearchActivity,
+) -> Checked<ReplayScope<'source>> {
     terminal_semantics::scalar_qualifications::validate(&elaboration.module).map_err(|error| {
         crate::refusal(
             RefusalReason::ForeignIdentity,
@@ -46,7 +47,7 @@ pub fn prepare_replay(
     })?;
     // A record formal, result or field in a domain is a contract of the
     // lowered form, judged here before anything is inferred from it.
-    terminal_semantics::structural_qualifications::validate(&elaboration.module).map_err(
+    terminal_semantics::structural_qualifications::validate_shape(&elaboration.module).map_err(
         |error| {
             crate::refusal(
                 RefusalReason::ForeignIdentity,
@@ -68,7 +69,11 @@ pub fn prepare_replay(
             )
         },
     )?;
-    module(&elaboration.module, &elaboration.predicate_sources)?;
+    module(
+        &elaboration.module,
+        &elaboration.predicate_sources,
+        activity,
+    )?;
     Ok(ReplayScope { elaboration })
 }
 
@@ -100,16 +105,18 @@ impl ReplayScope<'_> {
         &mut self,
         unreached: &mut crate::Unreached,
         inhabitation: &terminal_semantics::inhabitation::Inhabitation,
+        activity: &mut crate::ProofSearchActivity,
     ) -> Checked<()> {
-        crate::entry_inputs::infer(self, unreached, inhabitation)
+        crate::entry_inputs::infer(self, unreached, inhabitation, activity)
     }
 
     pub(crate) fn infer_results(
         &mut self,
         unreached: &mut crate::Unreached,
         inhabitation: &terminal_semantics::inhabitation::Inhabitation,
+        activity: &mut crate::ProofSearchActivity,
     ) -> Checked<()> {
-        crate::result_summaries::infer(self, unreached, inhabitation)
+        crate::result_summaries::infer(self, unreached, inhabitation, activity)
     }
 
     pub(crate) fn require(
@@ -117,9 +124,10 @@ impl ReplayScope<'_> {
         callee: MachineId,
         predicate: Proposition,
         sites: &crate::entry_inputs::CallSites,
+        activity: &mut crate::ProofSearchActivity,
     ) -> Checked<()> {
         // This publisher forms the proposed contract before changing it.
-        crate::entry_inputs::require(self.elaboration, callee, predicate, sites)
+        crate::entry_inputs::require(self.elaboration, callee, predicate, sites, activity)
     }
 
     pub(crate) fn summarize(
@@ -127,9 +135,17 @@ impl ReplayScope<'_> {
         machine: MachineId,
         summary: Proposition,
         exits: &[(semantic_vocabulary::EdgeId, ValueId)],
+        activity: &mut crate::ProofSearchActivity,
     ) -> Checked<()> {
         // This publisher also forms the complete replacement before use.
-        crate::result_summaries::publish(self.elaboration, machine, summary, exits)
+        crate::result_summaries::publish(self.elaboration, machine, summary, exits, activity)
+    }
+
+    pub(crate) fn finalize_callable_refinements(
+        &mut self,
+        activity: &mut crate::ProofSearchActivity,
+    ) -> Checked<()> {
+        crate::finalize_callable_refinements(&mut self.elaboration.module, activity)
     }
 
     // Kept private to the replay implementation. No caller can obtain a
@@ -189,6 +205,10 @@ impl crate::known::ProofValues for Facts {
     fn count(&self) -> usize {
         self.values.len()
     }
+    fn identity(&self, position: usize) -> Option<ValueId> {
+        self.values.get(position)?;
+        ValueId::new(position as u64 + 1)
+    }
     fn scalar_type(&self, value: ValueId) -> Option<ScalarType> {
         usize::try_from(value.get().checked_sub(1)?)
             .ok()
@@ -208,7 +228,7 @@ impl From<&'static str> for BindingError {
     }
 }
 
-struct Scope<'a> {
+struct Scope<'a, 'activity> {
     module: &'a TerminalModule,
     diagnostic: MachineId,
     inputs: Vec<ValueDeclaration>,
@@ -217,9 +237,10 @@ struct Scope<'a> {
     subject_prefix: Vec<Segment>,
     completion: bool,
     facts: Facts,
+    activity: &'activity mut crate::ProofSearchActivity,
 }
 
-impl Scope<'_> {
+impl Scope<'_, '_> {
     fn subject_path<'path>(&self, path: &'path [Segment]) -> Cow<'path, [Segment]> {
         if self.subject_prefix.is_empty() {
             Cow::Borrowed(path)
@@ -253,7 +274,7 @@ impl Scope<'_> {
         Ok(ScalarTerm::value(id, ty))
     }
 
-    fn prove(&self, goal: &Proposition) -> Result<(), BindingError> {
+    fn prove(&mut self, goal: &Proposition) -> Result<(), BindingError> {
         let context =
             PropositionContext::from_value_types(self.facts.values.iter().enumerate().map(
                 |(index, value)| (ValueId::new(index as u64 + 1).expect("nonzero"), value.ty),
@@ -271,6 +292,7 @@ impl Scope<'_> {
             &self.facts.premises,
             &self.facts.equations,
             &[],
+            self.activity,
         )
         .map_err(BindingError::Unproved)?;
         crate::verify_certificate(
@@ -381,7 +403,7 @@ fn conjuncts<'a>(clause: &'a Proposition, out: &mut Vec<&'a Proposition>) {
     }
 }
 
-impl ClauseBindings for Scope<'_> {
+impl ClauseBindings for Scope<'_, '_> {
     type Error = BindingError;
     fn requires_complete_terms(&self) -> bool {
         true
@@ -473,11 +495,17 @@ impl ClauseBindings for Scope<'_> {
             &path,
         )
         .ok_or("contract extent has no exact declared descriptor")?;
+        // A borrowed byte view is a descriptor with a count, exactly as an
+        // element view is (byte_views.md, "Collection view establishment"):
+        // `out.len` of a `&mut [u8]` formal is that count.
         if !matches!(
             selected.shape,
             terminal_psi::StructuralTypeShape::ElementView { .. }
+                | terminal_psi::StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                )
         ) {
-            return Err("contract extent is not an element view".into());
+            return Err("contract extent is not a borrowed view".into());
         }
         // Extents in this representation have no old-version tag. Do not
         // identify a mutable descriptor's completion extent with its input.
@@ -556,6 +584,7 @@ pub(crate) fn contract(
     module: &TerminalModule,
     diagnostic: MachineId,
     contract: &MachineContract,
+    activity: &mut crate::ProofSearchActivity,
 ) -> Checked<()> {
     let guards: Vec<_> = crash_clauses(&contract.crash_routes)
         .chain(
@@ -595,6 +624,7 @@ pub(crate) fn contract(
         subject_prefix: Vec::new(),
         completion: false,
         facts: Facts::default(),
+        activity: &mut *activity,
     };
     if let Some(result) = contract.result.structural() {
         scope.roots.push(Root {
@@ -638,6 +668,7 @@ pub(crate) fn contract(
 pub(crate) fn module(
     module: &TerminalModule,
     predicate_sources: &[terminal_check_tables::program::PredicateSource],
+    activity: &mut crate::ProofSearchActivity,
 ) -> Checked<()> {
     let diagnostic = module
         .machines
@@ -705,6 +736,7 @@ pub(crate) fn module(
             subject_prefix: Vec::new(),
             completion: false,
             facts: Facts::default(),
+            activity: &mut *activity,
         };
         // The body defines a proposition; it supplies no premise, including
         // when a conjunct states a bound another conjunct would need.
@@ -719,10 +751,10 @@ pub(crate) fn module(
         })?;
     }
     for machine in &module.machines {
-        contract(module, machine.id, &machine.contract)?;
+        contract(module, machine.id, &machine.contract, activity)?;
     }
     for declared in &module.declaration_contracts {
-        contract(module, diagnostic, declared)?;
+        contract(module, diagnostic, declared, activity)?;
     }
     for boundary in &module.boundary_machines {
         let guards: Vec<_> = crash_clauses(&boundary.crash_routes).collect();
@@ -751,6 +783,7 @@ pub(crate) fn module(
             subject_prefix: Vec::new(),
             completion: false,
             facts: Facts::default(),
+            activity: &mut *activity,
         };
         if let terminal_psi::BoundaryMachineResult::Structural(result) = &boundary.result {
             // Boundary clause coordinates follow the same dense input roster
@@ -781,7 +814,7 @@ pub(crate) fn module(
         scope.completion = true;
         scope.clauses(&boundary.scalar_ensures, "boundary ensures")?;
     }
-    data_domains(module, diagnostic)?;
+    data_domains(module, diagnostic, activity)?;
     for domain in &module.scalar_qualifications.domains {
         if let Some(predicate) = &domain.predicate
             && owes([&predicate.proposition])
@@ -799,6 +832,7 @@ pub(crate) fn module(
                 subject_prefix: Vec::new(),
                 completion: false,
                 facts: Facts::default(),
+                activity: &mut *activity,
             };
             scope.clauses(
                 std::slice::from_ref(&predicate.proposition),
@@ -885,7 +919,7 @@ impl DataSubject<'_> {
 /// nested value. Form deeper declarations first, before any enclosing clause
 /// can contribute assumptions.
 fn add_projected_defaults<'types>(
-    scope: &mut Scope<'types>,
+    scope: &mut Scope<'types, '_>,
     ordered: &OnceCell<Vec<&'types StructuralTypeDeclaration>>,
     mut pending: Vec<DataSubject<'types>>,
     default_subject: PlaceId,
@@ -963,7 +997,11 @@ fn add_projected_defaults<'types>(
     Ok(())
 }
 
-fn data_domains(module: &TerminalModule, diagnostic: MachineId) -> Checked<()> {
+fn data_domains(
+    module: &TerminalModule,
+    diagnostic: MachineId,
+    activity: &mut crate::ProofSearchActivity,
+) -> Checked<()> {
     let mut predicates = module
         .structural_domains
         .iter()
@@ -1006,6 +1044,7 @@ fn data_domains(module: &TerminalModule, diagnostic: MachineId) -> Checked<()> {
             subject_prefix: Vec::new(),
             completion: false,
             facts: Facts::default(),
+            activity: &mut *activity,
         };
         let subjects = std::iter::once((default_subject, declared.requires.as_slice()))
             .chain(domains.iter().filter_map(|(_, _, predicate)| {

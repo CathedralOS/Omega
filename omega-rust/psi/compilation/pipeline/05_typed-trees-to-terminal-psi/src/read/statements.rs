@@ -15,7 +15,7 @@ use semantic_vocabulary::MachineId;
 use terminal_check_tables::{Checked, Construct};
 use terminal_psi::StructuralAccess;
 use typed_trees::expression::ExpressionNode;
-use typed_trees::statement::{TableAssignment, TableLocalData};
+use typed_trees::statement::{StatementHandle, StatementNode, TableAssignment, TableLocalData};
 
 use super::authority::Access;
 use super::references::reference_access_violation;
@@ -24,6 +24,30 @@ use crate::body::{ExpressionKind, Statement, ValueType};
 use crate::{SourceOrigin, Unserved, refuse, reject};
 
 impl Program<'_> {
+    pub(super) fn call_statement_at(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        handle: StatementHandle,
+    ) -> Checked<crate::body::Expression> {
+        let StatementNode::Call(call) = self.typed.statement_table.statement(handle) else {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Statement("call occurrence does not name a call statement"),
+            ));
+        };
+        if call.runtime_call.is_none() {
+            self.bound_target(id, call.target_symbol)?;
+        }
+        let source = self.authored_node(
+            id,
+            typed_trees::SourceNode::Statement(handle),
+            call.source_span,
+        )?;
+        self.call_statement(id, slots, call, source)
+    }
+
     pub(super) fn assignment(
         &mut self,
         id: MachineId,
@@ -238,7 +262,8 @@ impl Program<'_> {
                     source,
                 })
             }
-            ExpressionNode::TypeExpression(_)
+            ExpressionNode::MachineValue(_)
+            | ExpressionNode::TypeExpression(_)
             | ExpressionNode::Match(_)
             | ExpressionNode::SavedSubject(_)
             | ExpressionNode::ArrayLiteral(_)
@@ -428,7 +453,9 @@ impl Program<'_> {
         } else {
             self.expression(id, slots, local.initial_value, declared)?
         };
-        crate::operational::boundary(&mut value);
+        if !local.is_operand_capture {
+            crate::operational::boundary(&mut value);
+        }
         let Some(value_type) = value.result else {
             return Err(refuse(
                 id,

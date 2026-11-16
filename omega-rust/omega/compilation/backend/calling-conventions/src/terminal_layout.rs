@@ -867,6 +867,10 @@ fn scalar_field_shape(
         StructuralFieldType::RefinedScalar(refinement) => {
             scalar_field_shape(&StructuralFieldType::Scalar(refinement.carrier()), owner)
         }
+        StructuralFieldType::Scalar(scalar @ ScalarType::Callable(_)) => scalar_shape(*scalar),
+        StructuralFieldType::Atomic(ScalarType::Callable(_)) => {
+            Err(TerminalLayoutError::UnknownStructuralType(owner))
+        }
         StructuralFieldType::Scalar(ScalarType::Boolean)
         | StructuralFieldType::Atomic(ScalarType::Boolean) => Ok(ValueShape::integer(1, 1)),
         StructuralFieldType::Scalar(ScalarType::Integer(integer))
@@ -937,6 +941,7 @@ pub fn scalar_shape(scalar: ScalarType) -> Result<ValueShape, TerminalLayoutErro
     let closed = ClosedScalarType::try_from(scalar)
         .map_err(|_| TerminalLayoutError::UnclosedScalarType(scalar))?;
     Ok(match closed {
+        ClosedScalarType::Callable(_) => ValueShape::integer(8, 8),
         ClosedScalarType::Boolean => ValueShape::integer(1, 1),
         ClosedScalarType::Integer(integer) => ValueShape::standalone_integer(integer),
         ClosedScalarType::IeeeFloat(IeeeFloatFormat::Binary32) => ValueShape::float(4),

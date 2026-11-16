@@ -20,6 +20,7 @@ pub(crate) mod build_continuation;
 mod entry_shapes;
 mod product_queries;
 mod product_selections;
+mod provider_choices;
 pub(super) mod source_build;
 mod source_checking;
 pub(crate) mod typed_frontier;
@@ -31,6 +32,9 @@ pub use products::{
     CheckedCompilation, CheckedCompileOutcome, CheckedCompileRequest,
     IndependentComponentDiscovery, IndependentComponentSelection, PreparedCheckedSource,
     PreparedPackageBuild,
+};
+pub use provider_choices::{
+    PreparedProviderChoices, prepare_with_source_defaults as prepare_provider_choices,
 };
 pub(crate) use source_checking::check_product_source;
 
@@ -458,7 +462,14 @@ impl SourceCompilation {
             returned.map_err(|failure| failure.with_source_completion_accounting(spent))?;
         let prepared = self.source.complete(returned, None, None)?;
         let source = complete_prepared_build(prepared, self.inputs.as_ref())?;
-        check_product_source(source, self.inputs.as_ref(), &self.rollback, None, None)
+        check_product_source(
+            source,
+            self.inputs.as_ref(),
+            self.target.as_slice(),
+            &self.rollback,
+            None,
+            None,
+        )
     }
 }
 
@@ -548,7 +559,14 @@ pub(super) fn select_completed_build(
         .computed_build_config
         .independent_components();
     match complete_prepared_build(prepared, package_inputs).and_then(|source| {
-        check_product_source(source, package_inputs, rollback, inspection, frontier)
+        check_product_source(
+            source,
+            package_inputs,
+            selected_target_profile.as_slice(),
+            rollback,
+            inspection,
+            frontier,
+        )
     }) {
         Ok(source) => crate::execution_settlement::select_product_target(
             &source,

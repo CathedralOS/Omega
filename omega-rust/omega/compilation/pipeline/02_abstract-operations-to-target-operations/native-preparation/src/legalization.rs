@@ -10,7 +10,7 @@ pub(crate) mod model {
 
     pub(crate) fn legalization_validator_identity() -> OptimizationValidatorIdentity {
         OptimizationValidatorIdentity::from_canonical_bytes(
-            b"omega.terminal-target-legalization-independent-replay.v69",
+            b"omega.terminal-target-legalization-independent-replay.v71",
         )
     }
 
@@ -44,6 +44,12 @@ pub(crate) mod model {
             machine: Option<semantic_vocabulary::MachineId>,
             operation: Option<semantic_vocabulary::OperationId>,
             reason: &'static str,
+        },
+        CallableValueProvenance {
+            reason: &'static str,
+        },
+        CallableInvocationRoots {
+            reason: String,
         },
         InstalledInterruptAssociation {
             operation: Option<semantic_vocabulary::OperationId>,
@@ -479,9 +485,12 @@ pub(crate) fn legalize_target_operations(
     _abstract_plan: &AbstractOperationPlan,
     unit: &optimization_unit::PsiOptimizationUnit,
     origins: crate::BoundaryOriginFacts<'_>,
+    callable_roots: &terminal_semantics::callable_values::CallableInvocationRoots,
     installed_interrupts: &provider_admission::AdmittedInstalledInterruptCohort,
     types: &crate::native_geometry::ModuleTypes,
 ) -> Result<legalized_operations::PreparedExecutionPlan, LegalizationError> {
+    let callable_invocations = crate::PreparedCallableInvocations::new(unit, callable_roots)
+        .map_err(|reason| LegalizationError::CallableValueProvenance { reason })?;
     prepare_execution_plan(
         target,
         PreparationEvidence {
@@ -491,6 +500,7 @@ pub(crate) fn legalize_target_operations(
             ownership_frontier_facts: &unit.ownership_frontier_facts,
         },
         origins,
+        &callable_invocations,
         installed_interrupts,
         types,
     )
@@ -549,6 +559,7 @@ pub fn prepare_execution_plan(
     target: &TargetOperationPlan,
     evidence: PreparationEvidence<'_>,
     origins: crate::BoundaryOriginFacts<'_>,
+    callable_invocations: &crate::PreparedCallableInvocations,
     installed_interrupts: &provider_admission::AdmittedInstalledInterruptCohort,
     types: &crate::native_geometry::ModuleTypes,
 ) -> Result<legalized_operations::PreparedExecutionPlan, LegalizationError> {
@@ -567,9 +578,14 @@ pub fn prepare_execution_plan(
         function_abis: function_abis(target)?,
         borrowed_storage_layouts: target.borrowed_storage_layouts.clone(),
     };
+    let (callable_invocations, entry_invocations) = callable_invocations
+        .for_target(target, evidence)
+        .map_err(|reason| LegalizationError::CallableValueProvenance { reason })?;
     Ok(legalized_operations::PreparedExecutionPlan::seal(
         plan,
         legalization_validator_identity(),
+        callable_invocations,
+        entry_invocations,
     ))
 }
 
@@ -609,19 +625,36 @@ fn verify_target_operation_plan_input(
         abstract_plan,
     )?;
     validate_boundary_origins(target, origins)?;
-    audit_target_operation_plan(target, abstract_plan, unit, closed_types)
+    audit_target_operation_plan_with_module(
+        target,
+        abstract_plan,
+        unit,
+        closed_types,
+        Some(origins.module),
+    )
 }
 
 /// Compare the target operations with a plan prepared from them here and
 /// now. Use this where no published plan exists: fixtures, and a retained
 /// private body that was never sealed.
+#[cfg(test)]
 pub(crate) fn audit_target_operation_plan(
     target: &TargetOperationPlan,
     abstract_plan: &AbstractOperationPlan,
     unit: &optimization_unit::PsiOptimizationUnit,
     closed_types: &crate::native_geometry::ModuleTypes,
 ) -> Result<(), LegalizationError> {
-    let expected = derive_expected_functions(target, abstract_plan, unit, closed_types)?;
+    audit_target_operation_plan_with_module(target, abstract_plan, unit, closed_types, None)
+}
+
+fn audit_target_operation_plan_with_module(
+    target: &TargetOperationPlan,
+    abstract_plan: &AbstractOperationPlan,
+    unit: &optimization_unit::PsiOptimizationUnit,
+    closed_types: &crate::native_geometry::ModuleTypes,
+    module: Option<&terminal_psi::TerminalModule>,
+) -> Result<(), LegalizationError> {
+    let expected = derive_expected_functions(target, abstract_plan, unit, closed_types, module)?;
     let retained = source::derive_target_function_rosters(
         target,
         PreparationEvidence {
@@ -694,6 +727,15 @@ pub fn verify_execution_plan(
             ));
         }
     }
+    if plan.borrowed_storage_layouts != target.borrowed_storage_layouts {
+        return Err(mismatch(
+            None,
+            "borrowed storage geometry differs from the target's",
+        ));
+    }
+    if plan.function_abis != function_abis(target)? {
+        return Err(mismatch(None, "function ABI rows differ from the target's"));
+    }
     crate::installed_interrupts::validate_target(
         target,
         origins.module,
@@ -701,7 +743,13 @@ pub fn verify_execution_plan(
         abstract_plan,
     )?;
     validate_boundary_origins(target, origins)?;
-    let expected = derive_expected_functions(target, abstract_plan, unit, &closed_types)?;
+    let expected = derive_expected_functions(
+        target,
+        abstract_plan,
+        unit,
+        &closed_types,
+        Some(origins.module),
+    )?;
     if expected.scalar_functions.len() != plan.scalar_functions.len() {
         return Err(mismatch(None, "the plan has a different set of functions"));
     }
@@ -733,7 +781,13 @@ fn derive_expected_functions(
     abstract_plan: &AbstractOperationPlan,
     unit: &optimization_unit::PsiOptimizationUnit,
     closed_types: &crate::native_geometry::ModuleTypes,
+    module: Option<&terminal_psi::TerminalModule>,
 ) -> Result<source::SourceFunctionRosters, LegalizationError> {
+    scalar_graph_input::call_origin::validate_qualified_numeric_executions(
+        target,
+        &unit.boundary_machines,
+        module,
+    )?;
     let plan_geometry = crate::native_geometry::NativeGeometry::with_owned_sequence_bounds(
         &abstract_plan.structural_types,
         abstract_plan.structural_types.owned_sequence_bounds(),

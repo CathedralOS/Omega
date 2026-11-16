@@ -584,7 +584,7 @@ pub(crate) mod machine {
     use crate::expressions::expression::lower_expression_handle;
     use crate::lowerer::Lowerer;
     use crate::lowerer::name::{lower_name, lower_names};
-    use crate::signatures::type_parameters::{lower_type_parameter, lower_type_parameters};
+    use crate::signatures::type_parameters::lower_type_parameters;
     use crate::tables::resolved_expressions;
     use crate::type_reference::{lower_type_reference_into_table, retain_type_reference_selection};
     use arena::HandleSpan;
@@ -657,8 +657,10 @@ pub(crate) mod machine {
         } else {
             lowerer.type_reference_exposure
         };
-        lowerer.with_type_reference_exposure(exposure, |lowerer| {
-            lower_machine_contents(lowerer, machine)
+        lowerer.with_source_owner(machine.symbol, |lowerer| {
+            lowerer.with_type_reference_exposure(exposure, |lowerer| {
+                lower_machine_contents(lowerer, machine)
+            })
         })
     }
 
@@ -803,9 +805,35 @@ pub(crate) mod machine {
         let inherited =
             crate::signatures::lexical_context::enclosing_parameters(lowerer.source_trees, machine);
         if !inherited.is_empty() {
+            // These are occurrences of their enclosing declaration's binders,
+            // not new declarations. Reuse that owner's exact typed row, including
+            // its schema/lifetime payload and original selection exposure.
             let mut parameters = inherited
                 .into_iter()
-                .map(|parameter| lower_type_parameter(lowerer, parameter))
+                .map(|parameter| {
+                    let trees = &lowerer.typed_trees;
+                    let owner = trees
+                        .symbols
+                        .symbols()
+                        .nodes()
+                        .is_valid(parameter.symbol)
+                        .then(|| trees.symbols.get(parameter.symbol).parent);
+                    owner
+                        .and_then(|owner| trees.machine_by_symbol(owner))
+                        .and_then(|owner| {
+                            trees
+                                .machine_type_parameters(owner)
+                                .iter()
+                                .find(|declared| declared.symbol == parameter.symbol)
+                        })
+                        .cloned()
+                        .ok_or_else(|| {
+                            Diagnostic::error(
+                                "an inherited static parameter lost its declaring machine's typed binder",
+                            )
+                            .with_source_span(parameter.name.source_span())
+                        })
+                })
                 .collect::<Result<Vec<_>, _>>()?;
             parameters.extend(
                 lowerer
@@ -1054,8 +1082,10 @@ pub(crate) mod machine {
         let exposure = lowerer
             .type_reference_exposure
             .map(|_| AuthoredDeclarationSelectionExposure::PrivateImplementation);
-        lowerer.with_type_reference_exposure(exposure, |lowerer| {
-            lower_machine_implementation(lowerer, machine, typed_machine)
+        lowerer.with_source_owner(machine.symbol, |lowerer| {
+            lowerer.with_type_reference_exposure(exposure, |lowerer| {
+                lower_machine_implementation(lowerer, machine, typed_machine)
+            })
         })
     }
 
@@ -1882,22 +1912,28 @@ pub(crate) mod state {
                 call_occurrences.push(occurrence);
             }
         }
-        let authored_call_selection = match call.operational_acknowledgement.origin {
-            CallOperationalAcknowledgementOrigin::Source => {
-                let [occurrence] = call_occurrences.as_slice() else {
-                    return Err(Diagnostic::error(format!(
-                        "proof-output call retains {} authored call selections; expected one",
-                        call_occurrences.len(),
-                    )));
-                };
-                Some(*occurrence)
-            }
-            CallOperationalAcknowledgementOrigin::CompilerSynthesized => None,
-        };
+        let authored_call_selection =
+            match (call.runtime_call, call.operational_acknowledgement.origin) {
+                (Some(_), _) => None,
+                (None, CallOperationalAcknowledgementOrigin::Source) => {
+                    let [occurrence] = call_occurrences.as_slice() else {
+                        return Err(Diagnostic::error(format!(
+                            "proof-output call retains {} authored call selections; expected one",
+                            call_occurrences.len(),
+                        )));
+                    };
+                    Some(*occurrence)
+                }
+                (None, CallOperationalAcknowledgementOrigin::CompilerSynthesized) => None,
+            };
         let (receiver_root_symbol, receiver_symbol, receiver_members) =
-            proof_output_receiver_parts(&lowerer.typed_trees, call.receiver).ok_or_else(|| {
-                Diagnostic::error("proof-output call receiver must be a name path")
-            })?;
+            if call.runtime_call.is_some() {
+                (SymbolHandle::invalid(), SymbolHandle::invalid(), Vec::new())
+            } else {
+                proof_output_receiver_parts(&lowerer.typed_trees, call.receiver).ok_or_else(
+                    || Diagnostic::error("proof-output call receiver must be a name path"),
+                )?
+            };
         let mut receiver = arena::HandleSpan::empty();
         for member in receiver_members {
             statement_table_mut(&mut lowerer.typed_trees)
@@ -1917,19 +1953,20 @@ pub(crate) mod state {
                     .copied(),
             );
         Ok(typed::statement::TableCall {
+            runtime_call: call.runtime_call,
             unresolved_name: lowerer
                 .typed_trees
                 .expression_table
                 .unresolved_name(call_handle),
-            installed_interrupt_operation: None,
-            authored_machine_application: Default::default(),
+            installed_interrupt_operation: call.installed_interrupt_operation,
+            authored_machine_application: call.authored_machine_application,
             receiver_root_symbol,
             receiver_symbol,
             target_symbol: call.target_symbol,
             receiver,
             target: call.target,
             static_machine_parameter: call.static_machine_parameter,
-            static_requirement_dispatch: None,
+            static_requirement_dispatch: call.static_requirement_dispatch,
             machine_arguments: call.machine_arguments,
             arguments,
             evidence_arguments: call.evidence_arguments,

@@ -10,6 +10,7 @@ path = "src/lib.rs"
 
 [dependencies]
 abstract-operations = { path = ".." }
+target-operations = { path = "../../target-operations" }
 effects = { path = "../../../backend/plans/effects" }
 installation-evidence = { path = "../../../backend/runtime/installation-evidence" }
 provider-admission = { path = "../../../realization/provider-admission" }

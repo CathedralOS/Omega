@@ -60,6 +60,7 @@ pub use optimized::{
     OptimizedTargetLoweringRequest, ValidatedOptimizedTargetOperations,
     capture_runtime_borrowed_storage_layouts, lower_optimized_to_target_operations,
 };
+
 pub(crate) mod boundary_settlements {
     use abstract_operations::{AbstractFunction, CompletionClaimSource};
     use semantic_vocabulary::{PlaceId, ValueId};
@@ -238,6 +239,7 @@ pub(crate) mod function {
         profile: Option<target::TargetProfile>,
         functions: &BTreeMap<MachineId, &AbstractFunction>,
         dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
+        callables: &terminal_psi::TerminalCallableCatalog,
         borrowed_reference_sources: super::control_flow::references::BorrowedSources,
         stored_reference_effects: super::control_flow::references::StoredEffectCatalog,
         scalar_abis: &BTreeMap<MachineId, ScalarFunctionAbi>,
@@ -269,6 +271,7 @@ pub(crate) mod function {
             profile,
             functions,
             dynamic_dispatch,
+            callables,
             borrowed_reference_sources,
             stored_reference_effects,
             structural_types,
@@ -491,6 +494,25 @@ pub(crate) mod optimized {
             lowering_facts.module(),
         )
         .ok_or_else(custody)?;
+        let callable_roots =
+            lowering_facts
+                .callable_invocation_roots(program)
+                .map_err(|reason| {
+                    LoweringError::Preparation(Box::new(
+                        native_preparation::TargetOperationAuditError::CallableInvocationRoots {
+                            reason,
+                        },
+                    ))
+                })?;
+        let callable_invocations = native_preparation::PreparedCallableInvocations::new(
+            unit,
+            &callable_roots,
+        )
+        .map_err(|reason| {
+            LoweringError::Preparation(Box::new(
+                native_preparation::TargetOperationAuditError::CallableValueProvenance { reason },
+            ))
+        })?;
         native_preparation::prepare_execution_plan(
             program,
             native_preparation::PreparationEvidence {
@@ -500,6 +522,7 @@ pub(crate) mod optimized {
                 ownership_frontier_facts: &unit.ownership_frontier_facts,
             },
             boundary_origins(lowering_facts),
+            &callable_invocations,
             lowering_facts.installed_interrupts(),
             &types,
         )
@@ -513,7 +536,7 @@ pub(crate) mod optimized {
         optimized: &OptimizedAbstractProgram,
         lowering_facts: &AdmittedLoweringFacts,
         target: NativeTarget,
-    ) -> Result<Vec<runtime_abi::NativeBorrowedStorageLayout>, LoweringError> {
+    ) -> Result<runtime_abi::NativeBorrowedStorageLayouts, LoweringError> {
         require_lowering_context(optimized, lowering_facts, target)?;
         let plan = optimized.plan();
         let types = super::structural_type_lookup::StructuralTypeLookup::for_verified(
@@ -521,7 +544,13 @@ pub(crate) mod optimized {
             lowering_facts,
         )
         .map_err(LoweringError::NonDenseStructuralTypes)?;
-        Ok(super::borrowed_storage::capture(plan, &types))
+        runtime_abi::NativeBorrowedStorageLayouts::seal(super::borrowed_storage::capture(
+            plan, &types,
+        ))
+        .map_err(|error| LoweringError::FunctionContract {
+            machine: plan.entry,
+            reason: error.reason,
+        })
     }
 
     fn require_lowering_context(

@@ -1469,6 +1469,7 @@ pub(crate) mod reference_origins {
                 sources: &'declaration [StructuralReferenceResultSource],
             },
             Requirement(&'declaration TerminalDynamicSlot),
+            Callable(&'declaration terminal_psi::TerminalCallableContract),
         }
 
         pub enum ReferenceCallOrigin {
@@ -1626,6 +1627,9 @@ pub(crate) mod reference_origins {
                 }
                 ReferenceCallContract::Requirement(slot) => {
                     return bind_public_reference_call_results(types, slot, arguments);
+                }
+                ReferenceCallContract::Callable(contract) => {
+                    return bind_public_reference_call_results(types, contract, arguments);
                 }
             }
             Ok(results)
@@ -3624,6 +3628,9 @@ pub(crate) mod reference_storage_geometry {
             Some(scalar)
         })?;
         match scalar {
+            // Code references keep their contract and custody; numeric fragments
+            // cannot represent that association.
+            ScalarType::Callable(_) => None,
             ScalarType::Boolean => Some(1),
             ScalarType::Integer(integer) => Some(u64::from(integer.bits()?)),
             ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => Some(32),
@@ -3971,6 +3978,16 @@ pub(crate) mod reference_storage_geometry {
             reference: StructuralTypeId,
             stored: Option<ScalarType>,
         ) -> bool {
+            self.source_representation_compatible(source, reference, stored, false)
+        }
+
+        fn source_representation_compatible(
+            &mut self,
+            source: StructuralTypeId,
+            reference: StructuralTypeId,
+            stored: Option<ScalarType>,
+            captured_geometry_matches: bool,
+        ) -> bool {
             let Some(StructuralTypeShape::Reference { referent, .. }) =
                 crate::structural_shape(self.types.clone(), reference)
             else {
@@ -3996,29 +4013,39 @@ pub(crate) mod reference_storage_geometry {
                         && crate::reference_storage_view_is_compatible(stored, *logical)
                 }
                 (None, terminal_psi::record_or_fixed_array_shape_pattern!()) => {
-                    crate::references::reference_views::plain_storage(
-                        self.types.clone(),
-                        *referent,
-                        &mut Vec::new(),
-                    ) && (byte_endpoint
-                        || crate::references::reference_views::plain_storage(
-                            self.types.clone(),
-                            source,
-                            &mut Vec::new(),
-                        ) && self.layout(source).ok().is_some_and(|layout| {
-                            let target_layout = self.layout(*referent).ok();
-                            Some(layout) == target_layout
-                                || crate::references::reference_views::storage_scalars_satisfy(
+                    use crate::references::reference_views::{
+                        is_byte_scalar, plain_storage, storage_scalars_satisfy,
+                    };
+
+                    if !plain_storage(self.types.clone(), *referent, &mut Vec::new()) {
+                        return false;
+                    }
+                    if byte_endpoint {
+                        return true;
+                    }
+                    if !plain_storage(self.types.clone(), source, &mut Vec::new()) {
+                        return false;
+                    }
+                    if let (Ok(source_layout), Ok(target_layout)) =
+                        (self.layout(source), self.layout(*referent))
+                        && (source_layout == target_layout
+                            || (source_layout.0 == target_layout.0
+                                && target_layout.1 != 0
+                                && source_layout.1.is_multiple_of(target_layout.1)
+                                && storage_scalars_satisfy(
                                     self.types.clone(),
                                     *referent,
                                     &mut Vec::new(),
-                                    &crate::references::reference_views::is_byte_scalar,
-                                ) && target_layout.is_some_and(|target| {
-                                    layout.0 == target.0
-                                        && target.1 != 0
-                                        && layout.1 % target.1 == 0
-                                })
-                        }))
+                                    &is_byte_scalar,
+                                )))
+                    {
+                        return true;
+                    }
+                    // The captured address may be more aligned than its type.
+                    // Every byte must still belong to the source representation.
+                    captured_geometry_matches
+                        && crate::representation_element_layout(self.types.clone(), source)
+                            .is_some_and(|layout| layout.is_tightly_tiled())
                 }
                 _ => false,
             }
@@ -4075,7 +4102,11 @@ pub(crate) mod reference_storage_geometry {
                 .or_else(|| {
                     crate::primitive_projection_declaration(self.types.clone(), source, path)
                 });
-            tip.is_some_and(|tip| self.source_compatible(tip, reference, stored))
+            // The checked root and byte offset establish this address's
+            // alignment even when the selected field has a lower minimum.
+            tip.is_some_and(|tip| {
+                self.source_representation_compatible(tip, reference, stored, true)
+            })
         }
 
         pub fn region_source_compatible(
@@ -4523,6 +4554,18 @@ pub(crate) mod reference_storage_geometry {
         if projection.fragments.is_some() {
             return None;
         }
+        if let Some(stride) = projection.repeated_stride {
+            let StructuralTypeShape::FixedArray { element, .. } =
+                crate::structural_shape(types.clone(), projection.carrier)?
+            else {
+                return None;
+            };
+            let (size, alignment) =
+                selected_storage_layout(types.clone(), *element, records, carriers, extents)?;
+            if stride != align(size, alignment)? {
+                return None;
+            }
+        }
         let size = match (projection.window, projection.scalar) {
             (Some(window), _) => window.byte_length,
             (None, Some((_, stored))) => scalar_geometry(stored)?.0,
@@ -4595,6 +4638,7 @@ pub(crate) mod reference_storage_geometry {
         carrier: StructuralTypeId,
         scalar: Option<(ScalarType, ScalarType)>,
         fragments: Option<&'recipe semantic_vocabulary::AuthoredBitFragments>,
+        repeated_stride: Option<u64>,
         window: Option<ReferenceArrayWindow>,
     }
 
@@ -4865,6 +4909,7 @@ pub(crate) mod reference_storage_geometry {
             carrier,
             scalar,
             fragments,
+            repeated_stride,
             window,
         })
     }
@@ -6057,6 +6102,7 @@ pub(crate) mod reference_views {
                     .then(|| u8::try_from(bits / 8).ok())
                     .flatten()
             }
+            ScalarType::Callable(_) => Some(8),
             ScalarType::Boolean => Some(1),
             ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => Some(4),
             ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64) => Some(8),
@@ -6126,7 +6172,7 @@ pub(crate) mod reference_views {
         crate::ReferenceStorageGeometry::new(types, |application| {
             Err(crate::StorageGeometryError::UnresolvedExtent(application))
         })
-        .region_source_compatible(source, path, reference, stored)
+        .view_source_compatible(source, path, reference, stored)
     }
 
     pub fn reference_storage_source_compatible<'types>(

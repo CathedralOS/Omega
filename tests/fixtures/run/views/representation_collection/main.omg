@@ -1,0 +1,43 @@
+// Expected exit: 0.
+machine as_bytes(words: &[u32]) -> &[u8]
+requires words.len <= 2
+{
+    let bytes: &[u8] = words as &[u8];
+    bytes
+}
+machine inspect(bytes: &[u8]) crashes Trap {
+    transition bytes.len == 8 {
+        true -> check(bytes)
+        _ -> bad()
+    }
+    machine check(bytes: &[u8]) requires bytes.len == 8 {
+        transition bytes[0] == 4u8 && bytes[3] == 1u8 && bytes[4] == 8u8 && bytes[7] == 5u8 {
+            true -> done()
+            _ -> bad()
+        }
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+machine main() crashes Trap {
+    let words: [u32; 2] = [0x01020304u32, 0x05060708u32];
+    let bytes: &[u8] = as_bytes(&words[..]);
+    inspect(bytes);
+    let tail: &[u32] = &words[1..2];
+    let tail_bytes: &[u8] = as_bytes(tail);
+    inspect_tail(tail_bytes);
+}
+machine inspect_tail(bytes: &[u8]) crashes Trap {
+    transition bytes.len == 4 {
+        true -> check(bytes)
+        _ -> bad()
+    }
+    machine check(bytes: &[u8]) requires bytes.len == 4 {
+        transition bytes[0] == 8u8 && bytes[3] == 5u8 {
+            true -> done()
+            _ -> bad()
+        }
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

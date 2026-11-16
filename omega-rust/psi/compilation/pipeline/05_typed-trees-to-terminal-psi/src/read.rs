@@ -25,8 +25,11 @@ serve is refused when it is set, never ignored.
 mod arrays;
 mod atomics;
 mod authority;
+mod boundaries;
 pub(crate) use authority::has_predicates;
 mod bytes;
+mod callables;
+pub(crate) mod calling;
 mod calling_abis;
 mod calls;
 #[cfg(test)]
@@ -43,22 +46,25 @@ mod machine;
 mod mathematics;
 mod places;
 mod predicates;
+mod provider_selections;
+mod providers;
 mod rankings;
 mod references;
 mod reflection;
 mod regions;
 mod rejections;
-mod services;
+pub(crate) mod services;
+mod source_operators;
 mod source_records;
 mod statements;
+pub(crate) mod storage_metadata;
 mod storage_path;
 mod subjects;
+mod traits;
 mod transitions;
 mod types;
 
-use semantic_vocabulary::{
-    BoundaryMachineId, CrashCause, IdTable, MachineId, PackageKeyIdentity, StructuralTypeId,
-};
+use semantic_vocabulary::{CrashCause, IdTable, MachineId, PackageKeyIdentity, StructuralTypeId};
 use symbols::{SymbolHandle, SymbolKind};
 use terminal_check_tables::{Checked, Construct};
 use typed_trees::TypedTrees;
@@ -105,23 +111,44 @@ pub(crate) struct PredicateDefinition {
 }
 
 pub(crate) struct Program<'t> {
+    type_purpose: storage_metadata::TypePurpose,
+    /// Sorted exact record IDs whose complete nested source type was read for a value use.
+    value_records: Vec<StructuralTypeId>,
     pub publication: terminal_codec::TerminalPublication,
+    pub(super) typed: &'t TypedTrees,
+    /// Exact declarations admitted by this reader form, before source questions are captured.
+    pub(crate) admitted_declarations: typed_trees::references::DeclarationSelection,
+    /// Applied signatures can share a declaration symbol while owning
+    /// different source expressions. Capture the views this reader formed.
+    pub(crate) admitted_signature_views: Vec<typed_trees::signature::StateSignature>,
+    /// Boundary applications whose ordinary parents need contract-owner admission.
+    /// They are not service parents and grant no service reach.
+    pub(crate) boundary_parent_contracts:
+        Vec<typed_trees::trait_definition::TraitApplicationEnvironment>,
+    /// Choices made by this reader, prepared once before source admission.
+    pub(crate) completed_operators: crate::selection_questions::CompletedOperators,
     pub purpose: source::DependencyScope,
-    pub declaration_metadata: Vec<SymbolHandle>,
-    calling_policy_boundaries: Vec<SymbolHandle>,
-    calling_policy_roots: Vec<calling_abis::PreparedCallingPolicy>,
     /// One output slot per source mathematical declaration, not per call.
     /// Publication assigns portable identities to the prepared definitions.
     pub predicate_definitions: Vec<Option<PredicateDefinition>>,
-    typed: &'t TypedTrees,
     shared: crate::SharedReading,
-    /// Irreversible storage-description phase, entered after the body closure.
-    descriptor_storage: bool,
+    calling_policy_boundaries: Vec<SymbolHandle>,
     /// The typed-tree machine of each discovered `MachineId`.
     pub symbols: IdTable<MachineId, SymbolHandle>,
     pub signatures: IdTable<MachineId, Signature>,
-    /// A subject requirement is a declaration, never an executable machine.
+    /// Requirement headers keep their exact source parameter origins until
+    /// the call closure completes their omitted bounds.
+    declared_envelope_policies: IdTable<MachineId, Option<services::Policy>>,
+    /// Contracts and exact code selections named by the read program. A
+    /// selection retains code without adding an invocation to its call graph.
+    pub callables: crate::callables::CallableNamespace,
+    pub boundaries: crate::boundaries::BoundaryNamespace,
+    pub external_providers: crate::external_providers::ExternalProviderNamespace,
+    pub static_contracts: crate::static_contracts::StaticContracts,
+    pub declaration_metadata: Vec<SymbolHandle>,
     pub declaration_signatures: IdTable<semantic_vocabulary::ContractId, Signature>,
+    pub declaration_envelopes:
+        IdTable<semantic_vocabulary::ContractId, crate::reach::SourceEnvelope>,
     pub declaration_sources:
         IdTable<semantic_vocabulary::ContractId, &'t typed_trees::signature::StateSignature>,
     /// Selected headers keep their supplying call and complete application.
@@ -147,14 +174,6 @@ pub(crate) struct Program<'t> {
     /// Only this root of a refinement witness exposes the member's own
     /// body contract. Every named call, including recursion, uses its route.
     implementation_body: Option<MachineId>,
-    /// Exact requirement declarations use their own canonical namespace and
-    /// the same formal/contract reader as body-backed machine declarations.
-    pub boundary_symbols: IdTable<BoundaryMachineId, SymbolHandle>,
-    pub boundary_signatures: IdTable<BoundaryMachineId, Signature>,
-    boundary_services: IdTable<BoundaryMachineId, Option<semantic_vocabulary::ServiceId>>,
-    /// How each requirement's invocation ends, as the typed trees state it
-    /// (`Signatures::completions`).
-    pub boundary_completions: IdTable<BoundaryMachineId, semantic_vocabulary::BoundaryCompletion>,
     services: IdTable<
         semantic_vocabulary::ServiceId,
         (
@@ -237,6 +256,7 @@ pub(crate) struct Program<'t> {
     /// Every record type a formal, local, result, field or literal named, in
     /// discovery order; a nested record is discovered before its owner.
     pub records: IdTable<StructuralTypeId, RecordType>,
+    pub byte_domains: Vec<crate::body::SourceByteDomain>,
     /// Resolve selected consumers after the current signature is registered;
     /// a record used by its own cleanup must not allocate that machine twice.
     pending_cleanup: Vec<(StructuralTypeId, SymbolHandle)>,
@@ -275,10 +295,6 @@ pub(crate) struct Program<'t> {
     /// before reading anything nested (`regions`: a call instantiates its
     /// callee's lifetimes from it first).
     expected: Option<ValueType>,
-    /// Whether the type being read may be a byte view in a domain: true
-    /// while a data field's type or a cast's result type is read, the two
-    /// places such a view is served (`view_type`).
-    qualified_views: bool,
     /// How many `StructuralFieldId`s the records above hold.
     fields_minted: u64,
     /// How many `StructuralCaseId`s the sums above hold.
@@ -347,23 +363,21 @@ fn span<T, Rows>(
     read(span).ok_or_else(|| refuse(machine, Construct::Machine, Unserved::Machine(what)))
 }
 impl<'t> Program<'t> {
-    pub fn typed(&self) -> &'t TypedTrees {
-        self.typed
-    }
-
     pub(crate) fn begin_declaration_storage(
         &mut self,
         entry: MachineId,
         bodies: usize,
     ) -> Checked<()> {
-        if self.descriptor_storage || bodies != self.symbols.len() {
+        if self.type_purpose == storage_metadata::TypePurpose::StorageDescription
+            || bodies != self.symbols.len()
+        {
             return Err(refuse(
                 entry,
                 Construct::Machine,
                 Unserved::Declaration("storage metadata before the complete body closure"),
             ));
         }
-        self.descriptor_storage = true;
+        self.type_purpose = storage_metadata::TypePurpose::StorageDescription;
         Ok(())
     }
 
@@ -388,25 +402,31 @@ impl<'t> Program<'t> {
             purpose,
             declaration_metadata: Vec::new(),
             calling_policy_boundaries: Vec::new(),
-            calling_policy_roots: Vec::new(),
             predicate_definitions: std::iter::repeat_with(|| None)
                 .take(typed.mathematical_definitions().len())
                 .collect(),
             typed,
+            type_purpose: storage_metadata::TypePurpose::Value,
+            value_records: Vec::new(),
+            admitted_declarations: typed_trees::references::DeclarationSelection::from_symbols([]),
+            admitted_signature_views: Vec::new(),
+            boundary_parent_contracts: Vec::new(),
+            completed_operators: crate::selection_questions::CompletedOperators::default(),
             shared,
-            descriptor_storage: false,
             symbols: IdTable::default(),
             signatures: IdTable::default(),
+            declared_envelope_policies: IdTable::default(),
+            callables: crate::callables::CallableNamespace::default(),
+            boundaries: crate::boundaries::BoundaryNamespace::default(),
+            external_providers: crate::external_providers::ExternalProviderNamespace::default(),
+            static_contracts: crate::static_contracts::StaticContracts::default(),
             declaration_signatures: IdTable::default(),
+            declaration_envelopes: IdTable::default(),
             declaration_sources: IdTable::default(),
             declaration_selections: IdTable::default(),
             declaration_aliases: IdTable::default(),
             declaration_representatives: IdTable::default(),
             implementation_body: None,
-            boundary_symbols: IdTable::default(),
-            boundary_signatures: IdTable::default(),
-            boundary_completions: IdTable::default(),
-            boundary_services: IdTable::default(),
             services: IdTable::default(),
             resolving_services: Vec::new(),
             unfolding_calls: Vec::new(),
@@ -433,6 +453,7 @@ impl<'t> Program<'t> {
             generic_binders: Vec::new(),
             value_arguments: IdTable::default(),
             records: IdTable::default(),
+            byte_domains: Vec::new(),
             pending_cleanup: Vec::new(),
             scalar_applications: Default::default(),
             declared_domains: Vec::new(),
@@ -446,7 +467,6 @@ impl<'t> Program<'t> {
             elision: regions::Elision::Declaration,
             elided_lifetimes: Vec::new(),
             expected: None,
-            qualified_views: false,
             fields_minted: 0,
             cases_minted: 0,
             captures: Vec::new(),
@@ -541,9 +561,11 @@ impl<'t> Program<'t> {
                     .ok_or_else(|| unavailable("selected contract lost its representative"))?;
                 if self.declaration_signatures.get(original)
                     != self.declaration_signatures.get(source)
+                    || self.declaration_envelopes.get(original)
+                        != self.declaration_envelopes.get(source)
                 {
                     return Err(unavailable(
-                        "one selected application produced different public signatures",
+                        "one selected application produced different public signatures or envelopes",
                     ));
                 }
                 canonical
@@ -586,6 +608,7 @@ fn symbol_kind(kind: SymbolKind) -> &'static str {
         SymbolKind::Field => "field",
         SymbolKind::Variant => "variant",
         SymbolKind::Machine => "machine",
+        SymbolKind::CallableContract => "callable contract",
         SymbolKind::Operator => "operator",
         SymbolKind::Measure => "measure",
         SymbolKind::Proposition => "proposition",
@@ -804,6 +827,10 @@ mod tests {
                 ..Default::default()
             });
         }
+        let unprepared_instance = crate::body::DomainInstance {
+            declaration: domains[0],
+            identity: typed.semantic_domains.intern("unprepared instance"),
+        };
         let mut program = Program::new(&typed, false);
         let carrier = program.records.push(plain_record());
         program
@@ -817,23 +844,28 @@ mod tests {
                 predicate: None,
             }));
         let bodies = semantic_vocabulary::IdTable::default();
-        let components = crate::components::components(&bodies, &mut program.signatures).unwrap();
+        let components = crate::prepare_call_components(&bodies, &mut program.signatures).unwrap();
         program.prepare_domain_predicates(machine()).unwrap();
-        let elaboration = crate::lower_generic_for(
+        let elaboration = crate::lower_program(
             None,
             &bodies,
+            &components,
             crate::body::Signatures {
                 machines: &program.signatures,
                 declarations: &program.declaration_signatures,
                 declaration_aliases: None,
-                boundaries: &program.boundary_signatures,
-                completions: &program.boundary_completions,
+                boundaries: &program.boundaries,
             },
             &program.records,
             &[],
+            &program.callables,
+            &program.boundaries,
+            &crate::reach::ServiceMap::default(),
+            &program.external_providers,
+            &program.static_contracts,
             terminal_codec::TerminalPublication::Invocation,
+            Some(program.typed),
             Some(&program),
-            components,
         )
         .unwrap();
         let domains = &elaboration.program.module.structural_domains;
@@ -854,10 +886,37 @@ mod tests {
                 None
             ]
         );
+        // These rows retain the complete prepared theories read above. This
+        // includes a known absent predicate, distinct from an explicit Truth,
+        // and supplies no establishment route or membership by itself.
         assert!(
             domains
                 .iter()
-                .all(|domain| !domain.complete_predicate_theory)
+                .all(|domain| domain.complete_predicate_theory)
+        );
+        assert!(domains.iter().all(|domain| {
+            domain
+                .required_memberships
+                .as_ref()
+                .is_some_and(Vec::is_empty)
+                && domain.establishment_routes.is_none()
+        }));
+
+        // The same declaration cannot lend its predicate to another instance
+        // whose applied theory was never prepared.
+        let mut unprepared = Program::new(&typed, false);
+        let carrier = unprepared.records.push(plain_record());
+        unprepared.declared_domains.push(DeclaredDomain {
+            instance: unprepared_instance,
+            carrier: ValueType::record(carrier),
+            predicate: None,
+        });
+        assert_eq!(
+            unprepared
+                .prepare_domain_predicates(machine())
+                .unwrap_err()
+                .detail,
+            "type domain application without its prepared theory"
         );
     }
 
@@ -940,6 +999,8 @@ mod tests {
         let (typed, [served, _]) = unit_machines();
         let call = |target_symbol| {
             ExpressionNode::Call(TableCallExpression {
+                operational_acknowledgement: Default::default(),
+                runtime_call: None,
                 authored_call_selection: None,
                 authored_call_binding: None,
                 build_selection: arena::Handle::invalid(),
@@ -959,7 +1020,6 @@ mod tests {
                 native_code_layout: None,
                 arguments: Default::default(),
                 evidence_arguments: Box::new([]),
-                operational_acknowledgement: Default::default(),
             })
         };
         assert_eq!(
@@ -971,13 +1031,178 @@ mod tests {
             refused(&typed, call(SymbolHandle::from_parts(9_999, 1))),
             "call without a bound target"
         );
-        // The twin: a bound call passes this refusal and its target is
-        // read. These machines have no source file, so the later visibility
-        // rule is what stops it.
+        // The twin passes target validation and reaches authored-source
+        // validation. This low-level reader has not admitted a caller.
         assert_eq!(
             refused(&typed, call(served)),
-            "call call between declarations without a source file"
+            "declaration authored occurrence without its source machine"
         );
+        for target_symbol in [SymbolHandle::invalid(), SymbolHandle::from_parts(9_999, 1)] {
+            let mut statements = typed.clone();
+            let handle =
+                statements
+                    .statement_table
+                    .insert(typed_trees::statement::StatementNode::Call(
+                        typed_trees::statement::TableCall {
+                            target_symbol,
+                            ..Default::default()
+                        },
+                    ));
+            let refusal = Program::new(&statements, false)
+                .call_statement_at(machine(), &[], handle)
+                .unwrap_err();
+            assert_eq!(refusal.detail, "call without a bound target");
+        }
+        // Runtime calls intentionally have no declaration target. They still
+        // require their actual authored owner, rather than acquiring one here.
+        let runtime_call = Some(typed_trees::callable_values::RuntimeCallBinding::default());
+        assert_eq!(
+            refused(
+                &typed,
+                ExpressionNode::Call(TableCallExpression {
+                    runtime_call,
+                    ..Default::default()
+                }),
+            ),
+            "declaration authored occurrence without its source machine"
+        );
+        let mut statements = typed.clone();
+        let handle =
+            statements
+                .statement_table
+                .insert(typed_trees::statement::StatementNode::Call(
+                    typed_trees::statement::TableCall {
+                        runtime_call,
+                        ..Default::default()
+                    },
+                ));
+        let refusal = Program::new(&statements, false)
+            .call_statement_at(machine(), &[], handle)
+            .unwrap_err();
+        assert_eq!(
+            refusal.detail,
+            "declaration authored occurrence without its source machine"
+        );
+    }
+
+    #[test]
+    fn targetless_runtime_calls_keep_their_actual_authored_caller() {
+        use typed_trees::callable_values::{RuntimeCallBinding, RuntimeCallableContract};
+        use typed_trees::expression::{
+            Expression as TypedExpression, NamePath, TableCallExpression,
+        };
+        use typed_trees::name::Identifier;
+        use typed_trees::signature::{StateParameter, StateSignature};
+        use typed_trees::statement::{StatementNode, TableCall};
+
+        for statement in [false, true] {
+            let (mut typed, [caller, _]) = unit_machines();
+            let state = typed.machine_by_symbol(caller).unwrap().states.start();
+            let state_symbol = typed.machine_states.get(state).symbol;
+            let children = typed.symbols.insert_generated_children(
+                state_symbol,
+                [
+                    (SymbolKind::Parameter, "callback"),
+                    (SymbolKind::CallableContract, "contract"),
+                ],
+            );
+            let (parameter, signature) = (children.handle_at(0), children.handle_at(1));
+            let unit = typed.type_reference_table.insert(TypeReferenceNode::Unit);
+            let no_services = typed.service_reach_rows.intern(Vec::new());
+            let contract = typed
+                .runtime_callable_contracts
+                .insert(RuntimeCallableContract {
+                    signature: StateSignature {
+                        symbol: signature,
+                        service_reach_row: no_services,
+                        return_type: unit,
+                        declares_no_crash_route: true,
+                        ..Default::default()
+                    },
+                    lexical_owner: caller,
+                    resolved_source: None,
+                });
+            typed.authored_service_reach_rows.push(
+                typed_trees::signature::AuthoredServiceReachRow {
+                    owner: signature,
+                    keyword_source_spans: Vec::new(),
+                    targets: Vec::new(),
+                    installation_bound: false,
+                },
+            );
+            let carrier = typed
+                .type_reference_table
+                .insert(TypeReferenceNode::Callable { contract });
+            let parameters = typed.state_parameters.insert_many([StateParameter {
+                symbol: parameter,
+                type_reference: carrier,
+                ..Default::default()
+            }]);
+            let callee =
+                typed
+                    .expression_table
+                    .insert_tree(&TypedExpression::Name(NamePath::resolved(
+                        vec![Identifier::generated("callback")],
+                        parameter,
+                        parameter,
+                    )));
+            let runtime_call = Some(RuntimeCallBinding { callee, contract });
+            let (body, node) = if statement {
+                let body = typed
+                    .statement_table
+                    .insert_statements([StatementNode::Call(TableCall {
+                        runtime_call,
+                        ..Default::default()
+                    })]);
+                (body, typed_trees::SourceNode::Statement(body.start()))
+            } else {
+                let handle =
+                    typed
+                        .expression_table
+                        .insert(ExpressionNode::Call(TableCallExpression {
+                            runtime_call,
+                            ..Default::default()
+                        }));
+                let body = typed
+                    .statement_table
+                    .insert_statements([StatementNode::Expression(handle)]);
+                (body, typed_trees::SourceNode::Expression(handle))
+            };
+            let state = typed.machine_states.get_mut(state);
+            state.parameters = parameters;
+            state.statement_nodes = body;
+            let mut program = Program::new(&typed, false);
+            let id = program.machine(caller).expect("admit the actual caller");
+            let scalar_type = program.callable_type(id, contract).unwrap();
+            let slots = [Slot {
+                symbol: parameter,
+                value_type: ValueType::plain(scalar_type),
+                assignable: false,
+                homed: false,
+                erased: false,
+                borrowed: None,
+                borrowed_regions: crate::body::Regions::NONE,
+            }];
+            let read = match node {
+                typed_trees::SourceNode::Expression(handle) => {
+                    program.expression(id, &slots, handle, None)
+                }
+                typed_trees::SourceNode::Statement(handle) => {
+                    program.call_statement_at(id, &slots, handle)
+                }
+            }
+            .expect("a runtime call intentionally has no declaration target");
+            assert!(matches!(
+                read.kind,
+                ExpressionKind::Call {
+                    callee: crate::body::CallTarget::Selected { .. },
+                    ..
+                }
+            ));
+            assert!(matches!(read.source, crate::SourceOrigin::AuthoredNode {
+                source_member, owner, node: source_node, ..
+            } if source_member == id && owner == caller && source_node == node));
+        }
     }
 
     #[test]
@@ -1337,6 +1562,8 @@ mod tests {
             typed
                 .expression_table
                 .insert(ExpressionNode::Call(TableCallExpression {
+                    operational_acknowledgement: Default::default(),
+                    runtime_call: None,
                     authored_call_selection: None,
                     authored_call_binding: None,
                     build_selection: arena::Handle::invalid(),
@@ -1356,7 +1583,6 @@ mod tests {
                     native_code_layout: None,
                     arguments,
                     evidence_arguments: Box::new([]),
-                    operational_acknowledgement: Default::default(),
                 }))
         };
         let old = call(&mut typed, builtin, &[named]);
@@ -1797,7 +2023,6 @@ mod tests {
                 designated: None,
                 required_contract: None,
                 static_reach_binding: None,
-                source_call: None,
             },
             result: None,
             source,
@@ -2622,6 +2847,8 @@ mod tests {
             typed
                 .expression_table
                 .insert(ExpressionNode::Call(TableCallExpression {
+                    operational_acknowledgement: Default::default(),
+                    runtime_call: None,
                     authored_call_selection: None,
                     authored_call_binding: None,
                     build_selection: arena::Handle::invalid(),
@@ -2641,7 +2868,6 @@ mod tests {
                     native_code_layout: None,
                     arguments,
                     evidence_arguments: Box::new([]),
-                    operational_acknowledgement: Default::default(),
                 }))
         };
         let literal = |typed: &mut TypedTrees, value| {

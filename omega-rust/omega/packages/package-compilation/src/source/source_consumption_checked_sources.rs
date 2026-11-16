@@ -139,6 +139,15 @@ impl BuildSourceCustody {
 }
 
 impl CheckedSourceCustody {
+    pub fn accepted_semantic_binding(
+        &self,
+        role: crate::AcceptedSemanticBindingRole,
+    ) -> Option<&crate::AcceptedSemanticBinding> {
+        self.accepted_semantic_bindings
+            .iter()
+            .find(|binding| binding.role() == role)
+    }
+
     /// Source consumption records do not certify semantic acceptance. Their
     /// exact owner must still match the source the route independently judged.
     pub fn require_owner(&self, program: &Arc<FrozenTypedTrees>) -> Result<(), Diagnostic> {

@@ -10,7 +10,6 @@ dependencies = [
  "native-vocabulary",
  "optimization-core",
  "semantic-vocabulary",
- "terminal-codec",
  "terminal-psi",
 ]
 
@@ -1165,7 +1164,6 @@ dependencies = [
  "register-model",
  "runtime-abi",
  "selected-instructions",
- "selected-instructions-to-register-homes",
  "semantic-vocabulary",
  "sha2",
  "target",
@@ -1524,6 +1522,7 @@ dependencies = [
  "platform-custody",
  "products",
  "proof-admission",
+ "provider-admission",
  "review-evidence",
  "semantic-vocabulary",
  "sha2",
@@ -1534,7 +1533,6 @@ dependencies = [
  "target",
  "terminal-codec",
  "terminal-psi",
- "terminal-psi-to-abstract-operations",
  "terminal-work",
  "tokens",
 ]
@@ -1898,6 +1896,7 @@ version = "0.1.0"
 dependencies = [
  "arena",
  "semantic-vocabulary",
+ "sha2",
  "target",
 ]
 
@@ -2009,6 +2008,7 @@ dependencies = [
  "native-vocabulary",
  "optimization-core",
  "register-model",
+ "runtime-abi",
  "semantic-vocabulary",
  "sha2",
  "target",
@@ -2488,6 +2488,7 @@ dependencies = [
  "diagnostics",
  "language-core",
  "language-semantics",
+ "optimization",
  "semantic-vocabulary",
  "source",
  "source-files-to-tokens",
@@ -2574,6 +2575,7 @@ dependencies = [
  "diagnostics",
  "execution-admission",
  "language-core",
+ "language-semantics",
  "mimalloc",
  "numerics",
  "optimization",
@@ -2830,6 +2832,7 @@ dependencies = [
  "provider-selection",
  "semantic-vocabulary",
  "target",
+ "target-operations",
  "task-plans",
  "terminal-codec",
  "terminal-installation",

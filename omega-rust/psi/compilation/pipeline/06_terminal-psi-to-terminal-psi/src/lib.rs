@@ -52,11 +52,13 @@ on (`arrivals`). Kinds outside those five are refused as `Unsupported`.
 
 mod arrivals;
 mod branch_warnings;
+mod call_contracts;
 mod callable_arrivals;
 mod ceilings;
 mod crashes;
 mod describe;
 mod entry_inputs;
+mod external_providers;
 mod formation;
 mod graph;
 mod joins;
@@ -69,14 +71,18 @@ mod owned_cleanup;
 mod places;
 mod prove;
 mod rankings;
+mod refinement;
 mod result_summaries;
 mod reuse;
+mod static_contracts;
 mod verdict;
 
 pub use ceilings::Axis as CeilingAxis;
 pub use formation::{ReplayScope, prepare_replay};
 pub use places::{ConflictingLoan, LoanConflict};
+pub use prove::ProofSearchActivity;
 pub use rankings::FiniteIntegerRanking;
+pub use refinement::{finalize_callable_refinements, prove_callable_refinement};
 pub use reuse::{
     Carried, CarriedForm, Selection, reverify, reverify_at_call, reverify_specialization,
 };
@@ -367,10 +373,12 @@ impl Discharge {
 /// that does not resolve, knowledge already present); a refusal of one
 /// obligation is its verdict.
 /// Branch conditions, dispatch bindings and value relations are ordinary
-/// premises, not selectable comparison modes. Explicit proof replay uses
-/// the same preparation rules without changing source acceptance.
-pub fn discharge(elaboration: &mut Elaboration) -> Checked<Discharge> {
-    discharge_inner(elaboration, &[])
+/// premises. Proof replay uses the same preparation as source acceptance.
+pub fn discharge(
+    elaboration: &mut Elaboration,
+    activity: &mut ProofSearchActivity,
+) -> Checked<Discharge> {
+    discharge_inner(elaboration, &[], activity)
 }
 
 /// `discharge`, where each machine of `carried` is one stage 04 generated
@@ -386,11 +394,16 @@ pub fn discharge(elaboration: &mut Elaboration) -> Checked<Discharge> {
 pub fn discharge_carrying(
     elaboration: &mut Elaboration,
     carried: &[Carried<'_>],
+    activity: &mut ProofSearchActivity,
 ) -> Checked<Discharge> {
-    discharge_inner(elaboration, carried)
+    discharge_inner(elaboration, carried, activity)
 }
 
-fn discharge_inner(elaboration: &mut Elaboration, carried: &[Carried<'_>]) -> Checked<Discharge> {
+fn discharge_inner(
+    elaboration: &mut Elaboration,
+    carried: &[Carried<'_>],
+    activity: &mut ProofSearchActivity,
+) -> Checked<Discharge> {
     for boundary in &elaboration.module.boundary_machines {
         terminal_semantics::boundary_result_lifetimes(
             &elaboration.module.structural_types,
@@ -430,7 +443,7 @@ fn discharge_inner(elaboration: &mut Elaboration, carried: &[Carried<'_>]) -> Ch
                 detail,
             )
         })?;
-    let mut scope = prepare_replay(elaboration)?;
+    let mut scope = prepare_replay(elaboration, activity)?;
     let elaboration = scope.source();
     minted::width_questions_are_minted(elaboration)?;
     operational::judge(elaboration)?;
@@ -483,9 +496,10 @@ fn discharge_inner(elaboration: &mut Elaboration, carried: &[Carried<'_>]) -> Ch
         .unwrap_or_else(|| MachineId::new(1).expect("one is a machine identity"));
     let inhabitation = prepare_inhabitation(&elaboration.module, diagnostic)?;
     let mut unreached = Unreached::new(elaboration);
-    scope.infer_results(&mut unreached, &inhabitation)?;
-    scope.infer_inputs(&mut unreached, &inhabitation)?;
-    scope.infer_results(&mut unreached, &inhabitation)?;
+    scope.infer_results(&mut unreached, &inhabitation, activity)?;
+    scope.infer_inputs(&mut unreached, &inhabitation, activity)?;
+    scope.infer_results(&mut unreached, &inhabitation, activity)?;
+    scope.finalize_callable_refinements(activity)?;
     let (formed, domains, checking, sources, requirements) = scope.checking();
     let module = formed.source();
     let inputs = machine_inputs::PreparedMachineInputs::new(
@@ -509,42 +523,44 @@ fn discharge_inner(elaboration: &mut Elaboration, carried: &[Carried<'_>]) -> Ch
                 detail,
             )
         })?;
-    let machines = machine_batch::check(&mut checking.machines, |id, tables| {
-        // A requirement has a contract and no body, so nothing about it is
-        // decided here. Its guarantees are each selected implementation's to
-        // prove; leaving them without a verdict would read as vacuously held.
-        let inputs = inputs.for_machine(id)?;
-        if inputs.requirement {
-            return Ok(MachineDischarge {
-                verdicts: tables.obligations.map(|obligation, _| {
-                    Err(refusal(
-                        RefusalReason::Unsupported,
-                        id,
-                        Construct::Obligation(obligation),
-                        "a requirement's guarantee is proved by each implementation, not here",
-                    ))
-                }),
-                uses: Vec::new(),
-                windows: Vec::new(),
-                weakened_joins: Vec::new(),
-                conflicts: Vec::new(),
-                impossible: Vec::new(),
-            });
-        }
-        let beyond = unreached.values(terminal_machine(&module.machines, id, id)?, tables);
-        machine(
-            formed,
-            &inhabitation,
-            domains,
-            id,
-            tables,
-            &beyond,
-            inputs.carried.map(|position| &carried[position]),
-            inputs.branches,
-            &empty_contracts,
-            &application_sized_storage,
-        )
-    })?;
+    let machines =
+        machine_batch::check(&mut checking.machines, activity, |id, tables, activity| {
+            // A requirement has a contract and no body, so nothing about it is
+            // decided here. Its guarantees are each selected implementation's to
+            // prove; leaving them without a verdict would read as vacuously held.
+            let inputs = inputs.for_machine(id)?;
+            if inputs.requirement {
+                return Ok(MachineDischarge {
+                    verdicts: tables.obligations.map(|obligation, _| {
+                        Err(refusal(
+                            RefusalReason::Unsupported,
+                            id,
+                            Construct::Obligation(obligation),
+                            "a requirement's guarantee is proved by each implementation, not here",
+                        ))
+                    }),
+                    uses: Vec::new(),
+                    windows: Vec::new(),
+                    weakened_joins: Vec::new(),
+                    conflicts: Vec::new(),
+                    impossible: Vec::new(),
+                });
+            }
+            let beyond = unreached.values(terminal_machine(&module.machines, id, id)?, tables);
+            machine(
+                formed,
+                &inhabitation,
+                domains,
+                id,
+                tables,
+                &beyond,
+                inputs.carried.map(|position| &carried[position]),
+                inputs.branches,
+                &empty_contracts,
+                &application_sized_storage,
+                activity,
+            )
+        })?;
     Ok(Discharge { machines })
 }
 
@@ -650,6 +666,7 @@ fn machine(
     branches: &[terminal_check_tables::program::Branch],
     empty_contracts: &terminal_semantics::inhabitation::TerminalContracts<'_>,
     application_sized_storage: &[StructuralTypeId],
+    activity: &mut ProofSearchActivity,
 ) -> Checked<MachineDischarge> {
     let module = formed.source();
     let machines = &module.machines;
@@ -670,12 +687,11 @@ fn machine(
         reference_graph,
         ranking_bindings,
     } = prepare_with_inhabitation(formed, domains, id, tables, inhabitation)?;
-    let references = std::cell::RefCell::new(
+    let mut references =
         terminal_semantics::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
             &module.structural_types,
             &reference_graph,
-        ),
-    );
+        );
     let storage = places::Storage::new(
         id,
         lowered,
@@ -684,12 +700,12 @@ fn machine(
         &graph,
         tables,
         &types,
-        &references,
+        &mut references,
     )?;
     let mut decided: Vec<Option<Checked<Discharged>>> =
         (0..tables.obligations.len()).map(|_| None).collect();
     // Loans are judged by structure, not proved (`places::loans`).
-    let (lent, conflicts) = storage.loans(module, tables)?;
+    let (lent, conflicts) = storage.loans(&mut references, module, tables)?;
     for (obligation, verdict) in lent {
         let slot = decided
             .get_mut(usize::try_from(obligation.get() - 1).unwrap_or(usize::MAX))
@@ -711,7 +727,17 @@ fn machine(
     // downstream obligations."). A declared one holds because every arrival
     // proves it, and the closure is accepted only when every obligation is
     // discharged (`judge`).
-    let declared = joins::prepare(lowered, id, tables, &graph, &context, invariants, &storage)?;
+    let declared = joins::prepare(
+        lowered,
+        id,
+        tables,
+        &graph,
+        &context,
+        invariants,
+        &storage,
+        &mut references,
+        activity,
+    )?;
     let weakened_joins = joins::check(
         &joins::Machine {
             module,
@@ -727,6 +753,8 @@ fn machine(
         },
         tables,
         &mut decided,
+        activity,
+        &mut references,
     )?;
     // Certificates next; a published clause is then decided from its exits.
     // A machine stage 04 generated takes each one its generic form proved,
@@ -813,7 +841,7 @@ fn machine(
         let verdict = goal(
             module,
             lowered,
-            &storage,
+            (&storage, &mut references),
             id,
             obligation,
             &row.kind,
@@ -843,6 +871,7 @@ fn machine(
                 row.created_at,
                 goal,
                 unreached,
+                activity,
             )
             .map(Discharged::Certificate)
         });
@@ -939,7 +968,7 @@ fn machine(
         for earlier in &opened {
             if !earlier.initial
                 && earlier.owner == window.owner
-                && storage.open_before(tables, earlier, window.opened_by)?
+                && storage.open_before(&mut references, tables, earlier, window.opened_by)?
             {
                 within = true;
                 break;
@@ -950,10 +979,10 @@ fn machine(
         }
     }
     let windows = opened;
-    let mut uses = storage.uses(tables, empty_contracts, inhabitation)?;
-    // A store into a field of a byte domain is judged by the bytes it
-    // supplies; a refused store is that operation's verdict.
-    for judged in storage.byte_predicate_stores()? {
+    let mut uses = storage.uses(&mut references, tables, empty_contracts, inhabitation)?;
+    // Byte-domain establishments are judged from their actual source at the
+    // producer, including qualified transfers whose result is never consumed.
+    for judged in storage.byte_predicate_establishments(module)? {
         match uses.iter_mut().find(|used| used.at == judged.at) {
             Some(used) if used.verdict.is_ok() => used.verdict = judged.verdict,
             Some(_) => {}
@@ -961,7 +990,7 @@ fn machine(
         }
     }
     let mut closures = Vec::new();
-    for consumption in storage.consumptions(tables, &windows)? {
+    for consumption in storage.consumptions(&mut references, tables, &windows)? {
         let window = windows.get(consumption.window).ok_or_else(|| {
             refusal(
                 RefusalReason::ForeignIdentity,
@@ -980,6 +1009,7 @@ fn machine(
                 consumption.point,
                 goal,
                 unreached,
+                activity,
             )
         });
         let verdict = match proved {
@@ -1024,8 +1054,8 @@ fn machine(
             verdict,
         });
     }
-    let impossible =
-        branch_warnings::Analysis::new(&context, &graph, tables, lowered, id).run(branches);
+    let impossible = branch_warnings::Analysis::new(&context, &graph, tables, lowered, id)
+        .run(branches, activity);
     Ok(MachineDischarge {
         verdicts: settled,
         uses,
@@ -1039,20 +1069,23 @@ fn machine(
 /// Fills one machine's knowledge table from its lowered form: entry
 /// `requires`, result equations and field-read equations, branch
 /// conditions, dispatch bindings and callee guarantees.
-fn fill_knowledge(
+fn fill_knowledge<'a>(
     module: &TerminalModule,
     id: MachineId,
     lowered: &TerminalMachine,
     tables: &mut MachineTables,
     types: &IdTable<ValueId, ScalarType>,
-    storage: &places::Storage<'_>,
+    (storage, references): (
+        &places::Storage<'a>,
+        &mut terminal_semantics::descriptor_results::DescriptorAnalysis<'a>,
+    ),
 ) -> Checked<()> {
     let edge_entries = owned_cleanup::edge_entry_points(lowered, tables)?;
     for (clause, proposition) in lowered.contract.requires.iter().enumerate() {
         // A clause over a field of a record formal is about what that field
         // held at entry, which is a value when some operation names the
         // field. One that names no such value states nothing here.
-        let stated = match substitute(proposition, &mut storage.at_entry(tables)) {
+        let stated = match substitute(proposition, &mut storage.at_entry(references, tables)) {
             Ok(stated) => stated,
             Err(Unbound::Unproved(_)) => continue,
             Err(unbound) => return Err(unbound.refusal(id, Construct::Machine)),
@@ -1069,7 +1102,7 @@ fn fill_knowledge(
     // Each readable record formal of the machine or of a loop head arrived
     // as a member of its type's domain, so the clauses of that type hold of
     // its entry contents, including a clause that relates several fields.
-    for (block, premise) in storage.entry_type_premises(tables)? {
+    for (block, premise) in storage.entry_type_premises(references, tables)? {
         push_knowledge(
             tables,
             premise,
@@ -1089,7 +1122,7 @@ fn fill_knowledge(
             }
             // A field read's result is a fresh value; what it equals comes
             // from the write log, not from the operation alone.
-            if let Some(equation) = storage.read_equation(tables, operation)? {
+            if let Some(equation) = storage.read_equation(references, tables, operation)? {
                 push_knowledge(
                     tables,
                     equation,
@@ -1100,9 +1133,9 @@ fn fill_knowledge(
             // Storage operations establish constraints on the specific
             // versions they observe or produce.
             for premise in storage
-                .read_premises(tables, operation)?
+                .read_premises(references, tables, operation)?
                 .into_iter()
-                .chain(storage.returned_type_premises(tables, operation)?)
+                .chain(storage.returned_type_premises(references, tables, operation)?)
                 .chain(storage.subslice_predicate_premises(operation)?)
             {
                 push_knowledge(
@@ -1146,8 +1179,8 @@ fn fill_knowledge(
     // type of that storage states of it, as a payload read would be. The
     // rows hold because that edge was taken and are available on it.
     for block in &lowered.blocks {
-        let equations = storage.payload_equations(tables, block)?;
-        let premises = storage.payload_premises(tables, block)?;
+        let equations = storage.payload_equations(references, tables, block)?;
+        let premises = storage.payload_premises(references, tables, block)?;
         for (edge, proposition) in equations.into_iter().chain(
             premises
                 .into_iter()
@@ -1173,28 +1206,11 @@ fn fill_knowledge(
             action_ordinal,
         } = row.site
         {
-            let callee = callee(module, id, invocation, row)?;
-            let formals = module
-                .invocation_structural_parameters(callee, row.required_contract)
-                .ok_or_else(|| {
-                    refusal(
-                        RefusalReason::ForeignIdentity,
-                        id,
-                        Construct::Invocation(invocation),
-                        "cleanup has no exact formal contract",
-                    )
-                })?;
-            let ensures = module
-                .invocation_ensures(callee, row.required_contract)
-                .ok_or_else(|| {
-                    refusal(
-                        RefusalReason::ForeignIdentity,
-                        id,
-                        Construct::Invocation(invocation),
-                        "cleanup has no exact guarantee contract",
-                    )
-                })?;
+            let call = call_contracts::invocation(module, lowered, tables, invocation, row)?;
+            let formals = call.contract.structural_parameters;
+            let ensures = call.contract.ensures.iter();
             let mut inputs = storage.at_cleanup_call(
+                references,
                 tables,
                 &row.actuals,
                 formals,
@@ -1237,55 +1253,23 @@ fn fill_knowledge(
             | InvocationSite::ExternalCompletion(_)
             | InvocationSite::Cleanup { .. } => continue,
         };
-        let callee = callee(module, id, invocation, row)?;
-        let erased = callable_erased_actuals(
-            module,
-            lowered,
-            callee,
-            row.required_contract,
-            id,
-            invocation,
-            row.site,
-        )?;
-        let ensures = module
-            .invocation_ensures(callee, row.required_contract)
-            .ok_or_else(|| {
-                refusal(
-                    RefusalReason::ForeignIdentity,
-                    id,
-                    Construct::Invocation(invocation),
-                    "callee has no canonical guarantee contract",
-                )
-            })?;
-        let mut ensures = ensures.peekable();
+        let call = call_contracts::invocation(module, lowered, tables, invocation, row)?;
+        let contract = &call.contract;
+        let erased = erased_actuals(contract, call.inputs, id, invocation)?;
+        let mut ensures = contract.ensures.iter().peekable();
         if ensures.peek().is_none() {
             continue;
         }
         let mut returned = storage.after_call(
+            references,
             tables,
             &row.actuals,
-            module
-                .invocation_structural_parameters(callee, row.required_contract)
-                .ok_or_else(|| {
-                    refusal(
-                        RefusalReason::ForeignIdentity,
-                        id,
-                        Construct::Invocation(invocation),
-                        "callee has no canonical structural formals",
-                    )
-                })?,
-            match callee {
-                semantic_vocabulary::TargetMachineCallable::Machine(machine) => module
-                    .invocation_machine_contract(machine, row.required_contract)
-                    .map(|contract| &contract.result),
-                semantic_vocabulary::TargetMachineCallable::Boundary(_) => None,
-            },
+            (contract.structural_parameters, contract.result),
             operation,
             Construct::Invocation(invocation),
         )?;
-        // Resolve this invocation's guarantees before publishing knowledge:
-        // every clause reads the same retained inputs and actual result,
-        // without holding a table borrow across its output mutation.
+        // Resolve each guarantee against this invocation's retained inputs and
+        // returned storage before mutating the caller's knowledge table.
         let propositions = ensures
             .map(|ensures| {
                 substitute(
@@ -1328,12 +1312,10 @@ impl Prepared {
     fn references<'a>(
         &'a self,
         types: &'a [terminal_psi::StructuralTypeDeclaration],
-    ) -> std::cell::RefCell<terminal_semantics::descriptor_results::DescriptorAnalysis<'a>> {
-        std::cell::RefCell::new(
-            terminal_semantics::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
-                types,
-                &self.reference_graph,
-            ),
+    ) -> terminal_semantics::descriptor_results::DescriptorAnalysis<'a> {
+        terminal_semantics::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
+            types,
+            &self.reference_graph,
         )
     }
 }
@@ -1391,12 +1373,11 @@ pub(crate) fn prepare_with_inhabitation(
     let reference_graph = places::reference_graph(module, id)?;
     let ranking_bindings;
     {
-        let references = std::cell::RefCell::new(
+        let mut references =
             terminal_semantics::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
                 &module.structural_types,
                 &reference_graph,
-            ),
-        );
+            );
         let storage = places::Storage::new(
             id,
             lowered,
@@ -1405,12 +1386,19 @@ pub(crate) fn prepare_with_inhabitation(
             &graph,
             tables,
             &types,
-            &references,
+            &mut references,
         )?;
-        ranking_bindings = rankings::admit(lowered, tables, &graph, &storage)?;
+        ranking_bindings = rankings::admit(lowered, tables, &graph, &storage, &mut references)?;
         if fill {
             storage.owed_are_minted(tables)?;
-            fill_knowledge(module, id, lowered, tables, &types, &storage)?;
+            fill_knowledge(
+                module,
+                id,
+                lowered,
+                tables,
+                &types,
+                (&storage, &mut references),
+            )?;
         }
     }
     // A value of a type parameter has no type the kernel could hold it at,
@@ -1570,133 +1558,6 @@ fn result_equation(
     )
 }
 
-pub(crate) fn callee(
-    module: &TerminalModule,
-    machine: MachineId,
-    invocation: terminal_check_tables::InvocationId,
-    row: &terminal_check_tables::edges::InvocationRow,
-) -> Checked<semantic_vocabulary::TargetMachineCallable> {
-    let concerns = Construct::Invocation(invocation);
-    let unavailable = |detail| refusal(RefusalReason::Unsupported, machine, concerns, detail);
-    let Callee::Declared(callee) = row.callee else {
-        return Err(unavailable("call through a selector value"));
-    };
-    match callee {
-        semantic_vocabulary::TargetMachineCallable::Machine(callee) => {
-            terminal_machine(&module.machines, callee, machine)?;
-        }
-        semantic_vocabulary::TargetMachineCallable::Boundary(boundary) => {
-            let declaration = module.boundary_machine(boundary).ok_or_else(|| {
-                refusal(
-                    RefusalReason::ForeignIdentity,
-                    machine,
-                    concerns,
-                    "boundary declaration is unavailable",
-                )
-            })?;
-            if declaration.declaration.is_none()
-                || declaration.role != terminal_psi::BoundaryDeclarationRole::Callable
-            {
-                return Err(unavailable(
-                    "boundary call has no supported exact callable contract",
-                ));
-            }
-            // A declaration and its call site state one completion
-            // (calls_and_outcomes.md: "an explicit closed external
-            // completion kind and no normal result. Its invocation is a
-            // terminal transfer ... with no normal successor"): a
-            // requirement that completes externally is called only as a
-            // terminator, one that returns only as an operation. Nothing
-            // downstream may read an exit as a call that returns.
-            let returns = matches!(row.site, InvocationSite::Operation(_));
-            let external = matches!(row.site, InvocationSite::ExternalCompletion(_));
-            match declaration.completion {
-                semantic_vocabulary::BoundaryCompletion::NormalReturn if returns => {}
-                semantic_vocabulary::BoundaryCompletion::External(_) if external => {
-                    // process_exit.md: the canonical operation "permits no
-                    // source crash".
-                    if !declaration.crash_routes.is_empty() {
-                        return Err(unavailable(
-                            "external completion that declares a crash route",
-                        ));
-                    }
-                }
-                _ => {
-                    return Err(refusal(
-                        RefusalReason::ForeignIdentity,
-                        machine,
-                        concerns,
-                        "boundary call site does not match its declaration's completion",
-                    ));
-                }
-            }
-            // A boundary that may suspend is judged with every other
-            // possibly suspending call, by its crossing
-            // (`operational::judge`, which every discharge runs first).
-            // A formal's own domains are its type: the structural
-            // qualification judgment holds each argument to exactly them, as
-            // for any call. What a provider must additionally prove, or may
-            // mint, is not yet judged.
-            if !declaration.requires.is_empty()
-                || !declaration.normal_qualifications.is_empty()
-                || declaration
-                    .structural_parameters
-                    .iter()
-                    .any(|formal| !formal.additional_input_qualifications.is_empty())
-            {
-                return Err(unavailable(
-                    "boundary call needs its structural qualification proof",
-                ));
-            }
-            if !declaration.result_reference_regions.is_empty()
-                || !declaration.program_local_root_introductions.is_empty()
-                || !declaration.content_guarantees.is_empty()
-                || matches!(&declaration.result, terminal_psi::BoundaryMachineResult::Structural(result)
-                    if !result.qualifications.is_empty() || !result.projected_qualifications.is_empty())
-            {
-                return Err(unavailable(
-                    "boundary call needs its result, reference and content custody proof",
-                ));
-            }
-            // What the requirement may reach is charged to this caller
-            // where every call is (`ceilings`).
-        }
-    }
-    Ok(callee)
-}
-
-fn callable_erased_actuals(
-    module: &TerminalModule,
-    caller: &TerminalMachine,
-    callee: semantic_vocabulary::TargetMachineCallable,
-    required_contract: Option<semantic_vocabulary::ContractId>,
-    machine: MachineId,
-    invocation: terminal_check_tables::InvocationId,
-    site: InvocationSite,
-) -> Checked<Vec<(ValueId, ScalarTerm)>> {
-    match callee {
-        semantic_vocabulary::TargetMachineCallable::Machine(callee) => erased_actuals(
-            caller,
-            module
-                .invocation_machine_contract(callee, required_contract)
-                .ok_or_else(|| {
-                    refusal(
-                        RefusalReason::ForeignIdentity,
-                        machine,
-                        Construct::Invocation(invocation),
-                        "call lost its public contract association",
-                    )
-                })?,
-            machine,
-            invocation,
-            site,
-        ),
-        // BoundaryCall has no erased operand lane, and structural reading
-        // refuses a requirement whose contract would need one.
-        semantic_vocabulary::TargetMachineCallable::Boundary(_) => Ok(Vec::new()),
-    }
-}
-
 /// A call's scalar lane: the actuals a callee clause's formals stand for.
 /// Elaboration numbers a machine's scalar formals apart from its record
 /// formals (the `k`-th scalar formal is its value `k + 1`), so a clause term
@@ -1762,33 +1623,19 @@ impl From<&'static str> for Unbound {
 /// Terminal Psi keeps it (`erased_arguments`). A term names values of the
 /// caller or literals; any other form is refused, as in `substitute`.
 fn erased_actuals(
-    caller: &TerminalMachine,
-    contract: &terminal_psi::MachineContract,
+    contract: &call_contracts::PublicContract<'_>,
+    inputs: call_contracts::Inputs<'_>,
     id: MachineId,
     invocation: terminal_check_tables::InvocationId,
-    site: InvocationSite,
 ) -> Checked<Vec<(ValueId, ScalarTerm)>> {
     let refuse = |reason, detail| refusal(reason, id, Construct::Invocation(invocation), detail);
-    if contract.erased_scalar_formals.is_empty() {
-        return Ok(Vec::new());
-    }
-    if !contract.erased_proof_formals.is_empty() {
+    if !contract.erased_proof_formals.is_empty() || !inputs.erased_proof_arguments.is_empty() {
         return Err(refuse(
             RefusalReason::Unsupported,
-            "callee with an erased proof formal",
+            "callee with an erased proof formal or actual",
         ));
     }
-    let supplied = caller
-        .module_invocations()
-        .find(|candidate| candidate.site == site)
-        .ok_or_else(|| {
-            refuse(
-                RefusalReason::ForeignIdentity,
-                "invocation is not in this machine",
-            )
-        })?
-        .inputs
-        .erased_arguments;
+    let supplied = inputs.erased_arguments;
     if supplied.len() != contract.erased_scalar_formals.len() {
         return Err(refuse(
             RefusalReason::ForeignIdentity,
@@ -1959,10 +1806,13 @@ impl Bindings for ScalarActuals<'_> {
 
 /// The goal of one obligation, over this machine's values.
 #[allow(clippy::too_many_arguments)]
-fn goal(
+fn goal<'a>(
     module: &TerminalModule,
     lowered: &TerminalMachine,
-    storage: &places::Storage<'_>,
+    (storage, references): (
+        &places::Storage<'a>,
+        &mut terminal_semantics::descriptor_results::DescriptorAnalysis<'a>,
+    ),
     id: MachineId,
     obligation: ObligationId,
     kind: &ObligationKind,
@@ -1973,7 +1823,7 @@ fn goal(
     let goal = stated_goal(
         module,
         lowered,
-        storage,
+        (storage, references),
         id,
         obligation,
         kind,
@@ -2017,10 +1867,13 @@ fn concrete(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn stated_goal(
+fn stated_goal<'a>(
     module: &TerminalModule,
     lowered: &TerminalMachine,
-    storage: &places::Storage<'_>,
+    (storage, references): (
+        &places::Storage<'a>,
+        &mut terminal_semantics::descriptor_results::DescriptorAnalysis<'a>,
+    ),
     id: MachineId,
     obligation: ObligationId,
     kind: &ObligationKind,
@@ -2050,39 +1903,11 @@ fn stated_goal(
                 id,
                 Construct::Invocation(invocation),
             )?;
-            let callee = callee(module, id, invocation, row)?;
-            let erased = callable_erased_actuals(
-                module,
-                lowered,
-                callee,
-                row.required_contract,
-                id,
-                invocation,
-                row.site,
-            )?;
-            let clauses = module
-                .invocation_requires(callee, row.required_contract)
-                .ok_or_else(|| {
-                    refusal(
-                        RefusalReason::ForeignIdentity,
-                        id,
-                        concerns,
-                        "callee has no canonical requires contract",
-                    )
-                })?;
-            let formals = module
-                .invocation_structural_parameters(callee, row.required_contract)
-                .ok_or_else(|| {
-                    refusal(
-                        RefusalReason::ForeignIdentity,
-                        id,
-                        concerns,
-                        "callee has no canonical structural formals",
-                    )
-                })?;
+            let call = call_contracts::invocation(module, lowered, tables, invocation, row)?;
+            let erased = erased_actuals(&call.contract, call.inputs, id, invocation)?;
             let clause = usize::try_from(clause)
                 .ok()
-                .and_then(|clause| clauses.get(clause))
+                .and_then(|clause| call.contract.requires.get(clause))
                 .ok_or_else(|| {
                     refusal(
                         RefusalReason::ForeignIdentity,
@@ -2103,11 +1928,13 @@ fn stated_goal(
                     },
                 )
             };
+            let formals = call.contract.structural_parameters;
             match row.site {
                 InvocationSite::Cleanup {
                     edge,
                     action_ordinal,
                 } => over_actuals(&mut storage.at_cleanup_call(
+                    references,
                     tables,
                     &row.actuals,
                     formals,
@@ -2116,6 +1943,7 @@ fn stated_goal(
                     concerns,
                 )?),
                 site => over_actuals(&mut storage.at_call(
+                    references,
                     tables,
                     &row.actuals,
                     formals,
@@ -2126,7 +1954,7 @@ fn stated_goal(
             .map_err(|unbound| unbound.refusal(id, concerns))
         }
         ObligationKind::DataDomain { operation, clause } => {
-            storage.domain_goal(tables, operation, clause, concerns)
+            storage.domain_goal(references, tables, operation, clause, concerns)
         }
         ObligationKind::NormalGuarantee { exit, clause, .. } => {
             let clause = usize::try_from(clause)
@@ -2142,7 +1970,7 @@ fn stated_goal(
                 })?;
             substitute(
                 &clause.proposition,
-                &mut storage.at_return(tables, exit, concerns)?,
+                &mut storage.at_return(references, tables, exit, concerns)?,
             )
             .map_err(|unbound| unbound.refusal(id, concerns))
         }
@@ -2160,6 +1988,7 @@ fn stated_goal(
             tables,
             storage,
             &module.scalar_block_invariants,
+            references,
         ),
         ObligationKind::CrashCoverage { site, cause } => {
             crashes::coverage_goal(module, lowered, tables, types, id, obligation, site, cause)
@@ -2193,6 +2022,7 @@ fn decide(
     point: ProgramPoint,
     goal: Proposition,
     unreached: &[ValueId],
+    activity: &mut ProofSearchActivity,
 ) -> Checked<Evidence> {
     let hypotheses = hypotheses(graph, tables, id, obligation, point)?;
     // Search and the kernel first see only the facts connected to the goal
@@ -2208,6 +2038,7 @@ fn decide(
             &narrowed.assumptions,
             &narrowed.axioms,
             unreached,
+            activity,
         )
     {
         return verify(context, id, obligation, goal, narrowed, certificate);
@@ -2221,6 +2052,7 @@ fn decide(
         &hypotheses.assumptions,
         &hypotheses.axioms,
         unreached,
+        activity,
     )?;
     verify(context, id, obligation, goal, hypotheses, certificate)
 }
@@ -2339,8 +2171,9 @@ fn search_certificate(
     assumptions: &[Proposition],
     axioms: &[Proposition],
     unreached: &[ValueId],
+    activity: &mut ProofSearchActivity,
 ) -> Checked<CertificateEnvelope> {
-    let mut prover = prove::Prover::new(context, assumptions, axioms, values);
+    let mut prover = prove::Prover::new(context, assumptions, axioms, values, activity);
     let proof = prover.prove(goal).map_err(|reason| {
         // Classified by the goal's form, not by which search path failed
         // last, so the outcome does not depend on search order: the form as
@@ -2566,4 +2399,62 @@ fn returned_for_result(clause: &Proposition, result: ValueId, value: ValueId) ->
         Proposition::Disjunction(disjuncts) => Proposition::Disjunction(parts(disjuncts)),
         other => other.clone(),
     }
+}
+
+/// Build and replay a certificate for a closed contract implication. Callers
+/// provide declarations, never hypotheses from source checking. This is the
+/// same prover and kernel used for obligations at executable program points.
+pub fn derive_contract_obligation(
+    context: &PropositionContext,
+    obligation: ObligationId,
+    goal: &Proposition,
+    declarations: &[(ValueId, ScalarType)],
+    activity: &mut ProofSearchActivity,
+) -> Result<CertificateEnvelope, &'static str> {
+    context
+        .validate(goal)
+        .map_err(|_| "contract obligation escapes its formal namespace")?;
+    let mut declarations = declarations.to_vec();
+    declarations.sort_unstable_by_key(|(id, _)| *id);
+    let values = IdTable::from_rows(
+        declarations
+            .iter()
+            .enumerate()
+            .map(|(position, (id, scalar_type))| {
+                let position =
+                    u32::try_from(position).map_err(|_| "contract formal count exceeds u32")?;
+                Ok((
+                    *id,
+                    terminal_check_tables::values::ValueRow {
+                        scalar_type: *scalar_type,
+                        origin: terminal_check_tables::values::ValueOrigin::MachineParameter {
+                            position,
+                        },
+                        rigid: None,
+                    },
+                ))
+            })
+            .collect::<Result<Vec<_>, &'static str>>()?,
+    )
+    .map_err(|_| "contract formal identities are not a complete dense namespace")?;
+    let proof = prove::Prover::new(context, &[], &[], &values, activity).prove(goal)?;
+    let certificate = CertificateEnvelope {
+        identity: EvidenceIdentity::new(obligation.get())
+            .ok_or("contract obligation identity is absent")?,
+        proof_system_marker: ProofSystemMarker::CURRENT,
+        proof,
+    };
+    verify_obligation(
+        context,
+        &Obligation {
+            id: obligation,
+            proposition: goal.clone(),
+            class: ObligationClass::Derivable,
+        },
+        &[],
+        &[],
+        EvidenceRoute::CertificateDerived(certificate.clone()),
+    )
+    .map_err(|_| "contract implication certificate was refused by the proof kernel")?;
+    Ok(certificate)
 }

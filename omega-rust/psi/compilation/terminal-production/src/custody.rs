@@ -20,11 +20,30 @@ use terminal_codec::entry_receipt::rejoin_program_entry_receipt;
 use terminal_codec::{CanonicalTerminalArtifact, CanonicalTerminalArtifactError};
 use terminal_psi::CheckedProgramEntryTerminalReceipt;
 
-// Saved Build actions need their original source meaning authenticated, which
-// this record does not retain. Version the wrapper and refuse those actions;
-// code identity and an emitted call site cannot restore their authority.
-const PRODUCTION_COMPANION_FORMAT: u32 = 2;
+// Operation numbers are local to their machine. Refuse persisted records that
+// predate the complete call-site keys before decoding their shifted fields.
+const PRODUCED_PROGRAM_SCHEMA: u64 = u64::from_le_bytes(*b"OMGBLD02");
 
+#[cfg(test)]
+mod schema_tests {
+    #[test]
+    fn old_companion_rows_refuse_before_artifact_decoding() {
+        let old_first_field = b"PSITERM\0".to_vec();
+        let bytes = compiler_storage::encode(&old_first_field, Default::default()).unwrap();
+        let error =
+            compiler_storage::decode::<super::ProducedTerminalProgram>(&bytes, Default::default())
+                .unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("unsupported produced program record schema"),
+            "{error}"
+        );
+    }
+}
+
+// An emitted call site does not authenticate its saved source action or Product
+// operands. These records need their accepted source correspondence rejoined.
 fn require_saved_build_correspondence(
     bindings: &[crate::TerminalBuildBindingCall],
     declarations: &[Arc<ProductDeclarationRequest>],
@@ -63,6 +82,7 @@ pub struct ProducedTerminalProgram {
     pub(crate) applications: Vec<Result<ProducedTerminalApplication, Vec<Diagnostic>>>,
     pub(crate) provenance: terminal_psi::TerminalMachineProvenance,
     pub(crate) source_records: Vec<typed_trees::SourceRecordCorrespondence>,
+    pub(crate) source_selections: Option<Arc<crate::TerminalSourceSelections>>,
 }
 
 impl compiler_storage::Record for ProducedTerminalProgram {
@@ -90,7 +110,7 @@ impl compiler_storage::Record for ProducedTerminalProgram {
                 filesystem,
             )
             .map_err(|reason| output.error(reason))?;
-            PRODUCTION_COMPANION_FORMAT.write(output)?;
+            PRODUCED_PROGRAM_SCHEMA.write(output)?;
             self.artifact()
                 .map_err(|error| output.error(error.to_string()))?
                 .to_bytes()
@@ -112,8 +132,8 @@ impl compiler_storage::Record for ProducedTerminalProgram {
     ) -> Result<Self, compiler_storage::RecordError> {
         use compiler_storage::Record;
         input.record(|input| {
-            if u32::read(input)? != PRODUCTION_COMPANION_FORMAT {
-                return Err(input.error("unsupported Terminal production companion format"));
+            if u64::read(input)? != PRODUCED_PROGRAM_SCHEMA {
+                return Err(input.error("unsupported produced program record schema"));
             }
             let bytes = Vec::<u8>::read(input)?;
             let artifact = CanonicalTerminalArtifact::from_bytes(&bytes)
@@ -179,6 +199,8 @@ impl compiler_storage::Record for ProducedTerminalProgram {
                 applications,
                 provenance,
                 source_records,
+                // Persisted code is not a new source-issued permission packet.
+                source_selections: None,
             })
         })
     }
@@ -193,6 +215,9 @@ impl ProducedTerminalProgram {
     pub fn source_records(&self) -> &[typed_trees::SourceRecordCorrespondence] {
         &self.source_records
     }
+    pub fn source_selections(&self) -> Option<&Arc<crate::TerminalSourceSelections>> {
+        self.source_selections.as_ref()
+    }
     pub fn into_shared_portable(
         self,
     ) -> Result<PortableTerminalProgram, CanonicalTerminalArtifactError> {
@@ -205,6 +230,7 @@ impl ProducedTerminalProgram {
             applications: self.applications,
             provenance: self.provenance,
             source_records: self.source_records,
+            source_selections: self.source_selections,
         })
     }
     pub const fn build_filesystem(&self) -> &TerminalBuildFilesystem {
@@ -257,6 +283,7 @@ pub struct PortableTerminalProgram {
     applications: Vec<Result<ProducedTerminalApplication, Vec<Diagnostic>>>,
     provenance: terminal_psi::TerminalMachineProvenance,
     source_records: Vec<typed_trees::SourceRecordCorrespondence>,
+    source_selections: Option<Arc<crate::TerminalSourceSelections>>,
 }
 
 impl PortableTerminalProgram {
@@ -265,6 +292,9 @@ impl PortableTerminalProgram {
     }
     pub fn source_records(&self) -> &[typed_trees::SourceRecordCorrespondence] {
         &self.source_records
+    }
+    pub fn source_selections(&self) -> Option<&Arc<crate::TerminalSourceSelections>> {
+        self.source_selections.as_ref()
     }
     pub fn attach_application(
         &self,
@@ -299,4 +329,6 @@ impl PortableTerminalProgram {
 #[derive(Clone, Copy, Default)]
 pub struct TerminalProductionCustody<'a> {
     pub applications: &'a [crate::TerminalApplicationCustody<'a>],
+    /// Captured anonymous Build source may be used only in this invocation.
+    pub invocation_sources: Option<&'a dyn source::InvocationSourceConsent>,
 }

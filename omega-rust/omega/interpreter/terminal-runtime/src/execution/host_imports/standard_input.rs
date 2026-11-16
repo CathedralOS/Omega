@@ -10,8 +10,8 @@ use semantic_vocabulary::{
 use std::io::Read;
 use std::sync::{Arc, Mutex};
 use terminal_interpreter::{
-    TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalEffectResult,
-    TerminalImportAdapter, TerminalImportSignature, TerminalProgram, TerminalScalarAggregateValue,
+    TerminalAggregateValue, TerminalEffect, TerminalEffectHandler, TerminalEffectRejection,
+    TerminalEffectResult, TerminalImportAdapter, TerminalImportSignature, TerminalProgram,
     TerminalScalarValue,
 };
 use terminal_psi::{
@@ -129,15 +129,15 @@ impl TerminalEffectHandler for ReadByteImport<'_> {
             ),
             _ => return Ok(TerminalEffectResult::Crash(CrashCause::Trap)),
         };
-        Ok(TerminalEffectResult::ScalarAggregate(
-            TerminalScalarAggregateValue {
-                structural_type: self.structural_type,
-                result_case: Some(result_case),
-                fields: fields
+        Ok(TerminalEffectResult::Aggregate(
+            TerminalAggregateValue::from_scalars(
+                self.structural_type,
+                Some(result_case),
+                fields
                     .into_iter()
                     .map(|(field, value)| (vec![Path::Field(field)], value))
                     .collect(),
-            },
+            ),
         ))
     }
 }

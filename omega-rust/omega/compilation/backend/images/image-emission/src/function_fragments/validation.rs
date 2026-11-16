@@ -341,7 +341,7 @@ fn validate(
                     .ok_or(Error::Overflow)
             })?;
     super::byte_literals::validate(source, artifact, code_text_len)?;
-    super::implementation_tables::validate(source, artifact)?;
+    super::code_descriptors::validate(source, artifact)?;
     super::native_code_layouts::validate(source, artifact)?;
     super::image_residence::validate(source, artifact)?;
     let private_identities = super::private_addresses::identities(
@@ -354,10 +354,10 @@ fn validate(
         &text.unresolved_image_addresses,
         artifact,
     )?;
-    let table_count = artifact
-        .implementation_table_pool
+    let code_descriptor_count = artifact
+        .code_descriptor_pool
         .as_ref()
-        .map_or(0, |pool| pool.tables.len());
+        .map_or(0, |pool| pool.descriptors.len());
     let native_count = artifact
         .native_code_layout_pool
         .as_ref()
@@ -385,12 +385,12 @@ fn validate(
         || artifact.relocations.target != text.target
         || artifact.port_effects != super::port_effects::produce(source)?
         || layout.function_symbols.len() != private_identities.len()
-        || layout.sections.len() != 1 + usize::from(table_count + native_count != 0)
+        || layout.sections.len() != 1 + usize::from(code_descriptor_count + native_count != 0)
         || layout.symbols.len()
             != text.functions.len()
                 + private_identities.len()
                 + usize::from(pool.is_some())
-                + table_count
+                + code_descriptor_count
                 + native_count
                 + usize::from(artifact.retained_entry_storage.is_valid())
                 + layout.normalized_imports.len()
@@ -495,7 +495,8 @@ fn validate(
                 abstract_operations::AbstractFunctionResult::Unit
             );
             let frame = source::frame(source, placed.machine)?;
-            let calls = source::stack_calls(source, placed.machine)?;
+            let calls =
+                source::stack_calls(source, placed.machine, source::callable_invocations(source))?;
             stack::validate(
                 unit,
                 (

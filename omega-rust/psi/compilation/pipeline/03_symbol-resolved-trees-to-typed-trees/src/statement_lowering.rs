@@ -67,6 +67,13 @@ pub(crate) mod statement {
             lowerer: &mut Lowerer,
             call: &resolved::statement::TableCall,
         ) -> Result<StatementNode, Diagnostic> {
+            if crate::runtime_callables::callee_is_value(
+                Some(lowerer.source_trees),
+                &lowerer.source_trees.tables.bodies.expressions,
+                call.callee,
+            ) {
+                return Ok(StatementNode::Call(lower_ordinary_call(lowerer, call)?));
+            }
             if let Some(operation) = crate::expressions::product_queries::operation(
                 lowerer.source_trees,
                 call.target_symbol,
@@ -138,7 +145,9 @@ pub(crate) mod statement {
                 let expression = crate::expressions::build_selections::lower(
                     lowerer.source_trees,
                     &mut lowerer.typed_trees,
-                    request,
+                    request.request,
+                    request.inputs,
+                    lowerer.source_owner,
                     arguments,
                     call.operational_acknowledgement,
                 )?;
@@ -164,6 +173,42 @@ pub(crate) mod statement {
             lowerer: &mut Lowerer,
             call: &resolved::statement::TableCall,
         ) -> Result<typed::statement::TableCall, Diagnostic> {
+            if crate::runtime_callables::callee_is_value(
+                Some(lowerer.source_trees),
+                &lowerer.source_trees.tables.bodies.expressions,
+                call.callee,
+            ) {
+                let callee = super::arguments::lower_statement_expression(lowerer, call.callee)?;
+                let arguments = lower_statement_argument_span(lowerer, call.arguments)?;
+                let machine_arguments = crate::signatures::lexical_context::call_arguments(
+                    Some(lowerer.source_trees),
+                    &mut lowerer.typed_trees,
+                    lowerer.type_reference_exposure,
+                    symbols::SymbolHandle::invalid(),
+                    &call.machine_arguments,
+                    &call.authored_static_argument_selections,
+                )?;
+                return Ok(typed::statement::TableCall {
+                    authored_call_selection: call.authored_call_selection,
+                    runtime_call: Some(typed::callable_values::RuntimeCallBinding {
+                        callee,
+                        contract: Default::default(),
+                    }),
+                    target: crate::lowerer::name::lower_name(&call.target),
+                    machine_arguments,
+                    arguments,
+                    evidence_arguments: call
+                        .evidence_arguments
+                        .iter()
+                        .map(crate::lowerer::name::lower_name)
+                        .collect::<Vec<_>>()
+                        .into_boxed_slice(),
+                    operational_acknowledgement: call.operational_acknowledgement,
+                    discards_result: call.discards_result,
+                    source_span: call.target.source_span(),
+                    ..Default::default()
+                });
+            }
             if is_proposition_call_target(&lowerer.source_trees.symbols, call.target_symbol) {
                 return Err(Diagnostic::error(
                     "a proposition application is proof-only and cannot appear as an executable call statement",
@@ -186,6 +231,7 @@ pub(crate) mod statement {
             let arguments = lower_statement_argument_span(lowerer, call.arguments)?;
 
             Ok(typed::statement::TableCall {
+                runtime_call: None,
                 unresolved_name: call.unresolved_name,
                 installed_interrupt_operation,
                 authored_machine_application: Default::default(),
@@ -381,9 +427,11 @@ pub(crate) mod statement {
                 })
                 .collect::<Vec<_>>();
             substitute_call_type_arguments(
-                &mut lowerer.typed_trees.type_reference_table,
+                &mut lowerer.typed_trees,
                 declared_return,
                 &machine_substitutions,
+                target_symbol,
+                state.symbol,
             )?;
             instantiate_declared_call_result(
                 lowerer,
@@ -672,9 +720,11 @@ pub(crate) mod statement {
                 );
             }
             substitute_call_type_arguments(
-                &mut lowerer.typed_trees.type_reference_table,
+                &mut lowerer.typed_trees,
                 result,
                 &substitutions,
+                target,
+                state.symbol,
             )
         }
 
@@ -772,46 +822,28 @@ pub(crate) mod statement {
         }
 
         fn substitute_call_type_arguments(
-            table: &mut typed::types::TypeReferenceTable,
+            program: &mut typed::TypedTrees,
             reference: typed::types::TypeReferenceHandle,
             substitutions: &[(symbols::SymbolHandle, typed::types::TypeReferenceHandle)],
+            declaration: symbols::SymbolHandle,
+            supplier: symbols::SymbolHandle,
         ) -> Result<(), Diagnostic> {
-            use typed::types::TypeReferenceNode as Node;
-            let applications = table
-                .type_alias_applications(reference)
-                .map(|application| application.application)
-                .collect::<Vec<_>>();
-            for application in applications {
-                substitute_call_type_arguments(table, application, substitutions)?;
-            }
-            match table.type_reference(reference).clone() {
-                Node::Named { symbol, .. } => {
-                    if let Some((_, concrete)) = substitutions
-                        .iter()
-                        .find(|(parameter, _)| *parameter == symbol)
-                    {
-                        table
-                            .substitute_from(reference, *concrete)
-                            .map_err(Diagnostic::error)?;
-                    }
-                }
-                Node::Reference { referee, .. } => {
-                    substitute_call_type_arguments(table, referee, substitutions)?
-                }
-                Node::Constrained { base_type, .. } => {
-                    substitute_call_type_arguments(table, base_type, substitutions)?
-                }
-                Node::FixedArray { element_type, .. } | Node::Slice { element_type } => {
-                    substitute_call_type_arguments(table, element_type, substitutions)?
-                }
-                Node::Generic { arguments, .. } => {
-                    for argument in table.type_reference_handles(arguments).to_vec() {
-                        substitute_call_type_arguments(table, argument, substitutions)?;
-                    }
-                }
-                Node::ConstExpression(_) | Node::Unit => {}
-            }
-            Ok(())
+            // Apply the whole declared type once, including callable contracts
+            // and alias obligations, without mutating shared child rows.
+            let applied = program
+                .apply_callable_type_in_scope(
+                    reference,
+                    substitutions,
+                    &[],
+                    declaration,
+                    supplier,
+                    &[],
+                )
+                .map_err(Diagnostic::error)?;
+            program
+                .type_reference_table
+                .substitute_applied_from(reference, applied)
+                .map_err(Diagnostic::error)
         }
 
         fn collection_type_reference(
@@ -999,6 +1031,8 @@ pub(crate) mod statement {
                     slot: product_path(&binding.slot),
                     implementation,
                 }),
+                Vec::new(),
+                lowerer.source_owner,
                 arguments,
                 Default::default(),
             )?;
@@ -1381,7 +1415,11 @@ pub(crate) mod statement {
                 }),
             ),
             resolved::statement::StatementNode::Call(call)
-                if lowerer
+                if !crate::runtime_callables::callee_is_value(
+                    Some(lowerer.source_trees),
+                    &lowerer.source_trees.tables.bodies.expressions,
+                    call.callee,
+                ) && lowerer
                     .source_trees
                     .symbols
                     .builtin_function_for_symbol(call.target_symbol)
@@ -1402,6 +1440,7 @@ pub(crate) mod statement {
                 let expression = lowerer.typed_trees.expression_table.insert(
                     typed::expression::ExpressionNode::Call(
                         typed::expression::TableCallExpression {
+                            runtime_call: None,
                             authored_call_selection: call.authored_call_selection,
                             authored_call_binding: None,
                             authored_machine_application: Default::default(),

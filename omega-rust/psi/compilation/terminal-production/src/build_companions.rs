@@ -1,20 +1,13 @@
-//! Produces the Build companions of one accepted compilation.
+//! Publish the source information a Build host needs beside its actual calls.
 //!
-//! A Build program reaches its host through boundary calls of four toolchain
-//! protocols declared in the Build prelude. The Terminal Psi program holds
-//! only the calls; the host also needs to know, for each call, which protocol
-//! operation it is and, for a selection, which declarations it names. Those
-//! rows are read here from the accepted elaboration: its module says which
-//! operations call which boundary, `Elaboration::boundaries` says which
-//! requirement each boundary lowers, and `MachineSources::designated` holds
-//! the designated operands the reader carried to each selection call.
-//!
-//! Each row names its call by `BuildCallSite`: the machine, the operation
-//! within it and the boundary. Operation identities are per machine, so the
-//! machine is part of what the Build host matches against an effect.
+//! Boundary declarations identify the four compiler-owned protocols. A selection
+//! also retains its designated source request and original selecting machine;
+//! lowering may place its call in a different machine. Host rows use the emitted
+//! machine, operation and boundary together in BuildCallSite, so helpers cannot
+//! share a call key.
 
 use crate::{
-    BuildCallSite, TerminalBuildBindingCall, TerminalBuildBindingOperation,
+    AcceptedTerminalSource, BuildCallSite, TerminalBuildBindingCall, TerminalBuildBindingOperation,
     TerminalBuildFilesystemCall, TerminalBuildFilesystemOperation, TerminalBuildNativeLocator,
     TerminalBuildQueryCall, TerminalBuildQueryOperation, TerminalBuildRequestCall,
     TerminalBuildRequestOperation, TerminalBuildValueCase, TerminalBuildValueField,
@@ -27,10 +20,12 @@ use language_semantics::build_requests::{
 use language_semantics::declaration_selection::{
     BuildOperation, BuildSelectionRequest, NativeBindingFormation, ProductDeclarationRequest,
 };
+use semantic_vocabulary::{BoundaryMachineId, InvocationSite, StructuralTypeId};
 use std::sync::Arc;
 use symbols::SymbolHandle;
+use terminal_psi::{StructuralFieldType, StructuralTypeShape, TerminalModule};
 use typed_trees::TypedTrees;
-use typed_trees_to_terminal_psi::{Elaboration, SourceOrigin};
+use typed_trees_to_terminal_psi::Elaboration;
 
 #[derive(Default)]
 pub(crate) struct BuildCompanions {
@@ -68,50 +63,75 @@ fn refused(detail: impl std::fmt::Display) -> Diagnostic {
 }
 
 pub(crate) fn produce(
-    source: &TypedTrees,
-    elaboration: &Elaboration,
-    correspondence: &typed_trees_to_terminal_psi::SourceCorrespondence,
+    accepted: &AcceptedTerminalSource,
+    module: &TerminalModule,
 ) -> Result<BuildCompanions, Diagnostic> {
+    let source = accepted.source().as_ref();
+    let elaboration = &accepted.closure().elaboration;
     let mut companions = BuildCompanions::default();
+    capture_declared_inputs(accepted, module, &mut companions)?;
+    let mut shapes = NativeLocatorShapes::new(module)?;
     let mut native_authors = None;
     let mut designated = 0;
-    // Calls of no Build protocol, by boundary, until every readiness
-    // request has been read.
+    // Retain every actual host call; only activated calls count against the
+    // Build's host authority. Readiness requests below account for installed slots.
     let mut outside = Vec::new();
     let activated = activated_machines(source, elaboration);
-    for machine in &elaboration.module.machines {
-        // Every machine's protocol calls get their rows. Only a machine an
-        // activation can run counts against the Build's authority.
+    for machine in &module.machines {
         let counted = activated
             .as_ref()
             .is_none_or(|activated| activated.binary_search(&machine.id).is_ok());
-        for operation in machine.operations() {
-            let terminal_psi::OperationKind::BoundaryCall { boundary, .. } = &operation.kind else {
-                continue;
-            };
+        for invocation in machine.boundary_invocations() {
+            let boundary = invocation.boundary;
             // A boundary this elaboration cannot name is no toolchain
             // protocol operation: it gets no row, and the Build host refuses
             // a protocol call that has none.
-            let Some((owner, requirement)) = elaboration
-                .boundaries
-                .get(*boundary)
-                .and_then(|requirement| source.trait_machine_signature(*requirement))
+            let Some((owner, requirement)) =
+                elaboration
+                    .boundaries
+                    .get(boundary)
+                    .and_then(|requirement| {
+                        let declaration = source
+                            .closed_requirement_application(*requirement)
+                            .map_or(*requirement, |application| application.template);
+                        source.trait_machine_signature(declaration)
+                    })
             else {
                 companions.unowned += usize::from(counted);
                 continue;
             };
+            let protocol =
+                |name| owner.is_boundary && is_build_protocol(&source.symbols, owner.symbol, name);
+            if ![
+                SELECTION_PROTOCOL,
+                "BuildRequestOperations",
+                "BuildFilesystemOperations",
+                "BuildProductOperations",
+            ]
+            .into_iter()
+            .any(protocol)
+            {
+                if counted {
+                    outside.push(boundary);
+                }
+                continue;
+            }
+            let InvocationSite::Operation(operation) = invocation.site else {
+                return Err(refused(
+                    "a Build host request has no ordinary boundary operation",
+                ));
+            };
             let call = ProtocolCall {
                 site: BuildCallSite {
                     machine: machine.id,
-                    operation: operation.id,
-                    boundary: *boundary,
+                    operation,
+                    boundary,
                 },
                 name: requirement.name.as_str(),
             };
-            let protocol = |name| is_build_protocol(&source.symbols, owner.symbol, name);
             if protocol(SELECTION_PROTOCOL) {
                 designated += 1;
-                let row = binding(source, elaboration, correspondence, &call)?;
+                let row = binding(accepted, module, &call, &mut shapes)?;
                 if row.action == TerminalBuildBindingOperation::BindNative {
                     let BuildSelectionRequest::Declaration(request) = &row.request else {
                         return Err(refused(
@@ -151,32 +171,34 @@ pub(crate) fn produce(
                 }
                 companions.bindings.push(row);
             } else if protocol("BuildRequestOperations") {
-                companions.requests.push(TerminalBuildRequestCall {
+                let row = TerminalBuildRequestCall {
                     site: call.site,
                     action: request_operation(call.name)?,
-                });
+                };
+                companions.requests.push(row);
             } else if protocol("BuildFilesystemOperations") {
-                companions.filesystem.push(TerminalBuildFilesystemCall {
+                let row = TerminalBuildFilesystemCall {
                     site: call.site,
                     action: filesystem_operation(call.name)?,
-                });
+                };
+                companions.filesystem.push(row);
             } else if protocol("BuildProductOperations") {
-                let SourceOrigin::Authored(occurrence) = elaboration
+                let occurrence = elaboration
                     .sources
                     .get(call.site.machine)
                     .and_then(|sources| sources.operations.get(call.site.operation))
                     .copied()
                     .ok_or_else(|| refused("a Build product query lost its source row"))?
-                else {
-                    return Err(refused("a Build product query has no authored occurrence"));
-                };
-                companions.queries.push(TerminalBuildQueryCall {
+                    .span()
+                    .ok_or_else(|| refused("a Build product query has no authored occurrence"))?;
+                let row = TerminalBuildQueryCall {
                     site: call.site,
                     action: query_operation(call.name)?,
                     occurrence,
-                });
+                };
+                companions.queries.push(row);
             } else if counted {
-                outside.push(*boundary);
+                outside.push(boundary);
             }
         }
     }
@@ -199,7 +221,8 @@ pub(crate) fn produce(
         })
         .count();
     // Every reference the reader carried must have reached a selection call.
-    let carried: usize = correspondence
+    let carried: usize = accepted
+        .correspondence()
         .designated
         .iter()
         .map(|(_, rows)| rows.len())
@@ -263,11 +286,14 @@ fn activated_machines(
 }
 
 fn binding(
-    source: &TypedTrees,
-    elaboration: &Elaboration,
-    correspondence: &typed_trees_to_terminal_psi::SourceCorrespondence,
+    accepted: &AcceptedTerminalSource,
+    module: &TerminalModule,
     call: &ProtocolCall<'_>,
+    shapes: &mut NativeLocatorShapes,
 ) -> Result<TerminalBuildBindingCall, Diagnostic> {
+    let source = accepted.source().as_ref();
+    let elaboration = &accepted.closure().elaboration;
+    let correspondence = accepted.correspondence();
     let designated = correspondence
         .designated
         .get(call.site.machine)
@@ -300,9 +326,6 @@ fn binding(
             "a native Build binding disagrees with its protocol operation",
         ));
     }
-    let native_locator = (action == TerminalBuildBindingOperation::BindNative)
-        .then(|| native_locator(source, elaboration, correspondence, call))
-        .transpose()?;
     // The awaited requirement, as the module states it: the trait by its
     // exact owner, its application by the service row, and the receiving
     // slots by the boundaries that service owns. A Build that calls none
@@ -358,6 +381,16 @@ fn binding(
     } else {
         None
     };
+    let native_locator = if action == TerminalBuildBindingOperation::BindNative {
+        Some(native_locator(
+            accepted,
+            call.site.boundary,
+            module,
+            shapes,
+        )?)
+    } else {
+        None
+    };
     Ok(TerminalBuildBindingCall {
         site: call.site,
         action,
@@ -376,217 +409,6 @@ fn authored_span(
         .symbols
         .symbol_source_span(source.symbols.authored_origin(machine))
         .ok_or_else(|| refused("a Build selection lost its authored machine coordinate"))
-}
-
-/// The host decodes values against this accepted carrier, never against the
-/// source expression that happened to produce one locator at this call.
-fn native_locator(
-    source: &TypedTrees,
-    elaboration: &Elaboration,
-    source_correspondence: &typed_trees_to_terminal_psi::SourceCorrespondence,
-    call: &ProtocolCall<'_>,
-) -> Result<TerminalBuildNativeLocator, Diagnostic> {
-    use language_core::core_vocabulary::{CoreVocabulary, ExternalBindingVocabulary};
-    use typed_trees::types::TypeReferenceNode;
-
-    let boundary = elaboration
-        .module
-        .boundary_machine(call.site.boundary)
-        .ok_or_else(|| refused("a native Build binding lost its boundary declaration"))?;
-    let [parameter] = boundary.structural_parameters.as_slice() else {
-        return Err(refused(
-            "a native Build binding needs one structural locator parameter",
-        ));
-    };
-    if parameter.access != terminal_psi::StructuralAccess::Owned {
-        return Err(refused(
-            "a native Build binding needs an owned locator parameter",
-        ));
-    }
-    let correspondence = source_correspondence
-        .records
-        .iter()
-        .find(|record| record.record == parameter.structural_type)
-        .ok_or_else(|| refused("a native locator lost its source type correspondence"))?;
-    if source.core_vocabulary(correspondence.declaration)
-        != Some(CoreVocabulary::ExternalBinding(
-            ExternalBindingVocabulary::ForeignBinding,
-        ))
-    {
-        return Err(refused(
-            "a native locator must use the bundled core ForeignBinding declaration",
-        ));
-    }
-    let application = correspondence
-        .application
-        .as_ref()
-        .ok_or_else(|| refused("a native locator lost its complete source application"))?;
-    let TypeReferenceNode::Generic {
-        base_symbol,
-        arguments,
-        ..
-    } = source
-        .type_reference_table
-        .type_reference(application.reference)
-    else {
-        return Err(refused(
-            "a native locator has no closed generic source application",
-        ));
-    };
-    if *base_symbol != correspondence.declaration {
-        return Err(refused(
-            "a native locator application changed its declaration owner",
-        ));
-    }
-    let arguments = source
-        .type_reference_table
-        .type_reference_handles(*arguments);
-    let [object, symbol, version] = arguments else {
-        return Err(refused(
-            "a native locator lost its three const width arguments",
-        ));
-    };
-    let width = |argument| {
-        source
-            .static_const_literal_from_type_reference(argument)
-            .and_then(|literal| literal.value_u64())
-            .ok_or_else(|| refused("a native locator width is not a closed u64 constant"))
-    };
-    let widths = [width(*object)?, width(*symbol)?, width(*version)?];
-    let shape = LocatorShapes {
-        source,
-        elaboration,
-        correspondence: source_correspondence,
-        active: Vec::new(),
-        completed: Vec::new(),
-    }
-    .shape(parameter.structural_type)?;
-    Ok(TerminalBuildNativeLocator {
-        structural_type: parameter.structural_type,
-        widths,
-        shape,
-    })
-}
-
-/// Reuse shared children and reject cycles while reading the accepted storage
-/// catalog. Only fixed arrays, scalars and the exact locator sums are admitted.
-struct LocatorShapes<'a> {
-    source: &'a TypedTrees,
-    elaboration: &'a Elaboration,
-    correspondence: &'a typed_trees_to_terminal_psi::SourceCorrespondence,
-    active: Vec<semantic_vocabulary::StructuralTypeId>,
-    completed: Vec<(
-        semantic_vocabulary::StructuralTypeId,
-        Arc<TerminalBuildValueShape>,
-    )>,
-}
-
-impl LocatorShapes<'_> {
-    fn shape(
-        &mut self,
-        id: semantic_vocabulary::StructuralTypeId,
-    ) -> Result<Arc<TerminalBuildValueShape>, Diagnostic> {
-        use language_core::core_vocabulary::{CoreVocabulary, ExternalBindingVocabulary};
-        use terminal_psi::{StructuralFieldType, StructuralTypeShape};
-
-        if let Some((_, shape)) = self.completed.iter().find(|(known, _)| *known == id) {
-            return Ok(Arc::clone(shape));
-        }
-        if self.active.contains(&id) {
-            return Err(refused("a native locator has recursive structural storage"));
-        }
-        let declaration = self
-            .elaboration
-            .module
-            .structural_type(id)
-            .ok_or_else(|| refused("a native locator refers to missing structural storage"))?;
-        self.active.push(id);
-        let shape = match &declaration.shape {
-            StructuralTypeShape::PrimitiveScalar(scalar) => {
-                TerminalBuildValueShape::Scalar(*scalar)
-            }
-            StructuralTypeShape::FixedArray { element, length } => TerminalBuildValueShape::Array {
-                length: length
-                    .literal()
-                    .ok_or_else(|| refused("a native locator has an unclosed array extent"))?,
-                element: self.shape(*element)?,
-            },
-            StructuralTypeShape::Sum { cases } => {
-                let source = self
-                    .correspondence
-                    .records
-                    .iter()
-                    .find(|record| record.record == id)
-                    .ok_or_else(|| {
-                        refused("a native locator sum lost its source correspondence")
-                    })?;
-                if !matches!(
-                    self.source.core_vocabulary(source.declaration),
-                    Some(CoreVocabulary::ExternalBinding(
-                        ExternalBindingVocabulary::ForeignBinding
-                            | ExternalBindingVocabulary::DllImport
-                    ))
-                ) {
-                    return Err(refused(
-                        "a native locator contains a sum outside the bundled core locator types",
-                    ));
-                }
-                let mut retained = Vec::with_capacity(cases.len());
-                for case in cases {
-                    let mut fields = Vec::with_capacity(case.fields.len());
-                    for field in &case.fields {
-                        if field.relevance.is_erased() {
-                            return Err(refused("a native locator contains an erased field"));
-                        }
-                        let shape = match field.field_type {
-                            StructuralFieldType::Scalar(scalar) => {
-                                Arc::new(TerminalBuildValueShape::Scalar(scalar))
-                            }
-                            StructuralFieldType::Structural(child) => self.shape(child)?,
-                            _ => {
-                                return Err(refused(
-                                    "a native locator field has unsupported structural storage",
-                                ));
-                            }
-                        };
-                        fields.push(TerminalBuildValueField {
-                            id: field.id,
-                            name: self.member_name(field.identity)?,
-                            shape,
-                        });
-                    }
-                    retained.push(TerminalBuildValueCase {
-                        id: case.id,
-                        name: self.member_name(case.identity)?,
-                        fields,
-                    });
-                }
-                TerminalBuildValueShape::Sum { cases: retained }
-            }
-            _ => {
-                return Err(refused(
-                    "a native locator has unsupported structural storage",
-                ));
-            }
-        };
-        self.active.pop();
-        let shape = Arc::new(shape);
-        self.completed.push((id, Arc::clone(&shape)));
-        Ok(shape)
-    }
-
-    fn member_name(
-        &self,
-        identity: terminal_psi::TerminalIdentityIndex,
-    ) -> Result<String, Diagnostic> {
-        self.elaboration
-            .module
-            .identities
-            .text(identity)
-            .filter(|name| !name.is_empty())
-            .map(str::to_owned)
-            .ok_or_else(|| refused("a native locator member lost its checked identity"))
-    }
 }
 
 /// The host row's action for a selection protocol operation. A description
@@ -659,4 +481,204 @@ fn query_operation(name: &str) -> Result<TerminalBuildQueryOperation, Diagnostic
         "provider_path" => TerminalBuildQueryOperation::ProviderPath,
         other => return Err(unknown("BuildProductOperations", other)),
     })
+}
+
+fn capture_declared_inputs(
+    accepted: &AcceptedTerminalSource,
+    module: &TerminalModule,
+    companions: &mut BuildCompanions,
+) -> Result<(), Diagnostic> {
+    let source = accepted.source().as_ref();
+    let elaboration = &accepted.closure().elaboration;
+    let root = module.entry.and_then(|entry| match entry {
+        terminal_psi::TargetMachineCallable::Machine(id) => elaboration.machines.get(id).copied(),
+        _ => None,
+    });
+    let mut selected: Vec<_> = elaboration
+        .machines
+        .iter()
+        .map(|(_, symbol)| (symbol.arena_index(), symbol.generation()))
+        .collect();
+    selected.sort_unstable();
+    selected.dedup();
+    // Formation is checked for source in this compilation even when no branch
+    // issues the request. Unselected Product source supplies no Build intent.
+    for occurrence in typed_trees::product_operand::collect_product_selection_occurrences(source) {
+        if selected
+            .binary_search(&(
+                occurrence.machine.arena_index(),
+                occurrence.machine.generation(),
+            ))
+            .is_err()
+        {
+            continue;
+        }
+        let declaration = occurrence.request;
+        if !companions.declarations.contains(&declaration) {
+            companions.declarations.push(Arc::clone(&declaration));
+        }
+        if declaration.operation != BuildOperation::NativeBinding {
+            continue;
+        }
+        let formation = typed_trees::product_operand::native_binding_formation(
+            source,
+            occurrence.machine,
+            root,
+            declaration,
+        )
+        .map_err(refused)?;
+        match companions
+            .native_formations
+            .iter()
+            .find(|prior| prior.request == formation.request)
+        {
+            Some(prior) if *prior != formation => {
+                return Err(refused("native formation has ambiguous source ownership"));
+            }
+            Some(_) => {}
+            None => companions.native_formations.push(formation),
+        }
+    }
+    Ok(())
+}
+
+fn native_locator(
+    source: &AcceptedTerminalSource,
+    boundary: BoundaryMachineId,
+    module: &TerminalModule,
+    shapes: &mut NativeLocatorShapes,
+) -> Result<TerminalBuildNativeLocator, Diagnostic> {
+    let publication = source.correspondence();
+    let declaration = module
+        .boundary_machines
+        .iter()
+        .find(|row| row.id == boundary)
+        .ok_or_else(|| refused("native binding lost its published boundary signature"))?;
+    let [parameter] = declaration.structural_parameters.as_slice() else {
+        return Err(refused(
+            "native binding must retain one owned structural locator",
+        ));
+    };
+    if parameter.access != terminal_psi::StructuralAccess::Owned {
+        return Err(refused(
+            "native binding cannot retain borrowed locator storage",
+        ));
+    }
+    let mut records = publication
+        .records
+        .iter()
+        .filter(|record| record.record == parameter.structural_type);
+    let record = records
+        .next()
+        .ok_or_else(|| refused("native locator has no exact source type application"))?;
+    if records.next().is_some() {
+        return Err(refused(
+            "native locator source type correspondence is ambiguous",
+        ));
+    }
+    let application = record.application.as_ref().ok_or_else(|| {
+        refused(
+            "native locator needs its concrete source type application to establish byte widths",
+        )
+    })?;
+    let widths = typed_trees::native_locators::application_widths(
+        source.source().as_ref(),
+        application.reference,
+    )
+    .map_err(|diagnostics| refused(diagnostics::join_messages(&diagnostics)))?;
+    let shape = collect_shape(module, parameter.structural_type, shapes)?;
+    Ok(TerminalBuildNativeLocator {
+        structural_type: parameter.structural_type,
+        widths,
+        shape,
+    })
+}
+
+enum LocatorShapeState {
+    Unread,
+    Active,
+    Ready(Arc<TerminalBuildValueShape>),
+}
+
+struct NativeLocatorShapes {
+    rows: Vec<(StructuralTypeId, LocatorShapeState)>,
+}
+
+impl NativeLocatorShapes {
+    fn new(module: &TerminalModule) -> Result<Self, Diagnostic> {
+        let mut rows = module
+            .structural_types
+            .iter()
+            .map(|row| (row.id, LocatorShapeState::Unread))
+            .collect::<Vec<_>>();
+        rows.sort_unstable_by_key(|(id, _)| *id);
+        if rows.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+            return Err(refused("native locator type rows repeat an identity"));
+        }
+        Ok(Self { rows })
+    }
+}
+
+fn collect_shape(
+    module: &TerminalModule,
+    id: StructuralTypeId,
+    shapes: &mut NativeLocatorShapes,
+) -> Result<Arc<TerminalBuildValueShape>, Diagnostic> {
+    let position = shapes
+        .rows
+        .binary_search_by_key(&id, |(id, _)| *id)
+        .map_err(|_| refused("native locator child has no declaration"))?;
+    match &shapes.rows[position].1 {
+        LocatorShapeState::Ready(shape) => return Ok(Arc::clone(shape)),
+        LocatorShapeState::Active => {
+            return Err(refused("native locator has a recursive owned shape"));
+        }
+        LocatorShapeState::Unread => {}
+    }
+    shapes.rows[position].1 = LocatorShapeState::Active;
+    let row = module
+        .structural_type(id)
+        .ok_or_else(|| Diagnostic::error("native locator child has no declaration"))?;
+    if row.owns_linear_claim || row.quotient_carrier.is_some() {
+        return Err(Diagnostic::error(
+            "native locator cannot retain linear claims or quotient storage",
+        ));
+    }
+    let shape = match &row.shape {
+        StructuralTypeShape::PrimitiveScalar(scalar) => TerminalBuildValueShape::Scalar(*scalar),
+        StructuralTypeShape::FixedArray { element, length } => TerminalBuildValueShape::Array {
+            length: length.literal().ok_or_else(|| Diagnostic::error(
+                "native locator requires a closed array extent",
+            ))?,
+            element: collect_shape(module, *element, shapes)?,
+        },
+        StructuralTypeShape::Sum { cases } => TerminalBuildValueShape::Sum {
+            cases: cases.iter().map(|case| Ok(TerminalBuildValueCase {
+                id: case.id,
+                name: label(module, case.identity)?.to_owned(),
+                fields: case.fields.iter().map(|field| {
+                    if field.relevance.is_erased() { return Err(Diagnostic::error("native locator cannot consume erased fields")); }
+                    let shape = match field.field_type {
+                        StructuralFieldType::Scalar(scalar) => Arc::new(TerminalBuildValueShape::Scalar(scalar)),
+                        StructuralFieldType::Structural(child) => collect_shape(module, child, shapes)?,
+                        _ => return Err(Diagnostic::error("native locator field is not an owned scalar or structural value")),
+                    };
+                    Ok(TerminalBuildValueField { id: field.id, name: label(module, field.identity)?.to_owned(), shape })
+                }).collect::<Result<_, Diagnostic>>()?,
+            })).collect::<Result<_, Diagnostic>>()?,
+        },
+        _ => return Err(Diagnostic::error("native locator cannot retain references, views or opaque storage")),
+    };
+    let shape = Arc::new(shape);
+    shapes.rows[position].1 = LocatorShapeState::Ready(Arc::clone(&shape));
+    Ok(shape)
+}
+fn label(
+    module: &TerminalModule,
+    identity: terminal_psi::TerminalIdentityIndex,
+) -> Result<&str, Diagnostic> {
+    module
+        .identities
+        .text(identity)
+        .ok_or_else(|| Diagnostic::error("native locator descriptor label is absent"))
 }

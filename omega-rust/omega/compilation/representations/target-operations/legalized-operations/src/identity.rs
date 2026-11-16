@@ -2,7 +2,7 @@
 Canonical identity construction for `LegalizedOperationPlan` and its subordinate representations.
 
 We compute collision-resistant SHA-256 identity digests (`LegalizedOperationPlanIdentity`) over
-the canonical wire encoding of a legalized plan (`omega.terminal-legalized-operations.v88\0` and
+the canonical wire encoding of a legalized plan (`omega.terminal-legalized-operations.v89\0` and
 `ordinary-scalar-graph.v46\0`). Every optional field uses a tagged `0` / `1 + payload` frame
 (`encode_option`) so an absent row and an empty payload never share bytes.
 */
@@ -49,7 +49,7 @@ pub fn legalized_operation_plan_identity(
     plan: &LegalizedOperationPlan,
 ) -> LegalizedOperationPlanIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-legalized-operations.v88\0");
+    bytes.extend_from_slice(b"omega.terminal-legalized-operations.v89\0");
     bytes.extend_from_slice(plan.psi.program_fingerprint.as_bytes());
     crate::codec_bytes::push_encoded(&mut bytes, plan.psi.vocabulary_marker.get().to_le_bytes());
     bytes.extend_from_slice(&plan.optimization_unit.bytes());
@@ -69,10 +69,7 @@ pub fn legalized_operation_plan_identity(
     for abi in &plan.function_abis {
         function_abi::encode_function_abi(&mut bytes, abi);
     }
-    encode_len(&mut bytes, plan.borrowed_storage_layouts.len());
-    for layout in &plan.borrowed_storage_layouts {
-        function_abi::encode_borrowed_storage_layout(&mut bytes, layout);
-    }
+    bytes.extend_from_slice(&plan.borrowed_storage_layouts.identity_bytes());
     bytes.extend_from_slice(b"ordinary-scalar-graph.v46\0");
     encode_len(&mut bytes, plan.scalar_functions.len());
     let mut cached_catalog = None;
@@ -196,6 +193,10 @@ pub(super) fn encode_bindings(bytes: &mut Vec<u8>, bindings: &[ValueBinding]) {
 
 pub fn encode_scalar_type(bytes: &mut Vec<u8>, scalar_type: semantic_vocabulary::ScalarType) {
     match scalar_type {
+        semantic_vocabulary::ScalarType::Callable(contract) => {
+            bytes.push(3);
+            crate::codec_bytes::push_encoded(bytes, contract.get().to_le_bytes());
+        }
         semantic_vocabulary::ScalarType::Boolean => bytes.push(0),
         semantic_vocabulary::ScalarType::Integer(integer) => {
             bytes.push(1);

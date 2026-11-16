@@ -782,6 +782,9 @@ pub mod type_system {
             // The existing selection carrier preserves which path component
             // owns an application, before namespace resolution assigns its kind.
             StaticSelection(crate::expression::StaticMachineArgument),
+            Callable {
+                signature: crate::item::StateSignatureHandle,
+            },
             ConstExpression(ExpressionHandle),
             Named(Identifier),
             #[default]
@@ -1390,7 +1393,13 @@ pub mod values {
                 let mut table = ExpressionTable::new();
                 let argument = table.insert(ExpressionNode::Boolean(true));
                 let arguments = table.insert_expression_handles([argument]);
+                let name = table.append_identifier_path_member(Identifier::generated("operation"));
+                let callee = table.insert(ExpressionNode::Name {
+                    members: arena::HandleSpan::from_parts(name, 1),
+                    application: None,
+                });
                 let call = table.insert(ExpressionNode::Call(TableCallExpression {
+                    callee,
                     receiver: ExpressionHandle::invalid(),
                     target: Identifier::generated("operation"),
                     target_is_static: true,
@@ -1424,6 +1433,8 @@ pub mod values {
                 restored.operational_acknowledgement = retained.operational_acknowledgement;
                 assert_eq!(format!("{restored:?}"), format!("{retained:?}"));
                 assert_eq!(table.expression_handles(current.arguments), &[argument]);
+                assert_eq!(current.callee, callee);
+                assert_eq!(retained.callee, callee);
                 assert_eq!(table.source_span(call), span);
                 assert_eq!(snapshot.source_span(call), span);
             }
@@ -1911,6 +1922,7 @@ pub mod values {
             compiler_storage::Record,
         )]
         pub struct TableCallExpression {
+            pub callee: ExpressionHandle,
             pub receiver: ExpressionHandle,
             pub target: Identifier,
             pub target_is_static: bool,

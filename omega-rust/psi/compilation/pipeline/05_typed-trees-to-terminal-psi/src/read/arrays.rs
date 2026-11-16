@@ -173,7 +173,7 @@ impl Program<'_> {
     /// Borrow a range of a closed array using the backing's shape. A `u8`
     /// destination forms a byte descriptor; an `&[T]` destination forms the
     /// typed element view of the same backing. Both are the one
-    /// `ArrayView` formation, which Terminal Psi establishes as a
+    /// `CollectionView` formation, which Terminal Psi establishes as a
     /// `WholeCollection` element view whose length is the array's exact
     /// extent. A partial range retains that backing through the descriptor's
     /// checked subslice operation.
@@ -315,9 +315,9 @@ impl Program<'_> {
             && self.data_type(machine, backing)?.copyable
         {
             self.authorized(machine, backing_type, Access::Read)?;
-            return self
-                .byte_subslice(machine, slots, base, range, borrow.target, source)
-                .map(Some);
+            let value = self.byte_subslice(machine, slots, base, range, borrow.target, source)?;
+            self.complete_formed_operator(machine, borrow.target, &value)?;
+            return Ok(Some(value));
         }
         // A partial range of fixed storage is the window of the whole-array
         // loan: the loan keeps the backing's exact extent `N`, and the
@@ -385,7 +385,7 @@ impl Program<'_> {
         // storage and leave a restoration debt there.
         let whole = Expression {
             call_context: None,
-            kind: ExpressionKind::ArrayView {
+            kind: ExpressionKind::CollectionView {
                 base: Box::new(base),
                 access: borrow.access,
                 element,
@@ -393,12 +393,106 @@ impl Program<'_> {
             result: Some(ValueType::Record(view, Qualification::NONE, regions)),
             source,
         };
+        // A partial range adds a derived window, but the source operator
+        // still belongs to the original array backing.
+        self.complete_formed_operator(machine, borrow.target, &whole)?;
         if partial {
             return self
                 .collection_window(machine, slots, whole, range, source)
                 .map(Some);
         }
         Ok(Some(whole))
+    }
+
+    /// A collection recast borrows the same captured window. Its destination
+    /// supplies only presentation; geometry, total validity and count fit are
+    /// judged on the resulting representation-view operation.
+    pub(super) fn collection_recast(
+        &mut self,
+        machine: MachineId,
+        slots: &[Slot],
+        cast: &typed_trees::expression::TableCastExpression,
+        reference: TypeReferenceHandle,
+        target: ValueType,
+        source: SourceOrigin,
+    ) -> Checked<Expression> {
+        use language_core::ReferenceAccess;
+        use terminal_psi::{ByteSequenceCarrier, StructuralAccess};
+        let unavailable =
+            |detail| refuse(machine, Construct::Machine, Unserved::Expression(detail));
+        if cast.form.recast_access() != Some(ReferenceAccess::Shared) {
+            return Err(unavailable(
+                "exclusive storage view without establishment and handback evidence",
+            ));
+        }
+        if cast.semantic_domain_symbol.is_valid()
+            || !cast.semantic_domain.is_empty()
+            || cast.domain != numerics::arithmetic::ArithmeticDomain::Exact
+        {
+            return Err(unavailable("storage view that also changes a domain"));
+        }
+        let ValueType::Record(view, Qualification::NONE, _) = target else {
+            return Err(unavailable(
+                "collection recast without a plain view destination",
+            ));
+        };
+        let element = match self.data_type(machine, view)?.shape {
+            StorageShape::ElementView {
+                element,
+                qualification: Qualification::NONE,
+                access: Some(StructuralAccess::SharedBorrow),
+            } => element,
+            StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                access: Some(StructuralAccess::SharedBorrow),
+            }) => {
+                let byte = super::bytes::source_byte_view(
+                    self.typed,
+                    reference,
+                    self.lifetime_owner,
+                    machine,
+                )?
+                .ok_or_else(|| unavailable("collection recast lost its byte element"))?;
+                let value = self.value_type(machine, byte.element_type)?;
+                self.storage_type(machine, byte.element_type, value)?
+            }
+            _ => {
+                return Err(unavailable(
+                    "collection recast without a shared destination",
+                ));
+            }
+        };
+        let base = self.expression(machine, slots, cast.value, None)?;
+        let Some(viewed @ ValueType::Record(backing, Qualification::NONE, _)) = base.result else {
+            return Err(unavailable(
+                "collection recast without plain collection backing",
+            ));
+        };
+        if !self.is_borrowed_view(viewed)
+            || !matches!(
+                self.data_type(machine, backing)?.shape,
+                StorageShape::ElementView {
+                    qualification: Qualification::NONE,
+                    access: Some(StructuralAccess::SharedBorrow),
+                    ..
+                }
+            )
+        {
+            return Err(unavailable(
+                "collection recast without a shared collection descriptor",
+            ));
+        }
+        self.representation_read_authorized(machine, &base)?;
+        let regions = self.loan_regions(machine, slots, &base)?;
+        Ok(Expression {
+            kind: ExpressionKind::CollectionView {
+                base: Box::new(base),
+                access: ReferenceAccess::Shared,
+                element,
+            },
+            result: Some(ValueType::Record(view, Qualification::NONE, regions)),
+            call_context: None,
+            source,
+        })
     }
 
     pub(super) fn array_literal(
@@ -797,7 +891,11 @@ impl Program<'_> {
         value: ValueType,
     ) -> Checked<StructuralTypeId> {
         let (scalar_type, policy) = match value {
-            ValueType::Scalar(scalar, qualification) if qualification.domains.is_empty() => {
+            ValueType::Scalar(scalar, qualification)
+                if qualification.domains.is_empty()
+                    || self.type_purpose
+                        == super::storage_metadata::TypePurpose::StorageDescription =>
+            {
                 (scalar, qualification.policy)
             }
             ValueType::Scalar(..) => {
@@ -808,6 +906,12 @@ impl Program<'_> {
                 ));
             }
             ValueType::Record(id, Qualification::NONE, _) => return Ok(id),
+            ValueType::Record(id, _, _)
+                if self.type_purpose
+                    == super::storage_metadata::TypePurpose::StorageDescription =>
+            {
+                return Ok(id);
+            }
             ValueType::Record(..) => {
                 return Err(refuse(
                     machine,

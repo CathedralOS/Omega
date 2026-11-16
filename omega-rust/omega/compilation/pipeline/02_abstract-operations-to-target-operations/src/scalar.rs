@@ -2248,6 +2248,7 @@ mod expressions {
             .closed_scalar(scalar_type)
             .ok_or(LoweringError::ValueTypeMismatch(value))?;
         let bytes = match scalar_type {
+            semantic_vocabulary::ClosedScalarType::Callable(_) => 8,
             semantic_vocabulary::ClosedScalarType::Boolean => 1,
             semantic_vocabulary::ClosedScalarType::Integer(integer_type) => {
                 let bits = integer_type.bits();

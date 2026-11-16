@@ -2013,12 +2013,7 @@ pub(crate) fn establish(
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let compatible = match storage {
-        Some(storage)
-            if matches!(
-                source.path.last(),
-                Some(StructuralPathSegment::FixedRange { .. })
-            ) =>
-        {
+        Some(storage) if storage.stored_scalar.is_none() => {
             source_contract(function, live, source.place).is_some_and(|root| {
                 terminal_semantics::reference_storage_region_source_compatible(
                     types.values().copied(),
@@ -2449,7 +2444,8 @@ pub(crate) fn call_results(
     }
     let callee = match &declaration {
         abstract_operations::AbstractCallSignature::Machine(callee) => Some(*callee),
-        abstract_operations::AbstractCallSignature::Requirement(_) => None,
+        abstract_operations::AbstractCallSignature::Requirement(_)
+        | abstract_operations::AbstractCallSignature::Callable(_) => None,
     };
     let contract = match declaration {
         abstract_operations::AbstractCallSignature::Machine(callee) => {
@@ -2464,6 +2460,9 @@ pub(crate) fn call_results(
         }
         abstract_operations::AbstractCallSignature::Requirement(slot) => {
             terminal_semantics::ReferenceCallContract::Requirement(slot)
+        }
+        abstract_operations::AbstractCallSignature::Callable(contract) => {
+            terminal_semantics::ReferenceCallContract::Callable(contract)
         }
     };
     let mappings = terminal_semantics::bind_reference_call_results(

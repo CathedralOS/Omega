@@ -29,7 +29,9 @@ fn planning_refusal(machine: MachineId, error: Error, sources: Option<&MachineSo
         Error::Malformed { detail, .. } => (RefusalReason::ForeignIdentity, detail),
     };
     Refusal {
-        source_span: origin.copied().and_then(SourceOrigin::authored_span),
+        source_span: origin
+            .copied()
+            .and_then(terminal_check_tables::program::SourceOrigin::authored_span),
         reason,
         machine,
         concerns,
@@ -125,7 +127,7 @@ pub(crate) fn install(
                     let argument = end.source;
                     let id = source
                         .operations
-                        .push(SourceOrigin::Unpositioned(Unpositioned::ReferenceLastUse));
+                        .push(SourceOrigin::Unpositioned(Unpositioned::ReferenceLastUse).into());
                     let path = terminal_semantics::canonical_inline_region(
                         module.structural_types.iter(),
                         end.structural_type,
@@ -249,11 +251,11 @@ mod tests {
         let mut sources = MachineSources::default();
         let operation = sources
             .operations
-            .push(SourceOrigin::Authored(operation_span));
-        let edge = sources.edges.push(SourceOrigin::Authored(edge_span));
+            .push(SourceOrigin::Authored(operation_span).into());
+        let edge = sources.edges.push(SourceOrigin::Authored(edge_span).into());
         let synthetic = sources
             .operations
-            .push(SourceOrigin::Unpositioned(Unpositioned::ReferenceLastUse));
+            .push(SourceOrigin::Unpositioned(Unpositioned::ReferenceLastUse).into());
 
         for (site, expected) in [
             (Some(Site::Operation(operation)), Some(operation_span)),

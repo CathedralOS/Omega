@@ -8,124 +8,27 @@ or borrowed restoration obligations.
 Carrier casts start with an unqualified operand and perform an exact scalar
 conversion before adding a policy. Float widening uses the authenticated Core
 conversion whose entire input format is exactly representable in its result.
-A storage recast of an existing shared view re-views its complete window
-(`representation_view`). Other storage recasts and unserved anonymous
-operands refuse here.
+Collection recasts retain their written reference type and use collection-view
+formation. Other storage recasts require an explicit reference formation.
 */
 
 use language_core::ReferenceAccess;
-use semantic_vocabulary::{IntegerSign, IntegerType, MachineId, ScalarType};
+use semantic_vocabulary::{MachineId, ScalarType};
 use terminal_check_tables::{Checked, Construct};
-use terminal_psi::{ByteSequenceCarrier, StructuralAccess};
-use typed_trees::expression::TableCastExpression;
+use typed_trees::expression::{ExpressionHandle, TableCastExpression};
 use typed_trees::types::TypeReferenceNode;
 
 use super::{Program, Slot};
 use crate::body::{Expression, ExpressionKind, Policy, Qualification, ValueType};
-use crate::{SourceOrigin, StorageShape, Unserved, refuse, reject};
+use crate::{SourceOrigin, Unserved, refuse, reject};
 
 impl Program<'_> {
-    /// `view as &[T]` re-views the complete window of an existing shared
-    /// view as `T` elements (byte_views.md, "Collection view establishment",
-    /// `WholeRepresentation`). The reader names the source view and the
-    /// target element only. Whether `T` exactly tiles the source element,
-    /// and whether the converted count fits `u64`, are the checker's
-    /// judgments on the lowered operation, for every element layout alike.
-    ///
-    /// Only shared observation is served. A mutable re-view must also show
-    /// that every value written through the target leaves the source valid
-    /// (recasts.md, "Shared and mutable views"), which nothing here
-    /// establishes, so it stays refused by name.
-    pub(super) fn representation_view(
-        &mut self,
-        id: MachineId,
-        slots: &[Slot],
-        cast: &TableCastExpression,
-        access: ReferenceAccess,
-        expected: Option<ValueType>,
-        source: SourceOrigin,
-    ) -> Checked<Expression> {
-        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
-        if access != ReferenceAccess::Shared {
-            return unserved("exclusive storage view without establishment and handback evidence");
-        }
-        if cast.semantic_domain_symbol.is_valid()
-            || !cast.semantic_domain.is_empty()
-            || cast.domain != numerics::arithmetic::ArithmeticDomain::Exact
-        {
-            return unserved("storage view that also changes a domain");
-        }
-        // The destination names the view the program forms; without one
-        // there is no reference formation to re-view into.
-        let Some(ValueType::Record(view, Qualification::NONE, _)) = expected else {
-            return unserved("storage view outside reference formation");
-        };
-        // The parser keeps `&` beside the cast form, so the target type is
-        // the referent: `[T]` for a view.
-        let table = &self.typed.type_reference_table;
-        if !table.contains_type_reference(cast.target_type) {
-            return unserved("storage view without its retained target type");
-        }
-        let TypeReferenceNode::Slice { element_type } =
-            table.type_reference(table.unconstrained_type_reference(cast.target_type))
-        else {
-            return unserved("storage view to a referent that is not a slice");
-        };
-        let element_type = *element_type;
-        let element_value = self.value_type(id, element_type)?;
-        let element = self.storage_type(id, element_type, element_value)?;
-        let byte = ValueType::plain(ScalarType::Integer(
-            IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 is valid"),
-        ));
-        let presented = match self.data_type(id, view)?.shape {
-            StorageShape::ElementView {
-                element: declared,
-                qualification: Qualification::NONE,
-                access: Some(StructuralAccess::SharedBorrow),
-            } => declared == element,
-            StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
-                access: Some(StructuralAccess::SharedBorrow),
-            }) => element_value == byte,
-            _ => false,
-        };
-        if !presented {
-            return unserved("storage view target differs from its view destination");
-        }
-        let operand = self.expression(id, slots, cast.value, None)?;
-        let Some(viewed @ ValueType::Record(row, Qualification::NONE, _)) = operand.result else {
-            return unserved("storage view of a value that is not a plain view");
-        };
-        let shared_view = matches!(
-            self.data_type(id, row)?.shape,
-            StorageShape::ElementView {
-                access: Some(StructuralAccess::SharedBorrow),
-                ..
-            } | StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
-                access: Some(StructuralAccess::SharedBorrow),
-            })
-        );
-        if !shared_view || !self.is_borrowed_view(viewed) {
-            return unserved("storage view of a value that is not a shared view");
-        }
-        // The re-view lends the same backing under the source view's loan.
-        let regions = self.loan_regions(id, slots, &operand)?;
-        Ok(Expression {
-            call_context: None,
-            kind: ExpressionKind::RepresentationView {
-                base: Box::new(operand),
-                element,
-            },
-            result: Some(ValueType::Record(view, Qualification::NONE, regions)),
-            source,
-        })
-    }
-
     pub(super) fn cast(
         &mut self,
         id: MachineId,
         slots: &[Slot],
+        handle: ExpressionHandle,
         cast: &TableCastExpression,
-        expected: Option<ValueType>,
         source: SourceOrigin,
     ) -> Checked<Expression> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
@@ -133,7 +36,36 @@ impl Program<'_> {
             return self.domain_entry(id, slots, cast, entry, source);
         }
         if let Some(access) = cast.form.recast_access() {
-            return self.representation_view(id, slots, cast, access, expected, source);
+            if access != ReferenceAccess::Shared {
+                return unserved(
+                    "exclusive storage view without establishment and handback evidence",
+                );
+            }
+            let reference = self
+                .typed
+                .expression_table
+                .constructed_value_type_reference(handle);
+            if !self
+                .typed
+                .type_reference_table
+                .contains_type_reference(reference)
+            {
+                return unserved("storage view outside reference formation");
+            }
+            if !matches!(
+                self.typed.type_reference_table.type_reference(reference),
+                TypeReferenceNode::Reference {
+                    referee,
+                    access: retained,
+                    ..
+                } if *referee == cast.target_type && *retained == access
+            ) {
+                return unserved("storage view differs from its retained reference type");
+            }
+            let Some(view) = self.view_type(id, reference)? else {
+                return unserved("storage view outside reference formation");
+            };
+            return self.collection_recast(id, slots, cast, reference, view, source);
         }
         if cast.semantic_domain_symbol.is_valid() || !cast.semantic_domain.is_empty() {
             return unserved("cast naming a domain");
@@ -401,7 +333,7 @@ impl Program<'_> {
             .find_top_level_by_name_and_kinds_from_source_matching(
                 &declaration,
                 &[symbols::SymbolKind::Machine, symbols::SymbolKind::Operator],
-                source.authored_span().unwrap_or_default(),
+                source.span().unwrap_or_default(),
                 |symbol| {
                     self.typed.symbols.sealed_intrinsic(symbol)
                         == Some(language_core::sealed_intrinsics::SealedIntrinsic::FloatOperationRequirement)
@@ -410,8 +342,8 @@ impl Program<'_> {
             ).ok_or_else(|| unavailable("exact carrier conversion has no canonical declaration"))?;
         let boundary = self.boundary_declaration(id, target)?;
         let signature = self
-            .boundary_signatures
-            .get(boundary)
+            .boundaries
+            .signature(boundary)
             .ok_or_else(|| unavailable("exact carrier conversion lost its signature"))?;
         if signature.parameters.len() != 1
             || operand.result != signature.parameters.first().copied()
@@ -423,9 +355,8 @@ impl Program<'_> {
         Ok(Expression {
             call_context: None,
             kind: ExpressionKind::Call {
-                callee: semantic_vocabulary::TargetMachineCallable::Boundary(boundary),
+                callee: crate::body::CallTarget::Boundary { boundary },
                 required_contract: None,
-                source_call: None,
                 static_reach_binding: None,
                 arguments: vec![operand],
                 designated: None,
@@ -471,7 +402,7 @@ impl Program<'_> {
         // variable its use decides, as a literal takes the lifetime its use
         // requires.
         let elision = std::mem::replace(&mut self.elision, super::regions::Elision::Variables);
-        let result = self.qualified_view_type(id, cast.result_type);
+        let result = self.value_type(id, cast.result_type);
         self.elision = elision;
         let result = result?;
         // A literal lands in the carrier of the type the cast gives it
@@ -559,8 +490,10 @@ impl Program<'_> {
                             },
                             carrier,
                         )?,
-                        // A literal supplies its octets directly to the
-                        // existing byte predicate checks at calls and stores.
+                        // Primitive byte qualifications remain structural
+                        // memberships. Lowering states them on the produced
+                        // descriptor and the receiver checks the actual
+                        // literal bytes; no scalar proof substitutes for it.
                         (ValueType::Record(row, _, _), Some(_))
                             if matches!(operand.kind, ExpressionKind::ByteLiteral(_))
                                 && self.is_view(id, row)?
@@ -615,21 +548,6 @@ impl Program<'_> {
                     }
                 }
                 _ => {
-                    // `("text" as +Utf8) as -Utf8`: the predicate a literal
-                    // was given is judged only where a field stores it
-                    // (`domain_entry`, the `Add` arm), so removing it again
-                    // before any store would leave it judged nowhere.
-                    let mut beneath: &Expression = &operand;
-                    while let ExpressionKind::Requalify(inner) = &beneath.kind {
-                        beneath = inner.as_ref();
-                    }
-                    if !std::ptr::eq(beneath, &operand)
-                        && matches!(beneath.kind, ExpressionKind::ByteLiteral(_))
-                    {
-                        return unserved(
-                            "removal of a byte predicate a quoted literal was just given",
-                        );
-                    }
                     self.domain_removal(id, domain, operand_type)?;
                 }
             }

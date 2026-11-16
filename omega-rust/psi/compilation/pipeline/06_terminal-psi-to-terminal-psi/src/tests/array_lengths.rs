@@ -99,7 +99,7 @@ fn a_rigid_array_extent_names_its_const_input_without_requiring_positivity() {
                 .1
                 .is_empty()
         );
-        let found = discharge(&mut form).unwrap();
+        let found = discharge(&mut form, &mut Default::default()).unwrap();
         assert!(
             found
                 .machines
@@ -129,7 +129,7 @@ fn a_rigid_array_extent_cannot_name_another_machine_or_an_undeclared_input() {
             owner: id(if foreign_owner { 2 } else { 1 }),
             value: ValueId::new(if foreign_owner { 1 } else { 99 }).unwrap(),
         };
-        assert!(discharge(&mut form).is_err());
+        assert!(discharge(&mut form, &mut Default::default()).is_err());
     }
 }
 
@@ -149,6 +149,8 @@ fn array_subject(text: &str) -> Vec<Result<RouteVerdict, crate::CompilationRefus
                 subjects: &[None],
                 purpose: source::DependencyScope::Product,
                 selected: &[],
+                calling: None,
+                providers: None,
                 bindings: &[],
                 supplies: &[],
             },
@@ -232,6 +234,8 @@ fn concrete_array_form(text: &str) -> typed_trees_to_terminal_psi::Elaboration {
             subjects: &[],
             purpose: source::DependencyScope::Product,
             selected: &[],
+            calling: None,
+            providers: None,
             bindings: &[],
             supplies: &[],
         },
@@ -245,8 +249,8 @@ fn shared_array_inputs_bind_one_consistent_extent_for_structural_specialization(
     let mut generic = rigid_array_form(
         "machine entry<const N: u64>(first: &[u8; N], second: &[u8; N], value: u64) -> u64 requires value <= N ensures result <= N { value }",
     );
-    let found = discharge(&mut generic).unwrap();
-    let generic_scope = crate::prepare_replay(&mut generic).unwrap();
+    let found = discharge(&mut generic, &mut Default::default()).unwrap();
+    let generic_scope = crate::prepare_replay(&mut generic, &mut Default::default()).unwrap();
     for (first, second, element, admitted) in [
         (0, 0, "u8", true),
         (3, 3, "u8", true),
@@ -256,7 +260,7 @@ fn shared_array_inputs_bind_one_consistent_extent_for_structural_specialization(
         let mut actual = concrete_array_form(&format!(
             "machine entry(first: &[u8; {first}], second: &[{element}; {second}], value: u64) -> u64 requires value <= {first}u64 ensures result <= {first}u64 {{ value }}"
         ));
-        let mut actual_scope = crate::prepare_replay(&mut actual).unwrap();
+        let mut actual_scope = crate::prepare_replay(&mut actual, &mut Default::default()).unwrap();
         let result = crate::reverify_specialization(
             &generic_scope,
             &found,
@@ -264,6 +268,7 @@ fn shared_array_inputs_bind_one_consistent_extent_for_structural_specialization(
             &mut actual_scope,
             id(1),
             &[],
+            &mut Default::default(),
         );
         if admitted {
             assert!(
@@ -300,7 +305,7 @@ fn a_generic_scratch_array_lends_a_view_of_its_actual_const_extent() {
     let mut form = rigid_array_form(
         "machine entry<const N: u64>() -> u64 ensures result == N { let mut scratch: [u8; N]; let view: &mut [u8] = &mut scratch[..]; view.len }",
     );
-    let discharged = discharge(&mut form).unwrap();
+    let discharged = discharge(&mut form, &mut Default::default()).unwrap();
     assert!(
         discharged
             .machines
@@ -328,7 +333,7 @@ fn a_parameter_array_lends_a_typed_view_without_changing_its_element() {
     let mut form = rigid_array_form(
         "machine entry<const N: u64>(items: &[u32; N]) -> u64 ensures result == N { let view: &[u32] = &items[..]; view.len }",
     );
-    let found = discharge(&mut form).unwrap();
+    let found = discharge(&mut form, &mut Default::default()).unwrap();
     assert!(
         found
             .machines
@@ -369,6 +374,6 @@ fn a_const_call_cannot_bind_an_array_extent_to_another_static_input() {
             | OperationKind::CallUnit { arguments, .. } => arguments[0] = ValueId::new(2).unwrap(),
             other => panic!("{other:?}"),
         }
-        assert!(discharge(&mut form).is_err());
+        assert!(discharge(&mut form, &mut Default::default()).is_err());
     }
 }

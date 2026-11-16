@@ -11,6 +11,7 @@ use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
 pub struct SelectedBuildMachine {
+    receiver: super::build_receiver::BuildReceiver,
     pub symbol: SymbolHandle,
     pub name: String,
     pub normalized_callable_identity: String,
@@ -18,6 +19,15 @@ pub struct SelectedBuildMachine {
     pub filesystem_reachable: bool,
     pub execution_mode: BuildMachineExecutionMode,
     pub initial_build: BuildTimeValue,
+}
+
+impl SelectedBuildMachine {
+    pub fn receiver_for<'module>(
+        &self,
+        module: &'module terminal_psi::TerminalModule,
+    ) -> Result<&'module terminal_psi::StructuralParameterDeclaration, String> {
+        self.receiver.parameter_for(module)
+    }
 }
 
 pub fn select_build_machine(
@@ -64,6 +74,8 @@ pub fn admit_build_machine(
         )]
     })?;
     let machine_name = machine.name.as_str().to_owned();
+    let receiver = super::build_receiver::BuildReceiver::admit(prepared, machine)
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let normalized_callable_identity =
         typed
             .machine_callable_identity_text(machine)
@@ -97,6 +109,7 @@ pub fn admit_build_machine(
         }
     };
     Ok(SelectedBuildMachine {
+        receiver,
         symbol: machine_symbol,
         name: machine_name,
         normalized_callable_identity,

@@ -1827,12 +1827,14 @@ pub(crate) mod analysis {
                         && strong
                         && match origin {
                             DescriptorStoredOrigin::Parameter { projection, .. } => {
-                                // A reference to parameter storage is a
-                                // newly retained call loan. Existing
-                                // descriptor custody arrives as an exact
-                                // IncomingSlot instead of this address.
+                                // Descriptor permission follows its exact
+                                // original input even when a representation
+                                // view forgets element addresses. That does
+                                // not recover geometry or authorize a
+                                // different field. A reference to parameter
+                                // storage still needs its retained call loan.
                                 self.replay.slot_kind != DescriptorSlotKind::References
-                                    && projection.exact
+                                    && projection.original_descriptor_path().is_some()
                                     && !projection.indirect
                                     && projection.window.is_none()
                                     && projection.captured_at.is_none()
@@ -8397,6 +8399,7 @@ pub(crate) mod engine {
                     entry,
                     DescriptorFlowStep {
                         definitions: vec![location(2)],
+                        derivations: vec![(location(1), location(2))],
                         successors: vec![DescriptorFlowEdge {
                             definitions: Vec::new(),
                             edge: None,

@@ -95,7 +95,7 @@ fn every_rank_obligation_of_an_accepted_loop_has_checked_evidence() {
     // machine countdown(remaining: u32) -> u32 terminates by remaining
     //   { remaining > 0 -> countdown(remaining - 1); 0 }
     let mut elaboration = lower_ranked(less_one(), witnessed(0));
-    let result = discharge(&mut elaboration).unwrap();
+    let result = discharge(&mut elaboration, &mut crate::ProofSearchActivity::default()).unwrap();
     let rows = verdicts(&elaboration, &result, 1, ranked);
     // One shared well-foundedness question and one comparison on each of
     // the cycle's two edges: the edge beneath the head and the jump back.
@@ -277,6 +277,15 @@ fn a_promise_holds_over_a_ranked_loop_and_not_over_an_unranked_one() {
     assert_eq!(
         refused(&program("")),
         "contract termination promise over a call cycle"
+    );
+    let ranked = program("\nterminates by remaining");
+    assert_unchanged_measure_refuses(
+        &ranked.replace("count_down(remaining - 1)", "count_down(remaining)"),
+    );
+    assert!(
+        refused(&ranked.replacen("machine count_down", "public machine count_down", 1))
+            .contains("termination promise invokes a callable without a termination guarantee"),
+        "a private witness cannot publish progress for a silent export"
     );
 }
 
@@ -505,7 +514,7 @@ fn tampered(change: impl FnOnce(&mut terminal_psi::TerminalNaturalCycle)) -> Ref
         panic!("the loop is ranked");
     };
     change(&mut cycles[0]);
-    discharge(&mut elaboration).unwrap_err()
+    discharge(&mut elaboration, &mut crate::ProofSearchActivity::default()).unwrap_err()
 }
 
 #[test]
@@ -550,11 +559,18 @@ fn a_terminating_machine_with_an_unranked_cycle_is_refused() {
     // The loop lowered with no clause is a productive cycle that owes no
     // rank. The same graph under a contract that publishes `Terminates`
     // has nothing that shows it ends.
-    assert!(discharge(&mut lower_ranked(less_one(), None)).is_ok());
+    assert!(
+        discharge(
+            &mut lower_ranked(less_one(), None),
+            &mut crate::ProofSearchActivity::default()
+        )
+        .is_ok()
+    );
     let mut elaboration = lower_ranked(less_one(), None);
     elaboration.module.machines[0].contract.termination =
         semantic_vocabulary::Termination::Terminates;
-    let refusal = discharge(&mut elaboration).unwrap_err();
+    let refusal =
+        discharge(&mut elaboration, &mut crate::ProofSearchActivity::default()).unwrap_err();
     assert_eq!(refusal.reason, RefusalReason::Unsupported);
     assert_eq!(
         refusal.detail,

@@ -686,6 +686,7 @@ impl Preparation<'_> {
             static_machine_parameter: Default::default(),
             static_requirement_dispatch: None,
             machine_arguments: Box::default(),
+            runtime_call: None,
             quotient_operation: None,
             private_layout_operation: None,
             installed_interrupt_operation: None,

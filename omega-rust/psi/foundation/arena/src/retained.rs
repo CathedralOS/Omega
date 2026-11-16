@@ -368,6 +368,36 @@ impl<T: Default + Clone> RetainedArena<T> {
         Some((page.start, Arc::make_mut(&mut page.rows)))
     }
 
+    /// Reuse dense storage without allowing any retained handle to name a new row.
+    pub fn retire_all_retain_capacity(&mut self) {
+        let latest_generation = self
+            .directory
+            .pages
+            .iter()
+            .map(|page| page.rows.as_ref())
+            .chain(std::iter::once(self.appended.as_ref()))
+            .map(|page| {
+                let storage = page.storage_view();
+                storage.slots.map_or(storage.fresh_generation, |slots| {
+                    slots
+                        .generations
+                        .iter()
+                        .copied()
+                        .fold(storage.fresh_generation, u32::max)
+                })
+            })
+            .max()
+            .expect("retained arena always has an append page");
+        let generation = latest_generation
+            .checked_add(1)
+            .expect("retained arena generation exhausted during dense retirement");
+        self.reset_retain_capacity();
+        Arc::get_mut(&mut self.appended)
+            .expect("reset owns its empty append page")
+            .relocate_fresh_generation(generation, |_| {})
+            .expect("empty reset arena has fresh storage");
+    }
+
     pub fn reset_retain_capacity(&mut self) {
         self.rewrite();
         if let Some(appended) = Arc::get_mut(&mut self.appended) {
@@ -572,6 +602,29 @@ impl<T: Default + Eq> Eq for RetainedArena<T> {}
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn retirement_rejects_handles_from_shared_pages_and_reused_rows() {
+        let mut source = RetainedArena::<u32>::new();
+        let first = source.insert(7);
+        let mut selected = source.clone();
+        let appended = selected.insert(8);
+        assert!(selected.free(first));
+        selected.retire_all_retain_capacity();
+        let replacement = selected.insert(9);
+        assert_eq!(replacement.arena_index(), first.arena_index());
+        assert!(replacement.generation() > first.generation());
+        assert!(replacement.generation() > appended.generation());
+        assert!(!selected.is_valid(first));
+        assert!(!selected.is_valid(appended));
+        assert_eq!(*source.get(first), 7);
+        let retained = selected.clone();
+        selected.retire_all_retain_capacity();
+        let next = selected.insert(10);
+        assert!(next.generation() > replacement.generation());
+        assert!(!selected.is_valid(replacement));
+        assert_eq!(*retained.get(replacement), 9);
+    }
 
     #[test]
     fn owner_boundaries_copy_only_the_rewritten_owners_rows() {

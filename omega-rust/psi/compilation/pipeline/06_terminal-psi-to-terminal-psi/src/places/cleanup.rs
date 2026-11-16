@@ -11,6 +11,7 @@ pub(crate) struct AtCleanupCall<'s, 'a> {
 impl<'a> Storage<'a> {
     pub(crate) fn at_cleanup_call<'s>(
         &'s self,
+        references: &'s mut DescriptorAnalysis<'a>,
         tables: &'s MachineTables,
         actuals: &[Actual],
         formals: &'s [terminal_psi::StructuralParameterDeclaration],
@@ -32,6 +33,7 @@ impl<'a> Storage<'a> {
         Ok(AtCleanupCall {
             inputs: AtCall {
                 storage: self,
+                references,
                 tables,
                 scalars: crate::scalar_actuals(actuals),
                 places,
@@ -47,6 +49,7 @@ impl<'a> Storage<'a> {
 
     fn cleanup_backing(
         &self,
+        references: &mut DescriptorAnalysis<'a>,
         place: &Lineage,
         edge: EdgeId,
         ordinal: u32,
@@ -69,9 +72,7 @@ impl<'a> Storage<'a> {
                 "cleanup observation needs an exact captured storage path",
             )
         })?;
-        let backing = self
-            .references
-            .borrow_mut()
+        let backing = references
             .location_at(
                 self.machine,
                 (block, crate::position(before, self.machine)?),
@@ -95,12 +96,13 @@ impl<'a> Storage<'a> {
 
     fn cleanup_untouched(
         &self,
+        references: &mut DescriptorAnalysis<'a>,
         place: &Lineage,
         edge: EdgeId,
         ordinal: u32,
         concerns: Construct,
     ) -> Checked<bool> {
-        let place = self.cleanup_backing(place, edge, ordinal, concerns)?;
+        let place = self.cleanup_backing(references, place, edge, ordinal, concerns)?;
         Ok(self
             .cleanup_writes
             .iter()
@@ -272,6 +274,7 @@ impl crate::Bindings for AtCleanupCall<'_, '_> {
             .inputs
             .storage
             .cleanup_untouched(
+                self.inputs.references,
                 &actual,
                 self.edge,
                 self.action_ordinal,
@@ -287,6 +290,7 @@ impl crate::Bindings for AtCleanupCall<'_, '_> {
             .inputs
             .storage
             .cleanup_backing(
+                self.inputs.references,
                 &actual,
                 self.edge,
                 self.action_ordinal,
@@ -311,6 +315,7 @@ impl crate::Bindings for AtCleanupCall<'_, '_> {
             .inputs
             .storage
             .cleanup_untouched(
+                self.inputs.references,
                 &actual,
                 self.edge,
                 self.action_ordinal,
@@ -326,6 +331,7 @@ impl crate::Bindings for AtCleanupCall<'_, '_> {
             .inputs
             .storage
             .cleanup_backing(
+                self.inputs.references,
                 &actual,
                 self.edge,
                 self.action_ordinal,

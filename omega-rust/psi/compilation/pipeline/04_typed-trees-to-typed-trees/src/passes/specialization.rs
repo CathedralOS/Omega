@@ -1102,6 +1102,23 @@ impl Operand {
                 Identity::Declaration(named_implementation(program, parameter, argument)?),
                 StaticMachineBindingValue::Conformance(argument.clone()),
             ),
+            TypeParameterKind::Const { type_reference }
+                if static_record_schema(
+                    program,
+                    *type_reference,
+                    program.symbols.get(parameter).parent,
+                )
+                .is_some() =>
+            {
+                let selected = named_static_record(program, parameter, *type_reference, argument)?;
+                let reference = program
+                    .static_operand_type_reference(argument)
+                    .map_err(|reason| Stop::Unserved(Some(reason)))?;
+                (
+                    Identity::Declaration(selected),
+                    StaticMachineBindingValue::Const(reference),
+                )
+            }
             TypeParameterKind::Const { type_reference } => {
                 let identity = match closed_scalar(program, *type_reference, argument)? {
                     Scalar::Closed(value) => {
@@ -1331,6 +1348,94 @@ fn named_implementation(
     }
 }
 
+/// A const operation record is a value of its authored schema. This query
+/// supplies no alternate binder category or callable refinement evidence.
+fn static_record_schema(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    owner: SymbolHandle,
+) -> Option<typed_trees::trait_definition::AppliedTraitScope<'_>> {
+    if !program
+        .type_reference_table
+        .contains_type_reference(reference)
+        || !matches!(
+            program.type_reference_table.type_reference(reference),
+            TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
+        )
+    {
+        return None;
+    }
+    typed_trees::trait_definition::AppliedTraitScope::from_type_reference(program, reference, owner)
+}
+
+fn named_static_record(
+    program: &TypedTrees,
+    parameter: SymbolHandle,
+    declared_type: TypeReferenceHandle,
+    argument: &StaticMachineArgument,
+) -> Served<SymbolHandle> {
+    if !only_a_name(program, argument)
+        || argument.const_literal.is_some()
+        || !program.symbols.symbols().nodes().is_valid(argument.symbol)
+    {
+        return Err(unserved(
+            "a static record operand needs its exact named value",
+        ));
+    }
+    let required = static_record_schema(
+        program,
+        declared_type,
+        program.symbols.get(parameter).parent,
+    )
+    .ok_or(unserved(
+        "a static record parameter lost its exact declared schema",
+    ))?;
+    let symbol = argument.symbol;
+    if program.symbols.get(symbol).kind == SymbolKind::TypeParameter {
+        let declaration = program
+            .data_type_parameter_by_symbol(symbol)
+            .ok_or(unserved("a forwarded static record has no declared binder"))?;
+        let typed_trees::data::TypeParameterKind::Const { type_reference } = declaration.kind
+        else {
+            return Err(unserved("a forwarded static record is not a const value"));
+        };
+        let actual =
+            static_record_schema(program, type_reference, program.symbols.get(symbol).parent)
+                .ok_or(unserved(
+                    "a forwarded static record lost its declared schema",
+                ))?;
+        if !required.same_application(program, &actual) {
+            return Err(Stop::Rejected(
+                "a forwarded static record has another declared schema".into(),
+            ));
+        }
+        return Ok(symbol);
+    }
+    let selected = program.conformance_by_symbol(symbol).ok_or(unserved(
+        "a static record operand has no named record declaration",
+    ))?;
+    if !selected.lifetime_parameters.is_empty()
+        || !program.conformance_type_parameters(selected).is_empty()
+    {
+        return Err(unserved(
+            "a static record operand needs its complete closed application",
+        ));
+    }
+    let actual =
+        typed_trees::trait_definition::AppliedTraitScope::from_conformance(program, selected)
+            .ok_or(unserved(
+                "a static record operand lost its complete schema application",
+            ))?;
+    if !required.same_application(program, &actual) {
+        return Err(Stop::Rejected(
+            "a static record operand has another declared schema".into(),
+        ));
+    }
+    // This nominates the exact value only. Ordinary named-record checking
+    // owns the complete schema, member refinement and construction obligations.
+    Ok(program.implementation_value_head(symbol))
+}
+
 /// One requirement of an implementation parameter as a generated machine
 /// calls it: the symbol a call through the parameter targets in the generic
 /// body, and the selected operation that call enters instead.
@@ -1497,7 +1602,7 @@ fn bind(
 fn template(program: &TypedTrees, symbol: SymbolHandle) -> Served<Vec<(Machine, State)>> {
     let root = program
         .machine_by_symbol(symbol)
-        .ok_or(Stop::Unserved(None))?;
+        .ok_or_else(|| unserved("a declaration template has no exact machine"))?;
     // Cloning a signature can give a captured binder's carrier or contract
     // fresh type-reference handles. Its declaration symbol still identifies
     // the same enclosing binder, whose application was checked at the owner.
@@ -1533,19 +1638,19 @@ fn template(program: &TypedTrees, symbol: SymbolHandle) -> Served<Vec<(Machine, 
                 })
         {
             return Err(unserved(
-                "a nested declaration has an unsupported independent static binder",
+                "a nested declaration has static binders different from its enclosing template",
             ));
         }
         if has_unserved_type_expression(program, &types) {
             return Err(unserved(
-                "a copied declaration has an unsupported embedded type expression",
+                "a declaration template has an embedded type expression without a retained static operand",
             ));
         }
         for owner in [machine.symbol, state.symbol] {
             for child in program
                 .symbols
                 .child_handles(owner)
-                .ok_or(Stop::Unserved(None))?
+                .ok_or_else(|| unserved("a declaration template lost its owned child roster"))?
             {
                 if program.symbols.get(child).kind == SymbolKind::Machine {
                     pending.push(child);
@@ -1737,23 +1842,19 @@ fn copy_expression(
 }
 
 /// Canonical value operands are carried by the shared type copier, not
-/// evaluated again here. Other embedded expressions still need an evaluator.
+/// evaluated again here. Tagged contract/callee graphs keep their copied
+/// owners and ordinary checks; only constant type roots need this evaluator.
 fn has_unserved_type_expression(program: &TypedTrees, references: &[TypeReferenceHandle]) -> bool {
     let mut staging = TypedTreeTables::default();
     let mut embedded = Vec::new();
     for reference in references.iter().filter(|reference| reference.is_valid()) {
-        staging.type_reference_table.copy_with_expressions(
-            &program.type_reference_table,
-            &program.expression_table,
-            &mut staging.expression_table,
-            *reference,
-            &mut embedded,
-        );
+        staging.copy_type_reference_with_expressions(&program.tables, *reference, &mut embedded);
     }
     embedded.iter().any(|copied| {
-        program
-            .static_operand_from_type_reference(copied.source)
-            .is_err()
+        !copied.contract_expression
+            && program
+                .static_operand_from_type_reference(copied.source)
+                .is_err()
     })
 }
 
@@ -1837,11 +1938,14 @@ fn copy_declarations(
         ));
     }
     if embedded.iter().any(|copied| {
-        program
-            .static_operand_from_type_reference(copied.source)
-            .is_err()
+        !copied.contract_expression
+            && program
+                .static_operand_from_type_reference(copied.source)
+                .is_err()
     }) {
-        return Err(Stop::Unserved(None));
+        return Err(unserved(
+            "a copied body has an embedded type expression without a retained static operand",
+        ));
     }
     let type_start = program.type_reference_table.type_reference_count() + 1;
     let expression_start = program.expression_table.expression_count() + 1;
@@ -2073,6 +2177,12 @@ fn copy_declarations(
             _ => None,
         })
         .collect::<Vec<_>>();
+    let record_receivers = copied
+        .iter()
+        .flat_map(|(_, state, first, count)| {
+            copied_record_receivers(program, *first, *count, state.statement_nodes, operands)
+        })
+        .collect::<Vec<_>>();
     let entries = copied
         .iter_mut()
         .zip(&parts)
@@ -2080,6 +2190,7 @@ fn copy_declarations(
     program
         .apply_copied_callable_types(entries, symbols, &substitutions)
         .map_err(Stop::Defect)?;
+    substitute_record_receivers(program, &record_receivers)?;
     substitute_widths(program, type_start, operands)?;
     substitute_values(program, expression_start, operands);
     for (mut machine, state, first_expression, expression_count) in copied {
@@ -2097,7 +2208,7 @@ fn copy_declarations(
             state.statement_nodes,
             machine.symbol,
             operands,
-        );
+        )?;
         program.push_machine_state(&mut machine, state);
         program.push_machine(machine);
     }
@@ -2394,6 +2505,119 @@ fn select_requirements(
     }
 }
 
+/// Classify operation-record receivers while they still name their authored
+/// binders. The operands already retain the exact schema-checked application.
+/// General const expression substitution can then replace ordinary value uses
+/// without erasing receiver provenance. Member checks wait for the copier to
+/// apply the enclosing arguments to the call's complete target metadata.
+fn copied_record_receivers(
+    program: &TypedTrees,
+    expression_start: usize,
+    expression_count: usize,
+    statements: HandleSpan<StatementNode>,
+    operands: &[Operand],
+) -> Vec<(Site, SymbolHandle, TypeReferenceHandle)> {
+    let mut records = operands
+        .iter()
+        .filter_map(|operand| {
+            let StaticMachineBindingValue::Const(reference) = operand.value else {
+                return None;
+            };
+            let symbol = operand.argument.symbol;
+            program
+                .conformance_by_symbol(symbol)
+                .map(|_| (operand.parameter, symbol, reference))
+        })
+        .collect::<Vec<_>>();
+    records.sort_unstable_by_key(|(parameter, _, _)| symbol_order(*parameter));
+    let selected_record = |parameter| {
+        records
+            .binary_search_by_key(&symbol_order(parameter), |(parameter, _, _)| {
+                symbol_order(*parameter)
+            })
+            .ok()
+            .map(|position| (records[position].1, records[position].2))
+    };
+    let mut receivers = program
+        .expression_table
+        .iter_expressions_from(expression_start)
+        .take(expression_count)
+        .filter_map(|(handle, node)| match node {
+            ExpressionNode::Call(call) if !call.build_selection.is_valid() => program
+                .expression_table
+                .name_path_node(call.receiver)
+                .and_then(|path| selected_record(path.symbol))
+                .map(|(selected, reference)| (Site::Expression(handle), selected, reference)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    for handle in statements.handles() {
+        let record = program
+            .statement_table
+            .statement(handle)
+            .as_call()
+            .filter(|call| call.receiver_root_symbol == call.receiver_symbol)
+            .and_then(|call| {
+                selected_record(call.receiver_symbol)
+                    .map(|(selected, reference)| (Site::Statement(handle), selected, reference))
+            });
+        if let Some(record) = record {
+            receivers.push(record);
+        }
+    }
+    receivers
+}
+
+fn substitute_record_receivers(
+    program: &mut TypedTrees,
+    receivers: &[(Site, SymbolHandle, TypeReferenceHandle)],
+) -> Served<()> {
+    for &(site, selected, reference) in receivers {
+        let call = site.call(program).ok_or(Stop::Defect(
+            "a copied static record call changed its statement or expression kind",
+        ))?;
+        let target = match call {
+            StaticArgumentCall::Expression(_, call) => call.target_symbol,
+            StaticArgumentCall::Statement(call) => call.target_symbol,
+        };
+        program
+            .named_conformance_member(selected, target)
+            .map_err(|reason| Stop::Unserved(Some(reason)))?
+            .ok_or(unserved(
+                "a static record call lost its exact declared requirement",
+            ))?;
+        match site {
+            Site::Expression(handle) => {
+                let ExpressionNode::Call(call) = program.expression_table.expression(handle) else {
+                    return Err(Stop::Defect("a copied static record lost its exact call"));
+                };
+                let receiver = call.receiver;
+                let ExpressionNode::Name(path) = program.expression_table.expression_mut(receiver)
+                else {
+                    return Err(Stop::Defect(
+                        "a static record receiver changed its expression kind",
+                    ));
+                };
+                path.head_symbol = selected;
+                path.symbol = selected;
+                if let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle)
+                {
+                    call.requirement_application = reference;
+                }
+            }
+            Site::Statement(handle) => {
+                let StatementNode::Call(call) = program.statement_table.statement_mut(handle)
+                else {
+                    return Err(Stop::Defect("a copied static record lost its exact call"));
+                };
+                call.receiver_root_symbol = selected;
+                call.receiver_symbol = selected;
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Replaces each parameter a copied call passes on as a static argument
 /// (`forward<T>` in the body of `relay`) by the operand's own argument. The
 /// copied application is then unbound again, with this machine as its
@@ -2417,7 +2641,7 @@ fn substitute_arguments(
     statements: HandleSpan<StatementNode>,
     holder: SymbolHandle,
     operands: &[Operand],
-) {
+) -> Served<()> {
     let replace = |arguments: &mut [StaticMachineArgument]| {
         for argument in arguments {
             if let Some(operand) = operands
@@ -2504,6 +2728,7 @@ fn substitute_arguments(
             .static_machine_application_mut(application)
             .lexical_owner = holder;
     }
+    Ok(())
 }
 
 #[cfg(test)]

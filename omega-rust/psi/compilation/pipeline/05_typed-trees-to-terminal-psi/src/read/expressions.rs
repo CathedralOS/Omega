@@ -18,6 +18,32 @@ use crate::body::{Expression, ExpressionKind, Policy, Selector, Strict, ValueTyp
 use crate::{SourceOrigin, Unserved, refuse, reject};
 
 impl<'t> Program<'t> {
+    pub(super) fn authored_node(
+        &self,
+        id: MachineId,
+        node: typed_trees::SourceNode,
+        span: source::SourceSpan,
+    ) -> Checked<SourceOrigin> {
+        let owner = self
+            .symbols
+            .get(id)
+            .copied()
+            .filter(|owner| self.typed.symbols.symbols().nodes().is_valid(*owner))
+            .ok_or_else(|| {
+                refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Declaration("authored occurrence without its source machine"),
+                )
+            })?;
+        Ok(SourceOrigin::AuthoredNode {
+            source_member: id,
+            owner,
+            node,
+            span: SourceOrigin::of(span).span(),
+        })
+    }
+
     pub(super) fn slot_of(
         &self,
         id: MachineId,
@@ -137,6 +163,9 @@ impl<'t> Program<'t> {
         let source = SourceOrigin::of(self.typed.expression_table.source_span(handle));
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
         let (kind, result) = match node {
+            ExpressionNode::MachineValue(_) => {
+                return unserved("erased runtime machine construction");
+            }
             ExpressionNode::Integer(literal) => {
                 let (value, integer) = self.literal(id, literal, expected)?;
                 (ExpressionKind::Integer(value), ScalarType::Integer(integer))
@@ -230,12 +259,37 @@ impl<'t> Program<'t> {
         handle: ExpressionHandle,
         expected: Option<ValueType>,
     ) -> Checked<Expression> {
+        let value = self.read_expression(id, slots, handle, expected)?;
+        self.complete_formed_operator(id, handle, &value)?;
+        Ok(value)
+    }
+
+    fn read_expression(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        handle: ExpressionHandle,
+        expected: Option<ValueType>,
+    ) -> Checked<Expression> {
         let typed = self.typed;
         let node = self.node(id, handle)?;
-        let source = SourceOrigin::of(typed.expression_table.source_span(handle));
+        if let ExpressionNode::Call(call) = node
+            && call.runtime_call.is_none()
+            && call.layout_query.is_none()
+        {
+            self.bound_target(id, call.target_symbol)?;
+        }
+        let span = typed.expression_table.source_span(handle);
+        let source = match node {
+            ExpressionNode::Call(_) | ExpressionNode::MachineValue(_) => {
+                self.authored_node(id, typed_trees::SourceNode::Expression(handle), span)?
+            }
+            _ => SourceOrigin::of(span),
+        };
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
         let expected_scalar = expected.and_then(ValueType::scalar);
         let (kind, result) = match node {
+            ExpressionNode::MachineValue(value) => return self.machine_value(id, value, source),
             // At a parameter width no literal is a value of the carrier
             // until the checker proves it lands: the literal is formed in
             // the closed carrier of its sign and converted exactly, which
@@ -389,8 +443,13 @@ impl<'t> Program<'t> {
                 (ExpressionKind::Float(value), ScalarType::IeeeFloat(format))
             }
             ExpressionNode::Binary(_) if self.wholly_anonymous(handle) => {
-                let (value, integer) = self.anonymous_value(id, handle, expected_scalar)?;
-                (ExpressionKind::Integer(value), ScalarType::Integer(integer))
+                let evaluated = self.anonymous_value(id, handle, expected_scalar)?;
+                let owner = self.symbols.get(id).copied().unwrap_or_default();
+                self.complete_anonymous_operators(id, owner, &evaluated.operators)?;
+                (
+                    ExpressionKind::Integer(evaluated.value),
+                    ScalarType::Integer(evaluated.integer),
+                )
             }
             ExpressionNode::Binary(binary) => {
                 // A suffixed operator (`+%`, `+|`, `+!`) names its policy at
@@ -604,7 +663,7 @@ impl<'t> Program<'t> {
                 return self.array_literal(id, slots, *elements, array_type, source);
             }
             ExpressionNode::Atomic(atomic) => return self.atomic_load(id, slots, atomic, source),
-            ExpressionNode::Cast(cast) => return self.cast(id, slots, cast, expected, source),
+            ExpressionNode::Cast(cast) => return self.cast(id, slots, handle, cast, source),
             ExpressionNode::Float(literal) => {
                 let value = self.float_literal(id, literal, expected_scalar)?;
                 (
@@ -733,6 +792,7 @@ impl<'t> Program<'t> {
             }
             _ => return self.expression(id, slots, target, expected),
         };
+        self.complete_formed_operator(id, target, &value)?;
         if access == Access::Replace {
             return Ok(value);
         }
@@ -1421,6 +1481,10 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
                 ExpressionKind::ScalarApplication { application: b },
             ) => a == b,
             (ExpressionKind::Boolean(a), ExpressionKind::Boolean(b)) => a == b,
+            (
+                ExpressionKind::MachineValue { contract: a, descriptor: a_selected },
+                ExpressionKind::MachineValue { contract: b, descriptor: b_selected },
+            ) => a == b && a_selected == b_selected,
             (ExpressionKind::ByteLiteral(a), ExpressionKind::ByteLiteral(b)) => a == b,
             (ExpressionKind::CollectionMeasure { base: a, measure: am }, ExpressionKind::CollectionMeasure { base: b, measure: bm }) => am == bm && both(a, b),
             (ExpressionKind::Slot(a), ExpressionKind::Slot(b)) => a == b,
@@ -1473,7 +1537,7 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
             ) => {
                 // A boundary may observe supplied state or issue a fresh
                 // host ticket. Equal syntax is not one observed result.
-                matches!(a, semantic_vocabulary::TargetMachineCallable::Machine(_))
+                matches!(a, crate::body::CallTarget::Machine(_))
                     && a == b
                     && a_required == b_required
                     && a_designated == b_designated
@@ -1485,8 +1549,7 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
             }
             (ExpressionKind::Index { base: a, index: ai }, ExpressionKind::Index { base: b, index: bi }) => both(a, b) && both(ai, bi),
             (ExpressionKind::ByteElement { base: a, index: ai }, ExpressionKind::ByteElement { base: b, index: bi }) => both(a, b) && both(ai, bi),
-            (ExpressionKind::ArrayView { base: a, access: aa, element: ae }, ExpressionKind::ArrayView { base: b, access: ba, element: be }) => aa == ba && ae == be && both(a, b),
-            (ExpressionKind::RepresentationView { base: a, element: ae }, ExpressionKind::RepresentationView { base: b, element: be }) => ae == be && both(a, b),
+            (ExpressionKind::CollectionView { base: a, access: aa, element: ae }, ExpressionKind::CollectionView { base: b, access: ba, element: be }) => aa == ba && ae == be && both(a, b),
             (ExpressionKind::CollectionSubslice { base: a, start: ast, end: ae }, ExpressionKind::CollectionSubslice { base: b, start: bst, end: be }) => both(a,b) && match (ast,bst) { (Some(a),Some(b)) => both(a,b), (None,None) => true, _ => false } && match (ae,be) { (Some(a),Some(b)) => both(a,b), (None,None) => true, _ => false },
             (ExpressionKind::Record { fields: a }, ExpressionKind::Record { fields: b }) => {
                 a.len() == b.len()
@@ -1585,10 +1648,10 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
             | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::CollectionMeasure { .. }
                 | ExpressionKind::ByteElement { .. }
-            | ExpressionKind::ArrayView { .. }
-            | ExpressionKind::RepresentationView { .. }
+            | ExpressionKind::CollectionView { .. }
             | ExpressionKind::CollectionSubslice { .. }
                 | ExpressionKind::Boolean(_)
+                | ExpressionKind::MachineValue { .. }
                 | ExpressionKind::Slot(_)
                 | ExpressionKind::Array { .. }
                 | ExpressionKind::Index { .. }

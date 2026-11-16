@@ -3783,6 +3783,27 @@ pub(crate) mod representation_regions {
         pub leaves: Vec<RepresentationScalarLeaf>,
     }
 
+    impl RepresentationElementLayout {
+        pub(crate) fn is_tightly_tiled(&self) -> bool {
+            let mut end = 0;
+            for leaf in &self.leaves {
+                if leaf.offset != end {
+                    return false;
+                }
+                let Some(width) =
+                    crate::storage::element_representation::scalar_size(leaf.scalar_type)
+                else {
+                    return false;
+                };
+                let Some(next) = end.checked_add(width) else {
+                    return false;
+                };
+                end = next;
+            }
+            end == self.size
+        }
+    }
+
     pub fn representation_element_layout<'a>(
         types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
         element: StructuralTypeId,
@@ -3901,25 +3922,7 @@ pub(crate) mod representation_regions {
                 {
                     return None;
                 }
-                let tiled = |layout: &RepresentationElementLayout| {
-                    let mut end = 0;
-                    for leaf in &layout.leaves {
-                        if leaf.offset != end {
-                            return false;
-                        }
-                        let Some(width) =
-                            crate::storage::element_representation::scalar_size(leaf.scalar_type)
-                        else {
-                            return false;
-                        };
-                        let Some(next) = end.checked_add(width) else {
-                            return false;
-                        };
-                        end = next;
-                    }
-                    end == layout.size
-                };
-                if !tiled(&source) || !tiled(&target) {
+                if !source.is_tightly_tiled() || !target.is_tightly_tiled() {
                     return None;
                 }
                 Some(ElementViewRegionGeometry::WholeRepresentation {

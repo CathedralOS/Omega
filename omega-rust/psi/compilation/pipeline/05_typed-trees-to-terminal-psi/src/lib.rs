@@ -46,14 +46,22 @@ Gaps found against the contract are listed in the crate README, "Findings".
 */
 
 mod body;
+mod boundaries;
 mod callable_formations;
+mod callable_headers;
+mod callables;
+mod calling_publication;
 mod compilation;
 mod publication;
 use publication::PreparedProgram;
-pub use publication::{DesignatedOperands, SourceCorrespondence};
+pub use publication::{
+    DesignatedOperands, SourceCorrespondence, SourceFormCorrespondence, SourceOrigin,
+};
 mod canonical;
+pub use canonical::substituted_routes as substituted_call_routes;
 mod components;
 mod declare;
+mod external_providers;
 mod inhabitation;
 mod lower;
 
@@ -61,14 +69,16 @@ mod operational;
 mod outcome;
 mod policy;
 mod proof_scope;
+pub mod provider_selections;
 mod qualifications;
+mod reach;
 mod read;
 mod reference_ends;
 mod reference_results;
+pub mod selection_questions;
+mod static_contracts;
 mod suspension;
 
-// One compilation's forms read the same frozen owner and its immutable
-// capture index. Sharing this scratch never transfers source or proof authority.
 /// What every elaboration of one typed program reads in common. A
 /// compilation, or a public entry point, prepares it once and lends it to
 /// the closure, each conformance witness and each generic form it reads, so
@@ -140,8 +150,16 @@ pub use body::{
     self_place,
 };
 pub use callable_formations::check_bound_callable_shapes;
+pub use callable_headers::{CallableCrashPolicy, CallableHeader};
 pub use compilation::{PreparedSource, prepare_compilation};
+pub use external_providers::{ExternalProviderCandidate, ProviderContractHeader};
 pub use outcome::Outcome;
+pub use reach::ServiceReach;
+pub use read::calling::{CallingPolicySelections, ProgramEntryContractSelection};
+pub use static_contracts::{
+    StaticCallableEnvelope, StaticConformanceQuestion, StaticImplementation,
+    StaticProviderCandidate, StaticRequirementSchema, StaticSchemaQuestion, StaticServiceCeiling,
+};
 // Installed logical calls share source preparation with ordinary refinement;
 // their canonical witnesses are judged by the next stage and never published.
 pub use terminal_check_tables::compilation::{
@@ -151,6 +169,7 @@ pub use terminal_check_tables::names::{Binder, ClauseText, MachineNames, Piece};
 
 use semantic_vocabulary::{IdTable, MachineId, PackageKeyIdentity, StructuralTypeId};
 use symbols::SymbolHandle;
+pub use terminal_check_tables::contracts::RequirementCeilings;
 use terminal_check_tables::{CheckTables, Checked, Construct, Refusal, RefusalReason};
 use terminal_psi::TerminalModule;
 use typed_trees::TypedTrees;
@@ -187,6 +206,13 @@ pub struct Compilation<'a> {
     /// One visible-continuation shape obligation per executed Build binding.
     /// Deduplicating machine roots must not discard distinct slot contracts.
     pub bindings: &'a [typed_trees::callable_signature_shapes::BoundCallableShape],
+    /// Exact source applications selected for calling policies and entry ABI
+    /// publication. They are consumed before body closure, never by a later
+    /// target stage reopening typed source.
+    pub calling: Option<CallingPolicySelections<'a>>,
+    /// Build/default precedence has selected these exact source providers.
+    /// Their schemas and choice coordinates are published in the module.
+    pub providers: Option<provider_selections::ProviderSelections<'a>>,
     /// The implementations chosen for nominal requirements of this compilation:
     /// the Build's own selections, and the supply settlement chose for each
     /// requirement the compilation reaches. The check claims each provider's
@@ -214,7 +240,7 @@ pub use typed_trees::trait_definition::Supply;
 
 pub use terminal_check_tables::program::{
     Branch, ConformanceWitness, Elaboration, MachineSources, PredicateSource, Selected,
-    SourceOrigin, SuppliedRequirement, Unpositioned, Unreachable,
+    SuppliedRequirement, Unpositioned, Unreachable,
 };
 
 /// What the subset does not serve, named for the refusal. Closed: a new
@@ -303,7 +329,7 @@ pub(crate) fn reject(machine: MachineId, at: SourceOrigin, rule: impl Into<Strin
         reason: RefusalReason::Violation,
         machine,
         concerns: Construct::Machine,
-        source_span: at.authored_span(),
+        source_span: at.span(),
         detail: rule.into(),
     }
 }
@@ -335,7 +361,12 @@ pub fn elaborate_for(
     // `prepare_compilation` reports the rest beside it.
     let mut prepared = elaborate_source_for(typed, compilation, publication, shared_reading(typed))
         .map_err(|mut refused| refused.swap_remove(0))?;
-    proof_scope::declare(typed, &mut prepared.program, &prepared.selected_calls)?;
+    publication::finalize_source(
+        typed,
+        &mut prepared.program,
+        &prepared.selected_calls,
+        prepared.pending_publication.take(),
+    )?;
     Ok(prepared.program)
 }
 
@@ -394,12 +425,20 @@ fn elaborate_source_for<'source>(
         return Err(refused);
     }
     let mut further = Vec::new();
-    let mut elaboration =
-        finish_reading_into(program, entry, bodies, &mut further).map_err(|first| {
-            let mut refused = vec![first];
-            refused.append(&mut further);
-            refused
-        })?;
+    let mut elaboration = finish_reading_into(
+        program,
+        entry,
+        bodies,
+        Some(typed),
+        compilation.calling,
+        compilation.providers,
+        &mut further,
+    )
+    .map_err(|first| {
+        let mut refused = vec![first];
+        refused.append(&mut further);
+        refused
+    })?;
     elaboration.selected_calls =
         compilation::prepare_selected_signatures(typed, &elaboration.program, &elaboration.source)
             .map_err(alone)?;
@@ -508,7 +547,7 @@ pub fn elaborate_alternatives(
     typed: &TypedTrees,
     template: SymbolHandle,
 ) -> Checked<Vec<Elaboration>> {
-    elaborate_alternatives_with_captures(
+    prepare_alternatives(
         typed,
         declaration_context(typed, template),
         template,
@@ -516,16 +555,22 @@ pub fn elaborate_alternatives(
         terminal_codec::TerminalPublication::Portable,
         None,
     )
+    .and_then(|forms| {
+        forms
+            .into_iter()
+            .map(PreparedProgram::into_check_form)
+            .collect()
+    })
 }
 
-fn elaborate_alternatives_with_captures(
-    typed: &TypedTrees,
+fn prepare_alternatives<'source>(
+    typed: &'source TypedTrees,
     purpose: source::DependencyScope,
     template: SymbolHandle,
     captures: SharedReading,
     publication: terminal_codec::TerminalPublication,
     opaque_refusal: Option<Refusal>,
-) -> Checked<Vec<Elaboration>> {
+) -> Checked<Vec<PreparedProgram<'source>>> {
     let first = MachineId::new(1).expect("1 is nonzero");
     let alternatives = read::Program::with_captures(typed, false, purpose, captures.clone())
         .family_alternatives(first, template)
@@ -539,8 +584,7 @@ fn elaborate_alternatives_with_captures(
             program.publication = publication;
             program.alternative = Some(arguments);
             let entry = program.machine(template)?;
-            finish_reading(program, Some(entry), IdTable::default())
-                .map(|prepared| prepared.program)
+            finish_reading(program, Some(entry), IdTable::default(), None, None, None)
         })
         .collect()
 }
@@ -557,34 +601,46 @@ pub fn elaborate_generic_forms(
     let captures = shared_reading(typed);
     let mut forms = Vec::new();
     for template in templates {
-        forms.extend(elaborate_generic_forms_with_captures(
-            typed,
-            declaration_context(typed, *template),
-            &[*template],
-            captures.clone(),
-            terminal_codec::TerminalPublication::Portable,
-        )?);
+        forms.extend(
+            prepare_generic_forms(
+                typed,
+                declaration_context(typed, *template),
+                &[*template],
+                captures.clone(),
+                terminal_codec::TerminalPublication::Portable,
+            )?
+            .into_iter()
+            .map(PreparedProgram::into_check_form)
+            .collect::<Checked<Vec<_>>>()?,
+        );
     }
     Ok(forms)
 }
 
-fn elaborate_generic_forms_with_captures(
-    typed: &TypedTrees,
+fn prepare_generic_forms<'source>(
+    typed: &'source TypedTrees,
     purpose: source::DependencyScope,
     templates: &[SymbolHandle],
     captures: SharedReading,
     publication: terminal_codec::TerminalPublication,
-) -> Checked<Vec<Elaboration>> {
+) -> Checked<Vec<PreparedProgram<'source>>> {
     let mut forms = Vec::new();
     for template in templates {
         if let Some(declared) = typed.trait_definition_by_symbol(*template) {
             let mut program = read::Program::with_captures(typed, true, purpose, captures.clone());
             program.publication = publication;
             program.generic_trait(declared)?;
-            forms.push(finish_reading(program, None, IdTable::default())?.program);
+            forms.push(finish_reading(
+                program,
+                None,
+                IdTable::default(),
+                None,
+                None,
+                None,
+            )?);
             continue;
         }
-        match elaborate_form(
+        match prepare_form(
             typed,
             purpose,
             *template,
@@ -593,7 +649,7 @@ fn elaborate_generic_forms_with_captures(
             publication,
         ) {
             Ok(form) => forms.push(form),
-            Err(rigid) => forms.extend(elaborate_alternatives_with_captures(
+            Err(rigid) => forms.extend(prepare_alternatives(
                 typed,
                 purpose,
                 *template,
@@ -656,7 +712,7 @@ pub fn elaborate_witness(
     arguments: &[semantic_vocabulary::ScalarTerm],
     implementation: SymbolHandle,
 ) -> Checked<Elaboration> {
-    elaborate_witness_with_captures(
+    prepare_witness(
         typed,
         declaring_trait,
         requirement,
@@ -669,37 +725,18 @@ pub fn elaborate_witness(
             outcome_subjects: None,
         },
     )
+    .and_then(PreparedProgram::into_check_form)
 }
 
-fn elaborate_applied_witness(
-    typed: &TypedTrees,
-    required: &typed_trees::signature::StateSignature,
+fn prepare_witness<'source>(
+    typed: &'source TypedTrees,
     declaring_trait: SymbolHandle,
     requirement: SymbolHandle,
     arguments: &[semantic_vocabulary::ScalarTerm],
     implementation: SymbolHandle,
+    expected: Option<&'source typed_trees::signature::StateSignature>,
     inputs: WitnessInputs<'_>,
-) -> Checked<Elaboration> {
-    elaborate_witness_with_captures(
-        typed,
-        declaring_trait,
-        requirement,
-        arguments,
-        implementation,
-        Some(required),
-        inputs,
-    )
-}
-
-fn elaborate_witness_with_captures(
-    typed: &TypedTrees,
-    declaring_trait: SymbolHandle,
-    requirement: SymbolHandle,
-    arguments: &[semantic_vocabulary::ScalarTerm],
-    implementation: SymbolHandle,
-    expected: Option<&typed_trees::signature::StateSignature>,
-    inputs: WitnessInputs<'_>,
-) -> Checked<Elaboration> {
+) -> Checked<PreparedProgram<'source>> {
     let generic = typed
         .machine_by_symbol(implementation)
         .is_some_and(|machine| is_generic_template(typed, machine));
@@ -713,23 +750,53 @@ fn elaborate_witness_with_captures(
         expected,
     )?;
     let callee = program.implementation(implementation, declaring_trait, requirement)?;
-    let mut elaboration = elaborate_witness_call(program, entry, callee)?;
+    let bodies = witness_call(&mut program, entry, callee)?;
+    let mut prepared = finish_reading(program, Some(entry), bodies, None, None, None)?;
     if typed
         .trait_machine_signature(requirement)
         .is_some_and(|(owner, signature)| {
             owner.is_boundary && signature.service_reach_is_installation_bound
         })
     {
-        elaboration.installation_bound_refinement = Some(entry);
+        prepared.program.installation_bound_refinement = Some(entry);
     }
-    Ok(elaboration)
+    Ok(prepared)
 }
 
-fn elaborate_witness_call(
-    mut program: read::Program<'_>,
+/// The declaration supplying a callable's published contract. An applied
+/// signature is already instantiated by the typed-tree application owner.
+#[derive(Clone, Copy)]
+pub enum CallableDeclaration<'a> {
+    Signature(&'a typed_trees::signature::StateSignature),
+    Machine(SymbolHandle),
+}
+
+/// Prepare the logical refinement witness without reading the supplied body.
+pub fn elaborate_callable_witness<'a>(
+    typed: &'a TypedTrees,
+    required: &'a typed_trees::signature::StateSignature,
+    supplied: CallableDeclaration<'a>,
+) -> Checked<Elaboration> {
+    let mut program = read::Program::with_captures(
+        typed,
+        false,
+        declaration_context(typed, required.symbol),
+        shared_reading(typed),
+    );
+    let entry = program.witnessed_signature(required, &[], None)?;
+    let callee = program.callable_contract(supplied)?;
+    let bodies = witness_call(&mut program, entry, callee)?;
+    finish_logical_witness(program, entry, bodies).and_then(PreparedProgram::into_check_form)
+}
+
+/// Form the same positional call obligation for a body conformance or a
+/// purely logical callable contract. Each entrance retains its actual body
+/// ownership and publication rules when it finishes this checking form.
+fn witness_call(
+    program: &mut read::Program<'_>,
     entry: MachineId,
     callee: MachineId,
-) -> Checked<Elaboration> {
+) -> Checked<IdTable<MachineId, Body>> {
     let required =
         terminal_check_tables::row(&program.signatures, entry, entry, Construct::Machine)?.clone();
     let supplied =
@@ -787,14 +854,13 @@ fn elaborate_witness_call(
             designated: None,
             required_contract: None,
             static_reach_binding: None,
-            source_call: None,
         },
         result: required.result,
         source,
     };
     let mut bodies: IdTable<MachineId, Body> = IdTable::default();
     bodies.push(callable_refinement_body(&required, call));
-    finish_reading(program, Some(entry), bodies).map(|prepared| prepared.program)
+    Ok(bodies)
 }
 
 /// A callable refines its requirement by making this call under the
@@ -819,6 +885,87 @@ pub(crate) fn callable_refinement_body(required: &body::Signature, call: Express
     }
 }
 
+/// A logical witness has abstract dependencies and no executable closure. Read
+/// no dependency body and publish no inferred operational promise for it.
+fn finish_logical_witness<'source>(
+    mut program: read::Program<'source>,
+    entry: MachineId,
+    mut bodies: IdTable<MachineId, Body>,
+) -> Checked<PreparedProgram<'source>> {
+    while bodies.len() < program.signatures.len() {
+        let id = MachineId::new(bodies.len() as u64 + 1).ok_or_else(|| {
+            refuse(
+                entry,
+                Construct::Machine,
+                Unserved::Machine("identity overflow"),
+            )
+        })?;
+        let signature =
+            terminal_check_tables::row(&program.signatures, id, entry, Construct::Machine)?;
+        bodies.push(Body {
+            slots: signature.parameters.clone(),
+            statements: Vec::new(),
+        });
+        if !program.requirements.contains(&id) {
+            program.requirements.push(id);
+        }
+    }
+    program.prepare_domain_predicates(entry)?;
+    let source_selection_questions = capture_source_questions(&mut program, entry)?;
+    let services = program.service_map(entry)?;
+    let components = prepare_call_components(&bodies, &mut program.signatures)?;
+    let mut witness = lower_program(
+        Some(entry),
+        &bodies,
+        &components,
+        body::Signatures {
+            machines: &program.signatures,
+            boundaries: &program.boundaries,
+            declarations: &program.declaration_signatures,
+            declaration_aliases: None,
+        },
+        &program.records,
+        &program.requirements,
+        &program.callables,
+        &program.boundaries,
+        &services,
+        &program.external_providers,
+        &program.static_contracts,
+        program.publication,
+        Some(program.typed),
+        Some(&program),
+    )?;
+    witness.source.records = program.source_record_correspondence(entry)?;
+    witness.program.machines = program.symbols;
+    witness.program.names = program.names;
+    witness.program.value_parameters = program.value_parameters;
+    witness.program.value_arguments = program.value_arguments;
+    witness.program.applications = program.applications;
+    witness.program.selections = program.selections;
+    witness.source.selection_questions = Some(source_selection_questions);
+    Ok(witness)
+}
+
+fn capture_source_questions(
+    program: &mut read::Program<'_>,
+    entry: MachineId,
+) -> Checked<selection_questions::RawSelectionQuestions> {
+    program.completed_operators.finish();
+    selection_questions::capture(
+        program.typed,
+        &program.admitted_declarations,
+        &program.completed_operators,
+        &program.admitted_signature_views,
+    )
+    .map_err(|error| Refusal {
+        source_span: None,
+        machine: entry,
+        concerns: Construct::Machine,
+        reason: RefusalReason::Unsupported,
+        detail: error.to_string(),
+    })
+}
+
 fn elaborate_form(
     typed: &TypedTrees,
     purpose: source::DependencyScope,
@@ -827,23 +974,46 @@ fn elaborate_form(
     captures: SharedReading,
     publication: terminal_codec::TerminalPublication,
 ) -> Checked<Elaboration> {
+    prepare_form(typed, purpose, entry, rigid, captures, publication)
+        .and_then(PreparedProgram::into_check_form)
+}
+
+fn prepare_form<'source>(
+    typed: &'source TypedTrees,
+    purpose: source::DependencyScope,
+    entry: SymbolHandle,
+    rigid: bool,
+    captures: SharedReading,
+    publication: terminal_codec::TerminalPublication,
+) -> Checked<PreparedProgram<'source>> {
     let mut program = read::Program::with_captures(typed, rigid, purpose, captures);
     program.publication = publication;
     let entry = program.machine(entry)?;
-    finish_reading(program, Some(entry), IdTable::default()).map(|prepared| prepared.program)
+    finish_reading(program, Some(entry), IdTable::default(), None, None, None)
 }
 
 /// Reads every body not yet in `bodies`, callees as they are discovered,
-/// and lowers the closure. Real source declarations receive their identities
-/// through the same declaration owner, including in proof inputs. A synthetic
-/// witness root has no source machine and remains unpublishable; no body is
-/// accepted merely by describing its header.
+/// and lowers the closure. `declared` is the typed trees when the closure is a
+/// compilation's program, whose machines are then given their declaration
+/// identities (`declare`). This owner publishes their proof scopes once after
+/// the declarations are formed.
 fn finish_reading<'source>(
     program: read::Program<'source>,
     entry: Option<MachineId>,
     bodies: IdTable<MachineId, Body>,
+    declared: Option<&'source TypedTrees>,
+    calling: Option<CallingPolicySelections<'_>>,
+    providers: Option<provider_selections::ProviderSelections<'_>>,
 ) -> Checked<PreparedProgram<'source>> {
-    finish_reading_into(program, entry, bodies, &mut Vec::new())
+    finish_reading_into(
+        program,
+        entry,
+        bodies,
+        declared,
+        calling,
+        providers,
+        &mut Vec::new(),
+    )
 }
 
 /// `finish_reading`, putting each machine refused after the first one, where
@@ -852,98 +1022,165 @@ fn finish_reading_into<'source>(
     mut program: read::Program<'source>,
     entry: Option<MachineId>,
     mut bodies: IdTable<MachineId, Body>,
+    declared: Option<&'source TypedTrees>,
+    calling: Option<CallingPolicySelections<'_>>,
+    providers: Option<provider_selections::ProviderSelections<'_>>,
     further: &mut Vec<Refusal>,
 ) -> Checked<PreparedProgram<'source>> {
     // Refusals need a coordinate even for an empty declaration module. This
     // diagnostic anchor is never installed as an entry or an input boundary.
     let diagnostic = entry.unwrap_or_else(|| MachineId::new(1).expect("1 is nonzero"));
-    // `program.machine` appends callees while bodies are read, so the bound
-    // is re-read on every step.
+    let selected_providers = providers
+        .map(|selected| program.prepare_provider_selections(diagnostic, selected))
+        .transpose()?;
+    let mut policies = read::calling::SourceCallingPolicies::default();
     let mut binder_reach = IdTable::default();
-    let mut predicates_prepared = false;
-    loop {
-        program.resolve_scalar_applications(diagnostic)?;
-        program.finish_cleanup_selections()?;
-        if binder_reach.len() == program.symbols.len() {
-            program.prepare_calling_policy_roots(diagnostic)?;
-            if binder_reach.len() != program.symbols.len() {
+    let components = loop {
+        program.prepare_calling_policies(diagnostic, calling, &mut policies)?;
+        let mut predicates_prepared = false;
+        loop {
+            program.resolve_scalar_applications(diagnostic)?;
+            program.finish_cleanup_selections()?;
+            if binder_reach.len() == program.symbols.len() {
+                program.prepare_calling_policy_roots(diagnostic)?;
+                if binder_reach.len() != program.symbols.len() {
+                    continue;
+                }
+                if predicates_prepared {
+                    break;
+                }
+                program.prepare_domain_predicates(diagnostic)?;
+                predicates_prepared = true;
                 continue;
             }
-            if predicates_prepared {
-                break;
+            let next = MachineId::new(binder_reach.len() as u64 + 1).ok_or_else(|| {
+                refuse(
+                    diagnostic,
+                    Construct::Machine,
+                    Unserved::Machine("identity overflow"),
+                )
+            })?;
+            if bodies.get(next).is_none() {
+                bodies.push(program.body(next)?);
             }
-            program.prepare_domain_predicates(diagnostic)?;
-            predicates_prepared = true;
-            continue;
+            binder_reach.push(program.application_binders(next)?);
         }
-        let next = MachineId::new(binder_reach.len() as u64 + 1).ok_or_else(|| {
-            refuse(
-                diagnostic,
-                Construct::Machine,
-                Unserved::Machine("identity overflow"),
-            )
-        })?;
-        if bodies.get(next).is_none() {
-            bodies.push(program.body(next)?);
+        let components = prepare_call_components(&bodies, &mut program.signatures)?;
+        program.finish_operational_envelopes(&bodies, &components)?;
+        program.prepare_service_bindings(diagnostic)?;
+        if !program.prepare_calling_policies(diagnostic, calling, &mut policies)? {
+            break components;
         }
-        binder_reach.push(program.application_binders(next)?);
-    }
-    program.finish_declarations(diagnostic)?;
-    let components = components::components(&bodies, &mut program.signatures)?;
+    };
     let private_inputs = program.private_input_contracts(entry, diagnostic)?;
+    program.finish_operational_envelopes(&bodies, &components)?;
+    program.finish_declarations(diagnostic)?;
+    program.prepare_external_providers(diagnostic)?;
+    let services = program.service_map(diagnostic)?;
+    program.require_complete_boundary_parent_contracts(diagnostic, &policies)?;
+    let policies = (!policies.requests.is_empty()).then_some(policies);
     program.begin_declaration_storage(diagnostic, bodies.len())?;
     let declarations = program.declaration_metadata.clone();
     let calling_abis = program.prepare_calling_abis(diagnostic, &declarations)?;
+    let descriptions = policies
+        .as_ref()
+        .map(|policies| program.prepare_calling_storage(diagnostic, policies))
+        .transpose()?;
+    program.prepare_domain_predicates(diagnostic)?;
     program.finish_cleanup_selections()?;
+    let source_selection_questions = capture_source_questions(&mut program, diagnostic)?;
     let PreparedProgram {
         program: mut elaboration,
         outcomes,
         mut source,
         ..
-    } = lower_generic_for(
+    } = lower_program(
         entry,
         &bodies,
+        &components,
         body::Signatures {
             machines: &program.signatures,
+            boundaries: &program.boundaries,
             declarations: &program.declaration_signatures,
             declaration_aliases: Some(&program.declaration_aliases),
-            boundaries: &program.boundary_signatures,
-            completions: &program.boundary_completions,
         },
         &program.records,
         &program.requirements,
+        &program.callables,
+        &program.boundaries,
+        &services,
+        &program.external_providers,
+        &program.static_contracts,
         program.publication,
+        Some(program.typed),
         Some(&program),
-        components,
     )?;
+    elaboration.machines = program.symbols.clone();
+    elaboration.boundaries = program.boundaries.rows.map(|_, source| source.source);
+    source.selection_questions = Some(source_selection_questions);
+    crate::reach::publish(entry, &services, &mut elaboration)?;
     calling_abis.publish(&mut elaboration.module)?;
     program.publish_record_layouts(diagnostic, &mut elaboration.module)?;
-    let prepared_applications = declare::declare(
-        program.typed(),
-        &program,
-        &outcomes,
-        &binder_reach,
-        &mut elaboration,
-    )
-    .and_then(|prepared_applications| {
-        declare::provider_candidates(
-            program.typed(),
-            &program.symbols,
-            &program.boundary_symbols,
-            &program.supplied,
-            &mut elaboration.module,
-        )?;
-        // Last, over the finished operations and published contracts.
-        suspension::publish_crossings(&mut elaboration.module)?;
-        Ok(prepared_applications)
-    })
-    .map_err(|reason| {
+    let declaration_error = |reason| {
         refuse(
             diagnostic,
             Construct::Machine,
             Unserved::Declaration(reason),
         )
-    })?;
+    };
+    // Real typed bodies retain their actual declarations in check forms too.
+    // A synthetic frame has no such declaration and is recorded as undeclared.
+    let prepared_applications = declare::declare(
+        program.typed,
+        &program,
+        &outcomes,
+        &binder_reach,
+        &mut elaboration,
+    )
+    .map_err(declaration_error)?;
+    if let Some(typed) = declared {
+        elaboration.provider_candidate_intents = declare::provider_candidates(
+            typed,
+            &program.symbols,
+            &elaboration.boundaries,
+            &program.supplied,
+            &elaboration.static_conformances,
+            &mut elaboration.module,
+        )
+        .map_err(declaration_error)?;
+    } else {
+        if !elaboration.check_form_envelopes.is_empty() {
+            return Err(declaration_error(
+                "check-form envelopes were already retained",
+            ));
+        }
+        elaboration
+            .undeclared
+            .sort_unstable_by_key(|(machine, _)| *machine);
+        let mut requirements = elaboration.requirements.clone();
+        requirements.sort_unstable();
+        for slot in &mut elaboration.module.callables.machine_envelopes {
+            // A bodyless requirement retains its exact abstract ceiling in
+            // requirement_ceilings, not a named executable declaration.
+            if slot
+                .as_ref()
+                .is_some_and(|row| requirements.binary_search(&row.machine).is_ok())
+            {
+                *slot = None;
+                continue;
+            }
+            if slot.as_ref().is_some_and(|row| {
+                elaboration
+                    .undeclared
+                    .binary_search_by_key(&row.machine, |(machine, _)| *machine)
+                    .is_ok()
+            }) && let Some(row) = slot.take()
+            {
+                elaboration.check_form_envelopes.push(row);
+            }
+        }
+    }
+    suspension::publish_crossings(&mut elaboration.module).map_err(declaration_error)?;
     qualifications::publish_access_plans(diagnostic, &program, &mut elaboration.module)?;
     source.records = program.source_record_correspondence(diagnostic)?;
     program.publish_source_declarations(diagnostic, &source.records, &mut elaboration.module)?;
@@ -968,7 +1205,6 @@ fn finish_reading_into<'source>(
     reference_results::publish(&mut elaboration, &program.selections)?;
     finish_storage(diagnostic, &mut elaboration, further)?;
     elaboration.machines = program.symbols;
-    elaboration.boundaries = program.boundary_symbols;
     elaboration.private_inputs = private_inputs;
     elaboration.names = program.names;
     elaboration.selections = program.selections;
@@ -978,6 +1214,24 @@ fn finish_reading_into<'source>(
     elaboration.value_arguments = program.value_arguments;
     elaboration.generic_templates = program.generic_templates;
     elaboration.conformance_witnesses = program.conformance_witnesses;
+    let calling = match (policies, descriptions) {
+        (Some(policies), Some(descriptions)) => Some((policies, descriptions)),
+        (None, None) => None,
+        _ => {
+            return Err(read::services::unavailable(
+                diagnostic,
+                "prepared calling policy lost its canonical storage descriptions",
+            ));
+        }
+    };
+    let pending_publication = (calling.is_some() || selected_providers.is_some()).then_some(
+        publication::PendingSourcePublication {
+            source: program.typed,
+            context: diagnostic,
+            calling,
+            providers: selected_providers,
+        },
+    );
     elaboration.supplied = program.supplied;
     Ok(PreparedProgram {
         program: elaboration,
@@ -985,6 +1239,7 @@ fn finish_reading_into<'source>(
         source,
         selected_calls: Vec::new(),
         prepared_applications,
+        pending_publication,
     })
 }
 
@@ -1028,25 +1283,21 @@ pub fn lower_generic(
 ) -> Checked<Elaboration> {
     // This model-level entrance borrows its caller's headers. Source preparation
     // above already owns and completes the same signature table in place.
-    let mut signatures = signatures.clone();
-    let components = components::components(bodies, &mut signatures)?;
     lower_generic_for(
         Some(entry),
         bodies,
         body::Signatures {
             declarations: &IdTable::default(),
             declaration_aliases: None,
-            machines: &signatures,
-            boundaries: &IdTable::default(),
-            completions: &IdTable::default(),
+            machines: signatures,
+            boundaries: &boundaries::BoundaryNamespace::default(),
         },
         records,
         requirements,
         terminal_codec::TerminalPublication::Portable,
         None,
-        components,
     )
-    .map(|prepared| prepared.program)
+    .and_then(PreparedProgram::into_check_form)
 }
 
 fn lower_generic_for<'source>(
@@ -1056,11 +1307,72 @@ fn lower_generic_for<'source>(
     records: &IdTable<StructuralTypeId, RecordType>,
     requirements: &[MachineId],
     publication: terminal_codec::TerminalPublication,
+    source: Option<&'source read::Program<'source>>,
+) -> Checked<PreparedProgram<'source>> {
+    let mut machine_signatures = signatures.machines.clone();
+    let components = prepare_call_components(bodies, &mut machine_signatures)?;
+    let signatures = body::Signatures {
+        machines: &machine_signatures,
+        ..signatures
+    };
+    lower_program(
+        entry,
+        bodies,
+        &components,
+        signatures,
+        records,
+        requirements,
+        &callables::CallableNamespace::default(),
+        &boundaries::BoundaryNamespace::default(),
+        &reach::ServiceMap::default(),
+        &external_providers::ExternalProviderNamespace::default(),
+        &static_contracts::StaticContracts::default(),
+        publication,
+        source.map(|source| source.typed),
+        source,
+    )
+}
+
+/// Validate call positions and prepare the graph once for this body closure.
+/// Progress inference and lowering borrow the same component/ranking data.
+fn prepare_call_components(
+    bodies: &IdTable<MachineId, Body>,
+    signatures: &mut IdTable<MachineId, Signature>,
+) -> Checked<components::Components> {
+    for (machine, body) in bodies.iter() {
+        operational::positions(machine, body)?;
+    }
+    components::components(bodies, signatures)
+}
+
+fn lower_program<'source>(
+    entry: Option<MachineId>,
+    bodies: &IdTable<MachineId, Body>,
+    components: &components::Components,
+    signatures: body::Signatures<'_>,
+    records: &IdTable<StructuralTypeId, RecordType>,
+    requirements: &[MachineId],
+    callables: &callables::CallableNamespace,
+    boundaries: &boundaries::BoundaryNamespace,
+    services: &reach::ServiceMap,
+    external_providers: &external_providers::ExternalProviderNamespace,
+    static_contracts: &static_contracts::StaticContracts,
+    publication: terminal_codec::TerminalPublication,
+    typed_source: Option<&'source TypedTrees>,
     declarations: Option<&read::Program<'source>>,
-    components: components::Components,
 ) -> Checked<PreparedProgram<'source>> {
     let diagnostic = entry.unwrap_or_else(|| MachineId::new(1).expect("1 is nonzero"));
+    let mut required_ids = requirements.to_vec();
+    required_ids.sort_unstable();
+    if required_ids.windows(2).any(|pair| pair[0] == pair[1]) {
+        return Err(refuse(
+            diagnostic,
+            Construct::Machine,
+            Unserved::Machine("abstract requirements repeat a declaration identity"),
+        ));
+    }
     for requirement in requirements {
+        signatures.get((*requirement).into(), diagnostic)?;
         let body =
             terminal_check_tables::row(bodies, *requirement, diagnostic, Construct::Machine)?;
         if !body.statements.is_empty() {
@@ -1071,9 +1383,23 @@ fn lower_generic_for<'source>(
             ));
         }
     }
-    for (machine, body) in bodies.iter() {
-        operational::positions(machine, body)?;
-    }
+    let requirement_ceilings = if requirements.is_empty() {
+        IdTable::default()
+    } else {
+        if !signatures.machines.keys().eq(bodies.keys()) {
+            return Err(refuse(
+                diagnostic,
+                Construct::Machine,
+                Unserved::Machine(
+                    "abstract signature clauses do not cover the exact body namespace",
+                ),
+            ));
+        }
+        signatures.machines.map(|_, signature| RequirementCeilings {
+            reaches: signature.reaches.clone(),
+            invokes: signature.invokes.clone(),
+        })
+    };
     // One source owner fixes the local inference boundary. Result clauses
     // retain their private publication restriction; local non-return does not
     // become a public clause and can use every eligible body in that unit.
@@ -1095,16 +1421,47 @@ fn lower_generic_for<'source>(
             terminal_psi::TerminalIdentityTableBuilder::for_invocation()
         }
     };
-    let declared = lower::places::declare(diagnostic, records, bodies, signatures, identities)?;
+    let declared = lower::places::declare(
+        diagnostic,
+        records,
+        bodies,
+        signatures
+            .machines
+            .values()
+            .chain(signatures.declarations.values())
+            .chain(
+                callables
+                    .contracts
+                    .values()
+                    .map(|contract| &contract.signature),
+            )
+            .chain(boundaries.rows.values().map(|boundary| &boundary.signature))
+            .chain(
+                external_providers
+                    .rows
+                    .iter()
+                    .map(|provider| &provider.signature),
+            )
+            .chain(
+                static_contracts
+                    .conformances
+                    .iter()
+                    .map(|question| &question.signature),
+            ),
+        declarations.map_or(&[][..], |source| source.byte_domains.as_slice()),
+        typed_source,
+        identities,
+    )?;
     let outcomes = outcome::outcomes(
         bodies,
         signatures,
         requirements,
+        callables,
         local_summaries
             .as_ref()
             .map(|local| local.outcomes.as_slice()),
         &declared.records.inhabitation,
-        &components,
+        components,
     )?;
     // Declaration checking publishes no executable arrival or root reach.
     if let Some(entry) = entry {
@@ -1116,31 +1473,13 @@ fn lower_generic_for<'source>(
     module.identities = declared.identities;
     module.structural_types = declared.structural_types;
     module.native_layouts = declared.native_layouts;
-    if let Some(source) = declarations {
-        source.publish_services(diagnostic, &mut module)?;
-    } else if !signatures.boundaries.is_empty() {
-        return Err(refuse(
-            diagnostic,
-            Construct::Machine,
-            Unserved::Declaration("boundary contracts have no exact source owner"),
-        ));
-    }
     let mut tables = CheckTables::default();
     let mut qualifications = qualifications::Qualifications::declare(
         diagnostic,
         declarations,
         std::mem::take(&mut module.identities),
+        declared.structural_domains,
     )?;
-    if let Some(source) = declarations {
-        source.publish_boundaries(
-            diagnostic,
-            signatures,
-            &outcomes,
-            &declared.records,
-            &mut qualifications,
-            &mut module,
-        )?;
-    }
     for (_, record) in records.iter() {
         for field in record
             .fields()
@@ -1189,8 +1528,22 @@ fn lower_generic_for<'source>(
         .primitives
         .sort_unstable_by_key(|row| row.structural_type);
     let mut sources = IdTable::default();
+    let mut declaration_envelopes = Vec::new();
     if let Some(source) = declarations {
         for (id, original) in source.declaration_representatives.iter() {
+            let envelope = source.declaration_envelopes.get(*original).ok_or_else(|| {
+                refuse(
+                    diagnostic,
+                    Construct::Machine,
+                    Unserved::Declaration(
+                        "public contract lost its completed declaration envelope",
+                    ),
+                )
+            })?;
+            declaration_envelopes.push(terminal_psi::TerminalDeclarationEnvelope {
+                contract: id,
+                envelope: services.envelope(diagnostic, envelope)?,
+            });
             let signature = source
                 .declaration_signatures
                 .get(*original)
@@ -1214,11 +1567,12 @@ fn lower_generic_for<'source>(
                     signatures,
                     &outcomes,
                     &declared.records,
+                    callables,
                     &mut qualifications,
                 )?);
         }
     }
-    let mut source = SourceCorrespondence::default();
+    let mut source = SourceFormCorrespondence::default();
     for position in 1..=bodies.len() as u64 {
         let id = MachineId::new(position).ok_or_else(|| {
             refuse(
@@ -1247,6 +1601,8 @@ fn lower_generic_for<'source>(
             signatures,
             &outcomes,
             &declared.records,
+            callables,
+            boundaries,
             requirements.contains(&id),
             &mut qualifications,
         )?;
@@ -1257,7 +1613,9 @@ fn lower_generic_for<'source>(
         tables.machines.push(lowered.tables);
         sources.push(lowered.sources);
         source.designated.push(lowered.designated);
-        source.calls.push(lowered.calls);
+        source.calls.extend(lowered.source_calls);
+        source.constructions.extend(lowered.source_constructions);
+        source.folded_calls.extend(lowered.source_folded_calls);
     }
     if let Some(source) = declarations {
         let proof_scope = std::mem::take(&mut module.scalar_applications.proof_scope);
@@ -1272,14 +1630,63 @@ fn lower_generic_for<'source>(
         module.scalar_applications.proof_scope = proof_scope;
         module.scalar_applications.conditions = conditions;
     }
-    module.identities = qualifications.identities.build();
+    module.identities = std::mem::take(&mut qualifications.identities).build();
+    module.scalar_qualifications = qualifications.catalog.clone();
+    boundaries.publish(
+        diagnostic,
+        signatures.machines,
+        &outcomes,
+        &declared.records,
+        callables,
+        services,
+        &mut qualifications,
+        &mut module,
+        declarations,
+    )?;
+    callables.publish(
+        diagnostic,
+        signatures.machines,
+        &outcomes,
+        &declared.records,
+        boundaries,
+        &tables,
+        services,
+        &mut qualifications,
+        &mut module,
+    )?;
+    module.callables.declaration_envelopes = declaration_envelopes;
+    let external_provider_candidates = external_providers.publish(
+        diagnostic,
+        signatures.machines,
+        &outcomes,
+        &declared.records,
+        callables,
+        boundaries,
+        services,
+        &mut qualifications,
+        &mut module,
+        typed_source,
+    )?;
+    let mut domains = IdTable::default();
+    let (static_schemas, static_conformances) = static_contracts.publish(
+        diagnostic,
+        signatures.machines,
+        &outcomes,
+        &declared.records,
+        callables,
+        boundaries,
+        services,
+        &mut qualifications,
+        &mut module,
+        typed_source,
+        &external_provider_candidates,
+    )?;
     module.scalar_qualifications = qualifications.catalog;
     module.structural_domains = qualifications.structural;
     qualifications
         .structural_changes
         .sort_unstable_by_key(|change| (change.machine, change.edge, change.argument_ordinal));
     module.structural_qualification_changes = qualifications.structural_changes;
-    let mut domains = IdTable::default();
     for (_, record) in records.iter() {
         domains.push(record.requires.clone());
     }
@@ -1327,7 +1734,7 @@ fn lower_generic_for<'source>(
                 });
             if source
                 .obligations
-                .push(SourceOrigin::Unpositioned(Unpositioned::MachineEntry))
+                .push(SourceOrigin::Unpositioned(Unpositioned::MachineEntry).into())
                 != obligation
             {
                 return Err(refuse(
@@ -1343,6 +1750,7 @@ fn lower_generic_for<'source>(
         source,
         selected_calls: Vec::new(),
         prepared_applications: Vec::new(),
+        pending_publication: None,
         program: Elaboration {
             installation_bound_refinement: None,
             module,
@@ -1355,6 +1763,7 @@ fn lower_generic_for<'source>(
             local_results: local_summaries.map_or_else(Vec::new, |local| local.result_contracts),
             domains,
             requirements: requirements.to_vec(),
+            requirement_ceilings,
             selections: Vec::new(),
             applications: Vec::new(),
             value_parameters: IdTable::default(),
@@ -1363,7 +1772,13 @@ fn lower_generic_for<'source>(
             generic_templates: Vec::new(),
             conformance_witnesses: Vec::new(),
             supplied: Vec::new(),
+            provider_candidate_intents: Vec::new(),
             undeclared: Vec::new(),
+            check_form_envelopes: Vec::new(),
+            reach: ServiceReach::default(),
+            external_provider_candidates,
+            static_schemas,
+            static_conformances,
             predicate_sources: Vec::new(),
         },
     };
@@ -1431,8 +1846,8 @@ fn finish_storage(
                 concerns,
                 source_span: None,
                 detail: {
-                    let detail = match (operation, origin) {
-                        (Some(operation), Some(SourceOrigin::Authored(span))) => format!(
+                    let detail = match (operation, origin.and_then(|origin| origin.span())) {
+                        (Some(operation), Some(span)) => format!(
                             "while checking {operation} at source {} bytes {}..{}: {detail}",
                             span.source_id.0, span.span.start, span.span.end,
                         ),
@@ -1567,22 +1982,27 @@ mod publication_scope_tests {
         });
         let lower = |publication| {
             let mut signatures = signatures.clone();
-            let components = components::components(&bodies, &mut signatures).unwrap();
-            lower_generic_for(
+            let components = prepare_call_components(&bodies, &mut signatures).unwrap();
+            lower_program(
                 Some(entry),
                 &bodies,
+                &components,
                 body::Signatures {
                     declarations: &IdTable::default(),
                     declaration_aliases: None,
                     machines: &signatures,
-                    boundaries: &IdTable::default(),
-                    completions: &IdTable::default(),
+                    boundaries: &boundaries::BoundaryNamespace::default(),
                 },
                 &IdTable::default(),
                 &[],
+                &callables::CallableNamespace::default(),
+                &boundaries::BoundaryNamespace::default(),
+                &reach::ServiceMap::default(),
+                &external_providers::ExternalProviderNamespace::default(),
+                &static_contracts::StaticContracts::default(),
                 publication,
                 None,
-                components,
+                None,
             )
             .unwrap()
             .program

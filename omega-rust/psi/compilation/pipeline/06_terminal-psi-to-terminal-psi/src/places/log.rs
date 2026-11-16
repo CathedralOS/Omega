@@ -234,16 +234,17 @@ fn zero_constant(operation: &Operation, scalar_type: ScalarType) -> Option<Value
     (zero && result.scalar_type == scalar_type).then_some(result.id)
 }
 
-impl Storage<'_> {
+impl<'a> Storage<'a> {
     /// Every store of the machine, in block and operation order.
     pub(super) fn stores(
         &self,
+        references: &mut super::DescriptorAnalysis<'a>,
         value_types: &IdTable<ValueId, ScalarType>,
     ) -> Checked<Vec<Logged>> {
         let mut log = Vec::new();
         for block in &self.lowered.blocks {
             for (position, operation) in block.operations.iter().enumerate() {
-                for (lineage, stored) in self.stored_by(block, position, value_types)? {
+                for (lineage, stored) in self.stored_by(references, block, position, value_types)? {
                     log.push(Logged {
                         captured: lineage.clone(),
                         lineage,
@@ -262,6 +263,7 @@ impl Storage<'_> {
     /// stores take effect: a whole store before the stores beneath it.
     fn stored_by(
         &self,
+        references: &mut super::DescriptorAnalysis<'a>,
         block: &Block,
         position: usize,
         value_types: &IdTable<ValueId, ScalarType>,
@@ -535,7 +537,7 @@ impl Storage<'_> {
             }
             OperationKind::ByteSequenceSubslice { .. }
             | OperationKind::ElementViewSubslice { .. } => {
-                self.subslice(operation)?;
+                self.subslice(references, operation)?;
                 rows.push((fresh()?, Stored::Established));
             }
             OperationKind::EstablishReference { .. }
@@ -574,12 +576,13 @@ impl Storage<'_> {
             | OperationKind::StructuralByteSequenceFieldRead { .. }
             | OperationKind::ScalarStructuralField { .. }
             | OperationKind::BooleanStructuralField { .. }
-            | OperationKind::StructuralCaseMembership { .. } => {}
-            // A module scalar application (a layout observation) has no
-            // operand and no storage: its scalar result is fixed by
-            // installation under the selected target, never by a place.
-            OperationKind::ReadScalarApplication { .. } => {}
-            kind if kind.declared_invocation().is_some() => {
+            | OperationKind::StructuralCaseMembership { .. }
+            | OperationKind::SelectMachine { .. }
+            | OperationKind::ReadScalarApplication { .. } => {}
+            kind if kind.module_invocation().is_some()
+                || kind.callable_invocation().is_some()
+                || matches!(kind, OperationKind::BoundaryCall { .. }) =>
+            {
                 if produced.is_some() {
                     rows.push((fresh()?, Stored::Established));
                 }
