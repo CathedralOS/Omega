@@ -1596,24 +1596,12 @@ machine build(builder: &mut Build) {
     let [contract] = original_method.contracts() else {
         panic!("the original value <= Limit requirement must remain visible");
     };
+    // The contract vocabulary stays private to review. Its returned value
+    // still exposes the exact declared binder and parameter relationship.
+    assert_eq!(format!("{:?}", contract.kind()), "Requires");
     assert_eq!(
-        contract.kind(),
-        review_evidence::record::PackageReviewContractKind::Requires
-    );
-    assert_eq!(
-        contract.fact(),
-        &review_evidence::record::PackageReviewContractFact::Expression(
-            review_evidence::record::PackageReviewContractExpression::Binary {
-                meaning: review_evidence::record::PackageReviewContractOperatorMeaning::Builtin,
-                operator: review_evidence::record::PackageReviewContractBinaryOperator::LessOrEqual,
-                left: Box::new(
-                    review_evidence::record::PackageReviewContractExpression::Parameter(0)
-                ),
-                right: Box::new(
-                    review_evidence::record::PackageReviewContractExpression::GenericBinder(0)
-                ),
-            }
-        )
+        format!("{:?}", contract.fact()),
+        "Expression(Binary { meaning: Builtin, operator: LessOrEqual, left: Parameter(0), right: GenericBinder(0) })"
     );
     assert_eq!(first.method().signature().static_parameters().len(), 1);
     let first_application = first.application().expect("closed first application");
