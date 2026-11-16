@@ -1707,9 +1707,11 @@ pub(crate) mod order_discreteness {
     mod tests {
         use super::{IntegerValue, Proposition, ScalarTerm, adjacent};
         use crate::proof::semantic_axiom_proof;
-        use crate::{ProofNode, ProofRule, check_certificate};
+        use crate::{
+            MathematicalCoreDecision, ProofNode, ProofRule, accept_certificate, check_certificate,
+        };
         use semantic_vocabulary::{
-            IntegerSign, IntegerType, PropositionContext, ScalarType, ValueId,
+            IntegerMathTerm, IntegerSign, IntegerType, PropositionContext, ScalarType, ValueId,
         };
         use std::slice::from_ref;
 
@@ -1744,6 +1746,17 @@ pub(crate) mod order_discreteness {
                         },
                     };
                     check_certificate(&context, &goal, &[], from_ref(&premise), &proof).unwrap();
+                    // The strict-to-nonstrict form has no derivation from the
+                    // adjacency laws, so the core judges it as one named
+                    // instance of the checked statement instead of skipping it.
+                    let accepted =
+                        accept_certificate(&context, &goal, &[], from_ref(&premise), &proof)
+                            .unwrap();
+                    let MathematicalCoreDecision::Judged(receipt) = accepted.mathematical_core
+                    else {
+                        panic!("strict-to-nonstrict discreteness reaches the core");
+                    };
+                    assert!(receipt.assumption_closure >= 1);
                     assert!(check_certificate(&context, &goal, &[], &[], &proof).is_err());
                     for wrong in [
                         Proposition::LessOrEqual(literal(2), value.clone()),
@@ -1762,6 +1775,47 @@ pub(crate) mod order_discreteness {
                     }
                 }
             }
+        }
+
+        #[test]
+        fn the_open_mathematical_form_reaches_the_core_and_rejects_a_wrong_endpoint() {
+            let integer_type = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
+            let scalar_type = ScalarType::Integer(integer_type);
+            let (a, b) = (ValueId::new(1).unwrap(), ValueId::new(2).unwrap());
+            let context =
+                PropositionContext::from_value_types([(a, scalar_type), (b, scalar_type)]).unwrap();
+            let value = |value| IntegerMathTerm::MathValue {
+                source_type: integer_type,
+                value,
+            };
+            let one = IntegerMathTerm::literal(IntegerValue::Unsigned(1));
+            let premise = Proposition::IntegerMathLessThan(value(a), value(b));
+            let goal = Proposition::IntegerMathLessOrEqual(
+                IntegerMathTerm::Add(Box::new(value(a)), Box::new(one.clone())),
+                value(b),
+            );
+            let proof = ProofNode {
+                conclusion: goal.clone(),
+                rule: ProofRule::IntegerOrderDiscreteness {
+                    relation: Box::new(semantic_axiom_proof(premise.clone(), 0)),
+                },
+            };
+            let accepted =
+                accept_certificate(&context, &goal, &[], from_ref(&premise), &proof).unwrap();
+            assert!(matches!(
+                accepted.mathematical_core,
+                MathematicalCoreDecision::Judged(_)
+            ));
+            // Negative twin: `a + 1 <= a` does not follow from `a < b`.
+            let wrong = Proposition::IntegerMathLessOrEqual(
+                IntegerMathTerm::Add(Box::new(value(a)), Box::new(one)),
+                value(a),
+            );
+            let mut altered = proof.clone();
+            altered.conclusion = wrong.clone();
+            assert!(
+                accept_certificate(&context, &wrong, &[], from_ref(&premise), &altered).is_err()
+            );
         }
 
         #[test]

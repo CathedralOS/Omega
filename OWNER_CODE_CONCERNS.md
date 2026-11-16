@@ -166,13 +166,6 @@ framework or a list of unimplemented features.
 - Cost: Receivers read a premise list missing a premise the kernel used, and the core rests on a false-alone assumption. Cite and pass the mask axioms as premises, or delete the route, which no prover emits and no test exercises; document the bitwise steps in integer_certificates.md either way.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/proofs/classicality.md
 
-### Four provisional float rules and two discreteness forms skip the mathematical core check
-- Category: A verdict with nothing behind it
-- Where: [IntegerFloatExact](omega-rust/psi/compilation/proof-admission/src/bounded_denotation.rs#L7737), [FloatIntegerConversion](omega-rust/psi/compilation/proof-admission/src/bounded_denotation.rs#L7755), [FloatMeaningNormalization](omega-rust/psi/compilation/proof-admission/src/bounded_denotation.rs#L7770), [IeeeFloatOrderChain](omega-rust/psi/compilation/proof-admission/src/bounded_denotation.rs#L7783), [discreteness](omega-rust/psi/compilation/proof-admission/src/bounded_denotation.rs#L1640), [Unsupported becomes Refused](omega-rust/psi/compilation/proof-admission/src/proof.rs#L258)
-- Saw: [encoding-scheme correspondence](wiki/spec/proofs/kernel_metatheory.md) says "Every certificate rule family denotes" and soundness "reduces to the kernel's own judgment". Denotation returns `Unsupported` for `IeeeFloatOrderChain`, `FloatMeaningNormalization`, `FloatIntegerConversion`, `IntegerFloatExact`, and the strict-to-nonstrict and open `a < b ⊢ a + 1 <= b` forms of `IntegerOrderDiscreteness`; `re_decide_in_mathematical_core` turns that into `MathematicalCoreDecision::Refused`, which only tests read. Certificates containing these steps are accepted with no core check.
-- Cost: Four of the eight provisional (trusted, underived) rows are exactly the ones the double check skips. Denote them as rule instances, as `IntegerPowerOfTwoOrder` is, or correct kernel_metatheory.md and make receivers handle `Refused`.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/proofs/kernel_metatheory.md
-
 ### Three kernel rules accept more forms than their audited rows say
 - Category: The documents disagree
 - Where: [open-term fallback](omega-rust/psi/compilation/proof-admission/src/integer_rules.rs#L224), [exact-op lift](omega-rust/psi/compilation/proof-admission/src/kernel.rs#L252), [strict carrier bound](omega-rust/psi/compilation/proof-admission/src/kernel.rs#L45), [open discreteness](omega-rust/psi/compilation/proof-admission/src/proof.rs#L1634), [inward discreteness](omega-rust/psi/compilation/proof-admission/src/proof.rs#L1666)
