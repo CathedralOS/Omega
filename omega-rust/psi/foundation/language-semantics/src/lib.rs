@@ -365,6 +365,8 @@ pub mod build_requests {
         Select,
         SelectProvider,
         Exclude,
+        DescribeParameter,
+        DescribeField,
     }
 
     impl SelectionProtocolOperation {
@@ -377,6 +379,8 @@ pub mod build_requests {
                 Self::Bind => "bind",
                 Self::BindDescription => "bind_description",
                 Self::BindNative => "bind_native",
+                Self::DescribeParameter => "describe_parameter",
+                Self::DescribeField => "describe_field",
                 Self::Select => "select",
                 Self::SelectProvider => "select_provider",
                 Self::Exclude => "exclude",

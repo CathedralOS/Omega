@@ -75,11 +75,11 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-### Entry selection rebuilds catalogs and repeats signature searches
+### Source correspondence repeats signature searches
 - Category: Verifying costs more than writing
-- Where: [entry-profile loop](omega-rust/omega/compilation/compiler/src/checked/checking/source_checking.rs#L261), [entry contract selection](omega-rust/omega/packages/package-compilation/src/source/source_imports/entry_contract_seed.rs#L184), [source correspondence](omega-rust/psi/compilation/representations/typed-trees/src/service_declarations.rs#L497)
-- Saw: Each bound entry profile independently prepares the full service catalog for the same typed source owner and source registry. Correspondence validation then scans the inherited signature set for every projected method, deriving candidate callable identities before interning them. The unique-match case exhausts that scan, so M methods over R signatures require M×R candidate visits. The original Console binding replay43 took 329.112s before its next refusal. A brief sample at 5m06s caught this catalog/correspondence work; only two samples were captured, so its share of total time is unknown. Raw evidence remains in claim `18e85a23de177c780000000018e83683`.
-- Cost: Entry checks repeat whole-catalog preparation and identity normalization. Reuse one exact-owner catalog across the bound-profile loop, then prepare an exact callable/package identity census once per inherited declaration set. Preserve source authentication, complete applications, missing and ambiguous requirement refusals. Validate with the unchanged Console program and refusal controls, measuring catalog preparations and identity derivations under the same optimized producer.
+- Where: [source correspondence](omega-rust/psi/compilation/representations/typed-trees/src/service_declarations.rs#L497)
+- Saw: For each projected method, correspondence validation scans every inherited signature and derives its callable identity before interning it. Finding one match still exhausts the scan. The original Console binding replay43 took 329.112s before its next refusal. A brief sample caught this work, but captured only two samples; its share of total time is unknown. Raw evidence remains in claim `18e85a23de177c780000000018e83683`.
+- Cost: Repeated identity normalization grows with both the method and signature counts. Prepare the exact callable/package identities once per inherited declaration set. Preserve source authentication, complete applications, and refusals for missing or ambiguous requirements. Validate with the unchanged Console program and refusal controls; measure the identity derivations before claiming a speedup.
 - Reported: 2026-11-16, Codex, while carrying the original Console binding and stored-machine programs through checking and execution
 
 ### Every native caller evaluates constants between two driver calls

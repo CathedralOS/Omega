@@ -20,6 +20,7 @@ use symbols::{SymbolHandle, SymbolKind};
 use terminal_psi::{OperationKind, TerminalModule};
 use typed_trees::TypedTrees;
 use typed_trees::callable_values::RuntimeCallableContractHandle;
+use typed_trees::references::StaticArgumentRole;
 use typed_trees_to_terminal_psi::selection_questions::{
     RawDependencyKind, RawDesignationInput, RawSelectionQuestion, RawSelectionQuestions,
     RawSelectionRole, RawSelectionTarget,
@@ -418,9 +419,12 @@ impl<'source> Questions<'source> {
                 }
                 let selected = self.source_target(target)?;
                 if parameter.is_valid() {
-                    return self
-                        .declarations
-                        .symbol_reference(&mut self.output, owner, parameter);
+                    return self.declarations.symbol_reference(
+                        &mut self.output,
+                        owner,
+                        parameter,
+                        StaticArgumentRole::ValueDependency,
+                    );
                 }
                 if let Some(dispatch) = dispatch {
                     if dispatch.realization_machine != selected {
@@ -433,6 +437,7 @@ impl<'source> Questions<'source> {
                             &mut self.output,
                             owner,
                             dispatch.evidence_parameter,
+                            StaticArgumentRole::ValueDependency,
                         );
                     }
                 } else if source_target != selected {
@@ -454,8 +459,12 @@ impl<'source> Questions<'source> {
                         )));
                     }
                 }
-                self.declarations
-                    .symbol_reference(&mut self.output, owner, selected)
+                self.declarations.symbol_reference(
+                    &mut self.output,
+                    owner,
+                    selected,
+                    StaticArgumentRole::ValueDependency,
+                )
             }
         }
     }
@@ -605,8 +614,12 @@ impl<'source> Questions<'source> {
         } else {
             self.source_target(TargetMachineCallable::Machine(body))?
         };
-        self.declarations
-            .symbol_reference(&mut self.output, source.owner, selected)
+        self.declarations.symbol_reference(
+            &mut self.output,
+            source.owner,
+            selected,
+            StaticArgumentRole::ValueDependency,
+        )
     }
 
     fn retain_invocation(
@@ -903,6 +916,11 @@ impl<'source> Questions<'source> {
                     &mut self.output,
                     dependency.lexical_owner,
                     dependency.target,
+                    if dependency.kind == RawDependencyKind::Description {
+                        StaticArgumentRole::DeclarationDescription
+                    } else {
+                        StaticArgumentRole::ValueDependency
+                    },
                 )
                 .map_err(|error| {
                     selection_context(
@@ -985,6 +1003,7 @@ impl<'source> Questions<'source> {
                         &mut self.output,
                         raw.lexical_owner,
                         symbol,
+                        StaticArgumentRole::DeclarationDescription,
                     )?
                 }
             }
@@ -1148,6 +1167,7 @@ fn intrinsic_identity(value: &impl Record, domain: &str) -> Result<String, Diagn
 
 struct Declarations<'source> {
     typed: &'source TypedTrees,
+    build_entry_source: Option<&'source source::SourceFile>,
     ids: SymbolRows<SelectionDeclarationId>,
     identities: SymbolRows<String>,
     contracts: SymbolRows<Vec<RuntimeCallableContractHandle>>,
@@ -1188,6 +1208,41 @@ impl<'source> Declarations<'source> {
                 .ok_or_else(|| refused("checked boundary lost its semantic identity"))?;
             identities.insert(*symbol, identity.to_owned())?;
         }
+        // Anonymous Build records already have checked declaration identities.
+        // Reuse their exact source associations, as for emitted machines; a
+        // second hermetic-name lookup would discard that invocation custody.
+        for source_record in &source.correspondence().records {
+            let record = module
+                .structural_type(source_record.record)
+                .ok_or_else(|| refused("source record has no checked structural declaration"))?;
+            let mut retain = |symbol, identity| -> Result<(), Diagnostic> {
+                let identity = module
+                    .identities
+                    .text(identity)
+                    .filter(|identity| !identity.is_empty())
+                    .ok_or_else(|| {
+                        refused("checked source record lost its declaration identity")
+                    })?;
+                if identities
+                    .get(&symbol)
+                    .is_some_and(|previous| previous != identity)
+                {
+                    return Err(refused(
+                        "one source record declaration has competing identities",
+                    ));
+                }
+                identities.insert(symbol, identity.to_owned())
+            };
+            retain(source_record.declaration, record.declaration_identity)?;
+            let mut fields = record.shape.fields().collect::<Vec<_>>();
+            fields.sort_unstable_by_key(|field| field.id);
+            for field in &source_record.fields {
+                let position = fields
+                    .binary_search_by_key(&field.field, |field| field.id)
+                    .map_err(|_| refused("source field has no checked structural declaration"))?;
+                retain(field.declaration, fields[position].declaration_identity)?;
+            }
+        }
         // Prepare this association once. Only an admitted contract's meaning
         // is normalized, so unrelated generic contracts never become work.
         let mut contracts: SymbolRows<Vec<RuntimeCallableContractHandle>> =
@@ -1197,8 +1252,23 @@ impl<'source> Declarations<'source> {
                 .get_or_insert_with(contract.signature.symbol, Vec::new)?
                 .push(handle);
         }
+        let build_entry_source = module
+            .entry
+            .and_then(|entry| match entry {
+                TargetMachineCallable::Machine(machine) => elaboration.machines.get(machine),
+                TargetMachineCallable::Boundary(_) => None,
+            })
+            .and_then(|symbol| {
+                source
+                    .source()
+                    .symbols
+                    .symbol_provenance_source_span(*symbol)
+            })
+            .and_then(|span| source.source().symbols.source_file(span))
+            .filter(|file| file.dependency_scope == source::DependencyScope::Build);
         Ok(Self {
             typed: source.source(),
+            build_entry_source,
             ids: SymbolRows::new(source.source().symbols.symbols().nodes().len()),
             identities,
             contracts,
@@ -1234,9 +1304,15 @@ impl<'source> Declarations<'source> {
             .symbol_provenance_source_span(symbol)
             .and_then(|span| self.typed.symbols.source_file(span))
             .ok_or_else(|| refused("source declaration has no retained source purpose"))?;
-        Ok(match source.dependency_scope {
+        let purpose = match source.dependency_scope {
             source::DependencyScope::Build => SelectionPurpose::Build,
             source::DependencyScope::Product => SelectionPurpose::Product,
+        };
+        Ok(match (self.build_entry_source, source.package_identity) {
+            (Some(entry), Some(owner)) => {
+                purpose.for_declaring_package(entry.package_identity, owner)
+            }
+            _ => purpose,
         })
     }
 
@@ -1475,6 +1551,7 @@ impl<'source> Declarations<'source> {
         output: &mut SelectionQuestions,
         owner: SymbolHandle,
         symbol: SymbolHandle,
+        role: StaticArgumentRole,
     ) -> Result<SelectionReference, Diagnostic> {
         self.valid(symbol, "reference target")?;
         if let Some(atom) = self.typed.symbols.builtin_type_atom(symbol) {
@@ -1499,7 +1576,9 @@ impl<'source> Declarations<'source> {
             | SymbolKind::MachineParameter
             | SymbolKind::ConformanceParameter
             | SymbolKind::PropositionParameter
-            | SymbolKind::PropositionMachineParameter => {
+            | SymbolKind::PropositionMachineParameter
+                if role == StaticArgumentRole::ValueDependency =>
+            {
                 self.local_binding(output, owner, symbol, self.typed.symbols.get(symbol).parent)
             }
             _ => Ok(SelectionReference::Declaration(
@@ -1710,6 +1789,61 @@ machine entry() reaches Input {}
                 "{error}"
             );
         }
+    }
+
+    #[test]
+    fn describing_a_formal_does_not_make_its_argument_value_visible() {
+        let source = named_calls();
+        let published = source
+            .produce(
+                crate::TerminalProductionCustody::default(),
+                &mut crate::UnmeasuredProduction,
+            )
+            .unwrap();
+        assert!(published.view().module().entry.is_some());
+        let typed = source.source();
+        let entry = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "entry")
+            .unwrap()
+            .symbol;
+        let callee = typed
+            .machines()
+            .iter()
+            .find(|machine| typed.symbols.display_path(machine.symbol, "::") == "First::pick")
+            .unwrap();
+        let state = typed.machine_states(callee).first().unwrap();
+        let formal = typed
+            .tables
+            .state_parameters
+            .span_or_empty(state.parameters)
+            .first()
+            .unwrap()
+            .symbol;
+        let mut declarations = Declarations::new(&source, source.module()).unwrap();
+        let mut questions = SelectionQuestions::default();
+        let description = declarations
+            .symbol_reference(
+                &mut questions,
+                entry,
+                formal,
+                StaticArgumentRole::DeclarationDescription,
+            )
+            .unwrap();
+        assert!(matches!(description, SelectionReference::Declaration(_)));
+        let error = declarations
+            .symbol_reference(
+                &mut questions,
+                entry,
+                formal,
+                StaticArgumentRole::ValueDependency,
+            )
+            .unwrap_err();
+        assert!(
+            error.message.contains("outside its actual lexical context"),
+            "{error:?}"
+        );
     }
 
     #[test]
