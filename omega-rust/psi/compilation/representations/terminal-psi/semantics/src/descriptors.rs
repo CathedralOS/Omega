@@ -11270,7 +11270,6 @@ pub mod descriptor_results {
                 use semantic_vocabulary::{InvocationSite, ScalarType, ValueId};
                 let mut module = reference_flow_module(false);
                 let scalar = StructuralTypeId::new(1).unwrap();
-                let reference = StructuralTypeId::new(2).unwrap();
                 module.structural_types[1].shape = StructuralTypeShape::Reference {
                     referent: scalar,
                     access: StructuralAccess::MutableBorrow,
