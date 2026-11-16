@@ -11410,6 +11410,32 @@ fn validate_callable_contracts(module: &TerminalModule) -> Result<(), CodecError
 
 pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<(), CodecError> {
     validate_callable_contracts(module)?;
+    for definition in &module.scalar_predicate_definitions {
+        if module
+            .identities
+            .text(definition.declaration)
+            .is_none_or(str::is_empty)
+        {
+            return malformed("scalar predicate has no exact declaration identity");
+        }
+        // Only bare scalar inputs are currently represented. A qualification
+        // must not disappear into an apparently unrestricted formal.
+        if definition
+            .parameters
+            .iter()
+            .any(|parameter| !parameter.qualifications.is_empty())
+        {
+            return malformed("qualified scalar predicate input is not supported");
+        }
+        semantic_vocabulary::PropositionContext::from_value_types(
+            definition
+                .parameters
+                .iter()
+                .map(|parameter| (parameter.id, parameter.scalar_type)),
+        )
+        .and_then(|context| context.validate(&definition.body))
+        .map_err(CodecError::MalformedProposition)?;
+    }
     scalar_applications::validate(module)?;
     task_activation::validate(module)?;
     module

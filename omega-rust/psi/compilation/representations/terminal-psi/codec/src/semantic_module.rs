@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 279`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 280`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -589,6 +589,20 @@ pub(crate) mod canonical_order {
                 }
                 float_projection_sources.push(source.id);
             }
+        }
+        require_increasing(
+            module
+                .scalar_predicate_definitions
+                .iter()
+                .map(|definition| definition.declaration),
+            "scalar predicate definitions by declaration identity",
+        )?;
+        for definition in &module.scalar_predicate_definitions {
+            require_increasing(
+                definition.parameters.iter().map(|parameter| parameter.id),
+                "scalar predicate inputs by ValueId",
+            )?;
+            validate_canonical_proposition(&definition.body)?;
         }
         require_increasing(
             module
@@ -4797,7 +4811,9 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Marker 279 also retains complete domain access rules and source identities
 // for their subject, cases and fields. A 278 artifact lacks these receiving
 // checks; the prior float and installation data remain part of this format.
-pub(crate) const FORMAT_MARKER: u16 = 279;
+// Marker 280 retains transparent scalar predicate bodies and their own formals.
+// A 279 artifact cannot state declaration-time arithmetic formation for them.
+pub(crate) const FORMAT_MARKER: u16 = 280;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
@@ -5876,7 +5892,7 @@ mod format_marker_tests {
         // float conversion ordinal also cannot supply the retained carrier identity.
         for legacy in [
             250u16, 251, 252, 256, 260, 261, 264, 265, 266, 267, 268, 269, 270, 271, 272, 273, 274,
-            275, 276, 277, 278,
+            275, 276, 277, 278, 279,
         ] {
             for payload in [&[][..], &[0xff, 0xff, 0xff][..]] {
                 let mut bytes = MAGIC.to_vec();
@@ -5888,5 +5904,115 @@ mod format_marker_tests {
                 ));
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod scalar_predicate_definition_tests {
+    use super::*;
+    use semantic_vocabulary::{
+        IntegerSign, IntegerType, IntegerValue, Proposition, ScalarQualificationSetId, ScalarTerm,
+        ScalarType, ValueId,
+    };
+    use terminal_psi::{ScalarPredicateDefinition, ValueDeclaration};
+
+    fn predicate_module() -> TerminalModule {
+        let mut module = TerminalModule::declarations();
+        let mut identities = module.identities.into_builder();
+        let declaration = identities.intern("test::predicate");
+        module.identities = identities.build();
+        let integer = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
+        let scalar = ScalarType::Integer(integer);
+        let formal = ValueId::new(1).unwrap();
+        module
+            .scalar_predicate_definitions
+            .push(ScalarPredicateDefinition {
+                declaration,
+                parameters: vec![ValueDeclaration {
+                    id: formal,
+                    scalar_type: scalar,
+                    qualifications: ScalarQualificationSetId::ZERO,
+                }],
+                body: Proposition::LessOrEqual(
+                    ScalarTerm::integer(integer, IntegerValue::Unsigned(0)).unwrap(),
+                    ScalarTerm::value(formal, scalar),
+                ),
+            });
+        module
+    }
+
+    #[test]
+    fn scalar_predicate_definition_roundtrip_retains_body_and_formal_scope() {
+        let original = predicate_module();
+        let bytes = encode_module(&original).unwrap();
+        assert_eq!(decode_module(&bytes).unwrap(), original);
+        let mut changed = original.clone();
+        changed.scalar_predicate_definitions[0].body = Proposition::Truth;
+        assert_ne!(
+            semantic_fingerprint(&original).unwrap(),
+            semantic_fingerprint(&changed).unwrap()
+        );
+
+        let mut capture = original.clone();
+        capture.scalar_predicate_definitions[0]
+            .body
+            .remap_value_ids(|_| ValueId::new(2).unwrap());
+        assert!(matches!(
+            decode_module(&encode_module(&capture).unwrap()),
+            Err(CodecError::MalformedProposition(_))
+        ));
+
+        let mut duplicate_input = original.clone();
+        let input = duplicate_input.scalar_predicate_definitions[0].parameters[0];
+        duplicate_input.scalar_predicate_definitions[0]
+            .parameters
+            .push(input);
+        assert!(matches!(
+            decode_module(&module_wire::encode_raw(&duplicate_input).unwrap()),
+            Err(CodecError::NonCanonicalOrder(
+                "scalar predicate inputs by ValueId"
+            ))
+        ));
+
+        let mut duplicate_declaration = original.clone();
+        duplicate_declaration
+            .scalar_predicate_definitions
+            .push(duplicate_declaration.scalar_predicate_definitions[0].clone());
+        assert!(matches!(
+            decode_module(&module_wire::encode_raw(&duplicate_declaration).unwrap()),
+            Err(CodecError::NonCanonicalOrder(
+                "scalar predicate definitions by declaration identity"
+            ))
+        ));
+
+        let mut unordered = original.clone();
+        let mut identities = unordered.identities.into_builder();
+        let mut second = unordered.scalar_predicate_definitions[0].clone();
+        second.declaration = identities.intern("test::other-predicate");
+        unordered.identities = identities.build();
+        unordered.scalar_predicate_definitions.push(second);
+        unordered.scalar_predicate_definitions.swap(0, 1);
+        assert!(matches!(
+            decode_module(&module_wire::encode_raw(&unordered).unwrap()),
+            Err(CodecError::NonCanonicalOrder(
+                "scalar predicate definitions by declaration identity"
+            ))
+        ));
+
+        let mut unknown = original.clone();
+        unknown.scalar_predicate_definitions[0].declaration =
+            terminal_psi::TerminalIdentityIndex(u32::MAX);
+        assert!(matches!(
+            decode_module(&encode_module(&unknown).unwrap()),
+            Err(CodecError::MalformedStructuralFoundation(_))
+        ));
+
+        let mut qualified = original;
+        qualified.scalar_predicate_definitions[0].parameters[0].qualifications =
+            ScalarQualificationSetId::new(1);
+        assert!(matches!(
+            decode_module(&encode_module(&qualified).unwrap()),
+            Err(CodecError::MalformedStructuralFoundation(_))
+        ));
     }
 }

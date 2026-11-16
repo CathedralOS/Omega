@@ -1489,6 +1489,22 @@ including the integer carrier. Vocabulary marker 137 and native input record
 `OMGNTI32` distinguish these contracts; their earlier formats reject. This adds
 no arithmetic proof rule or execution authority.
 
+Semantic format marker 279 retains complete domain access rules and the exact
+declaration identities of their subjects, cases and fields. It also retains
+the initial-state identity of a closed callable's specialization template.
+
+Semantic format marker 280 retains transparent scalar predicate definitions
+beside the proposition-declaration table. Each row carries its exact declaration
+identity-table index, an ordered counted list of scalar input declarations, and
+the body proposition. Rows strictly increase by declaration identity; inputs
+strictly increase by value identity. Receiving rejects missing or duplicate
+declarations, duplicate inputs, unsupported qualified inputs and bodies that
+refer outside their own formal scope. The lowered-form checker forms the body
+under those arbitrary inputs without assuming the proposition or its conjuncts;
+it discharges arithmetic through the ordinary scalar-operation proof rules.
+These rows are definitions, not callable machines or evidence of their bodies.
+Earlier semantic formats reject before table decoding.
+
 A checked-machine declaration encodes `u32` identity-table indices for the
 exact-owner machine, initial state and semantic declaration; counted `u32`
 parameter-type identity indices; `u32` callable and result-type identity indices;
@@ -2815,7 +2831,7 @@ outside this codec.
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 278 | yes |
+| semantic module | `PSITERM\0` | 280 | yes |
 | canonical artifact | `PSIART\0\0` | 3 | no |
 | debug map | `PSIDBG\0\0` | 1 | yes |
 | optimization execution | `PSIOEXE\0` | 2 | no |

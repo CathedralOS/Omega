@@ -1284,10 +1284,15 @@ pub(crate) mod mathematical {
                 resolved::mathematical::MathematicalBody::Assumption => {
                     typed::mathematical::MathematicalBody::Assumption
                 }
+                // A definition keeps its selected arithmetic policy, like a
+                // contract. The lowered-form checker proves totality under
+                // the definition's own inputs.
                 resolved::mathematical::MathematicalBody::Definition(term) => {
-                    typed::mathematical::MathematicalBody::Definition(lower_expression_handle(
-                        lowerer, *term,
-                    )?)
+                    typed::mathematical::MathematicalBody::Definition(
+                        lowerer.admitting_contract_policy_operators(|lowerer| {
+                            lower_expression_handle(lowerer, *term)
+                        })?,
+                    )
                 }
             },
         };
