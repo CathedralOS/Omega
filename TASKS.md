@@ -77,7 +77,7 @@ Write each item so any agent can start from it alone: current state, files and e
 - **RUNTIME-PLATFORM-PROVIDERS.** Deliver authorized task/lifecycle and interrupt save/restore packages over exact primitives ([acceptance](wiki/drafts/designs/runtime_provider_authority.md#acceptance)); fake-intrinsic rejection alone is not delivery.
 
 - **BUILD-OWNED-TARGET-SELECTION.** Retire target-prefixed machines for target-keyed Build rows ([provider_selection.md](wiki/spec/build/provider_selection.md#build-owned-target-selection)).
-  - Delete source target modifiers and their declaration/proof-graph family metadata; migrate `std/targets/uefi_x86_64/handoff.omg` (its `via` table leaves), `samples/cli/facts/placed_stable_write/target_body` (a selected provider's placed `Access` write rejects natively: a formal pointer is not backing authority), `audio_playback`, and target fixtures.
+  - Delete source target modifiers and their declaration/proof-graph family metadata; migrate `samples/cli/facts/placed_stable_write/target_body` (a selected provider's placed `Access` write rejects natively: a formal pointer is not backing authority), `audio_playback`, and target fixtures.
   - Transport requirement/implementation identities, lifetimes, const/evidence telescopes, callbacks, and `invokes` ceilings.
 
 - **TARGET-REALIZED-FLOAT-ARITHMETIC.** Realize canonical `f32`/`f64` operations from the selected target's declared table ([design](wiki/drafts/designs/target_realized_float_arithmetic.md)); retire their Build provider selection.
@@ -85,6 +85,7 @@ Write each item so any agent can start from it alone: current state, files and e
 
 - **BUILD-OWNED-NATIVE-BINDINGS.** Replace `via` with [Build-owned bindings](wiki/spec/build/foreign_bindings.md#build-owned-native-binding).
   - Finish exact catalog custody and reject false authored backing ([controls](wiki/drafts/designs/runtime_provider_authority.md)); migrate table/vtable, user-intrinsic, generic-trait and Windows `ProcessExit`. Keep executable-provider delivery separate; repair [UEFI/table custody](wiki/spec/build/foreign_bindings.md#migration-acceptance).
+  - Implement [`FunctionFieldBinding`](wiki/spec/build/foreign_bindings.md#function-table-bindings) and `reflect::parameter`, then bind the four `UefiBootServices` requirements in `std/build.omg` for `uefi_x86_64` (`this` dispatch-only; the like-named `EfiBootServicesTable` fields). std declares no leaf machines for them, so nothing supplies them until then. Give `UefiOsHandoffTermination::{transfer, firmware_return}` sealed catalog entries; std declares no machine for them either.
   Acceptance: `via` is removed.
 
 - **TOP-LEVEL-BOUNDARY-REQUIREMENTS.** Finish retiring standalone `boundary requirement` declarations ([machines.md](wiki/spec/language/machines.md#supply)).
