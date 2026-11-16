@@ -688,6 +688,7 @@ pub mod projection {
         }
         let requirement_identity = program.machine_callable_identity_text(requirement)?;
         let parameters = program.state_parameters(entry);
+        let (parameter_types, result_type) = program.machine_definition_types(requirement)?;
         let published_termination = requirement.termination_plan.interface.published()?;
         let package_identity = program.symbols.symbol_package_identity(requirement.symbol);
         let mut identities = ProviderIdentityTable::default();
@@ -723,11 +724,8 @@ pub mod projection {
                     parameter_count: parameters.len(),
                     declared_type_signature:
                         language_semantics::service_surface::declared_type_signature(
-                            parameters.iter().map(|parameter| {
-                                program
-                                    .package_qualified_type_identity_text(parameter.type_reference)
-                            }),
-                            &program.package_qualified_type_identity_text(entry.return_type),
+                            parameter_types.iter(),
+                            &result_type,
                         )
                         .ok()?,
                     parameter_type_identities: parameters
@@ -782,6 +780,15 @@ pub mod projection {
             {
                 continue;
             }
+            let (parameter_types, result_type, _) = program
+                .requirement_definition_types(scope, signature)
+                .ok_or_else(|| {
+                    projection_failure(
+                        program,
+                        signature.symbol,
+                        "boundary method has no complete applied signature type identity",
+                    )
+                })?;
             requirements.push(ServiceRequirementSource {
                 declaring_trait: trait_definition.symbol,
                 symbol: signature.symbol,
@@ -797,25 +804,8 @@ pub mod projection {
                 parameter_count: program.state_signature_parameters(signature).iter().count(),
                 declared_type_signature:
                     language_semantics::service_surface::declared_type_signature(
-                        program
-                            .state_signature_parameters(signature)
-                            .iter()
-                            .map(|parameter| {
-                                program
-                                    .type_identity_text(scope.package_qualified_type_identity(
-                                        program,
-                                        parameter.type_reference,
-                                    ))
-                                    .unwrap_or_default()
-                            }),
-                        &program
-                            .type_identity_text(
-                                scope.package_qualified_type_identity(
-                                    program,
-                                    signature.return_type,
-                                ),
-                            )
-                            .unwrap_or_default(),
+                        parameter_types.iter(),
+                        &result_type,
                     )
                     .map_err(|reason| projection_failure(program, signature.symbol, reason))?,
                 parameter_type_identities: program

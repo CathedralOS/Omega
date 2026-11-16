@@ -1590,8 +1590,9 @@ pub(crate) fn trait_requirement(
         .state_parameters
         .span(requirement.parameters)
         .ok_or("boundary requirement lost its complete parameter span")?;
+    let scope = typed_trees::trait_definition::AppliedTraitScope::abstract_scope(owner);
     let (parameter_types, result_type, _) = typed
-        .requirement_definition_types(owner, requirement)
+        .requirement_definition_types(&scope, requirement)
         .ok_or("boundary requirement has no complete declared signature identity")?;
     let callable = typed.trait_requirement_callable_identity_text(owner, requirement);
     if callable.is_empty() {

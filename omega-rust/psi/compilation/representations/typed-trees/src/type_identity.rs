@@ -295,7 +295,8 @@ pub(crate) mod callable_identity {
             // it does not describe the result's reference or lifetime. Keep
             // the declaration's complete types here before that distinction
             // is erased, so a receiver can check the derived loan groups.
-            let types = self.requirement_definition_types(owner, requirement);
+            let scope = crate::trait_definition::AppliedTraitScope::abstract_scope(owner);
+            let types = self.requirement_definition_types(&scope, requirement);
             bytes.push(u8::from(types.is_some()));
             if let Some((parameters, result, elided)) = types {
                 length(&mut bytes, owner.lifetime_parameters.len())?;
@@ -312,28 +313,39 @@ pub(crate) mod callable_identity {
         }
 
         /// Normalize a requirement's parameter and result types in one
-        /// signature so every occurrence keeps its declared lifetime.
+        /// signature so every occurrence keeps its declared lifetime. The
+        /// retained scope supplies the exact type and lifetime application.
         pub fn requirement_definition_types(
             &self,
-            owner: &TraitDefinition,
+            scope: &crate::trait_definition::AppliedTraitScope<'_>,
             requirement: &StateSignature,
         ) -> Option<(Vec<String>, String, usize)> {
+            let owner = scope.declaration;
             let mut type_parameters = self.trait_type_parameters(owner).to_vec();
             type_parameters.extend(
                 self.state_signature_type_parameters(requirement)
                     .iter()
                     .cloned(),
             );
-            self.signature_definition_types(
-                super::callable_type_binders(owner.symbol, (&type_parameters).into()),
-                (requirement.symbol, requirement.symbol),
-                &[
-                    (owner.symbol, owner.lifetime_parameters.len()),
-                    (requirement.symbol, requirement.lifetime_parameters.len()),
-                ],
-                self.state_signature_parameters(requirement),
-                requirement.return_type,
-            )
+            scope.with_identity_scopes(self, |application_scopes| {
+                self.signature_definition_types(
+                    super::callable_type_binders(owner.symbol, (&type_parameters).into()),
+                    (requirement.symbol, requirement.symbol),
+                    &[
+                        (owner.symbol, owner.lifetime_parameters.len()),
+                        (requirement.symbol, requirement.lifetime_parameters.len()),
+                    ],
+                    self.state_signature_parameters(requirement),
+                    requirement.return_type,
+                    &super::identity_context::TypeIdentityContext {
+                        substitutions: &scope.substitutions,
+                        substitution_scope_starts: &scope.substitution_scope_starts,
+                        application_scopes,
+                        application_argument_owner: scope.argument_owner,
+                        ..Default::default()
+                    },
+                )
+            })
         }
 
         /// Keep a machine's declared lifetime relation in its published type
@@ -354,6 +366,10 @@ pub(crate) mod callable_identity {
                 &[(lifetime_owner, declared)],
                 self.state_parameters(entry),
                 entry.return_type,
+                &super::identity_context::TypeIdentityContext {
+                    application_argument_owner: machine.symbol,
+                    ..Default::default()
+                },
             )?;
             Some((parameters, result))
         }
@@ -365,6 +381,7 @@ pub(crate) mod callable_identity {
             lifetime_owners: &[(symbols::SymbolHandle, usize)],
             parameters: &[crate::signature::StateParameter],
             result: crate::types::TypeReferenceHandle,
+            application: &super::identity_context::TypeIdentityContext<'_>,
         ) -> Option<(Vec<String>, String, usize)> {
             use super::LifetimeParameterIdentity;
             use super::identity_context::{
@@ -400,13 +417,13 @@ pub(crate) mod callable_identity {
                 lifetime_binders: &lifetimes,
                 signature_elision: Some(&elision),
                 application_owner: signature.0,
-                application_argument_owner: signature.0,
+                application_argument_owner: application.application_argument_owner,
                 signature_owners: Some(signature),
                 qualification: TypeIdentityQualification::PackageQualified,
                 invalid_application: Some(&invalid),
                 invalid_index_argument: Some(&invalid),
                 encountered_elided_regions: Some(&invalid),
-                ..Default::default()
+                ..*application
             };
             let declared_type = |reference| {
                 self.contains_type_reference(reference)
