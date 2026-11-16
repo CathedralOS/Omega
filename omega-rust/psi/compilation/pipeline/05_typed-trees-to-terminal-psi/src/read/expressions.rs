@@ -799,17 +799,15 @@ impl<'t> Program<'t> {
                 let source = SourceOrigin::of(self.typed.expression_table.source_span(target));
                 self.member(id, slots, member, source, projection)?
             }
-            ExpressionNode::Indexed(indexed) => {
-                self.indexed(
-                    id,
-                    slots,
-                    indexed,
-                    target,
-                    expected,
-                    projection,
-                    super::arrays::ElementRead::Whole,
-                )?
-            }
+            ExpressionNode::Indexed(indexed) => self.indexed(
+                id,
+                slots,
+                indexed,
+                target,
+                expected,
+                projection,
+                super::arrays::ElementRead::Whole,
+            )?,
             _ => return self.expression(id, slots, target, expected),
         };
         self.complete_formed_operator(id, target, &value)?;

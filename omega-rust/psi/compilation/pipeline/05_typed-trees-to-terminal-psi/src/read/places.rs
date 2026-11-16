@@ -1056,7 +1056,7 @@ impl Program<'_> {
         // element is read as a projection base rather than as a whole value.
         let base = match self.node(id, member.receiver)? {
             typed_trees::expression::ExpressionNode::Indexed(indexed) if access == Access::Read => {
-                self.indexed(
+                let element = self.indexed(
                     id,
                     slots,
                     indexed,
@@ -1064,7 +1064,9 @@ impl Program<'_> {
                     None,
                     access,
                     super::arrays::ElementRead::Projected,
-                )?
+                )?;
+                self.complete_formed_operator(id, member.receiver, &element)?;
+                element
             }
             _ => self.place(id, slots, member.receiver, None, access)?,
         };
