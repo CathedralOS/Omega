@@ -239,3 +239,35 @@ machine main() { let r: u64 = pick(true); }
 ";
     assert_join_subtraction_refused(source);
 }
+
+#[test]
+fn nested_conjunction_and_disjunction_guards_refute_untaken_boolean_join_arms() {
+    const SOURCE: &str = r#"
+public machine check(word: u64, size: u64, align: u64) -> u64 {
+    transition word < 6u64 && ((size == 4u64 && align == 4u64) || (size == 8u64 && align == 8u64)) {
+        true -> place(word, size, align)
+        _ -> 7u64
+    }
+    machine place(word: u64, size: u64, align: u64) -> u64
+    requires word < 6u64
+    {
+        transition (size == 4u64 || size == 8u64) && align == size {
+            true -> finish(word)
+            _ -> 7u64
+        }
+    }
+    machine finish(word: u64) -> u64 { word }
+}
+machine build_entry() { let v: u64 = check(3u64, 8u64, 8u64); }
+"#;
+    let verdict = judge_build(SOURCE).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+
+    let invalid = SOURCE.replace("transition word < 6u64", "transition word <= 6u64");
+    let verdict = judge_build(&invalid).unwrap();
+    assert!(
+        matches!(verdict, RouteVerdict::Rejected { ref unproved, .. }
+            if unproved.iter().any(|row| matches!(row.kind, ObligationKind::CallRequirement { .. }))),
+        "{verdict:?}"
+    );
+}

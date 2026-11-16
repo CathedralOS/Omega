@@ -170,6 +170,7 @@ fn covered(
             match (left, right) {
                 (term, IntegerMathTerm::IntegerLiteral(_))
                 | (IntegerMathTerm::IntegerLiteral(_), term) => bounded(term),
+                (IntegerMathTerm::MathValue { .. }, IntegerMathTerm::MathValue { .. }) => true,
                 _ => false,
             }
         }
@@ -927,26 +928,40 @@ impl<'a> Prover<'a> {
                 .iter()
                 .map(|&index| &self.facts[index].proposition),
         )
-        .ok()?;
-        // Unchanged means `condition` has no definition here, and then
-        // nothing but the taken fact itself speaks of it.
-        if denotation == untaken {
-            return None;
-        }
-        let nested = std::mem::replace(&mut self.case_split, false);
-        let premise = self.prove_direct(&denotation);
-        self.case_split = nested;
-        let untaken = node(
-            untaken,
-            ProofRule::ValueEqualityTransport {
-                premise: Box::new(premise.ok()?),
-                equalities: self
-                    .equations
-                    .iter()
-                    .map(|&index| self.facts[index].proof(&self.facts))
-                    .collect(),
-            },
-        );
+        .ok();
+        let transported =
+            if let Some(denotation) = denotation.filter(|denotation| *denotation != untaken) {
+                let nested = std::mem::replace(&mut self.case_split, false);
+                let premise = self.prove_direct(&denotation);
+                self.case_split = nested;
+                premise.ok().map(|premise| {
+                    node(
+                        untaken.clone(),
+                        ProofRule::ValueEqualityTransport {
+                            premise: Box::new(premise),
+                            equalities: self
+                                .equations
+                                .iter()
+                                .map(|&index| self.facts[index].proof(&self.facts))
+                                .collect(),
+                        },
+                    )
+                })
+            } else {
+                None
+            };
+        let untaken = match transported {
+            Some(untaken) => untaken,
+            None => {
+                // When `condition` has no definition (as at a Boolean join) or
+                // its unfolded form does not close alone, check direct
+                // hypotheses on `condition` itself.
+                let nested = std::mem::replace(&mut self.case_split, false);
+                let direct = self.prove_direct(&untaken);
+                self.case_split = nested;
+                direct.ok()?
+            }
+        };
         let absurd = node(
             absurd,
             ProofRule::EqualityTransitivity {
@@ -1175,6 +1190,12 @@ impl<'a> Prover<'a> {
                         PrimitiveJudgment::ReflexiveEquality,
                     ));
                 }
+                let reversed = Proposition::Equal(right.clone(), left.clone());
+                if let Some(fact) = self.facts.iter().find(|fact| fact.proposition == reversed)
+                    && let Ok(flipped) = flip(fact.proof(&self.facts))
+                {
+                    return Ok(flipped);
+                }
                 if let Some(proof) = self.closed(goal.clone()) {
                     return Ok(proof);
                 }
@@ -1209,6 +1230,9 @@ impl<'a> Prover<'a> {
                     return self.width_goal(left, right);
                 }
                 if let Some(proof) = self.carrier_order(goal) {
+                    return Ok(proof);
+                }
+                if let Some(proof) = self.mathematical_value_order(goal, left, right) {
                     return Ok(proof);
                 }
                 self.arithmetic(left, right)
@@ -1385,6 +1409,124 @@ impl<'a> Prover<'a> {
             ProofRule::ValueEqualityTransport {
                 premise: Box::new(proof),
                 equalities,
+            },
+        ))
+    }
+
+    /// `left <= right` between two embedded values: directly across a checked
+    /// exact-cast or widening result equation, or through a literal separating
+    /// their upper and lower bounds.
+    fn mathematical_value_order(
+        &mut self,
+        goal: &Proposition,
+        left: &IntegerMathTerm,
+        right: &IntegerMathTerm,
+    ) -> Option<ProofNode> {
+        let (
+            IntegerMathTerm::MathValue {
+                source_type: left_type,
+                value: left_id,
+            },
+            IntegerMathTerm::MathValue {
+                source_type: right_type,
+                value: right_id,
+            },
+        ) = (left, right)
+        else {
+            return None;
+        };
+        let left_scalar = ScalarTerm::value(*left_id, ScalarType::Integer(*left_type));
+        let right_scalar = ScalarTerm::value(*right_id, ScalarType::Integer(*right_type));
+        for fact in &self.facts {
+            let Some(axiom) = fact.axiom else { continue };
+            let Proposition::Equal(
+                target,
+                ScalarTerm::IntegerExactCast {
+                    source_type,
+                    operand,
+                    ..
+                }
+                | ScalarTerm::IntegerWiden {
+                    source_type,
+                    operand,
+                    ..
+                },
+            ) = &fact.proposition
+            else {
+                continue;
+            };
+            let (root_math, root_scalar, target_scalar) = if target == &left_scalar
+                && operand.as_ref() == &right_scalar
+                && source_type == right_type
+            {
+                (right.clone(), right_scalar.clone(), left_scalar.clone())
+            } else if target == &right_scalar
+                && operand.as_ref() == &left_scalar
+                && source_type == left_type
+            {
+                (left.clone(), left_scalar.clone(), right_scalar.clone())
+            } else {
+                continue;
+            };
+            let Some(root_bound) = self.closed(Proposition::IntegerMathLessOrEqual(
+                root_math.clone(),
+                root_math,
+            )) else {
+                continue;
+            };
+            let witness = proof_admission::IntegerCastChainWitness {
+                root: root_scalar,
+                target: target_scalar,
+                definition_axioms: vec![axiom],
+            };
+            let Ok(chain) = proof_admission::check_integer_cast_chain_witness(
+                self.context,
+                self.axioms,
+                &witness,
+            ) else {
+                continue;
+            };
+            if proof_admission::check_integer_cast_bound_conversion(
+                &chain,
+                &root_bound.conclusion,
+                goal,
+            )
+            .is_ok()
+            {
+                return Some(node(
+                    goal.clone(),
+                    ProofRule::IntegerCastBound {
+                        root_bound: Box::new(root_bound),
+                        witness,
+                    },
+                ));
+            }
+        }
+        let upper = self.arithmetic_image(left, Direction::Upper).ok()?;
+        let lower = self.arithmetic_image(right, Direction::Lower).ok()?;
+        let (
+            Proposition::IntegerMathLessOrEqual(_, left_limit),
+            Proposition::IntegerMathLessOrEqual(right_limit, _),
+        ) = (&upper.conclusion, &lower.conclusion)
+        else {
+            return None;
+        };
+        let bridge = self.closed(Proposition::IntegerMathLessOrEqual(
+            left_limit.clone(),
+            right_limit.clone(),
+        ))?;
+        let step = node(
+            Proposition::IntegerMathLessOrEqual(left.clone(), right_limit.clone()),
+            ProofRule::IntegerLessOrEqualTransitivity {
+                left_less_or_equal_middle: Box::new(upper),
+                middle_less_or_equal_right: Box::new(bridge),
+            },
+        );
+        Some(node(
+            goal.clone(),
+            ProofRule::IntegerLessOrEqualTransitivity {
+                left_less_or_equal_middle: Box::new(step),
+                middle_less_or_equal_right: Box::new(lower),
             },
         ))
     }
@@ -2074,6 +2216,52 @@ impl<'a> Prover<'a> {
                     self.facts[index].proof(&self.facts),
                     direction,
                 )
+            }
+            (Proposition::IntegerMathLessOrEqual(left, right), _) => {
+                if integer.carrier() != IntegerCarrier::Fixed || integer.is_address() {
+                    return None;
+                }
+                let embedded = IntegerMathTerm::embed(subject.clone())?;
+                let chained = match (direction, left == &embedded, right == &embedded) {
+                    (Direction::Upper, true, false) => {
+                        let image = self.arithmetic_image(right, Direction::Upper).ok()?;
+                        let Proposition::IntegerMathLessOrEqual(_, limit) = &image.conclusion
+                        else {
+                            return None;
+                        };
+                        node(
+                            Proposition::IntegerMathLessOrEqual(embedded.clone(), limit.clone()),
+                            ProofRule::IntegerLessOrEqualTransitivity {
+                                left_less_or_equal_middle: Box::new(
+                                    self.facts[index].proof(&self.facts),
+                                ),
+                                middle_less_or_equal_right: Box::new(image),
+                            },
+                        )
+                    }
+                    (Direction::Lower, false, true) => {
+                        let image = self.arithmetic_image(left, Direction::Lower).ok()?;
+                        let Proposition::IntegerMathLessOrEqual(limit, _) = &image.conclusion
+                        else {
+                            return None;
+                        };
+                        node(
+                            Proposition::IntegerMathLessOrEqual(limit.clone(), embedded.clone()),
+                            ProofRule::IntegerLessOrEqualTransitivity {
+                                left_less_or_equal_middle: Box::new(image),
+                                middle_less_or_equal_right: Box::new(
+                                    self.facts[index].proof(&self.facts),
+                                ),
+                            },
+                        )
+                    }
+                    _ => return None,
+                };
+                let unchanged = primitive(
+                    Proposition::IntegerMathEqual(embedded.clone(), embedded),
+                    PrimitiveJudgment::ReflexiveEquality,
+                );
+                Self::carrier_bound_from_image(subject, chained, unchanged, direction)
             }
             // Direct bounds.
             (Proposition::LessOrEqual(left, literal), Direction::Upper)
