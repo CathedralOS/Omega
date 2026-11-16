@@ -330,6 +330,7 @@ Write each item so any agent can start from it alone: current state, files and e
 ## Rust compiler release closure
 
 - **RC-RELEASE-RECORD-AND-CLOSURE.** (covers **RC-BUILD-AND-PACKAGES**, **MACOS-X64-HOST-PROFILE**) Deliver [4-host release](wiki/drafts/reference/rust_compiler_completion.md), per-root lock/closure/target/acceptance isolation and [CLI](wiki/spec/build/command_line.md).
+  - Independently validate a Build-selected provider call that receives two distinct `&mut i64` inputs with elided lifetimes. The provider writes 41 and 43 and the caller checks both values. On macOS arm64 at `b0780cf0613`, that program exited 0 in native code and Psi, and `--validator TargetOperationCorrespondence` refused it with `SourceCustodyMismatch` at machine 1, operation 5. Recheck on current main, compare the provider and call records in [selected boundary correspondence](omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/native-preparation/src/legalization_scalar_graph.rs#L2474), and require both execution results and validator passage. Confirm the validator rejects a mismatched provider record. The original result was recorded during [boundary lifetime qualification](https://github.com/CathedralOS/Omega/pull/3733).
 
 ## Omega-written compiler (after Rust completion)
 
