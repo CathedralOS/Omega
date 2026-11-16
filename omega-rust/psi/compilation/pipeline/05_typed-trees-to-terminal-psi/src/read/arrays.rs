@@ -335,9 +335,28 @@ impl Program<'_> {
                 let value = self.value_type(machine, element)?;
                 self.storage_type(machine, element, value)?
             }
-            None => self
-                .byte_array_element(base.result)
-                .ok_or_else(|| unavailable("array view without a plain closed u8 array"))?,
+            None => {
+                // domains.md, "Mutable views": "Through a shared reference
+                // any removal a by-value cast permits is accepted and
+                // nothing is owed, because nothing can be written." So a
+                // shared view of `[u8; N] in D` is the plain view typing
+                // gives it, once each displayed domain may be removed. An
+                // exclusive view still needs the backing plain.
+                let qualification = backing_type.qualification();
+                let observed = if borrow.access == ReferenceAccess::Shared
+                    && qualification.policy.is_none()
+                    && qualification != Qualification::NONE
+                {
+                    for domain in qualification.domains.members() {
+                        self.domain_removal(machine, domain, backing_type)?;
+                    }
+                    backing_type.qualified(Qualification::NONE)
+                } else {
+                    base.result
+                };
+                self.byte_array_element(observed)
+                    .ok_or_else(|| unavailable("array view without a plain closed u8 array"))?
+            }
             Some((element, qualification)) => self
                 .typed_array_element(base.result, element, qualification)
                 .ok_or_else(|| {
