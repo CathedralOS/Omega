@@ -52,7 +52,7 @@ fn explicit_array_views_retain_backing_and_a_separate_loan() {
         let array = ValueType::record(id(2));
         let view = ValueType::record(id(3));
         let formation = of_type(
-            ExpressionKind::ArrayView {
+            ExpressionKind::CollectionView {
                 base: Box::new(of_type(ExpressionKind::Slot(0), array)),
                 access,
                 element: id(1),
@@ -170,7 +170,7 @@ fn direct_array_windows_check_endpoints_against_the_whole_loan() {
         ))
     };
     let whole = of_type(
-        ExpressionKind::ArrayView {
+        ExpressionKind::CollectionView {
             base: Box::new(of_type(ExpressionKind::Slot(0), array)),
             access: ReferenceAccess::Shared,
             element: id(1),

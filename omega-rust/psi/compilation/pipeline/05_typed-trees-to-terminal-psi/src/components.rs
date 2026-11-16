@@ -248,8 +248,7 @@ fn expression<'body>(value: &'body Expression, terminal: bool, sites: &mut Vec<C
         | ExpressionKind::Referent(operand)
         | ExpressionKind::Establish { operand, .. }
         | ExpressionKind::Field { base: operand, .. }
-        | ExpressionKind::ArrayView { base: operand, .. }
-        | ExpressionKind::RepresentationView { base: operand, .. }
+        | ExpressionKind::CollectionView { base: operand, .. }
         | ExpressionKind::CollectionMeasure { base: operand, .. }
         | ExpressionKind::Payload { base: operand, .. }
         | ExpressionKind::IsCase {

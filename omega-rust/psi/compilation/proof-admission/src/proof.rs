@@ -1021,6 +1021,20 @@ pub(crate) mod integer_math_normalization {
 
     pub(crate) fn lift_exact_integer_term(term: &ScalarTerm) -> Option<IntegerMathTerm> {
         match term {
+            // Total widening changes the carrier, but preserves the integer.
+            // Partial and wrapping conversions cannot use this identity.
+            ScalarTerm::IntegerWiden {
+                source_type,
+                target_type,
+                operand,
+            } if exact_ring_carrier(source_type)
+                && exact_ring_carrier(target_type)
+                && source_type != target_type
+                && source_type.can_widen_to(*target_type)
+                && operand.scalar_type() == ScalarType::Integer(*source_type) =>
+            {
+                lift_exact_integer_term(operand)
+            }
             ScalarTerm::ExactIntegerAdd {
                 scalar_type,
                 left,
@@ -1086,6 +1100,85 @@ pub(crate) mod integer_math_normalization {
         };
         use std::slice::from_ref;
         use terminal_psi::{ProofNode, ProofRule};
+
+        #[test]
+        fn total_widening_preserves_the_mathematical_integer() {
+            let u32_type = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
+            let u64_type = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+            let i32_type = IntegerType::new(IntegerSign::Signed, 32).unwrap();
+            let i64_type = IntegerType::new(IntegerSign::Signed, 64).unwrap();
+            let id = ValueId::new(1).unwrap();
+            let equality = |left: IntegerMathTerm, right: IntegerMathTerm| {
+                if left <= right {
+                    Proposition::IntegerMathEqual(left, right)
+                } else {
+                    Proposition::IntegerMathEqual(right, left)
+                }
+            };
+            for (source_type, target_type) in [
+                (u32_type, u64_type),
+                (u32_type, i64_type),
+                (i32_type, i64_type),
+            ] {
+                let source = ScalarTerm::value(id, ScalarType::Integer(source_type));
+                let widened = ScalarTerm::IntegerWiden {
+                    source_type,
+                    target_type,
+                    operand: Box::new(source.clone()),
+                };
+                let mathematical = IntegerMathTerm::embed(source).unwrap();
+                assert_eq!(
+                    lift_exact_integer_term(&widened),
+                    Some(mathematical.clone())
+                );
+                let context = PropositionContext::from_value_types_and_places(
+                    [(id, ScalarType::Integer(source_type))],
+                    [],
+                )
+                .unwrap();
+                let embedded = IntegerMathTerm::embed(widened).unwrap();
+                let goal = equality(embedded.clone(), mathematical.clone());
+                let proof = ProofNode {
+                    conclusion: goal.clone(),
+                    rule: ProofRule::Primitive(
+                        terminal_psi::PrimitiveJudgment::ClosedIntegerRelation,
+                    ),
+                };
+                check_certificate(&context, &goal, &[], &[], &proof).unwrap();
+                crate::verify_bounded_certificate(
+                    &context,
+                    &goal,
+                    &[],
+                    &[],
+                    &proof,
+                    &mut crate::Budget::default(),
+                )
+                .unwrap();
+                let wrong = equality(
+                    embedded,
+                    IntegerMathTerm::Add(
+                        Box::new(mathematical),
+                        Box::new(IntegerMathTerm::literal(IntegerValue::Unsigned(1))),
+                    ),
+                );
+                assert!(
+                    crate::decide_primitive(
+                        &context,
+                        &wrong,
+                        terminal_psi::PrimitiveJudgment::ClosedIntegerRelation,
+                    )
+                    .is_err()
+                );
+            }
+            for (source_type, target_type) in [(u64_type, u32_type), (i32_type, u64_type)] {
+                let invalid = ScalarTerm::IntegerWiden {
+                    source_type,
+                    target_type,
+                    operand: Box::new(ScalarTerm::value(id, ScalarType::Integer(source_type))),
+                };
+                assert_eq!(lift_exact_integer_term(&invalid), None);
+            }
+        }
 
         #[test]
         fn an_exact_left_shift_means_its_mathematical_shift_and_a_wrapping_one_does_not() {

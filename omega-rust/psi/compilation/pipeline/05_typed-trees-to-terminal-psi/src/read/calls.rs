@@ -2646,13 +2646,7 @@ impl<'t> Program<'t> {
                     && formal.referent == crate::body::BorrowedReferent::Slice
                     && !explicit =>
             {
-                let Some(access) = cast.form.recast_access() else {
-                    unreachable!("a recast names its access")
-                };
-                (
-                    self.representation_view(id, slots, cast, access, Some(expected), source)?,
-                    None,
-                )
+                (self.expression(id, slots, operand, Some(expected))?, None)
             }
             ExpressionNode::Cast(cast) if cast.form.is_recast() => {
                 if access != ReferenceAccess::Shared || cast.form.recast_access() != Some(access) {
@@ -3218,8 +3212,7 @@ impl Touches<'_> {
             | ExpressionKind::Cast(operand)
             | ExpressionKind::Requalify(operand)
             | ExpressionKind::Establish { operand, .. }
-            | ExpressionKind::ArrayView { base: operand, .. }
-            | ExpressionKind::RepresentationView { base: operand, .. }
+            | ExpressionKind::CollectionView { base: operand, .. }
             | ExpressionKind::CollectionMeasure { base: operand, .. }
             | ExpressionKind::IsCase {
                 subject: operand, ..
