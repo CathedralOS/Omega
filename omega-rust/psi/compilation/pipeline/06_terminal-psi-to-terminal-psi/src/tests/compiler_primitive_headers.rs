@@ -412,3 +412,38 @@ machine main() {{ let plain: [u8; 2] = [65u8, 66u8]; let holder: Holder = Holder
         );
     }
 }
+
+#[test]
+fn bounded_concat_keeps_its_original_room_a1_execution_oracle() {
+    // Use the actual customer body. Only the harness entry spelling changes;
+    // both copies, every bound, and the Room A1/length-seven check stay intact.
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../samples/cli/probes/bounded_concat/main.omg"
+    ))
+    .replace("machine entry_start()", "machine main()");
+    let mut verdicts = observed_program(&source);
+    let accepted = match verdicts.remove(0) {
+        Ok(crate::RouteVerdict::Accepted(accepted)) => accepted,
+        other => panic!("the kept buffer program must be checked: {other:?}"),
+    };
+    assert!(
+        verdicts
+            .iter()
+            .all(|verdict| matches!(verdict, Ok(crate::RouteVerdict::Accepted(_)))),
+        "{verdicts:?}"
+    );
+    let publication = accepted
+        .publish_invocation()
+        .expect("actual receiving validation");
+    let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+    let mut instance = program.instantiate(Default::default()).unwrap();
+    assert_eq!(
+        instance
+            .invoke(&mut terminal_work::WorkMeter::with_budget(100_000))
+            .unwrap(),
+        terminal_interpreter::TerminalExecutionStatus::Complete(
+            terminal_interpreter::TerminalExecutionResult::Unit
+        )
+    );
+}
