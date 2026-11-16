@@ -1427,7 +1427,17 @@ mod domain_facts {
                     {
                         self.assign(argument);
                     }
-                    if !call.receiver.is_valid() && !call.target_symbol.is_valid() {
+                    // A declaration predicate takes the same source-scoped
+                    // static namespace as an ordinary body or callable clause.
+                    let normalized = super::targets::normalize_expression_module_call(
+                        self.symbols,
+                        self.expression_table,
+                        expression,
+                    );
+                    if normalized.is_none()
+                        && !call.receiver.is_valid()
+                        && !call.target_symbol.is_valid()
+                    {
                         let mut lexical_matches = self
                             .local_symbols
                             .iter()

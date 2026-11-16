@@ -272,6 +272,22 @@ fn observed_program(text: &str) -> Vec<Result<crate::RouteVerdict, crate::Compil
     judge_observed(&observed_typed(text))
 }
 
+fn execute_observed(accepted: Box<crate::AcceptedClosure>) {
+    let publication = accepted
+        .publish_invocation()
+        .expect("ordinary receiving validation");
+    let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+    let mut instance = program.instantiate(Default::default()).unwrap();
+    assert_eq!(
+        instance
+            .invoke(&mut terminal_work::WorkMeter::with_budget(100_000))
+            .unwrap(),
+        terminal_interpreter::TerminalExecutionStatus::Complete(
+            terminal_interpreter::TerminalExecutionResult::Unit
+        )
+    );
+}
+
 #[test]
 fn selected_byte_observation_executes_the_existing_operation_and_proves_equivalence() {
     let verdicts = observed_program(
@@ -288,6 +304,7 @@ machine main() crashes Trap {
 }
 "#,
     );
+    assert!(!verdicts.is_empty(), "the entry needs a checker verdict");
     for verdict in verdicts {
         let Ok(crate::RouteVerdict::Accepted(accepted)) = verdict else {
             panic!(
@@ -299,9 +316,7 @@ machine main() crashes Trap {
             operation.kind,
             terminal_psi::OperationKind::ByteSequencePredicate { .. }
         )));
-        accepted
-            .publish_invocation()
-            .expect("ordinary receiving validation");
+        execute_observed(accepted);
     }
 }
 
@@ -486,17 +501,5 @@ fn bounded_concat_keeps_its_original_room_a1_execution_oracle() {
             .all(|verdict| matches!(verdict, Ok(crate::RouteVerdict::Accepted(_)))),
         "{verdicts:?}"
     );
-    let publication = accepted
-        .publish_invocation()
-        .expect("actual receiving validation");
-    let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
-    let mut instance = program.instantiate(Default::default()).unwrap();
-    assert_eq!(
-        instance
-            .invoke(&mut terminal_work::WorkMeter::with_budget(100_000))
-            .unwrap(),
-        terminal_interpreter::TerminalExecutionStatus::Complete(
-            terminal_interpreter::TerminalExecutionResult::Unit
-        )
-    );
+    execute_observed(accepted);
 }

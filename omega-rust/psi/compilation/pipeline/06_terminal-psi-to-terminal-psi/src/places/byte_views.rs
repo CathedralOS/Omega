@@ -4,7 +4,8 @@
 
 use super::{Shape, Storage};
 use semantic_vocabulary::{
-    IdTable, OperationId, PlaceId, Proposition, ScalarType, StructuralPlaceKind, ValueId,
+    IdTable, OperationId, PlaceId, Proposition, ScalarTerm, ScalarType, StructuralPlaceKind,
+    ValueId,
 };
 use terminal_check_tables::{Checked, Construct, ProgramPoint};
 use terminal_psi::{
@@ -20,6 +21,58 @@ fn count_type() -> ScalarType {
 }
 
 impl Storage<'_> {
+    /// Retain a predicate result only when its subject has a stable meaning:
+    /// literal truth, or this activation's shared input bytes. Other current
+    /// contents cannot become a permanent equation across later writes.
+    pub(super) fn stable_byte_predicate_equation(
+        &self,
+        operation: &Operation,
+    ) -> Checked<Option<Proposition>> {
+        let OperationKind::ByteSequencePredicate { operand, .. } = &operation.kind else {
+            return Ok(None);
+        };
+        let concerns = Construct::Operation(operation.id);
+        let Some(observation) = terminal_semantics::structural_effect_leaf_observation(operation)
+            .map_err(crate::semantics_refusal(self.machine, operation.id))?
+        else {
+            return Ok(None);
+        };
+        let root_type = self.root_type(operand.source().place, concerns)?;
+        let Some(Proposition::Equal(
+            result,
+            ScalarTerm::ByteSequencePredicate {
+                predicate,
+                root,
+                path,
+            },
+        )) = terminal_semantics::byte_predicate_equation(
+            &observation,
+            root_type,
+            &self.module.structural_types,
+        )
+        else {
+            return Ok(None);
+        };
+        let actual = self.stored_at(root, &path, concerns)?;
+        let subject = match self.byte_source(predicate, &actual, concerns) {
+            Ok(subject) => subject,
+            Err(crate::Unbound::Refused(refusal)) => return Err(refusal),
+            Err(crate::Unbound::Unsupported(_) | crate::Unbound::Unproved(_)) => return Ok(None),
+        };
+        let stable = match &subject {
+            ScalarTerm::Boolean(_) => true,
+            ScalarTerm::ByteSequencePredicate { root, path, .. } if path.is_empty() => {
+                terminal_psi::StructuralParameterDeclaration::find_by_place(
+                    &self.lowered.structural_parameters,
+                    *root,
+                )
+                .is_some_and(|formal| formal.access == StructuralAccess::SharedBorrow)
+            }
+            _ => false,
+        };
+        Ok(stable.then_some(Proposition::Equal(result, subject)))
+    }
+
     fn descriptor_access(
         &self,
         root: PlaceId,

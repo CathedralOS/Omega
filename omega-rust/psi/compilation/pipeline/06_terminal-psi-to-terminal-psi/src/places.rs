@@ -3099,6 +3099,9 @@ impl<'a> Storage<'a> {
         tables: &MachineTables,
         operation: &Operation,
     ) -> Checked<Option<Proposition>> {
+        if matches!(operation.kind, OperationKind::ByteSequencePredicate { .. }) {
+            return self.stable_byte_predicate_equation(operation);
+        }
         let Some(leaf) = self.read_leaf(operation)? else {
             return Ok(None);
         };
