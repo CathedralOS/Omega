@@ -792,6 +792,14 @@ machine entry() -> u32 crashes none {
 // selects a different overload. That declaration identity must survive too.
 #[test]
 fn overloaded_boundary_calling_templates_keep_one_signature() {
+    use language_semantics::declaration_selection::product_operands::{
+        ProductStaticApplication, ProductStaticOperand, ProductStaticOperandGraph,
+    };
+    use language_semantics::declaration_selection::{
+        ProductDeclarationOperand, ProductOperandRole,
+    };
+    // These are accepted headers. The original ambiguous generic call source
+    // remains a separate recorded refusal, not a requirement for this identity check.
     let source = typed(
         r#"
 boundary trait Pair {
@@ -800,23 +808,83 @@ boundary trait Pair {
     machine take<const Limit: u64>(value: i32) -> i32
     reaches none requires value <= Limit crashes none;
 }
-machine entry() -> u32 crashes none {
-    let first: u32 = Pair::take<4>(3u32);
-    let second: i32 = Pair::take<4>(3i32);
-    first
-}
+machine entry() -> u32 crashes none { 3 }
 "#,
     );
-    let prepared = typed_trees_to_typed_trees::prepare_typed_trees(
+    let mut program = typed_trees_to_typed_trees::prepare_typed_trees(
         source,
         &typed_trees_to_typed_trees::PreparationRequest::settled(),
     )
     .unwrap()
-    .0;
-    let elaboration = read_applied_boundary(&prepared).unwrap();
+    .0
+    .into_inner();
+    let pair = program
+        .traits()
+        .iter()
+        .find(|owner| owner.name.as_str() == "Pair")
+        .unwrap()
+        .symbol;
+    let requirements = program
+        .trait_machine_signatures(program.trait_definition_by_symbol(pair).unwrap())
+        .iter()
+        .map(|header| header.symbol)
+        .collect::<Vec<_>>();
+    let mut selected = Vec::new();
+    for requirement in requirements {
+        // Rejoin an exact retained declaration, then let the normal Product
+        // instantiator form its complete <4> header. No overload is selected by name.
+        let mut graph = ProductStaticOperandGraph::default();
+        let value = graph.operands.insert(ProductStaticOperand {
+            integer: Some(numerics::literals::IntegerLiteral::from_value(4)),
+            ..Default::default()
+        });
+        let arguments = graph.static_arguments.insert_many([value]);
+        let application = graph.applications.insert(ProductStaticApplication {
+            arguments,
+            ..Default::default()
+        });
+        graph.root = graph.operands.insert(ProductStaticOperand {
+            application,
+            ..Default::default()
+        });
+        let operand = ProductDeclarationOperand {
+            path: "Pair::take<4>".into(),
+            source_span: program.symbols.symbol_source_span(requirement).unwrap(),
+            application: Some(Arc::new(graph)),
+        };
+        let application = typed_trees_to_typed_trees::prepare_retained_product_application(
+            &mut program,
+            &operand,
+            ProductOperandRole::Requirement,
+            requirement,
+        )
+        .unwrap();
+        let closed = program
+            .product_requirement_application(application)
+            .unwrap();
+        assert_eq!(closed.template, requirement);
+        selected.push(closed.signature.symbol);
+    }
+    let program: typed_trees::FrozenTypedTrees = program.into();
+    let elaboration = typed_trees_to_terminal_psi::elaborate_for(
+        &program,
+        typed_trees_to_terminal_psi::Compilation {
+            calling: None,
+            providers: None,
+            declaration_metadata: &[pair],
+            entries: &[entry(&program)],
+            subjects: &[],
+            purpose: source::DependencyScope::Product,
+            selected: &selected,
+            bindings: &[],
+            supplies: &[],
+        },
+        terminal_codec::TerminalPublication::Invocation,
+    )
+    .unwrap();
     let module = &elaboration.module;
     let [first, second] = module.boundary_machines.as_slice() else {
-        panic!("the same name selects two exact signatures");
+        panic!("two exact closed headers");
     };
     let a = first.declaration.as_ref().unwrap();
     let b = second.declaration.as_ref().unwrap();
@@ -852,7 +920,7 @@ machine entry() -> u32 crashes none {
         );
     }
     let RouteVerdict::Accepted(accepted) = judge(Ok(elaboration)).unwrap() else {
-        panic!("both original calls meet their own limit");
+        panic!("the selected closed headers must be accepted");
     };
     accepted.publish_invocation().unwrap();
 }
