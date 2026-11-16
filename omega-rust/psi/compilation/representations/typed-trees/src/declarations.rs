@@ -935,13 +935,14 @@ pub mod domain {
 
     impl DomainDefinition {
         /// An empty theory has nothing about contents left to translate.
-        /// Retained but unread clauses and other semantic definitions are not
-        /// an empty theory merely because no predicate was produced for them.
+        /// Structured predicates and other semantic definitions are not empty
+        /// merely because no proposition was produced for them. The inspection
+        /// token count also includes parsed access/issuer clauses, which are
+        /// independent restrictions rather than facts about contents.
         pub fn has_complete_empty_theory(&self) -> bool {
             self.predicate_presence == language_semantics::DomainPredicatePresence::Absent
                 && self.facts.is_empty()
                 && self.operators.is_empty()
-                && self.semantic_clause_token_count == 0
                 && self.alias.is_none()
                 && self.classification.is_none()
                 && self.semantic_roles.is_empty()
@@ -960,12 +961,19 @@ pub mod domain {
 
     #[cfg(test)]
     #[test]
-    fn unread_domain_clauses_are_not_a_complete_empty_theory() {
+    fn issuer_clauses_do_not_make_an_empty_content_theory_nonempty() {
         let mut definition = DomainDefinition::default();
         assert!(definition.has_complete_empty_theory());
-        definition.semantic_clause_token_count = 1;
-        assert!(!definition.has_complete_empty_theory());
-        definition.semantic_clause_token_count = 0;
+        definition.semantic_clause_token_count = 4;
+        definition.establishment_routes.push(
+            language_semantics::DomainEstablishmentRoute::ExactMachine {
+                machine: symbols::SymbolHandle::invalid(),
+            },
+        );
+        assert!(
+            definition.has_complete_empty_theory(),
+            "parsed issuance has its own authority check, separate from predicate completeness"
+        );
         definition.predicate_presence = language_semantics::DomainPredicatePresence::Present;
         assert!(!definition.has_complete_empty_theory());
         definition.predicate_presence = language_semantics::DomainPredicatePresence::Absent;
