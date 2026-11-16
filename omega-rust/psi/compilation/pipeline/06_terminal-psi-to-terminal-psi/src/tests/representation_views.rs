@@ -168,10 +168,29 @@ machine bytes_of(words: &[i32]) requires words.len <= 8 {
     take(bytes);
 }
 machine take(bytes: &[u8]) { }";
-    let RouteVerdict::Accepted(accepted) = super::entryless::judged(source, false) else {
-        panic!("the original bounded byte view must be admitted");
+    let typed = super::boundary_calls::typed(source);
+    let terminal_check_tables::compilation::TerminalCompilation::Prepared(prepared) =
+        typed_trees_to_terminal_psi::prepare_compilation(
+            &typed,
+            typed_trees_to_terminal_psi::Compilation {
+                declaration_metadata: &[],
+                entries: &[],
+                subjects: &[None],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Invocation,
+        )
+        .program
+    else {
+        panic!("the original source must prepare its ordinary checking closure");
     };
-    let mut changed = accepted.elaboration.clone();
+    let mut changed = prepared.closure.expect("the original source elaborates");
+    let RouteVerdict::Accepted(accepted) = judge(Ok(changed.clone())).unwrap() else {
+        panic!("the canonical byte view must be accepted before the mutation");
+    };
     let publication = accepted
         .publish_invocation()
         .expect("the original view publishes");
@@ -202,30 +221,44 @@ machine take(bytes: &[u8]) { }";
         wrappers.next().is_none(),
         "the wrapper declaration is unique"
     );
-    let formation = changed
-        .module
-        .machines
-        .iter_mut()
-        .flat_map(|machine| &mut machine.blocks)
-        .flat_map(|block| &mut block.operations)
-        .find(|operation| {
-            matches!(
-                operation.kind,
-                terminal_psi::OperationKind::EstablishElementView {
-                    region: terminal_psi::ElementViewRegion::WholeRepresentation { .. },
-                    ..
-                }
-            )
-        })
-        .expect("the original source has one whole representation view");
-    let terminal_psi::OperationKind::EstablishElementView { element, .. } = &mut formation.kind
-    else {
-        unreachable!()
+    let alter_element = |module: &mut terminal_psi::TerminalModule| {
+        let mut formations = module
+            .machines
+            .iter_mut()
+            .flat_map(|machine| &mut machine.blocks)
+            .flat_map(|block| &mut block.operations)
+            .filter(|operation| {
+                matches!(
+                    operation.kind,
+                    terminal_psi::OperationKind::EstablishElementView {
+                        region: terminal_psi::ElementViewRegion::WholeRepresentation { .. },
+                        ..
+                    }
+                )
+            });
+        let formation = formations.next().expect("the original source has its view");
+        assert!(
+            formations.next().is_none(),
+            "the source has exactly one view"
+        );
+        let terminal_psi::OperationKind::EstablishElementView { element, .. } = &mut formation.kind
+        else {
+            unreachable!()
+        };
+        *element = wrapper;
     };
-    *element = wrapper;
+    alter_element(&mut changed.module);
+    let mut received = publication.artifact.view().module().clone();
+    alter_element(&mut received);
     let changed_evidence =
-        terminal_codec::EvidenceSealValidator::new(&changed.module, &publication.seals.seals)
+        terminal_codec::EvidenceSealValidator::new(&received, &publication.seals.seals)
             .validate_all();
+    let checked = judge(Ok(changed));
+    eprintln!("changed receiving evidence: {changed_evidence:?}");
+    match &checked {
+        Ok(RouteVerdict::Accepted(_)) => eprintln!("changed checker verdict: Accepted"),
+        other => eprintln!("changed checker verdict: {other:?}"),
+    }
     assert!(
         matches!(
             changed_evidence,
@@ -233,7 +266,7 @@ machine take(bytes: &[u8]) { }";
         ),
         "the wrapper must not own the canonical byte element's evidence: {changed_evidence:?}"
     );
-    match judge(Ok(changed)) {
+    match checked {
         Err(refusal) => {
             assert_eq!(refusal.reason, RefusalReason::ForeignIdentity);
             assert!(

@@ -444,21 +444,18 @@ impl Storage<'_> {
                 "a whole-representation view needs a readable borrowed source view",
             ));
         };
-        let result = operation
-            .result
-            .as_structural()
-            .ok_or_else(|| self.foreign(concerns, "a whole-representation view lost its result"))?;
-        let result_type = self.declaration(result.structural_type, concerns)?;
-        let element_type = self.declaration(*element, concerns)?;
-        // Physical leaves determine tiling, but a byte descriptor still names
-        // the canonical byte element rather than any one-byte record wrapper.
-        if terminal_semantics::collection_backing(
-            [result_type, element_type].into_iter(),
-            result_type.id,
-            element_type.id,
-        )
-        .is_none()
-        {
+        let byte_result = operation.result.as_structural().is_some_and(|result| {
+            self.declaration(result.structural_type, concerns)
+                .is_ok_and(|row| matches!(row.shape, StructuralTypeShape::ByteSequence(_)))
+        });
+        let byte_leaf = matches!(
+            target_layout.leaves.as_slice(),
+            [leaf] if matches!(leaf.scalar_type, ScalarType::Integer(integer)
+                if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned
+                    && integer.bits() == Some(8)
+                    && !integer.is_address())
+        );
+        if byte_result && !byte_leaf {
             return Err(self.foreign(concerns, "a byte view re-views elements that are not bytes"));
         }
         let actual = self.collection_backing_source(source, 0, source_element, concerns)?;

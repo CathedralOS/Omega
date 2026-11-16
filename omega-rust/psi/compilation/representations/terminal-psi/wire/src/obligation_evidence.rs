@@ -210,19 +210,6 @@ fn unique_by_id<T, Id: Ord>(rows: &[T], id: Id, key: impl Fn(&T) -> Id) -> Optio
     (key(row) == id && rows.get(position + 1).is_none_or(|next| key(next) != id)).then_some(row)
 }
 
-// Evidence queries share one sorted declaration roster across machines. Each
-// view resolves only its result and element before checking their relation.
-fn structural_types_by_id<'types, 'index>(
-    types: &'types [terminal_psi::StructuralTypeDeclaration],
-    index: &'index mut Option<Vec<&'types terminal_psi::StructuralTypeDeclaration>>,
-) -> &'index [&'types terminal_psi::StructuralTypeDeclaration] {
-    index.get_or_insert_with(|| {
-        let mut rows = types.iter().collect::<Vec<_>>();
-        rows.sort_unstable_by_key(|row| row.id);
-        rows
-    })
-}
-
 fn machine_place_types(
     machine: &terminal_psi::TerminalMachine,
 ) -> Vec<(PlaceId, Option<StructuralTypeId>)> {
@@ -346,16 +333,6 @@ impl<'module> MachineEvidenceGoals<'module> {
                     if types.as_ref()?.value_type(*source_length) != Some(count) {
                         return None;
                     }
-                    let declarations = structural_types_by_id(structural_types, indexed_types);
-                    let result = operation.result.as_structural()?;
-                    let result_type =
-                        *unique_by_id(declarations, result.structural_type, |row| row.id)?;
-                    let element_type = *unique_by_id(declarations, *element, |row| row.id)?;
-                    terminal_semantics::collection_backing(
-                        [result_type, element_type].into_iter(),
-                        result_type.id,
-                        element_type.id,
-                    )?;
                     let places = places.get_or_insert_with(|| machine_place_types(machine));
                     let root = unique_by_id(places, source.place, |(place, _)| *place)?.1?;
                     let collection = terminal_semantics::runtime_structural_path_tip(
@@ -416,7 +393,11 @@ impl<'module> MachineEvidenceGoals<'module> {
             let root =
                 unique_by_id(places, projection.root, |(place, _)| *place).and_then(|(_, ty)| *ty);
             let valid = root.zip(types.as_ref()).is_some_and(|(root, types)| {
-                let indexed_types = structural_types_by_id(structural_types, indexed_types);
+                let indexed_types = indexed_types.get_or_insert_with(|| {
+                    let mut rows = structural_types.iter().collect::<Vec<_>>();
+                    rows.sort_unstable_by_key(|row| row.id);
+                    rows
+                });
                 terminal_semantics::visit_runtime_index_goals(
                     structural_types.iter(),
                     |id| unique_by_id(indexed_types, id, |row| row.id).copied(),
