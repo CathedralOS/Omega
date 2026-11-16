@@ -2110,7 +2110,12 @@ impl<'t> Program<'t> {
         )?;
         signature.termination = self.termination(id, machine)?;
         signature.reaches = self.reach_ceiling(id, machine.symbol, false)?;
-        signature.invokes = self.entry_ceiling(id, self.typed.machine_invokes(machine), true)?;
+        signature.invokes = self.entry_ceiling(
+            id,
+            self.typed.machine_invokes(machine),
+            self.typed.state_parameters(state),
+            true,
+        )?;
         signature.operational = crate::body::OperationalCeilings {
             suspension: Some(machine.suspends),
             blocking: Some(machine.blocks),
