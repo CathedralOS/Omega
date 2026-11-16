@@ -522,9 +522,21 @@ mod tests {
         };
         let mut registry = IdTable::default();
         registry.push((AppliedTraitScope::abstract_scope(&ordinary), Vec::new()));
-        let refusal =
-            ServiceMap::prepare(&typed, MachineId::new(1).unwrap(), &registry, Vec::new())
-                .unwrap_err();
+        let context = typed_trees::provider_declarations::ProviderPlanningContext::new(
+            &typed,
+            source::DependencyScope::Product,
+        );
+        let catalog = std::sync::Arc::new(
+            typed_trees::service_declarations::PreparedServiceCatalog::prepare(context, &[]),
+        );
+        let refusal = ServiceMap::prepare(
+            &typed,
+            MachineId::new(1).unwrap(),
+            &registry,
+            Vec::new(),
+            catalog.bind(context).unwrap(),
+        )
+        .unwrap_err();
         assert_eq!(
             refusal.detail,
             "machine ordinary trait cannot enter the service namespace"
