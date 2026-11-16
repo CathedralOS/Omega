@@ -217,7 +217,9 @@ fn selected_entry_receipt_keeps_the_accepted_artifact_and_rejects_other_owners()
                 accepted.boundary_requirements_declared().unwrap(),
                 executable.boundary_requirements_declared().unwrap()
             );
-            assert_eq!(module.calling_abi_signatures.len(), 2);
+            // The semantic arrival is shared; each of the four bound targets
+            // contributes its own physical arrival before source judgment.
+            assert_eq!(module.calling_abi_signatures.len(), 5);
             let native_code = executable
                 .produce(
                     Default::default(),
@@ -228,7 +230,10 @@ fn selected_entry_receipt_keeps_the_accepted_artifact_and_rejects_other_owners()
                 .unwrap();
             let native_module = native_code.artifact().semantic_module();
             assert_eq!(native_module, executable.module());
-            assert_eq!(native_module.calling_abi_signatures.len(), 2);
+            assert_eq!(
+                native_module.calling_abi_signatures,
+                module.calling_abi_signatures
+            );
             assert!(
                 native_module
                     .calling_abi_signatures
