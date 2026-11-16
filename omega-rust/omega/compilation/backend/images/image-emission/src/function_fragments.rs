@@ -10483,18 +10483,22 @@ mod source {
                         }],
                     };
                     let selected = selected_instructions::SelectedFunction {
-                        machine: source.machine,
-                        attachment: None,
-                        provenance: Default::default(),
-                        structural: None,
-                        local_storage_slots: vec![],
-                        outgoing_arguments: vec![],
-                        calls: vec![],
-                        normalized_foreign_calls: vec![],
-                        memory_accesses: vec![],
-                        boundary_settlements: vec![],
+                        contracts: std::sync::Arc::new(
+                            selected_instructions::SelectedFunctionContracts {
+                                machine: source.machine,
+                                attachment: None,
+                                provenance: Default::default(),
+                                structural: None,
+                                local_storage_slots: vec![],
+                                outgoing_arguments: vec![],
+                                calls: vec![],
+                                normalized_foreign_calls: vec![],
+                                memory_accesses: vec![],
+                                boundary_settlements: vec![],
+                                virtual_registers: vec![],
+                            },
+                        ),
                         entry_block: selected_instructions::SelectedBlockId(0),
-                        virtual_registers: vec![],
                         blocks: vec![].into(),
                     };
                     Self {
