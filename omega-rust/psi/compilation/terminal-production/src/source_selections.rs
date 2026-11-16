@@ -121,6 +121,108 @@ mod tests {
     }
 
     #[test]
+    fn ordinary_overloads_keep_distinct_source_selection_declarations() {
+        // Both calls must retain the overload they selected, including when
+        // their declarations come from the same package or toolchain source.
+        let text = "public machine choose(value: u32) {} \
+                    public machine choose(value: bool) {} \
+                    machine main() { choose(1u32); choose(true); }";
+        for package in [
+            None,
+            semantic_vocabulary::PackageKeyIdentity::from_digest([7; 32]),
+        ] {
+            let mut sources = source::SourceMap::default();
+            let id = sources
+                .add_checked_instance(
+                    "/overloads/main.omg".into(),
+                    text,
+                    "/overloads".into(),
+                    package,
+                    if package.is_some() {
+                        source::SourceOrigin::User
+                    } else {
+                        source::SourceOrigin::Toolchain
+                    },
+                    source::SourceResolutionStratum::Base,
+                    source::DependencyScope::Product,
+                )
+                .source_id;
+            let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
+            let syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(id, &tokens).unwrap();
+            let mut request = syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax);
+            request.sources = Some(Arc::new(sources));
+            let resolved = syntax_trees_to_symbol_resolved_trees::resolve(request).unwrap();
+            let typed =
+                symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+                    .unwrap();
+            let identities = typed
+                .machines()
+                .iter()
+                .filter(|machine| machine.name.as_str() == "choose")
+                .map(|machine| {
+                    typed
+                        .normalized_hermetic_symbol_identity(machine.symbol)
+                        .unwrap()
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(identities.len(), 2);
+            assert_ne!(identities[0], identities[1]);
+            let entry = typed.realized_machine_named("main").unwrap().symbol;
+            let (frozen, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+                typed,
+                &typed_trees_to_typed_trees::PreparationRequest::settled(),
+            )
+            .unwrap();
+            let accepted = crate::AcceptedTerminalSource::judge(
+                Arc::new(frozen),
+                crate::TerminalSourceCompilation {
+                    declaration_metadata: &[],
+                    entries: &[entry],
+                    subjects: &[None],
+                    purpose: source::DependencyScope::Product,
+                    selected: &[],
+                    calling: None,
+                    providers: None,
+                    bindings: &[],
+                    supplies: &[],
+                },
+                terminal_codec::TerminalPublication::Invocation,
+            )
+            .unwrap();
+            let produced = accepted
+                .produce(Default::default(), &mut crate::UnmeasuredProduction)
+                .unwrap();
+            let questions = &produced.source_selections().unwrap().questions;
+            terminal_installation::selection_questions::validate_selection_questions(
+                produced.view().module(),
+                questions,
+            )
+            .unwrap();
+            let overloads = questions
+                .declarations
+                .iter()
+                .filter(|(_, declaration)| declaration.name == "choose")
+                .collect::<Vec<_>>();
+            assert_eq!(overloads.len(), 2);
+            assert_ne!(overloads[0].1.identity, overloads[1].1.identity);
+            let mut duplicate = questions.as_ref().clone();
+            duplicate
+                .declarations
+                .get_mut(overloads[1].0)
+                .unwrap()
+                .identity = overloads[0].1.identity.clone();
+            assert!(
+                terminal_installation::selection_questions::validate_selection_questions(
+                    produced.view().module(),
+                    &duplicate,
+                )
+                .unwrap_err()
+                .contains("repeats a declaration")
+            );
+        }
+    }
+
+    #[test]
     fn captured_build_consent_stays_with_its_source_and_invocation() {
         struct Capture(Arc<source::SourceMap>);
         impl source::InvocationSourceConsent for Capture {

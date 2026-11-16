@@ -1635,11 +1635,15 @@ machine entry() -> u64 crashes none {
     Second::pick(repeated)
 }
 "#;
+        accepted_source(TEXT, &[])
+    }
+
+    fn accepted_source(text: &str, metadata_names: &[&str]) -> AcceptedTerminalSource {
         let mut sources = source::SourceMap::default();
         let id = sources
             .add_checked_instance(
                 "selection/main.omg".into(),
-                TEXT,
+                text,
                 "selection".into(),
                 Some(semantic_vocabulary::PackageKeyIdentity::from_digest([0xc3; 32]).unwrap()),
                 source::SourceOrigin::User,
@@ -1647,7 +1651,7 @@ machine entry() -> u64 crashes none {
                 source::DependencyScope::Product,
             )
             .source_id;
-        let tokens = source_files_to_tokens::Lexer::new(TEXT).tokenize().unwrap();
+        let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
         let syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(id, &tokens).unwrap();
         let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
             syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
@@ -1666,6 +1670,27 @@ machine entry() -> u64 crashes none {
             .find(|machine| machine.name.as_str() == "entry")
             .unwrap()
             .symbol;
+        let metadata = metadata_names
+            .iter()
+            .map(|name| {
+                typed
+                    .traits()
+                    .iter()
+                    .find(|declaration| declaration.name.as_str() == *name)
+                    .expect("the fixture names its actual declaration")
+                    .symbol
+            })
+            .collect::<Vec<_>>();
+        let mut selected = metadata.clone();
+        for &symbol in &metadata {
+            let owner = typed.trait_definition_by_symbol(symbol).unwrap();
+            selected.extend(
+                typed
+                    .trait_machine_signatures(owner)
+                    .iter()
+                    .map(|signature| signature.symbol),
+            );
+        }
         let (frozen, _) = typed_trees_to_typed_trees::prepare_typed_trees(
             typed,
             &typed_trees_to_typed_trees::PreparationRequest::settled(),
@@ -1674,11 +1699,11 @@ machine entry() -> u64 crashes none {
         AcceptedTerminalSource::judge(
             Arc::new(frozen),
             typed_trees_to_terminal_psi::Compilation {
-                declaration_metadata: &[],
+                declaration_metadata: &metadata,
                 entries: &[entry],
                 subjects: &[],
                 purpose: source::DependencyScope::Product,
-                selected: &[],
+                selected: &selected,
                 bindings: &[],
                 calling: None,
                 providers: None,
@@ -1904,6 +1929,83 @@ machine entry() -> u32 crashes none {{
                 format!("{refusal:?}")
                     .contains("closed requirement call lost its supplying declaration"),
                 "{refusal:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn requirement_overloads_keep_their_signatures_and_refuse_header_swaps() {
+        // Publish both complete headers directly. A signature-free named call
+        // would test overload selection before reaching this identity owner.
+        let source = accepted_source(
+            r#"
+boundary trait Input {
+    machine pick(value: u64) -> u64 reaches none crashes none;
+    machine pick(value: bool) -> bool reaches none crashes none;
+}
+machine entry() reaches Input {}
+"#,
+            &["Input"],
+        );
+        let module = source.module();
+        let prepared = prepare(&source, module, None).unwrap();
+        terminal_installation::selection_questions::validate_selection_questions(
+            module,
+            &prepared.questions,
+        )
+        .unwrap();
+        let typed = source.source();
+        let owner = typed
+            .traits()
+            .iter()
+            .find(|owner| owner.name.as_str() == "Input")
+            .unwrap();
+        let identities = typed
+            .trait_machine_signatures(owner)
+            .iter()
+            .map(|signature| {
+                typed
+                    .normalized_hermetic_symbol_identity(signature.symbol)
+                    .unwrap()
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(identities.len(), 2);
+        assert_ne!(identities[0], identities[1]);
+        let headers = prepared
+            .questions
+            .joins
+            .iter()
+            .filter_map(|join| match join {
+                SelectionJoin::Boundary {
+                    declaration,
+                    boundary,
+                } => Some((*declaration, *boundary)),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(headers.len(), 2);
+        assert_ne!(headers[0].0, headers[1].0);
+        for (original, other) in [(headers[0], headers[1]), (headers[1], headers[0])] {
+            let mut changed = prepared.questions.clone();
+            let joined = changed
+                .joins
+                .iter_mut()
+                .find_map(|join| match join {
+                    SelectionJoin::Boundary {
+                        declaration,
+                        boundary,
+                    } if *boundary == original.1 => Some(declaration),
+                    _ => None,
+                })
+                .unwrap();
+            *joined = other.0;
+            let error = terminal_installation::selection_questions::validate_selection_questions(
+                module, &changed,
+            )
+            .unwrap_err();
+            assert!(
+                error.contains("boundary differs from its checked semantic declaration"),
+                "{error}"
             );
         }
     }

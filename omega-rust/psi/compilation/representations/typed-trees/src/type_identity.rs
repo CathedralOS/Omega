@@ -9299,8 +9299,8 @@ mod closed_requirement_declaration_tests {
         });
         for (ordinal, identity) in identities.iter().enumerate() {
             assert!(
-                identity.contains(&language_semantics::type_identity::encoding::atom(
-                    language_semantics::type_identity::encoding::CoordinateTag::Template,
+                identity.contains(&super::atom(
+                    super::CoordinateTag::Template,
                     &program
                         .normalized_hermetic_symbol_identity(template)
                         .unwrap(),
