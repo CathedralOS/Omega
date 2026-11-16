@@ -2854,8 +2854,8 @@ impl<'a> Lowering<'a> {
     /// A named affine local has its own home: the initializer transfers into
     /// it rather than becoming another name for a call result or parameter.
     /// Capture all operands before the continuation can dispose the previous
-    /// binding. The admitted plain slice stores no persistent reference
-    /// descriptors, so rebinding has no retained loan of the previous home.
+    /// binding. Only a `let` binds a record local: a later whole assignment
+    /// stores into this home (`store`), so live loans see the write.
     pub(super) fn bind_record(&mut self, expression: &Expression) -> Evaluation<PlaceId> {
         let Some(value_type @ ValueType::Record(record, _, _)) = expression.result else {
             return Err(self.internal("a scalar initializer is used as a record"));
@@ -4226,12 +4226,6 @@ impl<'a> Lowering<'a> {
         let (root, steps, place, expected) = continuing!(self.capture_place(destination));
         let (root, steps, place) =
             self.capture_view_element(root, steps, place, StructuralAccess::MutableBorrow, source)?;
-        if steps.is_empty()
-            && matches!(expected, ValueType::Record(_, _, _))
-            && !self.borrowed_roots.contains(&root)
-        {
-            return Err(self.internal("a whole record assignment must rebind its local"));
-        }
         let mut owed = 0;
         for step in &steps {
             owed += self.record_type(step.owner())?.requires.len();
