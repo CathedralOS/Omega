@@ -1062,9 +1062,10 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 256 + `u16` vocabulary
-marker 133 + a Boolean default-entry presence flag, followed by the entry
-callable when present and the module tables in the declaration order below.
+Module bytes are `PSITERM\0` + `u16` format marker + `u16` vocabulary
+marker (see [Section identities](#section-identities)) + a Boolean default-entry
+presence flag, followed by the entry
+callable when present and module tables in the declaration order below.
 The entry callable uses its ordinary machine-or-boundary tag and identifier
 encoding. An absent default entry requires empty root-service reach; it does
 not authorize implicit selection of another retained machine.

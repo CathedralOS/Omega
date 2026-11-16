@@ -215,7 +215,7 @@ mod tests {
                 scalar_type: i8_type,
                 value: crate::IntegerValue::Signed(128),
             },
-            projection: relation.projection.clone(),
+            projection: relation.projection,
             operation: FloatSemanticOperation::from_source_identity(
                 "FloatSemantics",
                 "to_i8",

@@ -51,6 +51,7 @@ use semantic_vocabulary::{
     PropositionContext, ScalarTerm, ScalarType, ValueId,
 };
 
+#[path = "prove/float_integer.rs"]
 mod float_integer;
 #[path = "prove/float_meaning.rs"]
 mod float_meaning;

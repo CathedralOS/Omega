@@ -364,11 +364,11 @@ fn converter_preconditions_need_the_checked_exact_source_and_destination() {
     )
     .unwrap()
     .remove(1);
-    let make = |premise: Proposition| ProofNode {
+    let make = |premise: &Proposition| ProofNode {
         conclusion: goal.clone(),
         rule: ProofRule::FloatIntegerConversion {
             premise: Box::new(ProofNode {
-                conclusion: premise,
+                conclusion: premise.clone(),
                 rule: ProofRule::Assumption { index: 0 },
             }),
             computed: None,
@@ -378,9 +378,9 @@ fn converter_preconditions_need_the_checked_exact_source_and_destination() {
         accept_certificate(
             &context,
             &goal,
-            &[eligibility.clone()],
+            std::slice::from_ref(&eligibility),
             &[],
-            &make(eligibility)
+            &make(&eligibility)
         )
         .is_ok()
     );
@@ -389,7 +389,16 @@ fn converter_preconditions_need_the_checked_exact_source_and_destination() {
         exact(source.clone(), integer(IntegerSign::Unsigned, 32)),
         equal(source.clone(), IeeeFloatValue::Binary64(0)),
     ] {
-        assert!(accept_certificate(&context, &goal, &[wrong.clone()], &[], &make(wrong)).is_err());
+        assert!(
+            accept_certificate(
+                &context,
+                &goal,
+                std::slice::from_ref(&wrong),
+                &[],
+                &make(&wrong)
+            )
+            .is_err()
+        );
     }
 }
 
