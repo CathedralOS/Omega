@@ -15,9 +15,10 @@
 //!   `reflect::callable(..)` queries produce, matched on declaration,
 //!   callable application and source revision together, so a route names
 //!   exactly one declaration of this program;
-//! - field observation demands, reader or writer rules and required reach
-//!   have no consumer yet, so a plan with any of them is left unjudged
-//!   rather than recorded without them.
+//! - reader and writer rules stay attached for the canonical operation
+//!   checks against the actual function and borrowed storage;
+//! - field observation demands and required reach remain unjudged until
+//!   the backing and lifecycle checks can establish them.
 //!
 //! A plan this pass cannot judge is recorded as
 //! `AccessPlanJudgment::Unjudged` with the reason: every use that needs the

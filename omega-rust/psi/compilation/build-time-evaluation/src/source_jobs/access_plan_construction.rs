@@ -611,6 +611,21 @@ machine write_number(ticket: &mut Ticket in Stamped) { ticket.number = 41; }
         let mut accounting = SourceCompletionAccounting::default();
         super::domain_access_plans::evaluate(&mut typed, request, None, None, &mut accounting)
             .expect("evaluate the actual complete selected read/write policy");
+        let policy = typed
+            .domain_definitions
+            .iter()
+            .map(|(_, domain)| domain)
+            .find(|domain| domain.name.as_str() == "Ticket::Stamped")
+            .and_then(|domain| domain.access_policy.as_ref())
+            .expect("the original governed domain retains its selected policy");
+        assert!(
+            matches!(
+                policy.plan,
+                typed_trees::domain::AccessPlanJudgment::Checked(_)
+            ),
+            "the original selected policy must be judged before checking its operations: {:?}",
+            policy.plan,
+        );
         let (prepared, _) = typed_trees_to_typed_trees::prepare_typed_trees(
             typed,
             &typed_trees_to_typed_trees::PreparationRequest::settled(),
