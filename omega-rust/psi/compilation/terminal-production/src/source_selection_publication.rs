@@ -442,14 +442,13 @@ impl<'source> Questions<'source> {
                     }
                 } else if source_target != selected {
                     // Source calls may name the machine's entry State, while
-                    // the published call names the machine. Only its uniquely
-                    // registered entry authenticates that same declaration.
-                    let entered_machine = match target {
-                        TargetMachineCallable::Machine(_) => typed
-                            .unique_machine_by_entry_state_symbol(source_target)
-                            .map(|(machine, _)| machine.symbol),
-                        TargetMachineCallable::Boundary(_) => None,
-                    };
+                    // the published call names the machine. This holds for an
+                    // ordinary machine and for a boundary machine such as the
+                    // core ProcessExit primitive. Only its uniquely registered
+                    // entry authenticates that same declaration.
+                    let entered_machine = typed
+                        .unique_machine_by_entry_state_symbol(source_target)
+                        .map(|(machine, _)| machine.symbol);
                     if entered_machine != Some(selected) {
                         return Err(refused(format_args!(
                             "declared invocation differs from its exact source selection: source {} ({source_target:?}), emitted {} ({selected:?}), owner {} ({owner:?}), occurrence {node:?}",
