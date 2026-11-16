@@ -105,9 +105,95 @@ proof of a mutual cycle. Strict descent required for recursive proof citation
 and the existing cross-package recursion restriction are unchanged. Other
 termination and compiler work can proceed.
 
+<a id="final-artifact-validation-placement"></a>
+
+### 2. Does default compilation re-check the native image it just wrote?
+
+Decision name: `final-artifact-validation-placement`.
+
+**Customer.** Every `omega build` and `omega run` of a native program on the
+four hosted targets. Each one pays for a second pass over the image it just
+emitted, and the result is bound into the published artifact's identity.
+
+**Gap.** [Machine-state evidence](wiki/spec/build/machine_state_evidence.md#certificate-and-replay)
+says "Final-artifact validation is mandatory" and binds a certificate of the
+exact final bytes. [Verification placement](omega-rust/pipeline.md#verification-placement)
+says a compile "does not revalidate, replay or rebuild output the same compile
+just produced", and [optimizations](wiki/spec/build/optimizations.md#phase-and-product-boundaries)
+repeats it, leaving such checks to tests and explicit
+[`--validator` requests](wiki/spec/build/command_line.md#independent-stage-validators).
+The code follows the first page: `validate_terminal_image` in
+`omega-rust/omega/compilation/backend/images/image-emission/src/image.rs` runs on
+every native build, decoding x86 and AArch64 address fields from the final
+bytes and checking import, relocation, region and literal-pool counts against
+the object plan. `native-artifact/src/publication.rs` and `identity.rs` then
+carry the resulting text and function validation digests into the published
+artifact. Neither page names the other as an exception.
+
+**Question.** Is final-artifact validation an exception to verification
+placement that every compile runs, or an independent validator that runs only
+in tests and under `--validator`? If it is optional, does the published
+artifact identity keep a validation digest at all when the validator did not
+run?
+
+**Recommendation.** Keep the final-image check in the default path and write it
+into verification placement as a named exception: the image is the trust
+boundary the machine-state certificate describes, and its digests already form
+part of the published identity. Moving it behind `--validator` would change
+artifact identity and the certificate contract, not only compile time. This is
+a recommendation, not a settled rule.
+
+**Until answered.** Leave `validate_terminal_image` and its digests in the
+default path. Do not extend the default final-image checks or add new default
+re-checks of other stage outputs on the strength of machine-state evidence.
+
+<a id="freestanding-machine-owner-authority"></a>
+
+### 3. Where does machine-owner assembly authority come from: the target or `Build.freestanding`?
+
+**Context.** A program that uses machine-control assembly, such as `cli` or a
+control-register write, compiles only if the build grants machine-owner
+authority. Today that grant is `builder.freestanding = true` in `build.omg`.
+It is one boolean for the whole build, with no target attached. Source checking
+turns it into `AsmAuthorityAdmission::MACHINE_OWNER` for every target the build
+binds. A build that binds both `uefi_x86_64` and `linux_x86_64` therefore admits
+machine-control assembly in the hosted Linux program as well. The flag does
+nothing else; it does not remove host packages or import thunks.
+
+**Gap.** The pages disagree and none is ratified over the others.
+[Build configuration](wiki/spec/build/configuration.md#durable-result) says the
+hosted/freestanding environment belongs to the selected target profile, "not
+duplicated mutable Build flags". [UEFI entry](wiki/spec/build/uefi_entry.md)
+calls freestanding "an immutable selected target/provider property".
+[Privileged services](wiki/spec/build/permissions.md#privileged-services)
+instead names "the evaluated `Build.freestanding` selection" as machine-owner
+admission and says machine-owner authority "stays `freestanding`-only".
+74 samples under `samples/cli/facts/` set `builder.freestanding = true` while
+binding only hosted targets (`linux_x86_64`, `windows_x86_64`, `macos_*`), so
+they depend on the third reading. [Device access](wiki/spec/resources/device_access.md)
+and [checked instructions](wiki/spec/build/hardware_materialization.md#checked-instructions)
+say which instructions need the authority, not who grants it.
+
+**Question.** Is machine-owner authority a property of the selected target
+(so only freestanding targets such as `uefi_x86_64` have it, and
+`Build.freestanding` is deleted), or a build grant? If it is a build grant, is
+it a per-target row like `elf_interpreter`, and may a hosted target receive it
+at all? What do the hosted-target samples that use it become?
+
+**Recommendation.** Follow configuration.md: the target profile carries
+hosted/freestanding and freestanding targets carry machine-owner authority;
+delete `Build.freestanding`. Hosted programs that only need to *check*
+machine-control instructions keep compiling through a per-target grant row
+beside `privileged_services`, never through an untargeted flag. This is a
+recommendation, not a settled rule.
+
+**Until answered.** `Build.freestanding` keeps its current meaning and is
+neither extended nor deleted. Do not add new consumers of it. Other build and
+assembly work can proceed.
+
 <a id="syscall-binding-calling-policy"></a>
 
-### 2. Which calling policy does a requirement with no `Calling<Policy>` get when Build binds it to a syscall?
+### 4. Which calling policy does a requirement with no `Calling<Policy>` get when Build binds it to a syscall?
 
 Decision name: `syscall-binding-calling-policy`.
 

@@ -1000,6 +1000,10 @@ pub struct FixedViewCopyDestination {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FixedViewCopyDecodeError {
+    InvalidCodeCatalog {
+        catalog: &'static str,
+        cause: terminal_wire::CodecError,
+    },
     InvalidProgramContracts(&'static str),
     InvalidBorrowedStorage(runtime_abi::BorrowedStorageEncodingError),
     InvalidQuotientCatalog,

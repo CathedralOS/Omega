@@ -314,10 +314,12 @@ interface assumptions (`Q`, `project`, `setQ`, `sound`, `effective`,
 `elim`, `beta`) are named assumptions with exact statements; `transport`,
 `idTrans`, `transportConst` and `lift` are checked definitions derived from
 them. `beta` is a relevant `Id`, never a conversion rule, so a quotient's
-representative stays unextractable; `liftPre` is admitted because a
-function-valued motive would need the function extensionality the calculus
-deliberately lacks — the boundary between admitted law and derivable
-consequence is stated per declaration. *Witnessed:* the
+representative stays unextractable. No other quotient declaration is
+admitted: a lift whose result also depends on a premise about the class
+would need a function-valued motive, and so the function extensionality the
+calculus deliberately lacks, so the kernel offers no such lift — the
+boundary between admitted law and derivable consequence is stated per
+declaration. *Witnessed:* the
 `quotient_*` scheme tests, including `quotient_beta_is_propositional_evidence_not_conversion`
 and `quotient_assumption_closure_records_the_admitted_interface`.
 

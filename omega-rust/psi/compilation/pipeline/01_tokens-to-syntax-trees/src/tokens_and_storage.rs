@@ -270,7 +270,8 @@ pub(crate) mod tokens {
 
             let body = body.ok_or("invalid integer literal")?;
             let (body, landed_type) = if kind.has_suffix {
-                strip_integer_suffix(body)?
+                let (digits, carrier) = strip_integer_suffix(body)?;
+                (digits, Some(carrier))
             } else {
                 (body, None)
             };
@@ -303,14 +304,7 @@ pub(crate) mod tokens {
             Ok(())
         }
 
-        fn strip_integer_suffix(
-            text: &str,
-        ) -> Result<(&str, Option<LandedIntegerType>), &'static str> {
-            for suffix in UNLANDED_INTEGER_SUFFIXES {
-                if let Some(digits) = text.strip_suffix(suffix) {
-                    return Ok((digits, None));
-                }
-            }
+        fn strip_integer_suffix(text: &str) -> Result<(&str, LandedIntegerType), &'static str> {
             /*
                 A carrier suffix is the carrier's own spelling: its sign
                 letter, which no digit of any radix can be, then its width.
@@ -318,7 +312,7 @@ pub(crate) mod tokens {
             if let Some(start) = text.rfind(['i', 'u'])
                 && let Some(carrier) = FixedInteger::from_decimal_spelling(&text[start..])
             {
-                return Ok((&text[..start], Some(LandedIntegerType::Fixed(carrier))));
+                return Ok((&text[..start], LandedIntegerType::Fixed(carrier)));
             }
 
             Err("unknown integer literal suffix")
@@ -333,8 +327,6 @@ pub(crate) mod tokens {
 
             Err("unknown float literal suffix")
         }
-
-        const UNLANDED_INTEGER_SUFFIXES: &[&str] = &["isize", "usize", "nat", "Nat"];
 
         const FLOAT_SUFFIXES: &[&str] = &["f32", "f64"];
 
@@ -396,13 +388,14 @@ pub(crate) mod tokens {
                         "{text}"
                     );
                 }
-                assert!(
-                    suffixed("7usize", NumericBase::Decimal)
-                        .unwrap()
-                        .landing()
-                        .is_none()
-                );
-                for text in ["7u0", "7i0", "7u", "7i", "7q8", "7u08"] {
+                /*
+                    `usize`, `isize` and the proof sorts are not carrier
+                    spellings, so their suffixes are refused rather than
+                    read as an unsuffixed literal.
+                */
+                for text in [
+                    "7u0", "7i0", "7u", "7i", "7q8", "7u08", "7usize", "7isize", "7nat", "7Nat",
+                ] {
                     assert_eq!(
                         suffixed(text, NumericBase::Decimal).unwrap_err(),
                         "unknown integer literal suffix",

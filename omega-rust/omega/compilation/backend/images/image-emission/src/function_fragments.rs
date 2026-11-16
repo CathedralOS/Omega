@@ -107,15 +107,16 @@ mod attribution {
                 Ok((site, u32::try_from(ordinal).map_err(|_| Error::Overflow)?))
             })
             .collect::<Result<Vec<_>, Error>>()?;
-        target_vocabulary::NativePublicationFacts::seal(vec![
-            target_vocabulary::NativeFunctionPublication {
+        target_vocabulary::NativePublicationFacts::seal(
+            vec![target_vocabulary::NativeFunctionPublication {
                 machine: source.machine,
                 operation_count: u32::try_from(source.operations().count())
                     .map_err(|_| Error::Overflow)?,
                 sites,
                 byte_literals: Vec::new(),
-            },
-        ])
+            }],
+            Default::default(),
+        )
         .map_err(Error::Mismatch)
     }
 
@@ -1770,16 +1771,19 @@ mod byte_literals {
             };
             let operation = OperationId::new(1).unwrap();
             let place = PlaceId::new(1).unwrap();
-            let facts = NativePublicationFacts::seal(vec![NativeFunctionPublication {
-                machine: MachineId::new(1).unwrap(),
-                operation_count: 1,
-                sites: vec![(SemanticCodeSite::Operation(operation), 0)],
-                byte_literals: vec![NativeByteLiteral {
-                    operation,
-                    place,
-                    bytes: std::sync::Arc::from(b"exact\0octets".as_slice()),
+            let facts = NativePublicationFacts::seal(
+                vec![NativeFunctionPublication {
+                    machine: MachineId::new(1).unwrap(),
+                    operation_count: 1,
+                    sites: vec![(SemanticCodeSite::Operation(operation), 0)],
+                    byte_literals: vec![NativeByteLiteral {
+                        operation,
+                        place,
+                        bytes: std::sync::Arc::from(b"exact\0octets".as_slice()),
+                    }],
                 }],
-            }])
+                Default::default(),
+            )
             .unwrap();
             let function = &facts.functions()[0];
             assert_eq!(
@@ -1790,7 +1794,7 @@ mod byte_literals {
             assert!(quoted_octets(function, operation, PlaceId::new(2).unwrap()).is_err());
             let mut empty = function.clone();
             empty.byte_literals[0].bytes = std::sync::Arc::from([]);
-            let empty = NativePublicationFacts::seal(vec![empty]).unwrap();
+            let empty = NativePublicationFacts::seal(vec![empty], Default::default()).unwrap();
             assert_eq!(
                 quoted_octets(&empty.functions()[0], operation, place).unwrap(),
                 b""
@@ -2177,8 +2181,7 @@ pub(crate) mod code_descriptors {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub(crate) struct ObjectCodeDescriptorPool {
-        pub catalog: TerminalDynamicDispatchCatalog,
-        pub callables: terminal_psi::TerminalCallableCatalog,
+        pub catalogs: target_vocabulary::NativeCodeCatalogs,
         pub addresses: Vec<PlacedImageAddress>,
         pub descriptors: Vec<ObjectCodeDescriptor>,
     }
@@ -2247,11 +2250,12 @@ pub(crate) mod code_descriptors {
     }
 
     pub(super) fn place(
-        catalog: &TerminalDynamicDispatchCatalog,
-        callables: &terminal_psi::TerminalCallableCatalog,
+        catalogs: &target_vocabulary::NativeCodeCatalogs,
         addresses: &[PlacedImageAddress],
         object: &mut ObjectPlan,
     ) -> Result<(Option<ObjectCodeDescriptorPool>, Vec<u8>), Error> {
+        let catalog = catalogs.dynamic_dispatch();
+        let callables = catalogs.callables();
         let addresses = addresses
             .iter()
             .filter(|address| address_source(address).is_some())
@@ -2320,8 +2324,7 @@ pub(crate) mod code_descriptors {
         });
         Ok((
             Some(ObjectCodeDescriptorPool {
-                catalog: catalog.clone(),
-                callables: callables.clone(),
+                catalogs: catalogs.clone(),
                 addresses,
                 descriptors,
             }),
@@ -2358,8 +2361,12 @@ pub(crate) mod code_descriptors {
     ) -> Result<Vec<RelocationRecord>, Error> {
         let mut records = Vec::new();
         for descriptor in &pool.descriptors {
-            for (slot, machine) in
-                target_entries(&pool.catalog, &pool.callables, descriptor.source)?.enumerate()
+            for (slot, machine) in target_entries(
+                pool.catalogs.dynamic_dispatch(),
+                pool.catalogs.callables(),
+                descriptor.source,
+            )?
+            .enumerate()
             {
                 let Some(machine) = machine else {
                     continue;
@@ -2410,17 +2417,10 @@ pub(crate) mod code_descriptors {
         source: &object_file::StagedOptimizedRelocationFreeObjectContainer,
         artifact: &crate::ObjectArtifact,
     ) -> Result<(), Error> {
-        let plan = source
-            .source()
-            .source()
-            .source()
-            .source()
-            .optimized_target()
-            .optimized()
-            .plan();
+        let catalogs = super::source::code_catalogs(source);
         let Some(pool) = &artifact.code_descriptor_pool else {
             if (!artifact.data_bytes.is_empty() && artifact.native_code_layout_pool.is_none())
-                || !plan.dynamic_dispatch.tables.is_empty()
+                || !catalogs.dynamic_dispatch().tables.is_empty()
                 || source
                     .source()
                     .text_section()
@@ -2434,8 +2434,7 @@ pub(crate) mod code_descriptors {
             }
             return Ok(());
         };
-        if pool.catalog != plan.dynamic_dispatch
-            || pool.callables != plan.callables
+        if &pool.catalogs != catalogs
             || pool.addresses
                 != source
                     .source()
@@ -2473,7 +2472,8 @@ pub(crate) mod code_descriptors {
                             && address_source(address)
                                 == Some(CodeDescriptorSource::Machine(*descriptor))
                             && pool
-                                .callables
+                                .catalogs
+                                .callables()
                                 .descriptor(*descriptor)
                                 .is_some_and(|selected| {
                                     result.scalar_type
@@ -2493,12 +2493,7 @@ pub(crate) mod code_descriptors {
             }
         }
         let mut expected = ObjectPlan::with_capacity(artifact.target, 1, pool.descriptors.len());
-        let (rebuilt, data) = place(
-            &pool.catalog,
-            &pool.callables,
-            &pool.addresses,
-            &mut expected,
-        )?;
+        let (rebuilt, data) = place(&pool.catalogs, &pool.addresses, &mut expected)?;
         let rebuilt = rebuilt.ok_or(Error::Mismatch("implementation table pool disappeared"))?;
         if artifact.data_bytes.get(..data.len()) != Some(data.as_slice())
             || rebuilt.descriptors.len() != pool.descriptors.len()
@@ -2657,14 +2652,10 @@ pub(crate) mod code_descriptors {
         fn trap_rows_keep_slot_offsets_and_callable_relocations() {
             let machine = semantic_vocabulary::MachineId::new(1).unwrap();
             let catalog = catalog(vec![None, Some(machine), None, Some(machine)]);
+            let catalogs =
+                target_vocabulary::NativeCodeCatalogs::seal(catalog, Default::default()).unwrap();
             let mut object = ObjectPlan::with_capacity(target::NativeTarget::macos_arm64(), 2, 2);
-            let (pool, data) = place(
-                &catalog,
-                &terminal_psi::TerminalCallableCatalog::default(),
-                &[],
-                &mut object,
-            )
-            .unwrap();
+            let (pool, data) = place(&catalogs, &[], &mut object).unwrap();
             let pool = pool.unwrap();
             assert_eq!(data, vec![0; 32]);
             let symbol = object.layout.symbols.insert(SymbolPlan {
@@ -2740,13 +2731,9 @@ pub(crate) mod code_descriptors {
                 rows: Vec::new(),
             });
             let mut object = ObjectPlan::with_capacity(target::NativeTarget::macos_arm64(), 1, 2);
-            let (pool, data) = place(
-                &catalog,
-                &terminal_psi::TerminalCallableCatalog::default(),
-                &[],
-                &mut object,
-            )
-            .unwrap();
+            let catalogs =
+                target_vocabulary::NativeCodeCatalogs::seal(catalog, Default::default()).unwrap();
+            let (pool, data) = place(&catalogs, &[], &mut object).unwrap();
             let pool = pool.unwrap();
             assert_eq!(data, vec![0; 16]);
             assert_eq!(
@@ -3857,21 +3844,16 @@ mod production {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub(crate) struct ProjectedObject(());
 
-    pub struct FunctionFragmentObjectArtifactRequest<'inputs> {
+    pub struct FunctionFragmentObjectArtifactRequest {
         pub replay: Arc<StagedOptimizedRelocationFreeObjectContainer>,
-        pub dynamic_dispatch: &'inputs terminal_psi::TerminalDynamicDispatchCatalog,
-        pub callables: &'inputs terminal_psi::TerminalCallableCatalog,
     }
 
     pub fn build_function_fragment_object_artifact(
-        request: FunctionFragmentObjectArtifactRequest<'_>,
+        request: FunctionFragmentObjectArtifactRequest,
     ) -> Result<ObjectArtifact, Error> {
-        let FunctionFragmentObjectArtifactRequest {
-            replay,
-            dynamic_dispatch,
-            callables,
-        } = request;
+        let FunctionFragmentObjectArtifactRequest { replay } = request;
         let source = replay.as_ref();
+        let catalogs = source::code_catalogs(source);
         let callable_invocations = source::callable_invocations(source);
         let profile = super::source::profile(source);
         let text = source.source().text_section();
@@ -4046,8 +4028,7 @@ mod production {
         super::private_addresses::declare(&private_identities, &mut object)?;
         let byte_literal_pool = super::byte_literals::place(source, &mut object, &mut text_bytes)?;
         let (code_descriptor_pool, mut data_bytes) = super::code_descriptors::place(
-            dynamic_dispatch,
-            callables,
+            catalogs,
             &source.source().text_section().unresolved_image_addresses,
             &mut object,
         )?;
@@ -15849,11 +15830,12 @@ mod source {
             let placed = text
                 .function(machine)
                 .ok_or(Error::Mismatch("stack caller has no placed function"))?;
-            let catalog = &emissions
-                .optimized_target()
-                .optimized()
-                .plan()
-                .dynamic_dispatch;
+            let catalog = emissions
+                .physical_program()
+                .contracts
+                .publication()
+                .code_catalogs()
+                .dynamic_dispatch();
             for call in &selected.calls {
                 if let NativeCallTarget::Callable { callee, contract } = call.call.target {
                     use terminal_semantics::callable_values::CallableInvocationTarget;
@@ -20672,6 +20654,20 @@ mod source {
             .optimized_target()
             .execution_plan()
             .callable_invocations()
+    }
+
+    pub(super) fn code_catalogs(
+        source: &StagedOptimizedRelocationFreeObjectContainer,
+    ) -> &target_vocabulary::NativeCodeCatalogs {
+        source
+            .source()
+            .source()
+            .source()
+            .source()
+            .physical_program()
+            .contracts
+            .publication()
+            .code_catalogs()
     }
 
     pub(super) fn publication_function(

@@ -2121,6 +2121,34 @@ pub(crate) mod power_of_two_order {
             }
         }
 
+        /// The rule's statement against computed arithmetic: for every pair
+        /// of exponents below 128, `2^m <= 2^n` holds exactly when `m <= n`.
+        /// The checker accepts a decided literal premise `m <= n` and its
+        /// powers; for each near miss `m > n` it refuses the premise.
+        #[test]
+        fn every_small_exponent_pair_agrees_with_computed_powers() {
+            let context = context();
+            for low in 0..128_i128 {
+                for high in 0..128_i128 {
+                    let ordered = low <= high;
+                    assert_eq!((1_u128 << low) <= (1_u128 << high), ordered);
+                    let premise = ProofNode {
+                        conclusion: order(number(low), number(high)),
+                        rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
+                    };
+                    let goal = order(power(number(low)), power(number(high)));
+                    let proof = ProofNode {
+                        conclusion: goal.clone(),
+                        rule: ProofRule::IntegerPowerOfTwoOrder {
+                            order: Box::new(premise),
+                        },
+                    };
+                    let accepted = accept_certificate(&context, &goal, &[], &[], &proof).is_ok();
+                    assert_eq!(accepted, ordered, "2^{low} <= 2^{high}");
+                }
+            }
+        }
+
         /// A value of `u<N>` lies in `0..=2^N - 1` and one of `i<N>` in
         /// `-2^(N-1)..=2^(N-1) - 1`, by its type alone; no other endpoint is
         /// a carrier bound.

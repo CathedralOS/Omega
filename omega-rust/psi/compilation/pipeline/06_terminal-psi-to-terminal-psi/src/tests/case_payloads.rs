@@ -393,3 +393,46 @@ fn a_payload_store_cannot_use_case_membership_invalidated_by_its_replacement() {
         && matches!(&failure.site, Some(terminal_check_tables::program::SourceOrigin::Authored(span))
             if start <= span.span.start && span.span.end <= end)));
 }
+
+/// Two copyable sums in an array, and `body` as the body of a machine that
+/// is lent the array and an index `slot` chosen at run time.
+fn shelf(body: &str) -> String {
+    format!(
+        r#"
+data Choice [copy] {{ case Left(value: u32); case Right; }}
+data Shelf [copy] {{ items: [Choice; 2]; }}
+machine pick(shelf: &mut Shelf, slot: u64) -> u32 requires slot < 2 {{
+    {body}
+}}
+machine build_entry() {{
+    let mut shelf: Shelf;
+    let seen: u32 = pick(&mut shelf, 0u64);
+}}
+"#
+    )
+}
+
+/// Storing `Left` into `items[0]` makes its case known only until a store
+/// that may reach `items[0]`. A store to `items[slot]` overlaps every element
+/// of the array (structural_access.md: a store crossing a runtime element
+/// "overlaps every element of that array"), so with `slot == 0` it would
+/// replace `Left` by `Right` before the read of `Left`'s payload. The twins
+/// differ only in the element the second store selects: `items[1]` is a
+/// different fixed element and leaves the case of `items[0]` known.
+fn element_store(element: &str) -> String {
+    shelf(&format!(
+        "shelf.items[0] = Choice::Left {{ value: 3u32 }};
+    shelf.items[{element}] = Choice::Right {{}};
+    shelf.items[0].value"
+    ))
+}
+
+#[test]
+fn a_store_to_another_fixed_element_keeps_the_known_case() {
+    assert_eq!(verdict(&element_store("1")), "accepted");
+}
+
+#[test]
+fn a_store_to_a_runtime_element_retires_the_known_case_of_every_element() {
+    assert_eq!(verdict(&element_store("slot")), NO_CASE);
+}

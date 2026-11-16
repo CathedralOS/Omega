@@ -1,4 +1,4 @@
-//! Source identities and literal payloads needed by native publication.
+//! Source identities, quoted bytes and code catalogs for native publication.
 //!
 //! These rows contain no executable body. Target lowering records them while
 //! it owns the current source function; later forms share the sealed roster
@@ -10,7 +10,7 @@ use native_vocabulary::provenance::PsiProvenance;
 use optimization_core::digest_encoder::DomainDigestEncoder;
 use semantic_vocabulary::{MachineId, OperationId, PlaceId};
 
-pub const NATIVE_PUBLICATION_DOMAIN: &[u8] = b"omega.native-publication-facts.v1\0";
+pub const NATIVE_PUBLICATION_DOMAIN: &[u8] = b"omega.native-publication-facts.v2\0";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeByteLiteral {
@@ -49,11 +49,15 @@ impl NativeFunctionPublication {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativePublicationFacts {
     functions: Arc<[NativeFunctionPublication]>,
+    code_catalogs: crate::code_catalogs::NativeCodeCatalogs,
     identity: [u8; 32],
 }
 
 impl NativePublicationFacts {
-    pub fn seal(functions: Vec<NativeFunctionPublication>) -> Result<Self, &'static str> {
+    pub fn seal(
+        functions: Vec<NativeFunctionPublication>,
+        code_catalogs: crate::code_catalogs::NativeCodeCatalogs,
+    ) -> Result<Self, &'static str> {
         if functions
             .windows(2)
             .any(|rows| rows[0].machine >= rows[1].machine)
@@ -87,15 +91,20 @@ impl NativePublicationFacts {
             }
         }
         let mut digest = DomainDigestEncoder::new(b"");
-        encode(&functions, |bytes| digest.raw(bytes));
+        encode(&functions, &code_catalogs, |bytes| digest.raw(bytes));
         Ok(Self {
             functions: functions.into(),
+            code_catalogs,
             identity: digest.finish(),
         })
     }
 
     pub fn functions(&self) -> &[NativeFunctionPublication] {
         &self.functions
+    }
+
+    pub const fn code_catalogs(&self) -> &crate::code_catalogs::NativeCodeCatalogs {
+        &self.code_catalogs
     }
 
     pub fn function(&self, machine: MachineId) -> Option<&NativeFunctionPublication> {
@@ -110,17 +119,23 @@ impl NativePublicationFacts {
     }
 
     pub fn encode(&self, bytes: &mut Vec<u8>) {
-        encode(&self.functions, |part| bytes.extend_from_slice(part));
+        encode(&self.functions, &self.code_catalogs, |part| {
+            bytes.extend_from_slice(part)
+        });
     }
 }
 
 impl Default for NativePublicationFacts {
     fn default() -> Self {
-        Self::seal(Vec::new()).expect("the empty publication roster is ordered")
+        Self::seal(Vec::new(), Default::default()).expect("the empty publication roster is ordered")
     }
 }
 
-fn encode(functions: &[NativeFunctionPublication], mut write: impl FnMut(&[u8])) {
+fn encode(
+    functions: &[NativeFunctionPublication],
+    code_catalogs: &crate::code_catalogs::NativeCodeCatalogs,
+    mut write: impl FnMut(&[u8]),
+) {
     write(NATIVE_PUBLICATION_DOMAIN);
     write(&(functions.len() as u64).to_le_bytes());
     for function in functions {
@@ -144,6 +159,7 @@ fn encode(functions: &[NativeFunctionPublication], mut write: impl FnMut(&[u8]))
             write(&literal.bytes);
         }
     }
+    code_catalogs.encode(write);
 }
 
 #[cfg(test)]
@@ -174,7 +190,7 @@ mod tests {
     fn publication_shares_payloads_and_commits_exact_sites_and_bytes() {
         let row = function();
         let bytes = Arc::clone(&row.byte_literals[0].bytes);
-        let facts = NativePublicationFacts::seal(vec![row.clone()]).unwrap();
+        let facts = NativePublicationFacts::seal(vec![row.clone()], Default::default()).unwrap();
         let copy = facts.clone();
         assert!(Arc::ptr_eq(&facts.functions, &copy.functions));
         assert!(Arc::ptr_eq(
@@ -191,7 +207,7 @@ mod tests {
         ordinal.sites[0].1 = 1;
         assert_ne!(
             facts.identity_bytes(),
-            NativePublicationFacts::seal(vec![ordinal])
+            NativePublicationFacts::seal(vec![ordinal], Default::default())
                 .unwrap()
                 .identity_bytes()
         );
@@ -199,7 +215,7 @@ mod tests {
         literal.byte_literals[0].bytes = Arc::from(b"other".as_slice());
         assert_ne!(
             facts.identity_bytes(),
-            NativePublicationFacts::seal(vec![literal])
+            NativePublicationFacts::seal(vec![literal], Default::default())
                 .unwrap()
                 .identity_bytes()
         );
@@ -217,8 +233,11 @@ mod tests {
         let mut literal = original.clone();
         literal.byte_literals.push(literal.byte_literals[0].clone());
         for row in [duplicate, missing, outside, literal] {
-            assert!(NativePublicationFacts::seal(vec![row]).is_err());
+            assert!(NativePublicationFacts::seal(vec![row], Default::default()).is_err());
         }
-        assert!(NativePublicationFacts::seal(vec![original.clone(), original]).is_err());
+        assert!(
+            NativePublicationFacts::seal(vec![original.clone(), original], Default::default())
+                .is_err()
+        );
     }
 }

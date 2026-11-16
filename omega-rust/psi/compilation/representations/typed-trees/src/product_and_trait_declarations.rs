@@ -452,12 +452,14 @@ pub mod product_operand {
                         .into(),
                 );
             }
+            let binding_declaration = program
+                .specialization_binding_declaration(specialization)
+                .map_err(str::to_owned)?;
             let application =
                 program.static_machine_application(specialization.binding_application);
-            if application.binding_declaration != specialization.template {
+            if application.binding_declaration != binding_declaration {
                 return Err(
-                    "Build helper specialization binding belongs to a different exact template"
-                        .into(),
+                    "Build helper specialization changed its exact binding declaration".into(),
                 );
             }
             let owner = program
@@ -480,8 +482,8 @@ pub mod product_operand {
                 active_expressions: Vec::new(),
             };
             let template = program
-                .machine_by_symbol(specialization.template)
-                .ok_or("Build helper lost its source template")?;
+                .machine_by_symbol(binding_declaration)
+                .ok_or("Build helper lost its source binding declaration")?;
             let operand = program
                 .specialization_source_operand(specialization)
                 .map_err(str::to_owned)?;
@@ -533,7 +535,7 @@ pub mod product_operand {
                     .insert(ProductStaticEnvironmentLifetime {
                         parameter_owner: program
                             .symbols
-                            .symbol_provenance_source_span(specialization.template)
+                            .symbol_provenance_source_span(binding_declaration)
                             .ok_or("Build helper lifetime binder lost its original declaration")?,
                         parameter_ordinal: ordinal as u32,
                         argument,

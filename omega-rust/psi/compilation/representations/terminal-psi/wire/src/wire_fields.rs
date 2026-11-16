@@ -387,7 +387,7 @@ use super::structural_place_wire::{
 };
 use super::structural_signature_wire::{decode_structural_access, encode_structural_access};
 use super::wire::{
-    Reader, Writer, decode_bytes, decode_counted, decode_ids, decode_optional_id,
+    Reader, Writer, bounded_count, decode_bytes, decode_counted, decode_ids, decode_optional_id,
     encode_optional_id,
 };
 use semantic_vocabulary::{
@@ -967,8 +967,10 @@ impl<Left, Right, LeftField: Field<Left>, RightField: Field<Right>> Field<(Left,
     }
 }
 
-pub(crate) struct List<K>(std::marker::PhantomData<K>);
-impl<T, K: Field<T>> Field<Vec<T>> for List<K> {
+// Catalogs with known row prefixes can bound allocation before reading a row.
+// The default preserves existing schemas, and the minimum never changes bytes.
+pub(crate) struct List<K, const MIN_ELEMENT_BYTES: usize = 1>(std::marker::PhantomData<K>);
+impl<T, K: Field<T>, const MIN_ELEMENT_BYTES: usize> Field<Vec<T>> for List<K, MIN_ELEMENT_BYTES> {
     fn write(writer: &mut Writer, value: &Vec<T>) -> Result<(), CodecError> {
         writer.len("wire roster", value.len())?;
         for element in value {
@@ -977,7 +979,15 @@ impl<T, K: Field<T>> Field<Vec<T>> for List<K> {
         Ok(())
     }
     fn read(reader: &mut Reader<'_>) -> Result<Vec<T>, CodecError> {
-        decode_counted(reader, K::read)
+        let count = bounded_count(reader, MIN_ELEMENT_BYTES)?;
+        let mut values = Vec::new();
+        values
+            .try_reserve_exact(count)
+            .map_err(|_| CodecError::CollectionTooLong("wire roster"))?;
+        for _ in 0..count {
+            values.push(K::read(reader)?);
+        }
+        Ok(values)
     }
 }
 
@@ -1401,7 +1411,31 @@ wire_enum! {
 #[cfg(test)]
 mod invocation_site_tests {
     use super::wire::{Reader, Writer, decode_invocation_site, encode_invocation_site};
+    use super::{Field, List, U32};
+    use crate::CodecError;
     use semantic_vocabulary::{EdgeId, InvocationSite, OperationId};
+
+    #[test]
+    fn minimum_row_bytes_refuse_the_count_before_reading_any_row() {
+        let bytes = [2, 0, 0, 0, 7, 0, 0, 0];
+        let mut reader = Reader::new(&bytes);
+        assert!(matches!(
+            <List<U32, 4> as Field<Vec<u32>>>::read(&mut reader),
+            Err(CodecError::UnexpectedEnd)
+        ));
+        assert_eq!(reader.remaining(), 4);
+        let rows = vec![7, 9];
+        let mut existing = Writer::default();
+        <List<U32> as Field<Vec<u32>>>::write(&mut existing, &rows).unwrap();
+        let mut bounded = Writer::default();
+        <List<U32, 4> as Field<Vec<u32>>>::write(&mut bounded, &rows).unwrap();
+        let bytes = bounded.finish();
+        assert_eq!(bytes, existing.finish());
+        assert_eq!(
+            <List<U32, 4> as Field<Vec<u32>>>::read(&mut Reader::new(&bytes)).unwrap(),
+            rows
+        );
+    }
 
     #[test]
     fn invocation_identity_retains_cleanup_edge_and_action_ordinal() {
