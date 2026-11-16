@@ -1342,7 +1342,6 @@ pub(crate) fn boundary(
     if !owner.type_parameters.is_empty()
         || !owner.lifetime_parameters.is_empty()
         || !requirement.type_parameters.is_empty()
-        || !requirement.lifetime_parameters.is_empty()
     {
         return Err(Diagnostic::error(
             "boundary declaration needs its complete applied telescope",
