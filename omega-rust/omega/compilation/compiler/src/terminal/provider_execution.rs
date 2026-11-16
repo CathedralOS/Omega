@@ -439,7 +439,7 @@ mod tests {
 
     #[test]
     fn unavailable_selected_calling_policy_is_not_an_absent_policy() {
-        let mut module = terminal_psi::TerminalModule::default();
+        let mut module = terminal_psi::TerminalModule::declarations();
         assert!(calling_policy_instances(&module).unwrap().is_empty());
         module
             .calling_policy_requests
@@ -459,10 +459,8 @@ mod tests {
         let declaration = identities.intern("semantic declaration");
         let selected = identities.intern("selected full application");
         let other = identities.intern("another full application");
-        let mut module = terminal_psi::TerminalModule {
-            identities: identities.build(),
-            ..Default::default()
-        };
+        let mut module = terminal_psi::TerminalModule::declarations();
+        module.identities = identities.build();
         require_unselected_calling_policy(&calling_policy_instances(&module).unwrap(), selected)
             .unwrap();
         module
