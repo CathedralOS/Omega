@@ -551,6 +551,100 @@ fn actual_policy_callers_keep_their_selected_declaration_after_transport() {
     accounting.validate_charges().unwrap();
 }
 
+// The writer lends its permission only through the actual borrowed subject.
+// The helper is deliberately absent from the policy's writer list; ordinary
+// checked reborrowing must retain the caller's grant and its exact backing.
+#[test]
+fn actual_governed_reads_and_delegated_writes_execute_and_refuse_denied_axes() {
+    let original = include_str!("selected_access_plan_family.omg");
+    let plan = r#"let mut plan: AccessPlan = access::new_plan(&schema,
+            Issuance::Only { routes: [reflect::callable(stamp)] });
+        access::allow_readers(&mut plan,
+            omega::language::core::AccessRegion::Subject { schema: schema },
+            [reflect::callable(number)]);
+        access::allow_writers(&mut plan,
+            omega::language::core::AccessRegion::Subject { schema: schema },
+            [reflect::callable(change)]);
+        plan"#;
+    let source = original.replacen(
+        "access::new_plan(&schema, Issuance::Only { routes: [reflect::callable(stamp)] })",
+        plan,
+        1,
+    ).replace(
+        "let observed: i32 = number(stamped(Ticket { number: 4 }));",
+        "let mut ticket: Ticket in Stamped = stamped(Ticket { number: 4 });\n    change(&mut ticket);\n    let observed: i32 = number(ticket);",
+    ).replace("observed == 4", "observed == 41") + r#"
+
+machine change(ticket: &mut Ticket in Stamped) { write_number(ticket); }
+machine write_number(ticket: &mut Ticket in Stamped) { ticket.number = 41; }
+"#;
+    for (source, denied) in [
+        (source.clone(), None),
+        (
+            source.replace("[reflect::callable(number)]", "[]"),
+            Some("read"),
+        ),
+        (
+            source.replace("[reflect::callable(change)]", "[]"),
+            Some("write"),
+        ),
+    ] {
+        let mut typed = typed_source(&source);
+        let main = typed.realized_machine_named("main").unwrap().symbol;
+        let entries = [main];
+        let request = terminal_production::TerminalSourceCompilation {
+            declaration_metadata: &[],
+            entries: &entries,
+            subjects: &[],
+            purpose: source::DependencyScope::Product,
+            selected: &[],
+            bindings: &[],
+            supplies: &[],
+        };
+        let mut accounting = SourceCompletionAccounting::default();
+        super::domain_access_plans::evaluate(&mut typed, request, None, None, &mut accounting)
+            .expect("evaluate the actual complete selected read/write policy");
+        let (prepared, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+            typed,
+            &typed_trees_to_typed_trees::PreparationRequest::settled(),
+        )
+        .expect("retain the same selected declarations and checked borrows");
+        let judged = terminal_production::AcceptedTerminalSource::judge(
+            std::sync::Arc::new(prepared),
+            request,
+            terminal_codec::TerminalPublication::Portable,
+        );
+        if let Some(axis) = denied {
+            let error = judged.err().expect("an empty route list denies that axis");
+            assert!(format!("{error:?}").contains(axis), "{error:?}");
+            continue;
+        }
+        let accepted = judged.expect("the listed writer delegates to its ordinary helper");
+        let bytes = terminal_codec::encode_module(accepted.module()).unwrap();
+        terminal_codec::decode_module(&bytes)
+            .expect("the received program enforces the same exact caller and borrowed subject");
+        let produced = accepted
+            .produce(
+                Default::default(),
+                &mut terminal_production::UnmeasuredProduction,
+            )
+            .expect("produce the same checked read/write program");
+        let program = terminal_interpreter::TerminalProgram::borrow(produced.view());
+        let mut instance = program
+            .instantiate(terminal_interpreter::TerminalInstantiation::default())
+            .expect("ordinary owned record needs no external supply");
+        let mut meter = terminal_work::WorkMeter::unbounded();
+        assert_eq!(
+            instance
+                .invoke(&mut meter)
+                .expect("execute the same governed program"),
+            terminal_interpreter::TerminalExecutionStatus::Complete(
+                terminal_interpreter::TerminalExecutionResult::Unit,
+            )
+        );
+    }
+}
+
 #[test]
 fn ordinary_lifetime_invocation_keeps_schema_images_and_refuses_local_escape() {
     let source = r#"
