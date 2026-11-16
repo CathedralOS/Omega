@@ -874,9 +874,8 @@ fn an_abstract_termination_promise_checks_call_and_tail_premises() {
 #[test]
 fn proof_only_template_commitments_bind_guarantees_and_open_bounds() {
     use terminal_check_tables::compilation::TerminalCompilation;
-    use terminal_check_tables::contracts::Ceiling;
 
-    fn commitment(text: &str, closed_reach: bool) -> [u8; 32] {
+    fn commitment(text: &str, closed_suspension: bool) -> [u8; 32] {
         let typed = boundary_calls::typed(text);
         let entry = typed
             .machines()
@@ -924,7 +923,9 @@ fn proof_only_template_commitments_bind_guarantees_and_open_bounds() {
             .iter()
             .find(|form| form.template == template)
             .unwrap();
-        for form in forms.forms.as_ref().unwrap() {
+        for form in forms.forms.as_ref().unwrap_or_else(|refusal| {
+            panic!("template form (closed suspension: {closed_suspension}): {refusal:?}")
+        }) {
             let terminal_psi::TargetMachineCallable::Machine(entry) = form.module.entry.unwrap()
             else {
                 panic!("a template retains its actual machine entry");
@@ -933,9 +934,8 @@ fn proof_only_template_commitments_bind_guarantees_and_open_bounds() {
             assert!(form.module.machine(entry).unwrap().declaration.is_none());
             assert!(!form.requirements.is_empty());
             assert_eq!(
-                matches!(form.requirement_ceilings.get(entry).unwrap().reaches,
-                Ceiling::Authored(ref row) if row.is_empty()),
-                closed_reach
+                form.requirement_ceilings.get(entry).unwrap().suspension,
+                closed_suspension.then_some(false)
             );
         }
         let commitments = closure
@@ -968,10 +968,10 @@ fn proof_only_template_commitments_bind_guarantees_and_open_bounds() {
     let changed_guarantee = original.replace("ensures result <= 11", "ensures result <= 12");
     assert_ne!(changed_guarantee, original);
     assert_ne!(original_commitment, commitment(&changed_guarantee, false));
-    let closed_reach = original.replace(
+    let closed_suspension = original.replace(
         "machine relay<T>(item: T, limit: u32) -> u32",
-        "machine relay<T>(item: T, limit: u32) -> u32\nreaches none",
+        "machine relay<T>(item: T, limit: u32) -> u32\nsuspends false",
     );
-    assert_ne!(closed_reach, original);
-    assert_ne!(original_commitment, commitment(&closed_reach, true));
+    assert_ne!(closed_suspension, original);
+    assert_ne!(original_commitment, commitment(&closed_suspension, true));
 }
