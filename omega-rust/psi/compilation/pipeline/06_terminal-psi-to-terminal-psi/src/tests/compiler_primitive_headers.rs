@@ -346,9 +346,10 @@ machine main() { let valid: bool = byte_observation::ascii_only("Room A1"); }
         // Keep the exact authenticated source, symbol and signature types.
         // These are different actual headers, not copied catalog spellings.
         match mutation {
-            0 => typed.machines_mut()[index].is_public = false,
-            1 => typed.machines_mut()[index].admitted_same_stack_bytes = 1,
-            2 => typed.machines_mut()[index]
+            0 => typed.machine_mut(index).is_public = false,
+            1 => typed.machine_mut(index).admitted_same_stack_bytes = 1,
+            2 => typed
+                .machine_mut(index)
                 .lifetime_parameters
                 .push(typed_trees::name::Identifier::generated("extra")),
             3 => {
@@ -375,7 +376,7 @@ machine main() { let valid: bool = byte_observation::ascii_only("Room A1"); }
                     .unwrap();
             }
             4 => {
-                typed.machines_mut()[index].name =
+                typed.machine_mut(index).name =
                     typed_trees::name::Identifier::generated("valid_utf8")
             }
             _ => unreachable!(),
