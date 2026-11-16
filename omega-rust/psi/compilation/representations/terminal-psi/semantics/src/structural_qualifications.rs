@@ -2377,6 +2377,33 @@ fn validate_change_owners(module: &TerminalModule) -> Judged<()> {
     Ok(())
 }
 
+/// Primitive byte casts use the actual incoming arguments, just as byte copies
+/// and moves do. The lowered checker reports a false result as an unestablished
+/// value; artifact ingress requires every result to be true.
+pub fn byte_qualification_change_judgments(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+) -> Judged<Vec<(EdgeId, bool)>> {
+    validate_machine(module, machine)
+}
+
+/// The complete structural membership judgment required at artifact ingress.
+pub fn validate(module: &TerminalModule) -> Judged<()> {
+    validate_access_policies(module)?;
+    for machine in &module.machines {
+        if byte_qualification_change_judgments(module, machine)?
+            .iter()
+            .any(|(_, established)| !established)
+        {
+            return malformed(
+                Some(machine.id),
+                "a byte transfer's source does not establish its primitive byte-domain qualifications",
+            );
+        }
+    }
+    validate_change_owners(module)
+}
+
 #[cfg(test)]
 mod default_requirement_tests {
     use super::*;
@@ -2612,31 +2639,4 @@ mod default_requirement_tests {
             "a reference display is not a lender's declared default"
         );
     }
-}
-
-/// Primitive byte casts use the actual incoming arguments, just as byte copies
-/// and moves do. The lowered checker reports a false result as an unestablished
-/// value; artifact ingress requires every result to be true.
-pub fn byte_qualification_change_judgments(
-    module: &TerminalModule,
-    machine: &TerminalMachine,
-) -> Judged<Vec<(EdgeId, bool)>> {
-    validate_machine(module, machine)
-}
-
-/// The complete structural membership judgment required at artifact ingress.
-pub fn validate(module: &TerminalModule) -> Judged<()> {
-    validate_access_policies(module)?;
-    for machine in &module.machines {
-        if byte_qualification_change_judgments(module, machine)?
-            .iter()
-            .any(|(_, established)| !established)
-        {
-            return malformed(
-                Some(machine.id),
-                "a byte transfer's source does not establish its primitive byte-domain qualifications",
-            );
-        }
-    }
-    validate_change_owners(module)
 }
