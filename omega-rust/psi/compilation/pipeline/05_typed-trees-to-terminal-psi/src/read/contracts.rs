@@ -227,10 +227,11 @@ impl Program<'_> {
         fact: &ProofFact,
         requirement: bool,
     ) -> Checked<Option<(Proposition, ClauseText)>> {
-        if let Some(logical) = scope.logical
-            && let ProofFact::Membership(membership) = fact
-        {
-            return logical.membership_clause(self, scope, membership).map(Some);
+        if let ProofFact::Membership(membership) = fact {
+            return match scope.logical {
+                Some(logical) => logical.membership_clause(self, scope, membership).map(Some),
+                None => self.runtime_membership_clause(id, scope, membership),
+            };
         }
         let expression = self.fact(id, fact)?;
         if self.states_nothing(id, expression, requirement)? {
@@ -1590,7 +1591,7 @@ impl Program<'_> {
     /// beneath one. `None` for an expression that names no storage.
     /// Every step is resolved from a symbol; a name or member the typed
     /// trees hold only as a spelling is refused.
-    fn projected(
+    pub(super) fn projected(
         &self,
         id: MachineId,
         scope: &ClauseScope<'_>,
