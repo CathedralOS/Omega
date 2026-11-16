@@ -84,12 +84,21 @@ pub fn declaration_path(meaning: NumericIntrinsic) -> Result<String, &'static st
         NumericIntrinsic::Conversion {
             source,
             target,
-            domain: ArithmeticDomain::Exact,
-        } if source.is_float() || target.is_float() => Ok(format!(
-            "{}::from_{}",
-            carrier_name(target).to_ascii_uppercase(),
-            carrier_name(source)
-        )),
+            domain,
+        } if (domain == ArithmeticDomain::Exact && (source.is_float() || target.is_float()))
+            || (domain == ArithmeticDomain::Saturating
+                && source.is_float()
+                && matches!(
+                    target,
+                    language_semantics::numeric_intrinsics::NumericType::Integer(_)
+                )) =>
+        {
+            Ok(format!(
+                "{}::from_{}",
+                carrier_name(target).to_ascii_uppercase(),
+                carrier_name(source)
+            ))
+        }
         _ => Err("numeric primitive is outside the supported catalog"),
     }?;
     if !language_core::float_operations::CANONICAL_FLOAT_OPERATIONS.contains(&declaration.as_str())
@@ -104,28 +113,24 @@ pub fn declaration_path(meaning: NumericIntrinsic) -> Result<String, &'static st
 pub fn declaration_kind(
     meaning: NumericIntrinsic,
 ) -> Result<semantic_vocabulary::BoundaryRequirementKind, &'static str> {
-    use language_semantics::numeric_intrinsics::NumericType;
-    declaration_path(meaning)?;
-    Ok(match meaning {
-        NumericIntrinsic::FloatBinary { .. } => {
-            semantic_vocabulary::BoundaryRequirementKind::Machine
+    use language_core::float_operations::FloatDeclarationForm;
+    let declaration = declaration_path(meaning)?;
+    match language_core::float_operations::declaration_form(&declaration) {
+        Some(FloatDeclarationForm::Machine) => {
+            Ok(semantic_vocabulary::BoundaryRequirementKind::Machine)
         }
-        NumericIntrinsic::Conversion {
-            target: NumericType::Integer(_),
-            ..
-        } => semantic_vocabulary::BoundaryRequirementKind::Operator,
-        NumericIntrinsic::Conversion { .. } => {
-            semantic_vocabulary::BoundaryRequirementKind::Machine
+        Some(FloatDeclarationForm::Operator) => {
+            Ok(semantic_vocabulary::BoundaryRequirementKind::Operator)
         }
-        _ => return Err("numeric primitive has no supported declaration kind"),
-    })
+        None => Err("numeric primitive has no authored declaration form"),
+    }
 }
 
 /// The full normal-result contract of the supported closed primitive. Inputs
 /// occupy consecutive values starting at 1; the normal result follows them,
 /// just as an ordinary scalar callable does. Unsupported operations refuse.
 pub fn ensures(meaning: NumericIntrinsic) -> Result<Vec<Proposition>, &'static str> {
-    if let Some(target) = integer_conversion_target(meaning) {
+    if let Some((target, policy)) = integer_conversion(meaning) {
         use numerics::float_semantics::{FloatSemanticOperation, FloatSemanticValueKind};
         declaration_path(meaning)?;
         let (formals, result) = scalar_formals(meaning)?;
@@ -134,7 +139,13 @@ pub fn ensures(meaning: NumericIntrinsic) -> Result<Vec<Proposition>, &'static s
         };
         let operation = FloatSemanticOperation::from_source_identity(
             "FloatSemantics",
-            &format!("to_{target}"),
+            &match policy {
+                numerics::arithmetic::ArithmeticDomain::Exact => format!("to_{target}"),
+                numerics::arithmetic::ArithmeticDomain::Saturating => {
+                    format!("to_{target}_saturating")
+                }
+                _ => return Err("integer conversion has no supported result contract"),
+            },
             &[FloatSemanticValueKind::Meaning],
             FloatSemanticValueKind::Integer(target),
         )
@@ -259,17 +270,20 @@ fn scalar_formals(
     ))
 }
 
-fn integer_conversion_target(
+fn integer_conversion(
     meaning: NumericIntrinsic,
-) -> Option<numerics::integer_carrier::FixedInteger> {
+) -> Option<(
+    numerics::integer_carrier::FixedInteger,
+    numerics::arithmetic::ArithmeticDomain,
+)> {
     use language_semantics::numeric_intrinsics::NumericType;
     use numerics::arithmetic::ArithmeticDomain;
     match meaning {
         NumericIntrinsic::Conversion {
             source: NumericType::F32 | NumericType::F64,
             target: NumericType::Integer(target),
-            domain: ArithmeticDomain::Exact,
-        } => Some(target),
+            domain: policy @ (ArithmeticDomain::Exact | ArithmeticDomain::Saturating),
+        } => Some((target, policy)),
         _ => None,
     }
 }
@@ -277,14 +291,64 @@ fn integer_conversion_target(
 /// Keep the converter's complete finite/toward-zero range requirement. Exact
 /// carrier casts prove a separate, stronger predicate before this call.
 pub fn requires(meaning: NumericIntrinsic) -> Result<Vec<Proposition>, &'static str> {
-    let Some(target) = integer_conversion_target(meaning) else {
+    let Some((target, policy)) = integer_conversion(meaning) else {
         return Ok(Vec::new());
     };
+    if policy == numerics::arithmetic::ArithmeticDomain::Saturating {
+        return Ok(Vec::new());
+    }
     let (formals, _) = scalar_formals(meaning)?;
     let [source] = formals.as_slice() else {
         return Err("integer conversion needs exactly one argument");
     };
     semantic_vocabulary::float_integer_preconditions(source.clone(), target)
+}
+
+/// The static result policy belongs to the selected declaration, separately
+/// from the converter's executable saturation semantics.
+pub fn result_policy(
+    meaning: NumericIntrinsic,
+) -> Result<Option<numerics::arithmetic::ArithmeticDomain>, &'static str> {
+    declaration_path(meaning)?;
+    Ok(integer_conversion(meaning).and_then(|(_, policy)| {
+        (policy != numerics::arithmetic::ArithmeticDomain::Exact).then_some(policy)
+    }))
+}
+
+/// Match the complete canonical scalar result. Qualification IDs alone carry
+/// no policy authority: resolve the one actual domain and check its carrier,
+/// built-in identity and unrestricted policy metadata.
+pub fn result_matches(
+    module: &terminal_psi::TerminalModule,
+    meaning: NumericIntrinsic,
+    result: semantic_vocabulary::QualifiedScalarType,
+) -> bool {
+    if result_scalar_type(meaning).ok() != Some(result.scalar_type) {
+        return false;
+    }
+    match result_policy(meaning) {
+        Ok(None) => result.qualifications == semantic_vocabulary::ScalarQualificationSetId::ZERO,
+        Ok(Some(policy)) => {
+            let Some([id]) =
+                crate::scalar_qualifications::qualification_domains(module, result.qualifications)
+            else {
+                return false;
+            };
+            let Some(domain) = crate::scalar_qualifications::scalar_domain(module, *id) else {
+                return false;
+            };
+            domain.carrier == result.scalar_type
+                && module.identities.text(domain.identity)
+                    == crate::scalar_qualifications::arithmetic_policy_identity(policy)
+                && domain.predicate.is_none()
+                && domain.establishment_routes.is_none()
+                && domain
+                    .required_memberships
+                    .as_ref()
+                    .is_some_and(Vec::is_empty)
+        }
+        Err(_) => false,
+    }
 }
 
 /// The selected primitive's actual scalar result, including its permanent
@@ -353,6 +417,7 @@ pub fn validate_boundary(
         &parameter_name,
         signature.operand_count,
         &result_name,
+        result_policy(meaning)?,
     )?;
     let text = |identity| module.identities.text(identity);
     let source = &checked.source;
@@ -441,7 +506,7 @@ pub fn validate_boundary(
         "parameter telescope"
     );
     require!(
-        matches!(boundary.result, BoundaryMachineResult::Scalar(result) if result.scalar_type == expected_result && result.qualifications == semantic_vocabulary::ScalarQualificationSetId::ZERO),
+        matches!(boundary.result, BoundaryMachineResult::Scalar(result) if result_matches(module, meaning, result)),
         "scalar result format"
     );
     require!(
@@ -496,6 +561,7 @@ fn coordinates(
     format: &str,
     arity: usize,
     result: &str,
+    policy: Option<numerics::arithmetic::ArithmeticDomain>,
 ) -> Result<[String; 6], &'static str> {
     use language_core::sealed_intrinsics::{
         SealedDeclarationSite, SealedIntrinsic, SealedIntrinsicCatalog,
@@ -503,7 +569,9 @@ fn coordinates(
     use language_semantics::type_identity::encoding::{
         CoordinateTag, atom, bare, byte_atom, compound,
     };
-    use language_semantics::type_identity::vocabulary::{Label, NameForm, OwnerForm, TypeForm};
+    use language_semantics::type_identity::vocabulary::{
+        ConstraintForm, Label, NameForm, OwnerForm, TypeForm,
+    };
     let (file, bytes) = language_core::sealed_intrinsics::float_operations_source();
     if SealedIntrinsicCatalog::classify(SealedDeclarationSite {
         file: std::path::Path::new(file),
@@ -544,6 +612,22 @@ fn coordinates(
     let ordinary = |name: &str| compound(TypeForm::Named, [atom(Label::Name, name)]);
     let declared =
         |name: &str| ordinary(&compound(NameForm::CompilerType, [atom(Label::Atom, name)]));
+    let qualify = |carrier: String| match policy {
+        None => carrier,
+        Some(policy) => compound(
+            TypeForm::Constrained,
+            [
+                carrier,
+                compound(
+                    ConstraintForm::ArithmeticDomain,
+                    [atom(Label::Name, policy.name())],
+                ),
+            ],
+        ),
+    };
+    let dispatch = policy
+        .map(|policy| format!("arithmetic:{}", policy.name()))
+        .unwrap_or_default();
     let parameter = compound(
         CoordinateTag::Parameter,
         [
@@ -556,7 +640,7 @@ fn coordinates(
         format!(
             "operator::{declaration}({})->{}",
             vec![ordinary(format); arity].join(","),
-            ordinary(result)
+            qualify(ordinary(result))
         )
     } else {
         compound(
@@ -570,7 +654,7 @@ fn coordinates(
                     ),
                 ),
                 atom(CoordinateTag::Parameters, &vec![parameter; arity].join(",")),
-                atom(CoordinateTag::ResultDispatch, ""),
+                atom(CoordinateTag::ResultDispatch, &dispatch),
             ],
         )
     };
@@ -590,6 +674,6 @@ fn coordinates(
         format!("toolchain::{declaration}"),
         callable,
         declared(format),
-        declared(result),
+        qualify(declared(result)),
     ])
 }
