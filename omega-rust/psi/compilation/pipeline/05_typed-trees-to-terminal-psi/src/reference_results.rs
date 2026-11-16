@@ -567,16 +567,12 @@ fn publish_parents(
                     {
                         continue;
                     }
-                    let parent =
-                        terminal_semantics::descriptor_lifetimes::DescriptorLocation::captured(
-                            root, &segments,
-                        )
-                        .ok_or_else(|| {
-                            unavailable(
-                                machine.id,
-                                "borrowed header parent has no exact descriptor path",
-                            )
-                        })?;
+                    // The header carries the parent permission. The child
+                    // still borrows its complete captured path, including any
+                    // runtime index; that suffix does not name the parent's
+                    // descriptor. The independent loan checker reconstructs
+                    // this same header origin in `source_lender`.
+                    let parent = DescriptorLocation::whole(root);
                     *children
                         .get_mut(id)
                         .ok_or_else(|| unavailable(machine.id, "parent child row disappeared"))? =

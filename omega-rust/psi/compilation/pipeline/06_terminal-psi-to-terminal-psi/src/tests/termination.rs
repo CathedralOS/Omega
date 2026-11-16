@@ -378,6 +378,28 @@ fn a_joint_measure_checks_both_members_of_a_mutual_call_cycle() {
 }
 
 #[test]
+fn one_authored_measure_can_decrease_inside_the_helper() {
+    let program = r#"
+        machine count(remaining: u64) -> u64
+        requires remaining > 0u64
+        terminates by remaining
+        {
+            transition remaining > 1u64 {
+                true -> step(remaining)
+                false -> 0u64
+            }
+            machine step(remaining: u64) -> u64
+            requires remaining > 1u64
+            {
+                count(remaining - 1u64)
+            }
+        }
+    "#;
+    accepted(program);
+    assert_unchanged_measure_refuses(&program.replace("remaining - 1u64", "remaining"));
+}
+
+#[test]
 fn one_authored_measure_follows_actual_bindings_through_owned_record_helpers() {
     // The helpers permute the scalar positions while carrying the same owned
     // record. Only the cycle root chooses a measure; its exact call bindings
