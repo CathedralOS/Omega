@@ -4140,6 +4140,29 @@ mod routed_scalar_tests {
         public.declaration.as_mut().unwrap().result_type = TerminalIdentityIndex(3);
         public.requires = vec![Proposition::Truth];
         public.termination = semantic_vocabulary::Termination::Terminates;
+        // Receiving validation refuses a public declaration without its own
+        // operational envelope, so publish one that repeats what the contract
+        // already promises: no services, no suspension, guaranteed termination.
+        module
+            .callables
+            .declaration_envelopes
+            .push(terminal_psi::TerminalDeclarationEnvelope {
+                contract: required,
+                envelope: terminal_psi::TerminalCallableEnvelope {
+                    service_reach: public.published_service_ceiling.clone(),
+                    invocations: public
+                        .published_synchronous_entries
+                        .iter()
+                        .copied()
+                        .map(terminal_psi::TerminalCallableInvocation::Service)
+                        .collect(),
+                    suspends: public.published_may_suspend,
+                    blocks: public.published_may_block,
+                    termination: terminal_psi::TerminalCallableTermination::Terminates {
+                        premises: Vec::new(),
+                    },
+                },
+            });
         module.declaration_contracts.push(public);
         let decoded = decode_module(&encode_module(&module).unwrap()).unwrap();
         assert_eq!(decoded, module);
