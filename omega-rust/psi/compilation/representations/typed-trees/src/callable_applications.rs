@@ -4612,11 +4612,12 @@ pub(crate) mod requirement_instances {
                                 ) => applied_type_identity(
                                     self,
                                     *left,
-                                    self.static_machine_application(left_application).lexical_owner,
+                                    self.static_machine_application(left_application)
+                                        .lexical_owner,
                                     &[],
                                 )
-                                    .zip(applied_type_identity(self, *right, lexical_owner, &[]))
-                                    .is_some_and(|(left, right)| left == right),
+                                .zip(applied_type_identity(self, *right, lexical_owner, &[]))
+                                .is_some_and(|(left, right)| left == right),
                                 // Without this arm two calls selecting one operand
                                 // each get their own instance under one canonical
                                 // identity, which lowering rejects as a duplicate.
