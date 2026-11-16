@@ -3820,7 +3820,16 @@ mod tests {
         );
         analysis.roots[0].as_mut().unwrap().multiplicity =
             terminal_psi::StructuralMultiplicity::Linear;
-        assert!(analysis.dispose(id(1), &region, 0).is_err());
+        // The value has moved completely. Ending its empty home is not an
+        // implicit discard of a linear value or a discharge of a claim.
+        assert_eq!(
+            analysis.dispose(id(1), &region, 0).unwrap(),
+            vec![TerminalAffineCleanupAction::RetireHome(id(1))]
+        );
+        let intrinsic_types = transfer_only_types(true);
+        let mut intrinsic = owned_analysis(&intrinsic_types);
+        intrinsic.dispositions.fill(Some(false));
+        assert!(intrinsic.dispose(id(1), &region, 0).is_err());
     }
 
     #[test]
