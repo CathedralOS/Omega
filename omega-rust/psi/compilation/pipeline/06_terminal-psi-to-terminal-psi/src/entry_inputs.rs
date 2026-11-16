@@ -905,6 +905,56 @@ fn canonical_parts(
     keyed.sort_by(|left, right| left.0.cmp(&right.0));
     keyed.dedup_by(|left, right| left.0 == right.0);
     let mut parts: Vec<_> = keyed.into_iter().map(|(_, part)| part).collect();
+    // Projecting a guard can leave both possible values of a Boolean in a
+    // connective. Settle that pair before passing the clause to proof search.
+    let mut boolean_values: Vec<_> = parts
+        .iter()
+        .filter_map(|part| match part {
+            Proposition::Equal(ScalarTerm::Boolean(value), term)
+            | Proposition::Equal(term, ScalarTerm::Boolean(value))
+                if term.scalar_type() == ScalarType::Boolean =>
+            {
+                Some((term, *value))
+            }
+            _ => None,
+        })
+        .collect();
+    boolean_values.sort_unstable();
+    if boolean_values
+        .windows(2)
+        .any(|pair| pair[0].0 == pair[1].0 && pair[0].1 != pair[1].1)
+    {
+        return Ok(zero);
+    }
+    if !conjunction && parts.len() > 1 {
+        // A caller's entry condition can reach the same helper by several
+        // paths. State their common facts once so checking any arrival need
+        // only distinguish what changed between those paths.
+        let mut common: std::collections::BTreeSet<_> = conjuncts(&parts[0]).iter().collect();
+        for part in &parts[1..] {
+            if common.is_empty() {
+                break;
+            }
+            let here: std::collections::BTreeSet<_> = conjuncts(part).iter().collect();
+            common.retain(|fact| here.contains(fact));
+        }
+        if !common.is_empty() {
+            let distinct = parts
+                .iter()
+                .map(|part| {
+                    let conditions = conjuncts(part)
+                        .iter()
+                        .filter(|fact| !common.contains(fact))
+                        .cloned()
+                        .collect();
+                    canonical_parts(conditions, true, id)
+                })
+                .collect::<Checked<Vec<_>>>()?;
+            let mut required: Vec<_> = common.into_iter().cloned().collect();
+            required.push(canonical_parts(distinct, false, id)?);
+            return canonical_parts(required, true, id);
+        }
+    }
     Ok(match parts.len() {
         0 if conjunction => Proposition::Truth,
         0 => Proposition::Falsehood,
@@ -912,6 +962,13 @@ fn canonical_parts(
         _ if conjunction => Proposition::Conjunction(parts),
         _ => Proposition::Disjunction(parts),
     })
+}
+
+fn conjuncts(proposition: &Proposition) -> &[Proposition] {
+    match proposition {
+        Proposition::Conjunction(parts) => parts,
+        other => std::slice::from_ref(other),
+    }
 }
 
 /// Add the inferred predicate to the contract and mint its obligation at

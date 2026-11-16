@@ -1139,10 +1139,14 @@ impl<'a> Prover<'a> {
                 ))
             }
             Proposition::Disjunction(parts) => {
+                // Try direct introduction for every alternative before
+                // splitting the premises for the whole disjunction.
+                let case_split = std::mem::replace(&mut self.case_split, false);
                 let mut last = "no disjunct is provable";
                 for (index, part) in parts.iter().enumerate() {
                     match self.prove(part) {
                         Ok(disjunct) => {
+                            self.case_split = case_split;
                             return Ok(node(
                                 goal.clone(),
                                 ProofRule::DisjunctionIntroduction {
@@ -1154,6 +1158,7 @@ impl<'a> Prover<'a> {
                         Err(reason) => last = reason,
                     }
                 }
+                self.case_split = case_split;
                 Err(last)
             }
             Proposition::LessOrEqual(left, right) | Proposition::LessThan(left, right) => {
