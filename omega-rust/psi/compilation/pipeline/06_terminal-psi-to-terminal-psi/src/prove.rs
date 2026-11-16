@@ -1290,9 +1290,39 @@ impl<'a> Prover<'a> {
         ))
     }
 
-    /// Restate an exact sum's checked mathematical order in its carrier.
+    /// Unfold only the sum when proving its order. Other operand definitions
+    /// stay in scope for transport, including a conversion that the sum
+    /// names as one checked value.
     fn sum_order(&mut self, goal: &Proposition) -> Option<ProofNode> {
-        let lifted = lift_exact_integer_order(goal)?;
+        let (strict, left, right) = order(goal)?;
+        let mut equalities = Vec::new();
+        let mut sum_operand = |operand: &ScalarTerm| {
+            let ScalarTerm::Value { id, .. } = operand else {
+                return operand.clone();
+            };
+            let Some(Some(definition)) = self.definitions.get(*id) else {
+                return operand.clone();
+            };
+            let fact = &self.facts[self.equations[*definition]];
+            let Proposition::Equal(value, sum @ ScalarTerm::ExactIntegerAdd { .. }) =
+                &fact.proposition
+            else {
+                return operand.clone();
+            };
+            if value != operand {
+                return operand.clone();
+            }
+            equalities.push(fact.proof(&self.facts));
+            sum.clone()
+        };
+        let left = sum_operand(left);
+        let right = sum_operand(right);
+        let unfolded = if strict {
+            Proposition::LessThan(left, right)
+        } else {
+            Proposition::LessOrEqual(left, right)
+        };
+        let lifted = lift_exact_integer_order(&unfolded)?;
         let (left, right) = match &lifted {
             Proposition::IntegerMathLessOrEqual(left, right)
             | Proposition::IntegerMathLessThan(left, right) => (left, right),
@@ -1309,12 +1339,22 @@ impl<'a> Prover<'a> {
             PrimitiveJudgment::ReflexiveEquality,
         );
         let relation = self.prove(&lifted).ok()?;
-        Some(node(
-            goal.clone(),
+        let proof = node(
+            unfolded,
             ProofRule::IntegerOrderSubstitution {
                 relation: Box::new(relation),
                 equality: Box::new(unchanged),
                 endpoint,
+            },
+        );
+        if equalities.is_empty() {
+            return Some(proof);
+        }
+        Some(node(
+            goal.clone(),
+            ProofRule::ValueEqualityTransport {
+                premise: Box::new(proof),
+                equalities,
             },
         ))
     }
@@ -2678,6 +2718,7 @@ impl<'a> Prover<'a> {
             _ => None,
         };
         let mut fallback = None;
+        let mut transport = None;
         for target in std::iter::once(target).chain(exchanged.as_ref()) {
             for fact in &self.facts {
                 let (left, right, strict) = match &fact.proposition {
@@ -2686,7 +2727,7 @@ impl<'a> Prover<'a> {
                     _ => continue,
                 };
                 let order = Proposition::LessOrEqual(left.clone(), right.clone());
-                for root in [left, right] {
+                for (root_endpoint, root) in [left, right].into_iter().enumerate() {
                     let mut witness = IntegerAffineWitness {
                         root: root.clone(),
                         target: target.clone(),
@@ -2705,8 +2746,29 @@ impl<'a> Prover<'a> {
                     else {
                         continue;
                     };
-                    let Ok(conclusion) = map_integer_affine_bound(&form, &order) else {
-                        continue;
+                    let (conclusion, transported) = match map_integer_affine_bound(&form, &order) {
+                        Ok(conclusion) => (conclusion, None),
+                        Err(_) => {
+                            let ScalarTerm::ExactIntegerAdd { left: operand, .. } = target else {
+                                continue;
+                            };
+                            let aligned = if root_endpoint == 0 {
+                                Proposition::LessOrEqual(root.clone(), operand.as_ref().clone())
+                            } else {
+                                Proposition::LessOrEqual(operand.as_ref().clone(), root.clone())
+                            };
+                            let Ok(conclusion) = map_integer_affine_bound(&form, &aligned) else {
+                                continue;
+                            };
+                            let scratch = transport.get_or_insert_with(|| {
+                                crate::known::TransportInputs::new(self.equations.len())
+                            });
+                            let Some(equalities) = self.order_transport(&order, &aligned, scratch)
+                            else {
+                                continue;
+                            };
+                            (conclusion, Some((aligned, equalities)))
+                        }
                     };
                     let (actual, limit, endpoint) = match (&conclusion, direction) {
                         (Proposition::IntegerMathLessOrEqual(actual, limit), Direction::Upper) => {
@@ -2743,6 +2805,15 @@ impl<'a> Prover<'a> {
                             order.clone(),
                             ProofRule::IntegerOrderWeakening {
                                 relation: Box::new(premise),
+                            },
+                        );
+                    }
+                    if let Some((aligned, equalities)) = transported {
+                        premise = node(
+                            aligned,
+                            ProofRule::ValueEqualityTransport {
+                                premise: Box::new(premise),
+                                equalities,
                             },
                         );
                     }
@@ -2786,6 +2857,39 @@ impl<'a> Prover<'a> {
             }
         }
         fallback
+    }
+
+    /// A normalized guard may spell the constant or conversion where the
+    /// operation names its SSA result. Retain the exact definitions that
+    /// make the two orders denote the same operands.
+    fn order_transport(
+        &self,
+        retained: &Proposition,
+        aligned: &Proposition,
+        transport: &mut crate::known::TransportInputs,
+    ) -> Option<Vec<ProofNode>> {
+        crate::known::Known::transport_inputs(
+            &self.facts,
+            &self.equations,
+            aligned,
+            &self.definitions,
+            transport,
+        );
+        let definitions = || {
+            transport
+                .selected
+                .iter()
+                .map(|&index| &self.facts[self.equations[index]].proposition)
+        };
+        let actual = check_value_equality_denotation(self.context, retained, definitions()).ok()?;
+        let needed = check_value_equality_denotation(self.context, aligned, definitions()).ok()?;
+        (actual == needed).then(|| {
+            transport
+                .selected
+                .iter()
+                .map(|&index| self.facts[self.equations[index]].proof(&self.facts))
+                .collect()
+        })
     }
 
     /// The goal `term <= limit` (or `limit <= term`) from `affine`, the
