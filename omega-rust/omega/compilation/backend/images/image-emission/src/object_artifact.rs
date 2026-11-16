@@ -4665,10 +4665,10 @@ pub(crate) mod replay {
                 terminal_layout::{NativeGeometry, checked_align_up_u32},
             };
             use semantic_vocabulary::{NonDenseIdentities, StructuralTypeId};
-            use terminal_psi::{
-                StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration,
-                StructuralTypeShape,
-            };
+            use terminal_psi::{StructuralFieldType, StructuralPathSegment, StructuralTypeShape};
+
+            #[cfg(test)]
+            use terminal_psi::StructuralTypeDeclaration;
 
             // One declaration index and native-layout query context serves every
             // segment and argument in the enclosing replay. Geometry is rebuilt
@@ -4678,6 +4678,18 @@ pub(crate) mod replay {
             }
 
             impl<'a> StructuralReplay<'a> {
+                pub(crate) fn from_catalog(
+                    declarations: &'a abstract_operations::StructuralTypeCatalog,
+                ) -> Result<Self, NonDenseIdentities> {
+                    Ok(Self {
+                        layouts: NativeGeometry::with_owned_sequence_bounds(
+                            declarations,
+                            declarations.owned_sequence_bounds(),
+                        )?,
+                    })
+                }
+
+                #[cfg(test)]
                 pub(crate) fn new(
                     declarations: &'a [StructuralTypeDeclaration],
                 ) -> Result<Self, NonDenseIdentities> {

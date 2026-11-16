@@ -23,6 +23,7 @@ fn geometry_error(
         Geometry::UnknownStructuralType(identity) => LoweringError::UnknownStructuralType(identity),
         Geometry::UnclosedTargetLayout(identity) => LoweringError::UnclosedTargetLayout(identity),
         Geometry::UnclosedArrayExtent(identity) => LoweringError::UnclosedArrayExtent(identity),
+        Geometry::UnclosedOwnedSequence(_) => LoweringError::NativeStructuralLayout(error),
         Geometry::StructuralTypeTooLarge(identity) => {
             LoweringError::StructuralTypeTooLarge(identity)
         }
@@ -208,7 +209,9 @@ pub(crate) fn reference_projection_regions<'path>(
             }
             (
                 StructuralPathSegment::FixedIndex(_) | StructuralPathSegment::RuntimeIndex { .. },
-                StructuralTypeShape::ElementView { .. },
+                StructuralTypeShape::ElementView {
+                    access: Some(_), ..
+                },
             ) => {
                 if shape.byte_size != 16 || shape.alignment != 8 {
                     return None;
@@ -952,6 +955,7 @@ pub(crate) fn runtime_storage_projection<'types>(
                     .get(structural_type)
                     .copied()
                     .ok_or(LoweringError::UnknownStructuralType(structural_type))?;
+                let mut elements_offset = 0;
                 let element = match &declaration.shape {
                     StructuralTypeShape::FixedArray {
                         element,
@@ -963,7 +967,15 @@ pub(crate) fn runtime_storage_projection<'types>(
                         }
                         *element
                     }
-                    StructuralTypeShape::ElementView { element, .. } => *element,
+                    StructuralTypeShape::ElementView { element, access } => {
+                        if access.is_none() {
+                            elements_offset = declarations
+                                .owned_sequence(structural_type)
+                                .map_err(geometry_error)?
+                                .elements_offset;
+                        }
+                        *element
+                    }
                     _ => return Err(LoweringError::UnknownStructuralType(structural_type)),
                 };
                 let shape = structural_shape(element, declarations)?;
@@ -995,6 +1007,9 @@ pub(crate) fn runtime_storage_projection<'types>(
                     }
                     _ => return Err(LoweringError::UnknownStructuralType(structural_type)),
                 };
+                let offset = elements_offset
+                    .checked_add(offset)
+                    .ok_or(LoweringError::StructuralTypeTooLarge(root_type))?;
                 (ProjectedStorage::Declaration(element), shape, offset)
             }
         };

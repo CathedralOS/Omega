@@ -17,31 +17,47 @@ pub(crate) struct NativeGeometries<'a> {
 
 impl<'a> NativeGeometries<'a> {
     pub(crate) fn new(
-        declarations: impl Iterator<Item = &'a [StructuralTypeDeclaration]>,
+        declarations: impl Iterator<
+            Item = (
+                &'a [StructuralTypeDeclaration],
+                &'a [(semantic_vocabulary::StructuralTypeId, u64)],
+            ),
+        >,
     ) -> Result<Self, NonDenseIdentities> {
         let mut catalogs = declarations.collect::<Vec<_>>();
-        catalogs.sort_unstable_by_key(|rows| Self::key(rows));
-        catalogs.dedup_by_key(|rows| Self::key(rows));
+        catalogs.sort_unstable_by_key(|(rows, bounds)| Self::key(rows, bounds));
+        catalogs.dedup_by_key(|(rows, bounds)| Self::key(rows, bounds));
         Ok(Self {
             catalogs: catalogs
                 .into_iter()
-                .map(NativeGeometry::new)
+                .map(|(rows, bounds)| NativeGeometry::with_owned_sequence_bounds(rows, bounds))
                 .collect::<Result<_, _>>()?,
         })
     }
 
-    fn key(rows: &[StructuralTypeDeclaration]) -> (usize, usize) {
-        (rows.as_ptr() as usize, rows.len())
+    fn key(
+        rows: &[StructuralTypeDeclaration],
+        bounds: &[(semantic_vocabulary::StructuralTypeId, u64)],
+    ) -> (usize, usize, usize, usize) {
+        (
+            rows.as_ptr() as usize,
+            rows.len(),
+            bounds.as_ptr() as usize,
+            bounds.len(),
+        )
     }
 
     pub(crate) fn get(
         &self,
         declarations: &[StructuralTypeDeclaration],
+        bounds: &[(semantic_vocabulary::StructuralTypeId, u64)],
     ) -> Option<&NativeGeometry<'a>> {
-        let key = Self::key(declarations);
+        let key = Self::key(declarations, bounds);
         let position = self
             .catalogs
-            .binary_search_by_key(&key, |geometry| Self::key(geometry))
+            .binary_search_by_key(&key, |geometry| {
+                Self::key(geometry, geometry.owned_sequence_bounds())
+            })
             .ok()?;
         self.catalogs.get(position)
     }
@@ -168,6 +184,48 @@ mod tests {
     }
 
     #[test]
+    fn shared_declarations_keep_distinct_owned_storage_bounds() {
+        let element = StructuralTypeId::new(1).unwrap();
+        let owned = StructuralTypeId::new(2).unwrap();
+        let rows = vec![
+            declaration(
+                1,
+                StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
+                )),
+            ),
+            declaration(
+                2,
+                StructuralTypeShape::ElementView {
+                    element,
+                    access: None,
+                },
+            ),
+        ];
+        let small = [(owned, 1)];
+        let large = [(owned, 5)];
+        let prepared = NativeGeometries::new(
+            [
+                (rows.as_slice(), small.as_slice()),
+                (rows.as_slice(), large.as_slice()),
+                (rows.as_slice(), small.as_slice()),
+            ]
+            .into_iter(),
+        )
+        .unwrap();
+        assert_eq!(prepared.catalogs.len(), 2);
+        assert_eq!(
+            prepared.get(&rows, &small).unwrap().shape(owned).unwrap(),
+            ValueShape::integer(16, 8)
+        );
+        assert_eq!(
+            prepared.get(&rows, &large).unwrap().shape(owned).unwrap(),
+            ValueShape::integer(32, 8)
+        );
+        assert!(prepared.get(&rows, &[]).is_none());
+    }
+
+    #[test]
     fn published_inputs_refuse_foreign_types_instead_of_closing_them_again() {
         let integer = IntegerType::new(IntegerSign::Unsigned, 13).unwrap();
         let scalar = ScalarType::Integer(integer);
@@ -248,12 +306,20 @@ mod tests {
                 },
             ),
         ];
-        let prepared =
-            NativeGeometries::new([declarations.as_slice(), declarations.as_slice()].into_iter())
-                .unwrap();
+        let prepared = NativeGeometries::new(
+            [
+                (declarations.as_slice(), &[][..]),
+                (declarations.as_slice(), &[][..]),
+            ]
+            .into_iter(),
+        )
+        .unwrap();
         assert_eq!(prepared.catalogs.len(), 1);
-        let first = prepared.get(&declarations).unwrap();
-        assert!(std::ptr::eq(first, prepared.get(&declarations).unwrap()));
+        let first = prepared.get(&declarations, &[]).unwrap();
+        assert!(std::ptr::eq(
+            first,
+            prepared.get(&declarations, &[]).unwrap()
+        ));
         assert_eq!(
             geometry::shape(root, first),
             Some(ValueShape::integer(32, 16))

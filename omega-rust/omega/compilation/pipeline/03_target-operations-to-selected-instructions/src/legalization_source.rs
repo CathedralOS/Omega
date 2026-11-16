@@ -939,7 +939,7 @@ pub(crate) mod scalar_graph {
                         length_byte_offset,
                     } if *psi_operation == operation
                         && *source_value == result_home.source_value
-                        && *length_byte_offset == 8 =>
+                        && matches!(*length_byte_offset, 0 | 8) =>
                     {
                         LegalizedScalarInstructionKind::ElementViewLength {
                             source: source.clone(),
@@ -3520,11 +3520,16 @@ pub(crate) fn derive_source_function_rosters(
     unit: &PsiOptimizationUnit,
     closed_types: Option<&terminal_codec::ClosedTypeCatalog>,
 ) -> Result<SourceFunctionRosters, LegalizationError> {
-    let plan_geometry =
-        crate::native_geometry::NativeGeometry::new(&abstract_plan.structural_types)
-            .map_err(|_| LegalizationError::custody())?;
-    let unit_geometry = crate::native_geometry::NativeGeometry::new(&unit.structural_types)
-        .map_err(|_| LegalizationError::custody())?;
+    let plan_geometry = crate::native_geometry::NativeGeometry::with_owned_sequence_bounds(
+        &abstract_plan.structural_types,
+        abstract_plan.structural_types.owned_sequence_bounds(),
+    )
+    .map_err(|_| LegalizationError::custody())?;
+    let unit_geometry = crate::native_geometry::NativeGeometry::with_owned_sequence_bounds(
+        &unit.structural_types,
+        unit.structural_types.owned_sequence_bounds(),
+    )
+    .map_err(|_| LegalizationError::custody())?;
     let abstract_plan = &crate::native_geometry::NativeInput::with_types(
         abstract_plan,
         &plan_geometry,
@@ -3550,17 +3555,21 @@ pub(crate) fn derive_target_function_rosters(
     target: &TargetOperationPlan,
     evidence: crate::TargetSelectionEvidence<'_>,
 ) -> Result<SourceFunctionRosters, LegalizationError> {
-    let geometries = crate::native_geometry::NativeGeometries::new(
-        target
-            .functions
-            .iter()
-            .map(|function| function.graph.structural_types.as_ref()),
-    )
-    .map_err(|_| LegalizationError::custody())?;
+    let geometries =
+        crate::native_geometry::NativeGeometries::new(target.functions.iter().map(|function| {
+            (
+                function.graph.structural_types.as_ref(),
+                function.graph.structural_types.owned_sequence_bounds(),
+            )
+        }))
+        .map_err(|_| LegalizationError::custody())?;
     let mut scalar_functions = Vec::with_capacity(target.functions.len());
     for function in &target.functions {
         let geometry = geometries
-            .get(&function.graph.structural_types)
+            .get(
+                &function.graph.structural_types,
+                function.graph.structural_types.owned_sequence_bounds(),
+            )
             .ok_or_else(LegalizationError::custody)?;
         let mut blocks = Vec::with_capacity(function.graph.blocks.len());
         for block in &function.graph.blocks {
