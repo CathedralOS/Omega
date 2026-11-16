@@ -298,6 +298,30 @@ fn a_conjunctive_guard_over_a_read_after_a_call_reaches_the_taken_edge() {
     }
 }
 
+/// domains.md, "Mutable views": through a shared reference any removal a
+/// by-value cast permits is accepted and nothing is owed. A shared view of a
+/// domain-qualified byte array is the plain view typing gives it; an
+/// exclusive view could write bytes the domain no longer describes.
+#[test]
+fn a_shared_view_of_a_domain_qualified_byte_array_lends_plain_bytes() {
+    for (name, callee, loan, expected) in [
+        ("shared_view", "peek(text: &[u8])", "&storage.home[..]", "accepted"),
+        ("exclusive_view", "peek(text: &mut [u8])", "&mut storage.home[..]", "not-supported"),
+    ] {
+        let source = format!(
+            "domain [u8; 3]::Tagged;\n\
+             data Main {{ home: [u8; 3] in Tagged; }}\n\
+             machine {callee} {{ }}\n\
+             machine main() {{\n\
+                 let mut storage: Main;\n\
+                 storage.home = \"abc\" as +Tagged;\n\
+                 peek({loan});\n\
+             }}\n"
+        );
+        assert_eq!(verdicts(name, &source), [expected], "{name}");
+    }
+}
+
 #[test]
 fn trapping_normal_results_are_retained_in_guarantees() {
     // Observe the denotation using clause forms the current prover handles.
