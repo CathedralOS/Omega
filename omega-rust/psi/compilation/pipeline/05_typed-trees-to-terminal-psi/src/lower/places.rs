@@ -1434,28 +1434,24 @@ impl<'a> Lowering<'a> {
     }
 
     fn index_step(&mut self, owner: StructuralTypeId, expression: &Expression) -> Evaluation<Step> {
+        // A literal index the array's length admits becomes a fixed path
+        // step, which needs no proof. Any other index, a literal outside
+        // the length included, becomes a runtime step that owes the
+        // operation-safety obligation `index < length`; the lowered-form
+        // checker then refuses an out-of-range literal with the same
+        // "cannot prove index is within length" diagnostic as any other
+        // unproved index.
         let (_, _, extent) = self.array_element(owner)?;
-        let fixed = if let CollectionExtent::Fixed(length) = extent {
-            let fixed = match expression.kind {
-                ExpressionKind::Integer(IntegerValue::Unsigned(value)) => {
-                    Some(u64::try_from(value))
-                }
-                ExpressionKind::Integer(IntegerValue::Signed(value)) => Some(u64::try_from(value)),
-                _ => None,
-            };
-            match fixed {
-                Some(Ok(index)) if index < length => Some(index),
-                Some(_) => {
-                    return Err(refuse(
-                        self.id,
-                        Construct::Machine,
-                        Unserved::Typing("array index outside its declared extent"),
-                    ));
-                }
-                None => None,
-            }
-        } else {
-            None
+        let fixed = match (extent, &expression.kind) {
+            (
+                CollectionExtent::Fixed(length),
+                ExpressionKind::Integer(IntegerValue::Unsigned(value)),
+            ) => u64::try_from(*value).ok().filter(|index| *index < length),
+            (
+                CollectionExtent::Fixed(length),
+                ExpressionKind::Integer(IntegerValue::Signed(value)),
+            ) => u64::try_from(*value).ok().filter(|index| *index < length),
+            _ => None,
         };
         let selector = continuing!(self.scalar(expression));
         Ok(Reached::Value(Step::Index {
