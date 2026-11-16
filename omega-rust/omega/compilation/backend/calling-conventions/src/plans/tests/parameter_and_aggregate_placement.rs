@@ -218,6 +218,71 @@ fn aapcs_hfa_is_one_value_split_across_vector_registers() {
     ));
 }
 
+/// AAPCS64 C.3: a float record that misses the vector registers closes them,
+/// so the `f64` after it goes to the stack (as C passes it), not to `v7`.
+#[test]
+fn aapcs_hfa_that_misses_vector_registers_closes_them_for_later_floats() {
+    let signature = call_signature(
+        vec![ValueShape::float(8); 7]
+            .into_iter()
+            .chain([
+                ValueShape::homogeneous_float_aggregate(8, 2),
+                ValueShape::float(8),
+            ])
+            .collect(),
+        None,
+    );
+    let plan = evaluate_call_plan(CallingPolicy::Aapcs64, &signature).expect("AAPCS HFA overflow");
+
+    assert_eq!(
+        plan.parameters[7].locations,
+        vec![ValueLocation::stack(0, 0, 16, 8)]
+    );
+    assert_eq!(
+        plan.parameters[8].locations,
+        vec![ValueLocation::stack(16, 0, 8, 8)]
+    );
+}
+
+/// The twin: with only seven floats before it, the last `f64` still takes `v7`.
+#[test]
+fn aapcs_float_after_seven_floats_takes_the_last_vector_register() {
+    let signature = call_signature(vec![ValueShape::float(8); 8], None);
+    let plan = evaluate_call_plan(CallingPolicy::Aapcs64, &signature).expect("AAPCS floats");
+
+    assert_eq!(
+        plan.parameters[7].locations,
+        vec![ValueLocation::register(MachineRegister::Aarch64V(7), 0, 8)]
+    );
+}
+
+/// AAPCS64 C.3: a stacked three-`f32` record takes 16 bytes, so the `u32`
+/// after it sits at sp+16, not sp+12.
+#[test]
+fn aapcs_stacked_hfa_size_rounds_up_to_eight_bytes() {
+    let signature = call_signature(
+        vec![ValueShape::integer(8, 8); 8]
+            .into_iter()
+            .chain(vec![ValueShape::float(8); 8])
+            .chain([
+                ValueShape::homogeneous_float_aggregate(4, 3),
+                ValueShape::integer(4, 4),
+            ])
+            .collect(),
+        None,
+    );
+    let plan = evaluate_call_plan(CallingPolicy::Aapcs64, &signature).expect("AAPCS stacked HFA");
+
+    assert_eq!(
+        plan.parameters[16].locations,
+        vec![ValueLocation::stack(0, 0, 12, 4)]
+    );
+    assert_eq!(
+        plan.parameters[17].locations,
+        vec![ValueLocation::stack(16, 0, 4, 4)]
+    );
+}
+
 #[test]
 fn aapcs_small_integer_aggregates_use_consecutive_x_registers() {
     let signature = call_signature(

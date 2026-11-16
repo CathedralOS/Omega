@@ -10,7 +10,7 @@ use package_manager::operations::PackageInspectionOptions;
 use std::ffi::OsString;
 use std::path::PathBuf;
 
-pub(super) const USAGE: &str = "usage: omega packages audit --kind <local|git> <locator> [--rev <rev>]\n       omega packages audit [--project <dir>] [--target <name>]... [--details] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\nChecks current project source with accepted dependency pins; no lock means fresh unaccepted inspection.\n--offline disables package source network acquisition for this invocation.\n--details includes full normalized policy after the readable summary.\nExit 0: checked; 1: unavailable; 2: invalid arguments; 3: policy requires review.\nInspection never accepts changes or resumes a pending publication.";
+pub(super) const USAGE: &str = "usage: omega packages audit --kind <local|git> <locator> [--rev <rev>]\n       omega packages audit [--project <dir>] [--target <name>]... [--details] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\nChecks current project source with accepted dependency pins; no lock means fresh unaccepted inspection.\n--offline disables package source network acquisition for this invocation.\n--details includes full normalized policy after the readable summary.\nExit 0: checked; 1: unavailable; 3: policy requires review; 64: invalid arguments.\nInspection never accepts changes or resumes a pending publication.";
 
 pub(super) enum ParsedAudit {
     Locator(SourceArguments),
@@ -123,4 +123,19 @@ pub(super) fn parse(
         offline,
         build_inputs,
     })))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::USAGE;
+    use crate::arguments::USAGE_ERROR_EXIT;
+
+    // A script written from `--help` must see the status the parser really
+    // exits with; 2 belongs to the compiler request contract's `Incomplete`.
+    #[test]
+    fn usage_documents_the_usage_error_exit_status() {
+        let documented = format!("{USAGE_ERROR_EXIT}: invalid arguments");
+        assert!(USAGE.contains(&documented), "{USAGE}");
+        assert!(!USAGE.contains("2: invalid arguments"), "{USAGE}");
+    }
 }

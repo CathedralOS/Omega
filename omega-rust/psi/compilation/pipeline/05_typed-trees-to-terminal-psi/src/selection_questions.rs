@@ -99,6 +99,29 @@ impl CompletedOperators {
         Ok(())
     }
 
+    // This is failure evidence only. Matching another coordinate never
+    // authorizes the exact source occurrence queried by `contains`.
+    fn diagnostic_reads(
+        &self,
+        owner: SymbolHandle,
+        expression: ExpressionHandle,
+        occurrence: AuthoredDeclarationSelectionOccurrenceId,
+    ) -> String {
+        let related = self
+            .reads
+            .iter()
+            .filter(|read| {
+                read.occurrence == occurrence
+                    || (read.owner == owner && read.expression == expression)
+            })
+            .take(4)
+            .map(|read| (read.owner, read.expression, read.occurrence))
+            .collect::<Vec<_>>();
+        format!(
+            "expected ({owner:?}, {expression:?}, {occurrence:?}); related completed reads {related:?}"
+        )
+    }
+
     pub(crate) fn finish(&mut self) {
         self.reads.sort_unstable_by_key(CompletedOperatorRead::key);
         self.reads.dedup();
@@ -928,11 +951,35 @@ impl TypedReferences for Capture<'_> {
                             let expression = self.expressions.last().map(|scope| {
                                 self.typed.expression_table.display_name(scope.expression)
                             });
+                            let completion = self.expressions.last().map(|scope| {
+                                let table = &self.typed.expression_table;
+                                let node = match table.expression(scope.expression) {
+                                    ExpressionNode::Binary(binary) => {
+                                        format!("binary {:?}", binary.operator)
+                                    }
+                                    node => format!("{:?}", std::mem::discriminant(node)),
+                                };
+                                let views = self
+                                    .signature_views
+                                    .iter()
+                                    .filter(|view| view.symbol == self.owner)
+                                    .count();
+                                format!(
+                                    "{}; node={node}; materialization source={:?}; admitted signature views={views}",
+                                    self.completed_operators.diagnostic_reads(
+                                        self.owner,
+                                        scope.expression,
+                                        occurrence,
+                                    ),
+                                    table.materialization_source(scope.expression),
+                                )
+                            });
                             self.fail(format!(
-                                "admitted source selection {:?} remains unresolved as {binding:?} in `{}` at {}",
+                                "admitted source selection {:?} remains unresolved as {binding:?} in `{}` at {}; operator completion: {}",
                                 row.kind(),
                                 self.typed.symbols.display_path(self.owner, "::"),
                                 expression.as_deref().unwrap_or("a declaration"),
+                                completion.as_deref().unwrap_or("no expression scope"),
                             ));
                             return;
                         };

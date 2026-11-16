@@ -60,28 +60,28 @@ impl PreparedCallableInvocations {
         &self,
         target: &TargetOperationPlan,
         evidence: crate::PreparationEvidence<'_>,
-    ) -> Result<
-        (
-            std::sync::Arc<terminal_semantics::callable_values::ReachableCallableInvocations>,
-            Vec<(
-                semantic_vocabulary::MachineId,
-                std::sync::Arc<terminal_semantics::callable_values::ReachableCallableInvocations>,
-            )>,
-        ),
-        &'static str,
-    > {
+        pre_physical: optimization_core::PrePhysicalOptimizationManifestIdentity,
+    ) -> Result<target_vocabulary::NativeExecutionFacts, target_vocabulary::NativeExecutionFactsError>
+    {
         if self.psi != target.psi
             || self.optimization_unit != evidence.optimization_unit
             || self.work_schedule != evidence.work_schedule
             || self.entry != target.entry
         {
-            return Err(
+            return Err(target_vocabulary::NativeExecutionFactsError::Invalid(
                 "callable invocation facts differ from the actual target unit, schedule or entry",
-            );
+            ));
         }
-        Ok((
+        target_vocabulary::NativeExecutionFacts::seal(
+            target_vocabulary::NativeExecutionRoots {
+                psi: self.psi,
+                optimization_unit: self.optimization_unit,
+                work_schedule: self.work_schedule,
+                pre_physical,
+                entry: self.entry,
+            },
             std::sync::Arc::clone(&self.invocations),
             self.entry_invocations.clone(),
-        ))
+        )
     }
 }

@@ -649,6 +649,23 @@ def main() -> None:
         SHADOWS_BUILTIN,
         b"AtomicU64",
     )
+    # The integer family is open-ended (wiki/spec/language/modules.md#builtin-type-names):
+    # `u7`, `u128` and a bare `i` install no type, yet a type may not take
+    # their spelling, while a name that only starts like one may.
+    rejected(program, "data-shadows-integer-family-width", b"data u7 { x: bool; }", SHADOWS_BUILTIN, b"u7")
+    rejected(program, "data-shadows-wide-integer-family", b"data u128 { x: bool; }", SHADOWS_BUILTIN, b"u128")
+    rejected(program, "data-shadows-bare-integer-family", b"data i { x: bool; }", SHADOWS_BUILTIN, b"i")
+    accepted(program, "data-near-integer-family", b"data u8x { x: u8; }", (builtin("u8"),))
+    # A generic type binder introduces a type name too; a value binder does not.
+    rejected(
+        program,
+        "type-binder-shadows-builtin",
+        b"machine pick<u32>(x: u32) -> u32 { x }",
+        SHADOWS_BUILTIN,
+        b"u32",
+    )
+    rejected(program, "type-binder-shadows-integer-family", b"data A<u7> { x: u7; }", SHADOWS_BUILTIN, b"u7")
+    accepted(program, "type-binder-near-integer-family", b"data A<u7x> { x: u7x; }", (generic(0),))
     rejected(
         program,
         "duplicate-data",

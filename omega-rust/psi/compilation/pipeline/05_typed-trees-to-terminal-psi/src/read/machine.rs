@@ -942,6 +942,7 @@ impl<'t> Program<'t> {
         }
         let id = self.next_identity()?;
         let (signature, names) = self.applied_requirement_signature(id, declared, values)?;
+        self.retain_requirement_policy(id, declared, declared.symbol)?;
         if matches!(values, RequirementValues::Rigid) {
             self.generic_binders.extend(
                 self.typed
