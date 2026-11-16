@@ -535,10 +535,16 @@ fn validate_field_types(module: &TerminalModule) -> Result<(), ScalarQualificati
                 }
                 _ => continue,
             };
-            for field in fields
-                .iter()
-                .chain(cases.iter().flat_map(|case| &case.fields))
-                .filter(|field| field.id == row.field)
+            // A payload field belongs to its case: its path names the case,
+            // and its predicate is owed only of a value in that case.
+            for (field, case) in
+                fields
+                    .iter()
+                    .map(|field| (field, None))
+                    .chain(cases.iter().flat_map(|case| {
+                        case.fields.iter().map(move |field| (field, Some(case.id)))
+                    }))
+                    .filter(|(field, _)| field.id == row.field)
             {
                 found = true;
                 if field.relevance.is_erased()
@@ -562,7 +568,13 @@ fn validate_field_types(module: &TerminalModule) -> Result<(), ScalarQualificati
                     };
                     let root =
                         PlaceId::new(1).expect("the default domain has one symbolic self place");
-                    let path = vec![CanonicalStructuralPathSegment::Field(field.id)];
+                    let path = match case {
+                        None => vec![CanonicalStructuralPathSegment::Field(field.id)],
+                        Some(case) => vec![
+                            CanonicalStructuralPathSegment::Case(case),
+                            CanonicalStructuralPathSegment::Field(field.id),
+                        ],
+                    };
                     let term = match row.value_type.scalar_type {
                         ScalarType::Integer(scalar_type) => ScalarTerm::IntegerField {
                             version: ContentPlaceVersion::Current,
@@ -590,7 +602,14 @@ fn validate_field_types(module: &TerminalModule) -> Result<(), ScalarQualificati
                         },
                     )
                     .map_err(ScalarQualificationError::MalformedStructuralFoundation)?;
-                    if !retains_predicate(&expected, owner.requires.iter()) {
+                    let retained = match case {
+                        None => retains_predicate(&expected, owner.requires.iter()),
+                        Some(case) => owner.requires.iter().any(|clause| {
+                            case_guarded(clause, root, case, cases.len())
+                                .is_some_and(|owed| retains_predicate(&expected, owed.iter()))
+                        }),
+                    };
+                    if !retained {
                         return malformed(
                             "scalar field's default domain lost its declared predicate",
                         );
@@ -665,6 +684,53 @@ fn validate_predicate_binding<'a>(
         }
     }
     Ok(())
+}
+
+/// The conjuncts a sum's clause owes of a value in `case`, when the clause is
+/// the reader's case-guarded form: `(self in C && owed...) || self in D || ...`
+/// with one membership test for each other case, or the conjunction alone
+/// for a sum with one case. Any other clause owes nothing conditionally.
+fn case_guarded<'a>(
+    clause: &'a Proposition,
+    root: semantic_vocabulary::PlaceId,
+    case: semantic_vocabulary::StructuralCaseId,
+    case_count: usize,
+) -> Option<&'a [Proposition]> {
+    let membership = |proposition: &Proposition| match proposition {
+        Proposition::StructuralCaseMembership { subject, case }
+            if *subject == semantic_vocabulary::StructuralCaseSubject::new(root, Vec::new()) =>
+        {
+            Some(*case)
+        }
+        _ => None,
+    };
+    let guarded = |proposition: &'a Proposition| -> Option<&'a [Proposition]> {
+        match proposition {
+            Proposition::Conjunction(owed)
+                if owed
+                    .iter()
+                    .any(|conjunct| membership(conjunct) == Some(case)) =>
+            {
+                Some(owed.as_slice())
+            }
+            _ => None,
+        }
+    };
+    match clause {
+        Proposition::Disjunction(disjuncts) if disjuncts.len() == case_count => {
+            let mut owed = None;
+            for disjunct in disjuncts {
+                match (guarded(disjunct), membership(disjunct)) {
+                    (Some(conjuncts), _) if owed.is_none() => owed = Some(conjuncts),
+                    (None, Some(other)) if other != case => {}
+                    _ => return None,
+                }
+            }
+            owed
+        }
+        Proposition::Conjunction(_) if case_count == 1 => guarded(clause),
+        _ => None,
+    }
 }
 
 fn retains_predicate<'a>(
