@@ -1107,6 +1107,55 @@ machine entry() -> u32 crashes none {
         matches!(positive, RouteVerdict::Accepted(_)),
         "{positive:?}"
     );
+    // Native binding preparation also nominates the generic declaration's
+    // schema. Its abstract header is metadata, while these two calls are closed.
+    let probe = prepared
+        .traits()
+        .iter()
+        .find(|declaration| declaration.name.as_str() == "Probe")
+        .unwrap()
+        .symbol;
+    let elaboration = typed_trees_to_terminal_psi::elaborate_for(
+        &prepared,
+        typed_trees_to_terminal_psi::Compilation {
+            calling: None,
+            providers: None,
+            declaration_metadata: &[probe],
+            entries: &[entry(&prepared)],
+            subjects: &[],
+            purpose: source::DependencyScope::Product,
+            selected: &[],
+            bindings: &[],
+            supplies: &[],
+        },
+        terminal_codec::TerminalPublication::Invocation,
+    )
+    .unwrap();
+    let publication_scope = format!(
+        "requirements={:?}, envelopes={}, binders={:?}, values={:?}, rigid={:?}",
+        elaboration.requirements,
+        elaboration.check_form_envelopes.len(),
+        elaboration.generic_binders,
+        elaboration.value_parameters,
+        elaboration
+            .tables
+            .machines
+            .iter()
+            .flat_map(|(machine, row)| row
+                .values
+                .iter()
+                .filter_map(move |(value, row)| row.rigid.map(|rigid| (machine, value, rigid))))
+            .collect::<Vec<_>>()
+    );
+    let verdict = judge(Ok(elaboration)).unwrap();
+    let RouteVerdict::Accepted(accepted) = verdict else {
+        panic!("closed calls with their declaration schema: {verdict:?}");
+    };
+    accepted.publish_invocation().unwrap_or_else(|error| {
+        panic!(
+            "closed calls must publish with their nominated schema: {error:?}; {publication_scope}"
+        )
+    });
     let mut wrongly_accepted = Vec::new();
     for missing in [false, true] {
         let mut changed = prepared.clone().into_inner();
