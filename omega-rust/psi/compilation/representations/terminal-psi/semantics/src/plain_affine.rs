@@ -2743,6 +2743,19 @@ impl Analysis<'_> {
                     if exact && let Some(field) = field {
                         path.push(Segment::Field(*field));
                     }
+                    // A whole move ends an owned root's home (`vacate`). A
+                    // later whole assignment stores into that same home, so
+                    // it re-establishes it vacant and fills it, exactly as a
+                    // local's `EstablishStructuralLocal` and vacant store do
+                    // (structural_access.md: "Root, field, and indexed
+                    // destinations do not change construction semantics").
+                    if exact
+                        && path.is_empty()
+                        && root.owned
+                        && state.regions[index(destination.get())?].is_none()
+                    {
+                        self.establish(state, *destination, false)?;
+                    }
                     if state.regions[index(destination.get())?].is_none() {
                         self.read(state, *destination, path, site)?;
                     } else if let Some(region) = &mut state.regions[index(destination.get())?] {

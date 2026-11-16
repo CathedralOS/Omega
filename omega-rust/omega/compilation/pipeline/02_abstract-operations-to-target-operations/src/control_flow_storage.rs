@@ -827,10 +827,10 @@ pub(crate) mod borrowed_windows {
             path,
             disposition.required_access(),
         )?;
-        let whole_owned_store = path.is_empty()
-            && field.is_none()
-            && destination.parameter().is_none()
-            && *disposition == terminal_psi::StructuralStoreDisposition::Vacant;
+        // Whole record assignment replaces an owned local's discardable
+        // contents just as construction fills its vacancy.
+        let whole_owned_store =
+            path.is_empty() && field.is_none() && destination.parameter().is_none();
         if !window_root(
             function,
             prepared,
