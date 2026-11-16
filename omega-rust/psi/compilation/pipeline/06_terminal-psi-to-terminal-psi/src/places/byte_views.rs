@@ -259,8 +259,9 @@ impl<'a> Storage<'a> {
         }
         // A `u8` array forms its borrowed byte descriptor; another element
         // type forms an `ElementView` naming that exact element declaration
-        // (byte_views.md, "Collection view establishment"). Only the shared
-        // typed view has a source formation; a mutable one stays refused.
+        // (byte_views.md, "Collection view establishment"). Both accesses use
+        // the same exact backing judgment; the loan checker separately proves
+        // that an exclusive formation has no competing live borrower.
         let typed = match self.declaration(result.structural_type, concerns)?.shape {
             StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
                 access: Some(declared),
@@ -268,15 +269,7 @@ impl<'a> Storage<'a> {
             StructuralTypeShape::ElementView {
                 element: declared,
                 access: Some(declared_access),
-            } if declared == element && declared_access == access => {
-                if access != StructuralAccess::SharedBorrow {
-                    return Err(self.unsupported(
-                        concerns,
-                        "a mutable typed array view without its exclusive element-view judgment",
-                    ));
-                }
-                true
-            }
+            } if declared == element && declared_access == access => true,
             _ => {
                 return Err(self.foreign(
                     concerns,
@@ -342,10 +335,37 @@ impl<'a> Storage<'a> {
         {
             return Err(self.foreign(concerns, "array view changes its element type"));
         }
+        if matches!(
+            backing.extent,
+            terminal_semantics::CollectionExtent::Parameter { .. }
+        ) {
+            let element_type = self.declaration(element, concerns)?;
+            let is_byte = element_type.requires.is_empty()
+                && element_type.scalar_restriction.is_none()
+                && matches!(element_type.shape, terminal_psi::StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
+                    if !integer.is_address() && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == Some(8));
+            if typed == is_byte
+                || source.path.iter().any(|segment| {
+                    matches!(
+                        segment,
+                        terminal_psi::StructuralPathSegment::FixedRange { .. }
+                            | terminal_psi::StructuralPathSegment::AllElements
+                            | terminal_psi::StructuralPathSegment::RepresentationView { .. }
+                    )
+                })
+            {
+                return Err(self.unsupported(
+                    concerns,
+                    "symbolic collection view needs its exact whole backing and element descriptor",
+                ));
+            }
+            // The selected array itself is the complete backing. A symbolic
+            // extent has no closed byte window to manufacture or enumerate.
+            return Ok(backing.extent);
+        }
         let window = if typed {
-            // A typed view of a byte array would hide the byte descriptor
-            // the specification requires; an erased empty array has no
-            // backing to lend.
+            // A typed view of a raw byte array would hide the byte
+            // descriptor that its element identity requires.
             if terminal_semantics::fixed_byte_extent(self.types.iter(), selected.id).is_some() {
                 return Err(self.foreign(concerns, "a byte array forms a typed element view"));
             }
@@ -354,13 +374,19 @@ impl<'a> Storage<'a> {
                 actual.structural_type,
                 &source.path,
             )
-            .filter(|window| window.backing_length != 0)
         } else {
-            terminal_semantics::fixed_byte_storage_window(
+            // Explicit descriptor establishment can retain a real empty
+            // collection. The raw-call presentation helper separately needs
+            // nonempty byte backing and must not decide this operation.
+            terminal_semantics::fixed_collection_storage_window(
                 self.types.iter(),
                 actual.structural_type,
                 &source.path,
             )
+            .filter(|window| {
+                terminal_semantics::fixed_byte_extent(self.types.iter(), selected.id)
+                    == Some(window.backing_length)
+            })
         }
         .ok_or_else(|| {
             self.unsupported(
@@ -560,7 +586,7 @@ impl<'a> Storage<'a> {
     /// lengths and live byte prefixes." byte_views.md, of an evaluated
     /// content predicate: "The operand retains its own dominating length
     /// observation, readable access, and establishment." So each operand is
-    /// a whole view this machine may read, and the length it names is that
+    /// a complete selected view this machine may read, and the length it names is that
     /// same view's measurement: the lowered form measures the left view,
     /// then the right one, then compares, with nothing else between, so no
     /// operation can have changed either extent. The result is a plain
@@ -586,26 +612,36 @@ impl<'a> Storage<'a> {
         // `after` counts the comparison itself: the right view's
         // measurement is two back, the left view's three back.
         for (operand, back) in [(left, 3), (right, 2)] {
-            let ByteSequenceOperand::Whole { source, length } = operand else {
-                return Err(self.unsupported(concerns, "a comparison of a view stored in a field"));
-            };
-            if !source.path.is_empty() || source.access != StructuralAccess::SharedBorrow {
-                return Err(self.unsupported(
-                    concerns,
-                    "a byte comparison of a view that is not read whole and shared",
-                ));
-            }
+            let source = self.byte_operand_argument(operand, concerns)?;
             self.readable_byte_view(operation, source.place, &source.path)?;
             let measured = after
                 .checked_sub(back)
                 .and_then(|position| operations.get(position))
                 .is_some_and(|measurement| {
-                    matches!(&measurement.kind, OperationKind::ByteSequenceLength { source: measured }
-                        if measured.place == source.place && measured.path.is_empty())
+                    let same_descriptor = match (operand, &measurement.kind) {
+                        (
+                            ByteSequenceOperand::Whole { source, .. },
+                            OperationKind::ByteSequenceLength { source: measured },
+                        ) => measured == source,
+                        (
+                            ByteSequenceOperand::Field { source, field, .. },
+                            OperationKind::StructuralByteSequenceFieldLength {
+                                source: measured,
+                                path,
+                                field: measured_field,
+                            },
+                        ) => {
+                            *measured == source.place
+                                && path == &source.path
+                                && measured_field == field
+                        }
+                        _ => false,
+                    };
+                    same_descriptor
                         && measurement
                             .result
                             .scalar_ref()
-                            .is_some_and(|result| result.id == *length)
+                            .is_some_and(|result| result.id == operand.length())
                 });
             if !measured {
                 return Err(self.unsupported(
@@ -666,6 +702,26 @@ impl<'a> Storage<'a> {
             }
         }
         Ok(true)
+    }
+
+    /// Both forms describe one readable operand. Field IDs are resolved by
+    /// the same declared-carrier owner used for field reads and measurements.
+    pub(super) fn byte_operand_argument(
+        &self,
+        operand: &terminal_psi::control_flow::ByteSequenceOperand,
+        concerns: Construct,
+    ) -> Checked<StructuralArgument> {
+        use terminal_psi::control_flow::ByteSequenceOperand;
+        let source = operand.argument();
+        if source.access != StructuralAccess::SharedBorrow {
+            return Err(self.unsupported(concerns, "a byte comparison without shared read access"));
+        }
+        match operand {
+            ByteSequenceOperand::Whole { source, .. } => Ok(source.clone()),
+            ByteSequenceOperand::Field { source, field, .. } => {
+                self.byte_field_argument(source.place, &source.path, *field, concerns)
+            }
+        }
     }
 
     /// A field operation carries a local field ID beside its enclosing path.
@@ -1167,6 +1223,13 @@ impl<'a> Storage<'a> {
                                 }
                                 _ => return Ok(None),
                             }
+                        }
+                        terminal_semantics::CollectionExtent::Parameter { owner, value } => {
+                            if owner != self.machine { return Err(self.foreign(concerns, "array extent belongs to another machine")); }
+                            let source_type = tables.values.get(value).and_then(|row| row.scalar_type.as_integer()).ok_or_else(|| self.foreign(concerns, "array extent has no integer input"))?;
+                            let input = ScalarTerm::value(value, ScalarType::Integer(source_type));
+                            if source_type == integer { return Ok(Some(input)); }
+                            return ScalarTerm::integer_widen(source_type, integer, input).map(Some).map_err(|_| self.foreign(concerns, "array extent cannot widen exactly to its descriptor length"));
                         }
                         terminal_semantics::CollectionExtent::LiveLength { .. } => {
                             return Err(self

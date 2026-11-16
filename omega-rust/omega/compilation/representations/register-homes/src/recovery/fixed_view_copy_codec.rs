@@ -17,7 +17,7 @@ before returning the unchecked plan.
 
 pub(super) use crate::codec_bytes::decode_list;
 pub(super) use crate::cursor::Cursor;
-pub(super) use legalized_operations::encode_work;
+pub(super) use target_vocabulary::encode_work;
 
 use ::selected_instructions::{
     LiveRangeIdentity, LiveRangePoint, LivenessPosition, SelectedBlockId, SelectedFunction,
@@ -596,6 +596,7 @@ pub(super) fn encode_ordinary_plan(
     let borrowed_storage = plan.contracts.borrowed_storage_layouts.canonical_bytes();
     length(bytes, borrowed_storage.len());
     bytes.extend_from_slice(borrowed_storage);
+    super::program_contracts::encode(bytes, &plan.contracts);
     length(bytes, plan.functions.len());
     for function in &plan.functions {
         encode_function(bytes, function)?;
@@ -619,11 +620,10 @@ pub(super) fn decode_ordinary_plan(
     let borrowed_storage_layouts =
         runtime_abi::NativeBorrowedStorageLayouts::decode(cursor.take(borrowed_storage_length)?)
             .map_err(FixedViewCopyDecodeError::InvalidBorrowedStorage)?;
+    let contracts = super::program_contracts::decode(cursor, borrowed_storage_layouts)?;
     let functions = decode_list(cursor, decode_function)?;
     Ok(SelectedInstructionPlan {
-        contracts: std::sync::Arc::new(selected_instructions::SelectedProgramContracts {
-            borrowed_storage_layouts,
-        }),
+        contracts: std::sync::Arc::new(contracts),
         psi: TerminalPsiIdentity {
             vocabulary_marker: marker,
             program_fingerprint: fingerprint,

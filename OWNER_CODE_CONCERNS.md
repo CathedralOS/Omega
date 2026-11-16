@@ -75,11 +75,25 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-### Native compilation stops halfway for Build's constant evaluator
-- Category: knowledge crossing a boundary
+### Changing storage analysis rebuilds the native compiler
+- Category: Verifying costs more than writing
+- Where: [semantic analysis package](omega-rust/psi/compilation/representations/terminal-psi/semantics/Cargo.toml), [declaration lookup in optimization](omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/src/structural_places.rs#L619), [target descriptor inputs](omega-rust/omega/compilation/representations/target-operations/target-vocabulary/src/descriptor_input.rs)
+- Saw: Changing only the private descriptor replay cache and its error reporting rebuilt 64 packages and took 14m 17s before the original Console test could run. Some native consumers need only declaration or structural-path lookups from the same package; ownership analysis and explicit image validators genuinely need the full analysis. `target-operations` also declares an unused direct dependency, although removing it alone leaves a transitive dependency. Source and build evidence remains in claim `18e85a23de177c780000000018e83683`, under `post-3776-original-binding-control-49/native-terminal-semantics-coupling.json`.
+- Cost: Edits to the analysis invalidate native consumers of small lookup functions. Move the declaration and path queries out of the full analysis crate, keep each judgment implemented once, and remove unused direct dependencies. Measure the same Console edit/build/run loop before claiming a build-time improvement.
+- Reported: 2026-11-16, Codex, while carrying the original Console program through checking and execution
+
+### Source correspondence repeats signature searches
+- Category: Verifying costs more than writing
+- Where: [source correspondence](omega-rust/psi/compilation/representations/typed-trees/src/service_declarations.rs#L497)
+- Saw: For each projected method, correspondence validation scans every inherited signature and derives its callable identity before interning it. Finding one match still exhausts the scan. The original Console binding replay43 took 329.112s before its next refusal. A brief sample caught this work, but captured only two samples; its share of total time is unknown. Raw evidence remains in claim `18e85a23de177c780000000018e83683`.
+- Cost: Repeated identity normalization grows with both the method and signature counts. Prepare the exact callable/package identities once per inherited declaration set. Preserve source authentication, complete applications, and refusals for missing or ambiguous requirements. Validate with the unchanged Console program and refusal controls; measure the identity derivations before claiming a speedup.
+- Reported: 2026-11-16, Codex, while carrying the original Console binding and stored-machine programs through checking and execution
+
+### Every native caller evaluates constants between two driver calls
+- Category: one idea, several implementations
 - Where: [native completion](omega-rust/omega/build-system/orchestration/src/compile/native_completion.rs#L123), [scalar completion](omega-rust/omega/compilation/native-compiler/src/scalar_completion.rs), [Build's completer](omega-rust/omega/build-system/build-settings/src/activation/scalar_completion.rs#L20)
-- Saw: `native_compiler::prepare` returns a half-built compile. Each caller then runs `build_settings::scalar_completion::complete`, the Psi constant evaluator, on every `NativeScalarCompletion` and hands the results back before `native_compiler::compile` lowers anything. The demand comes from the native execution scope (`scalar_application_demand`), which reads only the Terminal module and target layouts.
-- Cost: The Omega pipeline leaves for another pipeline in the middle and every caller repeats the prepare, evaluate, compile sequence. Complete the demand from the Terminal product and target inputs before the native driver starts, pass the completed scalars in `NativeCompileRequest`, and delete `NativeScalarCompletion` and the split entry.
+- Saw: Omega 00 now runs whole inside `native_compiler::compile`, but callers still call `native_compiler::prepare`, run `build_settings::scalar_completion::complete` on every `NativeScalarCompletion`, then call `compile`. Preparation reads only the retained Terminal product and its native proposal (`TerminalNativeRealizationProposal::prepare_native_execution`, `PreparedNativeExecution::scalar_application_demand`). Product checking separately completes the same artifact's conditions with an empty demand (`ProducedTerminalProduct::check_conditions`).
+- Cost: Orchestration, the review example and compiler tests each repeat the prepare, evaluate, compile sequence, and conditions are evaluated twice. Select the execution and complete its demand once where the retained native product is formed, pass the completed scalars in `NativeCompileRequest`, and delete `NativeScalarCompletion` and the split entry.
 - Reported: 2026-11-16, pi, while checking that only the native driver calls Omega stages.
 
 ### Emission libraries keep earlier stage outputs beside the final layout
@@ -123,24 +137,3 @@ framework or a list of unimplemented features.
 - Saw: Replacing symbols on a shared typed tree can copy side records, normalized identities and owned containers even with no bodies selected. The [call and machine record repair](https://github.com/CathedralOS/Omega/pull/3747) measured empty activation and two nonempty batches on both Windows x86-64 routes. Empty activation requested 2,182,456 bytes in 12,456 allocations and cloned 36 arenas per route on fixed `570d707` with the repair and observer (opt-level 1). See the [data-child repair](https://github.com/CathedralOS/Omega/pull/3720) for the earlier baseline.
 - Cost: Share immutable storage where measurements still show copies. Limit writes to changed records or new batches. Preserve source application preparation, projection, authority checks, and signature and inferred-summary dependencies. Re-measure empty activation and nonempty completion on both [scalar and borrowed-root workloads](wiki/drafts/measurements/selected_body_copies.md#workloads-and-boundary), counting copied storage and new output separately. See the [body ownership design](wiki/drafts/designs/compiler_work_ownership.md#representation-and-execution-contract).
 - Reported: 2026-11-15, Codex, while measuring continuation construction and body completion.
-
-### Image emission gets installation records from stage 02's output
-- Category: knowledge crossing a boundary
-- Where: [handler stack setup](omega-rust/omega/compilation/native-compiler/src/realization/object_emission.rs#L102), [entry execution setup](omega-rust/omega/compilation/native-compiler/src/realization/callback_thunks.rs#L315), [selection input](omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L112), [physical entry requirements](omega-rust/omega/compilation/backend/images/image-emission/src/entries.rs#L4824)
-- Saw: After preparation, the driver stores entry and stack records in stage 02's output and reads them back to build [`BoundInstallations`](omega-rust/omega/compilation/backend/runtime/bound-installations/src/lib.rs) for selection. Image emission also reaches back into stage 02 for stack requirements.
-- Cost: Bind the records once after admission and pass them beside the plan to both consumers. Remove both setters and preserve the installation's program, target and entry checks.
-- Reported: 2026-11-16, Claude Code, while auditing the stage 02 to stage 03 boundary.
-
-### Later machine forms embed records from the prepared plan
-- Category: knowledge crossing a boundary
-- Where: [selected dependencies](omega-rust/omega/compilation/representations/selected-instructions/Cargo.toml#L25), [register-home dependencies](omega-rust/omega/compilation/representations/register-homes/Cargo.toml#L13), [selected call records](omega-rust/omega/compilation/representations/selected-instructions/src/calls.rs#L1397), [register-home recovery](omega-rust/omega/compilation/representations/register-homes/src/recovery/structural_calls.rs#L31), [shared vocabulary owners](omega-rust/omega/compilation/representations/README.md#program-families-and-pipeline-boundaries)
-- Saw: `selected-instructions` and `register-homes` use call records, structural contracts, call-site owners and encoders from `legalized-operations`. That crate owns the prepared plan.
-- Cost: Changes to the prepared plan can alter later forms and codecs. Give unchanged records one vocabulary owner and keep form-specific records with their forms. Remove both plan dependencies and check call and contract identities through selection, allocation and recovery.
-- Reported: 2026-11-16, Claude Code, while removing unused dependencies from stages 04 to 09.
-
-### Image publication still reads the prepared plan after selection
-- Category: knowledge crossing a boundary
-- Where: [object evidence](omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments.rs), [stage 02 output](omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/lib.rs)
-- Saw: Object production reads function ABI and byte-output provider rows through `optimized_target().execution_plan().plan()`. It still reaches the complete earlier plan after instruction selection, rather than the contract rows of its current input.
-- Cost: Later publication still depends on earlier program custody. Share the required immutable ABI and provider rows through selected and current native contracts, and read those chunks when publishing the object.
-- Reported: 2026-11-16, Claude Code, while moving the readers of stage 02's output onto the execution plan.

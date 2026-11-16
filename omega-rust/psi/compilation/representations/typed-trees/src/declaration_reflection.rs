@@ -104,11 +104,127 @@ pub mod reflection {
             source::source_identity::canonical_source_entry(source)
         }
 
+        struct DescriptionAuthor<'path> {
+            machine: SymbolHandle,
+            product: Option<(source::SourceSpan, &'path str)>,
+        }
+
+        impl DescriptionAuthor<'_> {
+            fn authorize(
+                &self,
+                typed: &TypedTrees,
+                subject: SymbolHandle,
+                public: bool,
+            ) -> Result<(), String> {
+                let allowed = match self.product {
+                    Some((occurrence, path)) => {
+                        typed.symbols.find_product_declaration_from_source(
+                            path,
+                            occurrence,
+                            [(subject, public)],
+                        ) == Some(subject)
+                    }
+                    None => typed
+                        .symbols
+                        .symbol_provenance_source_span(self.machine)
+                        .is_some_and(|span| {
+                            typed
+                                .symbols
+                                .source_reference_may_select_symbol(span, subject)
+                        }),
+                };
+                if allowed {
+                    Ok(())
+                } else {
+                    Err("a declaration query is outside its author's declaration scope".into())
+                }
+            }
+
+            fn authority(
+                &self,
+                typed: &TypedTrees,
+                subject: SymbolHandle,
+            ) -> Result<SchemaQueryAuthority, String> {
+                let Some((occurrence, _)) = self.product else {
+                    return schema_query_authority(typed, self.machine, subject);
+                };
+                let requester_identity = typed.normalized_hermetic_symbol_identity(self.machine)?;
+                Ok(
+                    if typed
+                        .symbols
+                        .symbol_source_span(subject)
+                        .is_some_and(|span| {
+                            typed
+                                .symbols
+                                .same_product_package_instance(occurrence, span)
+                        })
+                    {
+                        SchemaQueryAuthority::OwningScope { requester_identity }
+                    } else {
+                        SchemaQueryAuthority::ForeignScope { requester_identity }
+                    },
+                )
+            }
+        }
+
+        pub fn product_field_description_identity(
+            typed: &TypedTrees,
+            field: SymbolHandle,
+            author: SymbolHandle,
+            occurrence: source::SourceSpan,
+            path: &str,
+        ) -> Result<semantic_vocabulary::FieldInfoDescription, String> {
+            field_description_in_scope(
+                typed,
+                &crate::expression::StaticMachineArgument {
+                    symbol: field,
+                    ..Default::default()
+                },
+                DescriptionAuthor {
+                    machine: author,
+                    product: Some((occurrence, path)),
+                },
+            )
+        }
+
+        pub fn product_parameter_description_identity(
+            typed: &TypedTrees,
+            formal: SymbolHandle,
+            author: SymbolHandle,
+            occurrence: source::SourceSpan,
+            path: &str,
+        ) -> Result<semantic_vocabulary::ParameterDescription, String> {
+            parameter_description_in_scope(
+                typed,
+                formal,
+                DescriptionAuthor {
+                    machine: author,
+                    product: Some((occurrence, path)),
+                },
+            )
+        }
+
         pub fn field_description_identity(
             typed: &TypedTrees,
             operand: &crate::expression::StaticMachineArgument,
             author: SymbolHandle,
         ) -> Result<semantic_vocabulary::FieldInfoDescription, String> {
+            field_description_in_scope(
+                typed,
+                operand,
+                DescriptionAuthor {
+                    machine: author,
+                    product: None,
+                },
+            )
+        }
+
+        fn field_description_in_scope(
+            typed: &TypedTrees,
+            operand: &crate::expression::StaticMachineArgument,
+            scope: DescriptionAuthor<'_>,
+        ) -> Result<semantic_vocabulary::FieldInfoDescription, String> {
+            let author = scope.machine;
             use crate::expression::StaticMachineArgument;
             use crate::reflection::SchemaNode;
             use crate::type_identity::{IndexIdentityArgument, portable_applied_index_identity};
@@ -250,19 +366,8 @@ pub mod reflection {
                     "a field query requires its complete owner application",
                 ));
             }
-            let author_span = typed
-                .symbols
-                .symbol_provenance_source_span(author)
-                .ok_or_else(|| String::from("a field query lost its lexical author"))?;
-            if !typed
-                .symbols
-                .source_reference_may_select_symbol(author_span, selected.symbol)
-            {
-                return Err(String::from(
-                    "a field query is outside its author's declaration scope",
-                ));
-            }
-            let authority = schema_query_authority(typed, author, owner)?;
+            scope.authorize(typed, selected.symbol, data.is_public)?;
+            let authority = scope.authority(typed, owner)?;
             let graph = match declaring_type {
                 Some(reference) => {
                     construct_semantic_schema_graph_for_type(typed, reference, authority)
@@ -325,6 +430,22 @@ pub mod reflection {
             formal: SymbolHandle,
             author: SymbolHandle,
         ) -> Result<semantic_vocabulary::ParameterDescription, String> {
+            parameter_description_in_scope(
+                typed,
+                formal,
+                DescriptionAuthor {
+                    machine: author,
+                    product: None,
+                },
+            )
+        }
+
+        fn parameter_description_in_scope(
+            typed: &TypedTrees,
+            formal: SymbolHandle,
+            scope: DescriptionAuthor<'_>,
+        ) -> Result<semantic_vocabulary::ParameterDescription, String> {
+            let author = scope.machine;
             let symbols = typed.symbols.symbols().nodes();
             if !symbols.is_valid(formal) || !symbols.is_valid(author) {
                 return Err("a parameter query lost its exact formal or lexical author".into());
@@ -354,16 +475,17 @@ pub mod reflection {
             if parameters.next().is_some() || parameter.relevance.is_erased() {
                 return Err("a parameter query requires one live semantic formal".into());
             }
-            let author_span = typed
-                .symbols
-                .symbol_provenance_source_span(author)
-                .ok_or("a parameter query lost its retained lexical source")?;
-            if !typed
-                .symbols
-                .source_reference_may_select_symbol(author_span, requirement)
-            {
-                return Err("a parameter query is outside its author's declaration scope".into());
-            }
+            // Product selection names the formal itself; ordinary reflection
+            // retains its prior requirement-level visibility check.
+            scope.authorize(
+                typed,
+                if scope.product.is_some() {
+                    formal
+                } else {
+                    requirement
+                },
+                owner.is_public,
+            )?;
             let qualified_type = crate::type_identity::descriptive_type_identity_in_region_scope(
                 typed,
                 crate::type_identity::TypeIdentityRequest::package_qualified(

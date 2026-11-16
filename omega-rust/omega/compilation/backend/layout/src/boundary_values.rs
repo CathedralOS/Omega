@@ -530,6 +530,9 @@ impl<'module> TerminalBoundaryRecipes<'module> {
                 BoundaryValueRecipe::FixedArray {
                     element: self.value(*element)?,
                     length: match length {
+                        terminal_psi::ArrayExtent::Parameter { .. } => {
+                            return Err("an array extent is still a rigid const input".into());
+                        }
                         terminal_psi::ArrayExtent::Literal(count) => *count,
                         terminal_psi::ArrayExtent::Application(application) => {
                             (self.extents)(*application).map_err(|error| error.to_string())?

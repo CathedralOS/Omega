@@ -488,8 +488,8 @@ fn actual_policy_callers_keep_their_selected_declaration_after_transport() {
         error.detail,
         "machine caller describes another source declaration or revision"
     );
-    // An incoming program may already hold a qualified value. Refusing new
-    // source plans is insufficient until operations enforce the same rules.
+    // An incoming program may already hold a qualified value. Its actual
+    // field read must obey a received deny-all rule, even without a new cast.
     let reader = restored.machine(number).unwrap();
     assert!(reader.structural_parameters.iter().any(|parameter| {
         parameter
@@ -519,14 +519,12 @@ fn actual_policy_callers_keep_their_selected_declaration_after_transport() {
     let denied_bytes = terminal_codec::encode_module(&denied_read)
         .expect("serialize the actual program with its added deny-all read rule");
     let Err(error) = terminal_codec::decode_module(&denied_bytes) else {
-        panic!(
-            "received program with a deny-all read rule was admitted without operation enforcement"
-        );
+        panic!("received program with a deny-all read rule was admitted");
     };
     assert!(matches!(
         error,
         terminal_codec::CodecError::MalformedStructuralFoundation(
-            "memory access checks for these saved rules are not implemented yet"
+            "this function is not allowed to read this value"
         )
     ));
     // This is an ordinary program with an authored Trap ceiling. Execute its
@@ -551,6 +549,185 @@ fn actual_policy_callers_keep_their_selected_declaration_after_transport() {
         ),
     );
     accounting.validate_charges().unwrap();
+}
+
+// The writer lends its permission only through the actual borrowed subject.
+// The helper is deliberately absent from the policy's writer list; ordinary
+// checked reborrowing must retain the caller's grant and its exact backing.
+#[test]
+fn actual_governed_reads_and_delegated_writes_execute_and_refuse_denied_axes() {
+    let original = include_str!("selected_access_plan_family.omg");
+    let plan = r#"let mut plan: AccessPlan = access::new_plan(&schema,
+            Issuance::Only { routes: [reflect::callable(stamp)] });
+        access::allow_readers(&mut plan,
+            omega::language::core::AccessRegion::Subject { schema: schema },
+            [reflect::callable(number)]);
+        access::allow_writers(&mut plan,
+            omega::language::core::AccessRegion::Subject { schema: schema },
+            [reflect::callable(change)]);
+        plan"#;
+    let source = original.replacen(
+        "access::new_plan(&schema, Issuance::Only { routes: [reflect::callable(stamp)] })",
+        plan,
+        1,
+    ).replace(
+        "let observed: i32 = number(stamped(Ticket { number: 4 }));",
+        "let mut ticket: Ticket in Stamped = stamped(Ticket { number: 4 });\n    change(&mut ticket);\n    let observed: i32 = number(ticket);",
+    ).replace("observed == 4", "observed == 41") + r#"
+
+machine change(ticket: &mut Ticket in Stamped) { write_number(ticket); }
+machine write_number(ticket: &mut Ticket in Stamped) { ticket.number = 41; }
+"#;
+    for (source, denied) in [
+        (source.clone(), None),
+        (
+            source.replace("[reflect::callable(number)]", "[]"),
+            Some("read"),
+        ),
+        (
+            source.replace("[reflect::callable(change)]", "[]"),
+            Some("write"),
+        ),
+        // Returning from the permitted invocation ends its delegation. A
+        // later direct helper call cannot reuse that grant on the same value.
+        (
+            source.replace(
+                "change(&mut ticket);",
+                "change(&mut ticket);\n    write_number(&mut ticket);",
+            ),
+            Some("write"),
+        ),
+    ] {
+        let mut typed = typed_source(&source);
+        let main = typed.realized_machine_named("main").unwrap().symbol;
+        let entries = [main];
+        let request = terminal_production::TerminalSourceCompilation {
+            calling: None,
+            providers: None,
+            declaration_metadata: &[],
+            entries: &entries,
+            subjects: &[],
+            purpose: source::DependencyScope::Product,
+            selected: &[],
+            bindings: &[],
+            supplies: &[],
+        };
+        let mut accounting = SourceCompletionAccounting::default();
+        super::domain_access_plans::evaluate(&mut typed, request, None, None, &mut accounting)
+            .expect("evaluate the actual complete selected read/write policy");
+        let policy = typed
+            .domain_definitions
+            .iter()
+            .map(|(_, domain)| domain)
+            .find(|domain| domain.name.as_str() == "Ticket::Stamped")
+            .and_then(|domain| domain.access_policy.as_ref())
+            .expect("the original governed domain retains its selected policy");
+        assert!(
+            matches!(
+                policy.plan,
+                typed_trees::domain::AccessPlanJudgment::Checked(_)
+            ),
+            "the original selected policy must be judged before checking its operations: {:?}",
+            policy.plan,
+        );
+        let (prepared, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+            typed,
+            &typed_trees_to_typed_trees::PreparationRequest::settled(),
+        )
+        .expect("retain the same selected declarations and checked borrows");
+        let judged = terminal_production::AcceptedTerminalSource::judge(
+            std::sync::Arc::new(prepared),
+            request,
+            terminal_codec::TerminalPublication::Portable,
+        );
+        if let Some(axis) = denied {
+            let Err(error) = judged else {
+                panic!("an empty route list denies that axis");
+            };
+            let detail = format!("{error:?}");
+            assert!(
+                detail.contains(&format!(
+                    "this function is not allowed to {axis} this value"
+                )),
+                "{detail}"
+            );
+            let owner = if axis == "read" {
+                "number"
+            } else {
+                "write_number"
+            };
+            assert!(
+                detail.contains(&format!("in machine `{owner}`")),
+                "{detail}"
+            );
+            continue;
+        }
+        let accepted = judged.expect("the listed writer delegates to its ordinary helper");
+        terminal_semantics::structural_qualifications::validate_shape(accepted.module())
+            .expect("ordinary lowering checks the same permitted operations");
+        let bytes = terminal_codec::encode_module(accepted.module()).unwrap();
+        terminal_codec::decode_module(&bytes)
+            .expect("the received program enforces the same exact caller and borrowed subject");
+        // Changing only a saved permission list must be refused by both the
+        // ordinary lowered checker and the receiving boundary.
+        for axis in ["read", "write"] {
+            let mut denied = accepted.module().clone();
+            let plan = denied
+                .structural_domains
+                .iter_mut()
+                .filter_map(|domain| domain.access_policy.as_mut())
+                .find(|plan| !plan.readers.is_empty() && !plan.writers.is_empty())
+                .expect("the original program retains both rule lists");
+            let rules = if axis == "read" {
+                &mut plan.readers
+            } else {
+                &mut plan.writers
+            };
+            for (_, callers) in rules {
+                callers.clear();
+            }
+            let reason = format!("this function is not allowed to {axis} this value");
+            for error in [
+                terminal_semantics::structural_qualifications::validate_shape(&denied)
+                    .expect_err("lowered checking must enforce the changed rule"),
+                terminal_semantics::structural_qualifications::validate(&denied)
+                    .expect_err("full checking must enforce the changed rule"),
+            ] {
+                assert!(error.detail.contains(&reason), "{error:?}");
+            }
+            let error = terminal_codec::decode_module(
+                &terminal_codec::encode_module(&denied)
+                    .expect("the changed rule retains the original portable declarations"),
+            )
+            .expect_err("saved deny rules cannot bypass the operation check");
+            assert!(format!("{error:?}").contains(&reason), "{error:?}");
+        }
+        let produced = accepted
+            .produce(
+                Default::default(),
+                &mut terminal_production::UnmeasuredProduction,
+            )
+            .expect("produce the same checked read/write program");
+        let received = terminal_interpreter::TerminalProgram::load(&bytes)
+            .expect("load the actual received program with its access rules");
+        for program in [
+            terminal_interpreter::TerminalProgram::borrow(produced.view()),
+            received,
+        ] {
+            let mut instance = program
+                .instantiate(terminal_interpreter::TerminalInstantiation::default())
+                .expect("ordinary owned record needs no external supply");
+            let mut meter = terminal_work::WorkMeter::unbounded();
+            assert_eq!(
+                instance
+                    .invoke(&mut meter)
+                    .expect("execute the same governed program"),
+                terminal_interpreter::TerminalExecutionStatus::Complete(
+                    terminal_interpreter::TerminalExecutionResult::Unit,
+                )
+            );
+        }
+    }
 }
 
 #[test]

@@ -45,11 +45,24 @@ pub(crate) fn declare(
                 .iter()
                 .find_map(|(owner, reason)| (*owner == machine.id).then_some(*reason))
                 .unwrap_or("proof scope without an exact machine declaration");
-            refuse(
+            let mut refusal = refuse(
                 machine.id,
                 Construct::Machine,
                 Unserved::Declaration(reason),
-            )
+            );
+            if let Some(&symbol) = elaboration.machines.get(machine.id)
+                && typed.symbols.symbols().nodes().is_valid(symbol)
+            {
+                refusal.detail.push_str(&format!(
+                    " while publishing the declaration of `{}`",
+                    typed.symbols.display_path(symbol, "::"),
+                ));
+                refusal.source_span = typed
+                    .symbols
+                    .symbol_provenance_source_span(symbol)
+                    .filter(|span| *span != source::SourceSpan::default());
+            }
+            refusal
         })?;
         scope
             .declarations
@@ -225,8 +238,12 @@ pub(crate) fn declare(
                         callee,
                         ..ProofApplicationCall::default()
                     });
-                    unavailable =
-                        Some("compiler evaluation needs admitted boundary execution".into());
+                    // The exact boundary declaration and frame are known.
+                    // Keep selection facts available to Build admission, while
+                    // pure invocation still owes admitted boundary execution.
+                    invocation_refusal.get_or_insert_with(|| {
+                        "compiler evaluation needs admitted boundary execution".into()
+                    });
                 }
                 if matches!(operation.kind, OperationKind::CallDynamic { .. }) {
                     unavailable = Some(
@@ -254,8 +271,9 @@ pub(crate) fn declare(
                         callee,
                         ..ProofApplicationCall::default()
                     });
-                    unavailable =
-                        Some("compiler evaluation needs admitted external completion".into());
+                    invocation_refusal.get_or_insert_with(|| {
+                        "compiler evaluation needs admitted external completion".into()
+                    });
                 }
                 _ => {}
             }

@@ -427,7 +427,6 @@ pub mod encoding;
 pub mod fragments;
 pub mod functions;
 pub mod layout;
-mod machine_forms;
 pub mod storage;
 
 #[doc(hidden)]
@@ -491,14 +490,11 @@ pub use layout::text_section::{
     TextSectionRelocationRequirements, relocation_free_text_section_identity,
 };
 pub use layout::{
-    ResolvedBranchEvidence, ResolvedConditionalBranchEvidence, ResolvedConditionalBranchPredicate,
-    ResolvedJumpEvidence, ResolvedMachineLayout, ResolvedMachineProgram,
-    ResolvedSelectedBlockLayout, ResolvedSelectedFormLayoutIdentity, ResolvedSelectedFormRow,
-    ResolvedSelectedFunctionLayout, SelectedFunctionLayoutPolicy, X86BranchRelaxationIdentity,
-    resolved_machine_layout_identity,
-};
-pub use machine_forms::{
-    EncodedMachineSource, FramedMachineProgram, FramedMachineSource, ResolvedLayoutSource,
+    EncodedMachineProgram, FramedMachineProgram, ResolvedBranchEvidence,
+    ResolvedConditionalBranchEvidence, ResolvedConditionalBranchPredicate, ResolvedJumpEvidence,
+    ResolvedMachineLayout, ResolvedMachineProgram, ResolvedSelectedBlockLayout,
+    ResolvedSelectedFormLayoutIdentity, ResolvedSelectedFormRow, ResolvedSelectedFunctionLayout,
+    SelectedFunctionLayoutPolicy, X86BranchRelaxationIdentity, resolved_machine_layout_identity,
 };
 pub use ownership::*;
 pub use provenance::*;

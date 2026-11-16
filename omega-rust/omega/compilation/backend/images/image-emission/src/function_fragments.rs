@@ -4035,14 +4035,21 @@ mod production {
             relocations.push_record(record);
         }
         let artifact = ObjectArtifact {
+            installation_authority: Arc::clone(
+                source
+                    .source()
+                    .source()
+                    .source()
+                    .source()
+                    .installation_authority(),
+            ),
             program_contracts: Arc::clone(
                 &source
                     .source()
                     .source()
                     .source()
                     .source()
-                    .program()
-                    .selected
+                    .physical_program()
                     .contracts,
             ),
             projected: ProjectedObject(()),
@@ -4390,10 +4397,9 @@ mod source {
             .source()
             .source()
             .source()
-            .optimized_target()
-            .execution_plan()
-            .plan()
-            .profile
+            .physical_program()
+            .contracts
+            .profile()
     }
 
     mod descriptor_tables {
@@ -9869,13 +9875,11 @@ mod source {
     mod privileged_termination {
         use crate::FunctionFragmentObjectArtifactError as Error;
         use provider_admission::AdmittedInstalledEntryExecution;
-        use selected_instructions::{
-            SelectedInstructionKind as Kind, SelectedInstructionPlan, SelectedTerminator,
-        };
+        use selected_instructions::{SelectedInstructionKind as Kind, SelectedTerminator};
 
         pub(super) fn validate(
             execution: Option<&AdmittedInstalledEntryExecution>,
-            selected: &SelectedInstructionPlan,
+            selected: &post_allocation_machine::PostAllocationMachineProgram,
         ) -> Result<(), Error> {
             if let Some(execution) = execution {
                 let entry = execution.entry().entry();
@@ -9889,7 +9893,7 @@ mod source {
                     ));
                 }
             }
-            for function in &selected.functions {
+            for function in selected.functions.iter() {
                 for block in &function.blocks {
                     if block
                         .instructions
@@ -10219,7 +10223,7 @@ mod source {
             .source()
             .source()
             .source()
-            .selected_plan()
+            .physical_program()
             .function(machine)
             .ok_or(super::Error::Mismatch(
                 "constant operand has no retained function",
@@ -11920,7 +11924,6 @@ mod source {
             mod activation_residence {
                 use super::{BackingGeometry, BackingRequirement, record_selected_formation_calls};
                 use abstract_operations::AbstractOperationPlan;
-                use selected_instructions::SelectedInstructionPlan;
                 use semantic_vocabulary::{MachineId, OperationId, StructuralTypeId};
                 use terminal_psi::{
                     StructuralArgument, StructuralFieldDeclaration, StructuralTypeShape,
@@ -11954,7 +11957,7 @@ mod source {
 
                 pub(in crate::function_fragments::source) fn validate(
                     source: &AbstractOperationPlan,
-                    selected: &SelectedInstructionPlan,
+                    selected: &post_allocation_machine::PostAllocationMachineProgram,
                     targeted: &target_operations::TargetOperationPlan,
                     requirements: &[installation_evidence::InstalledInterruptStackRequirement],
                 ) -> Result<(), super::super::super::Error> {
@@ -12026,7 +12029,7 @@ mod source {
                 impl<'a> BackingGeometry<'a> {
                     pub(in crate::function_fragments::source) fn for_activation_residence(
                         abstracted: &'a AbstractOperationPlan,
-                        selected: &'a SelectedInstructionPlan,
+                        selected: &'a post_allocation_machine::PostAllocationMachineProgram,
                         targeted: &'a target_operations::TargetOperationPlan,
                         graph: &'a [DescriptorMachine],
                     ) -> Self {
@@ -13109,7 +13112,6 @@ mod source {
             pub(in crate::function_fragments::source) use activation_residence::validate as validate_activation_residence;
 
             use abstract_operations::AbstractOperationPlan;
-            use selected_instructions::SelectedInstructionPlan;
             use semantic_vocabulary::{MachineId, PlaceId};
             use terminal_psi::{AccessRamCorrespondence, StructuralAccess, StructuralArgument};
             use terminal_semantics::descriptor_lifetimes::{
@@ -13128,7 +13130,7 @@ mod source {
 
             pub(in crate::function_fragments::source) struct BackingGeometry<'a> {
                 abstracted: &'a AbstractOperationPlan,
-                selected: &'a SelectedInstructionPlan,
+                selected: &'a post_allocation_machine::PostAllocationMachineProgram,
                 targeted: &'a target_operations::TargetOperationPlan,
                 graph: &'a [DescriptorMachine],
                 analysis: DescriptorAnalysis<'a>,
@@ -13301,7 +13303,7 @@ mod source {
             impl<'a> BackingGeometry<'a> {
                 pub(in crate::function_fragments::source) fn new(
                     abstracted: &'a AbstractOperationPlan,
-                    selected: &'a SelectedInstructionPlan,
+                    selected: &'a post_allocation_machine::PostAllocationMachineProgram,
                     targeted: &'a target_operations::TargetOperationPlan,
                     graph: &'a [DescriptorMachine],
                 ) -> Self {
@@ -15778,7 +15780,7 @@ mod source {
                 .collect::<Vec<_>>();
             let emissions = source.source().source().source().source();
             let selected = emissions
-                .selected_plan()
+                .physical_program()
                 .function(machine)
                 .ok_or(Error::Mismatch("stack caller has no selected function"))?;
             let placed = text
@@ -20609,22 +20611,21 @@ mod source {
             .callable_invocations()
     }
 
-    /// The target calling contract the prepared plan records for `machine`.
+    /// The target calling contract retained by the current physical program.
     pub(super) fn function_abi(
         source: &StagedOptimizedRelocationFreeObjectContainer,
         machine: MachineId,
-    ) -> Result<&legalized_operations::LegalizedFunctionAbi, Error> {
+    ) -> Result<&target_vocabulary::function_abi::LegalizedFunctionAbi, Error> {
         source
             .source()
             .source()
             .source()
             .source()
-            .optimized_target()
-            .execution_plan()
-            .plan()
+            .physical_program()
+            .contracts
             .function_abi(machine)
             .ok_or(Error::Mismatch(
-                "shared function has no prepared calling contract",
+                "shared function has no current calling contract",
             ))
     }
 
@@ -21029,7 +21030,7 @@ mod source {
     ) -> Result<std::collections::BTreeMap<MachineId, u32>, Error> {
         let current = source.source().source().source().source();
         temporary_stack_bytes_for_selected_functions(
-            &current.selected_plan().functions,
+            current.physical_program().functions.iter(),
             current.encoding().rows(),
             current.encoding().encoded(),
         )
@@ -21045,15 +21046,15 @@ mod source {
         selected.function(machine).ok_or(Error::Mismatch(
             "missing selected function for temporary stack replay",
         ))?;
-        temporary_stack_bytes_for_selected_functions(selected, rows, encoded)?
+        temporary_stack_bytes_for_selected_functions(selected.iter(), rows, encoded)?
             .remove(&machine)
             .ok_or(Error::Mismatch(
                 "missing selected function for temporary stack replay",
             ))
     }
 
-    fn temporary_stack_bytes_for_selected_functions(
-        selected: &selected_instructions::SelectedFunctions,
+    fn temporary_stack_bytes_for_selected_functions<'function>(
+        selected: impl IntoIterator<Item = &'function selected_instructions::SelectedFunction>,
         rows: &[machine_code::SelectedFormEncodingRow],
         encoded: &machine_code::SelectedFormEncodedRowStore,
     ) -> Result<std::collections::BTreeMap<MachineId, u32>, Error> {
@@ -22540,6 +22541,7 @@ mod structural {
                 operation,
                 boundary,
                 source: value,
+                execution,
             } = located.settlement
             else {
                 return Err(Error::Mismatch("selected byte output payload"));
@@ -22585,8 +22587,7 @@ mod structural {
             let scalar_type = ScalarType::Integer(
                 IntegerType::new(IntegerSign::Signed, 32).map_err(|_| Error::Mismatch("i32"))?,
             );
-            let (execution, realization) =
-                target_settlement(container, machine, operation, boundary)?;
+            let (execution, realization) = current_settlement(execution)?;
             let settlement = BoundarySettlementRecord {
                 invocation_site: operation.into(),
                 boundary,
@@ -22640,6 +22641,7 @@ mod structural {
                 operation,
                 boundary,
                 source: value,
+                execution,
             } = located.settlement
             else {
                 return Err(invalid());
@@ -22681,8 +22683,7 @@ mod structural {
             };
             let offset = host(span.offset)?;
             let abstracted = source::abstract_function(container, machine)?;
-            let (execution, realization) =
-                target_settlement(container, machine, operation, boundary)?;
+            let (execution, realization) = current_settlement(execution)?;
             if settlement.execution != BoundaryExecutionRecord::from(execution)
                 || settlement.realization != realization
                 || proposed.machine != machine
@@ -22712,14 +22713,11 @@ mod structural {
             Ok(())
         }
 
-        /// Who performs the byte write at `operation`, as the prepared plan
-        /// records it. Only an admitted provider or the compiler's built-in
-        /// host byte output may write a byte.
-        fn target_settlement(
-            container: &StagedOptimizedRelocationFreeObjectContainer,
-            machine: MachineId,
-            operation: semantic_vocabulary::OperationId,
-            boundary: semantic_vocabulary::BoundaryMachineId,
+        /// Read the byte writer from the current boundary contract. Only an
+        /// admitted provider or the compiler's built-in host byte output may
+        /// write a byte.
+        fn current_settlement(
+            execution: target_operations::BoundaryExecutionBinding,
         ) -> Result<
             (
                 target_operations::BoundaryExecutionBinding,
@@ -22727,54 +22725,23 @@ mod structural {
             ),
             Error,
         > {
-            use legalized_operations::LegalizedScalarInstructionKind;
             use target_operations::{
                 BoundaryExecutionBinding, BoundaryRealization, CompilerBuiltinExecution,
                 HostedWriteByteI32Realization,
             };
-            let function = container
-                .source()
-                .source()
-                .source()
-                .source()
-                .optimized_target()
-                .execution_plan()
-                .plan()
-                .scalar_functions
-                .iter()
-                .find(|function| function.machine == machine)
-                .ok_or(Error::Mismatch("missing byte output prepared function"))?;
-            let mut found = None;
-            for row in function.instructions() {
-                if row.operation != operation {
-                    continue;
-                }
-                let LegalizedScalarInstructionKind::HostedWriteByteI32 {
-                    boundary: source_boundary,
-                    execution,
-                    ..
-                } = row.kind
-                else {
-                    continue;
-                };
-                if source_boundary != boundary
-                    || found.is_some()
-                    || !matches!(
-                        execution,
-                        BoundaryExecutionBinding::AdmittedProvider(_)
-                            | BoundaryExecutionBinding::CompilerBuiltin(
-                                CompilerBuiltinExecution::HostedWriteByteI32
-                            )
+            if !matches!(
+                execution,
+                BoundaryExecutionBinding::AdmittedProvider(_)
+                    | BoundaryExecutionBinding::CompilerBuiltin(
+                        CompilerBuiltinExecution::HostedWriteByteI32
                     )
-                {
-                    return Err(Error::Mismatch("byte output target settlement custody"));
-                }
-                found = Some((
-                    execution,
-                    BoundaryRealization::HostedWriteByteI32(HostedWriteByteI32Realization),
-                ));
+            ) {
+                return Err(Error::Mismatch("byte output current settlement custody"));
             }
-            found.ok_or(Error::Mismatch("missing byte output target settlement"))
+            Ok((
+                execution,
+                BoundaryRealization::HostedWriteByteI32(HostedWriteByteI32Realization),
+            ))
         }
     }
 
@@ -25358,7 +25325,7 @@ mod structural {
             .source()
             .source()
             .source()
-            .selected_plan()
+            .physical_program()
             .function(machine)
             .ok_or(Error::Mismatch("function has no selected contract"))
     }

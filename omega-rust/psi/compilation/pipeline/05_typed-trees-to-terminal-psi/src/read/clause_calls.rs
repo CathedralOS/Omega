@@ -65,7 +65,7 @@ impl Program<'_> {
         }
         let body = unfolded.body;
         self.within_unfolding(unfolded.machine, |program| {
-            let callee = callee_scope(scope, &unfolded.bound);
+            let callee = callee_scope(scope, &unfolded.bound, unfolded.machine);
             program.clause(id, &callee, body)
         })
     }
@@ -81,7 +81,7 @@ impl Program<'_> {
         let body = unfolded.body;
         let result = unfolded.result;
         let (term, value_type) = self.within_unfolding(unfolded.machine, |program| {
-            let callee = callee_scope(scope, &unfolded.bound);
+            let callee = callee_scope(scope, &unfolded.bound, unfolded.machine);
             program.term(id, &callee, body, Some(result))
         })?;
         if value_type.scalar() != Some(result) {
@@ -105,6 +105,10 @@ impl Program<'_> {
         self.unfolding_calls.push(machine);
         let read = body(self);
         self.unfolding_calls.pop();
+        if read.is_ok() {
+            self.admitted_declarations.include(machine);
+            self.admitted_bodies.include(machine);
+        }
         read
     }
 
@@ -234,12 +238,13 @@ impl Program<'_> {
 fn callee_scope<'b>(
     caller: &ClauseScope<'_>,
     bound: &'b [(SymbolHandle, ScalarTerm)],
+    owner: SymbolHandle,
 ) -> ClauseScope<'b> {
     ClauseScope {
         slots: &[],
         values: &[],
         bound,
-        owner: SymbolHandle::invalid(),
+        owner,
         result: ResultTerm::Absent("result in a called machine's body"),
         subject: None,
         formal_fields: false,

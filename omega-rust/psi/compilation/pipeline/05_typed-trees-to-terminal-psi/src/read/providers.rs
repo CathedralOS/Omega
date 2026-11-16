@@ -394,7 +394,22 @@ fn has_native_provider_owner(typed: &typed_trees::TypedTrees, machine: &Machine)
         return false;
     }
     match machine.supply_mode {
-        MachineSupplyMode::ExternalRealization { .. } => true,
+        MachineSupplyMode::ExternalRealization { binding, mechanism } => !numeric_catalog_supply(
+            typed
+                .symbols
+                .sealed_declaration(machine.symbol, machine.name.as_str()),
+            binding.and_then(|binding| {
+                typed
+                    .external_bindings
+                    .identity(binding)
+                    .map(|identity| (binding, identity))
+            }),
+            mechanism,
+            typed
+                .machine_trait_conformances(machine)
+                .iter()
+                .map(|edge| edge.external_binding),
+        ),
         MachineSupplyMode::Boundary => matches!(
             typed
                 .symbols
@@ -406,6 +421,32 @@ fn has_native_provider_owner(typed: &typed_trees::TypedTrees, machine: &Machine)
         ),
         _ => false,
     }
+}
+
+/// Numeric guarantees and execution belong to the exact sealed catalog.
+/// Incomplete catalog claims stay subject to ordinary native binding and
+/// contract checks; only the complete retained relation takes the catalog path.
+fn numeric_catalog_supply(
+    sealed: Option<SealedIntrinsic>,
+    binding: Option<(
+        language_semantics::ExternalBindingId,
+        &ExternalBindingIdentity,
+    )>,
+    mechanism: Option<language_semantics::ExternalBindingMechanism>,
+    edges: impl IntoIterator<Item = Option<language_semantics::ExternalBindingId>>,
+) -> bool {
+    let (
+        Some(SealedIntrinsic::NativeFloatOperation),
+        Some((binding, ExternalBindingIdentity::CompilerIntrinsic)),
+        Some(language_semantics::ExternalBindingMechanism::CompilerIntrinsic),
+    ) = (sealed, binding, mechanism)
+    else {
+        return false;
+    };
+    let mut edges = edges.into_iter();
+    // A catalog realization has an actual retained satisfaction, and every
+    // retained edge must name this same exact binding before discovery skips it.
+    edges.next() == Some(Some(binding)) && edges.all(|edge| edge == Some(binding))
 }
 
 fn native_binding(
@@ -476,4 +517,66 @@ fn native_binding(
         ));
     }
     Ok((ExternalBindingIdentity::CompilerIntrinsic, Some(intrinsic)))
+}
+
+#[cfg(test)]
+mod numeric_supply_tests {
+    use super::*;
+    use language_semantics::{ExternalBindingMechanism as Mechanism, ExternalBindingTable};
+
+    #[test]
+    fn numeric_catalog_supply_requires_sealed_owner_and_exact_binding() {
+        let mut table = ExternalBindingTable::default();
+        let binding = table.intern(ExternalBindingIdentity::CompilerIntrinsic);
+        let other = table.intern(ExternalBindingIdentity::Syscall { number: 1 });
+        let compiler = table.identity(binding).unwrap();
+        let foreign = table.identity(other).unwrap();
+        let owner = Some(SealedIntrinsic::NativeFloatOperation);
+        assert!(numeric_catalog_supply(
+            owner,
+            Some((binding, compiler)),
+            Some(Mechanism::CompilerIntrinsic),
+            [Some(binding)]
+        ));
+        for (sealed, retained, mechanism) in [
+            (
+                None,
+                Some((binding, compiler)),
+                Some(Mechanism::CompilerIntrinsic),
+            ),
+            (
+                Some(SealedIntrinsic::FloatOperationRequirement),
+                Some((binding, compiler)),
+                Some(Mechanism::CompilerIntrinsic),
+            ),
+            (owner, None, Some(Mechanism::CompilerIntrinsic)),
+            (
+                owner,
+                Some((binding, foreign)),
+                Some(Mechanism::CompilerIntrinsic),
+            ),
+            (owner, Some((binding, compiler)), Some(Mechanism::Syscall)),
+            (owner, Some((binding, compiler)), None),
+        ] {
+            assert!(!numeric_catalog_supply(
+                sealed,
+                retained,
+                mechanism,
+                [Some(binding)]
+            ));
+        }
+        for edges in [
+            vec![],
+            vec![None],
+            vec![Some(other)],
+            vec![Some(binding), Some(other)],
+        ] {
+            assert!(!numeric_catalog_supply(
+                owner,
+                Some((binding, compiler)),
+                Some(Mechanism::CompilerIntrinsic),
+                edges
+            ));
+        }
+    }
 }

@@ -616,11 +616,103 @@ impl Program<'_> {
                 row.shape,
                 StorageShape::ByteSequence(_)
                     | StorageShape::ElementView {
-                        access: Some(StructuralAccess::SharedBorrow),
+                        access: Some(
+                            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                        ),
                         ..
                     }
             )
         })
+    }
+
+    /// An incoming mutable view lends backing for the call. Keeping it in an
+    /// aggregate requires an owned child descriptor, not a move out of the
+    /// formal's storage. Establish that ordinary reborrow at any value use.
+    pub(super) fn retain_view_input(
+        &mut self,
+        machine: MachineId,
+        slots: &[super::Slot],
+        value: Expression,
+        expected: Option<ValueType>,
+    ) -> Checked<Expression> {
+        let (
+            ExpressionKind::Slot(slot),
+            Some(ValueType::Record(actual, qualification, regions)),
+            Some(ValueType::Record(wanted, wanted_qualification, _)),
+        ) = (&value.kind, value.result, expected)
+        else {
+            return Ok(value);
+        };
+        if slots.get(*slot).and_then(|slot| slot.borrowed)
+            != Some(language_core::ReferenceAccess::Mutable)
+            || qualification != wanted_qualification
+        {
+            return Ok(value);
+        }
+        let element = match (
+            &self.data_type(machine, actual)?.shape,
+            &self.data_type(machine, wanted)?.shape,
+        ) {
+            (
+                StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                    access: None | Some(StructuralAccess::MutableBorrow),
+                }),
+                StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                    access: Some(StructuralAccess::MutableBorrow),
+                }),
+            ) => {
+                let element = self.byte_view_element_type(machine, wanted)?;
+                let value_type = self.value_type(machine, element)?;
+                self.collection_element_storage(machine, element, value_type)?
+                    .0
+            }
+            (
+                StorageShape::ElementView {
+                    element: actual,
+                    qualification: actual_q,
+                    access: Some(StructuralAccess::MutableBorrow),
+                },
+                StorageShape::ElementView {
+                    element: wanted,
+                    qualification: wanted_q,
+                    access: Some(StructuralAccess::MutableBorrow),
+                },
+            ) if actual == wanted && actual_q == wanted_q => *actual,
+            _ => return Ok(value),
+        };
+        let source = value.source;
+        Ok(Expression {
+            call_context: None,
+            result: Some(ValueType::Record(wanted, qualification, regions)),
+            kind: ExpressionKind::CollectionView {
+                base: Box::new(value),
+                access: language_core::ReferenceAccess::Mutable,
+                element,
+            },
+            source,
+        })
+    }
+
+    /// Storage rows erase regions and retain their first source occurrence.
+    /// Re-read that occurrence in its own declaration, never in a later user's
+    /// scope: a field's named lifetime belongs to its data declaration.
+    pub(super) fn byte_view_element_type(
+        &self,
+        machine: MachineId,
+        row: StructuralTypeId,
+    ) -> Checked<TypeReferenceHandle> {
+        let unavailable = |detail| refuse(machine, Construct::Machine, Unserved::Type(detail));
+        let source = self
+            .record_sources
+            .get(row)
+            .ok_or_else(|| unavailable("byte view without its source owner"))?;
+        let physical = source
+            .application
+            .as_ref()
+            .ok_or_else(|| unavailable("byte view without its source element"))?;
+        source_byte_view(self.typed, physical.reference, source.region_owner, machine)?
+            .map(|source| source.element_type)
+            .ok_or_else(|| unavailable("byte view without its retained source type"))
     }
 
     pub(super) fn view_type(

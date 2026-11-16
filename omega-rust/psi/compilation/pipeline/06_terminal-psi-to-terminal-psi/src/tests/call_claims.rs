@@ -89,3 +89,59 @@ fn ordinary_call_receiving_preserves_exact_sibling_claims() {
     transfers(&mut wrong_argument)[0].argument_index = 1;
     refuses(wrong_argument);
 }
+
+#[test]
+fn a_linear_leaf_cannot_lose_its_claim_by_erasing_all_claim_metadata() {
+    let mut erased = elaborated();
+    assert!(
+        matches!(judge(Ok(erased.clone())), Ok(RouteVerdict::Accepted(_))),
+        "the original ownership transfer must pass before its metadata is removed"
+    );
+
+    // Keep the declared linear types and the program unchanged. A producer
+    // cannot remove their obligations by consistently omitting every claim row.
+    let mut removed_roots = 0;
+    for declaration in &mut erased.module.structural_types {
+        if declaration.owns_linear_claim {
+            assert_eq!(
+                declaration.multiplicity,
+                terminal_psi::StructuralMultiplicity::Linear
+            );
+            declaration.owns_linear_claim = false;
+            removed_roots += 1;
+        }
+    }
+    assert!(removed_roots > 0, "the source must declare a linear claim");
+    for contract in &mut erased.module.declaration_contracts {
+        contract.entry_claims.clear();
+    }
+    for machine in &mut erased.module.machines {
+        machine.contract.entry_claims.clear();
+        machine.block_entry_claims.clear();
+        for block in &mut machine.blocks {
+            for operation in &mut block.operations {
+                if let terminal_psi::OperationResult::Structural(result) = &mut operation.result {
+                    result.claims.clear();
+                }
+                match &mut operation.kind {
+                    OperationKind::CallStructural {
+                        claim_transfers, ..
+                    }
+                    | OperationKind::CallStructuralWithScalarArguments {
+                        claim_transfers, ..
+                    } => {
+                        claim_transfers.clear();
+                    }
+                    _ => {}
+                }
+            }
+            if let terminal_psi::Terminator::ReturnStructural {
+                returned_claims, ..
+            } = &mut block.terminator
+            {
+                returned_claims.clear();
+            }
+        }
+    }
+    refuses(erased);
+}

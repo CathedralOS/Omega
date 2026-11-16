@@ -6,7 +6,7 @@ are the same computation. Record literals and member paths are read in
 */
 
 use crate::body::Qualification;
-use semantic_vocabulary::{IntegerSign, IntegerType, MachineId, ScalarType};
+use semantic_vocabulary::{IntegerType, MachineId, ScalarType};
 use terminal_check_tables::{Checked, Construct};
 use typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableNamePath, UnaryOperator,
@@ -273,6 +273,12 @@ impl<'t> Program<'t> {
     ) -> Checked<Expression> {
         let typed = self.typed;
         let node = self.node(id, handle)?;
+        if let ExpressionNode::Call(call) = node
+            && call.runtime_call.is_none()
+            && call.layout_query.is_none()
+        {
+            self.bound_target(id, call.target_symbol)?;
+        }
         let span = typed.expression_table.source_span(handle);
         let source = match node {
             ExpressionNode::Call(_) | ExpressionNode::MachineValue(_) => {
@@ -282,6 +288,12 @@ impl<'t> Program<'t> {
         };
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
         let expected_scalar = expected.and_then(ValueType::scalar);
+        let type_truth = if matches!(node, ExpressionNode::Binary(_) | ExpressionNode::Member(_)) {
+            let owner = self.symbols.get(id).copied().unwrap_or_default();
+            self.read_static_truth(id, owner, handle, super::types::Reading::Value)?
+        } else {
+            None
+        };
         let (kind, result) = match node {
             ExpressionNode::MachineValue(value) => return self.machine_value(id, value, source),
             // At a parameter width no literal is a value of the carrier
@@ -412,18 +424,16 @@ impl<'t> Program<'t> {
             // closed type equations, and the fields of the integer carrier
             // query (`carriers`), whose own body is never run.
             ExpressionNode::Binary(_) | ExpressionNode::Member(_)
-                if self.type_truth(
-                    super::carriers::Scope::Own,
-                    handle,
-                    super::types::Reading::Value,
-                ) == Some(super::types::TypeTruth::Open) =>
+                if type_truth == Some(super::types::TypeTruth::Open) =>
             {
                 return unserved(super::types::OPEN_CARRIER_FAMILY);
             }
             ExpressionNode::Binary(_) | ExpressionNode::Member(_)
-                if self.static_truth(handle).is_some() =>
+                if matches!(type_truth, Some(super::types::TypeTruth::Known(_))) =>
             {
-                let truth = self.static_truth(handle).unwrap_or_default();
+                let Some(super::types::TypeTruth::Known(truth)) = type_truth else {
+                    unreachable!("the static evaluator supplied the known truth");
+                };
                 (ExpressionKind::Boolean(truth), ScalarType::Boolean)
             }
             ExpressionNode::Binary(_)
@@ -484,10 +494,22 @@ impl<'t> Program<'t> {
                 // "Primitive and payload-free-sum equality is intrinsic").
                 if matches!(
                     binary.operator,
-                    BinaryOperator::CaseMembership | BinaryOperator::Equal
+                    BinaryOperator::CaseMembership
+                        | BinaryOperator::Equal
+                        | BinaryOperator::NotEqual
                 ) && let Some(case) = self.named_case(binary.right)
                 {
-                    return self.case_test(id, slots, binary.left, case, source);
+                    let test = self.case_test(id, slots, binary.left, case, source)?;
+                    return Ok(if binary.operator == BinaryOperator::NotEqual {
+                        Expression {
+                            call_context: None,
+                            result: test.result,
+                            kind: ExpressionKind::Not(Box::new(test)),
+                            source,
+                        }
+                    } else {
+                        test
+                    });
                 }
                 // A quoted literal is a byte view whatever its partner is
                 // (data_and_literals.md, "Quoted bytes"), so it is read
@@ -500,7 +522,13 @@ impl<'t> Program<'t> {
                 let operand = |quoted: bool, hint: Option<ScalarType>| {
                     hint.filter(|_| !quoted).map(ValueType::plain)
                 };
-                let (left, right) = if self.wholly_anonymous(binary.left) {
+                // A shift's count has its own carrier. Neither an expected
+                // result nor the value operand can reland a typed count literal.
+                let shift = matches!(
+                    binary.operator,
+                    BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight
+                );
+                let (left, right) = if !shift && self.wholly_anonymous(binary.left) {
                     let right =
                         self.expression(id, slots, binary.right, operand(quoted.1, hint))?;
                     let partner = right.result.and_then(ValueType::scalar);
@@ -518,7 +546,7 @@ impl<'t> Program<'t> {
                         id,
                         slots,
                         binary.right,
-                        operand(quoted.1, hint.or(partner)),
+                        operand(quoted.1, (!shift).then_some(hint.or(partner)).flatten()),
                     )?;
                     (left, right)
                 };
@@ -693,6 +721,7 @@ impl<'t> Program<'t> {
         expected: Option<ValueType>,
         source: SourceOrigin,
     ) -> Checked<Expression> {
+        let value = self.retain_view_input(id, slots, value, expected)?;
         if let (Some(wanted @ ValueType::Record(wanted_row, _, _)), Some(carried)) =
             (expected, value.result)
             && let ValueType::Record(carried_row, _, _) = carried
@@ -752,13 +781,18 @@ impl<'t> Program<'t> {
         if access == Access::Read {
             return self.expression(id, slots, target, expected);
         }
+        let projection = if access == Access::Replace {
+            Access::Write
+        } else {
+            access
+        };
         let value = match self.node(id, target)? {
             ExpressionNode::Member(member) => {
                 let source = SourceOrigin::of(self.typed.expression_table.source_span(target));
-                self.member(id, slots, member, source, Access::Write)?
+                self.member(id, slots, member, source, projection)?
             }
             ExpressionNode::Indexed(indexed) => {
-                self.indexed(id, slots, indexed, target, expected, Access::Write)?
+                self.indexed(id, slots, indexed, target, expected, projection)?
             }
             _ => return self.expression(id, slots, target, expected),
         };
@@ -1196,7 +1230,6 @@ fn binary_expression(
     suffix: Option<Policy>,
     source: SourceOrigin,
 ) -> Checked<Expression> {
-    let (left, right) = comparison_operands(operator, left, right);
     let (operation, policy, result) = binary_selection(
         id,
         operator,
@@ -1227,73 +1260,6 @@ fn binary_expression(
     })
 }
 
-/// numeric_values.md, "Integer equality and order" (`mixed-integer-comparison`):
-/// a builtin comparison relates the exact integer values of its operands,
-/// whatever their widths or signedness. Widening the narrower operand to a
-/// fixed carrier that holds every value of both keeps each value exactly, so
-/// comparing there is that relation. The common carrier is at most 64 bits:
-/// native code has no widening into `i128`, so a pair that needs one (`u64`
-/// with a signed partner) stays refused rather than passing the checker and
-/// failing in native lowering. Operands that carry a domain or policy are
-/// left unchanged for selection to judge.
-fn comparison_operands(
-    operator: BinaryOperator,
-    left: Expression,
-    right: Expression,
-) -> (Expression, Expression) {
-    let comparison = matches!(
-        operator,
-        BinaryOperator::Equal
-            | BinaryOperator::NotEqual
-            | BinaryOperator::Less
-            | BinaryOperator::LessOrEqual
-            | BinaryOperator::Greater
-            | BinaryOperator::GreaterOrEqual
-    );
-    let plain_integer = |expression: &Expression| match expression.result {
-        Some(ValueType::Scalar(ScalarType::Integer(integer), qualification))
-            if qualification == Qualification::NONE && !integer.is_address() =>
-        {
-            Some(integer)
-        }
-        _ => None,
-    };
-    let (Some(left_type), Some(right_type)) = (plain_integer(&left), plain_integer(&right)) else {
-        return (left, right);
-    };
-    if !comparison || left_type == right_type {
-        return (left, right);
-    }
-    let common = if left_type.can_widen_to(right_type) {
-        Some(right_type)
-    } else if right_type.can_widen_to(left_type) {
-        Some(left_type)
-    } else {
-        [16, 32, 64]
-            .into_iter()
-            .filter_map(|bits| IntegerType::new(IntegerSign::Signed, bits).ok())
-            .find(|carrier| left_type.can_widen_to(*carrier) && right_type.can_widen_to(*carrier))
-    };
-    let Some(common) = common else {
-        return (left, right);
-    };
-    let widen = |operand: Expression, integer: IntegerType| {
-        if integer == common {
-            return operand;
-        }
-        Expression {
-            call_context: None,
-            source: operand.source,
-            result: Some(ValueType::Scalar(
-                ScalarType::Integer(common),
-                Qualification::NONE,
-            )),
-            kind: ExpressionKind::Cast(Box::new(operand)),
-        }
-    };
-    (widen(left, left_type), widen(right, right_type))
-}
-
 /// A contract and an executable expression select the same operator from
 /// the same operand types. The selected policy belongs to the operation;
 /// this query neither builds an operation nor proves its formation condition.
@@ -1314,9 +1280,9 @@ pub(super) fn binary_selection(
         /// Integer value and integer count, each its own type; the result
         /// has the value's type.
         Shift,
-        /// Same integer or Boolean type; the result is Boolean.
+        /// Integer values, or two Booleans; the result is Boolean.
         Equality,
-        /// Same integer type; the result is Boolean.
+        /// Integer values; the result is Boolean.
         Ordering,
     }
     let unserved = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
@@ -1444,13 +1410,30 @@ pub(super) fn binary_selection(
         Operands::Shift if integer(left_type) && integer(right_type) => computed(left_type),
         // A comparison compares the stored values, whatever policy either
         // carries ("they compare the stored values and return `bool`").
-        Operands::Equality
-            if left_type == right_type
-                && (integer(left_type) || left_type == ScalarType::Boolean) =>
+        // Terminal Psi comparisons retain both integer carriers and relate
+        // their exact values. They need no common carrier or inserted cast;
+        // native lowering implements that same mixed-sign relation.
+        Operands::Equality | Operands::Ordering
+            if integer(left_type)
+                && integer(right_type)
+                && (left_type == right_type
+                    || (left_policy.is_none()
+                        && right_policy.is_none()
+                        && suffix.is_none()
+                        && left_type
+                            .as_integer()
+                            .is_some_and(|integer| !integer.is_address())
+                        && right_type
+                            .as_integer()
+                            .is_some_and(|integer| !integer.is_address()))) =>
         {
             boolean
         }
-        Operands::Ordering if integer(left_type) && left_type == right_type => boolean,
+        Operands::Equality
+            if left_type == ScalarType::Boolean && right_type == ScalarType::Boolean =>
+        {
+            boolean
+        }
         Operands::Arithmetic
             if left_type.as_ieee_float().is_some()
                 && right_type.as_ieee_float().is_some()
@@ -1914,12 +1897,11 @@ mod tests {
         }
     }
 
-    /// A comparison relates exact values across widths and signedness; the
-    /// narrower operand widens to a carrier holding both. Arithmetic still
-    /// needs one carrier, and a pair with no common carrier of at most 64 bits
-    /// stays refused.
+    /// Integer comparisons preserve each operand's carrier and compare exact
+    /// values, including pairs with no common fixed carrier. Arithmetic still
+    /// needs one carrier. Native support is judged by the native compiler.
     #[test]
-    fn a_comparison_widens_operands_of_different_integer_carriers() {
+    fn a_comparison_preserves_operands_of_different_integer_carriers() {
         let integer = |sign, bits| {
             ValueType::Scalar(
                 ScalarType::Integer(IntegerType::new(sign, bits).unwrap()),
@@ -1950,14 +1932,13 @@ mod tests {
                 integer(IntegerSign::Unsigned, 128),
                 integer(IntegerSign::Signed, 8),
                 neither
-            )
-            .unwrap_err(),
-            "typing operand types"
+            ),
+            Ok(boolean)
         );
-        // `u64` against `i32` would need `i128`, which native code cannot widen to.
+        // The relation needs no common carrier or implicit cast.
         assert_eq!(
-            typed(BinaryOperator::Less, u64_, i32_, neither).unwrap_err(),
-            "typing operand types"
+            typed(BinaryOperator::Less, u64_, i32_, neither),
+            Ok(boolean)
         );
     }
 }

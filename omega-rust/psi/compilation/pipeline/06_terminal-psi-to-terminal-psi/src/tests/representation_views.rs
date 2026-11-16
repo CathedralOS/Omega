@@ -34,6 +34,73 @@ fn refused(body: &str, detail: &str) {
 }
 
 #[test]
+fn scalar_reference_recasts_keep_their_backing_and_presented_fields() {
+    let source = r#"
+data Envelope [copy] { before: u64; bits: u64; after: u64; }
+data SignedWord [copy] { value: i64; }
+machine signed(mut bits: u64) -> i64 {
+    let value: &i64 = &bits as &i64;
+    value
+}
+machine unsigned(bits: i64) -> u64 {
+    let value: &u64 = &bits as &u64;
+    value
+}
+machine overwrite(bits: &mut u64) { bits = 0u64; }
+machine entry() crashes Trap {
+    let bits: u64 = 18446744073709551615u64;
+    let envelope: Envelope = Envelope { before: 11u64, bits: bits, after: 37u64 };
+    let scalar: &i64 = &envelope.bits as &i64;
+    let word: &SignedWord = &envelope.bits as &SignedWord;
+    transition signed(bits) == -1i64 && unsigned(-1i64) == bits
+        && scalar == -1i64 && word.value == -1i64
+        && envelope.before == 11u64 && envelope.after == 37u64 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+"#;
+    let judge_source = |program: &str| {
+        let typed = super::boundary_calls::typed(program);
+        let entry = super::boundary_calls::entry(&typed);
+        judge(typed_trees_to_terminal_psi::elaborate_for(
+            &typed,
+            super::build_purpose::roster(&[entry], &[], source::DependencyScope::Product),
+            terminal_codec::TerminalPublication::Invocation,
+        ))
+    };
+    let accepted = match judge_source(source) {
+        Ok(RouteVerdict::Accepted(accepted)) => accepted,
+        verdict => panic!("same-width views keep their original bits and backing: {verdict:?}"),
+    };
+    let publication = accepted.publish_invocation().unwrap();
+    let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+    let mut instance = program.instantiate(Default::default()).unwrap();
+    assert_eq!(
+        instance
+            .invoke(&mut terminal_work::WorkMeter::with_budget(10_000))
+            .unwrap(),
+        terminal_interpreter::TerminalExecutionStatus::Complete(
+            terminal_interpreter::TerminalExecutionResult::Unit
+        )
+    );
+
+    // A shared representation still freezes the original storage. Changing
+    // the spelling of its scalar carrier cannot permit an overlapping write.
+    let competing = source.replace(
+        "let value: &i64 = &bits as &i64;",
+        "let value: &i64 = &bits as &i64; overwrite(&mut bits);",
+    );
+    let refused = judge_source(&competing);
+    assert!(
+        matches!(refused, Ok(RouteVerdict::Rejected { ref conflicts, .. }) if !conflicts.is_empty()),
+        "{refused:?}"
+    );
+}
+
+#[test]
 fn a_shared_view_is_read_as_the_elements_that_tile_it() {
     // An `i32` holds four bytes, so sixteen words are sixty-four bytes.
     let bytes = |bound: u64| {

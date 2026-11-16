@@ -7,6 +7,7 @@ with its arguments.
 use crate::body::Qualification;
 use language_core::ReferenceAccess;
 use language_semantics::declaration_selection::{
+    AuthoredDeclarationSelection, AuthoredDeclarationSelectionExposure,
     AuthoredDeclarationSelectionOccurrenceId, ResolvedAuthoredCallBinding,
 };
 use semantic_vocabulary::MachineId;
@@ -21,6 +22,7 @@ use typed_trees::references::StaticArgumentCall;
 use typed_trees::statement::TableCall;
 use typed_trees::static_applications::StaticMachineApplicationHandle;
 
+use super::authority::Access;
 use super::storage_path::{names_storage, root_slot};
 use super::{Program, Slot, symbol_kind};
 use crate::body::{CallTarget, Expression, ExpressionKind, Signature, ValueType};
@@ -37,6 +39,15 @@ struct StaticInvocation<'a> {
     binding: Option<ResolvedAuthoredCallBinding>,
     unsupported: bool,
     runtime_receiver: bool,
+}
+
+/// The binder receipt authenticates the target; the retained occurrence
+/// authenticates where its author was allowed to select it.
+#[derive(Debug, Clone, Copy)]
+pub(super) struct StaticMachineTarget {
+    position: u32,
+    target: SymbolHandle,
+    occurrence: AuthoredDeclarationSelectionOccurrenceId,
 }
 
 impl<'t> Program<'t> {
@@ -89,6 +100,15 @@ impl<'t> Program<'t> {
         }
         if !application.is_valid() {
             return Ok(());
+        }
+        // Equal applications may share one generated body. Each caller still
+        // owes visibility for its own selections, including a cached instance.
+        for argument in self
+            .typed
+            .expression_table
+            .static_machine_application_arguments(application)
+        {
+            self.static_argument_selections(id, argument)?;
         }
         let application = self
             .typed
@@ -197,7 +217,8 @@ impl<'t> Program<'t> {
     /// type bindings happen to be concrete; calls use the same generic
     /// contracts as a form whose binders remain rigid.
     fn checking_generic_entry(&self, id: MachineId) -> bool {
-        id.get() == 1 && (self.rigid || self.alternative.is_some())
+        (id.get() == 1 && (self.rigid || self.alternative.is_some()))
+            || self.applied.binary_search_by_key(&id, |row| row.0).is_ok()
     }
 
     /// Whether every generic parameter of `declared`, a machine or its entry
@@ -538,7 +559,7 @@ impl<'t> Program<'t> {
         id: MachineId,
         target: SymbolHandle,
         binder: SymbolHandle,
-    ) -> Checked<(SymbolHandle, Option<u32>)> {
+    ) -> Checked<(SymbolHandle, Option<StaticMachineTarget>)> {
         if !binder.is_valid() {
             return Ok((target, None));
         }
@@ -547,21 +568,119 @@ impl<'t> Program<'t> {
             .symbols
             .get(id)
             .ok_or_else(|| unserved("static call has no owner"))?;
-        let position = self
+        let (position, argument) = self
             .typed
-            .static_machine_binding_position(*owner, binder, target)
+            .static_machine_binding(*owner, binder, target)
             .map_err(unserved)?
             .ok_or_else(|| unserved("static call target is not selected by its binder"))?;
-        Ok((binder, Some(position)))
+        let occurrence = self.static_argument_selection(id, argument)?;
+        Ok((
+            binder,
+            Some(StaticMachineTarget {
+                position,
+                target,
+                occurrence,
+            }),
+        ))
+    }
+
+    fn static_argument_selections(
+        &self,
+        id: MachineId,
+        argument: &StaticMachineArgument,
+    ) -> Checked<()> {
+        if self
+            .typed
+            .symbols
+            .symbols()
+            .nodes()
+            .is_valid(argument.symbol)
+            && matches!(
+                self.typed.symbols.get(argument.symbol).kind,
+                SymbolKind::Machine | SymbolKind::State
+            )
+        {
+            self.static_argument_selection(id, argument)?;
+        }
+        if let Some(application) = &argument.application {
+            for argument in &application.arguments {
+                self.static_argument_selections(id, argument)?;
+            }
+            if application.member.is_valid() {
+                let member = self
+                    .typed
+                    .expression_table
+                    .static_member(application.member)
+                    .ok_or_else(|| {
+                        refuse(
+                            id,
+                            Construct::Machine,
+                            Unserved::Call("static argument lost its selected member"),
+                        )
+                    })?;
+                self.static_argument_selections(id, member)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn static_argument_selection(
+        &self,
+        id: MachineId,
+        argument: &StaticMachineArgument,
+    ) -> Checked<AuthoredDeclarationSelectionOccurrenceId> {
+        let unserved = |what| refuse(id, Construct::Machine, Unserved::Call(what));
+        let selection = argument
+            .authored_selection
+            .and_then(|occurrence| self.typed.authored_declaration_selections().get(occurrence))
+            .ok_or_else(|| unserved("static call argument lost its authored selection"))?;
+        if selection.kind() != language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::StaticArgument
+            || selection.target().as_resolved().is_none_or(|selected| {
+                let selected = selected.selected_symbol();
+                !self.typed.symbols.symbols().nodes().is_valid(selected)
+                    || (selected != argument.symbol
+                        && !self.instantiates_callable(argument.symbol, selected)
+                        && self.entered_machine(selected) != self.entered_machine(argument.symbol))
+            })
+        {
+            return Err(unserved("static call argument changed its authored selection"));
+        }
+        let selection_source = selection.source_span();
+        let file = self
+            .typed
+            .symbols
+            .source_file(selection_source)
+            .ok_or_else(|| unserved("static call selection has no source file"))?;
+        if selection_source.span.start >= selection_source.span.end
+            || file
+                .source
+                .get(selection_source.span.start..selection_source.span.end)
+                .is_none()
+        {
+            return Err(unserved(
+                "static call selection has no authored source coordinate",
+            ));
+        }
+        let target = if self
+            .typed
+            .trait_machine_signature(argument.symbol)
+            .is_some()
+        {
+            argument.symbol
+        } else {
+            self.call_target_symbol(id, argument.symbol)?
+        };
+        self.visible_to_from(id, target, Some(*selection))?;
+        Ok(selection.occurrence_id())
     }
 
     pub(super) fn retain_static_reach(
         &self,
         id: MachineId,
         mut call: Expression,
-        binding: Option<u32>,
+        binding: Option<StaticMachineTarget>,
     ) -> Checked<Expression> {
-        if let Some(position) = binding {
+        if let Some(binding) = binding {
             let ExpressionKind::Call {
                 callee: CallTarget::Machine(_),
                 static_reach_binding,
@@ -574,7 +693,7 @@ impl<'t> Program<'t> {
                     Unserved::Call("static callback did not retain its exact machine invocation"),
                 ));
             };
-            *static_reach_binding = Some(position);
+            *static_reach_binding = Some(binding.position);
         }
         Ok(call)
     }
@@ -584,7 +703,7 @@ impl<'t> Program<'t> {
     /// parent or generated origin to read. Typing leaves such a call unbound
     /// when the callee is chosen from a receiver's type or the name resolves
     /// to nothing.
-    fn bound_target(&self, id: MachineId, target: SymbolHandle) -> Checked<()> {
+    pub(super) fn bound_target(&self, id: MachineId, target: SymbolHandle) -> Checked<()> {
         if target.is_valid() && self.typed.symbols.symbols().nodes().is_valid(target) {
             return Ok(());
         }
@@ -657,6 +776,11 @@ impl<'t> Program<'t> {
         }
         if self.checking_generic_entry(id) {
             let invocation = self.static_invocation(StaticArgumentCall::Statement(call));
+            if let Some(read) =
+                self.generic_value_call(id, slots, &invocation, SourceOrigin::of(call.source_span))?
+            {
+                return Ok(read);
+            }
             if let Some(arguments) = self.type_arguments(id, &invocation)? {
                 return self.generic_call(
                     id,
@@ -705,7 +829,15 @@ impl<'t> Program<'t> {
                 (arguments, source, None),
             )
         } else {
-            self.call(id, slots, call.target_symbol, arguments, source, None)
+            self.call_selected(
+                id,
+                slots,
+                call.target_symbol,
+                arguments,
+                source,
+                None,
+                static_reach_binding,
+            )
         }?;
         self.retain_static_reach(id, read, static_reach_binding)
     }
@@ -811,6 +943,9 @@ impl<'t> Program<'t> {
             // parameters, `same<T>(left, right)`: held to that machine's
             // contract at them.
             let invocation = self.static_invocation(StaticArgumentCall::Expression(handle, call));
+            if let Some(read) = self.generic_value_call(id, slots, &invocation, source)? {
+                return Ok(read);
+            }
             if let Some(arguments) = self.type_arguments(id, &invocation)? {
                 return self.generic_call(id, slots, invocation, arguments, source);
             }
@@ -872,7 +1007,15 @@ impl<'t> Program<'t> {
                 (arguments, source, expected),
             )?
         } else {
-            self.call(id, slots, call.target_symbol, arguments, source, expected)?
+            self.call_selected(
+                id,
+                slots,
+                call.target_symbol,
+                arguments,
+                source,
+                expected,
+                static_reach_binding,
+            )?
         };
         if call.build_selection.is_valid() {
             self.designate(id, call.build_selection, &mut read)?;
@@ -1285,6 +1428,7 @@ impl<'t> Program<'t> {
             dispatch.realization_machine,
             application_handle,
             raw_arguments,
+            false,
         )?;
         if !dispatch.evidence_parameter.is_valid() {
             return unserved("static requirement dispatch");
@@ -1565,6 +1709,16 @@ impl<'t> Program<'t> {
         binders: &[(SymbolHandle, semantic_vocabulary::ScalarType)],
         application: typed_trees::static_applications::StaticMachineApplicationHandle,
     ) -> Checked<Vec<semantic_vocabulary::ScalarTerm>> {
+        self.bound_scalar_values_in_scope(id, binders, application, false)
+    }
+
+    fn bound_scalar_values_in_scope(
+        &self,
+        id: MachineId,
+        binders: &[(SymbolHandle, semantic_vocabulary::ScalarType)],
+        application: typed_trees::static_applications::StaticMachineApplicationHandle,
+        rigid: bool,
+    ) -> Checked<Vec<semantic_vocabulary::ScalarTerm>> {
         use semantic_vocabulary::{ScalarTerm, ScalarType};
         use typed_trees::static_applications::StaticMachineBindingValue;
         use typed_trees::types::PrimitiveType;
@@ -1608,6 +1762,16 @@ impl<'t> Program<'t> {
             let StaticMachineBindingValue::Const(reference) = binding.value else {
                 return Err(unserved("value parameter is not bound to a static value"));
             };
+            if rigid
+                && let typed_trees::types::TypeReferenceNode::Named { symbol, .. } =
+                    self.typed.type_reference_table.type_reference(reference)
+                && let Some(input) = self.const_scope.iter().find(|input| {
+                    input.symbol == *symbol && input.owner == id && input.scalar_type == scalar_type
+                })
+            {
+                values.push(ScalarTerm::value(input.value, scalar_type));
+                continue;
+            }
             let primitive = match scalar_type {
                 ScalarType::Integer(carrier) if !carrier.is_address() => {
                     let fixed = carrier
@@ -1661,6 +1825,7 @@ impl<'t> Program<'t> {
         declaration: SymbolHandle,
         application_handle: typed_trees::static_applications::StaticMachineApplicationHandle,
         authored_arguments: &[typed_trees::expression::StaticMachineArgument],
+        rigid: bool,
     ) -> Checked<Vec<semantic_vocabulary::ScalarTerm>> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
         let table = &self.typed.expression_table;
@@ -1710,7 +1875,7 @@ impl<'t> Program<'t> {
             return unserved("requirement call lost its binding declaration");
         };
         let binders = self.value_binder_correspondence(id, binders, (&parameters).into())?;
-        self.bound_scalar_values(id, &binders, application_handle)
+        self.bound_scalar_values_in_scope(id, &binders, application_handle, rigid)
     }
 
     /// The types a call in a generic check form's entry applies its callee's
@@ -1778,6 +1943,120 @@ impl<'t> Program<'t> {
         Ok(Some(arguments))
     }
 
+    /// A const application in a generic body forwards actual rigid inputs as
+    /// ordinary check-form operands. The callee keeps its own formal IDs;
+    /// the checker independently authenticates dependent array correspondence.
+    fn generic_value_call(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        call: &StaticInvocation<'_>,
+        source: SourceOrigin,
+    ) -> Checked<Option<Expression>> {
+        use semantic_vocabulary::ScalarTerm;
+        let target = self.call_target_symbol(id, call.target)?;
+        let Some(machine) = self.typed.machine_by_symbol(target) else {
+            return Ok(None);
+        };
+        let parameters = self.typed.machine_type_parameters(machine);
+        if parameters.is_empty()
+            || parameters.iter().any(|parameter| {
+                !matches!(
+                    parameter.kind,
+                    typed_trees::data::TypeParameterKind::Const { .. }
+                )
+            })
+        {
+            return Ok(None);
+        }
+        if call.unsupported || call.runtime_receiver || !machine.conformance_bounds.is_empty() {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Call("const application with another call feature"),
+            ));
+        }
+        self.direct_selection(id, call.target, call.selection, call.binding)?;
+        let binders = parameters
+            .iter()
+            .map(|parameter| {
+                let typed_trees::data::TypeParameterKind::Const { type_reference } = parameter.kind
+                else {
+                    unreachable!()
+                };
+                Ok((parameter.symbol, self.scalar_type(id, type_reference)?))
+            })
+            .collect::<Checked<Vec<_>>>()?;
+        let values = self.static_value_arguments(
+            id,
+            &binders,
+            target,
+            call.application,
+            call.authored_arguments,
+            true,
+        )?;
+        let mut operands = Vec::with_capacity(values.len());
+        for value in &values {
+            let scalar_type = value.scalar_type();
+            let kind = match value {
+                ScalarTerm::Value { id: value, .. } => {
+                    let input = self
+                        .const_scope
+                        .iter()
+                        .find(|input| {
+                            input.value == *value
+                                && input.owner == id
+                                && input.scalar_type == scalar_type
+                        })
+                        .ok_or_else(|| {
+                            refuse(
+                                id,
+                                Construct::Machine,
+                                Unserved::Call("const actual has no caller input"),
+                            )
+                        })?;
+                    let slot = slots
+                        .iter()
+                        .position(|slot| slot.symbol == input.symbol)
+                        .ok_or_else(|| {
+                            refuse(
+                                id,
+                                Construct::Machine,
+                                Unserved::Call("const actual has no caller slot"),
+                            )
+                        })?;
+                    ExpressionKind::Slot(slot)
+                }
+                ScalarTerm::Integer { value, .. } => ExpressionKind::Integer(*value),
+                ScalarTerm::Boolean(value) => ExpressionKind::Boolean(*value),
+                _ => {
+                    return Err(refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Call("const actual is neither a literal nor an owned input"),
+                    ));
+                }
+            };
+            operands.push(Expression {
+                call_context: None,
+                kind,
+                result: Some(ValueType::plain(scalar_type)),
+                source,
+            });
+        }
+        let callee = self.const_application(target)?;
+        self.call_of_values(
+            id,
+            slots,
+            (callee.into(), None),
+            call.arguments,
+            source,
+            None,
+            &operands,
+        )
+        .map(Some)
+    }
+
     /// A generic check form calls the callee's contract at the entry's exact
     /// opaque or concrete type bindings (`application`).
     fn generic_call(
@@ -1807,7 +2086,7 @@ impl<'t> Program<'t> {
             }
             other => return unserved(symbol_kind(other)),
         };
-        let callee = self.application(machine, type_arguments)?;
+        let callee = self.application(id, machine, type_arguments)?;
         self.call_of(
             id,
             slots,
@@ -1995,6 +2274,7 @@ impl<'t> Program<'t> {
             requirement.symbol,
             application,
             authored_arguments,
+            false,
         )?;
         let callee = self.requirement(requirement, &value_arguments)?;
         self.call_of(id, slots, (callee.into(), None), arguments, source, None)
@@ -2010,6 +2290,50 @@ impl<'t> Program<'t> {
         source: SourceOrigin,
         expected: Option<crate::body::ValueType>,
     ) -> Checked<Expression> {
+        self.call_from(id, slots, target, arguments, source, expected, None)
+    }
+
+    pub(super) fn call_selected(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        target: SymbolHandle,
+        arguments: &[ExpressionHandle],
+        source: SourceOrigin,
+        expected: Option<crate::body::ValueType>,
+        selection: Option<StaticMachineTarget>,
+    ) -> Checked<Expression> {
+        match selection {
+            None => self.call(id, slots, target, arguments, source, expected),
+            Some(selection) => self.call_from(
+                id,
+                slots,
+                target,
+                arguments,
+                source,
+                expected,
+                Some(selection),
+            ),
+        }
+    }
+
+    fn call_from(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        target: SymbolHandle,
+        arguments: &[ExpressionHandle],
+        source: SourceOrigin,
+        expected: Option<crate::body::ValueType>,
+        selection: Option<StaticMachineTarget>,
+    ) -> Checked<Expression> {
+        if selection.is_some_and(|selection| selection.target != target) {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Call("static call changed its selected target"),
+            ));
+        }
         if !target.is_valid() {
             return Err(refuse(
                 id,
@@ -2024,7 +2348,23 @@ impl<'t> Program<'t> {
         } else {
             target
         };
-        self.visible_to(id, target)?;
+        match selection {
+            Some(selection) => {
+                let occurrence = self
+                    .typed
+                    .authored_declaration_selections()
+                    .get(selection.occurrence)
+                    .ok_or_else(|| {
+                        refuse(
+                            id,
+                            Construct::Machine,
+                            Unserved::Call("static call argument lost its authored selection"),
+                        )
+                    })?;
+                self.visible_to_from(id, target, Some(*occurrence))?;
+            }
+            None => self.visible_to(id, target)?,
+        }
         if let Some(fence) = self.atomic_fence(id, slots, target, arguments, source)? {
             return Ok(fence);
         }
@@ -2042,7 +2382,7 @@ impl<'t> Program<'t> {
         // The callee's formals are the arguments' expected types, so its
         // signature is read first; reading order is not evaluation order.
         let callee = match self.inherited_type_arguments(id, target) {
-            Some(arguments) => self.application(target, arguments)?,
+            Some(arguments) => self.application(id, target, arguments)?,
             None => self.machine(target)?,
         };
         self.call_of(
@@ -2130,7 +2470,17 @@ impl<'t> Program<'t> {
     /// "Visibility" makes independently nameable machines private unless
     /// public, regardless of their qualifier or argument types.
     pub(super) fn visible_to(&self, id: MachineId, callee: SymbolHandle) -> Checked<()> {
-        // Generated entries retain their authored declaration's visibility.
+        self.visible_to_from(id, callee, None)
+    }
+
+    fn visible_to_from(
+        &self,
+        id: MachineId,
+        callee: SymbolHandle,
+        selection: Option<AuthoredDeclarationSelection>,
+    ) -> Checked<()> {
+        // A machine stage 04 generated is called as its authored template,
+        // whose visibility it has.
         let declared = crate::template_of(self.typed, callee).unwrap_or(callee);
         let (declaration, is_public) = self
             .typed
@@ -2153,7 +2503,7 @@ impl<'t> Program<'t> {
                     Unserved::Call("target has no callable declaration"),
                 )
             })?;
-        self.visible_declaration_to(id, declaration, is_public)
+        self.visible_declaration_from(id, declaration, is_public, selection)
     }
 
     /// Visibility follows the selected public declaration. A named map may
@@ -2165,9 +2515,24 @@ impl<'t> Program<'t> {
         callee: SymbolHandle,
         is_public: bool,
     ) -> Checked<()> {
+        self.visible_declaration_from(id, callee, is_public, None)
+    }
+
+    fn visible_declaration_from(
+        &self,
+        id: MachineId,
+        callee: SymbolHandle,
+        is_public: bool,
+        selection: Option<AuthoredDeclarationSelection>,
+    ) -> Checked<()> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
         if is_public {
             return Ok(());
+        }
+        if selection.is_some_and(|selection| {
+            selection.exposure() == AuthoredDeclarationSelectionExposure::PublicInterface
+        }) {
+            return unserved("private machine in a public interface");
         }
         let symbols = &self.typed.symbols;
         // A machine stage 04 generated belongs where its declaration does.
@@ -2180,7 +2545,12 @@ impl<'t> Program<'t> {
                 .and_then(|span| symbols.source_file(span))
                 .map(|file| (file.origin, file.package_identity))
         };
-        let caller = self.symbols.get(id).copied().and_then(package);
+        let caller = match selection {
+            Some(selection) => symbols
+                .source_file(selection.source_span())
+                .map(|file| (file.origin, file.package_identity)),
+            None => self.symbols.get(id).copied().and_then(package),
+        };
         match (caller, package(callee)) {
             (Some(caller), Some(callee)) if caller == callee => Ok(()),
             (Some(_), Some(_)) => unserved("private machine of another package"),
@@ -2209,10 +2579,31 @@ impl<'t> Program<'t> {
         source: SourceOrigin,
         expected: Option<crate::body::ValueType>,
     ) -> Checked<Expression> {
+        self.call_of_values(
+            id,
+            slots,
+            (callee, required_contract),
+            arguments,
+            source,
+            expected,
+            &[],
+        )
+    }
+
+    fn call_of_values(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        (callee, required_contract): (CallTarget, Option<semantic_vocabulary::ContractId>),
+        arguments: &[ExpressionHandle],
+        source: SourceOrigin,
+        expected: Option<ValueType>,
+        const_values: &[Expression],
+    ) -> Checked<Expression> {
         let signature = self
             .source_call_signature(id, &callee, required_contract)?
             .clone();
-        self.call_with_signature(
+        self.call_with_signature_values(
             id,
             slots,
             (callee, required_contract),
@@ -2220,6 +2611,7 @@ impl<'t> Program<'t> {
             arguments,
             source,
             expected,
+            const_values,
         )
     }
 
@@ -2349,6 +2741,29 @@ impl<'t> Program<'t> {
         source: SourceOrigin,
         expected: Option<ValueType>,
     ) -> Checked<Expression> {
+        self.call_with_signature_values(
+            id,
+            slots,
+            (callee, required_contract),
+            signature,
+            arguments,
+            source,
+            expected,
+            &[],
+        )
+    }
+
+    fn call_with_signature_values(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        (callee, required_contract): (CallTarget, Option<semantic_vocabulary::ContractId>),
+        signature: Signature,
+        arguments: &[ExpressionHandle],
+        source: SourceOrigin,
+        expected: Option<ValueType>,
+        const_values: &[Expression],
+    ) -> Checked<Expression> {
         let free = if let Some(required) = required_contract {
             let signature = self
                 .declaration_sources
@@ -2415,7 +2830,7 @@ impl<'t> Program<'t> {
             })
             .collect();
         let declared_result = signature.result;
-        if formals.len() != arguments.len() {
+        if formals.len() != arguments.len() + const_values.len() {
             return Err(refuse(
                 id,
                 Construct::Machine,
@@ -2476,6 +2891,7 @@ impl<'t> Program<'t> {
                 self.unify(id, &free, *declared, actual, &mut bound)?;
             }
         }
+        read.extend_from_slice(const_values);
         lent_storage_is_untouched(
             id,
             &read,
@@ -2515,6 +2931,15 @@ impl<'t> Program<'t> {
             } else {
                 self.agrees(actual.result, formal)
             };
+            let agrees = agrees
+                || self.const_array_argument_agrees(
+                    id,
+                    &callee,
+                    actual.result,
+                    formal,
+                    const_values,
+                    slots,
+                );
             if !agrees {
                 if borrowed.as_ref().is_some_and(|borrowed| {
                     borrowed.referent == crate::body::BorrowedReferent::Slice
@@ -2605,6 +3030,127 @@ impl<'t> Program<'t> {
             result,
             source,
         })
+    }
+
+    fn const_array_argument_agrees(
+        &self,
+        caller: MachineId,
+        callee: &CallTarget,
+        actual: Option<ValueType>,
+        expected: ValueType,
+        values: &[Expression],
+        slots: &[Slot],
+    ) -> bool {
+        let CallTarget::Machine(callee) = callee else {
+            return false;
+        };
+        let callee = *callee;
+        let (Some(ValueType::Record(actual, aq, ar)), ValueType::Record(expected, eq, er)) =
+            (actual, expected)
+        else {
+            return false;
+        };
+        if aq != eq || ar != er || values.is_empty() {
+            return false;
+        }
+        fn matches(
+            program: &Program<'_>,
+            caller: MachineId,
+            callee: MachineId,
+            actual: semantic_vocabulary::StructuralTypeId,
+            expected: semantic_vocabulary::StructuralTypeId,
+            values: &[Expression],
+            slots: &[Slot],
+            depth: usize,
+        ) -> bool {
+            if actual == expected {
+                return true;
+            }
+            if depth > 128 {
+                return false;
+            }
+            let (Some(actual), Some(expected)) =
+                (program.records.get(actual), program.records.get(expected))
+            else {
+                return false;
+            };
+            let (
+                crate::StorageShape::FixedArray {
+                    element: ae,
+                    qualification: aq,
+                    length: al,
+                },
+                crate::StorageShape::FixedArray {
+                    element: ee,
+                    qualification: eq,
+                    length: el,
+                },
+            ) = (&actual.shape, &expected.shape)
+            else {
+                return false;
+            };
+            if aq != eq
+                || actual.copyable != expected.copyable
+                || actual.owns_linear_claim != expected.owns_linear_claim
+                || !actual.requires.is_empty()
+                || !expected.requires.is_empty()
+                || actual.cleanup.is_some()
+                || expected.cleanup.is_some()
+            {
+                return false;
+            }
+            let length = if al == el {
+                true
+            } else if let terminal_psi::ArrayExtent::Parameter { owner, value } = el {
+                if *owner != callee {
+                    return false;
+                }
+                let Some(inputs) = program.const_scopes.get(callee) else {
+                    return false;
+                };
+                let Some(position) = inputs.iter().position(|input| input.value == *value) else {
+                    return false;
+                };
+                // const_scope is symbol-sorted; recover declaration order.
+                let Some(symbol) = program
+                    .symbols
+                    .get(callee)
+                    .and_then(|symbol| program.typed.machine_by_symbol(*symbol))
+                else {
+                    return false;
+                };
+                let parameters = program.typed.machine_type_parameters(symbol);
+                let Some(position) = parameters
+                    .iter()
+                    .position(|parameter| parameter.symbol == inputs[position].symbol)
+                else {
+                    return false;
+                };
+                match (al, values.get(position).map(|value| &value.kind)) {
+                    (
+                        terminal_psi::ArrayExtent::Parameter { owner, value },
+                        Some(ExpressionKind::Slot(slot)),
+                    ) if *owner == caller => slots.get(*slot).is_some_and(|slot| {
+                        program.const_scope.iter().any(|input| {
+                            input.owner == caller
+                                && input.value == *value
+                                && input.symbol == slot.symbol
+                        })
+                    }),
+                    (
+                        terminal_psi::ArrayExtent::Literal(length),
+                        Some(ExpressionKind::Integer(semantic_vocabulary::IntegerValue::Unsigned(
+                            value,
+                        ))),
+                    ) => u128::from(*length) == *value,
+                    _ => false,
+                }
+            } else {
+                false
+            };
+            length && matches(program, caller, callee, *ae, *ee, values, slots, depth + 1)
+        }
+        matches(self, caller, callee, actual, expected, values, slots, 0)
     }
 
     /// Whether a value of this type lends observation only: a shared
@@ -2745,7 +3291,7 @@ impl<'t> Program<'t> {
                 )
             }
             _ => (
-                self.expression(
+                self.place(
                     id,
                     slots,
                     operand,
@@ -2753,6 +3299,11 @@ impl<'t> Program<'t> {
                         && formal.access == ReferenceAccess::Shared
                         && self.is_borrowed_view(expected))
                     .then_some(expected),
+                    if access == ReferenceAccess::Shared {
+                        Access::Borrow
+                    } else {
+                        Access::Write
+                    },
                 )?,
                 None,
             ),

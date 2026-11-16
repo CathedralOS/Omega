@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+bound-installations = { path = "../backend/runtime/bound-installations" }
 installation-evidence = { path = "../backend/runtime/installation-evidence" }
 task-plans = { path = "../backend/runtime/task-plans" }
 component-description = { path = "../backend/artifacts/component-description" }
@@ -37,7 +38,6 @@ terminal-installation = { path = "../../../psi/compilation/terminal-installation
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 
 [dev-dependencies]
-bound-installations = { path = "../backend/runtime/bound-installations" }
 optimization-unit = { path = "../representations/abstract-operations/optimization-unit" }
 legalized-operations = { path = "../representations/target-operations/legalized-operations" }
 native-preparation = { path = "../pipeline/02_abstract-operations-to-target-operations/native-preparation" }

@@ -442,7 +442,8 @@ pub(crate) mod canonical_values {
         value: &DecodedCanonicalConstValue,
     ) -> Option<ExpressionNode> {
         match value {
-            DecodedCanonicalConstValue::Float { .. } => None,
+            DecodedCanonicalConstValue::Float { .. }
+            | DecodedCanonicalConstValue::StaticCallable { .. } => None,
             DecodedCanonicalConstValue::Integer {
                 integer_type,
                 value,
@@ -612,11 +613,16 @@ pub(crate) mod canonical_values {
         ))
     }
 
+    // Callable fields share the source files for this check; hash them once,
+    // only when a field needs them.
+    type ToolchainSources = std::cell::OnceCell<Result<Vec<(source::SourceId, [u8; 32])>, String>>;
+
     fn matches_materialized(
         program: &TypedTrees,
         carrier: TypeReferenceHandle,
         expression: crate::expression::ExpressionHandle,
         value: &DecodedCanonicalConstValue,
+        sources: &ToolchainSources,
     ) -> bool {
         if !program.expression_table.expression_is_valid(expression) {
             return false;
@@ -643,9 +649,27 @@ pub(crate) mod canonical_values {
                 }
                 expression = cast.value;
             }
-            return matches_materialized(program, base, expression, value);
+            return matches_materialized(program, base, expression, value, sources);
         }
         match (program.expression_table.expression(expression), value) {
+            (
+                ExpressionNode::MachineValue(actual),
+                expected @ DecodedCanonicalConstValue::StaticCallable { .. },
+            ) => {
+                let Ok(sources) = sources.get_or_init(|| {
+                    source::source_identity::toolchain_source_identities(
+                        program.symbols.source_files(),
+                    )
+                }) else {
+                    return false;
+                };
+                program.normalized_type_identity(actual.type_reference)
+                    == program.normalized_type_identity(carrier)
+                    && program
+                        .canonical_static_callable_value(actual, sources)
+                        .as_ref()
+                        == Ok(expected)
+            }
             (ExpressionNode::Boolean(actual), DecodedCanonicalConstValue::Boolean(expected)) => {
                 actual == expected
             }
@@ -682,7 +706,7 @@ pub(crate) mod canonical_values {
                     && *length == values.len()
                     && expressions.len() == values.len()
                     && expressions.iter().zip(values).all(|(expression, value)| {
-                        matches_materialized(program, *element_type, *expression, value)
+                        matches_materialized(program, *element_type, *expression, value, sources)
                     })
             }
             (ExpressionNode::StructLiteral(actual), value) => {
@@ -718,6 +742,7 @@ pub(crate) mod canonical_values {
                             program.data_payload_fields(case).iter().map(Some),
                             expressions,
                             fields,
+                            sources,
                         )
                 } else {
                     actual.case_symbol.is_none()
@@ -730,6 +755,7 @@ pub(crate) mod canonical_values {
                                 .map(|member| member.as_field()),
                             expressions,
                             fields,
+                            sources,
                         )
                 }
             }
@@ -742,6 +768,7 @@ pub(crate) mod canonical_values {
         declared: impl ExactSizeIterator<Item = Option<&'a DataField>>,
         expressions: &[TableStructLiteralField],
         fields: &[(String, DecodedCanonicalConstValue)],
+        sources: &ToolchainSources,
     ) -> bool {
         declared.len() == fields.len()
             && expressions.len() == fields.len()
@@ -758,6 +785,7 @@ pub(crate) mod canonical_values {
                                 field.type_reference,
                                 expression.value,
                                 value,
+                                sources,
                             )
                     })
                 })
@@ -770,7 +798,8 @@ pub(crate) mod canonical_values {
             expression: crate::expression::ExpressionHandle,
             value: &DecodedCanonicalConstValue,
         ) -> bool {
-            matches_materialized(self, carrier, expression, value)
+            let sources = ToolchainSources::new();
+            matches_materialized(self, carrier, expression, value, &sources)
         }
 
         /// The declared domains on a constant carrier, innermost first
@@ -1690,7 +1719,8 @@ pub fn canonical_const_declaration_value(
         DecodedCanonicalConstValue::Array { .. }
         | DecodedCanonicalConstValue::Record { .. }
         | DecodedCanonicalConstValue::Variant { .. }
-        | DecodedCanonicalConstValue::Float { .. } => {
+        | DecodedCanonicalConstValue::Float { .. }
+        | DecodedCanonicalConstValue::StaticCallable { .. } => {
             program.normalized_type_identity_text(declaration.declared_type)
         }
     };

@@ -104,3 +104,12 @@ fn an_address_field_cannot_substitute_for_a_parameter_declaration() {
     assert!(!success, "{report}");
     assert!(report.contains(expected.trim()), "{report}");
 }
+
+#[test]
+fn runtime_visitors_preserve_the_contexts_borrowed_storage() {
+    let (success, report) = run_both("run/reflection/borrowed_context");
+    assert!(success, "{report}");
+    for receipt in ["native exit 0", "interp exit: 0"] {
+        assert!(report.lines().any(|line| line == receipt), "{report}");
+    }
+}

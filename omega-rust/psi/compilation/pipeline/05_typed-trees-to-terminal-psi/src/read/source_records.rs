@@ -401,16 +401,59 @@ pub(super) fn same_application(
     left: &SourceTypeApplication,
     right: &SourceTypeApplication,
 ) -> bool {
-    typed.normalized_type_identity(left.reference)
-        == typed.normalized_type_identity(right.reference)
-        && left.substitutions.len() == right.substitutions.len()
-        && left.substitutions.iter().zip(&right.substitutions).all(
-            |((left_binder, left_type), (right_binder, right_type))| {
-                left_binder == right_binder
-                    && typed.normalized_type_identity(*left_type)
-                        == typed.normalized_type_identity(*right_type)
-            },
-        )
+    use typed_trees::{data::TypeParameterKind, type_identity::IndexIdentityArgument};
+
+    if typed.normalized_type_identity(left.reference)
+        != typed.normalized_type_identity(right.reference)
+        || left.substitutions.len() != right.substitutions.len()
+    {
+        return false;
+    }
+    let Some((first, _)) = left.substitutions.first() else {
+        return true;
+    };
+    if !typed.symbols.symbols().nodes().is_valid(*first) {
+        return false;
+    }
+    let Some(template) = typed.unique_data_definition_by_symbol(typed.symbols.get(*first).parent)
+    else {
+        return false;
+    };
+    let parameters = typed.data_type_parameters(template);
+    parameters.len() == left.substitutions.len()
+        && parameters
+            .iter()
+            .zip(left.substitutions.iter().zip(&right.substitutions))
+            .all(
+                |(parameter, ((left_binder, left_argument), (right_binder, right_argument)))| {
+                    if parameter.symbol != *left_binder || left_binder != right_binder {
+                        return false;
+                    }
+                    match parameter.kind {
+                        TypeParameterKind::Type => {
+                            typed.normalized_type_identity(*left_argument)
+                                == typed.normalized_type_identity(*right_argument)
+                        }
+                        // Both source applications already checked this binder's
+                        // carrier. Compare its value as an index, so evaluating a
+                        // literal does not create a second record storage identity.
+                        TypeParameterKind::Const { .. } => {
+                            let left = typed_trees::type_identity::normalized_index_identity(
+                                typed,
+                                IndexIdentityArgument::TypeReference(*left_argument),
+                                &[],
+                            );
+                            let right = typed_trees::type_identity::normalized_index_identity(
+                                typed,
+                                IndexIdentityArgument::TypeReference(*right_argument),
+                                &[],
+                            );
+                            left.is_some() && left == right
+                        }
+                        _ => false,
+                    }
+                },
+            )
 }
 
 impl Program<'_> {
@@ -1376,6 +1419,88 @@ mod tests {
                 .retain_data_application_definition(reference, selected, true);
             reference
         }
+    }
+
+    #[test]
+    fn const_applications_share_identity_after_literal_evaluation() {
+        use typed_trees::{data::TypeParameterKind, expression::ExpressionNode};
+
+        let mut fixture = AppliedFixture::new(Default::default());
+        fixture
+            .typed
+            .data_type_parameters
+            .get_mut(fixture.template.type_parameters.start())
+            .kind = TypeParameterKind::Const {
+            type_reference: fixture.u64_type,
+        };
+        let typed_trees::data::DataMember::Variant(case) =
+            &fixture.typed.data_members(&fixture.template)[1]
+        else {
+            panic!("Some case")
+        };
+        let payload = case.payload.start();
+        fixture
+            .typed
+            .data_payload_fields
+            .get_mut(payload)
+            .type_reference = fixture.u64_type;
+        let literal = fixture
+            .typed
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: SymbolHandle::invalid(),
+                name: "4".into(),
+            });
+        let expression = fixture
+            .typed
+            .expression_table
+            .insert(ExpressionNode::Integer(
+                numerics::literals::IntegerLiteral::from_value(4),
+            ));
+        let evaluated = fixture
+            .typed
+            .type_reference_table
+            .insert(TypeReferenceNode::ConstExpression(expression));
+        let different = fixture
+            .typed
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: SymbolHandle::invalid(),
+                name: "5".into(),
+            });
+        let first = fixture.apply(literal, fixture.u64_type);
+        let second = fixture.apply(evaluated, fixture.u64_type);
+        let third = fixture.apply(different, fixture.u64_type);
+        let application = |reference| {
+            source_application(
+                &fixture.typed,
+                fixture.typed.closed_data_definition(reference).unwrap(),
+                reference,
+                machine(),
+            )
+            .unwrap()
+        };
+        let first_application = application(first);
+        let second_application = application(second);
+        assert!(same_application(
+            &fixture.typed,
+            &first_application,
+            &second_application
+        ));
+        assert!(!same_application(
+            &fixture.typed,
+            &first_application,
+            &application(third)
+        ));
+        let mut program = Program::new(&fixture.typed, false);
+        assert_eq!(
+            program.record_at(machine(), first).unwrap(),
+            program.record_at(machine(), second).unwrap()
+        );
+        assert_ne!(
+            program.record_at(machine(), first).unwrap(),
+            program.record_at(machine(), third).unwrap()
+        );
     }
 
     #[test]

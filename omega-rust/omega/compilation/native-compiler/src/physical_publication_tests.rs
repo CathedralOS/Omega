@@ -64,8 +64,9 @@ fn emit_body<'execution>(
         }
     });
     inspect_target(&target);
-    let projection =
-        crate::pipeline::emit_target(target, &observation).unwrap_or_else(|error| match error {
+    let installations = crate::pipeline::bound_installations(&target, None, Vec::new()).unwrap();
+    let projection = crate::pipeline::emit_target(target, installations, &observation)
+        .unwrap_or_else(|error| match error {
             crate::pipeline::BodyEmissionError::Physical(error) => {
                 panic!("constant emission: {error}")
             }
@@ -163,7 +164,8 @@ fn check_published_plan(
 
     let environment =
         register_environment::baseline_target_register_environment(target.target()).unwrap();
-    let installations = crate::pipeline::bound_installations(target);
+    let authority = crate::pipeline::bound_installations(target, None, Vec::new()).unwrap();
+    let installations = authority.facts().as_ref().clone();
     let selected = select_instructions_for_plan(published, &installations, &environment)
         .expect("selection needs only the plan, its installations and the registers");
     assert_eq!(
@@ -188,8 +190,7 @@ fn check_published_plan(
         )
     };
     let mut changed_abi = published.plan().clone();
-    changed_abi
-        .function_abis
+    std::sync::Arc::make_mut(&mut changed_abi.function_abis)
         .first_mut()
         .expect("the prepared program has function ABI rows")
         .machine = MachineId::new(4096).unwrap();
@@ -329,7 +330,7 @@ fn check_published_plan(
     let foreign = terminal_psi_to_abstract_operations::provider_admission::bind_installations(
         &foreign_cohort,
         None,
-        &[],
+        Vec::new(),
     );
     let error = select_instructions_for_plan(published, &foreign, &environment)
         .expect_err("a foreign interrupt cohort is refused");

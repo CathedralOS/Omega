@@ -101,7 +101,7 @@ pub(crate) mod callable_entry_transport {
             let encoding = source.encoding();
             let encoded_rows = index_encoded_rows(
                 source
-                    .program()
+                    .physical_program()
                     .machine
                     .functions
                     .iter()
@@ -134,7 +134,7 @@ pub(crate) mod callable_entry_transport {
                     .function(machine)
                     .ok_or(Error::Mismatch("interrupt callee lacks final native body"))?;
                 let selected = source
-                    .selected_plan()
+                    .physical_program()
                     .function(machine)
                     .ok_or(Error::Mismatch("interrupt callee lacks selected contract"))?;
                 let protocols = source.frame_protocol();
@@ -982,7 +982,7 @@ pub(crate) mod callable_entry_transport {
     use crate::{
         FunctionFragmentObjectArtifactError as Error, ObjectArtifact, PrivateFunctionObject,
     };
-    use calling_conventions::{BoundaryEntryPlan, ValueClass};
+    use calling_conventions::BoundaryEntryPlan;
     use function_identity::MachineFunctionIdentity;
     use machine_emission::native_entry_bridge::{
         InstalledInterruptEntryPlan, NativeEntryBridgeRequest, NativeEntryParameter,
@@ -1137,25 +1137,11 @@ pub(crate) mod callable_entry_transport {
         inbound: &BoundaryEntryPlan,
         inbound_ordinals: &[u32],
     ) -> Result<NativeEntryBridgeRequest, Error> {
-        let replay = body
-            .fragment_replay
-            .as_ref()
-            .ok_or(Error::Mismatch("callable entry lacks body custody"))?;
-        let targeted = replay
-            .0
-            .source()
-            .source()
-            .source()
-            .source()
-            .optimized_target()
-            .execution_plan()
-            .plan();
-        let internal = &targeted
-            .scalar_functions
-            .iter()
-            .find(|function| function.machine == body.entry)
-            .ok_or(Error::Mismatch("callable body entry plan missing"))?
-            .call_plan;
+        let abi = body
+            .program_contracts
+            .function_abi(body.entry)
+            .ok_or(Error::Mismatch("callable body entry plan missing"))?;
+        let internal = &abi.call_plan;
         if inbound_ordinals.len() != internal.parameters.len()
             || inbound.call.parameters.len() != internal.parameters.len()
         {
@@ -1163,20 +1149,14 @@ pub(crate) mod callable_entry_transport {
         }
         let mut used = Vec::with_capacity(inbound_ordinals.len());
         let mut parameters = arena::Arena::with_capacity(inbound_ordinals.len());
-        let module = replay.terminal_module();
-        let entry = module
-            .machines
-            .iter()
-            .find(|machine| machine.id == body.entry)
-            .ok_or(Error::Mismatch("callable Terminal entry missing"))?;
-        if entry.parameters.len() + entry.structural_parameters.len() != internal.parameters.len() {
+        if abi.scalar_parameters.len() + abi.structural_parameters.len()
+            != internal.parameters.len()
+        {
             return Err(Error::Mismatch(
-                "callable body lanes differ from Terminal signature",
+                "callable body parameters differ from its retained ABI",
             ));
         }
-        for (internal_ordinal, (placement, ordinal)) in
-            internal.parameters.iter().zip(inbound_ordinals).enumerate()
-        {
+        for (internal_ordinal, ordinal) in inbound_ordinals.iter().enumerate() {
             let ordinal_index = usize::try_from(*ordinal).map_err(|_| Error::Overflow)?;
             if used.contains(&ordinal_index) || inbound.call.parameters.get(ordinal_index).is_none()
             {
@@ -1185,36 +1165,13 @@ pub(crate) mod callable_entry_transport {
                 ));
             }
             used.push(ordinal_index);
-            let scalar_codec = if placement.shape.class == ValueClass::BorrowedScalarReference {
-                let structural_ordinal = internal_ordinal
-                    .checked_sub(entry.parameters.len())
-                    .ok_or(Error::Mismatch(
-                        "scalar descriptor does not name a structural parameter",
-                    ))?;
-                let parameter = entry
-                    .structural_parameters
-                    .get(structural_ordinal)
-                    .ok_or(Error::Mismatch("scalar descriptor referent missing"))?;
-                let declaration = module
-                    .structural_types
-                    .iter()
-                    .find(|declaration| declaration.id == parameter.structural_type)
-                    .ok_or(Error::Mismatch("scalar descriptor declaration missing"))?;
-                let terminal_psi::StructuralTypeShape::PrimitiveScalar(scalar_type) =
-                    declaration.shape
-                else {
-                    return Err(Error::Mismatch(
-                        "scalar descriptor referent is not primitive",
-                    ));
-                };
-                runtime_abi::ScalarStorageCodec::from_scalar(scalar_type)
-                    .and_then(|codec| codec.encode())
-                    .ok_or(Error::Unsupported(
-                        "callable scalar referent has no native codec",
-                    ))?
-            } else {
-                0
-            };
+            let scalar_codec = abi
+                .entry_scalar_codecs
+                .get(internal_ordinal)
+                .ok_or(Error::Mismatch("callable entry conversion is missing"))?
+                .ok_or(Error::Unsupported(
+                    "callable scalar referent has no native codec",
+                ))?;
             parameters.insert(NativeEntryParameter {
                 inbound_ordinal: *ordinal,
                 scalar_codec,
@@ -4955,29 +4912,20 @@ pub(crate) mod physical_entry {
             )?;
             let source = artifact.composition_source.as_deref().unwrap_or(artifact);
             let mut installed_scopes = Vec::new();
-            if let Some(replay) = &source.fragment_replay {
-                let target = replay
-                    .0
-                    .source()
-                    .source()
-                    .source()
-                    .source()
-                    .optimized_target();
-                for requirement in target.installed_stack_requirements() {
-                    let Some(arrival) = &requirement.arrival else {
-                        continue;
-                    };
-                    if arrival.physical_entry.semantic_entry != semantic_entry
-                        || arrival.physical_entry.adapter != artifact.entry()
-                        || requirement.psi != artifact.psi()
-                        || requirement.target != artifact.target()
-                    {
-                        return Err(invalid(
-                            "physical memory requirement changed its installed occurrence",
-                        ));
-                    }
-                    installed_scopes.push(requirement.operation);
+            for requirement in source.installation_authority.installed_stack_requirements() {
+                let Some(arrival) = &requirement.arrival else {
+                    continue;
+                };
+                if arrival.physical_entry.semantic_entry != semantic_entry
+                    || arrival.physical_entry.adapter != artifact.entry()
+                    || requirement.psi != artifact.psi()
+                    || requirement.target != artifact.target()
+                {
+                    return Err(invalid(
+                        "physical memory requirement changed its installed occurrence",
+                    ));
                 }
+                installed_scopes.push(requirement.operation);
             }
             installed_scopes.sort_unstable();
             installed_scopes.dedup();
@@ -5985,10 +5933,7 @@ pub(crate) mod private_entry_origin {
         body: &'a ObjectArtifact,
         entries: &mut Vec<EntryOrigin<'a>>,
     ) -> Result<(), Error> {
-        let source = body.fragment_replay.as_ref().ok_or(Error::Mismatch(
-            "private entry origins require retained admission input",
-        ))?;
-        let facts = source.0.lowering_facts();
+        let facts = &body.installation_authority;
         let ordinary = facts.native_callbacks();
         let installed = facts.installed_interrupts();
         if ordinary.psi() != body.psi() || installed.psi() != body.psi() {

@@ -68,12 +68,156 @@ fn index(raw: u64) -> usize {
     usize::try_from(raw - 1).unwrap_or(usize::MAX)
 }
 
+/// Inspect only the selected type family. Parameter extents nested below
+/// literal dimensions or reference fields still belong to the call equation.
+fn contains_parameter_extent(
+    module: &terminal_psi::TerminalModule,
+    root: StructuralTypeId,
+) -> bool {
+    use terminal_psi::StructuralTypeShape as Shape;
+    let mut pending = vec![root];
+    let mut visited = Vec::new();
+    while let Some(id) = pending.pop() {
+        match visited.binary_search(&id) {
+            Ok(_) => continue,
+            Err(position) => visited.insert(position, id),
+        }
+        let Some(declaration) = module.structural_type(id) else {
+            // An authenticated abstract referent exposes no storage shape or
+            // extent. A missing declaration without that authority refuses.
+            if module
+                .structural_referents
+                .iter()
+                .any(|referent| referent.id == id && referent.abstract_opaque)
+            {
+                continue;
+            }
+            return true;
+        };
+        pending.extend(declaration.quotient_carrier);
+        if let Some(restriction) = &declaration.scalar_restriction {
+            pending.extend(restriction.as_structural());
+        }
+        match &declaration.shape {
+            Shape::FixedArray {
+                length: terminal_psi::ArrayExtent::Parameter { .. },
+                ..
+            } => return true,
+            Shape::FixedArray { element, .. } | Shape::ElementView { element, .. } => {
+                pending.push(*element)
+            }
+            Shape::Reference { referent, .. } => pending.push(*referent),
+            shape => {
+                for (_, field) in shape.fields_with_case() {
+                    pending.extend(field.inline_carrier);
+                    pending.extend(field.field_type.as_structural());
+                }
+            }
+        }
+    }
+    false
+}
+
 /// Checks this question family's complete subjects before input or result
 /// inference can use the module. A question carries no positivity fact: its
 /// goal still goes through the ordinary prover and proof kernel.
 pub(crate) fn width_questions_are_minted(
     elaboration: &terminal_check_tables::program::Elaboration,
 ) -> Checked<()> {
+    let extents = terminal_check_tables::obligations::array_extent_parameters(&elaboration.module)
+        .map_err(|(machine, detail)| {
+            refusal(
+                RefusalReason::ForeignIdentity,
+                machine,
+                Construct::Machine,
+                detail,
+            )
+        })?;
+    for (owner, values) in extents {
+        let lowered = elaboration.module.machine(owner).ok_or_else(|| {
+            refusal(
+                RefusalReason::ForeignIdentity,
+                owner,
+                Construct::Machine,
+                "array extent owner is absent",
+            )
+        })?;
+        let count = elaboration
+            .value_parameters
+            .get(owner)
+            .copied()
+            .unwrap_or(0);
+        let start = lowered.parameters.len().checked_sub(count).ok_or_else(|| {
+            refusal(
+                RefusalReason::ForeignIdentity,
+                owner,
+                Construct::Machine,
+                "array extent static input count exceeds the declaration",
+            )
+        })?;
+        if values.iter().any(|value| {
+            !lowered
+                .parameters
+                .iter()
+                .enumerate()
+                .any(|(position, formal)| position >= start && formal.id == *value)
+        }) {
+            return Err(refusal(
+                RefusalReason::ForeignIdentity,
+                owner,
+                Construct::Machine,
+                "array extent is not an actual proof-static input",
+            ));
+        }
+    }
+    // A dependent structural input is checked under the scalar actuals at
+    // this exact call. Local type IDs alone cannot establish that equation.
+    for caller in &elaboration.module.machines {
+        for operation in caller.operations() {
+            let Some(call) = operation.declared_invocation() else {
+                continue;
+            };
+            let semantic_vocabulary::TargetMachineCallable::Machine(callee) = call.callee else {
+                continue;
+            };
+            let Some(callee) = elaboration.module.machine(callee) else {
+                continue;
+            };
+            for (actual, formal) in call
+                .structural_arguments
+                .iter()
+                .zip(&callee.structural_parameters)
+            {
+                if !contains_parameter_extent(&elaboration.module, formal.structural_type) {
+                    continue;
+                }
+                let selected = caller.structural_place_type(actual.place).and_then(|root| {
+                    terminal_semantics::runtime_structural_path_tip(
+                        elaboration.module.structural_types.iter(),
+                        root,
+                        &actual.path,
+                    )
+                });
+                if !selected.is_some_and(|selected| {
+                    terminal_semantics::calls::const_array_argument_matches(
+                        &elaboration.module,
+                        caller,
+                        callee,
+                        call.arguments,
+                        selected.id,
+                        formal.structural_type,
+                    )
+                }) {
+                    return Err(refusal(
+                        RefusalReason::ForeignIdentity,
+                        caller.id,
+                        Construct::Operation(operation.id),
+                        "array call input does not correspond under its actual const inputs",
+                    ));
+                }
+            }
+        }
+    }
     let inventory = terminal_check_tables::obligations::integer_width_parameters(
         &elaboration.module,
     )
@@ -1187,4 +1331,62 @@ pub(crate) fn domains_are_declared(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod opaque_extent_tests {
+    use super::*;
+
+    #[test]
+    fn only_an_explicit_abstract_referent_excludes_unknown_storage_from_extent_search() {
+        let mut module = terminal_psi::TerminalModule::declarations();
+        let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
+        let identity = identities.intern("opaque extent search");
+        module.identities = identities.build();
+        let id = StructuralTypeId::new(1).unwrap();
+        assert!(
+            contains_parameter_extent(&module, id),
+            "a missing declaration cannot bypass the dependent-call check"
+        );
+        module
+            .structural_referents
+            .push(terminal_psi::StructuralReferentIdentity {
+                id,
+                identity,
+                foreign_descriptor: true,
+                abstract_opaque: false,
+            });
+        assert!(
+            contains_parameter_extent(&module, id),
+            "a referent row alone grants no opacity authority"
+        );
+        module.structural_referents[0].abstract_opaque = true;
+        assert!(!contains_parameter_extent(&module, id));
+        module
+            .structural_types
+            .push(terminal_psi::StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
+                quotient_carrier: None,
+                id,
+                identity,
+                owns_linear_claim: false,
+                copyable: true,
+                no_code_affine_cleanup: false,
+                descriptor_cleanup: false,
+                nominal_cleanup: None,
+                shape: terminal_psi::StructuralTypeShape::FixedArray {
+                    element: StructuralTypeId::new(2).unwrap(),
+                    length: terminal_psi::ArrayExtent::Parameter {
+                        owner: MachineId::new(1).unwrap(),
+                        value: ValueId::new(1).unwrap(),
+                    },
+                },
+                scalar_restriction: None,
+                requires: Vec::new(),
+            });
+        assert!(
+            contains_parameter_extent(&module, id),
+            "an opaque marker cannot hide a concrete parameter extent"
+        );
+    }
 }

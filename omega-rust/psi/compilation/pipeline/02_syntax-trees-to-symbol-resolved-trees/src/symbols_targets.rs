@@ -1029,12 +1029,18 @@ mod static_namespaces {
         // every call form, without choosing among an ambiguous family.
         let candidates =
             symbols.top_level_candidates_from_source(name, super::SOURCE_CALL_KINDS, reference);
-        // A conformance-owned body keeps its selected-call owner. The
-        // module containing its source cannot replace that public route.
-        let declared_module = candidates.first().and_then(|first| {
+        // A root-owned qualified declaration need not introduce a separate
+        // value or module for its written prefix. The source-visible complete
+        // callable path supplies its static selection, including a root header.
+        // A conformance-owned body keeps its selected-call owner; its source
+        // namespace cannot replace that public route.
+        let declared_owner = candidates.first().and_then(|first| {
             let owner = symbols.namespace_parent(*first);
             (owner.is_valid()
-                && symbols.get(owner).kind == SymbolKind::Module
+                && matches!(
+                    symbols.get(owner).kind,
+                    SymbolKind::Module | SymbolKind::Root
+                )
                 && candidates.iter().all(|candidate| {
                     !symbols.get(*candidate).declaration_owner.is_valid()
                         && symbols.namespace_parent(*candidate) == owner
@@ -1048,7 +1054,7 @@ mod static_namespaces {
         );
         if !namespace.is_some_and(|symbol| symbols.get(symbol).kind == SymbolKind::Module)
             && !symbols.is_source_package_qualifier(reference, receiver_name)
-            && declared_module.is_none()
+            && declared_owner.is_none()
         {
             // A source-free qualified operation has a declaration too. Only an
             // unbound namespace may reach that default; visible authored owners
@@ -1412,6 +1418,59 @@ mod tests {
             assert_eq!(authored.symbols_kind, SymbolKind::State);
             assert_eq!(authored.machine_name, operation);
         }
+    }
+
+    #[test]
+    fn root_owned_qualified_calls_retain_the_callable_without_a_value_receiver() {
+        let text = r#"
+            machine names::identity(value: u32) -> u32 { value }
+            machine caller() -> u32 { names::identity(42) }
+            machine shadow(names: u32) -> u32 { names::identity(42) }
+        "#;
+        let mut sources = source::SourceMap::default();
+        let source_id = sources.add("main.omg".into(), text.to_owned()).source_id;
+        let tokens = Lexer::new(text).tokenize().expect("tokenize");
+        let syntax =
+            tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).expect("parse");
+        let program = resolve(ResolutionRequest {
+            syntax,
+            sources: Some(std::sync::Arc::new(sources)),
+            top_level_bindings: Vec::new(),
+            retained_base: None,
+        })
+        .expect("resolve");
+        let expressions = &program.tables.bodies.expressions;
+        let calls: Vec<_> = expressions
+            .iter_expressions()
+            .filter_map(|(_, node)| {
+                if let ExpressionNode::Call(call) = node {
+                    Some(call)
+                } else {
+                    None
+                }
+            })
+            .collect();
+        let selected = calls
+            .iter()
+            .find(|call| call.target.as_str() == "names::identity")
+            .expect("root-owned static call");
+        assert!(!selected.receiver.is_valid());
+        assert_eq!(
+            program.symbols.get(selected.target_symbol).kind,
+            SymbolKind::State
+        );
+        let owner = program.symbols.get(selected.target_symbol).parent;
+        assert_eq!(program.symbols.name(owner), "names::identity");
+        let shadow = calls
+            .iter()
+            .find(|call| call.receiver.is_valid())
+            .expect("the shadowing value stays a runtime receiver");
+        let ExpressionNode::Name(path) = expressions.expression(shadow.receiver) else {
+            panic!("the actual parameter reference");
+        };
+        assert!(path.symbol.is_valid());
+        assert_eq!(program.symbols.name(path.symbol), "names");
+        assert_ne!(program.symbols.get(path.symbol).kind, SymbolKind::Module);
     }
 
     #[test]

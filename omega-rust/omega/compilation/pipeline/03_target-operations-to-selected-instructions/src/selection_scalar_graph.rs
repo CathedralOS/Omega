@@ -1732,7 +1732,9 @@ pub(crate) mod byte_output {
         builder: &mut Builder<'_>,
     ) -> Result<bool, SelectedInstructionError> {
         let LegalizedScalarInstructionKind::HostedWriteByteI32 {
-            boundary, source, ..
+            boundary,
+            execution,
+            source,
         } = row.kind
         else {
             return Ok(false);
@@ -1772,6 +1774,7 @@ pub(crate) mod byte_output {
                 instruction_index,
                 settlement: SelectedBoundarySettlementPayload::HostedWriteByteI32 {
                     operation: row.operation,
+                    execution,
                     boundary,
                     source,
                 },

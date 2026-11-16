@@ -280,6 +280,8 @@ mod product {
         Data,
         Representation,
         WireCompatibilityFact,
+        Formal,
+        Field,
     }
 
     impl BuildOperation {
@@ -291,6 +293,8 @@ mod product {
                     Some(Role::BoundarySubject)
                 }
                 (Self::ProviderSelection, 1) => Some(Role::Provider),
+                (Self::ParameterDescription, 0) => Some(Role::Formal),
+                (Self::FieldDescription, 0) => Some(Role::Field),
                 (Self::AssumedBindingContract, 0 | 1) | (Self::NativeBinding, 0) => {
                     Some(Role::Requirement)
                 }
@@ -309,7 +313,9 @@ mod product {
 
         pub const fn product_operand_count_valid(self, count: usize) -> bool {
             match self {
-                Self::NativeBinding => count == 1,
+                Self::NativeBinding | Self::ParameterDescription | Self::FieldDescription => {
+                    count == 1
+                }
                 Self::ProviderSelection
                 | Self::RepresentationSelection
                 | Self::AssumedBindingContract
@@ -332,6 +338,8 @@ mod product {
             use crate::build_requests::SelectionProtocolOperation as Protocol;
             match self {
                 Self::NativeBinding => Some((Protocol::BindNative, 3)),
+                Self::ParameterDescription => Some((Protocol::DescribeParameter, 0)),
+                Self::FieldDescription => Some((Protocol::DescribeField, 0)),
                 Self::ProviderSelection => Some((Protocol::SelectProvider, 3)),
                 operation if operation.selects_product_declarations() => {
                     Some((Protocol::Select, 1))
@@ -1149,6 +1157,8 @@ pub enum BuildOperation {
     // `builder.tests.service<Group, Slot>()` (wiki/spec/build/testing.md): a
     // registered group's runner-supplied backing for one exact service slot.
     TestGroupService,
+    ParameterDescription,
+    FieldDescription,
 }
 pub fn is_unresolved_provider_selection_call(
     target: &str,
@@ -1204,6 +1214,8 @@ impl BuildOperation {
 
     pub const fn authored_spelling(self) -> &'static str {
         match self {
+            Self::ParameterDescription => "reflect::parameter",
+            Self::FieldDescription => "reflect::field",
             Self::NativeBinding => "bind",
             Self::ProviderReadiness => "await_provider",
             Self::ProviderSelection => "select_provider",
@@ -1230,6 +1242,10 @@ impl BuildOperation {
 
     pub const fn intrinsic(self) -> AuthoredDeclarationSelectionIntrinsic {
         match self {
+            Self::ParameterDescription => {
+                AuthoredDeclarationSelectionIntrinsic::BuildParameterDescription
+            }
+            Self::FieldDescription => AuthoredDeclarationSelectionIntrinsic::BuildFieldDescription,
             Self::NativeBinding => AuthoredDeclarationSelectionIntrinsic::BuildNativeBinding,
             Self::ProviderReadiness => {
                 AuthoredDeclarationSelectionIntrinsic::BuildProviderReadiness
@@ -1304,6 +1320,8 @@ pub enum AuthoredDeclarationSelectionIntrinsic {
     ProofView,
     QuotientDefine,
     QuotientLift,
+    BuildParameterDescription,
+    BuildFieldDescription,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]

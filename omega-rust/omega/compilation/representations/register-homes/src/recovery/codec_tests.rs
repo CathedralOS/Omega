@@ -7,7 +7,6 @@ Verifies that `FixedViewCopyPlan` deterministic wire encoding (`OMGFCV\0\0` v110
 use access_plans::{AccessFields, BoundaryReach, validate_placement};
 use calling_conventions::{CallPlan, CallingPolicy, EntryControl, MachineRegister, RegisterSet};
 use layout_plans::{LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport};
-use legalized_operations::{LegalizedScalarCall, LegalizedStructuralContract, NativeCallOrigin};
 use native_vocabulary::provenance::{
     EffectLink, PsiProvenance, ValueDefinitionSite, WorkSettlement,
 };
@@ -33,6 +32,7 @@ use semantic_vocabulary::{
     OperationId, PlaceId, ScalarType, StructuralDomainId, StructuralFieldId, StructuralTypeId,
     ValueId, WorkScheduleIdentity,
 };
+use target_vocabulary::{LegalizedScalarCall, LegalizedStructuralContract, NativeCallOrigin};
 use terminal_psi::{
     CrashCause, CrashRouteBucket, CrashRouteGuard, NominalDeclarationIdentity, SemanticFingerprint,
     TerminalAccessLifecycleExecution, TerminalAccessLifecycleOperation,
@@ -449,10 +449,14 @@ fn transformed_plan_retains_the_nonempty_borrowed_storage_contract() {
     .unwrap();
     let baseline_identity =
         selected_instructions::selected_instruction_plan_identity(&original.transformed);
-    std::sync::Arc::make_mut(&mut original.transformed).contracts =
-        std::sync::Arc::new(selected_instructions::SelectedProgramContracts {
-            borrowed_storage_layouts: layouts.clone(),
-        });
+    std::sync::Arc::make_mut(&mut original.transformed).contracts = std::sync::Arc::new(
+        selected_instructions::SelectedProgramContracts::new(
+            layouts.clone(),
+            None,
+            std::sync::Arc::from([]),
+        )
+        .unwrap(),
+    );
     assert_ne!(
         selected_instructions::selected_instruction_plan_identity(&original.transformed),
         baseline_identity
@@ -464,6 +468,62 @@ fn transformed_plan_retains_the_nonempty_borrowed_storage_contract() {
         layouts
     );
     assert_eq!(received, original);
+}
+
+#[test]
+fn byte_output_execution_survives_the_wire_and_refuses_another_builtin() {
+    use selected_instructions::SelectedBoundarySettlementPayload;
+    use target_vocabulary::{
+        BoundaryExecutionBinding, CompilerBuiltinExecution, ProviderExecutionBinding,
+        ProviderPlanReportIdentity,
+    };
+    let builtin =
+        BoundaryExecutionBinding::CompilerBuiltin(CompilerBuiltinExecution::HostedWriteByteI32);
+    let provider = BoundaryExecutionBinding::AdmittedProvider(
+        ProviderExecutionBinding::from_execution_record(
+            ProviderPlanReportIdentity::new(11).unwrap(),
+            12,
+            13,
+            14,
+            15,
+        )
+        .unwrap(),
+    );
+    for execution in [builtin, provider] {
+        let mut payload = SelectedBoundarySettlementPayload::HostedWriteByteI32 {
+            operation: OperationId::new(1).unwrap(),
+            execution,
+            boundary: BoundaryMachineId::new(2).unwrap(),
+            source: ValueId::new(3).unwrap(),
+        };
+        let original_identity = payload.canonical_bytes();
+        let mut bytes = Vec::new();
+        super::structural_contracts::encode_boundary_settlement(&mut bytes, &payload).unwrap();
+        assert_eq!(
+            super::structural_contracts::decode_boundary_settlement(&mut Cursor::new(&bytes))
+                .unwrap(),
+            payload,
+        );
+        bytes[9] = 255;
+        assert_eq!(
+            super::structural_contracts::decode_boundary_settlement(&mut Cursor::new(&bytes)),
+            Err(FixedViewCopyDecodeError::UnknownBoundaryRealization(255)),
+        );
+        let SelectedBoundarySettlementPayload::HostedWriteByteI32 { execution, .. } = &mut payload
+        else {
+            unreachable!()
+        };
+        *execution = BoundaryExecutionBinding::CompilerBuiltin(
+            CompilerBuiltinExecution::HostedExitProcessI32,
+        );
+        assert_ne!(payload.canonical_bytes(), original_identity);
+        assert!(matches!(
+            super::structural_contracts::encode_boundary_settlement(&mut Vec::new(), &payload),
+            Err(terminal_wire::CodecError::MalformedStructuralFoundation(
+                "byte output settlement has an incompatible execution binding"
+            )),
+        ));
+    }
 }
 
 pub(super) fn selected_payload_offset(encoded: &[u8]) -> usize {
@@ -1565,7 +1625,7 @@ fn cleanup_call_owner_round_trips_and_identity_keeps_edge_and_action() {
 
 #[test]
 fn returned_descriptor_origins_preserve_namespace_and_memory_role_in_wire_identity() {
-    use legalized_operations::LegalizedDescriptorOrigin as Origin;
+    use target_vocabulary::LegalizedDescriptorOrigin as Origin;
     let mut original = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     let mut function = structural_function();
     function.calls[0].call.descriptor_origins = vec![

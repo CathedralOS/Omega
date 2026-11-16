@@ -74,6 +74,56 @@ pub(crate) mod statement {
             ) {
                 return Ok(StatementNode::Call(lower_ordinary_call(lowerer, call)?));
             }
+            let table = resolved_statements(lowerer.source_trees);
+            let arguments = table.expression_handles(call.arguments);
+            let operand = if arguments.len() == 1 {
+                Some(
+                    crate::tables::resolved_expressions(lowerer.source_trees)
+                        .expression(arguments[0]),
+                )
+            } else {
+                None
+            };
+            let members = match operand {
+                Some(resolved::expression::ExpressionNode::Name(path)) => {
+                    crate::tables::resolved_expressions(lowerer.source_trees)
+                        .name_path_members(path.members)
+                }
+                _ => &[],
+            };
+            if call.machine_arguments.is_empty()
+                && call.evidence_arguments.is_empty()
+                && let Some(request) = crate::expressions::product_queries::description_request(
+                    lowerer.source_trees,
+                    call.target_symbol,
+                    (!call.receiver.is_empty()).then_some(call.receiver_symbol),
+                    operand,
+                    members,
+                    call.target.source_span(),
+                )
+            {
+                let expression = crate::expressions::build_selections::lower(
+                    lowerer.source_trees,
+                    &mut lowerer.typed_trees,
+                    request,
+                    Vec::new(),
+                    lowerer.source_owner,
+                    Vec::new(),
+                    call.operational_acknowledgement,
+                )?;
+                if let Some(occurrence) = call.authored_call_selection
+                    && let typed::expression::ExpressionNode::Call(generated) =
+                        lowerer.typed_trees.expression_table.expression(expression)
+                {
+                    let selected = generated.target_symbol;
+                    crate::call_and_product_selections::bind_generated_call_selection(
+                        &mut lowerer.typed_trees,
+                        occurrence,
+                        selected,
+                    )?;
+                }
+                return Ok(StatementNode::Expression(expression));
+            }
             if let Some(operation) = crate::expressions::product_queries::operation(
                 lowerer.source_trees,
                 call.target_symbol,
@@ -186,6 +236,7 @@ pub(crate) mod statement {
                     lowerer.type_reference_exposure,
                     symbols::SymbolHandle::invalid(),
                     &call.machine_arguments,
+                    &call.authored_static_argument_selections,
                 )?;
                 return Ok(typed::statement::TableCall {
                     authored_call_selection: call.authored_call_selection,
@@ -247,6 +298,7 @@ pub(crate) mod statement {
                     lowerer.type_reference_exposure,
                     call.target_symbol,
                     ordinary_arguments,
+                    &call.authored_static_argument_selections,
                 )?,
                 arguments,
                 evidence_arguments: call

@@ -233,10 +233,15 @@ impl PackageCompilationInputs {
         requester: PackageKeyIdentity,
         requested: DependencyPurpose,
     ) -> DependencyPurpose {
-        if requester == self.root() {
-            requested
-        } else {
-            DependencyPurpose::Product
+        use semantic_vocabulary::source_selections::SelectionPurpose;
+        let purpose = match requested {
+            DependencyPurpose::Build => SelectionPurpose::Build,
+            DependencyPurpose::Product => SelectionPurpose::Product,
+        }
+        .for_declaring_package(Some(self.root()), requester);
+        match purpose {
+            SelectionPurpose::Build => DependencyPurpose::Build,
+            SelectionPurpose::Product => DependencyPurpose::Product,
         }
     }
 

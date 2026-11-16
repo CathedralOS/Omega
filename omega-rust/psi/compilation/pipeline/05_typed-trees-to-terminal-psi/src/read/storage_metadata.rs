@@ -4,11 +4,8 @@
 
 use semantic_vocabulary::{MachineId, StructuralTypeId};
 use terminal_check_tables::Checked;
-use terminal_psi::{
-    CallingAbiParameter, CallingAbiStorage, CallingRuntimeFormal, CallingSignatureTelescope,
-    StructuralAccess,
-};
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use terminal_psi::{CallingAbiStorage, CallingRuntimeFormal, CallingSignatureTelescope};
+use typed_trees::types::TypeReferenceNode;
 
 use super::{Program, services};
 use crate::calling_publication::PreparedCallingStorage;
@@ -150,14 +147,13 @@ impl Program<'_> {
                             typed_trees::type_system::source_projections::substituted_type_reference(
                                 typed, reference, &bindings,
                             );
-                        let (storage_type, access) = self.metadata_parameter(context, reference)?;
-                        parameters.push(CallingAbiParameter {
-                            structural_type: storage_type,
-                            // Callback-bearing source was refused above; no
-                            // retained callback obligation becomes None.
-                            callback_backing: None,
-                            access,
-                        });
+                        // Both publications describe the same declared formal.
+                        // Keep its canonical direct carrier, including borrowed
+                        // slice descriptors and their callback backing.
+                        parameters.push(
+                            self.calling_abi_parameter(context, reference)
+                                .map_err(|reason| services::unavailable(context, reason))?,
+                        );
                     }
                     let omitted_unit = !projection.result.is_valid()
                         && {
@@ -194,7 +190,10 @@ impl Program<'_> {
                                 projection.result,
                                 &bindings,
                             );
-                        Some(self.metadata_storage(context, reference)?)
+                        Some(
+                            self.calling_abi_storage(context, reference)
+                                .map_err(|reason| services::unavailable(context, reason))?,
+                        )
                     };
                     let storage = CallingAbiStorage {
                         parameters,
@@ -241,56 +240,5 @@ impl Program<'_> {
         self.scope = previous_scope;
         self.lifetime_owner = previous_owner;
         result
-    }
-
-    fn metadata_storage(
-        &mut self,
-        context: MachineId,
-        reference: TypeReferenceHandle,
-    ) -> Checked<StructuralTypeId> {
-        let value = self.value_type(context, reference)?;
-        // A layout describes the bare storage carrier. The complete authored
-        // qualifications stay on the ABI/source application; no domain
-        // introduction is attached to this physical type identity.
-        let reference = self.metadata_carrier(reference);
-        self.storage_type(context, reference, value)
-    }
-
-    fn metadata_carrier(&self, mut reference: TypeReferenceHandle) -> TypeReferenceHandle {
-        while let TypeReferenceNode::Constrained { base_type, .. } =
-            self.typed.type_reference_table.type_reference(reference)
-        {
-            reference = *base_type;
-        }
-        reference
-    }
-
-    fn metadata_parameter(
-        &mut self,
-        context: MachineId,
-        reference: TypeReferenceHandle,
-    ) -> Checked<(StructuralTypeId, StructuralAccess)> {
-        let reference = self.metadata_carrier(reference);
-        match self.typed.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::Reference {
-                referee, access, ..
-            } => {
-                let (referee, access) = (*referee, *access);
-                let storage = self.metadata_storage(context, referee)?;
-                Ok((
-                    storage,
-                    match access {
-                        language_core::ReferenceAccess::Shared => StructuralAccess::SharedBorrow,
-                        language_core::ReferenceAccess::Mutable => StructuralAccess::MutableBorrow,
-                        language_core::ReferenceAccess::WriteOnly => {
-                            StructuralAccess::WriteOnlyBorrow
-                        }
-                    },
-                ))
-            }
-            _ => self
-                .metadata_storage(context, reference)
-                .map(|record| (record, StructuralAccess::Owned)),
-        }
     }
 }

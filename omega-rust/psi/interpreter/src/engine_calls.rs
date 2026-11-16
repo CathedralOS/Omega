@@ -136,7 +136,7 @@ pub(crate) mod frames {
     use crate::engine::execution::TerminalExecution;
     use crate::storage::byte_sequences::binding::ByteSequenceBinding;
     use crate::storage::runtime_rows::RuntimeRows;
-    use semantic_vocabulary::{MachineId, PlaceId};
+    use semantic_vocabulary::{EdgeId, MachineId, PlaceId};
     use std::collections::BTreeSet;
     use terminal_psi::{
         ClaimTransfer, StructuralAccess, StructuralArgument, StructuralMultiplicity,
@@ -259,6 +259,7 @@ pub(crate) mod frames {
             parameters: &[StructuralParameterDeclaration],
             arguments: &[StructuralArgument],
             resolved_arguments: &[TerminalStructuralValue],
+            arrival: Option<EdgeId>,
         ) -> Result<RuntimeRows<PlaceId, ByteSequenceBinding>, TerminalInterpretError> {
             if parameters.len() != arguments.len() || parameters.len() != resolved_arguments.len() {
                 return Err(malformed());
@@ -283,9 +284,9 @@ pub(crate) mod frames {
                 {
                     continue;
                 }
-                if let Some((value, binding)) =
-                    self.prepare_owned_byte_descriptor_argument(parameter, argument, resolved)?
-                {
+                if let Some((value, binding)) = self.prepare_owned_byte_descriptor_argument(
+                    parameter, argument, resolved, arrival,
+                )? {
                     if value != *resolved || values.insert(parameter.place, binding)?.is_some() {
                         return Err(malformed());
                     }

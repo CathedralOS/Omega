@@ -2,6 +2,7 @@
 // Each cohort is minted by provider admission, bound to its Terminal program,
 // and read through the sealed lowering facts produced by Omega 00.
 
+use std::sync::Arc;
 use terminal_psi::TerminalPsiIdentity;
 
 use crate::{AdmittedInstalledInterruptEntry, AdmittedNativeCallbackArgument};
@@ -9,14 +10,14 @@ use crate::{AdmittedInstalledInterruptEntry, AdmittedNativeCallbackArgument};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AdmittedNativeCallbackCohort {
     pub(crate) psi: TerminalPsiIdentity,
-    pub(crate) callbacks: Vec<AdmittedNativeCallbackArgument>,
+    pub(crate) callbacks: Arc<[AdmittedNativeCallbackArgument]>,
 }
 
 impl AdmittedNativeCallbackCohort {
-    pub const fn empty(psi: TerminalPsiIdentity) -> Self {
+    pub fn empty(psi: TerminalPsiIdentity) -> Self {
         Self {
             psi,
-            callbacks: Vec::new(),
+            callbacks: Arc::from([]),
         }
     }
 
@@ -32,18 +33,18 @@ impl AdmittedNativeCallbackCohort {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AdmittedInstalledInterruptCohort {
     pub(crate) psi: TerminalPsiIdentity,
-    pub(crate) entries: Vec<AdmittedInstalledInterruptEntry>,
-    pub(crate) scopes: Vec<crate::AdmittedInstalledInterruptScope>,
-    pub(crate) helpers: Vec<crate::AdmittedInstalledInterruptHelper>,
+    pub(crate) entries: Arc<[AdmittedInstalledInterruptEntry]>,
+    pub(crate) scopes: Arc<[crate::AdmittedInstalledInterruptScope]>,
+    pub(crate) helpers: Arc<[crate::AdmittedInstalledInterruptHelper]>,
 }
 
 impl AdmittedInstalledInterruptCohort {
-    pub const fn empty(psi: TerminalPsiIdentity) -> Self {
+    pub fn empty(psi: TerminalPsiIdentity) -> Self {
         Self {
             psi,
-            entries: Vec::new(),
-            scopes: Vec::new(),
-            helpers: Vec::new(),
+            entries: Arc::from([]),
+            scopes: Arc::from([]),
+            helpers: Arc::from([]),
         }
     }
 

@@ -154,7 +154,7 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
     LegalizedOperationPlan {
         borrowed_storage_layouts: Default::default(),
         installation_operations: Vec::new(),
-        function_abis: Vec::new(),
+        function_abis: std::sync::Arc::from([]),
         psi: TerminalPsiIdentity {
             vocabulary_marker: VocabularyMarker::CURRENT,
             program_fingerprint: SemanticFingerprint::from_bytes([7; 32]),

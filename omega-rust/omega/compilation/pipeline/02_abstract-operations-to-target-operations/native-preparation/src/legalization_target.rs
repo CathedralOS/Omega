@@ -2488,6 +2488,9 @@ pub(crate) mod element_view {
                         return Err("representation view has no matching source and target length scale");
                     };
                     match backing.extent {
+                        terminal_semantics::CollectionExtent::Parameter { .. } => {
+                            return Err("view array extent is still a rigid const input");
+                        }
                         terminal_semantics::CollectionExtent::Fixed(count) => {
                             if count.checked_mul(length_scale).is_none() {
                                 return Err("representation view length multiplication overflows");
@@ -2537,6 +2540,9 @@ pub(crate) mod element_view {
                 return Err("borrowed collection cannot supply a static inline window");
             }
             match (byte_window, backing.extent) {
+                (None, terminal_semantics::CollectionExtent::Parameter { .. }) => {
+                    return Err("view array extent is still a rigid const input");
+                }
                 (Some((start, end)), terminal_semantics::CollectionExtent::Fixed(length)) => {
                     if !(start <= end && end <= length)
                         || extent != target_operations::TargetViewExtent::Fixed(end - start)
@@ -2574,6 +2580,9 @@ pub(crate) mod element_view {
             };
             let window_start = byte_window.map_or(0, |(start, _)| start);
             let leading: u64 = match backing.extent {
+                terminal_semantics::CollectionExtent::Parameter { .. } => {
+                    return Err("an array extent is still a rigid const input");
+                }
                 terminal_semantics::CollectionExtent::LiveLength { .. } => 8,
                 terminal_semantics::CollectionExtent::Fixed(_)
                 | terminal_semantics::CollectionExtent::StoredLength => 0,

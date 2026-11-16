@@ -298,11 +298,9 @@ pub(super) fn scalar_named(scalar: ScalarType) -> String {
             };
             match integer.width() {
                 IntegerWidth::Bits(bits) => format!("{prefix}{bits}"),
-                IntegerWidth::Parameter(parameter) => format!(
-                    "{prefix}<static width {}:{}>",
-                    parameter.owner.get(),
-                    parameter.value.get(),
-                ),
+                // Proof input IDs depend on allocation order and are not
+                // the source name of this width parameter.
+                IntegerWidth::Parameter(_) => format!("{prefix}<width parameter>"),
             }
         }
         ScalarType::IeeeFloat(IeeeFloatFormat::Binary32) => "f32".to_owned(),

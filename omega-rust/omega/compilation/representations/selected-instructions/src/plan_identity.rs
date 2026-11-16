@@ -2,7 +2,7 @@
   Canonical SHA-256 identity producer for `SelectedInstructionPlan`.
 
   Owns the byte-stable encoding over which `SelectedInstructionPlanIdentity` is
-  derived (`omega.terminal-selected-instructions.v57\0`). The identity is
+  derived (`omega.terminal-selected-instructions.v58\0`). The identity is
   hierarchical: `Sha256` over the plan's roots and the ordered digests of its
   functions, each function digest (`omega.terminal-selected-instruction-function.v5\0`)
   retaining its static metadata, 64-register pages, local frame storage slots,
@@ -42,7 +42,7 @@ pub(crate) struct RetainedPlanPrefix {
 pub fn selected_instruction_plan_identity(
     plan: &SelectedInstructionPlan,
 ) -> SelectedInstructionPlanIdentity {
-    let domain = b"omega.terminal-selected-instructions.v57\0".as_slice();
+    let domain = b"omega.terminal-selected-instructions.v58\0".as_slice();
     let mut header_bytes = Vec::with_capacity(128);
     header_bytes.extend_from_slice(domain);
     header_bytes.extend_from_slice(plan.psi.program_fingerprint.as_bytes());
@@ -53,7 +53,7 @@ pub fn selected_instruction_plan_identity(
     push_encoded(&mut header_bytes, plan.work_schedule.marker().to_le_bytes());
     header_bytes.extend_from_slice(&plan.target.identity_bytes());
     push_encoded(&mut header_bytes, plan.entry.get().to_le_bytes());
-    header_bytes.extend_from_slice(&plan.contracts.borrowed_storage_layouts.identity_bytes());
+    header_bytes.extend_from_slice(&plan.contracts.identity_bytes());
     crate::codec_bytes::encode_len(&mut header_bytes, plan.functions.len());
 
     if let Some(retained) = plan.functions.retained_plan_prefix()
@@ -107,7 +107,7 @@ struct RetainedHeaderKey {
     attachment: Option<semantic_vocabulary::StructuralTypeId>,
     entry_block: crate::SelectedBlockId,
     provenance: target_vocabulary::TerminalPsiProvenance,
-    structural: Option<legalized_operations::LegalizedStructuralContract>,
+    structural: Option<target_vocabulary::LegalizedStructuralContract>,
     outgoing_arguments: Vec<crate::SelectedOutgoingArgumentSlot>,
     calls: Vec<crate::SelectedCallContract>,
     normalized_foreign_calls: Vec<crate::SelectedNormalizedForeignCall>,
@@ -1201,7 +1201,7 @@ mod ordinary {
                         },
                     },
                     transport: crate::SelectedStructuralTransport::Unused,
-                    source_indices: vec![legalized_operations::LegalizedRuntimeIndexOperand {
+                    source_indices: vec![target_vocabulary::LegalizedRuntimeIndexOperand {
                         operand: native_vocabulary::values::AbstractResult {
                             value: ValueId::new(6).unwrap(),
                             scalar_type: ScalarType::Integer(
@@ -1516,11 +1516,11 @@ mod function_digest_tests {
     }
 
     #[test]
-    fn shared_function_chunks_keep_the_v3_canonical_identity() {
+    fn shared_function_chunks_keep_the_v4_canonical_identity() {
         let function = function(1);
-        // The owned-cleanup change c5a9992cb9aa3 removed nominal cleanup metadata
-        // and introduced function v3. Both storage views must bind its bytes.
-        let expected = "a8c14612d027017b3238046082a28345af2fc7481d5d006d7130c8ae7d3494fe";
+        // Function v4 binds byte-writer execution custody. Sharing the function
+        // columns must preserve its exact canonical bytes.
+        let expected = "5feca846b159cfba13f9271efb92e8458543d7f5362eca80de015afca0c31507";
         assert_eq!(
             crate::digest_encoder::hex(&super::selected_function_digest(&function)),
             expected

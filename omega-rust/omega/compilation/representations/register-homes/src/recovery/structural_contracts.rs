@@ -4,10 +4,6 @@ Structural contract, function metadata, and boundary settlement codecs for regis
 Once the recovery codec has decoded structural type declarations and call descriptors, it must assemble the complete function contract (`encode_contracts` / `decode_contracts`), structural signature (`encode_signature` / `decode_signature`), local storage and outgoing argument slots, memory access descriptors, and boundary settlements (`encode_boundary_settlement` / `decode_boundary_settlement`). Recovery preserves the full structural type catalog—including quotient representations, access views, placed input demands, and access lifecycles—because storage declarations alone cannot reconstruct view demands or lifecycle plans after register allocation.
 */
 
-use legalized_operations::{
-    LegalizedBoundarySettlement, LegalizedStructuralContract, NativeCallOrigin,
-    encode_provider_execution,
-};
 use native_vocabulary::completion_claims::CompletionClaimSource;
 use native_vocabulary::provenance::{EffectLink, OwnershipEvent};
 use native_vocabulary::structural_type_catalog::StructuralTypeCatalog;
@@ -28,6 +24,10 @@ use semantic_vocabulary::{
 };
 use target_vocabulary::{
     ClaimCompletionOnlyRealization, ProviderExecutionBinding, ProviderPlanReportIdentity,
+};
+use target_vocabulary::{
+    LegalizedBoundarySettlement, LegalizedStructuralContract, NativeCallOrigin,
+    encode_provider_execution,
 };
 use terminal_psi::{
     ClaimContentProjection, CompletionReceipt, ContentEntryClaim, StructuralReferenceOrigin,
@@ -373,20 +373,12 @@ pub(super) fn encode_boundary_settlement(
         } => {
             bytes.push(2);
             push_encoded(bytes, edge.get().to_le_bytes());
-            match execution {
-                target_vocabulary::BoundaryExecutionBinding::AdmittedProvider(provider) => {
-                    bytes.push(0);
-                    encode_provider_execution(bytes, *provider);
-                }
-                target_vocabulary::BoundaryExecutionBinding::CompilerBuiltin(
-                    target_vocabulary::CompilerBuiltinExecution::HostedExitProcessI32,
-                ) => bytes.push(1),
-                _ => {
-                    return Err(terminal_wire::CodecError::MalformedStructuralFoundation(
-                        "process exit settlement has an incompatible execution binding",
-                    ));
-                }
-            }
+            encode_hosted_execution(
+                bytes,
+                *execution,
+                target_vocabulary::CompilerBuiltinExecution::HostedExitProcessI32,
+                "process exit settlement has an incompatible execution binding",
+            )?;
             push_encoded(bytes, boundary.get().to_le_bytes());
             push_encoded(bytes, source.get().to_le_bytes());
             return Ok(());
@@ -397,11 +389,18 @@ pub(super) fn encode_boundary_settlement(
         }
         SelectedBoundarySettlementPayload::HostedWriteByteI32 {
             operation,
+            execution,
             boundary,
             source,
         } => {
             bytes.push(1);
             push_encoded(bytes, operation.get().to_le_bytes());
+            encode_hosted_execution(
+                bytes,
+                *execution,
+                target_vocabulary::CompilerBuiltinExecution::HostedWriteByteI32,
+                "byte output settlement has an incompatible execution binding",
+            )?;
             push_encoded(bytes, boundary.get().to_le_bytes());
             push_encoded(bytes, source.get().to_le_bytes());
             return Ok(());
@@ -430,6 +429,48 @@ pub(super) fn encode_boundary_settlement(
     Ok(())
 }
 
+// Each hosted operation permits its own exact built-in or an admitted provider.
+// Sharing the wire primitive keeps output and exit custody equally strict.
+fn encode_hosted_execution(
+    bytes: &mut Vec<u8>,
+    execution: target_vocabulary::BoundaryExecutionBinding,
+    builtin: target_vocabulary::CompilerBuiltinExecution,
+    incompatible: &'static str,
+) -> Result<(), terminal_wire::CodecError> {
+    match execution {
+        target_vocabulary::BoundaryExecutionBinding::AdmittedProvider(provider) => {
+            bytes.push(0);
+            encode_provider_execution(bytes, provider);
+        }
+        target_vocabulary::BoundaryExecutionBinding::CompilerBuiltin(actual)
+            if actual == builtin =>
+        {
+            bytes.push(1);
+        }
+        _ => {
+            return Err(terminal_wire::CodecError::MalformedStructuralFoundation(
+                incompatible,
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn decode_hosted_execution(
+    cursor: &mut Cursor<'_>,
+    builtin: target_vocabulary::CompilerBuiltinExecution,
+) -> Result<target_vocabulary::BoundaryExecutionBinding, FixedViewCopyDecodeError> {
+    match cursor.byte()? {
+        0 => Ok(
+            target_vocabulary::BoundaryExecutionBinding::AdmittedProvider(
+                decode_provider_execution(cursor)?,
+            ),
+        ),
+        1 => Ok(target_vocabulary::BoundaryExecutionBinding::CompilerBuiltin(builtin)),
+        tag => Err(FixedViewCopyDecodeError::UnknownBoundaryRealization(tag)),
+    }
+}
+
 pub(super) fn decode_boundary_settlement(
     cursor: &mut Cursor<'_>,
 ) -> Result<SelectedBoundarySettlementPayload, FixedViewCopyDecodeError> {
@@ -448,17 +489,10 @@ pub(super) fn decode_boundary_settlement(
         2 => {
             return Ok(SelectedBoundarySettlementPayload::HostedExitProcessI32 {
                 edge: decode_id(cursor, EdgeId::new)?,
-                execution: match cursor.byte()? {
-                    0 => target_vocabulary::BoundaryExecutionBinding::AdmittedProvider(
-                        decode_provider_execution(cursor)?,
-                    ),
-                    1 => target_vocabulary::BoundaryExecutionBinding::CompilerBuiltin(
-                        target_vocabulary::CompilerBuiltinExecution::HostedExitProcessI32,
-                    ),
-                    tag => {
-                        return Err(FixedViewCopyDecodeError::UnknownBoundaryRealization(tag));
-                    }
-                },
+                execution: decode_hosted_execution(
+                    cursor,
+                    target_vocabulary::CompilerBuiltinExecution::HostedExitProcessI32,
+                )?,
                 boundary: decode_id(cursor, BoundaryMachineId::new)?,
                 source: decode_id(cursor, semantic_vocabulary::ValueId::new)?,
             });
@@ -467,6 +501,10 @@ pub(super) fn decode_boundary_settlement(
         1 => {
             return Ok(SelectedBoundarySettlementPayload::HostedWriteByteI32 {
                 operation: decode_id(cursor, OperationId::new)?,
+                execution: decode_hosted_execution(
+                    cursor,
+                    target_vocabulary::CompilerBuiltinExecution::HostedWriteByteI32,
+                )?,
                 boundary: decode_id(cursor, BoundaryMachineId::new)?,
                 source: decode_id(cursor, semantic_vocabulary::ValueId::new)?,
             });

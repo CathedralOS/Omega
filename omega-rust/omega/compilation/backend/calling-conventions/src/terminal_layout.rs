@@ -700,6 +700,9 @@ fn resolve_structural_shape(
             }
             StructuralTypeShape::FixedArray { element, length } => {
                 let length = match length {
+                    terminal_psi::ArrayExtent::Parameter { .. } => {
+                        return Err(TerminalLayoutError::UnclosedArrayExtent(structural_type));
+                    }
                     terminal_psi::ArrayExtent::Literal(length) => Some(*length),
                     terminal_psi::ArrayExtent::Application(application) => {
                         extent(structural_type, *application)?

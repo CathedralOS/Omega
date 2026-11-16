@@ -10,14 +10,18 @@ path = "src/lib.rs"
 
 [dependencies]
 target-vocabulary = { path = "../target-operations/target-vocabulary" }
+terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }
 optimization-core = { path = "../../../foundation/optimization-core" }
 register-homes = { path = "../register-homes" }
 register-model = { path = "../../backend/register-model" }
+register-environment = { path = "../../backend/register-environment" }
 selected-instructions = { path = "../selected-instructions" }
 target = { path = "../../backend/target" }
 semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
 sha2 = "0.10.9"
 
 [dev-dependencies]
+calling-conventions = { path = "../../backend/calling-conventions" }
+runtime-abi = { path = "../../backend/runtime/runtime-abi" }
+isa-x86_64 = { path = "../../backend/isa/isa-x86_64" }
 target-operations = { path = "../target-operations" }
-terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }

@@ -4,11 +4,17 @@ use super::calling::{encode_call_plan, encode_placement};
 use super::structural_types::encode_target_structural_parameter;
 use super::{encode_len, encode_option, encode_scalar_type};
 use crate::LegalizedFunctionAbi;
-use target_vocabulary::ScalarAbiValue;
+use crate::ScalarAbiValue;
 
-pub(super) fn encode_function_abi(bytes: &mut Vec<u8>, abi: &LegalizedFunctionAbi) {
+pub fn encode_function_abi(bytes: &mut Vec<u8>, abi: &LegalizedFunctionAbi) {
     crate::codec_bytes::push_encoded(bytes, abi.machine.get().to_le_bytes());
     encode_call_plan(bytes, &abi.call_plan);
+    encode_len(bytes, abi.entry_scalar_codecs.len());
+    for codec in &abi.entry_scalar_codecs {
+        encode_option(bytes, *codec, |bytes, word| {
+            crate::codec_bytes::push_encoded(bytes, word.to_le_bytes());
+        });
+    }
     encode_scalar_values(bytes, &abi.scalar_parameters);
     encode_len(bytes, abi.structural_parameters.len());
     for parameter in &abi.structural_parameters {
