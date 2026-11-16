@@ -209,11 +209,11 @@ fn evaluate_domain(
     if normalized.reach.services().len() != 0 {
         return Err("no product route yet: an access plan that requires boundary reach".into());
     }
-    let issuance = match normalized.issuance {
+    let issuance = match &normalized.issuance {
         None => CheckedIssuance::Unrestricted,
         Some(routes) => {
             let mut checked = Vec::with_capacity(routes.len());
-            for route in &routes {
+            for route in routes {
                 let route = authenticated_route(descriptions, route)?;
                 if !checked.contains(&route) {
                     checked.push(route);
@@ -224,6 +224,7 @@ fn evaluate_domain(
     };
     Ok(CheckedDomainAccessPlan {
         plan_machine,
+        normalized,
         issuance,
     })
 }
@@ -262,19 +263,14 @@ fn subject_schema(
     definition: &typed_trees::domain::DomainDefinition,
     schema_type: SymbolHandle,
 ) -> Result<(SemanticSchemaGraph, BuildTimeValue, Vec<u8>), String> {
-    use typed_trees::reflection::SchemaQueryAuthority;
     let subject = typed
         .closed_data_definition(definition.target_type)
         .ok_or("no product route yet: an access plan for a subject that is not closed data")?;
-    let requester_identity = typed.normalized_hermetic_symbol_identity(definition.symbol)?;
-    let authority = if typed
-        .symbols
-        .same_symbol_source_package(definition.symbol, subject.symbol)
-    {
-        SchemaQueryAuthority::OwningScope { requester_identity }
-    } else {
-        SchemaQueryAuthority::ForeignScope { requester_identity }
-    };
+    let authority = typed_trees::reflection::construction::schema_query_authority(
+        typed,
+        definition.symbol,
+        subject.symbol,
+    )?;
     let graph = typed_trees::reflection::construction::construct_semantic_schema_graph_for_type(
         typed,
         definition.target_type,

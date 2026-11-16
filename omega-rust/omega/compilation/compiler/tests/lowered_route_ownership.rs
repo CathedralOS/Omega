@@ -253,6 +253,68 @@ fn explicit_exclusive_formations_keep_their_shared_children_through_publication(
     }
 }
 
+/// A loop of nested machines writes `grid.cells[at]` through a borrowed
+/// block formal. The checker resolves the formal's backing up to `cells` and
+/// keeps the runtime selector beneath it, so the write beside a live view of
+/// `grid.total` is accepted and the write beside a live view of
+/// `grid.cells[0]` is refused as a conflicting loan, not as an unresolved
+/// selector.
+#[test]
+fn a_borrowed_runtime_element_write_keeps_its_selector_beneath_the_backing() {
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    for (directory, rejected) in [("pass", false), ("fail", true)] {
+        let fixture = format!("tests/fixtures/{directory}/borrows/borrowed_runtime_element");
+        let frontier = fixture_frontier(&fixture);
+        let verdicts = terminal_psi_to_terminal_psi::judge_compilation(
+            typed_trees_to_terminal_psi::prepare_compilation(
+                &frontier.typed,
+                Compilation {
+                    declaration_metadata: &[],
+                    entries: &frontier.entries,
+                    subjects: &[frontier.subject],
+                    purpose: source::DependencyScope::Product,
+                    selected: &frontier.selected,
+                    calling: frontier
+                        .normalization
+                        .calling
+                        .borrow(&frontier.typed)
+                        .selection(),
+                    providers: frontier.provider_selections(),
+                    bindings: &frontier.bindings,
+                    supplies: &[],
+                },
+                terminal_codec::TerminalPublication::Portable,
+            )
+            .program,
+        );
+        assert!(
+            verdicts.iter().all(|verdict| verdict.is_ok()),
+            "the borrowed runtime element must be judged, not left unsupported: {verdicts:?}"
+        );
+        if rejected {
+            let expected = std::fs::read_to_string(repository(&format!("{fixture}/expected.txt")))
+                .expect("pinned overlapping write diagnostic");
+            assert!(
+                verdicts.iter().any(|verdict| matches!(verdict,
+                    Ok(RouteVerdict::Rejected { conflicts, .. }) if conflicts.iter().any(|conflict|
+                        conflict.conflict == terminal_psi_to_terminal_psi::LoanConflict::ChangeWhileBorrowed
+                            && conflict.message().contains(expected.trim()))
+                )),
+                "a write that may select the viewed element must conflict: {verdicts:?}"
+            );
+        } else {
+            assert!(
+                verdicts
+                    .iter()
+                    .all(|verdict| matches!(verdict, Ok(RouteVerdict::Accepted(_)))),
+                "a write of a disjoint element must be accepted: {verdicts:?}"
+            );
+        }
+    }
+}
+
 fn assert_native_loan_conflict(mut unit: optimization_unit::PsiOptimizationUnit, expected: &str) {
     // The old frontier describes the valid program. Reconstruct the changed
     // operation's custody instead of reusing those original ownership facts.

@@ -45,6 +45,156 @@ pub(crate) fn domain_identity(
     Ok(identities.intern(&identity))
 }
 
+/// Publish the complete evaluated rules after callable declarations exist.
+/// Binding here uses the same source records and application commitments as
+/// normal lowering; the snapshot's descriptive bytes alone grant nothing.
+pub(crate) fn publish_access_plans(
+    diagnostic: MachineId,
+    source: &crate::read::Program<'_>,
+    module: &mut terminal_psi::TerminalModule,
+) -> Checked<()> {
+    use typed_trees::domain::AccessPlanJudgment;
+    let unavailable = |detail| {
+        refuse(
+            diagnostic,
+            Construct::Machine,
+            Unserved::Declaration(detail),
+        )
+    };
+    let typed = source.typed;
+    let mut identities = std::mem::take(&mut module.identities).into_builder();
+    let result = (|| {
+        let sources = match source::source_identity::toolchain_source_identities(
+            typed.symbols.source_files(),
+        ) {
+            Ok(sources) => sources,
+            Err(_) if identities.is_invocation_scoped() => Vec::new(),
+            Err(_) => return Err(unavailable("access rules lost their source identity")),
+        };
+        let domains = source
+            .declared_domains
+            .iter()
+            .filter_map(|declared| {
+                let ValueType::Record(carrier, _, _) = declared.carrier else {
+                    return None;
+                };
+                Some((declared.instance, carrier, false))
+            })
+            .chain(
+                source
+                    .byte_domains
+                    .iter()
+                    .map(|declared| (declared.source, declared.carrier, true)),
+            );
+        for (instance, carrier, byte_domain) in domains {
+            let definition = source.domain_theory(diagnostic, instance)?;
+            let Some(policy) = &definition.access_policy else {
+                continue;
+            };
+            let AccessPlanJudgment::Checked(checked) = &policy.plan else {
+                continue;
+            };
+            let identity =
+                domain_identity(typed, &sources, instance, &mut identities).map_err(unavailable)?;
+            let identity = if byte_domain {
+                let carrier_identity = module
+                    .structural_type(carrier)
+                    .ok_or_else(|| unavailable("byte access rules lost their exact carrier"))?
+                    .identity;
+                crate::lower::places::byte_domain_identity(
+                    &mut identities,
+                    identity,
+                    carrier_identity,
+                )
+                .map_err(unavailable)?
+            } else {
+                identity
+            };
+            let mut matches = module
+                .structural_domains
+                .iter_mut()
+                .filter(|row| row.identity == identity && row.carrier == carrier);
+            let domain = matches
+                .next()
+                .ok_or_else(|| unavailable("access rules lost their exact declared domain"))?;
+            if matches.next().is_some() || domain.access_policy.is_some() {
+                return Err(unavailable(
+                    "access rules have more than one canonical domain owner",
+                ));
+            }
+            let subject = typed
+                .closed_data_definition(definition.target_type)
+                .ok_or_else(|| unavailable("access rules have no exact subject declaration"))?;
+            let authority = typed_trees::reflection::construction::schema_query_authority(
+                typed,
+                definition.symbol,
+                subject.symbol,
+            )
+            .map_err(|_| unavailable("access rules lost their original query author"))?;
+            if checked.normalized.schema.authority() != &authority {
+                return Err(unavailable(
+                    "access rules changed their subject query's original visibility",
+                ));
+            }
+            let regions = source.access_plan_regions(
+                diagnostic,
+                carrier,
+                definition.target_type,
+                &checked.normalized.schema,
+                &mut identities,
+            )?;
+            let mut requested = Vec::new();
+            requested.extend(checked.normalized.issuance.iter().flatten().cloned());
+            for (_, callers) in checked
+                .normalized
+                .readers
+                .iter()
+                .chain(&checked.normalized.writers)
+            {
+                requested.extend(callers.iter().cloned());
+            }
+            requested.sort_unstable();
+            requested.dedup();
+            let bindings = typed_trees::reflection::construction::callable_description_sources(
+                typed, &requested,
+            )
+            .map_err(|_| {
+                unavailable("access caller descriptions lost their exact source applications")
+            })?;
+            let mut callers = Vec::with_capacity(bindings.len());
+            for (description, selected, _) in bindings {
+                let route = crate::declare::access_caller_route(
+                    typed,
+                    &sources,
+                    &selected,
+                    &mut identities,
+                )
+                .map_err(unavailable)?;
+                callers.push((description.clone(), route));
+            }
+            callers.sort_unstable_by(|left, right| left.0.cmp(&right.0));
+            let bound = checked.normalized.clone().try_bind(
+                |node| {
+                    regions
+                        .binary_search_by_key(&node, |(node, _)| *node)
+                        .map(|index| regions[index].clone())
+                        .map_err(|_| unavailable("access rule has no exact canonical region"))
+                },
+                |description| {
+                    callers
+                        .binary_search_by(|(candidate, _)| candidate.cmp(&description))
+                        .map(|index| callers[index].clone())
+                        .map_err(|_| unavailable("access rule has no complete canonical caller"))
+                },
+            )?;
+            domain.access_policy = Some(bound);
+        }
+        Ok(())
+    })();
+    module.identities = identities.build();
+    result
+}
+
 #[derive(Default)]
 pub(crate) struct Qualifications {
     pub catalog: ScalarQualificationCatalog,
@@ -572,7 +722,18 @@ impl Qualifications {
                 }
             }
         };
+        let subject_owner = typed
+            .closed_data_definition(definition.target_type)
+            .map_or(definition.symbol, |subject| subject.symbol);
+        let subject_identity = typed_trees::reflection::construction::schema_type_identity(
+            typed,
+            definition.target_type,
+            subject_owner,
+        )
+        .map_err(|_| unavailable("domain lost its exact selected subject application"))?;
         self.structural.push(StructuralDomainDeclaration {
+            subject_identity: self.identities.intern(&subject_identity),
+            access_policy: None,
             required_memberships: Some(Vec::new()),
             complete_predicate_theory: true,
             predicate,

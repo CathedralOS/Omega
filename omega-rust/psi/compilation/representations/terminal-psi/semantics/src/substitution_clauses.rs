@@ -37,6 +37,21 @@ pub trait ClauseBindings {
             "clause extent has no descriptor observation",
         ))
     }
+    /// Whether `predicate` holds of the bytes the view at `path` beneath
+    /// `root` shows, at the consumer's point. A view's bytes are decided by
+    /// where they come from (byte_views.md: "Checking rejoins the source's
+    /// declared predicates or literal contents"), so a consumer that cannot
+    /// trace them to a source must refuse.
+    fn byte_predicate(
+        &mut self,
+        _predicate: semantic_vocabulary::ByteSequencePredicate,
+        _root: PlaceId,
+        _path: &[CanonicalStructuralPathSegment],
+    ) -> Result<ScalarTerm, Self::Error> {
+        Err(Self::Error::from(
+            "clause byte predicate has no byte source observation",
+        ))
+    }
     /// Whether the sum at `path` beneath `root` is `case`, by structure.
     fn case(
         &mut self,
@@ -119,10 +134,21 @@ pub fn substitute_clause<Error: From<&'static str>>(
         // Its enclosing proposition scope owns its complete meaning; this
         // preserves that identity and introduces no premise or proof.
         Proposition::Atom(atom) => Proposition::Atom(*atom),
-        Proposition::Equal(left, right) => Proposition::Equal(
+        // Two Boolean literals compare by value: a byte predicate a literal's
+        // octets decide is `true` or `false`, and its clause is then settled.
+        Proposition::Equal(left, right) => match (
             substitute_clause_term(left, bindings)?,
             substitute_clause_term(right, bindings)?,
-        ),
+        ) {
+            (ScalarTerm::Boolean(left), ScalarTerm::Boolean(right)) => {
+                if left == right {
+                    Proposition::Truth
+                } else {
+                    Proposition::Falsehood
+                }
+            }
+            (left, right) => Proposition::Equal(left, right),
+        },
         Proposition::LessThan(left, right) => Proposition::LessThan(
             substitute_clause_term(left, bindings)?,
             substitute_clause_term(right, bindings)?,
@@ -241,6 +267,11 @@ pub fn substitute_clause_term<Error: From<&'static str>>(
                     path,
                     scalar_type,
                 } => bindings.extent(root, &path, scalar_type)?,
+                ScalarTerm::ByteSequencePredicate {
+                    predicate,
+                    root,
+                    path,
+                } => bindings.byte_predicate(predicate, root, &path)?,
                 ScalarTerm::Application { .. }
                 | ScalarTerm::Integer { .. }
                 | ScalarTerm::Boolean(_)

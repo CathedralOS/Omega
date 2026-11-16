@@ -72,7 +72,7 @@ pub use access_references::{
 };
 mod structural_type_catalog;
 pub use ownership::CompletionClaimSource;
-pub use structural_type_catalog::StructuralTypeCatalog;
+pub use structural_type_catalog::{StructuralTypeCatalog, closed_owned_sequence_bounds};
 pub mod atomic;
 pub use atomic::{
     AbstractAtomicEvent, AbstractAtomicFenceOrdering, AbstractAtomicReadModifyWrite,

@@ -2062,6 +2062,7 @@ pub(crate) mod reference_origins {
                 ]
                 .into_iter()
                 .map(|(id, shape)| StructuralTypeDeclaration {
+                    declaration_identity: Default::default(),
                     requires: Vec::new(),
                     quotient_carrier: None,
                     id,
@@ -4846,6 +4847,7 @@ pub(crate) mod reference_storage_geometry {
             storage: Option<AuthoredFieldStorage>,
         ) -> StructuralFieldDeclaration {
             StructuralFieldDeclaration {
+                declaration_identity: Default::default(),
                 inline_carrier: None,
                 id: StructuralFieldId::new(value).expect("field identity"),
                 identity: TerminalIdentityIndex(4),
@@ -4860,6 +4862,7 @@ pub(crate) mod reference_storage_geometry {
             use terminal_psi::{LayoutApplicationId, TargetLayoutFieldLayoutSource as Source};
             let application = LayoutApplicationId(1);
             let declaration = |value, shape| StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
                 requires: Vec::new(),
                 quotient_carrier: None,
                 owns_linear_claim: false,
@@ -5008,6 +5011,7 @@ pub(crate) mod reference_storage_geometry {
                 },
             };
             let field = StructuralFieldDeclaration {
+                declaration_identity: Default::default(),
                 inline_carrier: None,
                 id: StructuralFieldId::new(1).expect("field"),
                 identity: TerminalIdentityIndex(1),
@@ -5069,6 +5073,7 @@ pub(crate) mod reference_storage_geometry {
         #[test]
         fn sum_image_offsets_and_array_extent_share_the_selected_tag_geometry() {
             let declaration = |value, shape| StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
                 requires: Vec::new(),
                 quotient_carrier: None,
                 owns_linear_claim: false,
@@ -5087,11 +5092,13 @@ pub(crate) mod reference_storage_geometry {
                         fields: vec![field(1, StructuralFieldType::Scalar(scalar(16)), None)],
                         cases: vec![
                             terminal_psi::StructuralCaseDeclaration {
+                                declaration_identity: Default::default(),
                                 id: semantic_vocabulary::StructuralCaseId::new(1).unwrap(),
                                 identity: TerminalIdentityIndex(10),
                                 fields: vec![],
                             },
                             terminal_psi::StructuralCaseDeclaration {
+                                declaration_identity: Default::default(),
                                 id: semantic_vocabulary::StructuralCaseId::new(2).unwrap(),
                                 identity: TerminalIdentityIndex(11),
                                 fields: vec![
@@ -5129,6 +5136,7 @@ pub(crate) mod reference_storage_geometry {
                     4,
                     StructuralTypeShape::Sum {
                         cases: vec![terminal_psi::StructuralCaseDeclaration {
+                            declaration_identity: Default::default(),
                             id: semantic_vocabulary::StructuralCaseId::new(2).unwrap(),
                             identity: TerminalIdentityIndex(11),
                             fields: vec![StructuralFieldDeclaration {
@@ -5231,6 +5239,7 @@ pub(crate) mod reference_storage_geometry {
         fn extent_discovery_visits_unknown_siblings_but_respects_storage_and_erasure() {
             let application = |value| ScalarApplicationId::new(value).unwrap();
             let declaration = |value, shape| StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
                 requires: Vec::new(),
                 quotient_carrier: None,
                 owns_linear_claim: false,
@@ -5338,6 +5347,7 @@ pub(crate) mod reference_storage_geometry {
             let dependency = ScalarApplicationId::new(1).unwrap();
             let mut types = [
                 StructuralTypeDeclaration {
+                    declaration_identity: Default::default(),
                     requires: Vec::new(),
                     quotient_carrier: None,
                     owns_linear_claim: false,
@@ -5350,6 +5360,7 @@ pub(crate) mod reference_storage_geometry {
                     shape: StructuralTypeShape::PrimitiveScalar(scalar(64)),
                 },
                 StructuralTypeDeclaration {
+                    declaration_identity: Default::default(),
                     requires: Vec::new(),
                     quotient_carrier: None,
                     owns_linear_claim: false,
@@ -5399,6 +5410,7 @@ pub(crate) mod reference_storage_geometry {
         fn canonical_parent_keeps_authored_child_width_and_codec() {
             let types = [
                 StructuralTypeDeclaration {
+                    declaration_identity: Default::default(),
                     requires: Vec::new(),
                     quotient_carrier: None,
                     owns_linear_claim: false,
@@ -5424,6 +5436,7 @@ pub(crate) mod reference_storage_geometry {
                     },
                 },
                 StructuralTypeDeclaration {
+                    declaration_identity: Default::default(),
                     requires: Vec::new(),
                     quotient_carrier: None,
                     owns_linear_claim: false,
@@ -5460,6 +5473,7 @@ pub(crate) mod reference_storage_geometry {
         #[test]
         fn fragmented_fields_do_not_hide_the_record_extent_or_invent_a_scalar_address() {
             let types = [StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
                 requires: Vec::new(),
                 quotient_carrier: None,
                 owns_linear_claim: false,
@@ -6344,6 +6358,7 @@ pub(crate) mod reference_views {
 
         fn primitive(raw: u64, scalar: ScalarType) -> StructuralTypeDeclaration {
             StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
                 requires: Vec::new(),
                 id: StructuralTypeId::new(raw).expect("type identity"),
                 identity: TerminalIdentityIndex(raw as u32),

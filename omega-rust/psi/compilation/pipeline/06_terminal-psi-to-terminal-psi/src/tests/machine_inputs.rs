@@ -41,6 +41,7 @@ fn only_declared_specializations_lose_authored_branch_diagnostics() {
             published_may_block: false,
             specialization: Some(terminal_psi::CheckedMachineSpecialization {
                 capture: None,
+                template_entry: nominal.clone(),
                 template: nominal,
                 template_callable: selected,
                 template_semantic_declaration: selected,

@@ -2990,6 +2990,7 @@ pub(crate) mod resource_profile {
             fn add(&mut self, shape: StructuralTypeShape) -> StructuralTypeId {
                 let id = StructuralTypeId::new((self.0.len() + 1).try_into().unwrap()).unwrap();
                 self.0.push(StructuralTypeDeclaration {
+                    declaration_identity: Default::default(),
                     requires: Vec::new(),
                     quotient_carrier: None,
                     id,
@@ -3009,6 +3010,7 @@ pub(crate) mod resource_profile {
                     .iter()
                     .enumerate()
                     .map(|(position, field_type)| StructuralFieldDeclaration {
+                        declaration_identity: Default::default(),
                         inline_carrier: None,
                         id: StructuralFieldId::new((position + 1).try_into().unwrap()).unwrap(),
                         identity: TerminalIdentityIndex((position + 1).try_into().unwrap()),
@@ -3032,6 +3034,7 @@ pub(crate) mod resource_profile {
                         .iter()
                         .enumerate()
                         .map(|(position, payload)| StructuralCaseDeclaration {
+                            declaration_identity: Default::default(),
                             id: StructuralCaseId::new((position + 1).try_into().unwrap()).unwrap(),
                             identity: TerminalIdentityIndex((position + 1).try_into().unwrap()),
                             fields: Self::fields(payload),
@@ -4700,6 +4703,7 @@ pub(crate) mod tests {
 
     fn declaration(id: StructuralTypeId, shape: StructuralTypeShape) -> StructuralTypeDeclaration {
         StructuralTypeDeclaration {
+            declaration_identity: Default::default(),
             requires: Vec::new(),
             quotient_carrier: None,
             id,
@@ -5366,6 +5370,7 @@ pub(crate) mod tests {
         ];
         let types = crate::native_geometry::NativeGeometry::new(&types).unwrap();
         let field = StructuralFieldDeclaration {
+            declaration_identity: Default::default(),
             inline_carrier: None,
             id: StructuralFieldId::new(1).unwrap(),
             identity: TerminalIdentityIndex(1),
@@ -5463,6 +5468,7 @@ pub(crate) mod tests {
         let array = StructuralTypeId::new(3).unwrap();
         let scalar = |sign, width| ScalarType::Integer(IntegerType::new(sign, width).unwrap());
         let field = |number, field_type| StructuralFieldDeclaration {
+            declaration_identity: Default::default(),
             inline_carrier: None,
             id: StructuralFieldId::new(number).unwrap(),
             identity: TerminalIdentityIndex(u32::try_from(number).unwrap()),

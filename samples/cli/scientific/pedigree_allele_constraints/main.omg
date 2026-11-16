@@ -11,7 +11,7 @@ use domain::report;
 
 data Main { }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     let mut pedigree: Pedigree;
     let accepted: bool = block read(&mut pedigree);
     transition accepted {
@@ -45,5 +45,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

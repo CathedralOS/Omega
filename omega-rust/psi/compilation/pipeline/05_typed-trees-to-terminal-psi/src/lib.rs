@@ -1090,7 +1090,9 @@ fn finish_reading_into<'source>(
         }
     }
     suspension::publish_crossings(&mut elaboration.module).map_err(declaration_error)?;
+    qualifications::publish_access_plans(diagnostic, &program, &mut elaboration.module)?;
     source.records = program.source_record_correspondence(diagnostic)?;
+    program.publish_source_declarations(diagnostic, &source.records, &mut elaboration.module)?;
     source.readiness = program.publish_readiness(diagnostic, &mut elaboration.module)?;
     for selected in &mut program.selections {
         if let Some(required) = selected.required_contract {

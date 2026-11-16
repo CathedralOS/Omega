@@ -7,9 +7,9 @@ use geometry;
 use graph;
 use validation;
 data Main { }
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     let mut input: [u8; 8];
-    let result: LineReadResult = block Console::read_line(&mut input);
+    let result: LineReadResult = block Console::read_line(&mut input[..]);
     transition result {
         LineReadResult::LineComplete { count } -> length(main, &input, count)
         _ -> invalid(main)
@@ -175,5 +175,5 @@ machine number(main: &mut Main, value: i64 in Wrapping) reaches ProcessExit + Co
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

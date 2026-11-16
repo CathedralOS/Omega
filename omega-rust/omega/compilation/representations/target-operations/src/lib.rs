@@ -90,10 +90,6 @@ pub use descriptor_input::{
     descriptor_input_guard_for_call_with_closed_scalars,
     descriptor_input_guard_with_closed_scalars,
 };
-mod element_sequence_literal;
-pub use element_sequence_literal::{
-    ConstantElementRoster, RosterGeometry, constant_element_roster,
-};
 pub mod operations;
 pub use operations::{
     NativeCallOrigin, TargetFloatResultPolicy, TargetInstallationCall, TargetInstruction,

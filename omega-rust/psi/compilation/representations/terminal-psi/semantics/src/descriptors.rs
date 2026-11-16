@@ -1460,6 +1460,7 @@ pub(crate) mod membership_presentations {
                 || source.content_projection != destination.content_projection
                 || source.byte_predicate != destination.byte_predicate
                 || source.establishment_routes != destination.establishment_routes
+                || source.access_policy != destination.access_policy
             {
                 return false;
             }
@@ -6826,6 +6827,7 @@ pub mod descriptor_results {
                     let (mut machine, source) = forked_history(&[2]);
                     let _ = machine.flow.remove(&position(3));
                     let types = [StructuralTypeDeclaration {
+                        declaration_identity: Default::default(),
                         requires: Vec::new(),
                         quotient_carrier: None,
                         id: source.carrier,
@@ -7843,6 +7845,7 @@ pub mod descriptor_results {
                 let array = StructuralTypeId::new(2).unwrap();
                 let subject = PlaceId::new(1).unwrap();
                 let declaration = |id, shape| StructuralTypeDeclaration {
+                    declaration_identity: Default::default(),
                     requires: Vec::new(),
                     quotient_carrier: None,
                     id,
@@ -7943,6 +7946,7 @@ pub mod descriptor_results {
                 let carrier = StructuralTypeId::new(1).unwrap();
                 let domain_id = StructuralDomainId::new(1).unwrap();
                 let types = vec![StructuralTypeDeclaration {
+                    declaration_identity: Default::default(),
                     requires: Vec::new(),
                     quotient_carrier: None,
                     id: carrier,
@@ -7955,6 +7959,8 @@ pub mod descriptor_results {
                     scalar_restriction: None,
                 }];
                 let domain = StructuralDomainDeclaration {
+                    subject_identity: Default::default(),
+                    access_policy: None,
                     required_memberships: Some(Vec::new()),
                     complete_predicate_theory: true,
                     predicate: Some(StructuralDomainPredicate {
@@ -9291,6 +9297,7 @@ pub mod descriptor_results {
                 let copy = DescriptorLocation::whole(semantic_vocabulary::PlaceId::new(2).unwrap());
                 let carrier = StructuralTypeId::new(1).unwrap();
                 let types = vec![StructuralTypeDeclaration {
+                    declaration_identity: Default::default(),
                     requires: Vec::new(),
                     quotient_carrier: None,
                     id: carrier,
@@ -10524,6 +10531,7 @@ pub mod descriptor_results {
                 let bytes = StructuralTypeId::new(1).unwrap();
                 let sequence = StructuralTypeId::new(2).unwrap();
                 let declaration = |id, shape| StructuralTypeDeclaration {
+                    declaration_identity: Default::default(),
                     requires: Vec::new(),
                     quotient_carrier: None,
                     id,
@@ -10659,6 +10667,7 @@ pub mod descriptor_results {
                 let reference = StructuralTypeId::new(2).unwrap();
                 let pair = StructuralTypeId::new(3).unwrap();
                 let declaration = |id, copyable, shape| StructuralTypeDeclaration {
+                    declaration_identity: Default::default(),
                     requires: Vec::new(),
                     quotient_carrier: None,
                     id,
@@ -10671,6 +10680,7 @@ pub mod descriptor_results {
                     scalar_restriction: None,
                 };
                 let field = |number: u32| terminal_psi::StructuralFieldDeclaration {
+                    declaration_identity: Default::default(),
                     id: semantic_vocabulary::StructuralFieldId::new(u64::from(number)).unwrap(),
                     identity: TerminalIdentityIndex(number),
                     inline_carrier: None,
@@ -12146,6 +12156,7 @@ pub mod descriptor_results {
                 let destination = PlaceId::new(2).unwrap();
                 let operation = OperationId::new(1).unwrap();
                 let declaration = |id, shape| StructuralTypeDeclaration {
+                    declaration_identity: Default::default(),
                     requires: Vec::new(),
                     quotient_carrier: None,
                     id,
@@ -12260,6 +12271,7 @@ pub mod descriptor_results {
                     let sibling = semantic_vocabulary::StructuralFieldId::new(2).unwrap();
                     let field =
                         |id, identity, field_type| terminal_psi::StructuralFieldDeclaration {
+                            declaration_identity: Default::default(),
                             id,
                             identity: TerminalIdentityIndex(identity),
                             inline_carrier: None,
@@ -12455,6 +12467,7 @@ pub mod descriptor_results {
                 let mut module = TerminalModule::declarations();
                 let carrier = StructuralTypeId::new(1).unwrap();
                 module.structural_types.push(StructuralTypeDeclaration {
+                    declaration_identity: Default::default(),
                     requires: Vec::new(),
                     quotient_carrier: None,
                     id: carrier,
@@ -14405,7 +14418,7 @@ pub mod descriptor_results {
                     // A scalar sibling does not observe the reference leaves
                     // beside it. Retain the representation's projected uses;
                     // reducing them to roots spuriously extends those loans.
-                    for used in operation.kind.storage_uses() {
+                    for (used, _) in operation.kind.storage_uses() {
                         use terminal_psi::StructuralStorageUse;
                         let (root, selected) = match used {
                             StructuralStorageUse::Place(root) => {
@@ -14417,10 +14430,9 @@ pub mod descriptor_results {
                                 ..
                             } => (
                                 projection.root,
-                                location(projection.root, projection.path, None),
+                                location(projection.root, projection.path, projection.field),
                             ),
-                            StructuralStorageUse::Canonical { root, path }
-                            | StructuralStorageUse::ObservedField { root, path } => (
+                            StructuralStorageUse::Canonical { root, path } => (
                                 root,
                                 crate::descriptor_lifetimes::canonical_descriptor_location(
                                     &module.structural_types,
@@ -14429,6 +14441,23 @@ pub mod descriptor_results {
                                     path,
                                 ),
                             ),
+                            StructuralStorageUse::ObservedField { root, path, field } => {
+                                let mut selected = path.to_vec();
+                                selected.push(
+                                    semantic_vocabulary::CanonicalStructuralPathSegment::Field(
+                                        field,
+                                    ),
+                                );
+                                (
+                                    root,
+                                    crate::descriptor_lifetimes::canonical_descriptor_location(
+                                        &module.structural_types,
+                                        root,
+                                        *graph.place_types.get(&root)?,
+                                        &selected,
+                                    ),
+                                )
+                            }
                             StructuralStorageUse::Type(_) => continue,
                         };
                         if let Some(selected) = selected {

@@ -1673,6 +1673,7 @@ mod tests {
             ),
         ] {
             module.structural_types.push(StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
                 requires: Vec::new(),
                 id: type_id(identity),
                 identity: identities.intern(&format!("graph::type{identity}")),
@@ -2074,6 +2075,7 @@ mod tests {
         let fields: Vec<_> = [5, 6]
             .into_iter()
             .map(|identity| terminal_psi::StructuralFieldDeclaration {
+                declaration_identity: Default::default(),
                 inline_carrier: None,
                 id: semantic_vocabulary::StructuralFieldId::new(identity).unwrap(),
                 identity: identities.intern(&format!("graph::type7::field{identity}")),

@@ -651,6 +651,13 @@ pub mod source_identity {
             ));
         }
         let custody_entry = canonical_source_entry(source)?;
+        Ok(toolchain_source_revision_digest(&custody_entry))
+    }
+
+    /// Match retained source bytes without reopening a source file. Declaration
+    /// descriptions and their exact toolchain owners must commit to the same
+    /// revision using the producer's existing framing.
+    pub fn toolchain_source_revision_digest(custody_entry: &[u8]) -> [u8; 32] {
         let mut digest = Sha256::new();
         digest.update(b"OMEGA-PACKAGE-REVIEW-TOOLCHAIN-SOURCE\0");
         digest.update(
@@ -658,8 +665,8 @@ pub mod source_identity {
                 .expect("canonical source custody entry length fits u64")
                 .to_le_bytes(),
         );
-        digest.update(&custody_entry);
-        Ok(digest.finalize().into())
+        digest.update(custody_entry);
+        digest.finalize().into()
     }
 
     pub fn canonical_source_entry(source: &SourceFile) -> Result<Vec<u8>, String> {

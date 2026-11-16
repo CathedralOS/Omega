@@ -441,3 +441,40 @@ fn byte_predicate_spelling_needs_its_exact_domain_call() {
         "{shadowed}\n{reason}"
     );
 }
+
+/// A formal in a byte domain, `name: &[u8] in Name`, owes the domain's
+/// primitive byte predicate at entry: every caller proves it of the bytes it
+/// passes, and the body may rely on it (byte_views.md: "An ordinary or
+/// boundary shared-byte argument may satisfy its formal's primitive byte
+/// domains from these reconstructed predicates"). The forwarding call passes
+/// the caller's own formal, whose entry requirement is that same predicate
+/// of the same bytes. The twins differ only in the bytes the entry passes.
+fn forwarded(bytes: &str) -> String {
+    format!(
+        r#"
+domain [u8]::Name
+requires
+    no_nul(self);
+machine keep(name: &[u8] in Name) {{ }}
+machine forward(name: &[u8] in Name) {{ keep(name); }}
+machine build_entry() {{ forward("{bytes}" as +Name); }}
+"#
+    )
+}
+
+#[test]
+fn a_formal_in_a_byte_domain_requires_its_predicate_of_the_bytes_passed() {
+    assert_eq!(verdict(&forwarded("plain")), "accepted");
+    let Ok(RouteVerdict::Rejected { unproved, .. }) = judge_build(&forwarded(r"pla\x00in")) else {
+        panic!("not rejected");
+    };
+    let statements: Vec<&str> = unproved.iter().map(|one| one.statement.as_str()).collect();
+    assert_eq!(
+        statements,
+        [
+            "cannot prove requires contract for call forward from build_entry: no_nul(self) \
+          (needs fact `no_nul(self)` here; establish it before the call via a prior contract \
+          guarantee, domain membership, or guard) in state `entry`"
+        ]
+    );
+}

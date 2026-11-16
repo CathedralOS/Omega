@@ -17,7 +17,7 @@ data Input {
     status: i32;
 }
 
-machine Main::main(context: &mut Main) reaches ProcessExit + Console {
+machine main(context: &mut Main) reaches ProcessExit + Console {
     let produced: chemistry::model::Signature = chemistry::balance::signature_of(3, 2, 1, 2, 1);
     let local_fourth: i64 in Wrapping = produced.fourth;
     transition { _ -> block hold(context, produced, local_fourth) }
@@ -63,7 +63,7 @@ machine Main::main(context: &mut Main) reaches ProcessExit + Console {
     }
     machine consume(context: &mut Main) {
         let mut input: Input;
-        block Main::read(context, &mut input);
+        block read(context, &mut input);
         transition input.status == 0 && input.count == 19 {
             true -> declare(context, &input)
             false -> invalid(context)
@@ -205,7 +205,7 @@ use omega::language::core::widen_i32_to_i64;
 // ASCII decimal fields, whitespace separated, finite input <=1024 bytes.
 // Refuse malformed, oversized and extra fields before exposing any reaction.
 // Accumulation multiplies only values <=INT32_MAX, hence fits comfortably in i64.
-machine Main::read(context: &mut Main, input: &mut Input) reaches ProcessExit + Console {
+machine read(context: &mut Main, input: &mut Input) reaches ProcessExit + Console {
     input.count = 0;
     input.status = 0;
     transition { _ -> block scan(context, input, 0, false, 0) }
@@ -286,5 +286,5 @@ machine Main::read(context: &mut Main, input: &mut Input) reaches ProcessExit + 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

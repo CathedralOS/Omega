@@ -51,8 +51,6 @@ use typed_trees::{MachineInstantiation, TypedTrees};
 use crate::{Elaboration, Signature};
 
 const COMMITMENT_DOMAIN: &[u8] = b"omega.lowered-machine-public-contract.v2\0";
-/// Domain of the commitment a generated machine makes to its application.
-const APPLICATION_DOMAIN: &[u8] = b"omega.lowered-machine-static-application.v1\0";
 
 /// Feeds the contract's structured fields into its domain-separated digest.
 struct Commitment(DomainDigestEncoder);
@@ -573,7 +571,7 @@ fn application(
     sources: &[(source::SourceId, [u8; 32])],
     instance: SymbolHandle,
     template: SymbolHandle,
-    binder_reach: &BinderReach,
+    binder_reach: &[(SymbolHandle, Option<Vec<semantic_vocabulary::ServiceId>>)],
     identities: &mut TerminalIdentityTableBuilder,
 ) -> Result<
     (
@@ -606,8 +604,6 @@ fn application(
     {
         return Err("a generated machine has a foreign binding application");
     }
-    let mut commitment = Commitment(DomainDigestEncoder::new(APPLICATION_DOMAIN));
-    callable.hash(&mut commitment);
     let bindings = typed
         .expression_table
         .static_machine_application_bindings(binding_application);
@@ -670,13 +666,57 @@ fn application(
     {
         return Err("a checked specialization lost its complete template binder roster");
     }
+    let commitment = application_bindings_commitment(
+        typed,
+        &callable,
+        bindings,
+        binder_reach,
+        identities,
+        &mut prepared,
+    )?;
+    Ok((
+        terminal_psi::CheckedMachineSpecialization {
+            capture: None,
+            template_entry: NominalDeclarationIdentity::new(nominal(
+                typed,
+                sources,
+                typed
+                    .machine_states(declared)
+                    .first()
+                    .ok_or("a generated machine's template has no exact entry")?
+                    .symbol,
+                identities,
+            )?),
+            template: NominalDeclarationIdentity::new(nominal(
+                typed, sources, template, identities,
+            )?),
+            template_callable: identities.intern(&callable),
+            template_semantic_declaration: semantic,
+            commitment,
+        },
+        prepared,
+    ))
+}
+
+// Checked bodies and descriptions use the same complete argument calculation.
+fn application_bindings_commitment(
+    typed: &TypedTrees,
+    callable: &str,
+    bindings: &[typed_trees::static_applications::StaticMachineBinding],
+    binder_reach: &[(SymbolHandle, Option<Vec<semantic_vocabulary::ServiceId>>)],
+    identities: &mut TerminalIdentityTableBuilder,
+    prepared: &mut Option<PreparedApplication>,
+) -> Result<[u8; 32], &'static str> {
+    use typed_trees::static_applications::StaticMachineBindingValue;
+    let mut commitment =
+        language_semantics::conformance_identity::MachineApplicationCommitment::new(callable)?;
     let mut binder_reach = binder_reach.iter();
     for binding in bindings {
         match &binding.value {
             StaticMachineBindingValue::Type(type_reference) => {
                 let argument = type_argument(typed, *type_reference)?;
-                argument.hash(&mut commitment);
-                if let Some(prepared) = &mut prepared {
+                commitment.type_argument(&argument)?;
+                if let Some(prepared) = prepared.as_mut() {
                     prepared.parameter_kinds.push(0);
                     prepared
                         .telescope
@@ -700,31 +740,24 @@ fn application(
                 }
                 let identity =
                     semantic_identity(typed, typed.implementation_value_head(named), identities)?;
-                (
-                    "implementation",
-                    identities.text(identity).ok_or(
-                        "an application's implementation identity is absent from its table",
-                    )?,
-                )
-                    .hash(&mut commitment);
+                commitment.conformance_argument(identities.text(identity).ok_or(
+                    "an application's implementation identity is absent from its table",
+                )?)?;
             }
             // generics.md, "Closed applications and canonical identity":
             // a value argument is part of the application's identity. It is
             // stated by the exact binder's type and the prepared value's
-            // canonical spelling, so `7` given to a `u8` and to a `u64`
+            // canonical typed encoding, so `7` given to a `u8` and to a `u64`
             // parameter, or a value and a type, never commit alike. A
             // Boolean is stated the same way, by `true` or `false`: its
             // parameter's type is `bool`, which no integer literal lands in.
             StaticMachineBindingValue::Const(value_reference) => {
-                let (carrier, value) = const_argument(typed, binding.parameter, *value_reference)?;
-                ("value", carrier.as_str(), value.as_str()).hash(&mut commitment);
-                if let Some(prepared) = &mut prepared {
+                let argument = const_argument(typed, binding.parameter, *value_reference)?;
+                commitment.const_argument(&argument)?;
+                if let Some(prepared) = prepared.as_mut() {
                     prepared.parameter_kinds.push(1);
                     prepared.telescope.push(PreparedParameter::Ready(
-                        ClosedReachParameter::Const {
-                            // The length keeps the carrier and literal distinct.
-                            argument: format!("{}:{carrier}{value}", carrier.len()),
-                        },
+                        ClosedReachParameter::Const { argument },
                     ));
                 }
             }
@@ -743,14 +776,12 @@ fn application(
                     })
                     .ok_or("an application's callable argument has no exact named machine")?;
                 let identity = semantic_identity(typed, machine.symbol, identities)?;
-                (
-                    "machine",
+                commitment.machine_argument(
                     identities
                         .text(identity)
                         .ok_or("an application's callable identity is absent from its table")?,
-                )
-                    .hash(&mut commitment);
-                if let Some(prepared) = &mut prepared {
+                )?;
+                if let Some(prepared) = prepared.as_mut() {
                     let contract = typed
                         .retained_static_machine_contract(binding.parameter)
                         .ok_or("an application's callable binder lost its requirement")?;
@@ -772,18 +803,149 @@ fn application(
             }
         }
     }
-    Ok((
-        terminal_psi::CheckedMachineSpecialization {
-            capture: None,
-            template: NominalDeclarationIdentity::new(nominal(
-                typed, sources, template, identities,
-            )?),
-            template_callable: identities.intern(&callable),
-            template_semantic_declaration: semantic,
-            commitment: commitment.0.finish(),
-        },
-        prepared,
-    ))
+    Ok(commitment.finish())
+}
+
+pub(crate) fn access_caller_route(
+    typed: &TypedTrees,
+    sources: &[(source::SourceId, [u8; 32])],
+    selected: &typed_trees::expression::StaticMachineArgument,
+    identities: &mut TerminalIdentityTableBuilder,
+) -> Result<terminal_psi::StructuralEstablishmentRoute, &'static str> {
+    use terminal_psi::{CheckedMachineDeclaration, StructuralEstablishmentRoute};
+    if let Some((owner, requirement)) = typed.trait_machine_signature(selected.symbol) {
+        let callable = typed.trait_requirement_callable_identity_text(owner, requirement);
+        if callable.is_empty() {
+            return Err("access caller requirement lost its callable identity");
+        }
+        let specialization = typed
+            .closed_requirement_application(requirement.symbol)
+            .map(|closed| requirement_application(typed, sources, &closed, identities))
+            .transpose()?
+            .map(|(application, _)| application);
+        let identity = CheckedMachineDeclaration::callable_evidence_identity(
+            &callable,
+            specialization
+                .as_ref()
+                .map(|application| &application.commitment),
+        );
+        let declaration = NominalDeclarationIdentity::new(nominal(
+            typed,
+            sources,
+            requirement.symbol,
+            identities,
+        )?);
+        let requirement_identity = identities.intern(&identity);
+        return Ok(if owner.is_boundary {
+            StructuralEstablishmentRoute::BoundaryRequirement {
+                declaration,
+                requirement_identity,
+            }
+        } else {
+            StructuralEstablishmentRoute::CheckedRequirement {
+                declaration,
+                requirement_identity,
+            }
+        });
+    }
+    let machine = typed
+        .machine_by_symbol(selected.symbol)
+        .or_else(|| typed.machine_holding_state(selected.symbol))
+        .ok_or("access caller has no retained machine declaration")?;
+    let callable = typed
+        .machine_callable_identity_text(machine)
+        .filter(|value| !value.is_empty())
+        .ok_or("access caller has no callable identity")?;
+    let (declaration, callable) = if let Some(template) =
+        typed.executable_application_template(machine.symbol)?
+    {
+        let (application, _) =
+            application(typed, sources, machine.symbol, template, &[], identities)?;
+        let template_callable = identities
+            .text(application.template_callable)
+            .ok_or("access caller lost its template callable identity")?;
+        let identity = CheckedMachineDeclaration::callable_evidence_identity(
+            template_callable,
+            Some(&application.commitment),
+        );
+        (application.template, identity)
+    } else {
+        use typed_trees::data::TypeParameterKind;
+        use typed_trees::static_applications::{StaticMachineBinding, StaticMachineBindingValue};
+        use typed_trees::types::TypeReferenceNode;
+        let parameters = typed.machine_type_parameters(machine);
+        if !typed
+            .type_reference_table
+            .contains_type_reference(selected.type_reference)
+        {
+            return Err("access caller lost its prepared declaration application");
+        }
+        let arguments = match typed
+            .type_reference_table
+            .type_reference(selected.type_reference)
+        {
+            TypeReferenceNode::Named { symbol, .. } if *symbol == machine.symbol => &[][..],
+            TypeReferenceNode::Generic {
+                base_symbol,
+                arguments,
+                ..
+            } if *base_symbol == machine.symbol => typed
+                .type_reference_table
+                .type_reference_handles(*arguments),
+            _ => return Err("access caller lost its prepared declaration application"),
+        };
+        if arguments.len() != parameters.len() + machine.conformance_bounds.len() {
+            return Err(
+                "access caller needs its complete type, value and implementation arguments",
+            );
+        }
+        let mut bindings = Vec::with_capacity(arguments.len());
+        for (parameter, reference) in parameters.iter().zip(arguments) {
+            let value = match parameter.kind {
+                TypeParameterKind::Type => StaticMachineBindingValue::Type(*reference),
+                TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. } => {
+                    StaticMachineBindingValue::Const(*reference)
+                }
+                _ => return Err("access caller has an unsupported static binder"),
+            };
+            bindings.push(StaticMachineBinding {
+                parameter: parameter.symbol,
+                value,
+            });
+        }
+        for (bound, reference) in machine
+            .conformance_bounds
+            .iter()
+            .zip(&arguments[parameters.len()..])
+        {
+            let argument = typed.static_operand_from_type_reference(*reference)?;
+            bindings.push(StaticMachineBinding {
+                parameter: bound.binder,
+                value: StaticMachineBindingValue::Conformance(argument),
+            });
+        }
+        let identity = if bindings.is_empty() {
+            callable
+        } else {
+            let commitment = application_bindings_commitment(
+                typed,
+                &callable,
+                &bindings,
+                &[],
+                identities,
+                &mut None,
+            )?;
+            CheckedMachineDeclaration::callable_evidence_identity(&callable, Some(&commitment))
+        };
+        (
+            NominalDeclarationIdentity::new(nominal(typed, sources, machine.symbol, identities)?),
+            identity,
+        )
+    };
+    Ok(StructuralEstablishmentRoute::ExactMachine {
+        declaration,
+        machine_identity: identities.intern(&callable),
+    })
 }
 
 fn type_argument(
@@ -800,7 +962,8 @@ fn const_argument(
     typed: &TypedTrees,
     binder: SymbolHandle,
     reference: typed_trees::types::TypeReferenceHandle,
-) -> Result<(String, String), &'static str> {
+) -> Result<language_semantics::const_value::CanonicalConstValue, &'static str> {
+    use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
     use typed_trees::data::TypeParameterKind;
     use typed_trees::expression::ExpressionNode;
 
@@ -820,12 +983,24 @@ fn const_argument(
         .primitive_type_reference(type_reference)
         .ok_or("an application's value binder needs its admitted scalar carrier")?;
     let value = typed.static_operand_from_type_reference(reference)?;
-    let value = match typed.prepare_callable_scalar_argument(primitive, &value)? {
-        ExpressionNode::Integer(literal) => literal.canonical_spelling().as_str().to_owned(),
-        ExpressionNode::Boolean(value) => if value { "true" } else { "false" }.to_owned(),
+    let decoded = match typed.prepare_callable_scalar_argument(primitive, &value)? {
+        ExpressionNode::Integer(literal) => DecodedCanonicalConstValue::Integer {
+            integer_type: primitive
+                .landed_landing_fixed()
+                .ok_or("an application's integer binding has no admitted carrier")?,
+            value: literal
+                .value_bignum()
+                .ok_or("an application's integer binding has no canonical value")?,
+        },
+        ExpressionNode::Boolean(value) => DecodedCanonicalConstValue::Boolean(value),
         _ => return Err("an application's value binding has no admitted scalar value"),
     };
-    Ok((carrier, value))
+    let mut value = CanonicalConstValue::from_decoded(&decoded, "")
+        .ok_or("an application's value binding has no canonical encoding")?;
+    // The outer type names the exact source binder. The encoding retains the
+    // landed scalar type and value checked against that binder above.
+    value.type_name = carrier;
+    Ok(value)
 }
 
 /// Close a generated body against the template contract this compilation
@@ -1643,6 +1818,7 @@ impl RequirementApplicationSource {
     ) -> terminal_psi::CheckedMachineSpecialization {
         terminal_psi::CheckedMachineSpecialization {
             capture: None,
+            template_entry: NominalDeclarationIdentity::new(template),
             template: NominalDeclarationIdentity::new(template),
             template_callable: identities.intern(&self.callable),
             template_semantic_declaration: semantic,

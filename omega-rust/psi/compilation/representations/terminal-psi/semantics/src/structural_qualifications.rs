@@ -20,6 +20,11 @@
 //! parameter, so the edge into it proves them. No other operation produces
 //! a qualified value, except provisioning that adds only free domains.
 
+use language_semantics::type_identity::{
+    TypeIdentityPackageOwnerVisitor, TypeIdentityVisitError, visit_static_argument_package_owners,
+    visit_type_identity_package_owners, vocabulary::OwnerForm,
+};
+
 use semantic_vocabulary::{
     BlockId, CanonicalStructuralPathSegment, ContentPlaceVersion, EdgeId, IntegerType, MachineId,
     PlaceId, ScalarTerm, ScalarType, StructuralCaseId, StructuralDomainId, StructuralFieldId,
@@ -1004,9 +1009,669 @@ fn validate_arguments(
     Ok(())
 }
 
+/// Read caller descriptions through the canonical identity grammar. The
+/// unversioned toolchain name is descriptive: its retained source bytes must
+/// match the exact revision on the module's declaration before it can link.
+type CallerNominal = (OwnerForm, Option<[u8; 32]>, String);
+#[derive(Default)]
+struct MachineCallerDescription {
+    depth: usize,
+    remaining: usize,
+    applications: usize,
+    argument: u32,
+    root_names: Vec<Option<String>>,
+    static_arguments: Vec<String>,
+    machine: Vec<CallerNominal>,
+    entry: Vec<CallerNominal>,
+}
+impl TypeIdentityPackageOwnerVisitor for MachineCallerDescription {
+    fn enter(&mut self) -> Result<(), TypeIdentityVisitError> {
+        if self.depth == 128 {
+            return Err(TypeIdentityVisitError::ResourceLimitExceeded);
+        }
+        self.depth += 1;
+        Ok(())
+    }
+    fn leave(&mut self) {
+        self.depth -= 1;
+    }
+    fn reserve(&mut self, bytes: usize) -> Result<(), TypeIdentityVisitError> {
+        self.remaining = self
+            .remaining
+            .checked_sub(bytes)
+            .ok_or(TypeIdentityVisitError::ResourceLimitExceeded)?;
+        Ok(())
+    }
+    fn package_owner(&mut self, _: [u8; 32]) -> Result<(), TypeIdentityVisitError> {
+        Ok(())
+    }
+    fn embedded_name(&mut self, _: &str) -> Result<(), TypeIdentityVisitError> {
+        Ok(())
+    }
+    fn descriptive_toolchain_owner(&mut self) -> Result<(), TypeIdentityVisitError> {
+        Ok(())
+    }
+    fn nominal_declaration(
+        &mut self,
+        owner: OwnerForm,
+        digest: Option<[u8; 32]>,
+        path: &str,
+    ) -> Result<(), TypeIdentityVisitError> {
+        let rows = match (self.applications, self.argument) {
+            (0, _) | (1, 0) => &mut self.machine,
+            (1, 1) => &mut self.entry,
+            _ => return Ok(()),
+        };
+        self.remaining = self
+            .remaining
+            .checked_sub(path.len())
+            .ok_or(TypeIdentityVisitError::ResourceLimitExceeded)?;
+        rows.push((owner, digest, path.to_owned()));
+        Ok(())
+    }
+    fn enter_static_application(&mut self) -> Result<(), TypeIdentityVisitError> {
+        self.applications += 1;
+        Ok(())
+    }
+    fn leave_static_application(&mut self) {
+        self.applications -= 1;
+    }
+    fn enter_static_argument(&mut self, ordinal: u32) -> Result<(), TypeIdentityVisitError> {
+        if self.applications == 1 {
+            self.argument = ordinal;
+            self.root_names.push(None);
+        }
+        Ok(())
+    }
+    fn static_argument(
+        &mut self,
+        ordinal: u32,
+        identity: &str,
+    ) -> Result<(), TypeIdentityVisitError> {
+        if self.applications == 1 && ordinal >= 3 {
+            self.remaining = self
+                .remaining
+                .checked_sub(identity.len())
+                .ok_or(TypeIdentityVisitError::ResourceLimitExceeded)?;
+            self.static_arguments.push(identity.to_owned());
+        }
+        Ok(())
+    }
+    fn static_name(&mut self, name: &str) -> Result<(), TypeIdentityVisitError> {
+        if self.applications == 1 && self.argument < 3 {
+            let row = self
+                .root_names
+                .last_mut()
+                .ok_or(TypeIdentityVisitError::MalformedIdentity)?;
+            if row.is_some() {
+                return Err(TypeIdentityVisitError::MalformedIdentity);
+            }
+            self.remaining = self
+                .remaining
+                .checked_sub(name.len())
+                .ok_or(TypeIdentityVisitError::ResourceLimitExceeded)?;
+            *row = Some(name.to_owned());
+        }
+        Ok(())
+    }
+}
+
+fn read_machine_caller_declaration(
+    module: &TerminalModule,
+    description: &language_semantics::reflection::CallableDescription,
+    declaration: &terminal_psi::NominalDeclarationIdentity,
+    callable: terminal_psi::TerminalIdentityIndex,
+) -> Judged<MachineCallerDescription> {
+    let error = |detail| StructuralQualificationError {
+        machine: None,
+        detail,
+    };
+    let applied = std::str::from_utf8(&description.1[1])
+        .map_err(|_| error("machine caller lost its applied identity"))?;
+    let mut described = MachineCallerDescription {
+        remaining: applied.len().saturating_mul(3),
+        ..Default::default()
+    };
+    visit_static_argument_package_owners(applied, &mut described)
+        .map_err(|_| error("machine caller has an invalid complete application description"))?;
+    if described.root_names.len() < 3
+        || described.root_names[..3].iter().any(Option::is_none)
+        || described.machine.len() != 1
+        || described.entry.len() != 1
+    {
+        return Err(error(
+            "machine caller lost its original machine, entry or signature",
+        ));
+    }
+    let exact = module
+        .identities
+        .text(declaration.identity())
+        .ok_or_else(|| error("machine caller has no exact source declaration"))?;
+    let mut retained = MachineCallerDescription {
+        remaining: exact.len().saturating_mul(3),
+        ..Default::default()
+    };
+    visit_type_identity_package_owners(exact, &mut retained)
+        .map_err(|_| error("machine caller declaration has an invalid canonical identity"))?;
+    let [actual] = retained.machine.as_slice() else {
+        return Err(error(
+            "machine caller declaration has no unique nominal owner",
+        ));
+    };
+    let declared = &described.machine[0];
+    let revision = source::source_identity::toolchain_source_revision_digest(&description.1[2]);
+    let same_owner = match (actual.0, declared.0) {
+        (OwnerForm::Package, OwnerForm::Package) => actual.1 == declared.1,
+        (OwnerForm::ToolchainSource, OwnerForm::Toolchain) => actual.1 == Some(revision),
+        (OwnerForm::ToolchainSource, OwnerForm::ToolchainSource) => {
+            actual.1 == declared.1 && actual.1 == Some(revision)
+        }
+        _ => false,
+    };
+    if !same_owner || actual.2 != declared.2 {
+        return Err(error(
+            "machine caller describes another source declaration or revision",
+        ));
+    }
+    // An applied caller additionally owes its checked static argument account
+    // at the operation. The unspecialized identity already has no arguments
+    // to hide, so its complete signature must match here too.
+    if described.root_names.len() == 3
+        && module.identities.text(callable) != described.root_names[2].as_deref()
+    {
+        return Err(error("machine caller route has another declared signature"));
+    }
+    Ok(described)
+}
+
+fn machine_caller_application_matches(
+    module: &TerminalModule,
+    current: &TerminalMachine,
+    description: &language_semantics::reflection::CallableDescription,
+    described: &MachineCallerDescription,
+) -> Judged<bool> {
+    let error = |detail| StructuralQualificationError {
+        machine: Some(current.id),
+        detail,
+    };
+    let revision = source::source_identity::toolchain_source_revision_digest(&description.1[2]);
+    let declaration = current
+        .declaration
+        .as_ref()
+        .ok_or_else(|| error("current policy caller has no checked declaration"))?;
+    let (entry, signature) = match &declaration.specialization {
+        Some(application) => (&application.template_entry, application.template_callable),
+        None => (&declaration.state, declaration.callable),
+    };
+    if described.root_names[2].as_deref() != module.identities.text(signature) {
+        return Ok(false);
+    }
+    let text = module
+        .identities
+        .text(entry.identity())
+        .ok_or_else(|| error("current caller has no exact original entry"))?;
+    let mut expected = MachineCallerDescription {
+        remaining: text.len().saturating_mul(3),
+        ..Default::default()
+    };
+    visit_type_identity_package_owners(text, &mut expected)
+        .map_err(|_| error("current caller's original entry has an invalid canonical identity"))?;
+    let [entry] = expected.machine.as_slice() else {
+        return Err(error("current caller has no unique original entry"));
+    };
+    let described_entry = &described.entry[0];
+    let entry_owner_matches = match (entry.0, described_entry.0) {
+        (OwnerForm::Package, OwnerForm::Package) => entry.1 == described_entry.1,
+        (OwnerForm::ToolchainSource, OwnerForm::Toolchain) => entry.1 == Some(revision),
+        (OwnerForm::ToolchainSource, OwnerForm::ToolchainSource) => {
+            entry.1 == described_entry.1 && entry.1 == Some(revision)
+        }
+        _ => false,
+    };
+    if !entry_owner_matches || entry.2 != described_entry.2 {
+        return Ok(false);
+    }
+    let arguments = &described.static_arguments;
+    match &declaration.specialization {
+        None => Ok(arguments.is_empty()),
+        Some(specialization) => {
+            let application = current
+                .closed_reach_application
+                .as_ref()
+                .ok_or_else(|| error("current caller has no checked static argument account"))?;
+            if specialization.capture.is_some() || application.capture.is_some() {
+                return Err(error(
+                    "current caller needs its complete checked capture argument account",
+                ));
+            }
+            if specialization.commitment != application.specialization_commitment
+                || specialization.template_semantic_declaration != application.template_identity
+                || arguments.len() != application.telescope.len()
+            {
+                return Ok(false);
+            }
+            crate::calls::closed_reach::validate_machine_application_arguments(module, current)
+                .map_err(error)?;
+            for (argument, parameter) in arguments.iter().zip(&application.telescope) {
+                match parameter {
+                    terminal_psi::ClosedReachParameter::Type { argument: expected } => {
+                        if argument != expected {
+                            return Ok(false);
+                        }
+                    }
+                    terminal_psi::ClosedReachParameter::Const { argument: expected } => {
+                        if expected.scalar_index_identity().as_deref() != Some(argument.as_str()) {
+                            return Ok(false);
+                        }
+                    }
+                    terminal_psi::ClosedReachParameter::Machine(_)
+                    | terminal_psi::ClosedReachParameter::Proposition { .. } => {
+                        return Err(error(
+                            "current caller needs its complete checked machine or proof argument account",
+                        ));
+                    }
+                }
+            }
+            Ok(true)
+        }
+    }
+}
+
+/// Compare a description with this module's actual checked machine and its
+/// complete entry/application. Matching a declaration supplies no invocation,
+/// read, write or backing permission; those operation judgments remain separate.
+pub fn caller_matches_machine(
+    module: &TerminalModule,
+    current: MachineId,
+    caller: &(
+        language_semantics::reflection::CallableDescription,
+        StructuralEstablishmentRoute,
+    ),
+) -> Judged<bool> {
+    let current = module
+        .machine(current)
+        .ok_or(StructuralQualificationError {
+            machine: Some(current),
+            detail: "policy caller is absent from the actual module",
+        })?;
+    let declaration = current
+        .declaration
+        .as_ref()
+        .ok_or(StructuralQualificationError {
+            machine: Some(current.id),
+            detail: "policy caller has no checked declaration",
+        })?;
+    let (description, route) = caller;
+    let StructuralEstablishmentRoute::ExactMachine {
+        declaration: owner,
+        machine_identity,
+    } = route
+    else {
+        return malformed(
+            Some(current.id),
+            "requirement caller needs its exact checked public application",
+        );
+    };
+    if description.0 {
+        return Ok(false);
+    }
+    let (expected_owner, semantic, callable, commitment) = match &declaration.specialization {
+        Some(application) => (
+            &application.template,
+            application.template_semantic_declaration,
+            application.template_callable,
+            Some(&application.commitment),
+        ),
+        None => (
+            &declaration.machine,
+            declaration.semantic_declaration,
+            declaration.callable,
+            None,
+        ),
+    };
+    let Some(signature) = module.identities.text(callable) else {
+        return malformed(
+            Some(current.id),
+            "policy caller's checked signature is absent",
+        );
+    };
+    let expected =
+        terminal_psi::CheckedMachineDeclaration::callable_evidence_identity(signature, commitment);
+    if owner != expected_owner
+        || module.identities.text(*machine_identity) != Some(expected.as_str())
+        || module.identities.text(semantic).map(str::as_bytes) != Some(description.1[0].as_slice())
+    {
+        return Ok(false);
+    }
+    let described = read_machine_caller_declaration(module, description, owner, *machine_identity)?;
+    machine_caller_application_matches(module, current, description, &described)
+}
+
+/// Validate each rule against the source declarations retained by this module.
+/// A lookalike record, case or field cannot satisfy a policy for another one.
+pub fn validate_access_policy(
+    module: &TerminalModule,
+    domain: &StructuralDomainDeclaration,
+) -> Judged<()> {
+    let Some(plan) = &domain.access_policy else {
+        return Ok(());
+    };
+    let error = |detail| StructuralQualificationError {
+        machine: None,
+        detail,
+    };
+    let projected = plan.clone().try_bind(
+        |(node, _)| Ok::<_, StructuralQualificationError>(node),
+        |(description, _)| Ok(description),
+    )?;
+    let normalized = access_plans::normalize_access_plan(projected.clone()).map_err(|_| {
+        error("domain access rules have invalid semantic coordinates or descriptions")
+    })?;
+    if normalized != projected {
+        return Err(error("domain access rules are not in normalized order"));
+    }
+    let carrier = module
+        .structural_type(domain.carrier)
+        .ok_or_else(|| error("domain access rules have no carrier declaration"))?;
+    let owner = module
+        .identities
+        .text(carrier.declaration_identity)
+        .filter(|identity| !identity.is_empty())
+        .ok_or_else(|| error("domain access subject has no exact source declaration"))?;
+    let subject = module
+        .identities
+        .text(domain.subject_identity)
+        .filter(|identity| !identity.is_empty())
+        .ok_or_else(|| error("domain access subject has no exact applied identity"))?;
+    if plan.schema.declaration().owner_identity != owner
+        || plan.schema.declaration().application_identity.as_deref() != Some(subject)
+    {
+        return Err(error(
+            "domain access schema describes another subject declaration or application",
+        ));
+    }
+    let mut cases = carrier
+        .shape
+        .cases()
+        .iter()
+        .map(|case| {
+            let identity = module
+                .identities
+                .text(case.declaration_identity)
+                .filter(|identity| !identity.is_empty())
+                .ok_or_else(|| error("domain access case has no exact source declaration"))?;
+            Ok((identity, case))
+        })
+        .collect::<Judged<Vec<_>>>()?;
+    cases.sort_unstable_by(|left, right| left.0.cmp(right.0));
+    if cases.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+        return Err(error(
+            "domain access carrier repeats a source case declaration",
+        ));
+    }
+    let described_cases = plan
+        .schema
+        .declaration()
+        .members
+        .iter()
+        .filter_map(|member| match plan.schema.node(*member) {
+            language_semantics::reflection::SchemaNode::Case(case) => Some(case),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    if described_cases.len() != cases.len()
+        || described_cases.iter().any(|case| {
+            cases
+                .binary_search_by(|(identity, _)| identity.cmp(&case.member_identity.as_str()))
+                .is_err()
+        })
+    {
+        return Err(error(
+            "domain access schema differs from its carrier's source cases",
+        ));
+    }
+    let mut fields = carrier
+        .shape
+        .fields_with_case()
+        .map(|(case, field)| {
+            let name = module
+                .identities
+                .text(field.declaration_identity)
+                .filter(|name| !name.is_empty())
+                .ok_or_else(|| {
+                    error("domain access schema has a field without a source declaration")
+                })?;
+            Ok((name, case, field))
+        })
+        .collect::<Judged<Vec<_>>>()?;
+    fields.sort_unstable_by(|left, right| left.0.cmp(right.0));
+    if fields.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+        return Err(error(
+            "domain access carrier repeats a source field declaration",
+        ));
+    }
+    let governed = plan
+        .schema
+        .governed_fields()
+        .map_err(|_| error("domain access schema lost its complete subject field roster"))?;
+    if governed.len() != fields.len()
+        || governed.iter().any(|(_, field)| {
+            fields
+                .binary_search_by(|(name, _, _)| name.cmp(&field.member_identity.as_str()))
+                .is_err()
+        })
+    {
+        return Err(error(
+            "domain access schema differs from its carrier's source fields",
+        ));
+    }
+    // Every described field keeps its source owner, even when no rule names
+    // it. A later policy cannot borrow an unvalidated case or erased field.
+    for (_, description) in &governed {
+        let index = fields
+            .binary_search_by(|(name, _, _)| name.cmp(&description.member_identity.as_str()))
+            .map_err(|_| error("domain access schema lost its source field"))?;
+        let (_, case, field) = fields[index];
+        let described_case = match plan.schema.node(description.owner_case) {
+            language_semantics::reflection::SchemaNode::Case(case)
+                if description.owner_case.is_valid() =>
+            {
+                Some(case.member_identity.as_str())
+            }
+            _ if !description.owner_case.is_valid() => None,
+            _ => return Err(error("domain access field has no valid schema case owner")),
+        };
+        let actual_case = case
+            .map(|case| {
+                module
+                    .identities
+                    .text(case.declaration_identity)
+                    .filter(|identity| !identity.is_empty())
+                    .ok_or_else(|| error("domain access field lost its source case owner"))
+            })
+            .transpose()?;
+        if described_case != actual_case {
+            return Err(error("domain access field belongs to another source case"));
+        }
+        if description.erased != field.relevance.is_erased() {
+            return Err(error("domain access field changed its runtime relevance"));
+        }
+    }
+    let region = |(node, path): &(
+        language_semantics::reflection::SchemaNodeHandle,
+        Option<Vec<StructuralPathSegment>>,
+    )|
+     -> Judged<()> {
+        if *node == plan.schema.root() {
+            return if path.as_deref() == Some(&[]) {
+                Ok(())
+            } else {
+                Err(error("whole-subject access rule has another storage path"))
+            };
+        }
+        let index = governed
+            .binary_search_by_key(node, |(node, _)| *node)
+            .map_err(|_| error("domain access rule names a field outside its subject"))?;
+        let description = governed[index].1;
+        let index = fields
+            .binary_search_by(|(name, _, _)| name.cmp(&description.member_identity.as_str()))
+            .map_err(|_| error("domain access rule lost its source field"))?;
+        let (_, case, field) = fields[index];
+        if description.erased {
+            return if path.is_none() {
+                Ok(())
+            } else {
+                Err(error("erased access field has a fabricated storage path"))
+            };
+        }
+        let matches = match (case, path.as_deref()) {
+            (None, Some([StructuralPathSegment::Field(identity)])) => *identity == field.identity,
+            (
+                Some(case),
+                Some(
+                    [
+                        StructuralPathSegment::Case(selected),
+                        StructuralPathSegment::Field(identity),
+                    ],
+                ),
+            ) => *selected == case.id && *identity == field.identity,
+            _ => false,
+        };
+        if matches {
+            Ok(())
+        } else {
+            Err(error(
+                "domain access field has another declaration's storage path",
+            ))
+        }
+    };
+    for (coordinate, _) in plan.readers.iter().chain(&plan.writers) {
+        region(coordinate)?;
+    }
+    for (coordinate, _) in &plan.observations {
+        region(coordinate)?;
+    }
+    for (description, route) in plan.issuance.iter().flatten().chain(
+        plan.readers
+            .iter()
+            .chain(&plan.writers)
+            .flat_map(|(_, callers)| callers),
+    ) {
+        if let StructuralEstablishmentRoute::ExactMachine {
+            declaration,
+            machine_identity,
+        } = route
+        {
+            read_machine_caller_declaration(module, description, declaration, *machine_identity)?;
+        }
+        if description.0 != !matches!(route, StructuralEstablishmentRoute::ExactMachine { .. })
+            || module
+                .identities
+                .text(route.identity())
+                .is_none_or(str::is_empty)
+            || module
+                .identities
+                .text(route.declaration().identity())
+                .is_none_or(str::is_empty)
+        {
+            return Err(error(
+                "domain access caller lost its complete declared route",
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// Each module numbers its cases and fields independently. Compare the rules
+/// through their resolved source declarations after validating each module's
+/// links, so matching numbers alone cannot make different policies equal.
+pub fn same_access_policy(
+    left: &TerminalModule,
+    source: &StructuralDomainDeclaration,
+    right: &TerminalModule,
+    target: &StructuralDomainDeclaration,
+) -> bool {
+    fn semantic_plan(
+        module: &TerminalModule,
+        domain: &StructuralDomainDeclaration,
+    ) -> Option<
+        access_plans::AccessPlan<
+            language_semantics::reflection::SchemaNodeHandle,
+            (
+                language_semantics::reflection::CallableDescription,
+                (u8, String, String),
+            ),
+        >,
+    > {
+        validate_access_policy(module, domain).ok()?;
+        domain
+            .access_policy
+            .clone()?
+            .try_bind(
+                |(node, _)| Ok::<_, ()>(node),
+                |(description, route)| {
+                    let kind = match route {
+                        StructuralEstablishmentRoute::ExactMachine { .. } => 0,
+                        StructuralEstablishmentRoute::CheckedRequirement { .. } => 1,
+                        StructuralEstablishmentRoute::BoundaryRequirement { .. } => 2,
+                    };
+                    let declaration = route.declaration().identity();
+                    let callable = route.identity();
+                    if module.identities.is_invocation_local(declaration)
+                        || module.identities.is_invocation_local(callable)
+                    {
+                        return Err(());
+                    }
+                    let owner = module
+                        .identities
+                        .text(declaration)
+                        .filter(|name| !name.is_empty())
+                        .ok_or(())?;
+                    let callable = module
+                        .identities
+                        .text(callable)
+                        .filter(|name| !name.is_empty())
+                        .ok_or(())?;
+                    Ok((description, (kind, owner.to_owned(), callable.to_owned())))
+                },
+            )
+            .ok()
+    }
+    match (&source.access_policy, &target.access_policy) {
+        (None, None) => true,
+        (Some(_), Some(_)) => semantic_plan(left, source)
+            .zip(semantic_plan(right, target))
+            .is_some_and(|(a, b)| a == b),
+        _ => false,
+    }
+}
+
+fn validate_access_policies(module: &TerminalModule) -> Judged<()> {
+    for domain in &module.structural_domains {
+        validate_access_policy(module, domain)?;
+        // A received program can already hold a qualified input. Source
+        // formation refusal alone cannot protect its operations until memory
+        // access checks implement read, write, observation and reach rules.
+        // Description-only plans can still be validated separately.
+        if domain.access_policy.as_ref().is_some_and(|plan| {
+            !plan.readers.is_empty()
+                || !plan.writers.is_empty()
+                || !plan.observations.is_empty()
+                || plan.reach.services().len() != 0
+        }) {
+            return malformed(
+                None,
+                "memory access checks for these saved rules are not implemented yet",
+            );
+        }
+    }
+    Ok(())
+}
+
 /// Check the exact membership transfers, domain theories and issuer routes.
 /// Byte predicate truth is a separate establishment judgment at each cast edge.
 pub fn validate_shape(module: &TerminalModule) -> Judged<()> {
+    validate_access_policies(module)?;
     for machine in &module.machines {
         validate_machine(module, machine)?;
     }
@@ -1039,6 +1704,7 @@ pub fn byte_qualification_change_judgments(
 
 /// The complete structural membership judgment required at artifact ingress.
 pub fn validate(module: &TerminalModule) -> Judged<()> {
+    validate_access_policies(module)?;
     for machine in &module.machines {
         if byte_qualification_change_judgments(module, machine)?
             .iter()

@@ -689,11 +689,16 @@ pub(crate) fn audit_target_operation_plan(
     unit: &optimization_unit::PsiOptimizationUnit,
     closed_types: Option<&terminal_codec::ClosedTypeCatalog>,
 ) -> Result<(), LegalizationError> {
-    let plan_geometry =
-        crate::native_geometry::NativeGeometry::new(&abstract_plan.structural_types)
-            .map_err(|_| LegalizationError::custody())?;
-    let unit_geometry = crate::native_geometry::NativeGeometry::new(&unit.structural_types)
-        .map_err(|_| LegalizationError::custody())?;
+    let plan_geometry = crate::native_geometry::NativeGeometry::with_owned_sequence_bounds(
+        &abstract_plan.structural_types,
+        abstract_plan.structural_types.owned_sequence_bounds(),
+    )
+    .map_err(|_| LegalizationError::custody())?;
+    let unit_geometry = crate::native_geometry::NativeGeometry::with_owned_sequence_bounds(
+        &unit.structural_types,
+        unit.structural_types.owned_sequence_bounds(),
+    )
+    .map_err(|_| LegalizationError::custody())?;
     let abstract_plan = &crate::native_geometry::NativeInput::with_types(
         abstract_plan,
         &plan_geometry,

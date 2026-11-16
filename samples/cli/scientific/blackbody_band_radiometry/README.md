@@ -1,6 +1,6 @@
 # Blackbody band radiometry
 
-An explicit `Main::main` Console entry reads one record of seven decimal fields:
+An explicit `main` Console entry reads one record of seven decimal fields:
 
 ```
 emitter_K ambient_K grey_emissivity area_m2 view_factor minimum_um maximum_um

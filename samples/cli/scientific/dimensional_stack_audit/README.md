@@ -67,7 +67,7 @@ SAMPLE=samples/cli/independent/dimensional_stack_audit
 # Review its local plan independently if requested.
 ```
 
-`build.omg` binds Main::main explicitly on Linux x86-64, macOS ARM64 and Windows
+`build.omg` binds main explicitly on Linux x86-64, macOS ARM64 and Windows
 x86-64. Other hosts have no declared entry binding. Generated products and
 validation logs stay in ignored `build/`; local package policy is not copied
 into the source delivery. The intended-invalid project is separate and complete:

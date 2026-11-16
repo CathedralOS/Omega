@@ -794,7 +794,9 @@ pub(crate) mod boundary_reach {
         "boundary-service reach identity cannot be zero"
     );
 
-    #[derive(Debug, Clone, Default, PartialEq, Eq, Hash, compiler_storage::Record)]
+    #[derive(
+        Debug, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record,
+    )]
     pub struct BoundaryReach {
         services: BTreeSet<BoundaryServiceReachId>,
     }

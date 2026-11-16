@@ -811,8 +811,8 @@ const UNUSED_DECLARATIONS: &[(&str, &str)] = &[
          const START: Pair = Pair { left: 3, right: 4 };",
     ),
     ("array_constant", "const ROW: [u64; 3] = [5, 6, 7];"),
-    // A constant of data with `requires` owes the default-domain proof,
-    // which the route does not build yet.
+    // A literal still owes its constructor's default-domain proof through
+    // the ordinary initializer machine, even when no caller reads it.
     (
         "constrained_record_constant",
         "data Pair [copy] requires left < right { left: u64; right: u64; }\n\
@@ -1128,6 +1128,83 @@ fn a_generic_body_that_applies_another_generic_machine_is_judged() {
     );
 }
 
+#[test]
+fn literal_constant_predicates_use_checked_initializers() {
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut frontier = unbuilt_frontier::fixture_frontier(
+        "tests/fixtures/pass/constants/literal_predicate_handoff",
+    );
+    let (_, verdict) = route_verdict(&frontier);
+    assert!(
+        matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+        "{verdict:?}"
+    );
+
+    // The two programs differ only in the unused literal's value. The
+    // refusal must come from that constructor's predicate, not its spelling
+    // or from a failure to encode the record.
+    let main = unbuilt_frontier::repository(
+        "tests/fixtures/fail/constants/literal_predicate_handoff/main.omg",
+    );
+    let Err(messages) = unbuilt_frontier::frontier(&main, None, &[]) else {
+        panic!("the false predicate on an unused constant must be refused");
+    };
+    assert!(
+        messages.iter().any(|message| {
+            message.contains("constant `UNUSED` evaluation")
+                && message.contains("cannot prove requires clause")
+        }),
+        "{messages:?}"
+    );
+
+    // A canonical payload is not a proof receipt. Losing the exact
+    // initializer must restore the refusal, even though the payload remains.
+    let original = frontier.typed.clone();
+    let mut typed = frontier.typed.clone().into_inner();
+    let constant = typed
+        .tables
+        .const_declarations
+        .iter()
+        .find_map(|(handle, declaration)| {
+            (typed.symbols.name(declaration.symbol) == "UNUSED").then_some(handle)
+        })
+        .expect("the unused constant declaration");
+    typed
+        .tables
+        .const_declarations
+        .get_mut(constant)
+        .evaluation_entry = Default::default();
+    frontier.typed = typed.into();
+    let (_, verdict) = route_verdict(&frontier);
+    assert!(
+        matches!(verdict, Ok(RouteVerdict::FallBack(ref refusal))
+        if refusal.detail.contains("constant of data with requires needs its default-domain proof")),
+        "{verdict:?}"
+    );
+
+    // The other initializer returns the same value in the same carrier.
+    // It still cannot replace this declaration's computation custody.
+    let mut typed = original.into_inner();
+    let other = typed
+        .const_declarations()
+        .iter()
+        .find(|declaration| typed.symbols.name(declaration.symbol) == "COMPUTED")
+        .expect("the computed declaration")
+        .clone();
+    let declaration = typed.tables.const_declarations.get_mut(constant);
+    declaration.evaluation_entry = other.evaluation_entry;
+    declaration.evaluation_expression = other.evaluation_expression;
+    frontier.typed = typed.into();
+    let (_, verdict) = route_verdict(&frontier);
+    assert!(
+        matches!(verdict, Ok(RouteVerdict::FallBack(ref refusal))
+        if refusal.detail.contains("constant initializer belongs to another declaration")),
+        "{verdict:?}"
+    );
+}
+
 /// Every kind of unused subject declaration is in the check. What the route
 /// can judge it judges: a valid machine, plain data and scalar, record and
 /// array constants are accepted with the machine in the module, and a
@@ -1151,7 +1228,7 @@ fn each_kind_of_unused_subject_declaration_is_judged_or_handed_back() {
         Verdict::Accepted(1),
         Verdict::Accepted(1),
         Verdict::Accepted(1),
-        falls_back("declaration constant of data with requires needs its default-domain proof"),
+        Verdict::Accepted(2),
         // A domain's predicates are contracts of the places declared in it,
         // so a declaration no type names owes nothing once its clauses are
         // read.

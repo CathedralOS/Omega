@@ -790,7 +790,10 @@ pub(crate) mod structural_type_lookup {
     impl<'a> StructuralTypeLookup<'a> {
         pub(crate) fn new(source: &'a StructuralTypeCatalog) -> Result<Self, NonDenseIdentities> {
             Ok(Self {
-                layouts: StructuralLayouts::new(source.iter())?,
+                layouts: StructuralLayouts::with_owned_sequence_bounds(
+                    source.iter(),
+                    source.owned_sequence_bounds(),
+                )?,
                 catalog: source,
                 verified: None,
             })

@@ -12,10 +12,10 @@ use output::report;
 // These are squared-distance units, not radial error. Search is deterministic,
 // ordered by y then x, and retains no candidate storage or hidden truncation.
 data Main { }
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     let mut bytes: [u8; 128];
     let mut problem: Problem;
-    let observed: LineReadResult = block Console::read_line(&mut bytes);
+    let observed: LineReadResult = block Console::read_line(&mut bytes[..]);
     transition observed {
         LineReadResult::EndOfInput { count } -> input(&bytes, count, &mut problem)
         LineReadResult::LineComplete { count } -> input(&bytes, count, &mut problem)
@@ -118,5 +118,5 @@ reaches Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

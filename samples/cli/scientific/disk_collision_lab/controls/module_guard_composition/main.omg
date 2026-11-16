@@ -3,7 +3,7 @@ use omega::language::core::abs_f64;
 use model;
 use helper;
 machine observe(lab:&mut Measurements) {lab.events=1;lab.first=0;lab.second=1;lab.time=2.0;lab.impulse=1.5;lab.px=1.0;lab.energy=0.5;lab.initial_x=1.0;lab.initial_energy=0.5;}
-machine Probe::main(probe:&mut Probe) {
+machine main(probe:&mut Probe) {
  transition { _ -> check(probe) }
  machine check(probe:&mut Probe) {
   observe(&mut probe.lab);
@@ -21,5 +21,5 @@ machine Probe::main(probe:&mut Probe) {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
     let mut entry_storage: Probe;
-    Probe::main(&mut entry_storage);
+    main(&mut entry_storage);
 }

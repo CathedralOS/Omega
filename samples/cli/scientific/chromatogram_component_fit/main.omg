@@ -10,7 +10,7 @@ use domain::report;
 use domain::baseline_window;
 
 data Main { reader: InputReader; }
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     main.reader.remaining = 512;
     main.reader.exhausted = false;
     let ready: bool = baseline_ready();
@@ -55,5 +55,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

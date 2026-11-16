@@ -1080,6 +1080,7 @@ pub mod closed_conformances {
         match &declaration.specialization {
             Some(specialization) => {
                 identity(module, specialization.template.identity())?;
+                identity(module, specialization.template_entry.identity())?;
                 if let Some(capture) = &specialization.capture {
                     identity(module, capture.template_identity)?;
                     if capture.template_commitment == [0; 32]
@@ -1332,11 +1333,13 @@ pub mod closed_conformances {
     ) -> bool {
         match (expected, actual) {
             (ClosedReachArgument::Type(identity), ClosedReachParameter::Type { argument })
-            | (ClosedReachArgument::Const(identity), ClosedReachParameter::Const { argument })
             | (
                 ClosedReachArgument::Proposition(identity),
                 ClosedReachParameter::Proposition { argument },
             ) => module.identities.text(*identity) == Some(argument.as_str()),
+            (ClosedReachArgument::Const(identity), ClosedReachParameter::Const { argument }) => {
+                argument.scalar_index_identity().as_deref() == module.identities.text(*identity)
+            }
             (
                 ClosedReachArgument::Machine {
                     identity,
@@ -1877,6 +1880,7 @@ pub mod closed_conformances {
                     Some(specialization) => {
                         if specialization.capture.is_some()
                             || specialization.template != schema.requirement_declaration
+                            || specialization.template_entry != schema.requirement_declaration
                             || specialization.template_callable
                                 != schema.public_requirement_identity
                         {
@@ -2024,6 +2028,54 @@ pub mod closed_reach {
             })
         {
             return Err("closed reach arguments differ from their complete declaration telescope");
+        }
+        Ok(())
+    }
+
+    /// Copies of an application commitment do not bind its arguments. Recompute
+    /// it from the exact template and retained scalar/type arguments before
+    /// those arguments can identify a caller.
+    pub fn validate_machine_application_arguments(
+        module: &TerminalModule,
+        machine: &terminal_psi::TerminalMachine,
+    ) -> Result<(), &'static str> {
+        let specialization = machine
+            .declaration
+            .as_ref()
+            .and_then(|declaration| declaration.specialization.as_ref())
+            .ok_or("machine application has no checked specialization")?;
+        let application = machine
+            .closed_reach_application
+            .as_ref()
+            .ok_or("machine application has no retained arguments")?;
+        if specialization.capture.is_some() || application.capture.is_some() {
+            return Err("machine application needs its complete capture argument commitment");
+        }
+        if specialization.template_semantic_declaration != application.template_identity
+            || specialization.commitment != application.specialization_commitment
+        {
+            return Err("machine application differs from its checked declaration");
+        }
+        validate_telescope(&application.parameter_kinds, &application.telescope)?;
+        let callable = module
+            .identities
+            .text(specialization.template_callable)
+            .ok_or("machine application has no original callable identity")?;
+        let mut commitment =
+            language_semantics::conformance_identity::MachineApplicationCommitment::new(callable)?;
+        for parameter in &application.telescope {
+            match parameter {
+                ClosedReachParameter::Type { argument } => commitment.type_argument(argument)?,
+                ClosedReachParameter::Const { argument } => commitment.const_argument(argument)?,
+                ClosedReachParameter::Proposition { .. } | ClosedReachParameter::Machine(_) => {
+                    return Err(
+                        "machine application needs its complete machine or proof argument commitment",
+                    );
+                }
+            }
+        }
+        if commitment.finish() != specialization.commitment {
+            return Err("machine application arguments differ from their retained commitment");
         }
         Ok(())
     }
@@ -2198,6 +2250,16 @@ pub mod closed_reach {
                 }
             }
             validate_telescope(&application.parameter_kinds, &application.telescope)?;
+            if application.capture.is_none()
+                && application.telescope.iter().all(|parameter| {
+                    matches!(
+                        parameter,
+                        ClosedReachParameter::Type { .. } | ClosedReachParameter::Const { .. }
+                    )
+                })
+            {
+                validate_machine_application_arguments(module, machine)?;
+            }
             if let Some(capture) = &application.capture {
                 validate_telescope(&capture.parameter_kinds, &capture.telescope)?;
                 identity(capture.template_identity)?;
@@ -2246,11 +2308,17 @@ pub mod closed_reach {
             for parameter in application.parameters() {
                 match parameter {
                     ClosedReachParameter::Type { argument }
-                    | ClosedReachParameter::Const { argument }
                     | ClosedReachParameter::Proposition { argument }
                         if argument.is_empty() =>
                     {
                         return Err("closed reach telescope has an empty argument");
+                    }
+                    ClosedReachParameter::Const { argument }
+                        if argument.type_name.is_empty() || !argument.is_scalar() =>
+                    {
+                        return Err(
+                            "closed reach telescope has no canonical scalar carrier and value",
+                        );
                     }
                     ClosedReachParameter::Machine(binding) => {
                         identity(binding.selected_identity)?;

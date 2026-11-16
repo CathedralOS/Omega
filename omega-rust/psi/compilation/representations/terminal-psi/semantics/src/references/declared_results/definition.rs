@@ -331,6 +331,7 @@ mod tests {
 
     fn module() -> TerminalModule {
         let declaration = |value, shape| StructuralTypeDeclaration {
+            declaration_identity: Default::default(),
             id: id(value),
             identity: TerminalIdentityIndex(value as u32),
             shape,
@@ -358,6 +359,7 @@ mod tests {
                     storage: StructuralRecordStorage::Packed,
                     fields: (1..=2)
                         .map(|value| StructuralFieldDeclaration {
+                            declaration_identity: Default::default(),
                             id: StructuralFieldId::new(value).unwrap(),
                             identity: TerminalIdentityIndex(value as u32),
                             field_type: StructuralFieldType::Structural(id(2)),

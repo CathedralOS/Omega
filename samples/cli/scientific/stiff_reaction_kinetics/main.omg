@@ -9,8 +9,8 @@ use domain::rates;
 use domain::integrate;
 use domain::report;
 data Main { input: Input; problem: Problem; solution: Solution; }
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
-    block Input::read(&mut main.input);
+machine main(main: &mut Main) reaches ProcessExit + Console {
+    block read(&mut main.input);
     transition valid(&main.input) { true -> prepare(main) false -> invalid(main) }
     machine prepare(main: &mut Main) {
         main.problem = problem(&main.input);
@@ -39,5 +39,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

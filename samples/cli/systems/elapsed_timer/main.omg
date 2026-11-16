@@ -19,6 +19,7 @@ use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 use omega_language_std::Duration;
 use omega_language_std::Instant;
+use omega_language_std::TimeHost;
 use omega_language_std::TotalResult;
 use omega_language_std::duration_checked_as_milliseconds;
 use omega_language_std::elapsed_since;
@@ -28,7 +29,7 @@ use omega_language_std::sleep_for;
 data Main {
 }
 
-machine main(context: &mut Main) reaches ProcessExit + Console {
+machine main(context: &mut Main) reaches ProcessExit + Console + TimeHost {
     Console::write_line("elapsed_timer: times a 50ms workload with std::time");
     let start: Instant = instant_now();
     let pause: Duration = Duration { seconds: 0, subsecond_nanoseconds: 50000000 };
@@ -71,7 +72,7 @@ machine main(context: &mut Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + Console + TimeHost {
     let mut entry_storage: Main;
     block main(&mut entry_storage);
 }

@@ -148,6 +148,7 @@ mod tests {
         let mut module = TerminalModule::declarations();
         module.identities = identities.build();
         module.structural_types.push(StructuralTypeDeclaration {
+            declaration_identity: Default::default(),
             quotient_carrier: None,
             id: StructuralTypeId::new(1).unwrap(),
             identity,

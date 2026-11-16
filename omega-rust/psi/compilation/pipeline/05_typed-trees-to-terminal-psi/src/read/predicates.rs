@@ -551,11 +551,10 @@ impl Program<'_> {
                             Unserved::Type("primitive byte domain identity"),
                         )
                     })?;
-                // The exact declaration, call and subject establish this
-                // descriptor's domain meaning. Retain its actual membership;
-                // byte establishment and transfer validate it against the
-                // source bytes rather than treating the primitive as a call
-                // of an ordinary predicate machine.
+                // Retain the exact descriptor membership and its theory.
+                // The ordinary clause reader below also states the canonical
+                // byte predicate at this storage root, so every call and
+                // return must prove it from the actual source.
                 self.retain_byte_domains(
                     id,
                     carrier,
@@ -564,7 +563,6 @@ impl Program<'_> {
                         domains,
                     },
                 )?;
-                continue;
             }
             if !predicate.subject.is_valid() {
                 return Err(refuse(
@@ -600,6 +598,30 @@ impl Program<'_> {
         path: &[CanonicalStructuralPathSegment],
         value_type: ValueType,
     ) -> Checked<Vec<Proposition>> {
+        // The encoded PredicateByteSequence field type already owns proof
+        // of its primitive predicates at every store. Authenticate each full
+        // domain theory before avoiding a duplicate enclosing-record clause;
+        // ordinary or extra-theory domains keep the full clause path.
+        if let ValueType::Record(carrier, qualification, _) = value_type
+            && self.is_readable_byte_view(id, carrier)?
+        {
+            let mut primitive = true;
+            for instance in qualification.domains.members() {
+                if typed_trees::byte_predicates::byte_slice_domain_predicate(
+                    self.typed,
+                    self.domain_theory(id, instance)?,
+                )
+                .is_none()
+                {
+                    primitive = false;
+                    break;
+                }
+            }
+            if primitive {
+                self.retain_byte_domains(id, carrier, qualification)?;
+                return Ok(Vec::new());
+            }
+        }
         let Some(root) = crate::body::self_place() else {
             return Err(refuse(
                 id,

@@ -290,6 +290,7 @@ mod tests {
 
     fn declaration(id: u32, shape: StructuralTypeShape) -> StructuralTypeDeclaration {
         StructuralTypeDeclaration {
+            declaration_identity: Default::default(),
             id: StructuralTypeId::new(u64::from(id)).unwrap(),
             identity: TerminalIdentityIndex(id),
             shape,
@@ -310,6 +311,7 @@ mod tests {
         stored: Option<ScalarType>,
     ) -> StructuralFieldDeclaration {
         StructuralFieldDeclaration {
+            declaration_identity: Default::default(),
             id: StructuralFieldId::new(u64::from(id)).unwrap(),
             identity: TerminalIdentityIndex(id),
             inline_carrier: None,

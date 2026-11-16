@@ -10,13 +10,13 @@ use omega::language::core::FilesystemMetadataMutation;
 use omega::language::core::DirectoryEnumeration;
 use omega::language::core::FilesystemNamespaceMutation;
 
-windows_x86_64 machine windows_removal_open_root(path: &[u8] in Path) -> i64 in WindowsPrivateNonalertFileOrAbsent
+machine windows_removal_open_root(path: &[u8] in Path) -> i64 in WindowsPrivateNonalertFileOrAbsent
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation {
     let handle: i64 = block windows_removal_acquire_root(path);
     handle
 }
 
-windows_x86_64 machine windows_removal_acquire_root(path: &[u8] in Path) -> i64
+machine windows_removal_acquire_root(path: &[u8] in Path) -> i64
 ensures result != -1
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation {
     let mut wide: [u16; 4096];
@@ -66,7 +66,7 @@ requires length > 0 && length < 4096 {
     }
 }
 
-windows_x86_64 machine windows_removal_open_child(parent: i64 in WindowsPrivateNonalertFileOrAbsent,
+machine windows_removal_open_child(parent: i64 in WindowsPrivateNonalertFileOrAbsent,
     entry: &mut WindowsNativeDirectoryEntryInfo, length: u64) -> i64 in WindowsPrivateNonalertFileOrAbsent
 requires (parent as -WindowsPrivateNonalertFileOrAbsent) != 0 && length > 0 && length < 4096
 reaches FilesystemContentRead + FilesystemMetadataQuery + DirectoryEnumeration {
@@ -74,7 +74,7 @@ reaches FilesystemContentRead + FilesystemMetadataQuery + DirectoryEnumeration {
     handle
 }
 
-windows_x86_64 machine windows_removal_acquire_child(parent: i64 in WindowsPrivateNonalertFileOrAbsent,
+machine windows_removal_acquire_child(parent: i64 in WindowsPrivateNonalertFileOrAbsent,
     entry: &mut WindowsNativeDirectoryEntryInfo, length: u64) -> i64
 requires (parent as -WindowsPrivateNonalertFileOrAbsent) != 0 && length > 0 && length < 4096
 ensures result != -1

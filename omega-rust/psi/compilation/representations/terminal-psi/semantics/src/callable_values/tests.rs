@@ -417,6 +417,7 @@ fn saved_callee_uses_its_read_cut_after_an_overlapping_write() {
     let carrier = StructuralTypeId::new(1).unwrap();
     let home = PlaceId::new(1).unwrap();
     module.structural_types.push(StructuralTypeDeclaration {
+        declaration_identity: Default::default(),
         id: carrier,
         identity: TerminalIdentityIndex(10),
         requires: Vec::new(),

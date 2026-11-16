@@ -2037,7 +2037,7 @@ pub(crate) mod expression {
                     }
                     let [selected_slot] = call.machine_arguments.as_ref() else {
                         return Err(Diagnostic::error(
-                            "`LayoutPlan::place_private` requires exactly one static argument naming one exact conformance",
+                            "`layout_plan_place_private` requires exactly one static argument naming one exact conformance",
                         ));
                     };
                     if selected_slot.const_literal.is_some()
@@ -2047,7 +2047,7 @@ pub(crate) mod expression {
                             != symbols::SymbolKind::Conformance
                     {
                         return Err(Diagnostic::error(
-                            "the static argument to `LayoutPlan::place_private` must resolve exactly to one named conformance; slot discovery is not permitted",
+                            "the static argument to `layout_plan_place_private` must resolve exactly to one named conformance; slot discovery is not permitted",
                         ));
                     }
                     Ok(Some(typed::expression::PrivateLayoutOperationRequest {

@@ -1686,7 +1686,11 @@ pub(crate) mod element_views {
                         source_value: result.value,
                         source: source.clone(),
                         indices,
-                        length_byte_offset: 8,
+                        length_byte_offset:
+                            calling_conventions::terminal_layout::element_view_length_offset(
+                                &structural_types.get(selected).ok_or_else(invalid)?.shape,
+                            )
+                            .ok_or_else(invalid)?,
                     }),
                 },
             )?;

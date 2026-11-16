@@ -17,7 +17,7 @@ public data Study {
 }
 
 public machine nonnegative(value: i32 in Wrapping) -> i32 in Wrapping {
-    transition value < 0 { true -> 0 _ -> value }
+    transition value < 0 { true -> 0 as +Wrapping _ -> value }
 }
 
 // Return 3 for a wholly missing cell, 4 for unequal replication, 0 for balanced.

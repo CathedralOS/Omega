@@ -2082,6 +2082,12 @@ pub(crate) mod item {
                 lowerer.symbol_resolved_trees.propositions.push(proposition);
             }
             Item::Const(definition) => {
+                let needs_destination =
+                    crate::preparation::generic_data::const_destination_requires_proof(
+                        syntax_trees,
+                        definition,
+                        lowerer.constant_selection.as_ref(),
+                    );
                 let pending = lowerer.const_resolution_mode != ConstResolutionMode::Complete
                     && crate::constant::requires_const_initializer_evaluation(
                         syntax_trees,
@@ -2110,37 +2116,38 @@ pub(crate) mod item {
                 }
                 let initializer =
                     crate::constant::retain_const_initializer(lowerer, syntax_trees, definition)?;
-                let evaluated_value = if pending || definition.pending_target_observation {
-                    None
-                } else if definition.is_public
-                    && lowerer.const_resolution_mode == ConstResolutionMode::Complete
-                    && !crate::constant::requires_const_initializer_evaluation(
-                        syntax_trees,
-                        definition,
-                    )
-                {
-                    Some(
+                let evaluated_value =
+                    if pending || definition.pending_target_observation || needs_destination {
+                        None
+                    } else if definition.is_public
+                        && lowerer.const_resolution_mode == ConstResolutionMode::Complete
+                        && !crate::constant::requires_const_initializer_evaluation(
+                            syntax_trees,
+                            definition,
+                        )
+                    {
+                        Some(
+                            crate::constant::evaluated_declaration_value(
+                                syntax_trees,
+                                definition,
+                                lowerer.constant_selection.as_ref(),
+                            )
+                            .map_err(|reason| {
+                                Diagnostic::error(format!(
+                                "public const `{}` has no canonical declaration identity: {reason}",
+                                crate::constant::semantic_const_name(syntax_trees, definition),
+                            ))
+                            .with_source_span(definition.name.source_span())
+                            })?,
+                        )
+                    } else {
                         crate::constant::evaluated_declaration_value(
                             syntax_trees,
                             definition,
                             lowerer.constant_selection.as_ref(),
                         )
-                        .map_err(|reason| {
-                            Diagnostic::error(format!(
-                                "public const `{}` has no canonical declaration identity: {reason}",
-                                crate::constant::semantic_const_name(syntax_trees, definition),
-                            ))
-                            .with_source_span(definition.name.source_span())
-                        })?,
-                    )
-                } else {
-                    crate::constant::evaluated_declaration_value(
-                        syntax_trees,
-                        definition,
-                        lowerer.constant_selection.as_ref(),
-                    )
-                    .ok()
-                };
+                        .ok()
+                    };
                 let declared_type =
                     lower_type_reference_handle(lowerer, syntax_trees, definition.type_reference)?;
                 let ordinal = lowerer.symbol_resolved_trees.roots.const_declarations.len();

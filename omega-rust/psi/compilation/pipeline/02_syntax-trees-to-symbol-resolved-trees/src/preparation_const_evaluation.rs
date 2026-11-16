@@ -1973,9 +1973,8 @@ mod facts {
         a selected algebra for the subject; only carrier-independent facts can close here.
     */
     use super::super::{
-        ConstDefinition, Diagnostic, ExpressionHandle, ExpressionNode, HashMap, HashSet, Item,
-        ProofFact, SyntaxTrees, TypeConstraintNode, TypeParameterKind, TypeReferenceHandle,
-        TypeReferenceNode, canonicalize_selected_declared_const_definition,
+        Diagnostic, ExpressionHandle, ExpressionNode, HashMap, HashSet, Item, ProofFact,
+        SyntaxTrees, TypeConstraintNode, TypeParameterKind, TypeReferenceHandle, TypeReferenceNode,
     };
     use crate::tables::syntax_expressions;
     use crate::tables::syntax_items;
@@ -3560,41 +3559,6 @@ mod facts {
             }
             _ => false,
         }
-    }
-
-    /*
-        A pure literal does not request initializer evaluation. Its selected data,
-        active-case and qualified-member predicates still owe the same construction
-        discharge as an evaluated value, even in an unused private declaration.
-    */
-    pub(crate) fn prove_const_literal_predicates(
-        syntax: &SyntaxTrees,
-        definition: &ConstDefinition,
-        selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
-    ) -> Result<(), String> {
-        if crate::constant::requires_const_initializer_evaluation(syntax, definition) {
-            return Ok(());
-        }
-        if super::super::qualification_names_itself(definition) {
-            return canonicalize_selected_declared_const_definition(syntax, definition, selection)
-                .map(|_| ());
-        }
-        if !const_type_requires_declaration_proof(
-            syntax,
-            definition.type_reference,
-            &mut Vec::new(),
-            selection,
-        ) {
-            return Ok(());
-        }
-        super::canonicalize_const_expression(
-            syntax,
-            definition.type_reference,
-            definition.value,
-            selection,
-            &crate::preparation::declaration_selection::GenericApplicationSubstitution::new(),
-        )
-        .map(|_| ())
     }
 
     /*
@@ -6715,7 +6679,7 @@ pub(crate) use fact_values::{
 pub(in crate::preparation::generic_data) use facts::prove_const_leaf_domain_constraints;
 pub(crate) use facts::{
     const_type_requires_declaration_proof, evaluate_const_fact_expression,
-    evaluate_const_membership_fact, prove_const_literal_predicates,
+    evaluate_const_membership_fact,
 };
 pub(crate) use initializers::fold_closed_scalar_initializers;
 use remainder::validate_anonymous_remainder;
@@ -6729,8 +6693,7 @@ pub(super) use templates::{
 pub(in crate::preparation) use values::canonicalize_selected_const_definition;
 pub(crate) use values::closed_fixed_array_length;
 pub(super) use values::{
-    ConstPredicateAdmission, canonicalize_const_expression,
-    canonicalize_selected_declaration_value,
+    ConstPredicateAdmission, canonicalize_selected_declaration_value,
     canonicalize_selected_declaration_value_with_admission, canonicalize_selected_index_expression,
     const_integer_within_budget, syntax_type_identity, validate_syntax_integer_range,
 };

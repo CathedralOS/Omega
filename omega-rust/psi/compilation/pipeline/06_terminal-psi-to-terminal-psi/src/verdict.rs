@@ -197,6 +197,19 @@ impl AcceptedClosure {
                 branch.condition,
             ));
         }
+        // A `_` arm after arms naming every declared case of the subject is
+        // an authored branch no arrival takes: lowering left it out, and it
+        // is one warning at the arm (state_contracts.md, "Unreachable
+        // branches").
+        for (machine, arm) in self.elaboration.dead_wildcards() {
+            let owner = describe::owner(self.elaboration.names.get(machine), arm);
+            advisories.push(located(
+                Diagnostic::warning(format!(
+                    "unreachable branch: the `_` arm in {owner} can never run; an earlier arm names every declared case"
+                )),
+                arm,
+            ));
+        }
         advisories
     }
 }

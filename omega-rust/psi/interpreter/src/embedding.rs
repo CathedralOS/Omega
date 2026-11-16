@@ -1218,6 +1218,7 @@ pub(crate) mod instance {
                 let place = PlaceId::new(1).unwrap();
                 let mut identities = module.identities.clone().into_builder();
                 module.structural_types.push(StructuralTypeDeclaration {
+                    declaration_identity: Default::default(),
                     id: structural_type,
                     identity: identities.intern("borrowed Boolean"),
                     quotient_carrier: None,

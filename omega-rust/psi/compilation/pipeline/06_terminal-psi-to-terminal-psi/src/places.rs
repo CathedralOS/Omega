@@ -378,6 +378,13 @@ struct Observation {
     value: ValueId,
 }
 
+/// Local to one requested byte predicate; declarations provide its dense IDs.
+enum BytePredicateState {
+    Unseen,
+    Visiting,
+    Resolved(ScalarTerm),
+}
+
 /// A storage trace must retain which block entries it crossed. A descriptor
 /// saved on an earlier loop iteration cannot use today's endpoint SSA values.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -898,12 +905,36 @@ impl<'a> Storage<'a> {
                 "reference use position exceeds its descriptor graph",
             )
         })?;
-        let location = place.descriptor_location().ok_or_else(|| {
+        // A runtime selector or an extent names a part of storage, not a
+        // different backing: `main.nums[j]` through `main: &mut Main` is
+        // element `j` of whatever `main.nums` designates here. The selector
+        // is an immutable value captured when the place was formed (loans.md:
+        // "Loan formation captures a place, not a live selector
+        // expression"), so resolve the storage prefix before the first such
+        // step at this use and keep the rest as written. Crossing a
+        // permission beneath a runtime selector would need the backing of a
+        // descriptor the replay cannot name, so that still refuses.
+        let split = place
+            .segments
+            .iter()
+            .position(|segment| matches!(segment, Segment::RuntimeIndex { .. } | Segment::Extent))
+            .unwrap_or(place.segments.len());
+        let (prefix, suffix) = place.segments.split_at(split);
+        let unresolved = || {
             self.unsupported(
                 concerns,
                 "reference backing with an unresolved selector or extent",
             )
-        })?;
+        };
+        if suffix.contains(&Segment::Referent) {
+            return Err(unresolved());
+        }
+        let location = Lineage {
+            root: place.root,
+            segments: prefix.to_vec(),
+        }
+        .descriptor_location()
+        .ok_or_else(unresolved)?;
         let captured = references
             .location(self.machine, (block, before), &location)
             .ok_or_else(|| {
@@ -912,9 +943,11 @@ impl<'a> Storage<'a> {
                     terminal_semantics::descriptor_results::INEXACT_REFERENCE_BACKING,
                 )
             })?;
+        let mut segments = captured.path;
+        segments.extend_from_slice(suffix);
         let resolved = Lineage {
             root: captured.root,
-            segments: captured.path,
+            segments,
         };
         self.shape(&resolved, concerns)?;
         Ok(resolved)
@@ -4069,6 +4102,223 @@ impl<'a> Storage<'a> {
             .ok_or_else(|| self.foreign(concerns, "a literal with no structural result"))
     }
 
+    /// Resolve the predicate from the exact immutable descriptor source.
+    /// Shared inputs remain symbolic entry requirements; a produced view may
+    /// use only reconstructed source facts or its authenticated callee contract.
+    fn byte_source(
+        &self,
+        predicate: semantic_vocabulary::ByteSequencePredicate,
+        actual: &Lineage,
+        concerns: Construct,
+    ) -> Result<ScalarTerm, crate::Unbound> {
+        let mut memo = IdTable::from_rows(
+            self.lowered
+                .structural_places
+                .iter()
+                .map(|place| (place.id, BytePredicateState::Unseen)),
+        )
+        .map_err(|_| {
+            crate::Unbound::Unsupported("byte source places are not dense in declaration order")
+        })?;
+        self.byte_source_with(predicate, actual, concerns, &mut memo)
+    }
+
+    fn byte_source_with(
+        &self,
+        predicate: semantic_vocabulary::ByteSequencePredicate,
+        actual: &Lineage,
+        concerns: Construct,
+        memo: &mut IdTable<PlaceId, BytePredicateState>,
+    ) -> Result<ScalarTerm, crate::Unbound> {
+        if !actual.segments.is_empty() {
+            return Err(crate::Unbound::Unsupported(
+                "a byte predicate of a view inside other storage",
+            ));
+        }
+        let state = memo
+            .get_mut(actual.root)
+            .ok_or(crate::Unbound::Unsupported(
+                "a byte source names no declared place",
+            ))?;
+        match state {
+            BytePredicateState::Resolved(result) => return Ok(result.clone()),
+            BytePredicateState::Visiting => {
+                return Err(crate::Unbound::Unsupported(
+                    "a byte predicate of a view copied in a cycle",
+                ));
+            }
+            BytePredicateState::Unseen => *state = BytePredicateState::Visiting,
+        }
+        let refused = crate::Unbound::Refused;
+        let place = actual.root;
+        let result = match self.root_kind(place, concerns).map_err(refused)? {
+            StructuralPlaceKind::ByteSequenceLiteral { .. } => {
+                let bytes = self
+                    .literal_bytes(place, concerns)
+                    .map_err(refused)?
+                    .ok_or(crate::Unbound::Unsupported(
+                        "a byte literal has no exact establishment",
+                    ))?;
+                ScalarTerm::Boolean(predicate.holds_for(bytes))
+            }
+            StructuralPlaceKind::Parameter { .. } => {
+                let shared = self
+                    .lowered
+                    .structural_parameter(place)
+                    .is_some_and(|formal| {
+                        formal.access == StructuralAccess::SharedBorrow
+                            && self
+                                .module
+                                .structural_type(formal.structural_type)
+                                .is_some_and(|ty| ty.shape.is_shared_readable_byte_view())
+                    });
+                if !shared {
+                    return Err(crate::Unbound::Unsupported(
+                        "a byte predicate of an input that is not an immutable shared byte view",
+                    ));
+                }
+                ScalarTerm::byte_sequence_predicate(predicate, place, Vec::new())
+            }
+            StructuralPlaceKind::BlockParameter { block, position } => {
+                let formal = terminal_semantics::arrival_parameter(self.lowered, place).ok_or(
+                    crate::Unbound::Unsupported("a byte arrival has no exact formal"),
+                )?;
+                if !self
+                    .module
+                    .structural_type(formal.structural_type)
+                    .is_some_and(|ty| ty.shape.is_shared_readable_byte_view())
+                {
+                    return Err(crate::Unbound::Unsupported(
+                        "a byte arrival is not a shared view",
+                    ));
+                }
+                let mut common = None;
+                for predecessor in &self.lowered.blocks {
+                    for ((_, target), arguments) in predecessor
+                        .terminator
+                        .successor_edges()
+                        .into_iter()
+                        .zip(predecessor.terminator.successor_block_arguments())
+                    {
+                        if target != block {
+                            continue;
+                        }
+                        let source =
+                            arguments
+                                .get(position as usize)
+                                .ok_or(crate::Unbound::Unsupported(
+                                    "a byte arrival lost its actual argument",
+                                ))?;
+                        if source.access == StructuralAccess::WriteOnlyBorrow {
+                            return Err(crate::Unbound::Unsupported(
+                                "a byte arrival is write-only",
+                            ));
+                        }
+                        let source = self
+                            .stored_at(source.place, &source.path, concerns)
+                            .map_err(refused)?;
+                        let incoming = self.byte_source_with(predicate, &source, concerns, memo)?;
+                        if common
+                            .as_ref()
+                            .is_some_and(|previous| previous != &incoming)
+                        {
+                            return Err(crate::Unbound::Unsupported(
+                                "byte arrival predicates differ across incoming storage versions",
+                            ));
+                        }
+                        common = Some(incoming);
+                    }
+                }
+                common.ok_or(crate::Unbound::Unsupported(
+                    "a byte arrival has no established source",
+                ))?
+            }
+            StructuralPlaceKind::OperationResult { producer, .. } => {
+                let operation = self.operation(producer, concerns).map_err(refused)?;
+                let source = match &operation.kind {
+                    OperationKind::MoveStructuralValue { source } if source.path.is_empty() => {
+                        Some(source.place)
+                    }
+                    OperationKind::StructuralLeafCopy { source, path } if path.is_empty() => {
+                        Some(*source)
+                    }
+                    _ => None,
+                };
+                if let Some(source) = source {
+                    self.byte_source_with(
+                        predicate,
+                        &Lineage {
+                            root: source,
+                            segments: Vec::new(),
+                        },
+                        concerns,
+                        memo,
+                    )?
+                } else if matches!(
+                    operation.kind,
+                    terminal_psi::call_structural_pair_pattern!(..)
+                        | OperationKind::ByteSequenceSubslice { .. }
+                ) {
+                    let facts = terminal_semantics::byte_sequence_source_predicates(
+                        self.module,
+                        self.lowered,
+                        place,
+                    )
+                    .ok_or(crate::Unbound::Unsupported(
+                        "a byte result has no authenticated source predicates",
+                    ))?;
+                    let mut required = terminal_psi::ByteSequencePredicateSet::EMPTY;
+                    required.insert(predicate);
+                    if !facts.implies(required) {
+                        return Err(crate::Unbound::Unsupported(
+                            "a byte result does not establish this predicate",
+                        ));
+                    }
+                    ScalarTerm::Boolean(true)
+                } else {
+                    return Err(crate::Unbound::Unsupported(
+                        "a byte result has no admitted predicate source",
+                    ));
+                }
+            }
+            _ => {
+                return Err(crate::Unbound::Unsupported(
+                    "a byte predicate has no established source",
+                ));
+            }
+        };
+        *memo.get_mut(place).ok_or(crate::Unbound::Unsupported(
+            "a byte source lost its declared place",
+        ))? = BytePredicateState::Resolved(result.clone());
+        Ok(result)
+    }
+
+    /// The octets of the literal whose home is `place`, when `place` is a
+    /// literal's home and exactly one operation establishes it.
+    fn literal_bytes(&self, place: PlaceId, concerns: Construct) -> Checked<Option<&'a [u8]>> {
+        if !matches!(
+            self.root_kind(place, concerns)?,
+            StructuralPlaceKind::ByteSequenceLiteral { .. }
+        ) {
+            return Ok(None);
+        }
+        let mut producers = self.lowered.blocks.iter().flat_map(|block| {
+            block
+                .operations
+                .iter()
+                .filter_map(|operation| match &operation.kind {
+                    OperationKind::EstablishByteSequenceLiteral {
+                        destination, bytes, ..
+                    } if *destination == place => Some(bytes.as_slice()),
+                    _ => None,
+                })
+        });
+        match (producers.next(), producers.next()) {
+            (Some(bytes), None) => Ok(Some(bytes)),
+            _ => Ok(None),
+        }
+    }
+
     /// Every operation and terminator that reads storage or names a case
     /// payload, in block and operation order, a block's terminator last. A
     /// refusal concerns the module (an identity that does not resolve,
@@ -4798,6 +5048,30 @@ impl<'a, Inputs: InputPlaces<'a>> crate::Bindings for Returned<'_, 'a, Inputs> {
         let actual = self.inputs.input_place(root, path)?;
         self.held_at(&actual)?.extent_of(&actual, scalar_type)
     }
+    /// A shared input view shows at completion the bytes it showed at entry:
+    /// nothing writes through a shared borrow.
+    fn byte_predicate(
+        &mut self,
+        predicate: semantic_vocabulary::ByteSequencePredicate,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+    ) -> Result<ScalarTerm, crate::Unbound> {
+        if self
+            .structural
+            .as_ref()
+            .is_some_and(|(declared, _)| *declared == root)
+        {
+            let subject = terminal_check_tables::program::self_place()
+                .ok_or(crate::Unbound::Unsupported("data subject identity"))?;
+            return self.held()?.byte_predicate(predicate, subject, path);
+        }
+        if self.formal_access(root)? != terminal_psi::StructuralAccess::SharedBorrow {
+            return Err(crate::Unbound::Unsupported(
+                "a byte predicate at completion of other than a shared input view",
+            ));
+        }
+        self.inputs.byte_predicate(predicate, root, path)
+    }
     fn case(
         &mut self,
         root: PlaceId,
@@ -4906,6 +5180,22 @@ impl crate::Bindings for AtEntry<'_, '_> {
         )?;
         leaf.segments.push(Segment::Extent);
         self.observation(leaf, ScalarType::Integer(scalar_type))
+    }
+
+    /// The machine's own shared input view keeps its entry bytes, so the
+    /// predicate of them stays the term over that input.
+    fn byte_predicate(
+        &mut self,
+        predicate: semantic_vocabulary::ByteSequencePredicate,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+    ) -> Result<ScalarTerm, crate::Unbound> {
+        self.input_place(root, path)?;
+        Ok(ScalarTerm::byte_sequence_predicate(
+            predicate,
+            root,
+            path.to_vec(),
+        ))
     }
 
     fn case(
@@ -5208,6 +5498,16 @@ impl crate::Bindings for AtCall<'_, '_> {
         self.held_at(&actual).extent_of(&actual, scalar_type)
     }
 
+    fn byte_predicate(
+        &mut self,
+        predicate: semantic_vocabulary::ByteSequencePredicate,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+    ) -> Result<ScalarTerm, crate::Unbound> {
+        let actual = self.actual(root, path)?;
+        self.storage.byte_source(predicate, &actual, self.concerns)
+    }
+
     fn case(
         &mut self,
         _: PlaceId,
@@ -5320,6 +5620,28 @@ impl crate::Bindings for AtJoin<'_, '_> {
                 path: path.to_vec(),
                 scalar_type,
             })
+        }
+    }
+
+    fn byte_predicate(
+        &mut self,
+        predicate: semantic_vocabulary::ByteSequencePredicate,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+    ) -> Result<ScalarTerm, Self::Error> {
+        if self
+            .inputs
+            .callee_formals
+            .iter()
+            .any(|formal| formal.place == root)
+        {
+            crate::Bindings::byte_predicate(&mut self.inputs, predicate, root, path)
+        } else {
+            Ok(ScalarTerm::byte_sequence_predicate(
+                predicate,
+                root,
+                path.to_vec(),
+            ))
         }
     }
 
@@ -5525,6 +5847,16 @@ impl crate::Bindings for Held<'_, '_> {
         scalar_type: semantic_vocabulary::IntegerType,
     ) -> Result<ScalarTerm, crate::Unbound> {
         self.extent_of(&self.beneath(root, path)?, scalar_type)
+    }
+
+    fn byte_predicate(
+        &mut self,
+        predicate: semantic_vocabulary::ByteSequencePredicate,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+    ) -> Result<ScalarTerm, crate::Unbound> {
+        let actual = self.beneath(root, path)?;
+        self.storage.byte_source(predicate, &actual, self.concerns)
     }
 
     fn case(
