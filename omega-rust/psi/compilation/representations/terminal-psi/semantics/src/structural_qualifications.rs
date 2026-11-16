@@ -1606,7 +1606,7 @@ mod operation_permissions {
     struct RuleJudgment<'a> {
         target: &'a Subject,
         allowed: &'a [Caller],
-        denied: &'static str,
+        denied: StructuralQualificationError,
         answers: std::collections::BTreeMap<(Subject, bool, bool), Option<Judged<bool>>>,
     }
 
@@ -1917,7 +1917,9 @@ mod operation_permissions {
                 let callers = self.callers(&subject)?;
                 let entry = self.is_entry(&subject)? || callers.is_empty();
                 if entry && encountered && !granted {
-                    return Err(failure(subject.machine, rule.denied));
+                    // The unauthorized instruction owns this refusal. An
+                    // outer caller ending the search is not that instruction.
+                    return Err(rule.denied.clone());
                 }
                 let mut found = entry && encountered;
                 for caller in callers {
@@ -1974,7 +1976,7 @@ mod operation_permissions {
                         let mut judgment = RuleJudgment {
                             target: subject,
                             allowed,
-                            denied,
+                            denied: failure(original.machine, denied),
                             answers: std::collections::BTreeMap::new(),
                         };
                         let reached = self.route(original.clone(), false, false, &mut judgment)?;
