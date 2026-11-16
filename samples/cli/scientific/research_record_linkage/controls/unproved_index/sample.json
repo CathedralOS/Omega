@@ -2,6 +2,6 @@
   "role": "intended-invalid",
   "entry": "main.omg",
   "rejection_contains": [
-    "cannot prove index `position` is within length 3 in select::entry"
+    "cannot prove operation safety in machine `select` state `entry` return value: cannot prove index is within length 3"
   ]
 }

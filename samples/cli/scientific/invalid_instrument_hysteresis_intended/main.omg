@@ -1,15 +1,18 @@
 use omega::language::core::ProcessExit;
 // Complete intended-invalid application: violates its data invariant.
+// The write opens an invariant window that the helper's normal return must
+// close when it hands the borrowed instrument back; exiting the process
+// inside the helper would abandon the window instead of consuming it.
 use omega_language_std::Console;
 data BoundedStimulus requires value >= 0 && value <= 100 { value: i32; }
 data InvalidInstrument { stimulus: BoundedStimulus; }
-machine run(instrument: &mut InvalidInstrument) reaches ProcessExit + Console {
+machine run(instrument: &mut InvalidInstrument) {
     instrument.stimulus.value = 101;
-    ProcessExit::exit_process(0);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: InvalidInstrument;
     run(&mut entry_storage);
+    ProcessExit::exit_process(0);
 }
