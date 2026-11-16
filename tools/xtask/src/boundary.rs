@@ -825,9 +825,20 @@ fn call_violations(
     declarations: &[(&str, &str)],
     reason: &str,
 ) -> Vec<String> {
+    call_violations_in(root, OMEGA, entries, allowed, declarations, reason)
+}
+
+fn call_violations_in(
+    root: &Path,
+    scope: &str,
+    entries: &[&str],
+    allowed: &[&str],
+    declarations: &[(&str, &str)],
+    reason: &str,
+) -> Vec<String> {
     let mut violations = Vec::new();
     let mut files = Vec::new();
-    collect_rs_files(&root.join(OMEGA), &mut files);
+    collect_rs_files(&root.join(scope), &mut files);
     for path in files {
         let rel = path
             .strip_prefix(root)
@@ -1010,6 +1021,22 @@ pub fn image_replay_read_violations(root: &Path) -> Vec<String> {
     )
 }
 
+/// Backend publication reads current callable facts and the carried preparation
+/// root, not the stage 02 execution plan or stage 01 optimization output.
+pub fn backend_execution_plan_read_violations(root: &Path) -> Vec<String> {
+    call_violations_in(
+        root,
+        "omega-rust/omega/compilation/backend",
+        &["execution_plan", "pre_physical_manifest("],
+        &[
+            "omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments/replay/validation.rs",
+            "omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments/source/retained_source_validation.rs",
+        ],
+        &[],
+        "backend production reads an earlier execution plan; read current execution contracts",
+    )
+}
+
 pub fn installation_mutation_violations(root: &Path) -> Vec<String> {
     call_violations(
         root,
@@ -1085,6 +1112,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         violations.extend(single_form_entry_violations(&root));
         violations.extend(working_program_read_violations(&root));
         violations.extend(image_replay_read_violations(&root));
+        violations.extend(backend_execution_plan_read_violations(&root));
         violations.extend(installation_mutation_violations(&root));
         violations.extend(transitive_forbidden_violations(
             &metadata,
@@ -1515,7 +1543,9 @@ mod tests {
                 format!("{image}/function_fragments/production.rs"),
                 "use crate::retained_working_program as old;\n\
                  use super::source::{retained_source_validation as audit};\n\
-                 let read = TargetStageOutput::working_program_for_validation;\n",
+                 let read = TargetStageOutput::working_program_for_validation;\n\
+                 let plan = TargetStageOutput::execution_plan;\n\
+                 let earlier = current.pre_physical_manifest();\n",
             ),
             (
                 format!("{image}/function_fragments/another_producer.rs"),
@@ -1523,7 +1553,9 @@ mod tests {
             ),
             (
                 format!("{image}/function_fragments/replay/validation.rs"),
-                "crate::retained_working_program::target_operations(input);\n",
+                "crate::retained_working_program::target_operations(input);\n\
+                 current.execution_plan();\n\
+                 current.pre_physical_manifest();\n",
             ),
             (
                 format!("{image}/function_fragments/source/retained_source_validation.rs"),
@@ -1535,7 +1567,8 @@ mod tests {
             ),
             (
                 format!("{image}/function_fragments/replay/validation.rs_extra.rs"),
-                "crate::retained_working_program::target_operations(input);\n",
+                "crate::retained_working_program::target_operations(input);\n\
+                 current.execution_plan();\n",
             ),
         ];
         for (relative, text) in files {
@@ -1545,8 +1578,14 @@ mod tests {
         }
         let violations = image_replay_read_violations(&root);
         let raw_accessor_violations = working_program_read_violations(&root);
+        let execution_plan_violations = backend_execution_plan_read_violations(&root);
         std::fs::remove_dir_all(&root).unwrap();
         assert_eq!(violations.len(), 5, "{violations:?}");
+        assert_eq!(
+            execution_plan_violations.len(),
+            3,
+            "{execution_plan_violations:?}"
+        );
         assert!(
             violations
                 .iter()

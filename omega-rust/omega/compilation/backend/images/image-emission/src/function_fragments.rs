@@ -109,6 +109,7 @@ mod attribution {
             .collect::<Result<Vec<_>, Error>>()?;
         target_vocabulary::NativePublicationFacts::seal(
             vec![target_vocabulary::NativeFunctionPublication {
+                call_targets: Vec::new(),
                 machine: source.machine,
                 operation_count: u32::try_from(source.operations().count())
                     .map_err(|_| Error::Overflow)?,
@@ -1773,6 +1774,7 @@ mod byte_literals {
             let place = PlaceId::new(1).unwrap();
             let facts = NativePublicationFacts::seal(
                 vec![NativeFunctionPublication {
+                    call_targets: Vec::new(),
                     machine: MachineId::new(1).unwrap(),
                     operation_count: 1,
                     sites: vec![(SemanticCodeSite::Operation(operation), 0)],
@@ -3854,7 +3856,7 @@ mod production {
         let FunctionFragmentObjectArtifactRequest { replay } = request;
         let source = replay.as_ref();
         let catalogs = source::code_catalogs(source);
-        let callable_invocations = source::callable_invocations(source);
+        let callable_invocations = source::callable_invocations(source)?;
         let profile = super::source::profile(source);
         let text = source.source().text_section();
         let fragments = source::fragments(source);
@@ -20648,15 +20650,19 @@ mod source {
     /// program and invocation roots retained by this execution plan.
     pub(super) fn callable_invocations(
         source: &StagedOptimizedRelocationFreeObjectContainer,
-    ) -> &terminal_semantics::callable_values::ReachableCallableInvocations {
+    ) -> Result<&terminal_semantics::callable_values::ReachableCallableInvocations, Error> {
         source
             .source()
             .source()
             .source()
             .source()
-            .optimized_target()
-            .execution_plan()
-            .callable_invocations()
+            .physical_program()
+            .contracts
+            .execution()
+            .map(target_vocabulary::NativeExecutionFacts::callable_invocations)
+            .ok_or(Error::Mismatch(
+                "current program has no prepared callable invocation context",
+            ))
     }
 
     pub(super) fn code_catalogs(

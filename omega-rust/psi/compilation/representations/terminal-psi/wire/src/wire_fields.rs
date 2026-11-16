@@ -1078,7 +1078,7 @@ impl Field<terminal_psi::BoundaryLifetimeDependency> for DeclaredLifetimeDepende
 macro_rules! wire_enum {
     ($($marker:ident: $ty:ident, $name:literal {
         $($tag:literal => $variant:ident
-            $(( $tuple_field:ident: $tuple_kind:ty ))?
+            $(( $($tuple_field:ident: $tuple_kind:ty),+ $(,)? ))?
             $({ $($field:ident: $kind:ty),* $(,)? })?
         ),* $(,)?
     })*) => {$(
@@ -1089,9 +1089,9 @@ macro_rules! wire_enum {
                 value: &$ty,
             ) -> Result<(), $crate::sections::semantic_module::CodecError> {
                 match value {
-                    $($ty::$variant $(($tuple_field))? $({ $($field),* })? => {
+                    $($ty::$variant $(($($tuple_field),+))? $({ $($field),* })? => {
                         writer.u8($tag);
-                        $(<$tuple_kind as $crate::sections::semantic_module::wire_fields::Field<_>>::write(writer, $tuple_field)?;)?
+                        $($(<$tuple_kind as $crate::sections::semantic_module::wire_fields::Field<_>>::write(writer, $tuple_field)?;)+)?
                         $($(<$kind as $crate::sections::semantic_module::wire_fields::Field<_>>::write(writer, $field)?;)*)?
                     })*
                 }
@@ -1102,7 +1102,7 @@ macro_rules! wire_enum {
             ) -> Result<$ty, $crate::sections::semantic_module::CodecError> {
                 Ok(match reader.u8()? {
                     $($tag => $ty::$variant
-                        $((<$tuple_kind as $crate::sections::semantic_module::wire_fields::Field<_>>::read(reader)?))?
+                        $(($(<$tuple_kind as $crate::sections::semantic_module::wire_fields::Field<_>>::read(reader)?),+))?
                         $({ $($field: <$kind as $crate::sections::semantic_module::wire_fields::Field<_>>::read(reader)?),* })?,
                     )*
                     tag => return Err($crate::sections::semantic_module::CodecError::InvalidTag(

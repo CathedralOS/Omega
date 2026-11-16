@@ -185,6 +185,11 @@ pub(in crate::function_fragments) fn admit(
             "current source sites and literals differ from the prepared publication",
         ));
     }
+    if contracts.execution() != published.execution.as_ref() {
+        return Err(Error::Mismatch(
+            "current callable facts differ from the prepared execution input",
+        ));
+    }
     validate_byte_writers(published, current.physical_program())?;
     let abstract_plan = current.optimized_target().optimized().plan();
     privileged_termination::validate(

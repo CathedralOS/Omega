@@ -1082,15 +1082,23 @@ impl<'a> Storage<'a> {
     /// Whether `operation` writes into storage that already holds a value: a
     /// scalar field store or a replacement of a field. A construction and a
     /// zero establishment make a value; they do not write into one.
+    /// A call that borrows a place exclusively writes into the value above
+    /// that place the same way.
     pub(crate) fn store(&self, operation: OperationId) -> Checked<bool> {
+        let kind = &self
+            .operation(operation, Construct::Operation(operation))?
+            .kind;
         Ok(matches!(
-            self.operation(operation, Construct::Operation(operation))?
-                .kind,
+            kind,
             OperationKind::StructuralScalarFieldStore { .. }
                 | OperationKind::WriteOnlyPrimitiveStore { .. }
                 | OperationKind::StoreStructuralField { .. }
                 | OperationKind::StructuralByteViewFieldStore { .. }
-        ))
+        ) || (is_call(kind)
+            && kind
+                .structural_arguments()
+                .iter()
+                .any(|argument| exclusive(argument.access))))
     }
 
     pub(crate) fn zero_establishment(&self, operation: OperationId) -> Checked<bool> {
@@ -1300,8 +1308,37 @@ impl<'a> Storage<'a> {
                 }
                 carrier
             }
+            kind if is_call(kind) => {
+                // The callee may write anything beneath a place lent to it
+                // exclusively, so each value above that place changes.
+                // dependent_values.md: "Otherwise the write opens a window
+                // on the place". The lent place's own type is the formal's:
+                // the callee proves it at handback, as a replacement
+                // arrives formed, so only strict ancestors owe again.
+                let mut owners = Vec::new();
+                for argument in kind.structural_arguments() {
+                    if !exclusive(argument.access) {
+                        continue;
+                    }
+                    let mut lent = self.argument(argument, concerns)?;
+                    if lent.segments.pop().is_some() {
+                        owners.extend(self.owners_of(&lent, concerns)?);
+                    }
+                }
+                return Ok(owners);
+            }
             _ => return Ok(Vec::new()),
         };
+        self.owners_of(&carrier, concerns)
+    }
+
+    /// `carrier` and each place above it that holds a value of a data type,
+    /// innermost first: the values a write at or beneath `carrier` changes.
+    fn owners_of(
+        &self,
+        carrier: &Lineage,
+        concerns: Construct,
+    ) -> Checked<Vec<(Lineage, StructuralTypeId)>> {
         let mut owners = Vec::new();
         for length in (0..=carrier.segments.len()).rev() {
             let owner = Lineage {
@@ -1743,8 +1780,19 @@ impl<'a> Storage<'a> {
         owner: &Owner,
         concerns: Construct,
     ) -> Checked<bool> {
-        let Some(stored) = self.field_destination(self.operation(operation, concerns)?)? else {
-            return Ok(false);
+        let found = self.operation(operation, concerns)?;
+        let stored = match self.field_destination(found)? {
+            Some(stored) => vec![stored],
+            // What the write log says the call stored: each region it may
+            // write beneath its exclusive loans, and its fresh result, which
+            // no clause of a lender names.
+            None if is_call(&found.kind) => self
+                .log
+                .iter()
+                .filter(|row| row.operation == operation)
+                .map(|row| row.lineage.clone())
+                .collect(),
+            None => return Ok(false),
         };
         let mut names = Named {
             place: &owner.place,
@@ -1757,7 +1805,10 @@ impl<'a> Storage<'a> {
             Err(crate::Unbound::Unsupported(_)) => return Ok(false),
             Err(crate::Unbound::Refused(refused)) => return Err(refused),
         }
-        Ok(names.found.iter().all(|named| !overlap(named, &stored)))
+        Ok(names
+            .found
+            .iter()
+            .all(|named| stored.iter().all(|stored| !overlap(named, stored))))
     }
 
     fn unsupported(&self, concerns: Construct, detail: &str) -> terminal_check_tables::Refusal {
@@ -6722,6 +6773,21 @@ impl crate::Bindings for Observed<'_, '_> {
         ))?;
         self.held.at_place(place).case(root, path, case)
     }
+}
+
+/// An operation that invokes a machine, a callable or a boundary.
+fn is_call(kind: &OperationKind) -> bool {
+    kind.module_invocation().is_some()
+        || kind.callable_invocation().is_some()
+        || matches!(kind, OperationKind::BoundaryCall { .. })
+}
+
+/// A loan through which the callee may write.
+fn exclusive(access: StructuralAccess) -> bool {
+    matches!(
+        access,
+        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+    )
 }
 
 #[cfg(test)]
