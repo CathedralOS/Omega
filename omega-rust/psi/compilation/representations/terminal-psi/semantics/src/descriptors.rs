@@ -3232,6 +3232,39 @@ pub mod descriptor_results {
                 location_type(tip, &path, original)
             }
 
+            /// Append a checked inline projection using the selected value's
+            /// own field declarations. Unknown addresses, windows and past
+            /// captures cannot become an exact memory-access query here.
+            pub(crate) fn projected(
+                &self,
+                types: &[StructuralTypeDeclaration],
+                root_type: StructuralTypeId,
+                projection: &Projection,
+            ) -> Option<Self> {
+                if !projection.exact
+                    || projection.indirect
+                    || projection.window.is_some()
+                    || projection.captured_at.is_some()
+                {
+                    return None;
+                }
+                if projection.path.is_empty() {
+                    self.validate(types, root_type)?;
+                    return Some(self.clone());
+                }
+                let selected =
+                    self.selected_type_using(types, root_type, |carrier, path, _| {
+                        descriptor_path(types, carrier, path)?;
+                        Some(descriptor_location_type(types, carrier, path))
+                    })??;
+                let suffix =
+                    descriptor_contents_query(types, self.root, selected, &projection.path, None)?;
+                let mut query = self.clone();
+                query.steps.extend(suffix.steps);
+                query.validate(types, root_type)?;
+                Some(query)
+            }
+
             pub fn conservative_projection(
                 &self,
                 types: &[StructuralTypeDeclaration],
@@ -3804,7 +3837,7 @@ pub mod descriptor_results {
                 query
                     .validate(types, contract.carrier)
                     .ok_or("reference payload has no typed source query")?;
-                let path = reference_membership_path(types, contract.carrier, &query.steps)
+                let path = contents_membership_path(types, contract.carrier, &query.steps)
                     .ok_or("reference payload has no declared membership path")?;
                 let selected =
                     crate::qualification_path_carrier(types.iter(), contract.carrier, &path)
@@ -3868,7 +3901,7 @@ pub mod descriptor_results {
             common.ok_or("reference payload has no source candidate")
         }
 
-        fn reference_membership_path(
+        pub(crate) fn contents_membership_path(
             types: &[StructuralTypeDeclaration],
             mut carrier: StructuralTypeId,
             steps: &[DescriptorContentsStep],
@@ -13773,7 +13806,9 @@ pub mod descriptor_results {
         payload_memberships, reference_backing_memberships, terminal_payload_contract,
     };
 
-    pub(crate) use contents::{descriptor_storage_use_source, inline_selected_index};
+    pub(crate) use contents::{
+        contents_membership_path, descriptor_storage_use_source, inline_selected_index,
+    };
     pub use payload_history::{
         PayloadMembershipHistory, current_payload_contract, current_selected_payload_contract,
     };

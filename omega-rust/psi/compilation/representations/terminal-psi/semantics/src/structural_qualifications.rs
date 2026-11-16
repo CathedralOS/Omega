@@ -419,6 +419,22 @@ fn validate_change(
         );
     }
     if removed {
+        if held.iter().any(|id| {
+            !shown.contains(id)
+                && domain(module, id.0)
+                    .and_then(|row| row.access_policy.as_ref())
+                    .is_some_and(|plan| {
+                        !plan.readers.is_empty()
+                            || !plan.writers.is_empty()
+                            || !plan.observations.is_empty()
+                            || plan.reach.services().len() != 0
+                    })
+        }) {
+            return malformed(
+                machine,
+                "removing this domain would lose its memory access rules",
+            );
+        }
         if !change.establishments.is_empty() {
             return malformed(machine, "a structural erasure cannot establish a domain");
         }
@@ -1557,20 +1573,580 @@ pub fn same_access_policy(
     }
 }
 
+// An access follows actual storage, not just the type displayed by its last
+// alias. Keep each possible subject separate while looking up its rules and
+// following checked argument correspondence back through live invocations.
+mod operation_permissions {
+    use super::*;
+    use crate::borrowed_storage::Projection;
+    use crate::descriptor_lifetimes::{
+        DescriptorContentsQuery, DescriptorContentsStep, DescriptorFlowSource, DescriptorPosition,
+    };
+    use crate::descriptor_results::{
+        DescriptorAnalysis, DescriptorCallOrigin, DescriptorDefinition, DescriptorMachine,
+        DescriptorPayloadTarget, DescriptorSourceOrigin, contents_membership_path,
+        terminal_borrowed_storage_graph_from, terminal_payload_contract,
+    };
+    use access_plans::AccessOperation;
+
+    // A request names existing storage history. These are invocation-local
+    // work items, not retained grants or a second access representation.
+    #[derive(Clone, PartialEq, Eq)]
+    struct Subject {
+        machine: MachineId,
+        position: DescriptorPosition,
+        source: DescriptorSourceOrigin,
+    }
+    type Caller = (
+        language_semantics::reflection::CallableDescription,
+        StructuralEstablishmentRoute,
+    );
+
+    type RouteAnswer = (Subject, bool, bool, Option<Judged<bool>>);
+    struct RuleJudgment<'a> {
+        target: &'a Subject,
+        allowed: &'a [Caller],
+        denied: &'static str,
+        answers: Vec<RouteAnswer>,
+    }
+
+    struct Permissions<'a> {
+        module: &'a TerminalModule,
+        graph: &'a [DescriptorMachine],
+        analysis: DescriptorAnalysis<'a>,
+        // Only an index into existing call rows; no actual arguments, queries
+        // or transitive call paths are copied into this roster.
+        incoming: Vec<(MachineId, MachineId, DescriptorPosition)>,
+    }
+    fn failure(machine: MachineId, detail: &'static str) -> StructuralQualificationError {
+        StructuralQualificationError {
+            machine: Some(machine),
+            detail,
+        }
+    }
+    impl Permissions<'_> {
+        fn machine(&self, identity: MachineId) -> Judged<&TerminalMachine> {
+            self.module
+                .machine(identity)
+                .ok_or_else(|| failure(identity, "memory access has no owning function"))
+        }
+        fn descriptor(&self, identity: MachineId) -> Judged<&DescriptorMachine> {
+            self.graph
+                .iter()
+                .find(|row| row.id == identity)
+                .ok_or_else(|| failure(identity, "memory access has no storage history"))
+        }
+        fn requirements(
+            &self,
+            machine: MachineId,
+            query: &DescriptorContentsQuery,
+            requirements: &mut Vec<(StructuralDomainId, Vec<StructuralPathSegment>)>,
+        ) -> Judged<()> {
+            if query
+                .steps
+                .iter()
+                .any(|step| matches!(step, DescriptorContentsStep::Element { selector: None, .. }))
+            {
+                return Err(failure(
+                    machine,
+                    "memory access has no exact element selection",
+                ));
+            }
+            let body = self.machine(machine)?;
+            let contract = terminal_payload_contract(body, query.root).ok_or_else(|| {
+                failure(
+                    machine,
+                    "memory access subject has no declared qualifications",
+                )
+            })?;
+            query
+                .validate(&self.module.structural_types, contract.carrier)
+                .ok_or_else(|| {
+                    failure(machine, "memory access does not follow its subject's type")
+                })?;
+            let selected = contents_membership_path(
+                &self.module.structural_types,
+                contract.carrier,
+                &query.steps,
+            )
+            .ok_or_else(|| failure(machine, "memory access has no declared subject path"))?;
+            let mut add = |id, prefix: &[StructuralPathSegment]| -> Judged<()> {
+                let row = domain(self.module, id)
+                    .ok_or_else(|| failure(machine, "memory access names an absent domain"))?;
+                if row.access_policy.is_none() {
+                    return Ok(());
+                }
+                let relative = if prefix.len() <= selected.len()
+                    && StructuralPathQualification::selected_suffix(
+                        prefix,
+                        &selected[..prefix.len()],
+                    )
+                    .is_some()
+                {
+                    selected[prefix.len()..].to_vec()
+                } else if StructuralPathQualification::selected_suffix(prefix, &selected).is_some()
+                {
+                    // Observing a whole value also observes its governed parts.
+                    Vec::new()
+                } else {
+                    return Ok(());
+                };
+                if relative
+                    .iter()
+                    .any(|segment| matches!(segment, StructuralPathSegment::Referent))
+                {
+                    return Err(failure(
+                        machine,
+                        "following a reference inside a governed value needs its separate access checks",
+                    ));
+                }
+                requirements.push((id, relative));
+                Ok(())
+            };
+            for id in &contract.qualifications {
+                add(*id, &[])?;
+            }
+            for row in &contract.projected_qualifications {
+                add(row.domain, &row.path)?;
+            }
+            requirements.sort();
+            requirements.dedup();
+            Ok(())
+        }
+        fn query(
+            &self,
+            machine: MachineId,
+            origin: &DescriptorSourceOrigin,
+        ) -> Judged<DescriptorContentsQuery> {
+            match origin {
+                DescriptorSourceOrigin::IncomingSlot(location) => {
+                    Ok(DescriptorContentsQuery::from_location(location))
+                }
+                DescriptorSourceOrigin::IncomingContents { query, projection } => {
+                    let root = *self
+                        .descriptor(machine)?
+                        .place_types
+                        .get(&query.root)
+                        .ok_or_else(|| {
+                            failure(machine, "memory access input has no declared carrier")
+                        })?;
+                    query
+                        .projected(&self.module.structural_types, root, projection)
+                        .ok_or_else(|| {
+                            failure(machine, "memory access input has no exact typed projection")
+                        })
+                }
+                DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Argument {
+                    source,
+                    projection,
+                }) if projection.exact
+                    && !projection.indirect
+                    && projection.window.is_none()
+                    && projection.captured_at.is_none() =>
+                {
+                    let root = *self
+                        .descriptor(machine)?
+                        .place_types
+                        .get(source)
+                        .ok_or_else(|| {
+                            failure(machine, "memory access backing has no declared carrier")
+                        })?;
+                    crate::descriptor_results::descriptor_contents_query(
+                        &self.module.structural_types,
+                        *source,
+                        root,
+                        &projection.path,
+                        None,
+                    )
+                    .ok_or_else(|| failure(machine, "memory access backing path is unresolved"))
+                }
+                _ => Err(failure(
+                    machine,
+                    "memory access backing or invocation scope is unresolved",
+                )),
+            }
+        }
+
+        fn callers(&mut self, subject: &Subject) -> Judged<Vec<Subject>> {
+            let current = self.descriptor(subject.machine)?;
+            let query = self.query(subject.machine, &subject.source)?;
+            if !current.places.iter().any(|row| {
+                row.place == query.root
+                    && matches!(row.definition, DescriptorDefinition::Parameter { .. })
+            }) {
+                return Ok(Vec::new());
+            }
+            let range = self.incoming.partition_point(|row| row.0 < subject.machine)
+                ..self
+                    .incoming
+                    .partition_point(|row| row.0 <= subject.machine);
+            let mut result = Vec::new();
+            for index in range {
+                let (_, caller, position) = self.incoming[index];
+                let body = self.machine(caller)?;
+                let operation = body
+                    .blocks
+                    .iter()
+                    .find(|block| block.id == position.0)
+                    .and_then(|block| block.operations.get(position.1 as usize))
+                    .ok_or_else(|| {
+                        failure(caller, "memory access call has no original instruction")
+                    })?;
+                if operation.required_contract.is_some() {
+                    return Err(failure(
+                        caller,
+                        "memory access delegation needs the exact public call contract",
+                    ));
+                }
+                let actuals = self
+                    .analysis
+                    .substitute_call_source(caller, position, &subject.source)
+                    .filter(|actuals| !actuals.is_empty())
+                    .ok_or_else(|| {
+                        failure(
+                            caller,
+                            "memory access has no complete pre-call argument correspondence",
+                        )
+                    })?;
+                result.extend(actuals.into_iter().map(|source| Subject {
+                    machine: caller,
+                    position,
+                    source,
+                }));
+            }
+            Ok(result)
+        }
+        fn is_entry(&self, subject: &Subject) -> Judged<bool> {
+            if self.module.entry.is_none()
+                || self.module.entry == Some(TargetMachineCallable::Machine(subject.machine))
+            {
+                return Ok(true);
+            }
+            let current = self.machine(subject.machine)?;
+            Ok(current.declaration.as_ref().is_some_and(|declaration| {
+                self.module.callback_applications.iter().any(|application| {
+                    declaration.same_identity_as(
+                        &self.module.identities,
+                        &application.body,
+                        &self.module.identities,
+                    )
+                })
+            }))
+        }
+        // Check one rule independently. Only two facts travel through each
+        // actual subject context: this occurrence was reached, and a live
+        // function on that lineage is explicitly permitted by this rule.
+        // Merging principal lists would enumerate exponentially many call
+        // strings; checking each conjunct this way does not retain them.
+        fn route(
+            &mut self,
+            subject: Subject,
+            mut granted: bool,
+            mut encountered: bool,
+            rule: &mut RuleJudgment<'_>,
+        ) -> Judged<bool> {
+            encountered |= subject == *rule.target;
+            let current = self.machine(subject.machine)?;
+            if current.selected_application.is_some() {
+                return Err(failure(
+                    subject.machine,
+                    "memory access needs its checked public requirement caller",
+                ));
+            }
+            if !granted {
+                let mut unavailable = None;
+                for caller in rule.allowed {
+                    match caller_matches_machine(self.module, subject.machine, caller) {
+                        Ok(true) => {
+                            granted = true;
+                            break;
+                        }
+                        Ok(false) => {}
+                        Err(error) => unavailable = Some(error),
+                    }
+                }
+                if !granted && let Some(error) = unavailable {
+                    return Err(error);
+                }
+            }
+            if let Some((_, _, _, result)) =
+                rule.answers
+                    .iter()
+                    .find(|(previous, prior_grant, prior_encounter, _)| {
+                        *previous == subject
+                            && *prior_grant == granted
+                            && *prior_encounter == encountered
+                    })
+            {
+                return result.clone().unwrap_or_else(|| {
+                    Err(failure(
+                        subject.machine,
+                        "recursive memory access has no completed permission judgment",
+                    ))
+                });
+            }
+            let index = rule.answers.len();
+            rule.answers
+                .push((subject.clone(), granted, encountered, None));
+            let result = (|| {
+                let callers = self.callers(&subject)?;
+                let entry = self.is_entry(&subject)? || callers.is_empty();
+                if entry && encountered && !granted {
+                    return Err(failure(subject.machine, rule.denied));
+                }
+                let mut found = entry && encountered;
+                for caller in callers {
+                    found |= self.route(caller, granted, encountered, rule)?;
+                }
+                Ok(found)
+            })();
+            rule.answers[index].3 = Some(result.clone());
+            result
+        }
+        fn rules(
+            &mut self,
+            original: &Subject,
+            subject: &Subject,
+            operation: AccessOperation,
+            requirements: Vec<(StructuralDomainId, Vec<StructuralPathSegment>)>,
+        ) -> Judged<()> {
+            let module = self.module;
+            let (read, write) = operation.reads_and_writes();
+            for (id, selected) in requirements {
+                let declaration = domain(module, id)
+                    .ok_or_else(|| failure(subject.machine, "memory access domain disappeared"))?;
+                let Some(plan) = &declaration.access_policy else {
+                    continue;
+                };
+                for (needed, rules, denied) in [
+                    (
+                        read,
+                        &plan.readers,
+                        "this function is not allowed to read this value",
+                    ),
+                    (
+                        write,
+                        &plan.writers,
+                        "this function is not allowed to write this value",
+                    ),
+                ] {
+                    if !needed {
+                        continue;
+                    }
+                    for ((_, path), allowed) in rules {
+                        let path = path.as_deref().ok_or_else(|| {
+                            failure(
+                                subject.machine,
+                                "a saved access rule has no runtime field path",
+                            )
+                        })?;
+                        if StructuralPathQualification::selected_suffix(path, &selected).is_none()
+                            && StructuralPathQualification::selected_suffix(&selected, path)
+                                .is_none()
+                        {
+                            continue;
+                        }
+                        let mut judgment = RuleJudgment {
+                            target: subject,
+                            allowed,
+                            denied,
+                            answers: Vec::new(),
+                        };
+                        let reached = self.route(original.clone(), false, false, &mut judgment)?;
+                        if !reached {
+                            return Err(failure(
+                                subject.machine,
+                                "memory access lost its governed subject during argument substitution",
+                            ));
+                        }
+                    }
+                }
+            }
+            Ok(())
+        }
+        fn subject(
+            &mut self,
+            original: Subject,
+            operation: AccessOperation,
+            requirements: Vec<(StructuralDomainId, Vec<StructuralPathSegment>)>,
+        ) -> Judged<()> {
+            // Original displayed qualifications apply to every possible
+            // backing. Further owners add independent restrictions; neither
+            // alternative intersection nor a bare formal can erase them.
+            self.rules(&original, &original, operation, requirements)?;
+            let mut pending = vec![original.clone()];
+            let mut visited = Vec::new();
+            while let Some(subject) = pending.pop() {
+                if visited.contains(&subject) {
+                    continue;
+                }
+                let query = self.query(subject.machine, &subject.source)?;
+                let mut requirements = Vec::new();
+                self.requirements(subject.machine, &query, &mut requirements)?;
+                self.rules(&original, &subject, operation, requirements)?;
+                pending.extend(self.callers(&subject)?);
+                visited.push(subject);
+            }
+            Ok(())
+        }
+        fn operation(
+            &mut self,
+            machine: MachineId,
+            position: DescriptorPosition,
+            input: usize,
+        ) -> Judged<()> {
+            let (operation, source) = self
+                .analysis
+                .storage_access(machine, (position, input))
+                .ok_or_else(|| failure(machine, "memory access lost its original operand"))?;
+            let query = match source {
+                DescriptorFlowSource::Location(location) => {
+                    DescriptorContentsQuery::from_location(location)
+                }
+                DescriptorFlowSource::Contents(query) => query.clone(),
+                DescriptorFlowSource::Unavailable(_) => {
+                    return Err(failure(machine, "memory access has no exact payload query"));
+                }
+            };
+            let mut requirements = Vec::new();
+            self.requirements(machine, &query, &mut requirements)?;
+            let targets = self
+                .analysis
+                .payload_targets(machine, position, &query)
+                .filter(|targets| !targets.is_empty())
+                .ok_or_else(|| failure(machine, "memory access has no complete live backing"))?;
+            for target in targets {
+                let source = match target {
+                    DescriptorPayloadTarget::Incoming(query) => {
+                        DescriptorSourceOrigin::IncomingContents {
+                            query,
+                            projection: Projection::new(&[]),
+                        }
+                    }
+                    DescriptorPayloadTarget::Storage {
+                        location,
+                        completed: None,
+                    } => {
+                        let path = self
+                            .descriptor(machine)?
+                            .location_path(&self.module.structural_types, &location, None)
+                            .ok_or_else(|| {
+                                failure(machine, "memory access storage has no typed path")
+                            })?;
+                        DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Argument {
+                            source: location.root,
+                            projection: Projection::new(&path),
+                        })
+                    }
+                    DescriptorPayloadTarget::Storage {
+                        completed: Some(_), ..
+                    } => {
+                        return Err(failure(
+                            machine,
+                            "memory access needs its captured storage permission context",
+                        ));
+                    }
+                };
+                self.subject(
+                    Subject {
+                        machine,
+                        position,
+                        source,
+                    },
+                    operation,
+                    requirements.clone(),
+                )?;
+            }
+            Ok(())
+        }
+    }
+    pub(super) fn validate(module: &TerminalModule) -> Judged<()> {
+        let has_rules = |id| {
+            domain(module, id)
+                .and_then(|row| row.access_policy.as_ref())
+                .is_some_and(|plan| !plan.readers.is_empty() || !plan.writers.is_empty())
+        };
+        let mut roots = Vec::new();
+        for machine in &module.machines {
+            let declarations = Declared::new(machine)?;
+            let governed = declarations.declared.iter().any(|(_, row)| {
+                row.whole.iter().any(|id| has_rules(*id))
+                    || row.projected.iter().any(|row| has_rules(row.domain))
+            }) || machine.operations().any(|operation| {
+                matches!(&operation.kind, OperationKind::EstablishByteSequenceLiteral { qualifications, .. }
+                    if qualifications.iter().any(|id| has_rules(*id)))
+            });
+            if governed {
+                roots.push(machine.id);
+            }
+        }
+        if roots.is_empty() {
+            return Ok(());
+        }
+        if matches!(module.entry, Some(TargetMachineCallable::Boundary(_))) {
+            return malformed(None, "memory access needs its checked public entry caller");
+        }
+        let graph = terminal_borrowed_storage_graph_from(module, roots.iter().copied(), &[])
+            .map_err(|error| StructuralQualificationError {
+                machine: Some(error.machine()),
+                detail: error
+                    .detail()
+                    .unwrap_or("memory access storage history cannot be reconstructed"),
+            })?;
+        let mut incoming = Vec::new();
+        for caller in &graph {
+            for (position, call) in caller.known_invocations() {
+                if let Some(callee) = call.callee() {
+                    incoming.push((callee, caller.id, *position));
+                }
+            }
+        }
+        incoming.sort();
+        let mut permissions = Permissions {
+            module,
+            graph: &graph,
+            analysis: DescriptorAnalysis::with_borrowed_storage_slots(
+                &module.structural_types,
+                &graph,
+            ),
+            incoming,
+        };
+        for identity in roots {
+            permissions
+                .analysis
+                .storage_access_frame(identity)
+                .map_err(|detail| failure(identity, detail))?
+                .ok_or_else(|| failure(identity, "a helper's memory accesses are unresolved"))?;
+        }
+        for machine in &graph {
+            let accesses = permissions
+                .analysis
+                .storage_access_frame(machine.id)
+                .map_err(|detail| failure(machine.id, detail))?
+                .ok_or_else(|| failure(machine.id, "a helper's memory accesses are unresolved"))?
+                .to_vec();
+            for (position, input) in accesses {
+                permissions.operation(machine.id, position, input)?;
+            }
+        }
+        Ok(())
+    }
+}
+
 /// The whole judgment of a module's structural memberships.
 pub fn validate(module: &TerminalModule) -> Judged<()> {
     for domain in &module.structural_domains {
         validate_access_policy(module, domain)?;
         // A received program can already hold a qualified input. Source
-        // formation refusal alone cannot protect its operations until memory
-        // access checks implement read, write, observation and reach rules.
+        // formation refusal alone cannot protect its operations. Caller
+        // rules are checked below; profile observations and reach still need
+        // their actual supply/lifecycle consumers.
         // Description-only plans can still be validated separately.
-        if domain.access_policy.as_ref().is_some_and(|plan| {
-            !plan.readers.is_empty()
-                || !plan.writers.is_empty()
-                || !plan.observations.is_empty()
-                || plan.reach.services().len() != 0
-        }) {
+        if domain
+            .access_policy
+            .as_ref()
+            .is_some_and(|plan| !plan.observations.is_empty() || plan.reach.services().len() != 0)
+        {
             return malformed(
                 None,
                 "memory access checks for these saved rules are not implemented yet",
@@ -1580,6 +2156,7 @@ pub fn validate(module: &TerminalModule) -> Judged<()> {
     for machine in &module.machines {
         validate_machine(module, machine)?;
     }
+    operation_permissions::validate(module)?;
     if module
         .structural_qualification_changes
         .iter()

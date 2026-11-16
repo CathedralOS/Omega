@@ -486,8 +486,8 @@ fn actual_policy_callers_keep_their_selected_declaration_after_transport() {
         error.detail,
         "machine caller describes another source declaration or revision"
     );
-    // An incoming program may already hold a qualified value. Refusing new
-    // source plans is insufficient until operations enforce the same rules.
+    // An incoming program may already hold a qualified value. Its actual
+    // field read must obey a received deny-all rule, even without a new cast.
     let reader = restored.machine(number).unwrap();
     assert!(reader.structural_parameters.iter().any(|parameter| {
         parameter
@@ -517,14 +517,12 @@ fn actual_policy_callers_keep_their_selected_declaration_after_transport() {
     let denied_bytes = terminal_codec::encode_module(&denied_read)
         .expect("serialize the actual program with its added deny-all read rule");
     let Err(error) = terminal_codec::decode_module(&denied_bytes) else {
-        panic!(
-            "received program with a deny-all read rule was admitted without operation enforcement"
-        );
+        panic!("received program with a deny-all read rule was admitted");
     };
     assert!(matches!(
         error,
         terminal_codec::CodecError::MalformedStructuralFoundation(
-            "memory access checks for these saved rules are not implemented yet"
+            "this function is not allowed to read this value"
         )
     ));
     // This is an ordinary program with an authored Trap ceiling. Execute its

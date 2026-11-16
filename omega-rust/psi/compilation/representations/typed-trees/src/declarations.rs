@@ -846,15 +846,11 @@ pub mod domain {
     /// The judgment of one evaluated `AccessPolicy::plan` result
     /// (`wiki/spec/resources/access.md`, "Plans and admitted supply").
     ///
-    /// The evaluator records a plan as checked only when it can state all of
-    /// it here:
-    /// the returned schema is the domain subject's own, every route names a
-    /// declaration of this program, and the plan has no field observation
-    /// demands, no reader or writer rules and no required reach. A plan with
-    /// any of those is `AccessPlanJudgment::Unjudged` instead, so this record
-    /// is the plan's complete judgment: issuance is exactly `issuance`, and reads and
-    /// writes are unrestricted by this policy ("omission leaves that axis
-    /// unrestricted").
+    /// The evaluator authenticates the returned schema, declarations and
+    /// complete caller applications. The canonical operation judgment then
+    /// checks the retained read/write rules on every actual subject and
+    /// invocation. Observation demands and boundary reach remain unserved
+    /// until their supply/lifecycle consumers can prove them.
     #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
     pub struct CheckedDomainAccessPlan {
         /// The policy member whose body returned the plan.
@@ -938,10 +934,9 @@ pub mod domain {
     }
 
     impl DomainDefinition {
-        /// Whether reads and writes of what this domain governs wait on a
-        /// plan no pass has judged. A checked plan has no reader or writer
-        /// rules (`CheckedDomainAccessPlan`), so only an unjudged one
-        /// restricts.
+        /// Whether source lowering still lacks the complete selected plan.
+        /// A checked plan permits forming operations; its retained rules are
+        /// enforced by the canonical operation judgment before execution.
         pub fn access_unjudged(&self) -> bool {
             self.access_policy
                 .as_ref()

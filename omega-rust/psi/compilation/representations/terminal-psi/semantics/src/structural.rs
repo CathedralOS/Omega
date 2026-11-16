@@ -208,6 +208,129 @@ pub(crate) mod inline_carriers {
             )
         }
 
+        // Knowing what bytes satisfy does not establish an additional theory
+        // or install independent policy rules. Both literal and zero-default
+        // establishment must use the same pure-predicate classification.
+        #[test]
+        fn byte_literals_and_defaults_do_not_establish_extra_theory_or_access_rules() {
+            use language_semantics::reflection::{
+                DeclarationDescription, SchemaNode, SchemaNodeHandle, SchemaQueryAuthority,
+                SchemaShape, SemanticSchemaGraph,
+            };
+            use semantic_vocabulary::{
+                DomainSemanticId, IntegerSign, IntegerType, PlaceId, StructuralDomainId,
+            };
+            use terminal_psi::{
+                ByteSequencePredicate, StructuralDomainDeclaration, StructuralDomainPredicate,
+                StructuralPathQualification,
+            };
+            let (mut types, path) = fixture();
+            let array = types[1].id;
+            let element = types[2].id;
+            types[1].shape = StructuralTypeShape::FixedArray {
+                element,
+                length: terminal_psi::ArrayExtent::Literal(2),
+            };
+            types[2].shape = StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
+                IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+            ));
+            let StructuralTypeShape::Record { fields, .. } = &mut types[0].shape else {
+                panic!("record");
+            };
+            fields[0].field_type = StructuralFieldType::Structural(array);
+            fields[0].inline_carrier = None;
+            let id = StructuralDomainId::new(1).unwrap();
+            let pure = StructuralDomainDeclaration {
+                required_memberships: Some(Vec::new()),
+                complete_predicate_theory: true,
+                predicate: None,
+                id,
+                semantic_domain: DomainSemanticId::new(1).unwrap(),
+                identity: TerminalIdentityIndex(1),
+                carrier: array,
+                subject_identity: TerminalIdentityIndex(1),
+                content_projection: None,
+                byte_predicate: Some(ByteSequencePredicate::AsciiOnly),
+                establishment_routes: None,
+                access_policy: None,
+            };
+            let mut incomplete = pure.clone();
+            incomplete.complete_predicate_theory = false;
+            let mut extra = pure.clone();
+            extra.predicate = Some(StructuralDomainPredicate {
+                subject: PlaceId::new(1).unwrap(),
+                proposition: Proposition::Falsehood,
+            });
+            let root = SchemaNodeHandle::from_index(1);
+            let schema = SemanticSchemaGraph::from_nodes(
+                vec![
+                    SchemaNode::Invalid,
+                    SchemaNode::Declaration(DeclarationDescription {
+                        owner_identity: "test::Bytes".into(),
+                        identity_is_hermetic: true,
+                        name: "Bytes".into(),
+                        shape: SchemaShape::Empty,
+                        supply: "Ordinary".into(),
+                        multiplicity: "Unrestricted".into(),
+                        carry: None,
+                        type_parameters: Vec::new(),
+                        lifetime_parameters: Vec::new(),
+                        application_identity: Some("test::Bytes".into()),
+                        members: Vec::new(),
+                        retired_identities: Vec::new(),
+                    }),
+                ],
+                root,
+                SchemaQueryAuthority::OwningScope {
+                    requester_identity: "test::Bytes".into(),
+                },
+            )
+            .unwrap();
+            let mut governed = pure.clone();
+            governed.access_policy = Some(terminal_psi::StructuralDomainAccessPlan {
+                schema,
+                issuance: None,
+                readers: vec![((root, Some(Vec::new())), Vec::new())],
+                writers: Vec::new(),
+                observations: Vec::new(),
+                reach: Default::default(),
+            });
+            for (domain, expected) in [
+                (pure, true),
+                (incomplete, false),
+                (extra, false),
+                (governed, false),
+            ] {
+                assert_eq!(
+                    crate::byte_literal_qualifications_hold(
+                        std::slice::from_ref(&domain),
+                        array,
+                        &[id],
+                        &[0, 0]
+                    ),
+                    expected
+                );
+                assert_eq!(
+                    crate::zeroed_projected_byte_qualifications_hold(
+                        types.iter(),
+                        std::iter::once(&domain),
+                        types[0].id,
+                        &[StructuralPathQualification {
+                            path: path.clone(),
+                            domain: id
+                        }]
+                    ),
+                    expected
+                );
+                // Projecting a primitive fact from an already established
+                // domain is separate from establishing the complete domain.
+                assert!(
+                    crate::byte_qualification_predicates_in(std::iter::once(&domain), array, &[id])
+                        .is_some()
+                );
+            }
+        }
+
         #[test]
         fn original_field_carrier_is_exact_among_equal_contracts() {
             let (mut declarations, path) = fixture();
@@ -6384,9 +6507,7 @@ pub(crate) mod zeroed_structural {
                 return false;
             }
             domain.carrier == carrier.id
-                && domain.content_projection.is_none()
-                && domain.establishment_routes.is_none()
-                && domain.has_no_required_memberships()
+                && domain.pure_byte_predicate() == Some(predicate)
                 && match predicate {
                     terminal_psi::ByteSequencePredicate::ValidUtf8 | terminal_psi::ByteSequencePredicate::AsciiOnly => true,
                     terminal_psi::ByteSequencePredicate::NoNul => length == 0,

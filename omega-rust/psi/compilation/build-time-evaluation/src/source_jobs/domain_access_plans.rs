@@ -195,16 +195,8 @@ fn evaluate_domain(
         super::access_plan_values::normalize_for_schema(receipt, schema_graph, &schema, &revision)?;
     // Complete data is retained by the common normalizer. Until operation
     // consumers enforce an axis, recording it as checked would drop a rule.
-    for (name, rows) in [
-        ("field_count", normalized.observations.len()),
-        ("reader_count", normalized.readers.len()),
-        ("writer_count", normalized.writers.len()),
-    ] {
-        if rows != 0 {
-            return Err(format!(
-                "no product route yet: an access plan with a nonzero `{name}`"
-            ));
-        }
+    if !normalized.observations.is_empty() {
+        return Err("no product route yet: an access plan with a nonzero `field_count`".into());
     }
     if normalized.reach.services().len() != 0 {
         return Err("no product route yet: an access plan that requires boundary reach".into());

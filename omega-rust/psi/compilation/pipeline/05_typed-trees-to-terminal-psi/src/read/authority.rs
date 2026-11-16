@@ -23,11 +23,11 @@ skip the question by matching the record out of a qualified type with `_`.
 Shape metadata (`data_type`) stays open: "Type/field metadata and already
 established proof facts are not new runtime reads".
 
-Who may read or write a governed value is stated by its policy's plan
-(`wiki/spec/resources/access.md`), and no pass evaluates a plan. A domain
-with a policy therefore admits no reader or writer this checker can name,
-and the use is refused by name. A domain with no policy restricts neither
-axis ("Omitting a policy, or omitting the reader or writer axis in a policy,
+The Build evaluates the policy's plan before this reader forms an operation
+(`wiki/spec/resources/access.md`). An unevaluated plan cannot justify the
+operation, so its use is refused. A complete plan stays with the value through
+lowering; the canonical judgment checks its rules against the actual memory and
+invocation. A domain with no policy restricts neither axis ("Omitting a policy, or omitting the reader or writer axis in a policy,
 adds no restriction on that axis").
 */
 
@@ -50,9 +50,9 @@ pub(super) enum Access {
     Write,
 }
 
-/// A record whose contents the site holding it may look inside: either the
-/// machine being read was authorized for the access it does, or the record
-/// is a carrier being constructed. Only this module makes one.
+/// A record whose operation can reach canonical access checking, or a fresh
+/// carrier being constructed. Only this module makes one; the complete plan
+/// remains attached for the storage/caller judgment before execution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct Opened(StructuralTypeId);
 
@@ -95,8 +95,9 @@ impl Program<'_> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
         for domain in value_type.qualification().domains.members() {
             let definition = self.domain_theory(id, domain)?;
-            // A checked plan has no reader or writer rules, so it restricts
-            // neither; a plan nobody has run cannot be shown to permit this.
+            // Only a complete selected plan can reach operation checking.
+            // Its canonical field/caller rules remain attached to the value
+            // and are checked against actual storage before execution.
             if definition.access_unjudged() {
                 return unserved(match access {
                     Access::Read => "read inside a value governed by an access policy",

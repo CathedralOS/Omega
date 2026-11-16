@@ -1036,11 +1036,8 @@ pub(crate) mod byte_sequence_predicates {
                     .find(|domain| domain.id == *identity)
                     .is_some_and(|domain| {
                         domain.carrier == carrier
-                            && domain.content_projection.is_none()
-                            && domain.establishment_routes.is_none()
-                            && domain.has_no_required_memberships()
                             && domain
-                                .byte_predicate
+                                .pure_byte_predicate()
                                 .is_some_and(|predicate| predicate.holds_for(bytes))
                     })
             })

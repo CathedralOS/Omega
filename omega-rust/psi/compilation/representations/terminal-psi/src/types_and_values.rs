@@ -333,6 +333,15 @@ pub mod types {
                     })
             }
 
+            /// Literal bytes can establish only the primitive predicate they
+            /// were checked against. They cannot establish another theory,
+            /// an issuer restriction or independent memory-access rules.
+            pub fn pure_byte_predicate(&self) -> Option<crate::ByteSequencePredicate> {
+                (self.is_pure_predicate() && self.predicate.is_none())
+                    .then_some(self.byte_predicate)
+                    .flatten()
+            }
+
             pub fn authorizes_boundary_requirement(
                 &self,
                 requirement: TerminalIdentityIndex,
