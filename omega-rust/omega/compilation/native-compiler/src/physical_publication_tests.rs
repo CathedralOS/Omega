@@ -10,7 +10,7 @@ use boundary_applications::{
 };
 use semantic_vocabulary::{
     BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId,
-    ScalarType, ValueId,
+    ScalarType, StructuralTypeId, ValueId,
 };
 use terminal_codec::CanonicalTerminalArtifact;
 use terminal_psi::{
@@ -166,6 +166,10 @@ fn check_published_plan(
     let installations = crate::pipeline::bound_installations(target);
     let selected = select_instructions_for_plan(published, &installations, &environment)
         .expect("selection needs only the plan, its installations and the registers");
+    assert_eq!(
+        selected.plan().contracts.borrowed_storage_layouts,
+        published.plan().borrowed_storage_layouts
+    );
     assert!(
         selected
             .plan()
@@ -176,6 +180,45 @@ fn check_published_plan(
     );
 
     let reseal = |plan| PreparedExecutionPlan::seal(plan, published.receipt().validator());
+    let mut changed_abi = published.plan().clone();
+    changed_abi
+        .function_abis
+        .first_mut()
+        .expect("the prepared program has function ABI rows")
+        .machine = MachineId::new(4096).unwrap();
+    assert!(
+        matches!(
+            verify(&reseal(changed_abi)),
+            Err(PublishedPlanMismatch {
+                machine: None,
+                part: "function ABI rows differ from the target's",
+            })
+        ),
+        "a coherently resealed foreign function ABI is refused by correspondence"
+    );
+    let mut changed_geometry = published.plan().clone();
+    changed_geometry.borrowed_storage_layouts =
+        runtime_abi::NativeBorrowedStorageLayouts::seal(vec![
+            runtime_abi::NativeBorrowedStorageLayout::new(
+                StructuralTypeId::new(4096).unwrap(),
+                8,
+                8,
+                [],
+                [],
+                [],
+            ),
+        ])
+        .unwrap();
+    assert!(
+        matches!(
+            verify(&reseal(changed_geometry)),
+            Err(PublishedPlanMismatch {
+                machine: None,
+                part: "borrowed storage geometry differs from the target's",
+            })
+        ),
+        "a coherently resealed foreign geometry roster is refused"
+    );
     let entry_function = |plan: &mut legalized_operations::LegalizedOperationPlan| {
         plan.scalar_functions
             .iter()
