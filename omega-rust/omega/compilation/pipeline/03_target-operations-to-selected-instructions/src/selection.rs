@@ -685,9 +685,6 @@ pub(crate) mod construction {
         }
         let catalog = environment.constraints();
         require_key_rows(&constraints.keys, catalog)?;
-        let interrupt_helpers = crate::installed_interrupts::PreparedHelperCohort::new(
-            legalized.installed_interrupts(),
-        );
         let native_geometry = crate::native_geometry::NativeGeometries::new(
             target.scalar_functions.iter().map(|source| {
                 source
@@ -726,10 +723,7 @@ pub(crate) mod construction {
                     constraints,
                     environment,
                     &backings,
-                    legalized.installed_interrupts(),
-                    legalized.installed_stack_requirements(),
-                    &interrupt_helpers,
-                    legalized.installed_entry_execution(),
+                    legalized.installations(),
                 )
             })
             .collect::<Result<Vec<_>, _>>()?;

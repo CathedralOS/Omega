@@ -1059,14 +1059,15 @@ pub(crate) mod scalar_graph {
             }
 
             fn view_indices(
-                optimized: &optimization_unit::PsiOptimizationFunction,
+                function_inputs: &crate::legalization_function_inputs::FunctionInputs<'_>,
                 unit: &crate::native_geometry::NativeUnit<'_>,
                 psi_operation: semantic_vocabulary::OperationId,
                 view: &terminal_psi::StructuralArgument,
             ) -> Result<Vec<legalized_operations::LegalizedRuntimeIndexOperand>, LegalizationError>
             {
+                let optimized = function_inputs.function();
                 o!(optimized => unit => psi_operation => &scalar_graph_input::element_views::descriptor_geometry(
-                        optimized,
+                        function_inputs,
                         view,
                         unit.geometry(),
                     )
@@ -1464,9 +1465,10 @@ pub(crate) mod scalar_graph {
 
             pub(crate) fn project_element_view_write(
                 node: &optimization_unit::OptimizationNode,
-                optimized: &optimization_unit::PsiOptimizationFunction,
+                function_inputs: &crate::legalization_function_inputs::FunctionInputs<'_>,
                 unit: &crate::native_geometry::NativeUnit<'_>,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
+                let optimized = function_inputs.function();
                 let AbstractOperation::ElementViewWrite {
                     path,
                     psi_operation,
@@ -1482,7 +1484,7 @@ pub(crate) mod scalar_graph {
                 Ok(LegalizedScalarInstructionKind::ElementViewWrite {
                     path: path.clone(),
                     destination: destination.clone(),
-                    indices: view_indices(optimized, unit, *psi_operation, destination)?,
+                    indices: view_indices(function_inputs, unit, *psi_operation, destination)?,
                     index: *index,
                     value: *value,
                     length: *length,
@@ -1657,9 +1659,10 @@ pub(crate) mod scalar_graph {
 
             pub(crate) fn project_storage_address(
                 node: &optimization_unit::OptimizationNode,
-                optimized: &optimization_unit::PsiOptimizationFunction,
+                function_inputs: &crate::legalization_function_inputs::FunctionInputs<'_>,
                 unit: &crate::native_geometry::NativeUnit<'_>,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
+                let optimized = function_inputs.function();
                 let AbstractOperation::StorageAddress {
                     psi_operation,
                     source,
@@ -1673,8 +1676,9 @@ pub(crate) mod scalar_graph {
                 {
                     return Err(Error::custody());
                 }
-                let root = scalar_graph_input::primitive_locals::read_root_type(optimized, *source)
-                    .ok_or(Error::custody())?;
+                let root =
+                    scalar_graph_input::primitive_locals::read_root_type(function_inputs, *source)
+                        .ok_or(Error::custody())?;
                 let geometry =
                     storage_address_geometry(root, path, unit.geometry()).ok_or(Error::custody())?;
                 let indices = o!(optimized => unit => *psi_operation => &geometry.elements)?;
@@ -1687,9 +1691,10 @@ pub(crate) mod scalar_graph {
 
             pub(crate) fn project_global_descriptor_table(
                 node: &optimization_unit::OptimizationNode,
-                optimized: &optimization_unit::PsiOptimizationFunction,
+                function_inputs: &crate::legalization_function_inputs::FunctionInputs<'_>,
                 unit: &crate::native_geometry::NativeUnit<'_>,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
+                let optimized = function_inputs.function();
                 let AbstractOperation::GlobalDescriptorTable {
                     psi_operation,
                     service,
@@ -1699,9 +1704,11 @@ pub(crate) mod scalar_graph {
                 else {
                     unreachable!("dispatched descriptor-table operation")
                 };
-                let root =
-                    scalar_graph_input::primitive_locals::read_root_type(optimized, source.place)
-                        .ok_or(Error::custody())?;
+                let root = scalar_graph_input::primitive_locals::read_root_type(
+                    function_inputs,
+                    source.place,
+                )
+                .ok_or(Error::custody())?;
                 let geometry = storage_address_geometry(root, &source.path, unit.geometry())
                     .ok_or(Error::custody())?;
                 let indices = o!(optimized => unit => *psi_operation => &geometry.elements)?;
@@ -1935,12 +1942,13 @@ pub(crate) mod scalar_graph {
         /// Reconstruct the expected execution only for the independent audit.
         pub(crate) fn audit_project<'a>(
             node: &optimization_unit::OptimizationNode,
-            optimized: &optimization_unit::PsiOptimizationFunction,
+            function_inputs: &crate::legalization_function_inputs::FunctionInputs<'_>,
             native: &'a TargetOperationPlan,
             plan: &'a crate::native_geometry::NativePlan<'a>,
             unit: &'a crate::native_geometry::NativeUnit<'a>,
             instruction: &target_operations::TargetInstruction,
         ) -> Result<LegalizedScalarInstruction, LegalizationError> {
+            let optimized = function_inputs.function();
             let source = instruction.source.as_ref().ok_or_else(|| {
                 Error::instruction_metadata(
                     "ordinary target instruction has no retained source metadata",
@@ -2106,7 +2114,7 @@ pub(crate) mod scalar_graph {
                     .iter()
                     .map(|argument| {
                         let root = scalar_graph_input::primitive_locals::read_root_type(
-                            optimized,
+                            function_inputs,
                             argument.place,
                         )
                         .ok_or(Error::custody())?;
@@ -2174,7 +2182,7 @@ pub(crate) mod scalar_graph {
             } = targeted
             {
                 let root =
-                    scalar_graph_input::primitive_locals::read_root_type(optimized, token.place)
+                    scalar_graph_input::primitive_locals::read_root_type(function_inputs, token.place)
                         .ok_or(Error::custody())?;
                 let indices = projection(
                     optimized,
@@ -2210,7 +2218,7 @@ pub(crate) mod scalar_graph {
                 let mut indices = Vec::new();
                 for argument in operands.arguments() {
                     let root = scalar_graph_input::primitive_locals::read_root_type(
-                        optimized,
+                        function_inputs,
                         argument.place,
                     )
                     .ok_or(Error::custody())?;
@@ -2585,7 +2593,7 @@ pub(crate) mod scalar_graph {
                             [gdt, task_state, scratch].into_iter().zip(&mut indices)
                         {
                             let root = scalar_graph_input::primitive_locals::read_root_type(
-                                optimized,
+                                function_inputs,
                                 argument.place,
                             )
                             .ok_or(Error::custody())?;
@@ -2624,7 +2632,7 @@ pub(crate) mod scalar_graph {
                         let mut indices = [Vec::new(), Vec::new()];
                         for (argument, collected) in [gdt, scratch].into_iter().zip(&mut indices) {
                             let root = scalar_graph_input::primitive_locals::read_root_type(
-                                optimized,
+                                function_inputs,
                                 argument.place,
                             )
                             .ok_or(Error::custody())?;
@@ -2655,11 +2663,11 @@ pub(crate) mod scalar_graph {
                     },
                     AbstractOperation::GlobalDescriptorTable { .. } => {
                         storage_instructions::project_global_descriptor_table(
-                            node, optimized, unit,
+                            node, function_inputs, unit,
                         )?
                     }
                     AbstractOperation::StorageAddress { .. } => {
-                        storage_instructions::project_storage_address(node, optimized, unit)?
+                        storage_instructions::project_storage_address(node, function_inputs, unit)?
                     }
                     AbstractOperation::BoundaryCall {
                         boundary,
@@ -2797,7 +2805,7 @@ pub(crate) mod scalar_graph {
                         )?
                     }
                     AbstractOperation::ElementViewWrite { .. } => {
-                        storage_instructions::project_element_view_write(node, optimized, unit)?
+                        storage_instructions::project_element_view_write(node, function_inputs, unit)?
                     }
                     AbstractOperation::BooleanNot { operand, .. } => {
                         LegalizedScalarInstructionKind::BooleanNot { operand: *operand }
@@ -2905,11 +2913,12 @@ pub(crate) mod scalar_graph {
 
         pub(crate) fn project(
             node: &optimization_unit::OptimizationNode,
-            function: &optimization_unit::PsiOptimizationFunction,
+            function_inputs: &crate::legalization_function_inputs::FunctionInputs<'_>,
             plan: &crate::native_geometry::NativePlan<'_>,
             unit: &crate::native_geometry::NativeUnit<'_>,
             targeted: &target_operations::TargetControlTerminator,
         ) -> Result<LegalizedScalarTerminator, LegalizationError> {
+            let function = function_inputs.function();
             let AbstractOperation::StructuralCase {
                 psi_block,
                 source,
@@ -3014,8 +3023,13 @@ pub(crate) mod scalar_graph {
                     case: case.case,
                     case_tag,
                     payloads,
-                    structural_bindings: super::terminator::successor(edge, function, plan, unit)?
-                        .structural_bindings,
+                    structural_bindings: super::terminator::successor(
+                        edge,
+                        function_inputs,
+                        plan,
+                        unit,
+                    )?
+                    .structural_bindings,
                     cleanup_actions: case.cleanup_actions.clone(),
                     cleanup_calls: Vec::new(),
                     work: edge.work.clone(),
@@ -3266,7 +3280,7 @@ pub(crate) mod scalar_graph {
                     psi_edge, source, ..
                 } => {
                     let value = if scalar_graph_input::byte_views::descriptor_return(
-                        function,
+                        function_inputs,
                         *source,
                         plan.geometry(),
                     ) {
@@ -3289,7 +3303,7 @@ pub(crate) mod scalar_graph {
                     }))
                 }
                 AbstractOperation::StructuralCase { .. } => {
-                    super::structural_case::project(node, function, plan, unit, targeted)
+                    super::structural_case::project(node, function_inputs, plan, unit, targeted)
                 }
                 AbstractOperation::ReturnUnit { psi_edge, .. } => {
                     Ok(LegalizedScalarTerminator::Return(LegalizedScalarReturn {
@@ -3322,7 +3336,7 @@ pub(crate) mod scalar_graph {
                         return Err(Error::custody());
                     };
                     Ok(LegalizedScalarTerminator::Jump {
-                        successor: successor(edge, function, plan, unit)?,
+                        successor: successor(edge, function_inputs, plan, unit)?,
                         effect: node.effect,
                         ownership: node.ownership.clone(),
                     })
@@ -3333,8 +3347,8 @@ pub(crate) mod scalar_graph {
                     };
                     Ok(LegalizedScalarTerminator::Conditional {
                         condition: *condition,
-                        when_true: successor(when_true, function, plan, unit)?,
-                        when_false: successor(when_false, function, plan, unit)?,
+                        when_true: successor(when_true, function_inputs, plan, unit)?,
+                        when_false: successor(when_false, function_inputs, plan, unit)?,
                         effect: node.effect,
                         ownership: node.ownership.clone(),
                     })
@@ -3385,13 +3399,14 @@ pub(crate) mod scalar_graph {
         }
         pub(crate) fn successor(
             edge: &optimization_unit::OptimizationEdge,
-            function: &optimization_unit::PsiOptimizationFunction,
+            function_inputs: &crate::legalization_function_inputs::FunctionInputs<'_>,
             plan: &crate::native_geometry::NativePlan<'_>,
             unit: &crate::native_geometry::NativeUnit<'_>,
         ) -> Result<LegalizedScalarSuccessor, LegalizationError> {
+            let function = function_inputs.function();
             let structural_bindings = edge.structural_bindings.iter().map(|binding| {
                 let indices = if binding.argument.path.iter().any(|segment| segment.runtime_index().is_some()) {
-                    let root = scalar_graph_input::primitive_locals::read_root_type(function, binding.argument.place)
+                    let root = scalar_graph_input::primitive_locals::read_root_type(function_inputs, binding.argument.place)
                         .ok_or(Error::custody())?;
                     let geometry = crate::structural_inputs::structural_reference_input::reference_formation_geometry(
                         root, &binding.argument.path, plan.geometry(),
@@ -3446,6 +3461,7 @@ pub(crate) mod scalar_graph {
         unit: &'a crate::native_geometry::NativeUnit<'a>,
         current_operation: &mut Option<semantic_vocabulary::OperationId>,
     ) -> Result<LegalizedScalarFunction, LegalizationError> {
+        let function_inputs = crate::legalization_function_inputs::FunctionInputs::new(optimized);
         let call_plan = target.graph.call_plan.clone();
         let parameters = parameters(target, unit.closed_types())?;
         if optimized.blocks.len() != target.graph.blocks.len() {
@@ -3480,7 +3496,12 @@ pub(crate) mod scalar_graph {
                 for (node, row) in body.iter().zip(rows) {
                     *current_operation = row.source.as_ref().map(|source| source.operation);
                     instructions.push(instruction::audit_project(
-                        node, optimized, native, plan, unit, row,
+                        node,
+                        &function_inputs,
+                        native,
+                        plan,
+                        unit,
+                        row,
                     )?);
                 }
                 *current_operation = None;

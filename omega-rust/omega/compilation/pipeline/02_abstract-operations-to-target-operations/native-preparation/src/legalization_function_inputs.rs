@@ -18,6 +18,7 @@ pub(crate) struct FunctionInputs<'function> {
     arrivals: Vec<&'function StructuralParameterDeclaration>,
     trivial_locals: Vec<(PlaceId, BlockId, usize, &'function AbstractOperation)>,
     results: Vec<(PlaceId, OperationId, &'function StructuralOperationResult)>,
+    byte_literals: Vec<(PlaceId, OperationId, &'function AbstractOperation)>,
 }
 
 impl<'function> FunctionInputs<'function> {
@@ -27,6 +28,7 @@ impl<'function> FunctionInputs<'function> {
         let mut arrivals: Vec<_> = function.structural_parameters.iter().collect();
         let mut trivial_locals = Vec::new();
         let mut results = Vec::new();
+        let mut byte_literals = Vec::new();
         for block in &function.blocks {
             values.extend(&block.parameters);
             arrivals.extend(&block.structural_parameters);
@@ -36,6 +38,14 @@ impl<'function> FunctionInputs<'function> {
                     &node.operation
                 {
                     trivial_locals.push((place.id, block.id, position, &node.operation));
+                }
+                if let AbstractOperation::EstablishByteSequenceLiteral {
+                    psi_operation,
+                    place,
+                    ..
+                } = &node.operation
+                {
+                    byte_literals.push((place.id, *psi_operation, &node.operation));
                 }
                 if let Some((producer, result)) = node.operation.structural_result() {
                     results.push((result.place, producer, result));
@@ -47,6 +57,7 @@ impl<'function> FunctionInputs<'function> {
         arrivals.sort_by_key(|row| row.place);
         trivial_locals.sort_by_key(|row| row.0);
         results.sort_by_key(|row| row.0);
+        byte_literals.sort_by_key(|row| row.0);
         Self {
             function,
             values,
@@ -54,6 +65,7 @@ impl<'function> FunctionInputs<'function> {
             arrivals,
             trivial_locals,
             results,
+            byte_literals,
         }
     }
 
@@ -135,5 +147,47 @@ impl<'function> FunctionInputs<'function> {
             return Err(LegalizationError::custody());
         }
         Ok(result)
+    }
+
+    /// Find the one operation that establishes the byte literal `place`.
+    /// The place must have exactly one declaration, of literal kind, and
+    /// exactly one producer whose place and borrowed byte-view type match it;
+    /// anything else is refused.
+    pub(crate) fn byte_literal(&self, place: PlaceId) -> Option<(OperationId, StructuralTypeId)> {
+        let first = self.declarations.partition_point(|row| row.id < place);
+        let mut declarations = self.declarations[first..]
+            .iter()
+            .take_while(|row| row.id == place);
+        let declaration = *declarations.next()?;
+        if declarations.next().is_some() {
+            return None;
+        }
+        let StructuralPlaceKind::ByteSequenceLiteral {
+            structural_type: identity,
+            ..
+        } = declaration.kind
+        else {
+            return None;
+        };
+        let first = self.byte_literals.partition_point(|row| row.0 < place);
+        let mut producers = self.byte_literals[first..]
+            .iter()
+            .take_while(|row| row.0 == place);
+        let (_, operation, establishment) = *producers.next()?;
+        if producers.next().is_some() {
+            return None;
+        }
+        let AbstractOperation::EstablishByteSequenceLiteral {
+            place: established,
+            structural_type,
+            ..
+        } = establishment
+        else {
+            return None;
+        };
+        (established == declaration
+            && structural_type.id == identity
+            && structural_type.shape.is_borrowed_byte_view())
+        .then_some((operation, identity))
     }
 }

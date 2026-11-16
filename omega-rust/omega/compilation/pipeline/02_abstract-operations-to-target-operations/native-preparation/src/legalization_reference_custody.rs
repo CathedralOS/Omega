@@ -6859,9 +6859,10 @@ fn complete_reference_outputs(
 pub(crate) fn apply_terminator(
     custody: &mut Custody,
     operation: &AbstractOperation,
-    function: &PsiOptimizationFunction,
+    function_inputs: &crate::legalization_function_inputs::FunctionInputs<'_>,
     plan: &crate::native_geometry::NativePlan<'_>,
 ) -> Result<(), LegalizationError> {
+    let function = function_inputs.function();
     if custody.position_is_impossible() {
         return Ok(());
     }
@@ -6940,7 +6941,7 @@ pub(crate) fn apply_terminator(
             apply_cleanup_actions(
                 &mut exit,
                 actions.iter().cloned(),
-                function,
+                function_inputs,
                 types,
                 retirements::DisposalEvent::Edge(edge),
             )
@@ -6965,7 +6966,7 @@ pub(crate) fn apply_terminator(
             apply_cleanup_actions(
                 custody,
                 actions.iter().cloned(),
-                function,
+                function_inputs,
                 types,
                 retirements::DisposalEvent::Edge(edge),
             )
@@ -6984,19 +6985,17 @@ pub(crate) fn apply_terminator(
 fn apply_cleanup_actions(
     custody: &mut Custody,
     actions: impl IntoIterator<Item = terminal_psi::TerminalAffineCleanupAction>,
-    function: &PsiOptimizationFunction,
+    function_inputs: &crate::legalization_function_inputs::FunctionInputs<'_>,
     types: &crate::native_geometry::NativeGeometry<'_>,
     event: retirements::DisposalEvent,
 ) -> Result<(), LegalizationError> {
+    let function = function_inputs.function();
     use terminal_psi::TerminalAffineCleanupAction;
     for action in actions {
         let place = match action {
             TerminalAffineCleanupAction::RetireHome(place) => {
                 if source_contract(function, custody, place).is_none()
-                    && crate::legalization::scalar_graph_input::literals::declaration_producer(
-                        function, place,
-                    )
-                    .is_none()
+                    && function_inputs.byte_literal(place).is_none()
                 {
                     return Err(invalid());
                 }
@@ -7078,9 +7077,10 @@ fn borrowed_sources(
 }
 
 pub(crate) fn block_entry_states(
-    function: &PsiOptimizationFunction,
+    function_inputs: &crate::legalization_function_inputs::FunctionInputs<'_>,
     descriptor_inputs: &crate::legalization_descriptor_inputs::DescriptorInputs<'_>,
 ) -> Result<BTreeMap<BlockId, Custody>, LegalizationError> {
+    let function = function_inputs.function();
     let native = descriptor_inputs.native();
     let plan = descriptor_inputs.plan();
     let unit = descriptor_inputs.unit();
@@ -7203,7 +7203,7 @@ pub(crate) fn block_entry_states(
                     | AbstractOperation::StructuralCase { .. }
                     | AbstractOperation::ExternalCompletion { .. }
             ) {
-                apply_terminator(&mut custody, &node.operation, function, plan)
+                apply_terminator(&mut custody, &node.operation, function_inputs, plan)
             } else {
                 apply(&mut custody, node, function, native, plan, unit)
             };

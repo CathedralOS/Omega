@@ -4651,15 +4651,9 @@ pub(crate) mod tests {
             &program,
             &geometries,
         );
-        let installed_interrupts =
-            provider_admission::AdmittedInstalledInterruptCohort::empty(program.psi);
-        let interrupt_helpers =
-            crate::installed_interrupts::PreparedHelperCohort::new(&installed_interrupts);
+        let installations = bound_installations::BoundInstallations::empty(program.psi);
         let mut builder = Builder {
-            installed_interrupts: &installed_interrupts,
-            installed_stack_requirements: &[],
-            installed_entry_execution: None,
-            interrupt_helpers: &interrupt_helpers,
+            installations: &installations,
             backings: &backings,
             environment: &environment,
             pending_provenance: SelectedInstructionProvenance::default(),

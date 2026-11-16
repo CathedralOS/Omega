@@ -215,12 +215,8 @@ pub(crate) mod installed_interrupt_geometry {
         }
     }
 }
-pub(crate) mod installed_interrupts {
-    pub(crate) use provider_admission::installed_interrupt_helpers::PreparedHelperCohort;
-}
 pub use installed_interrupt_geometry::InstalledInterruptOperandLayout;
 pub(crate) use legalized_operations::{native_geometry, structural_inputs};
-pub use provider_admission::installed_interrupt_helpers::PreparedInstalledInterruptHelpers;
 mod optimized;
 mod selection;
 mod selection_access_lifecycles;

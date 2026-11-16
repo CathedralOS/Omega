@@ -7115,10 +7115,7 @@ pub(crate) fn build_with_environment(
     constraints: &SelectedSelectionConstraints,
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
     backings: &crate::selection::foreign_scalar_backings::ForeignScalarBackings<'_>,
-    installed_interrupts: &provider_admission::AdmittedInstalledInterruptCohort,
-    installed_stack_requirements: &[installation_evidence::InstalledInterruptStackRequirement],
-    interrupt_helpers: &crate::installed_interrupts::PreparedHelperCohort<'_>,
-    installed_entry_execution: Option<&provider_admission::AdmittedInstalledEntryExecution>,
+    installations: &bound_installations::BoundInstallations,
 ) -> Result<SelectedFunction, SelectedInstructionError> {
     let source = crate::native_geometry::NativeInput::new(source, geometry);
     let mut current_operation = None;
@@ -7129,10 +7126,7 @@ pub(crate) fn build_with_environment(
         environment,
         &mut current_operation,
         backings,
-        installed_interrupts,
-        installed_stack_requirements,
-        interrupt_helpers,
-        installed_entry_execution,
+        installations,
     )
     .map_err(|error| error.attributed(source.machine, current_operation))
 }
@@ -7144,10 +7138,7 @@ pub(crate) fn select_function(
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
     current_operation: &mut Option<semantic_vocabulary::OperationId>,
     backings: &crate::selection::foreign_scalar_backings::ForeignScalarBackings<'_>,
-    installed_interrupts: &provider_admission::AdmittedInstalledInterruptCohort,
-    installed_stack_requirements: &[installation_evidence::InstalledInterruptStackRequirement],
-    interrupt_helpers: &crate::installed_interrupts::PreparedHelperCohort<'_>,
-    installed_entry_execution: Option<&provider_admission::AdmittedInstalledEntryExecution>,
+    installations: &bound_installations::BoundInstallations,
 ) -> Result<SelectedFunction, SelectedInstructionError> {
     let invalid = || SelectedInstructionError::unsupported_shape(function);
     let order = control::block_order(source)?;
@@ -7160,10 +7151,7 @@ pub(crate) fn select_function(
     let mut builder = Builder {
         environment,
         backings,
-        installed_interrupts,
-        installed_stack_requirements,
-        interrupt_helpers,
-        installed_entry_execution,
+        installations,
         pending_provenance: SelectedInstructionProvenance::default(),
         required_values: crate::selection::value_transport::required_values(source),
         class,
@@ -7700,12 +7688,7 @@ pub(crate) fn next_index(len: usize) -> Result<u32, SelectedInstructionError> {
 }
 
 pub(crate) struct Builder<'a> {
-    pub(crate) installed_entry_execution:
-        Option<&'a provider_admission::AdmittedInstalledEntryExecution>,
-    pub(crate) installed_interrupts: &'a provider_admission::AdmittedInstalledInterruptCohort,
-    pub(crate) installed_stack_requirements:
-        &'a [installation_evidence::InstalledInterruptStackRequirement],
-    pub(crate) interrupt_helpers: &'a crate::installed_interrupts::PreparedHelperCohort<'a>,
+    pub(crate) installations: &'a bound_installations::BoundInstallations,
     pub(crate) backings: &'a crate::selection::foreign_scalar_backings::ForeignScalarBackings<'a>,
     pub(crate) environment: &'a register_environment::ValidatedTargetRegisterEnvironment,
     pub(crate) pending_provenance: SelectedInstructionProvenance,
@@ -7734,8 +7717,8 @@ impl Builder<'_> {
     pub(crate) fn crash_form(
         &self,
     ) -> Result<(SelectedInstructionKind, RegisterConstraintKey), SelectedInstructionError> {
-        if let Some(execution) = self.installed_entry_execution {
-            if execution.entry().entry().target() != self.environment.target() {
+        if let Some(entry) = &self.installations.installed_entry {
+            if entry.target != self.environment.target() {
                 return Err(SelectedInstructionError::custody());
             }
             let key = self
