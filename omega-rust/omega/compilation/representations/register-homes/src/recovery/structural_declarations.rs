@@ -1050,6 +1050,7 @@ mod tests {
                 scalar_restriction: None,
                 id: StructuralTypeId::new(1).unwrap(),
                 identity: TerminalIdentityIndex(1),
+                declaration_identity: TerminalIdentityIndex(1),
                 shape: StructuralTypeShape::Record {
                     fields: Vec::new(),
                     storage: terminal_psi::StructuralRecordStorage::Packed,

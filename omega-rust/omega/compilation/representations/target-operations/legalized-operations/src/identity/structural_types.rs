@@ -865,6 +865,7 @@ fn nominal_cleanup_selection_changes_structural_type_identity() {
             scalar_restriction: None,
             id: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
             identity: terminal_psi::TerminalIdentityIndex(1),
+            declaration_identity: terminal_psi::TerminalIdentityIndex(1),
             shape: StructuralTypeShape::Record {
                 fields: Vec::new(),
                 storage: terminal_psi::StructuralRecordStorage::Packed,

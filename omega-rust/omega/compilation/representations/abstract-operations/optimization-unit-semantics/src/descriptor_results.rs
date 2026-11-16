@@ -3177,6 +3177,7 @@ mod owned_cleanup_graph_tests {
             quotient_carrier: None,
             id: ty(value),
             identity: TerminalIdentityIndex(value as u32),
+            declaration_identity: TerminalIdentityIndex(value as u32),
             owns_linear_claim: false,
             copyable: value == 1,
             no_code_affine_cleanup: value == 1,
@@ -3191,6 +3192,7 @@ mod owned_cleanup_graph_tests {
                 fields: vec![StructuralFieldDeclaration {
                     id: StructuralFieldId::new(1).unwrap(),
                     identity: TerminalIdentityIndex(4),
+                    declaration_identity: TerminalIdentityIndex(4),
                     relevance: BindingRelevance::Relevant,
                     storage: None,
                     field_type: StructuralFieldType::Structural(ty(2)),

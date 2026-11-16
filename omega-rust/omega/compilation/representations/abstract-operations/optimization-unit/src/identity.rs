@@ -2125,6 +2125,7 @@ pub(crate) mod structural_encoding {
                     scalar_restriction: None,
                     id: StructuralTypeId::new(1).unwrap(),
                     identity: terminal_psi::TerminalIdentityIndex(1),
+                    declaration_identity: terminal_psi::TerminalIdentityIndex(1),
                     shape: StructuralTypeShape::Record {
                         fields: Vec::new(),
                         storage: terminal_psi::StructuralRecordStorage::Packed,

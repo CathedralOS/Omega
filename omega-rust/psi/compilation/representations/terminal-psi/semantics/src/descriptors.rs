@@ -12411,6 +12411,7 @@ pub mod descriptor_results {
                     quotient_carrier: None,
                     id,
                     identity: TerminalIdentityIndex(1),
+                    declaration_identity: TerminalIdentityIndex(1),
                     owns_linear_claim: false,
                     no_code_affine_cleanup: false,
                     copyable: false,
@@ -12425,6 +12426,7 @@ pub mod descriptor_results {
                         fields: vec![terminal_psi::StructuralFieldDeclaration {
                             id: field,
                             identity: TerminalIdentityIndex(2),
+                            declaration_identity: TerminalIdentityIndex(2),
                             relevance: terminal_psi::BindingRelevance::Relevant,
                             storage: None,
                             field_type: terminal_psi::StructuralFieldType::Structural(view),
