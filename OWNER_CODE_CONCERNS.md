@@ -237,13 +237,6 @@ framework or a list of unimplemented features.
 - Cost: Reviewers see a crash-free boundary that is really an unchecked dereference. Provide one shared errno requirement whose provider returns the `int`, or an admitted view of the thread-local slot, for both callers.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/foreign_storage.md
 
-### The Omega-written compiler counts effectful guards as complementary coverage
-- Category: One idea, several implementations
-- Where: [opposed_guards](source/psi/pipeline/03_symbol-resolved-trees-to-typed-trees/coverage.omg#L243), [same_tree](source/psi/pipeline/03_symbol-resolved-trees-to-typed-trees/coverage.omg#L386), [unmatched-arm trap](source/psi/pipeline/05_checked-trees-to-scalar-operations/statements.omg#L327), [Rust refusal test](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/equality_and_exhaustiveness.rs#L377)
-- Saw: [coverage and domain tests](wiki/spec/language/patterns.md#L197) says missing coverage "is a compile error, not an implicit trap or fallthrough", and complementary `==`/`!=` guards cover only "over the same unchanged subjects"; [expressions.md](wiki/spec/language/expressions.md#L32) says an effectful guard "cannot be replayed as a fact about operands it may have changed". `opposed_guards` pairs any `l == r`/`l != r` or `x == true`/`x == false` arms, and `same_tree` compares only spellings, never the arms between them. With `machine flip(v: &mut bool) -> bool { v = true; false }`, `transition { cell == true -> 1  flip(&mut cell) == true -> 2  cell == false -> 3 }` counts as covered; from `cell = false` no arm matches, and stage 05 lowers that path to `Trap`. The Rust compiler refuses this shape ("the call can change the pointee between alternatives").
-- Cost: The two compilers disagree, and the Omega-written one turns a coverage error into an undeclared runtime trap. Refuse a guard pair when any guard between them can write storage the pair reads, as Rust's `guard_may_change_storage` does.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/patterns.md
-
 ### The Omega-written compiler lets a case pattern with a `field: value` test cover the whole case
 - Category: A verdict with nothing behind it
 - Where: [case_pattern](source/psi/pipeline/03_symbol-resolved-trees-to-typed-trees/coverage.omg#L206), [valued field typing](source/psi/pipeline/03_symbol-resolved-trees-to-typed-trees/statements.omg#L484)
