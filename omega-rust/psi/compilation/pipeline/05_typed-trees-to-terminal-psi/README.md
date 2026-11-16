@@ -572,7 +572,8 @@ A loop can name its decreasing measure with `terminates by remaining`,
 `terminates by bytes -> Slice::Length` or `terminates by (cursor, limit) ->
 Nat::BoundedDistance`. The reader uses the resolved typed expressions and
 checks explicit natural views against their sealed catalog headers. Short
-forms use the carrier's canonical default. A user-written lookalike grants
+forms use the carrier's canonical default; a pair is not a carrier and
+has none, so the author names its view. A user-written lookalike grants
 no ranking rules. Measures may use scalar formals, integer constants,
 exact subtraction and the length of a borrowed byte-view formal. Bounded
 distance uses ordinary unsigned saturating subtraction to keep zero at
