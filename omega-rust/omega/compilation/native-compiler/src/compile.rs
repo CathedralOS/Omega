@@ -50,7 +50,8 @@ fn produce(
         retained,
         request,
         recovery: recoverable_image_request,
-        work,
+        execution,
+        private_entry_ram,
         scalars,
         components: prepared_components,
     } = prepared;
@@ -85,7 +86,12 @@ fn produce(
             .collect::<Result<Vec<_>, _>>()?;
         let (input, execution) = {
             observation.enter(NativePipelineStage::TerminalToAbstract);
-            work.lower(scalar_input)
+            terminal_psi_to_abstract_operations::lower_native_execution(
+                proposal,
+                execution,
+                &private_entry_ram,
+                scalar_input,
+            )
         }?;
         let prepared = {
             terminal_psi_to_abstract_operations::prepare_native_providers(

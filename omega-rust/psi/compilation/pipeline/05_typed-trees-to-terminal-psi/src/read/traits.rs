@@ -289,6 +289,9 @@ impl Program<'_> {
                 "boundary parent contract has no boundary owner",
             ));
         }
+        // Boundary parents keep their callable declarations in their own
+        // schemas. Validate each actual application here; the calling-policy
+        // owner projects the interface and checks completed ordinary parents.
         let scopes =
             typed_trees::service_declarations::projection::inherited_scopes(typed, scope.clone())
                 .map_err(|diagnostic| services::unavailable(context, diagnostic.message))?;
