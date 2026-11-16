@@ -755,6 +755,12 @@ const PLAN_VALIDATOR_CALLERS: &[&str] = &[
 
 /// Stage 02's accessor for its working program.
 const WORKING_PROGRAM_ACCESSORS: &[&str] = &["working_program_for_validation"];
+/// Binding belongs to the driver after preparation, not to setters on the
+/// prepared stage output. Neither the old definitions nor callers may return.
+const RETIRED_INSTALLATION_SETTERS: &[&str] = &[
+    "with_installed_entry_execution",
+    "with_installed_stack_requirements",
+];
 /// Stage 02 and its preparation crate, and the one file through which image
 /// emission's replay validators read the working program.
 const WORKING_PROGRAM_READERS: &[&str] = &[
@@ -835,12 +841,11 @@ fn call_violations(
     violations
 }
 
-/// Entry points that read one input form. The frame step and each later stage
-/// keep the form they were computed from in their output,
-/// so the next stage and final assembly reach earlier products through that
-/// one form (omega-rust/pipeline.md, "Representation-to-representation
-/// pipeline"). Each row is a file, the function it defines and how many
-/// parameters it may take; parameters past the first are configuration.
+/// Each ordinary stage reads its current input form, carrying the instructions,
+/// contracts and settled requirements its successor needs, not earlier program
+/// containers. Explicit validator requests borrow original replay owners apart
+/// from the ordinary path. Each row names a file, its entry and allowed arity;
+/// parameters past the first are configuration.
 const SINGLE_FORM_ENTRIES: &[(&str, &str, usize)] = &[
     (
         "omega-rust/omega/compilation/backend/machine-emission/src/function_realization.rs",
@@ -986,6 +991,16 @@ pub fn image_replay_read_violations(root: &Path) -> Vec<String> {
     )
 }
 
+pub fn installation_mutation_violations(root: &Path) -> Vec<String> {
+    call_violations(
+        root,
+        RETIRED_INSTALLATION_SETTERS,
+        &[],
+        &[],
+        "installation records mutate a prepared stage output; bind one checked receipt in the driver and pass it beside the plan",
+    )
+}
+
 pub fn representation_spelling_violations(root: &Path) -> Vec<String> {
     let mut violations = Vec::new();
     for owner in [PSI, OMEGA] {
@@ -1051,6 +1066,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         violations.extend(single_form_entry_violations(&root));
         violations.extend(working_program_read_violations(&root));
         violations.extend(image_replay_read_violations(&root));
+        violations.extend(installation_mutation_violations(&root));
         violations.extend(transitive_forbidden_violations(
             &metadata,
             SELECTION_REPRESENTATIONS,
@@ -1390,6 +1406,24 @@ mod tests {
         assert!(!is_test_source(
             "omega-rust/omega/compilation/native-compiler/src/pipeline.rs"
         ));
+    }
+
+    #[test]
+    fn prepared_output_installation_setters_stay_retired() {
+        for code in [
+            "let changed = target.with_installed_stack_requirements(rows)?;",
+            "use legacy::with_installed_entry_execution as attach;",
+            "pub fn with_installed_entry_execution(",
+        ] {
+            assert!(line_calls_any(code, RETIRED_INSTALLATION_SETTERS));
+        }
+        for code in [
+            "let receipt = bind_installation_authority(program, cohort, callbacks, entry, stacks)?;",
+            "receipt.installed_stack_requirements()",
+            "// The driver binds installation authority after preparation.",
+        ] {
+            assert!(!line_calls_any(code, RETIRED_INSTALLATION_SETTERS));
+        }
     }
 
     #[test]

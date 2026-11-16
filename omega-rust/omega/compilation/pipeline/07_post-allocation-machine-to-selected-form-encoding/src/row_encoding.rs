@@ -62,8 +62,8 @@ use machine_code::{
 use post_allocation_machine::{PhysicalAddressOperation, PostAllocationMachineInstruction};
 use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::{
-    MachineAlternativeKey, MachineEncodedEffects, SelectedFunction, SelectedInstruction,
-    SelectedInstructionId, SelectedInstructionKind, SelectedNormalizedForeignCall,
+    MachineAlternativeKey, MachineEncodedEffects, SelectedInstruction, SelectedInstructionId,
+    SelectedInstructionKind, SelectedNormalizedForeignCall,
 };
 use target::{Architecture, NativeTarget};
 
@@ -271,7 +271,7 @@ pub(super) fn encode_row(
     selected: &SelectedInstruction,
     machine: &PostAllocationMachineInstruction,
     physical: &ValidatedPhysicalRegisterModel,
-    selected_function: &SelectedFunction,
+    foreign_calls: &[SelectedNormalizedForeignCall],
     address: Option<ResolvedPhysicalAddress>,
     encoded: &mut SelectedFormEncodedRowStore,
 ) -> Result<SelectedFormEncodingRow, Error> {
@@ -306,7 +306,7 @@ pub(super) fn encode_row(
                 selected.kind,
                 machine,
                 physical,
-                selected_function,
+                foreign_calls,
             )?
         }
         RowRoute::ByteLiteralAddress => {
@@ -774,13 +774,12 @@ pub(crate) fn normalized_foreign_call_record(
     target: NativeTarget,
     instruction: SelectedInstructionId,
     kind: SelectedInstructionKind,
-    selected_function: &SelectedFunction,
+    foreign_calls: &[SelectedNormalizedForeignCall],
 ) -> Result<&SelectedNormalizedForeignCall, Error> {
     let SelectedInstructionKind::NormalizedForeignCall { boundary, ordinal } = kind else {
         return Err(Error::ArtifactMismatch);
     };
-    let record = selected_function
-        .normalized_foreign_calls
+    let record = foreign_calls
         .get(ordinal as usize)
         .ok_or(Error::ArtifactMismatch)?;
     if record.instruction != instruction
@@ -799,9 +798,9 @@ fn encode_normalized_foreign_call(
     kind: SelectedInstructionKind,
     machine: &PostAllocationMachineInstruction,
     physical: &ValidatedPhysicalRegisterModel,
-    selected_function: &SelectedFunction,
+    foreign_calls: &[SelectedNormalizedForeignCall],
 ) -> Result<SelectedFormEncodedRowDraft, Error> {
-    let record = normalized_foreign_call_record(target, instruction, kind, selected_function)?;
+    let record = normalized_foreign_call_record(target, instruction, kind, foreign_calls)?;
     let views = operand_views(machine);
     let accesses = machine
         .operands
@@ -1211,7 +1210,7 @@ mod tests {
             selected,
             machine,
             physical,
-            &selected_function(),
+            &selected_function().normalized_foreign_calls,
             address,
             encoded,
         )

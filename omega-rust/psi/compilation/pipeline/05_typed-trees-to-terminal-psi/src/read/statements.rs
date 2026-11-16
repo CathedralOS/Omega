@@ -37,6 +37,9 @@ impl Program<'_> {
                 Unserved::Statement("call occurrence does not name a call statement"),
             ));
         };
+        if call.runtime_call.is_none() {
+            self.bound_target(id, call.target_symbol)?;
+        }
         let source = self.authored_node(
             id,
             typed_trees::SourceNode::Statement(handle),

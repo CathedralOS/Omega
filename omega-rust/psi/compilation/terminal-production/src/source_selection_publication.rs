@@ -1569,6 +1569,15 @@ impl<'source> Declarations<'source> {
                 identity: intrinsic_identity(&member, "builtin-type-member-v1:")?,
             });
         }
+        if let Some(declaration) = self.typed.symbols.fixed_core_declaration_for_symbol(symbol) {
+            // Kernel vocabulary is installed at exact root slots. It has no
+            // authored source/package and grants no invocation or proof rule.
+            let ordinal = u8::try_from(declaration.ordinal())
+                .map_err(|_| refused("fixed core declaration exceeds its closed ordinal"))?;
+            return Ok(SelectionReference::Intrinsic {
+                identity: intrinsic_identity(&ordinal, "fixed-core-declaration-v1:")?,
+            });
+        }
         match self.typed.symbols.get(symbol).kind {
             SymbolKind::Parameter
             | SymbolKind::Local
@@ -1591,6 +1600,96 @@ impl<'source> Declarations<'source> {
 #[cfg(test)]
 mod symbol_rows_tests {
     use super::*;
+
+    #[test]
+    fn fixed_kernel_references_keep_their_slots_without_authored_provenance() {
+        use symbols::{FixedCoreDeclaration, SymbolNameRef, SymbolTableBuilder};
+        let mut builder = SymbolTableBuilder::default();
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let children = builder.insert_children(
+            root,
+            symbols::builtin_type_symbols()
+                .into_iter()
+                .chain(symbols::builtin_function_symbols())
+                .chain(symbols::fixed_core_declaration_symbols())
+                .chain([(
+                    SymbolKind::MathematicalDefinition,
+                    SymbolNameRef::Static("core::Identity"),
+                )]),
+        );
+        let counterfeit = children.handle_at(children.count() - 1);
+        let typed = TypedTrees {
+            symbols: builder.finish(),
+            ..Default::default()
+        };
+        let count = typed.symbols.symbols().nodes().len();
+        let mut declarations = Declarations {
+            typed: &typed,
+            build_entry_source: None,
+            ids: SymbolRows::new(count),
+            identities: SymbolRows::new(count),
+            contracts: SymbolRows::new(count),
+            sources: Vec::new(),
+        };
+        let mut output = SelectionQuestions::default();
+        let mut identities = std::collections::BTreeSet::new();
+        for declaration in FixedCoreDeclaration::ALL {
+            let symbol = typed
+                .symbols
+                .fixed_core_declaration_symbol(declaration)
+                .unwrap();
+            let selected = declarations
+                .symbol_reference(
+                    &mut output,
+                    root,
+                    symbol,
+                    StaticArgumentRole::ValueDependency,
+                )
+                .unwrap();
+            let SelectionReference::Intrinsic { identity } = &selected else {
+                panic!("fixed vocabulary became an authored declaration");
+            };
+            assert!(identity.starts_with("fixed-core-declaration-v1:"));
+            assert!(identities.insert(identity.clone()));
+            assert_eq!(
+                declarations
+                    .symbol_reference(
+                        &mut output,
+                        root,
+                        symbol,
+                        StaticArgumentRole::ValueDependency
+                    )
+                    .unwrap(),
+                selected
+            );
+            let stale = SymbolHandle::from_parts(symbol.arena_index(), symbol.generation() + 1);
+            assert!(
+                declarations
+                    .symbol_reference(
+                        &mut output,
+                        root,
+                        stale,
+                        StaticArgumentRole::ValueDependency
+                    )
+                    .is_err()
+            );
+        }
+        let error = declarations
+            .symbol_reference(
+                &mut output,
+                root,
+                counterfeit,
+                StaticArgumentRole::ValueDependency,
+            )
+            .unwrap_err();
+        assert!(
+            error
+                .message
+                .contains("no retained source/package provenance")
+        );
+        assert!(declarations.sources.is_empty());
+        assert!(output.declarations.is_empty());
+    }
 
     #[test]
     fn source_declaration_rows_keep_symbol_generations_and_arena_bounds() {

@@ -41,7 +41,7 @@ pub(in crate::function_fragments) fn establish_geometry(
     let current = source.source().source().source().source();
     let abstracted = current.optimized_target().optimized().plan();
     let targeted = crate::retained_working_program::target_operations(source);
-    let selected = current.selected_plan();
+    let selected = current.physical_program();
     if !targeted.functions.iter().any(|function| {
         function.graph.operations().any(|operation| {
             matches!(
@@ -100,14 +100,16 @@ pub(in crate::function_fragments) fn admit(
     let current = source.source().source().source().source();
     let abstract_plan = current.optimized_target().optimized().plan();
     privileged_termination::validate(
-        current.optimized_target().installed_entry_execution(),
-        current.selected_plan(),
+        current.installation_authority().installed_entry_execution(),
+        current.physical_program(),
     )?;
     placed_reference::backing_geometry::validate_activation_residence(
         abstract_plan,
-        current.selected_plan(),
+        current.physical_program(),
         crate::retained_working_program::target_operations(source),
-        current.optimized_target().installed_stack_requirements(),
+        current
+            .installation_authority()
+            .installed_stack_requirements(),
     )?;
     let geometry_graph = abstract_plan
         .operations()
@@ -127,7 +129,7 @@ pub(in crate::function_fragments) fn admit(
     let mut geometry = geometry_graph.as_ref().map(|graph| {
         placed_reference::backing_geometry::BackingGeometry::new(
             abstract_plan,
-            current.selected_plan(),
+            current.physical_program(),
             crate::retained_working_program::target_operations(source),
             graph,
         )
@@ -142,7 +144,7 @@ pub(in crate::function_fragments) fn admit(
         let (abstracted, targeted) = audited_function(source, fragment.machine)?;
         let unit = matches!(abstracted.result, AbstractFunctionResult::Unit);
         let selected = current
-            .selected_plan()
+            .physical_program()
             .function(fragment.machine)
             .ok_or(Error::Mismatch("missing selected function"))?;
         let interrupt_replay = static_interrupts::PreparedHelperReplay::new(selected, targeted)?;
@@ -150,8 +152,10 @@ pub(in crate::function_fragments) fn admit(
         let installed_scopes = installed_interrupts::validate(
             source.lowering_facts().module(),
             source.lowering_facts().installed_interrupts(),
-            current.optimized_target().installed_stack_requirements(),
-            current.selected_plan().target,
+            current
+                .installation_authority()
+                .installed_stack_requirements(),
+            current.physical_program().target,
             targeted,
             selected,
         )?;

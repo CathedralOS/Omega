@@ -5,7 +5,7 @@
 use semantic_vocabulary::{MachineId, StructuralTypeId};
 use terminal_check_tables::Checked;
 use terminal_psi::{CallingAbiStorage, CallingRuntimeFormal, CallingSignatureTelescope};
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::TypeReferenceNode;
 
 use super::{Program, services};
 use crate::body::{StorageShape, ValueType};
@@ -176,9 +176,9 @@ impl Program<'_> {
                             typed_trees::type_system::source_projections::substituted_type_reference(
                                 typed, reference, &bindings,
                             );
-                        // The shared ABI reader retains the complete direct
-                        // carrier and its callback backing, including a slice
-                        // descriptor rather than the unborrowed slice referent.
+                        // Both publications describe the same declared formal.
+                        // Keep its canonical direct carrier, including borrowed
+                        // slice descriptors and their callback backing.
                         parameters.push(
                             self.calling_abi_parameter(context, reference)
                                 .map_err(|reason| services::unavailable(context, reason))?,
@@ -219,7 +219,10 @@ impl Program<'_> {
                                 projection.result,
                                 &bindings,
                             );
-                        Some(self.metadata_storage(context, reference)?)
+                        Some(
+                            self.calling_abi_storage(context, reference)
+                                .map_err(|reason| services::unavailable(context, reason))?,
+                        )
                     };
                     let storage = CallingAbiStorage {
                         parameters,
@@ -337,27 +340,5 @@ impl Program<'_> {
         self.scope = previous_scope;
         self.lifetime_owner = previous_owner;
         result
-    }
-
-    fn metadata_storage(
-        &mut self,
-        context: MachineId,
-        reference: TypeReferenceHandle,
-    ) -> Checked<StructuralTypeId> {
-        let value = self.value_type(context, reference)?;
-        // A layout describes the bare storage carrier. The complete authored
-        // qualifications stay on the ABI/source application; no domain
-        // introduction is attached to this physical type identity.
-        let reference = self.metadata_carrier(reference);
-        self.storage_type(context, reference, value)
-    }
-
-    fn metadata_carrier(&self, mut reference: TypeReferenceHandle) -> TypeReferenceHandle {
-        while let TypeReferenceNode::Constrained { base_type, .. } =
-            self.typed.type_reference_table.type_reference(reference)
-        {
-            reference = *base_type;
-        }
-        reference
     }
 }

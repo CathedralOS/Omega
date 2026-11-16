@@ -2304,8 +2304,8 @@ pub(crate) fn intrinsic_boundary_source(
             return Err("intrinsic has no exact entry");
         };
         let (declaration, signature) = typed
-            .bodyless_declaration(symbol)?
-            .ok_or("intrinsic has no bodyless signature")?;
+            .bodyless_machine_signature(symbol)?
+            .ok_or("intrinsic has no exact bodyless machine header")?;
         // The authored machine owns the contracts; its sole generated state
         // supplies the entry identity and runtime telescope independently.
         if declaration != machine.symbol || signature.symbol != declaration {

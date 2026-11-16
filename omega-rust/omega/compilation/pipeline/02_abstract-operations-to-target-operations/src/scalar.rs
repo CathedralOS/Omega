@@ -1356,7 +1356,8 @@ pub(crate) mod element_views {
                                         .checked_mul(capacity)
                                         .and_then(|span| span.checked_add(8))
                                 }
-                                terminal_semantics::CollectionExtent::StoredLength => None,
+                                terminal_semantics::CollectionExtent::StoredLength
+                                | terminal_semantics::CollectionExtent::Parameter { .. } => None,
                             }
                         }) != Some(u64::from(projected_shape.byte_size))
                     }
@@ -1364,7 +1365,8 @@ pub(crate) mod element_views {
                         let carrier_size = match extent_kind {
                             terminal_semantics::CollectionExtent::StoredLength => 16,
                             terminal_semantics::CollectionExtent::Fixed(_) => 8,
-                            terminal_semantics::CollectionExtent::LiveLength { .. } => {
+                            terminal_semantics::CollectionExtent::Parameter { .. }
+                            | terminal_semantics::CollectionExtent::LiveLength { .. } => {
                                 return Err(invalid());
                             }
                         };
@@ -1405,6 +1407,9 @@ pub(crate) mod element_views {
                 }
                 (None, terminal_semantics::CollectionExtent::LiveLength { .. }) => {
                     (8, target_operations::TargetViewExtent::LiveLength)
+                }
+                (None, terminal_semantics::CollectionExtent::Parameter { .. }) => {
+                    return Err(invalid());
                 }
                 (None, terminal_semantics::CollectionExtent::StoredLength) => {
                     (0, target_operations::TargetViewExtent::StoredLength)

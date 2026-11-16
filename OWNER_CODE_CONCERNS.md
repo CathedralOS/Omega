@@ -75,6 +75,13 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Changing storage analysis rebuilds the native compiler
+- Category: Verifying costs more than writing
+- Where: [semantic analysis package](omega-rust/psi/compilation/representations/terminal-psi/semantics/Cargo.toml), [declaration lookup in optimization](omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/src/structural_places.rs#L619), [target descriptor inputs](omega-rust/omega/compilation/representations/target-operations/target-vocabulary/src/descriptor_input.rs)
+- Saw: Changing only the private descriptor replay cache and its error reporting rebuilt 64 packages and took 14m 17s before the original Console test could run. Some native consumers need only declaration or structural-path lookups from the same package; ownership analysis and explicit image validators genuinely need the full analysis. `target-operations` also declares an unused direct dependency, although removing it alone leaves a transitive dependency. Source and build evidence remains in claim `18e85a23de177c780000000018e83683`, under `post-3776-original-binding-control-49/native-terminal-semantics-coupling.json`.
+- Cost: Edits to the analysis invalidate native consumers of small lookup functions. Move the declaration and path queries out of the full analysis crate, keep each judgment implemented once, and remove unused direct dependencies. Measure the same Console edit/build/run loop before claiming a build-time improvement.
+- Reported: 2026-11-16, Codex, while carrying the original Console program through checking and execution
+
 ### Source correspondence repeats signature searches
 - Category: Verifying costs more than writing
 - Where: [source correspondence](omega-rust/psi/compilation/representations/typed-trees/src/service_declarations.rs#L497)
@@ -130,13 +137,6 @@ framework or a list of unimplemented features.
 - Saw: Replacing symbols on a shared typed tree can copy side records, normalized identities and owned containers even with no bodies selected. The [call and machine record repair](https://github.com/CathedralOS/Omega/pull/3747) measured empty activation and two nonempty batches on both Windows x86-64 routes. Empty activation requested 2,182,456 bytes in 12,456 allocations and cloned 36 arenas per route on fixed `570d707` with the repair and observer (opt-level 1). See the [data-child repair](https://github.com/CathedralOS/Omega/pull/3720) for the earlier baseline.
 - Cost: Share immutable storage where measurements still show copies. Limit writes to changed records or new batches. Preserve source application preparation, projection, authority checks, and signature and inferred-summary dependencies. Re-measure empty activation and nonempty completion on both [scalar and borrowed-root workloads](wiki/drafts/measurements/selected_body_copies.md#workloads-and-boundary), counting copied storage and new output separately. See the [body ownership design](wiki/drafts/designs/compiler_work_ownership.md#representation-and-execution-contract).
 - Reported: 2026-11-15, Codex, while measuring continuation construction and body completion.
-
-### Image emission gets installation records from stage 02's output
-- Category: knowledge crossing a boundary
-- Where: [handler stack setup](omega-rust/omega/compilation/native-compiler/src/realization/object_emission.rs#L102), [entry execution setup](omega-rust/omega/compilation/native-compiler/src/realization/callback_thunks.rs#L315), [selection input](omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L112), [physical entry requirements](omega-rust/omega/compilation/backend/images/image-emission/src/entries.rs#L4824)
-- Saw: After preparation, the driver stores entry and stack records in stage 02's output and reads them back to build [`BoundInstallations`](omega-rust/omega/compilation/backend/runtime/bound-installations/src/lib.rs) for selection. Image emission also reaches back into stage 02 for stack requirements.
-- Cost: Bind the records once after admission and pass them beside the plan to both consumers. Remove both setters and preserve the installation's program, target and entry checks.
-- Reported: 2026-11-16, Claude Code, while auditing the stage 02 to stage 03 boundary.
 
 ### Later machine forms embed records from the prepared plan
 - Category: knowledge crossing a boundary

@@ -241,6 +241,54 @@ machine main() { let r: u64 = pick(true); }
 }
 
 #[test]
+fn shift_count_literals_retain_their_own_integer_carrier() {
+    for (body, expected) in [
+        (
+            "let value: i64 = 0i64 - 1i64; value >> 63u64",
+            semantic_vocabulary::IntegerValue::Signed(-1),
+        ),
+        (
+            "let value: u64 = 1u64; value << 3u8",
+            semantic_vocabulary::IntegerValue::Unsigned(8),
+        ),
+    ] {
+        let result_type = if matches!(expected, semantic_vocabulary::IntegerValue::Signed(_)) {
+            "i64"
+        } else {
+            "u64"
+        };
+        let source = format!("machine build_entry() -> {result_type} {{ {body} }}");
+        let positive = judge_build(&source).unwrap();
+        let RouteVerdict::Accepted(accepted) = positive else {
+            panic!("{positive:?}")
+        };
+        let publication = accepted.publish_invocation().unwrap();
+        let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+        let mut instance = program.instantiate(Default::default()).unwrap();
+        let status = instance
+            .invoke(&mut terminal_work::WorkMeter::with_budget(100))
+            .unwrap();
+        assert!(
+            matches!(status,
+            terminal_interpreter::TerminalExecutionStatus::Complete(
+                terminal_interpreter::TerminalExecutionResult::Scalar(
+                    terminal_interpreter::TerminalScalarValue::Integer { value, .. }
+                )
+            ) if value == expected),
+            "{status:?}"
+        );
+    }
+    let negative =
+        judge_build("machine build_entry() -> u64 { let value: u64 = 1u64; value << 64u8 }")
+            .unwrap();
+    assert!(
+        matches!(negative, RouteVerdict::Rejected { ref unproved, .. }
+        if unproved.iter().any(|proof| matches!(proof.kind, ObligationKind::OperationSafety { .. }))),
+        "{negative:?}"
+    );
+}
+
+#[test]
 fn nested_conjunction_and_disjunction_guards_refute_untaken_boolean_join_arms() {
     const SOURCE: &str = r#"
 public machine check(word: u64, size: u64, align: u64) -> u64 {

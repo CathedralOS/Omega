@@ -179,14 +179,9 @@ pub(crate) fn declare<'a, 'b>(
                                 Unserved::Type("record field of a later record type"),
                             ));
                         }
-                        // A stored byte view is a byte field of its record,
-                        // not a nested value of a view type
-                        // (structural_access.md, "Store vocabulary": the
-                        // field is replaced by `StructuralByteViewFieldStore`
-                        // and "Zero-initialized storage holds the empty
-                        // shared view"). Only the shared view is storable:
-                        // "Qualified mutable, write-only, and
-                        // access-unspecified view fields remain unsupported".
+                        // Shared byte views use the inline byte-field vocabulary.
+                        // An exclusive view instead transports its affine permission
+                        // as an ordinary structural descriptor, like a typed view.
                         match types.get(nested).map(|row| &row.shape) {
                             Some(crate::StorageShape::AtomicCell(cell)) => {
                                 inline_carrier = Some(nested);
@@ -210,6 +205,15 @@ pub(crate) fn declare<'a, 'b>(
                                         predicates: field.byte_predicates,
                                     }
                                 }
+                            }
+                            Some(crate::StorageShape::ByteSequence(
+                                terminal_psi::ByteSequenceCarrier::BorrowedView {
+                                    access: Some(StructuralAccess::MutableBorrow),
+                                },
+                            )) if field.byte_predicates.is_empty()
+                                && field.value_type.qualification() == Qualification::NONE =>
+                            {
+                                StructuralFieldType::Structural(nested)
                             }
                             Some(crate::StorageShape::ByteSequence(_)) => {
                                 return Err(refuse(
@@ -757,7 +761,7 @@ mod byte_domain_identity_tests {
     }
 }
 
-/// The one view a record field stores: a shared borrowed byte view.
+/// The view represented by an inline byte field: a shared borrowed view.
 fn is_stored_view(carrier: terminal_psi::ByteSequenceCarrier) -> bool {
     carrier
         == terminal_psi::ByteSequenceCarrier::BorrowedView {
@@ -1471,15 +1475,7 @@ impl<'a> Lowering<'a> {
                 if let StorageShape::PrimitiveScalar { scalar_type, .. } = data.shape {
                     return self.initial_content(place, scalar_type);
                 }
-                if matches!(
-                    data.shape,
-                    StorageShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
-                        access: None
-                            | Some(
-                                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-                            ),
-                    })
-                ) {
+                if data.shape.length_operation().is_some() {
                     let extent = self.project(place, Segment::Extent)?;
                     let scalar_type = ScalarType::Integer(
                         semantic_vocabulary::IntegerType::new(
@@ -1622,15 +1618,12 @@ impl<'a> Lowering<'a> {
                     selector,
                     fixed,
                 } => {
-                    let (_, _, CollectionExtent::Fixed(length)) = self.array_element(owner)? else {
-                        return Err(
-                            self.internal("sequence projection needs its actual current length")
-                        );
-                    };
-                    if fixed.is_some_and(|index| index >= length) {
-                        return Err(
-                            self.internal("a captured fixed index exceeds its array extent")
-                        );
+                    let (_, _, extent) = self.array_element(owner)?;
+                    if let Some(index) = fixed
+                        && !matches!(extent, CollectionExtent::Fixed(length) if index < length)
+                    {
+                        return Err(self
+                            .internal("a captured fixed index exceeds its declared array extent"));
                     }
                     let segment = match fixed {
                         Some(index) => StructuralPathSegment::FixedIndex(index),
@@ -1686,6 +1679,15 @@ impl<'a> Lowering<'a> {
                 qualification,
                 length: terminal_psi::ArrayExtent::Literal(length),
             } => Ok((element, qualification, CollectionExtent::Fixed(length))),
+            StorageShape::FixedArray {
+                element,
+                qualification,
+                length: terminal_psi::ArrayExtent::Parameter { owner, value },
+            } => Ok((
+                element,
+                qualification,
+                CollectionExtent::Parameter { owner, value },
+            )),
             StorageShape::ElementView {
                 element,
                 qualification,
@@ -2897,6 +2899,8 @@ impl<'a> Lowering<'a> {
     ) -> Checked<Lent> {
         let lent_access =
             borrowed_access(access).ok_or_else(|| self.internal("a write-only loan"))?;
+        let (root, steps, exact) =
+            self.capture_view_element(root, steps, exact, lent_access, place.source)?;
         let value_type = place
             .result
             .ok_or_else(|| self.internal("a loan of a Unit value"))?;
@@ -3639,14 +3643,13 @@ impl<'a> Lowering<'a> {
             .map(Reached::Value)
     }
 
-    fn read_projected_scalar(
+    /// Split a collection path at its live view descriptor. Scalar reads and
+    /// writes use the same descriptor prefix and static path inside the element.
+    fn element_view_projection(
         &mut self,
         root: PlaceId,
-        leaf: ExactPlaceId,
         steps: &[Step],
-        scalar_type: ScalarType,
-        source: SourceOrigin,
-    ) -> Checked<Value> {
+    ) -> Checked<Option<(Located, ValueId, usize)>> {
         for (position, step) in steps.iter().enumerate() {
             if let Step::Index {
                 owner, selector, ..
@@ -3656,20 +3659,43 @@ impl<'a> Lowering<'a> {
                     StorageShape::ElementView { .. }
                 )
             {
-                let (descriptor, element) = steps.split_at(position);
+                let descriptor = &steps[..position];
                 let mut place = self.exact_root(root)?;
                 for step in descriptor {
                     place = self.step(place, *step)?;
                 }
-                let view = Located {
-                    root,
-                    place,
-                    path: descriptor.to_vec(),
-                    record: owner,
-                    fresh: false,
-                };
-                return self.read_element_view(&view, selector, &element[1..], scalar_type, source);
+                return Ok(Some((
+                    Located {
+                        root,
+                        place,
+                        path: descriptor.to_vec(),
+                        record: owner,
+                        fresh: false,
+                    },
+                    selector,
+                    position,
+                )));
             }
+        }
+        Ok(None)
+    }
+
+    fn read_projected_scalar(
+        &mut self,
+        root: PlaceId,
+        leaf: ExactPlaceId,
+        steps: &[Step],
+        scalar_type: ScalarType,
+        source: SourceOrigin,
+    ) -> Checked<Value> {
+        if let Some((view, index, position)) = self.element_view_projection(root, steps)? {
+            return self.read_element_view(
+                &view,
+                index,
+                &steps[position + 1..],
+                scalar_type,
+                source,
+            );
         }
         self.name_contents(leaf, ValueType::Scalar(scalar_type, Qualification::NONE))?;
         self.name_passed_clauses(root, steps)?;
@@ -4119,6 +4145,8 @@ impl<'a> Lowering<'a> {
         // Capturing visits the destination before the right-hand side and
         // retains each selector's exact SSA value in the existing Step roster.
         let (root, steps, place, expected) = continuing!(self.capture_place(destination));
+        let (root, steps, place) =
+            self.capture_view_element(root, steps, place, StructuralAccess::MutableBorrow, source)?;
         if steps.is_empty()
             && matches!(expected, ValueType::Record(_, _, _))
             && !self.borrowed_roots.contains(&root)
@@ -4226,6 +4254,70 @@ impl<'a> Lowering<'a> {
                 .map(Reached::Value)
             }
         }
+    }
+
+    /// Capture an indexed backing element before later operands execute. Its
+    /// borrowed block parameter retains the requested access, not a copy of the
+    /// descriptor slot. Bounds belong to that edge, so a later descriptor or
+    /// selector replacement cannot redirect the captured store or loan.
+    fn capture_view_element(
+        &mut self,
+        root: PlaceId,
+        steps: Vec<Step>,
+        exact: ExactPlaceId,
+        access: StructuralAccess,
+        source: SourceOrigin,
+    ) -> Checked<(PlaceId, Vec<Step>, ExactPlaceId)> {
+        let Some((view, _, position)) = self.element_view_projection(root, &steps)? else {
+            return Ok((root, steps, exact));
+        };
+        let (record, qualification, _) = self.array_element(view.record)?;
+        let block = self.block(source);
+        let site = ExecutionSite::Block(self.current()?);
+        // The length observation and the selected edge use the identical
+        // descriptor prefix and evaluated selector, with no intervening effect.
+        self.measured_view(&view, source)?;
+        let path = self.storage_path(&steps[..=position], site, source)?;
+        let (qualifications, projected_qualifications) = self.memberships(record, qualification)?;
+        let (captured, mut exact) = self.root(
+            StructuralPlaceKind::BlockParameter { block, position: 0 },
+            record,
+        )?;
+        let missing = self.internal("a destination block is absent");
+        self.blocks
+            .get_mut(block)
+            .ok_or(missing)?
+            .structural_parameters
+            .push(terminal_psi::StructuralParameterDeclaration {
+                place: captured,
+                position: 0,
+                structural_type: record,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                access,
+                qualifications,
+                projected_qualifications,
+                additional_input_qualifications: Vec::new(),
+            });
+        self.jump_with_structural(
+            block,
+            Vec::new(),
+            vec![StructuralArgument {
+                place: root,
+                path,
+                access,
+            }],
+            source,
+        )?;
+        self.enter(block);
+        self.borrowed_roots.push(captured);
+        if access == StructuralAccess::MutableBorrow {
+            self.exclusive_roots.push(captured);
+        }
+        let suffix = steps[position + 1..].to_vec();
+        for step in &suffix {
+            exact = self.step(exact, *step)?;
+        }
+        Ok((captured, suffix, exact))
     }
 
     /// Capture the destination before evaluating its index and replacement.
@@ -4377,6 +4469,22 @@ impl<'a> Lowering<'a> {
                     prefix.pop();
                 }
                 return Ok(());
+            }
+            StorageShape::FixedArray {
+                element,
+                length: terminal_psi::ArrayExtent::Parameter { .. },
+                qualification: Qualification::NONE,
+            } => {
+                let element = self.record_type(element)?;
+                if element.requires.is_empty()
+                    && matches!(
+                        element.shape,
+                        StorageShape::PrimitiveScalar { policy: None, .. }
+                    )
+                {
+                    return Ok(());
+                }
+                return Err(self.internal("symbolic array zero requires an ungated scalar element"));
             }
             StorageShape::FixedArray { .. } => {
                 return Err(self.internal("zero array without a closed extent"));

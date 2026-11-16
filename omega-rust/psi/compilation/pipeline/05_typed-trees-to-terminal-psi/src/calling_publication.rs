@@ -562,24 +562,53 @@ mod tests {
                 identity: semantic_vocabulary::NativeParameterId::new(1).unwrap(),
                 native_ordinal: 0,
             });
-        let mut missing = complete.clone();
-        missing.storage.as_mut().unwrap().parameters[0].callback_backing = None;
-        let error =
-            join_abi_declarations(context, &identities, &[flag_type], &[complete], &[missing])
-                .unwrap_err();
-        for expected in [
-            "storage parameters",
-            "argument 1",
-            "test::flag",
-            "scalar Boolean",
-            "callback carrier absent",
-        ] {
-            assert!(error.detail.contains(expected), "{error:?}");
-        }
-        assert!(
-            error.detail.len() < 1500,
-            "the error must describe only the first argument"
+        let types = [flag_type];
+        assert_eq!(
+            join_abi_declarations(
+                context,
+                &identities,
+                &types,
+                std::slice::from_ref(&complete),
+                std::slice::from_ref(&complete),
+            )
+            .unwrap(),
+            [complete.clone()],
         );
+        for changed_field in 0..3 {
+            let mut conflicting = complete.clone();
+            let parameter = &mut conflicting.storage.as_mut().unwrap().parameters[0];
+            match changed_field {
+                0 => parameter.callback_backing = None,
+                1 => {
+                    parameter.structural_type =
+                        semantic_vocabulary::StructuralTypeId::new(2).unwrap()
+                }
+                _ => parameter.access = terminal_psi::StructuralAccess::SharedBorrow,
+            }
+            let error = join_abi_declarations(
+                context,
+                &identities,
+                &types,
+                std::slice::from_ref(&complete),
+                &[conflicting],
+            )
+            .unwrap_err();
+            assert!(error.detail.contains("storage parameters"), "{error:?}");
+            if changed_field == 0 {
+                for expected in [
+                    "argument 1",
+                    "test::flag",
+                    "scalar Boolean",
+                    "callback carrier absent",
+                ] {
+                    assert!(error.detail.contains(expected), "{error:?}");
+                }
+            }
+            assert!(
+                error.detail.len() < 1500,
+                "the error must describe only the first argument"
+            );
+        }
         for (retained, selected_rows) in [
             (vec![selected.clone(), selected.clone()], Vec::new()),
             (Vec::new(), vec![selected.clone(), selected.clone()]),

@@ -676,26 +676,24 @@ layout and monomorphization."), so the declaration is one record type
 whatever lifetimes a use applies it at, and a formal, local or result may
 name it bare. What a lifetime relates is a stored view ("A lifetime relates a
 borrowed result or stored view to storage that remains valid for its use").
-The one view a field may store is a byte view, `name: &'a [u8]`, and its type
-is keyed by the region it names under the declaration that binds it, so a
-view of any other region, an elided one included, is another type: it cannot
-be stored in the field or returned as it (`typing assigned value type`).
-In the lowered form the member is a byte field of its record
-(`StructuralFieldType::ByteSequence`, with the view type as the field's
-inline carrier), not a nested value of the view type
-([structural access](../../../../../wiki/spec/terminal-psi/structural_access.md#store-vocabulary)):
-an assignment to it is `StructuralByteViewFieldStore` from the root that
-holds the source descriptor, a record literal takes the view as that field's
-operand, a copy out of it is the ordinary leaf copy, and a local declared
-without an initializer holds the empty shared view there. A field that
-stores an exclusive view is refused (`stored view that is not a shared byte
-view`).
-Naming the data bare therefore relates nothing. The source-record mapping a
-product keeps belongs to the declaration and holds no lifetime argument. It
-keeps the type occurrence the record was read from, bare or applied at
-lifetimes. It keeps none for a declaration with no type parameter that the
-program declares but never names as a type, because the declaration alone
-identifies that record. Any other reference field is refused as `type reference`.
+View values retain their complete lifetime tuples separately from their storage
+rows. Erasing lifetimes in the lowered form never permits storing a view of an
+incompatible region. Shared byte views use the inline byte-field representation
+(`StructuralFieldType::ByteSequence`, with the view type as its inline carrier).
+Replacing that descriptor uses `StructuralByteViewFieldStore`; zero initialization
+supplies the empty shared view, which borrows no backing.
+
+Unqualified exclusive byte views and typed views remain ordinary structural
+fields. They transport affine permission descriptors, not backing contents.
+Keeping an incoming mutable view in a local aggregate establishes a child
+reborrow; it preserves the incoming descriptor and keeps its backing loan live.
+Qualified mutable, write-only and access-unspecified byte-view fields remain
+unsupported. Primitive and plain-record reference fields likewise use structural
+descriptor types, with their own loan and restoration checks.
+
+The source-record mapping belongs to the declaration, while each value carries
+its actual lifetime arguments. It retains the source type occurrence, bare or
+applied, so source correspondence can check the declared field and carrier types.
 The reader checks the declaration and each application itself, because the
 stage that did so was removed ("They must match the declaration's lifetime
 arity and use binders declared in the lexical owner. Duplicate binders and

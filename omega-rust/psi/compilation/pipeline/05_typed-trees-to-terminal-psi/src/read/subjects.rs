@@ -352,15 +352,18 @@ impl Program<'_> {
                 if self.select_native_provider(entry, machine.symbol)? {
                     return Ok(());
                 }
-                self.admitted_declarations.include(machine.symbol);
                 // A generic machine is checked once as written, as its own
                 // check form, not as a closed body
                 // (`Elaboration::generic_templates`). One whose only
                 // parameters are implementations is generic too.
                 if !self.is_generic_template(machine) {
+                    self.admitted_declarations.include(machine.symbol);
                     let id = self.subject_machine(machine.symbol)?;
                     self.subject_machines.push(id);
                 } else {
+                    // Its own form admits the source after actually reading
+                    // its signature and body. This closure has no operator
+                    // answers for that separate reading of the template.
                     self.generic_templates.push(machine.symbol);
                 }
                 Ok(())

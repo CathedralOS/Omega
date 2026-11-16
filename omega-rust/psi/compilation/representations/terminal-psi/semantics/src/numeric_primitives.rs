@@ -733,7 +733,17 @@ fn coordinates(
                     .ok_or("numeric declaration has no entry member")?
             ))
         },
-        format!("toolchain::{declaration}"),
+        if kind == semantic_vocabulary::BoundaryRequirementKind::Machine {
+            format!(
+                "toolchain::{}",
+                language_semantics::type_identity::encoding::callable_declaration_path(
+                    declaration,
+                    &callable
+                )
+            )
+        } else {
+            format!("toolchain::{declaration}")
+        },
         callable,
         declared(format),
         qualify(declared(result)),

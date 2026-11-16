@@ -3,6 +3,104 @@ use semantic_vocabulary::{IntegerSign, OperationId};
 use terminal_check_tables::values::{ValueOrigin, ValueRow};
 
 #[test]
+fn symbolic_ieee_bounds_exclude_their_exact_crash_complements() {
+    use semantic_vocabulary::{IeeeFloatComparisonKind as Kind, IeeeFloatFormat, IeeeFloatValue};
+    let mut activity = ProofSearchActivity::default();
+    for format in [IeeeFloatFormat::Binary32, IeeeFloatFormat::Binary64] {
+        let scalar = ScalarType::IeeeFloat(format);
+        let mut values = IdTable::default();
+        let id = values.push(ValueRow {
+            scalar_type: scalar,
+            origin: ValueOrigin::MachineParameter { position: 0 },
+            rigid: None,
+        });
+        let value = ScalarTerm::value(id, scalar);
+        let zero = ScalarTerm::IeeeFloatLiteral(match format {
+            IeeeFloatFormat::Binary32 => IeeeFloatValue::Binary32(0),
+            IeeeFloatFormat::Binary64 => IeeeFloatValue::Binary64(0),
+        });
+        let one = ScalarTerm::IeeeFloatLiteral(match format {
+            IeeeFloatFormat::Binary32 => IeeeFloatValue::Binary32(0x3f80_0000),
+            IeeeFloatFormat::Binary64 => IeeeFloatValue::Binary64(0x3ff0_0000_0000_0000),
+        });
+        let relation = |kind, left, right| Proposition::ScalarIeeeFloatComparison {
+            kind,
+            format,
+            left,
+            right,
+        };
+        let assumptions = [
+            relation(Kind::Equal, value.clone(), value.clone()),
+            relation(Kind::LessOrEqual, zero.clone(), value.clone()),
+            relation(Kind::LessThan, value.clone(), one.clone()),
+        ];
+        let failures = [
+            relation(Kind::NotEqual, value.clone(), value.clone()),
+            relation(Kind::LessThan, value.clone(), zero.clone()),
+            relation(Kind::LessOrEqual, one, value.clone()),
+        ];
+        let context = PropositionContext::from_value_types([(id, scalar)]).unwrap();
+        for (index, failure) in failures.iter().enumerate() {
+            let goal = Proposition::Implication {
+                premise: Box::new(failure.clone()),
+                conclusion: Box::new(Proposition::Falsehood),
+            };
+            // Equality alone is the Eq/Ne premise; the bounds are separate
+            // cases, since their positive order already excludes NaN.
+            let selected = if index == 0 {
+                &assumptions[..1]
+            } else {
+                &assumptions[..]
+            };
+            let proof = Prover::new(&context, selected, &[], &values, &mut activity)
+                .prove(&goal)
+                .unwrap();
+            let accepted =
+                proof_admission::accept_certificate(&context, &goal, selected, &[], &proof)
+                    .unwrap();
+            assert!(accepted.semantic_axioms.is_empty());
+            assert!(accepted.assumptions.iter().any(|used| used.index == index));
+            let mut missing = selected.to_vec();
+            missing.remove(index);
+            assert!(
+                Prover::new(&context, &missing, &[], &values, &mut activity)
+                    .prove(&goal)
+                    .is_err()
+            );
+        }
+        // An exact logical complement can refute its matching predicate,
+        // but does not establish the reversed positive order for NaN.
+        let unordered_lower = relation(Kind::NotLessThan, value.clone(), zero.clone());
+        let goal = Proposition::Implication {
+            premise: Box::new(relation(Kind::LessThan, value.clone(), zero.clone())),
+            conclusion: Box::new(Proposition::Falsehood),
+        };
+        let proof = Prover::new(
+            &context,
+            std::slice::from_ref(&unordered_lower),
+            &[],
+            &values,
+            &mut activity,
+        )
+        .prove(&goal)
+        .unwrap();
+        proof_admission::accept_certificate(
+            &context,
+            &goal,
+            std::slice::from_ref(&unordered_lower),
+            &[],
+            &proof,
+        )
+        .unwrap();
+        assert!(
+            Prover::new(&context, &[unordered_lower], &[], &values, &mut activity)
+                .prove(&relation(Kind::LessOrEqual, zero, value))
+                .is_err()
+        );
+    }
+}
+
+#[test]
 fn false_ieee_assumptions_use_checked_contradiction_with_the_actual_equation() {
     use semantic_vocabulary::{IeeeFloatComparisonKind, IeeeFloatFormat, IeeeFloatValue};
     let mut activity = ProofSearchActivity::default();

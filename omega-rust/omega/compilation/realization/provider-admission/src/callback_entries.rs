@@ -311,11 +311,13 @@ impl<'a> PreparedEntries<'a> {
             })
             .collect::<Result<Vec<_>, _>>()?;
         Ok(AdmittedCallbackEntry {
-            psi: self.input.plan().psi,
-            target: self.request.target(),
-            machine: body.id,
-            inbound: inbound.plan.plan().clone(),
-            inbound_ordinals,
+            contract: std::sync::Arc::new(bound_installations::BoundCallbackEntry {
+                psi: self.input.plan().psi,
+                target: self.request.target(),
+                machine: body.id,
+                inbound: inbound.plan.plan().clone(),
+                inbound_ordinals,
+            }),
         })
     }
 }
