@@ -4888,6 +4888,9 @@ pub mod expression {
         pub target_type: crate::types::TypeReferenceHandle,
         pub result_type: crate::types::TypeReferenceHandle,
         pub target_label: HandleSpan<Identifier>,
+        /// The written policy, or Exact when none was named. An Entry
+        /// preserves this even for removal; result_type records the
+        /// resulting qualification independently.
         pub domain: numerics::arithmetic::ArithmeticDomain,
         pub semantic_domain: HandleSpan<Identifier>,
         pub semantic_domain_arguments: HandleSpan<crate::types::TypeReferenceHandle>,

@@ -27,8 +27,8 @@ re-running the legalization solver.
 We group the target-legal representation into four subordinate owners beneath
 `LegalizedOperationPlan`:
 1. `legality` — checked exact arithmetic operators that retain their semantic integer carrier.
-2. `calls` — structural function signatures, boundary settlements, and call-origin errors.
-3. `control_flow` — saturating and trapping integer forms, scalar instruction graphs, and case
+2. `calls` — re-exports shared structural signatures, boundary settlements, and call-origin errors.
+3. `control_flow` — scalar instruction graphs, shared arithmetic forms, and case
    dispatch edges.
 4. `identity` and `validation` — canonical SHA-256 identity digests (`LegalizedOperationPlanIdentity`)
    and representation-owned call/instruction shape checks.
@@ -65,7 +65,7 @@ pub struct LegalizedOperationPlan {
     /// authority says with what.
     pub installation_operations: Vec<semantic_vocabulary::OperationId>,
     /// Each function's target calling contract, sorted by machine and unique.
-    pub function_abis: Vec<LegalizedFunctionAbi>,
+    pub function_abis: std::sync::Arc<[LegalizedFunctionAbi]>,
     /// Native storage geometry of borrowed boundary inputs and owned roots
     /// reached by foreign calls. The host bridge reads it to borrow guest
     /// values; the plan carries it so nothing reads stage 02's working form.

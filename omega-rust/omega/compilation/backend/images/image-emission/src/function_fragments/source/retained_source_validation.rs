@@ -85,6 +85,79 @@ pub(in crate::function_fragments) fn establish_geometry(
     Ok(())
 }
 
+// Match writer custody once per original/current roster. Ordinary publication
+// reads the located current row; only this audit opens the prepared program.
+type ByteWriterRow = (
+    MachineId,
+    semantic_vocabulary::OperationId,
+    semantic_vocabulary::BoundaryMachineId,
+    target_vocabulary::BoundaryExecutionBinding,
+);
+
+fn validate_byte_writers(
+    prepared: &legalized_operations::LegalizedOperationPlan,
+    current: &post_allocation_machine::PostAllocationMachineProgram,
+) -> Result<(), Error> {
+    use legalized_operations::LegalizedScalarInstructionKind as Prepared;
+    use selected_instructions::SelectedBoundarySettlementPayload as Current;
+    let mut expected: Vec<ByteWriterRow> = prepared
+        .scalar_functions
+        .iter()
+        .flat_map(|function| {
+            function
+                .instructions()
+                .filter_map(move |row| match row.kind {
+                    Prepared::HostedWriteByteI32 {
+                        boundary,
+                        execution,
+                        ..
+                    } => Some((function.machine, row.operation, boundary, execution)),
+                    _ => None,
+                })
+        })
+        .collect();
+    let mut actual: Vec<ByteWriterRow> = current
+        .functions
+        .iter()
+        .flat_map(|function| {
+            function
+                .boundary_settlements
+                .iter()
+                .filter_map(move |row| match row.settlement {
+                    Current::HostedWriteByteI32 {
+                        operation,
+                        boundary,
+                        execution,
+                        ..
+                    } => Some((function.machine, operation, boundary, execution)),
+                    _ => None,
+                })
+        })
+        .collect();
+    validate_byte_writer_rows(&mut expected, &mut actual)
+}
+
+fn validate_byte_writer_rows(
+    expected: &mut [ByteWriterRow],
+    actual: &mut [ByteWriterRow],
+) -> Result<(), Error> {
+    expected.sort_unstable_by_key(|row| (row.0, row.1));
+    actual.sort_unstable_by_key(|row| (row.0, row.1));
+    let duplicate = |rows: &[ByteWriterRow]| {
+        rows.windows(2).any(|pair| {
+            let (machine, operation, _, _) = pair[0];
+            let (next_machine, next_operation, _, _) = pair[1];
+            machine == next_machine && operation == next_operation
+        })
+    };
+    if duplicate(expected) || duplicate(actual) || expected != actual {
+        return Err(Error::Mismatch(
+            "byte output execution differs from its prepared source",
+        ));
+    }
+    Ok(())
+}
+
 pub(in crate::function_fragments) fn admit(
     source: &StagedOptimizedRelocationFreeObjectContainer,
 ) -> Result<(), Error> {
@@ -98,16 +171,28 @@ pub(in crate::function_fragments) fn admit(
         ));
     }
     let current = source.source().source().source().source();
+    let published = current.optimized_target().execution_plan().plan();
+    let contracts = &current.physical_program().contracts;
+    if contracts.profile() != published.profile
+        || contracts.function_abis().as_ref() != published.function_abis.as_ref()
+    {
+        return Err(Error::Mismatch(
+            "current publication contracts differ from the prepared ABI and profile",
+        ));
+    }
+    validate_byte_writers(published, current.physical_program())?;
     let abstract_plan = current.optimized_target().optimized().plan();
     privileged_termination::validate(
-        current.optimized_target().installed_entry_execution(),
+        current.installation_authority().installed_entry_execution(),
         current.physical_program(),
     )?;
     placed_reference::backing_geometry::validate_activation_residence(
         abstract_plan,
         current.physical_program(),
         crate::retained_working_program::target_operations(source),
-        current.optimized_target().installed_stack_requirements(),
+        current
+            .installation_authority()
+            .installed_stack_requirements(),
     )?;
     let geometry_graph = abstract_plan
         .operations()
@@ -150,7 +235,9 @@ pub(in crate::function_fragments) fn admit(
         let installed_scopes = installed_interrupts::validate(
             source.lowering_facts().module(),
             source.lowering_facts().installed_interrupts(),
-            current.optimized_target().installed_stack_requirements(),
+            current
+                .installation_authority()
+                .installed_stack_requirements(),
             current.physical_program().target,
             targeted,
             selected,
@@ -592,4 +679,43 @@ pub(in crate::function_fragments) fn admit(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod byte_writer_tests {
+    use super::*;
+    use target_vocabulary::{
+        BoundaryExecutionBinding, CompilerBuiltinExecution, ProviderExecutionBinding,
+        ProviderPlanReportIdentity,
+    };
+
+    #[test]
+    fn a_current_writer_must_keep_its_exact_source_execution_and_occurrence() {
+        let row = (
+            MachineId::new(1).unwrap(),
+            semantic_vocabulary::OperationId::new(2).unwrap(),
+            semantic_vocabulary::BoundaryMachineId::new(3).unwrap(),
+            BoundaryExecutionBinding::CompilerBuiltin(CompilerBuiltinExecution::HostedWriteByteI32),
+        );
+        assert!(validate_byte_writer_rows(&mut [row], &mut [row]).is_ok());
+        let mut other = row;
+        other.3 = BoundaryExecutionBinding::AdmittedProvider(
+            ProviderExecutionBinding::from_execution_record(
+                ProviderPlanReportIdentity::new(11).unwrap(),
+                12,
+                13,
+                14,
+                15,
+            )
+            .unwrap(),
+        );
+        for mut actual in [vec![other], Vec::new(), vec![row, row]] {
+            assert!(matches!(
+                validate_byte_writer_rows(&mut [row], &mut actual),
+                Err(Error::Mismatch(
+                    "byte output execution differs from its prepared source"
+                ))
+            ));
+        }
+    }
 }

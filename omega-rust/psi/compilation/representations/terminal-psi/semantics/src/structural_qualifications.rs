@@ -1961,7 +1961,7 @@ fn machine_caller_application_matches(
                         }
                     }
                     terminal_psi::ClosedReachParameter::Const { argument: expected } => {
-                        if expected.scalar_index_identity().as_deref() != Some(argument.as_str()) {
+                        if expected.index_identity().as_deref() != Some(argument.as_str()) {
                             return Ok(false);
                         }
                     }

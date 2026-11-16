@@ -20,7 +20,7 @@ tokens or replay evidence a stage keeps beside it.
 | `post-allocation-machine/` | [`PostAllocationMachineProgram`](post-allocation-machine/src/program.rs), including physical choices in [`PostAllocationMachinePlan`](post-allocation-machine/src/lib.rs) | [Omega 06](../pipeline/06_register-homes-to-post-allocation-machine/src/lib.rs) derives physical machine instructions and carries settled preservation requirements; frame planning and Omega 07 read that current form. |
 | `machine-code/` | Encoding, resolved-layout, and emitted-code roots listed below | Omega 07–09 and backend emission share this family while retaining distinct program forms. |
 
-Three more representation packages sit inside their program families:
+Other packages separate shared records and preparation from program roots:
 
 - [`abstract-operations/verified-optimization-input/`](abstract-operations/verified-optimization-input/src/lib.rs)
   owns `VerifiedPsiOptimizationInput`, what Omega 00 passes to Omega 01: the
@@ -48,10 +48,12 @@ Three more representation packages sit inside their program families:
 - [`target-operations/target-vocabulary/`](target-operations/target-vocabulary/src/lib.rs)
   owns the records a target program is made of (call contracts and argument
   sources, boundary realizations, call-site owners, structural homes, value
-  expressions), apart from `TargetOperationPlan` and its control graph.
-  `target-operations` re-exports them. The plan, selected instructions and
+  expressions), shared structural and function calling contracts, scalar
+  operands and their canonical encoders, apart from either target or prepared
+  instruction graphs. Both earlier forms re-export the same records. The plan, selected instructions and
   every later form name them from here, and `check-boundary` refuses any path
-  from those forms to `target-operations` itself.
+  from those forms to `target-operations` itself. Selected and later forms
+  also cannot reach `legalized-operations`, even through a helper crate.
 - [`native-vocabulary/`](native-vocabulary/src/lib.rs) owns the leaf types
   every native form carries unchanged: provenance and work records,
   structural store destinations, access-reference backings, and the pure

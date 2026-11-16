@@ -10,7 +10,7 @@ pub(crate) mod model {
 
     pub(crate) fn legalization_validator_identity() -> OptimizationValidatorIdentity {
         OptimizationValidatorIdentity::from_canonical_bytes(
-            b"omega.terminal-target-legalization-independent-replay.v71",
+            b"omega.terminal-target-legalization-independent-replay.v72",
         )
     }
 
@@ -520,23 +520,81 @@ fn surviving_installations(target: &TargetOperationPlan) -> Vec<semantic_vocabul
     operations
 }
 
-/// Copy each function's target calling contract out of the working program,
-/// sorted by machine. Two functions with one machine refuse the program.
+/// Prepare external entry conversions while the accepted referent types are
+/// available. Unsupported conversions stay explicit for internal-only calls.
+fn entry_scalar_codecs(
+    function: &target_operations::TargetFunction,
+    types: &crate::native_geometry::ModuleTypes,
+) -> Result<Vec<Option<u64>>, LegalizationError> {
+    let fail = |reason| LegalizationError::InstructionMetadata {
+        machine: Some(function.machine),
+        operation: None,
+        reason,
+    };
+    function
+        .graph
+        .call_plan
+        .parameters
+        .iter()
+        .enumerate()
+        .map(|(ordinal, placement)| {
+            if placement.shape.class != calling_conventions::ValueClass::BorrowedScalarReference {
+                return Ok(Some(0));
+            }
+            let structural = ordinal
+                .checked_sub(function.graph.scalar_parameters.len())
+                .and_then(|index| function.graph.parameters.get(index))
+                .ok_or_else(|| fail("scalar entry conversion has no structural parameter"))?;
+            let declaration = native_vocabulary::structural_type_catalog::unique_structural_type(
+                function.graph.structural_types.iter(),
+                structural.structural_type,
+            )
+            .ok_or_else(|| fail("scalar entry conversion has no unique referent declaration"))?;
+            let terminal_psi::StructuralTypeShape::PrimitiveScalar(scalar) = declaration.shape
+            else {
+                return Err(fail("scalar entry conversion referent is not primitive"));
+            };
+            let scalar = types.scalar(scalar).ok_or_else(|| {
+                fail("scalar entry conversion referent is not an accepted closed type")
+            })?;
+            Ok(runtime_abi::ScalarStorageCodec::from_closed_scalar(scalar)
+                .and_then(runtime_abi::ScalarStorageCodec::encode))
+        })
+        .collect()
+}
+
+/// Adopt each function's closed target calling contract in machine order.
+/// Two functions with one machine refuse the program.
 fn function_abis(
     target: &TargetOperationPlan,
-) -> Result<Vec<legalized_operations::LegalizedFunctionAbi>, LegalizationError> {
+    types: &crate::native_geometry::ModuleTypes,
+) -> Result<std::sync::Arc<[legalized_operations::LegalizedFunctionAbi]>, LegalizationError> {
     let mut abis: Vec<_> = target
         .functions
         .iter()
-        .map(|function| legalized_operations::LegalizedFunctionAbi {
-            machine: function.machine,
-            call_plan: function.graph.call_plan.clone(),
-            scalar_parameters: function.graph.scalar_parameters.clone(),
-            structural_parameters: function.graph.parameters.clone(),
-            scalar: function.scalar_abi.clone(),
-            mixed_structural_scalar: function.mixed_structural_scalar_abi.clone(),
+        .map(|function| {
+            let mut abi = legalized_operations::LegalizedFunctionAbi {
+                machine: function.machine,
+                call_plan: function.graph.call_plan.clone(),
+                entry_scalar_codecs: entry_scalar_codecs(function, types)?,
+                scalar_parameters: function.graph.scalar_parameters.clone(),
+                structural_parameters: function.graph.parameters.clone(),
+                scalar: function.scalar_abi.clone(),
+                mixed_structural_scalar: function.mixed_structural_scalar_abi.clone(),
+            };
+            for value in abi.scalar_values_mut() {
+                value.scalar_type = types
+                    .scalar(value.scalar_type)
+                    .ok_or(LegalizationError::InstructionMetadata {
+                        machine: Some(function.machine),
+                        operation: None,
+                        reason: "function ABI scalar is absent from the accepted closed types",
+                    })?
+                    .as_checking();
+            }
+            Ok(abi)
         })
-        .collect();
+        .collect::<Result<Vec<_>, LegalizationError>>()?;
     abis.sort_unstable_by_key(|row| row.machine);
     if abis
         .windows(2)
@@ -544,7 +602,7 @@ fn function_abis(
     {
         return Err(LegalizationError::custody());
     }
-    Ok(abis)
+    Ok(abis.into())
 }
 
 /// Build the execution plan from the target operations stage 02 lowered.
@@ -575,7 +633,7 @@ pub fn prepare_execution_plan(
         entry: target.entry,
         scalar_functions: rosters.scalar_functions,
         installation_operations: surviving_installations(target),
-        function_abis: function_abis(target)?,
+        function_abis: function_abis(target, types)?,
         borrowed_storage_layouts: target.borrowed_storage_layouts.clone(),
     };
     let (callable_invocations, entry_invocations) = callable_invocations
@@ -733,7 +791,7 @@ pub fn verify_execution_plan(
             "borrowed storage geometry differs from the target's",
         ));
     }
-    if plan.function_abis != function_abis(target)? {
+    if plan.function_abis != function_abis(target, &closed_types)? {
         return Err(mismatch(None, "function ABI rows differ from the target's"));
     }
     crate::installed_interrupts::validate_target(

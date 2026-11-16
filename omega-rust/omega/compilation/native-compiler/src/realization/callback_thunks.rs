@@ -302,26 +302,21 @@ fn lower_callback_thunk(
     let installed_plan = prepared_objects
         .installed_plans
         .for_body(settlement, cohort)?;
-    let mut prepared = super::callable_objects::prepare_callable_object(
+    let prepared = super::callable_objects::prepare_callable_object(
         admitted,
         admission,
         request.optimization_selections,
         request.optimization_budget(),
         settlement.artifact,
     )?;
-    if let Some((_, execution)) = &installed_plan {
-        prepared.target = prepared
-            .target
-            .with_installed_entry_execution(execution.clone())
-            .map_err(|reason| realization_error("installed execution", reason))?;
-    }
+    let execution = installed_plan
+        .as_ref()
+        .map(|(_, execution)| execution.clone());
     let requirements =
         prepare_installed_callbacks(request, &prepared.target, prepared_objects, None)?;
-    prepared.target = prepared
-        .target
-        .with_installed_stack_requirements(requirements)
-        .map_err(|reason| realization_error("installed handler stack", reason))?;
-    let projection = super::callable_objects::emit_prepared_callable_object(prepared)?.projection;
+    let projection =
+        super::callable_objects::emit_prepared_callable_object(prepared, execution, requirements)?
+            .projection;
     let emitted = projection.entry_call_plan()?;
     let declared = &settlement.boundary_entry_plan.call;
     if emitted.parameters.len() != declared.parameters.len()

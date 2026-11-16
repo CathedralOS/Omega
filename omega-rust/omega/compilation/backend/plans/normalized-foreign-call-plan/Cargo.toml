@@ -13,7 +13,6 @@ test-support = [
     "dep:layout-plans",
     "dep:calling-conventions",
     "dep:function-identity",
-    "dep:legalized-operations",
     "dep:native-vocabulary",
     "dep:task-plans",
     "dep:target-vocabulary",
@@ -28,7 +27,6 @@ semantic-vocabulary = { path = "../../../../../psi/foundation/semantic-vocabular
 target = { path = "../../target" }
 calling-conventions = { path = "../../calling-conventions", optional = true }
 function-identity = { path = "../../../../foundation/function-identity", optional = true }
-legalized-operations = { path = "../../../representations/target-operations/legalized-operations", optional = true }
 native-vocabulary = { path = "../../../representations/native-vocabulary", optional = true }
 task-plans = { path = "../../runtime/task-plans", optional = true }
 target-vocabulary = { path = "../../../representations/target-operations/target-vocabulary", optional = true }

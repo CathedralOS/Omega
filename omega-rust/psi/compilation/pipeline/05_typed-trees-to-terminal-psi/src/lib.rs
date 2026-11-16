@@ -954,9 +954,10 @@ fn capture_source_questions(
     entry: MachineId,
 ) -> Checked<selection_questions::RawSelectionQuestions> {
     program.completed_operators.finish();
-    selection_questions::capture(
+    selection_questions::capture_with_bodies(
         program.typed,
         &program.admitted_declarations,
+        &program.admitted_bodies,
         &program.completed_operators,
         &program.admitted_signature_views,
     )

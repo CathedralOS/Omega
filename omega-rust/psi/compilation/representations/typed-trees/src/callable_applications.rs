@@ -126,6 +126,266 @@ impl crate::TypedTrees {
         }
     }
 
+    /// The ordinary schema of a const operation-record parameter. This does
+    /// not admit its construction or provide callable refinement evidence.
+    pub fn static_record_schema(
+        &self,
+        reference: crate::types::TypeReferenceHandle,
+        owner: symbols::SymbolHandle,
+    ) -> Option<crate::trait_definition::AppliedTraitScope<'_>> {
+        if !self.type_reference_table.contains_type_reference(reference)
+            || !matches!(
+                self.type_reference_table.type_reference(reference),
+                crate::types::TypeReferenceNode::Named { .. }
+                    | crate::types::TypeReferenceNode::Generic { .. }
+            )
+        {
+            return None;
+        }
+        crate::trait_definition::AppliedTraitScope::from_type_reference(self, reference, owner)
+    }
+
+    /// The one canonical callable atom producer. Both named operation-record
+    /// fields and retained machine values supply the same exact code, static
+    /// application and requirement coordinates here.
+    pub fn canonical_callable_selection_value(
+        &self,
+        selected: &crate::expression::StaticMachineArgument,
+        application: crate::static_applications::StaticMachineApplicationHandle,
+        requirement: Option<String>,
+        exact_sources: &[(source::SourceId, [u8; 32])],
+    ) -> Result<language_semantics::const_value::DecodedCanonicalConstValue, &'static str> {
+        let (declaration, application) = crate::type_identity::portable_machine_selection_identity(
+            self,
+            selected,
+            application,
+            exact_sources,
+        )
+        .map_err(
+            |_| "a canonical callable lost its exact selected declaration or static application",
+        )?;
+        self.canonical_callable_atom(declaration, application, requirement, exact_sources)
+    }
+
+    pub(crate) fn canonical_callable_selection_value_in_context(
+        &self,
+        selected: &crate::expression::StaticMachineArgument,
+        application: crate::static_applications::StaticMachineApplicationHandle,
+        requirement: Option<String>,
+        exact_sources: &[(source::SourceId, [u8; 32])],
+        context: &crate::type_identity::identity_context::TypeIdentityContext<'_>,
+    ) -> Result<language_semantics::const_value::DecodedCanonicalConstValue, &'static str> {
+        let (declaration, application) = crate::type_identity::portable_machine_selection_identity_in_context(
+            self, selected, application, context,
+        ).map_err(|_| "a canonical callable lost its exact selected declaration or static application")?;
+        self.canonical_callable_atom(declaration, application, requirement, exact_sources)
+    }
+
+    fn canonical_callable_atom(
+        &self,
+        declaration: symbols::SymbolHandle,
+        application: Option<String>,
+        requirement: Option<String>,
+        exact_sources: &[(source::SourceId, [u8; 32])],
+    ) -> Result<language_semantics::const_value::DecodedCanonicalConstValue, &'static str> {
+        let callable = self
+            .machine_by_symbol(declaration)
+            .and_then(|machine| self.machine_callable_identity_text(machine))
+            .filter(|identity| !identity.is_empty())
+            .ok_or("a canonical callable lost its selected overload identity")?;
+        let nominal = self
+            .exact_owner_nominal_identity(declaration, exact_sources)
+            .and_then(|identity| self.type_identity_text(identity))
+            .filter(|identity| !identity.is_empty())
+            .ok_or("a canonical callable lost its exact declaration owner")?;
+        let declaration = language_semantics::type_identity::encoding::callable_declaration_path(
+            &nominal, &callable,
+        );
+        Ok(
+            language_semantics::const_value::DecodedCanonicalConstValue::StaticCallable {
+                declaration,
+                application,
+                requirement,
+            },
+        )
+    }
+
+    /// Read an existing checked machine-value selection as a canonical atom.
+    /// Its stored requirement is checked through its exact source row; encoding
+    /// the identity neither forms a new descriptor nor supplies refinement.
+    pub fn canonical_static_callable_value(
+        &self,
+        value: &crate::callable_values::MachineValue,
+        exact_sources: &[(source::SourceId, [u8; 32])],
+    ) -> Result<language_semantics::const_value::DecodedCanonicalConstValue, &'static str> {
+        let machine = self
+            .machine_by_symbol(value.selected.symbol)
+            .or_else(|| self.machine_holding_state(value.selected.symbol))
+            .ok_or("a canonical callable lost its exact selected declaration")?;
+        let requirement = match (value.conformance.is_valid(), value.requirement.is_valid()) {
+            (false, false) => None,
+            (true, true) => {
+                let (_, row, signature) = self
+                    .named_conformance_member(value.conformance, value.requirement)?
+                    .ok_or("a canonical callable lost its requirement binding")?;
+                if row.realization_machine != machine.symbol {
+                    return Err("a canonical callable changed its selected requirement member");
+                }
+                let owner = self
+                    .trait_definition_by_symbol(row.declaring_trait)
+                    .ok_or("a canonical callable lost its declaring schema")?;
+                Some(self.trait_requirement_callable_identity_text(owner, signature))
+            }
+            _ => return Err("a canonical callable lost its complete requirement binding"),
+        };
+        self.canonical_callable_selection_value(
+            &value.selected,
+            value.application,
+            requirement,
+            exact_sources,
+        )
+    }
+
+    /// Retain every field of an already evaluated aggregate value. The source
+    /// constant's declared carrier, rather than its display name, owns typing.
+    pub fn canonical_aggregate_argument(
+        &self,
+        declared_type: crate::types::TypeReferenceHandle,
+        argument: &crate::expression::StaticMachineArgument,
+    ) -> Result<language_semantics::const_value::CanonicalConstValue, &'static str> {
+        if argument.application.is_some()
+            || argument.evidence_projection.is_some()
+            || argument.const_literal.is_some()
+        {
+            return Err("a static aggregate needs its exact closed value operand");
+        }
+        let declaration = self
+            .const_declaration_by_symbol(argument.symbol)
+            .ok_or("a static aggregate has no evaluated declaration")?;
+        if self.normalized_type_identity(declaration.declared_type)
+            != self.normalized_type_identity(declared_type)
+        {
+            return Err("a static aggregate has another declared carrier");
+        }
+        let value = crate::canonical_const_declaration_value(self, declaration.symbol)
+            .ok_or("a static aggregate lost its evaluated value")?;
+        if !value.is_canonical_static_value() {
+            return Err("a static aggregate has no canonical static value");
+        }
+        let decoded = value
+            .decode_encoding()
+            .ok_or("a static aggregate lost its canonical encoding")?;
+        if !self.canonical_const_materialization_matches(
+            declaration.declared_type,
+            declaration.materialized_initializer,
+            &decoded,
+        ) {
+            return Err("a static aggregate differs from its checked fields or selections");
+        }
+        Ok(value)
+    }
+
+    /// Describe the resulting named record value in schema declaration order.
+    /// Construction and member refinement remain with ordinary source checking;
+    /// the canonical value retains the exact selections instead of its alias.
+    pub fn canonical_operation_record_value(
+        &self,
+        symbol: symbols::SymbolHandle,
+        exact_sources: &[(source::SourceId, [u8; 32])],
+    ) -> Result<language_semantics::const_value::CanonicalConstValue, &'static str> {
+        crate::type_identity::portable_machine_applications::portable_operation_record_value(
+            self,
+            symbol,
+            exact_sources,
+        )
+        .map_err(|_| "a canonical operation record lost its finite selected-value identity")
+    }
+
+    pub(crate) fn canonical_operation_record_value_in_context(
+        &self,
+        symbol: symbols::SymbolHandle,
+        exact_sources: &[(source::SourceId, [u8; 32])],
+        context: &crate::type_identity::identity_context::TypeIdentityContext<'_>,
+    ) -> Result<language_semantics::const_value::CanonicalConstValue, &'static str> {
+        use crate::trait_definition::AppliedTraitScope;
+        use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
+
+        let selected = self
+            .conformance_by_symbol(symbol)
+            .ok_or("a canonical operation record has no named value")?;
+        if !selected.lifetime_parameters.is_empty()
+            || !self.conformance_type_parameters(selected).is_empty()
+        {
+            return Err("a canonical operation record needs its complete closed application");
+        }
+        let root = AppliedTraitScope::from_conformance(self, selected)
+            .ok_or("a canonical operation record lost its schema application")?;
+        let schema =
+            crate::type_identity::portable_record_schema_identity_in_context(self, &root, context)
+                .map_err(|_| "a canonical operation record lost its applied schema identity")?;
+        let mut scopes = Vec::<AppliedTraitScope<'_>>::new();
+        root.try_visit(self, &mut |scope| {
+            if let Some(previous) = scopes
+                .iter()
+                .find(|previous| previous.declaration.symbol == scope.declaration.symbol)
+            {
+                if !previous.same_application(self, scope) {
+                    return Err(
+                        "a canonical operation record inherits different schema applications",
+                    );
+                }
+            } else {
+                scopes.push(scope.clone());
+            }
+            Ok(())
+        })?;
+        let mut fields = Vec::new();
+        for scope in scopes {
+            for requirement in self.trait_machine_signatures(scope.declaration) {
+                let (_, row, applied) = self
+                    .named_conformance_member(symbol, requirement.symbol)?
+                    .ok_or("a canonical operation record lost its exact member selection")?;
+                if row.declaring_trait != scope.declaration.symbol {
+                    return Err("a canonical operation record changed its declaring schema");
+                }
+                let requirement =
+                    self.trait_requirement_callable_identity_text(scope.declaration, applied);
+                if requirement.is_empty() {
+                    return Err("a canonical operation record lost its applied member contract");
+                }
+                let selected_machine = self
+                    .machine_by_symbol(row.realization_machine)
+                    .ok_or("a canonical operation record lost its selected machine")?;
+                let Some([entry]) = self.machine_states(selected_machine).as_array() else {
+                    return Err("a canonical operation record needs one exact selected entry");
+                };
+                if entry.symbol != row.realization_state {
+                    return Err("a canonical operation record changed its selected entry");
+                }
+                let selected = crate::expression::StaticMachineArgument {
+                    symbol: selected_machine.symbol,
+                    ..Default::default()
+                };
+                let value = self.canonical_callable_selection_value_in_context(
+                    &selected,
+                    crate::static_applications::StaticMachineApplicationHandle::invalid(),
+                    Some(requirement.clone()),
+                    exact_sources,
+                    context,
+                )?;
+                fields.push((requirement, value));
+            }
+        }
+        CanonicalConstValue::from_decoded(
+            &DecodedCanonicalConstValue::Record {
+                type_name: schema,
+                fields,
+            },
+            "",
+        )
+        .ok_or("a canonical operation record exceeds the admitted static value profile")
+    }
+
     /// Form the declaration's complete supported tuple without requesting an
     /// executable instance. The generic type node retains the selected owner
     /// and arguments in that owner's exact binder order, including landed values.
@@ -8882,5 +9142,175 @@ impl TypedTrees {
                 data::TypeParameterKind::Machine { contract };
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod canonical_record_argument_tests {
+    use crate::data::{DataDefinition, DataField, DataMember};
+    use crate::expression::{
+        ExpressionNode, StaticMachineArgument, TableStructLiteral, TableStructLiteralField,
+    };
+    use crate::name::Identifier;
+    use crate::type_identity::package_policy_reading_tests::fixture::Fixture;
+    use crate::types::TypeReferenceNode;
+    use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
+    use symbols::SymbolKind;
+
+    #[test]
+    fn static_record_arguments_keep_ordinary_fields_and_exact_checked_selections() {
+        let mut fixture = Fixture::new();
+        let sources = source::source_identity::toolchain_source_identities(
+            fixture.program.symbols.source_files(),
+        )
+        .expect("fixture sources remain inside their toolchain root");
+        let record = fixture.symbol("Record");
+        let first = fixture.symbol("LIMIT");
+        let second = fixture.symbol("WIDTH");
+        let callable = fixture.callable();
+        let owner = fixture.program.symbols.get(record).parent;
+        let boolean = fixture
+            .program
+            .symbols
+            .child_handles(owner)
+            .unwrap()
+            .find(|symbol| {
+                fixture.program.symbols.builtin_type_atom(*symbol)
+                    == Some(symbols::BuiltinTypeAtom::Bool)
+            })
+            .unwrap();
+        let boolean = fixture
+            .program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: boolean,
+                name: Identifier::generated("bool"),
+            });
+        let carrier = fixture
+            .program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: record,
+                name: Identifier::generated("Record"),
+            });
+        let fields = fixture.program.symbols.insert_generated_children(
+            record,
+            [
+                (SymbolKind::Field, "operation"),
+                (SymbolKind::Field, "enabled"),
+            ],
+        );
+        let members = fixture.program.data_members.insert_many([
+            DataMember::Field(DataField {
+                symbol: fields.handle_at(0),
+                name: Identifier::generated("operation"),
+                type_reference: callable,
+                ..Default::default()
+            }),
+            DataMember::Field(DataField {
+                symbol: fields.handle_at(1),
+                name: Identifier::generated("enabled"),
+                type_reference: boolean,
+                ..Default::default()
+            }),
+        ]);
+        fixture.program.push_data_definition(DataDefinition {
+            symbol: record,
+            name: Identifier::generated("Record"),
+            members,
+            ..Default::default()
+        });
+        let mut arguments = Vec::new();
+        let mut flags = Vec::new();
+        for (symbol, enabled) in [(first, true), (second, false)] {
+            let operation = fixture.machine_value();
+            let ExpressionNode::MachineValue(selected) =
+                fixture.program.expression_table.expression(operation)
+            else {
+                panic!("the retained checked selection");
+            };
+            let selected = fixture
+                .program
+                .canonical_static_callable_value(selected, &sources)
+                .unwrap();
+            let decoded = DecodedCanonicalConstValue::Record {
+                type_name: fixture.program.display_type_reference(carrier),
+                fields: vec![
+                    ("operation".into(), selected),
+                    (
+                        "enabled".into(),
+                        DecodedCanonicalConstValue::Boolean(enabled),
+                    ),
+                ],
+            };
+            let value = CanonicalConstValue::from_decoded(&decoded, "").unwrap();
+            let flag = fixture
+                .program
+                .expression_table
+                .insert(ExpressionNode::Boolean(enabled));
+            flags.push(flag);
+            let initializers = fixture.program.expression_table.insert_struct_fields([
+                TableStructLiteralField {
+                    name: Identifier::generated("operation"),
+                    field_symbol: fields.handle_at(0),
+                    value: operation,
+                },
+                TableStructLiteralField {
+                    name: Identifier::generated("enabled"),
+                    field_symbol: fields.handle_at(1),
+                    value: flag,
+                },
+            ]);
+            let initializer =
+                fixture
+                    .program
+                    .expression_table
+                    .insert(ExpressionNode::StructLiteral(TableStructLiteral {
+                        type_name: Identifier::generated("Record"),
+                        type_symbol: record,
+                        fields: initializers,
+                        ..Default::default()
+                    }));
+            fixture
+                .program
+                .push_const_declaration(crate::constant::ConstDeclaration {
+                    symbol,
+                    declared_type: carrier,
+                    materialized_initializer: initializer,
+                    evaluated_value: Some(value.encoding.into()),
+                    ..Default::default()
+                });
+            arguments.push(StaticMachineArgument {
+                symbol,
+                ..Default::default()
+            });
+        }
+        let first_value = fixture
+            .program
+            .canonical_aggregate_argument(carrier, &arguments[0])
+            .unwrap();
+        let second_value = fixture
+            .program
+            .canonical_aggregate_argument(carrier, &arguments[1])
+            .unwrap();
+        assert_ne!(
+            first_value.identity(),
+            second_value.identity(),
+            "the ordinary bool is part of identity"
+        );
+        assert!(
+            fixture
+                .program
+                .canonical_aggregate_argument(fixture.u64_type, &arguments[0])
+                .is_err()
+        );
+        *fixture.program.expression_table.expression_mut(flags[0]) = ExpressionNode::Boolean(false);
+        assert!(
+            fixture
+                .program
+                .canonical_aggregate_argument(carrier, &arguments[0])
+                .is_err(),
+            "an encoded record cannot replace a checked initializer's ordinary field"
+        );
     }
 }

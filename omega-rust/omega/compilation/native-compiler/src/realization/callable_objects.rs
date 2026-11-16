@@ -114,6 +114,8 @@ pub(super) fn prepare_callable_object(
 
 pub(super) fn emit_prepared_callable_object(
     prepared: CallableTargetProduct,
+    execution: Option<terminal_psi_to_abstract_operations::AdmittedInstalledEntryExecution>,
+    requirements: Vec<installation_evidence::InstalledInterruptStackRequirement>,
 ) -> Result<CallableObjectProduct, Vec<Diagnostic>> {
     let CallableTargetProduct {
         code,
@@ -123,12 +125,17 @@ pub(super) fn emit_prepared_callable_object(
         authority,
         observation,
     } = prepared;
+    let installations =
+        pipeline::bound_installations(&optimized_target, execution, requirements)
+            .map_err(|reason| realization_error("callable installation binding", reason))?;
     let projection =
-        pipeline::emit_target(optimized_target, &observation).map_err(|error| match error {
-            BodyEmissionError::Physical(error) => {
-                realization_error("callable physical pipeline", error)
+        pipeline::emit_target(optimized_target, installations, &observation).map_err(|error| {
+            match error {
+                BodyEmissionError::Physical(error) => {
+                    realization_error("callable physical pipeline", error)
+                }
+                BodyEmissionError::Object(diagnostics) => diagnostics,
             }
-            BodyEmissionError::Object(diagnostics) => diagnostics,
         })?;
     let projection = projection
         .with_semantic_source(code, coverage)
@@ -148,7 +155,9 @@ pub(super) fn emit_callable_object(
     budget: optimization_core::OptimizationWorkBudget,
     artifact: &terminal_codec::CanonicalTerminalArtifact,
 ) -> Result<CallableObjectProduct, Vec<Diagnostic>> {
-    emit_prepared_callable_object(prepare_callable_object(
-        admitted, admission, selections, budget, artifact,
-    )?)
+    emit_prepared_callable_object(
+        prepare_callable_object(admitted, admission, selections, budget, artifact)?,
+        None,
+        Vec::new(),
+    )
 }

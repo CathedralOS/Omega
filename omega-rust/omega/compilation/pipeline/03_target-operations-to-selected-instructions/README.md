@@ -18,9 +18,11 @@ identities. Raw selected data or a detached content hash grants no authority.
 ## Installations are bound, not looked up
 
 Preparation does not compile callbacks or size handler stacks; the driver does
-that after stage 02 and before this stage. It then projects what admission
-checked into a plain [`BoundInstallations`](../../backend/runtime/bound-installations/src/lib.rs)
-record (`provider_admission::bind_installations`): each installation's
+that after stage 02 and before this stage. It binds the admitted records once
+with `provider_admission::bind_installation_authority`, retaining a checked
+receipt for image publication. Selection reads the receipt's plain
+[`BoundInstallations`](../../backend/runtime/bound-installations/src/lib.rs)
+record: each installation's
 operands, table and entries, admission's answer for each arrival-token helper,
 the installed entry and the stack each handler needs. This stage takes that
 record, not admission's sealed types, so it does not depend on

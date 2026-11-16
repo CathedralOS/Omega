@@ -4035,6 +4035,14 @@ mod production {
             relocations.push_record(record);
         }
         let artifact = ObjectArtifact {
+            installation_authority: Arc::clone(
+                source
+                    .source()
+                    .source()
+                    .source()
+                    .source()
+                    .installation_authority(),
+            ),
             program_contracts: Arc::clone(
                 &source
                     .source()
@@ -4389,10 +4397,9 @@ mod source {
             .source()
             .source()
             .source()
-            .optimized_target()
-            .execution_plan()
-            .plan()
-            .profile
+            .physical_program()
+            .contracts
+            .profile()
     }
 
     mod descriptor_tables {
@@ -20603,22 +20610,21 @@ mod source {
             .callable_invocations()
     }
 
-    /// The target calling contract the prepared plan records for `machine`.
+    /// The target calling contract retained by the current physical program.
     pub(super) fn function_abi(
         source: &StagedOptimizedRelocationFreeObjectContainer,
         machine: MachineId,
-    ) -> Result<&legalized_operations::LegalizedFunctionAbi, Error> {
+    ) -> Result<&target_vocabulary::function_abi::LegalizedFunctionAbi, Error> {
         source
             .source()
             .source()
             .source()
             .source()
-            .optimized_target()
-            .execution_plan()
-            .plan()
+            .physical_program()
+            .contracts
             .function_abi(machine)
             .ok_or(Error::Mismatch(
-                "shared function has no prepared calling contract",
+                "shared function has no current calling contract",
             ))
     }
 
@@ -22436,6 +22442,7 @@ mod structural {
                 operation,
                 boundary,
                 source: value,
+                execution,
             } = located.settlement
             else {
                 return Err(Error::Mismatch("selected byte output payload"));
@@ -22481,8 +22488,7 @@ mod structural {
             let scalar_type = ScalarType::Integer(
                 IntegerType::new(IntegerSign::Signed, 32).map_err(|_| Error::Mismatch("i32"))?,
             );
-            let (execution, realization) =
-                target_settlement(container, machine, operation, boundary)?;
+            let (execution, realization) = current_settlement(execution)?;
             let settlement = BoundarySettlementRecord {
                 invocation_site: operation.into(),
                 boundary,
@@ -22536,6 +22542,7 @@ mod structural {
                 operation,
                 boundary,
                 source: value,
+                execution,
             } = located.settlement
             else {
                 return Err(invalid());
@@ -22577,8 +22584,7 @@ mod structural {
             };
             let offset = host(span.offset)?;
             let abstracted = source::abstract_function(container, machine)?;
-            let (execution, realization) =
-                target_settlement(container, machine, operation, boundary)?;
+            let (execution, realization) = current_settlement(execution)?;
             if settlement.execution != BoundaryExecutionRecord::from(execution)
                 || settlement.realization != realization
                 || proposed.machine != machine
@@ -22608,14 +22614,11 @@ mod structural {
             Ok(())
         }
 
-        /// Who performs the byte write at `operation`, as the prepared plan
-        /// records it. Only an admitted provider or the compiler's built-in
-        /// host byte output may write a byte.
-        fn target_settlement(
-            container: &StagedOptimizedRelocationFreeObjectContainer,
-            machine: MachineId,
-            operation: semantic_vocabulary::OperationId,
-            boundary: semantic_vocabulary::BoundaryMachineId,
+        /// Read the byte writer from the current boundary contract. Only an
+        /// admitted provider or the compiler's built-in host byte output may
+        /// write a byte.
+        fn current_settlement(
+            execution: target_operations::BoundaryExecutionBinding,
         ) -> Result<
             (
                 target_operations::BoundaryExecutionBinding,
@@ -22623,54 +22626,23 @@ mod structural {
             ),
             Error,
         > {
-            use legalized_operations::LegalizedScalarInstructionKind;
             use target_operations::{
                 BoundaryExecutionBinding, BoundaryRealization, CompilerBuiltinExecution,
                 HostedWriteByteI32Realization,
             };
-            let function = container
-                .source()
-                .source()
-                .source()
-                .source()
-                .optimized_target()
-                .execution_plan()
-                .plan()
-                .scalar_functions
-                .iter()
-                .find(|function| function.machine == machine)
-                .ok_or(Error::Mismatch("missing byte output prepared function"))?;
-            let mut found = None;
-            for row in function.instructions() {
-                if row.operation != operation {
-                    continue;
-                }
-                let LegalizedScalarInstructionKind::HostedWriteByteI32 {
-                    boundary: source_boundary,
-                    execution,
-                    ..
-                } = row.kind
-                else {
-                    continue;
-                };
-                if source_boundary != boundary
-                    || found.is_some()
-                    || !matches!(
-                        execution,
-                        BoundaryExecutionBinding::AdmittedProvider(_)
-                            | BoundaryExecutionBinding::CompilerBuiltin(
-                                CompilerBuiltinExecution::HostedWriteByteI32
-                            )
+            if !matches!(
+                execution,
+                BoundaryExecutionBinding::AdmittedProvider(_)
+                    | BoundaryExecutionBinding::CompilerBuiltin(
+                        CompilerBuiltinExecution::HostedWriteByteI32
                     )
-                {
-                    return Err(Error::Mismatch("byte output target settlement custody"));
-                }
-                found = Some((
-                    execution,
-                    BoundaryRealization::HostedWriteByteI32(HostedWriteByteI32Realization),
-                ));
+            ) {
+                return Err(Error::Mismatch("byte output current settlement custody"));
             }
-            found.ok_or(Error::Mismatch("missing byte output target settlement"))
+            Ok((
+                execution,
+                BoundaryRealization::HostedWriteByteI32(HostedWriteByteI32Realization),
+            ))
         }
     }
 

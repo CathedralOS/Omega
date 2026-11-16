@@ -1308,6 +1308,7 @@ pub(crate) mod byte_buffers {
                         std::slice::from_ref(parameter),
                         std::slice::from_ref(argument),
                         &values,
+                        None,
                     )
                     .map_err(|error| error.in_argument_preparation("bind byte descriptor"))?;
                 let binding = bytes.remove(&parameter.place);

@@ -55,7 +55,7 @@ Nothing here reads a name or text: values are compared by identity.
 
 use proof_admission::{check_value_equality_denotation, check_value_equality_substitution};
 use semantic_vocabulary::{
-    BlockId, EdgeId, MachineId, ObligationId, Proposition, PropositionContext, ScalarTerm,
+    BlockId, EdgeId, MachineId, ObligationId, PlaceId, Proposition, PropositionContext, ScalarTerm,
     ScalarType, StructuralPlaceKind, ValueId,
 };
 use terminal_check_tables::edges::Destination;
@@ -181,10 +181,91 @@ fn in_scope(
     proposition: &Proposition,
 ) -> bool {
     let mut inside = true;
-    proposition.visit_value_ids(|value| {
+    let scalar_only = proposition.visit_value_ids(|value| {
         inside &= available_value(lowered, tables, dominating_bindings, block, value);
     });
+    if !inside || scalar_only {
+        return inside;
+    }
+    proposition.visit_scalar_terms(|term| {
+        if let semantic_vocabulary::scalar_term_predicate_quint_pattern!(root, ..)
+        | ScalarTerm::StructuralRead { root, .. } = term
+        {
+            inside &= available_place(lowered, dominating_bindings, block, *root);
+        }
+    });
+    // Structural propositions have no scalar-term traversal. They are not
+    // candidates for this scalar arrival protocol, even when they name no
+    // ValueId that the check above could reject.
+    let mut pending = vec![proposition];
+    while let Some(proposition) = pending.pop() {
+        match proposition {
+            Proposition::Conjunction(parts) | Proposition::Disjunction(parts) => {
+                pending.extend(parts);
+            }
+            Proposition::Implication {
+                premise,
+                conclusion,
+            } => {
+                pending.push(premise);
+                pending.push(conclusion);
+            }
+            Proposition::Atom(_)
+            | Proposition::IeeeFloatComparison { .. }
+            | Proposition::ByteSequenceEqual { .. }
+            | Proposition::StructuralIdentity { .. }
+            | Proposition::StructuralCaseMembership { .. }
+            | Proposition::ContentConservation(_) => inside = false,
+            _ => {}
+        }
+    }
     inside
+}
+
+/// A raw storage term needs an actual formal at a binding that is in scope.
+/// An operation-created or branch-local place cannot become a destination
+/// fact merely because visiting its term finds no scalar IDs.
+fn available_place(
+    lowered: &TerminalMachine,
+    dominating_bindings: Option<&Graph>,
+    destination: BlockId,
+    place: PlaceId,
+) -> bool {
+    let Some(root) = usize::try_from(place.get() - 1)
+        .ok()
+        .and_then(|position| lowered.structural_places.get(position))
+        .filter(|root| root.id == place)
+    else {
+        return false;
+    };
+    let (formals, position) = match root.kind {
+        StructuralPlaceKind::Parameter { position } => {
+            (lowered.structural_parameters.as_slice(), position)
+        }
+        StructuralPlaceKind::BlockParameter {
+            block: owner,
+            position,
+        } if owner == destination
+            || dominating_bindings.is_some_and(|graph| {
+                graph
+                    .dominates(
+                        ProgramPoint::BlockEntry(owner),
+                        ProgramPoint::BlockEntry(destination),
+                    )
+                    .is_ok_and(|dominates| dominates)
+            }) =>
+        {
+            let Some(owner) = block(lowered, owner) else {
+                return false;
+            };
+            (owner.structural_parameters.as_slice(), position)
+        }
+        _ => return false,
+    };
+    usize::try_from(position)
+        .ok()
+        .and_then(|position| formals.get(position))
+        .is_some_and(|formal| formal.place == place && formal.position == position)
 }
 
 /// An inferred predicate may also name an integer operation result whose
@@ -301,8 +382,18 @@ pub(crate) fn infer<'a>(
         let ValueOrigin::StorageContent { place, after: None } = row.origin else {
             continue;
         };
-        let Some(StructuralPlaceKind::BlockParameter { block, .. }) =
-            crate::places::content_root_kind(lowered, tables, place)
+        let Some(root) = crate::places::content_root(lowered, tables, place) else {
+            return Err(refusal(
+                RefusalReason::ForeignIdentity,
+                id,
+                Construct::Value(value),
+                "a storage snapshot names no structural root",
+            ));
+        };
+        let StructuralPlaceKind::BlockParameter {
+            block,
+            position: formal_position,
+        } = root.kind
         else {
             continue;
         };
@@ -322,6 +413,18 @@ pub(crate) fn infer<'a>(
                     "a join snapshot names no actual block",
                 )
             })?;
+        if !usize::try_from(formal_position)
+            .ok()
+            .and_then(|formal| lowered.blocks[position].structural_parameters.get(formal))
+            .is_some_and(|formal| formal.place == root.id && formal.position == formal_position)
+        {
+            return Err(refusal(
+                RefusalReason::ForeignIdentity,
+                id,
+                Construct::Value(value),
+                "a join snapshot is not rooted at its exact destination formal",
+            ));
+        }
         if !matches!(row.scalar_type, ScalarType::Callable(_)) {
             snapshots[position].push((value, row.scalar_type));
         }
@@ -329,7 +432,8 @@ pub(crate) fn infer<'a>(
     for &block in graph.reverse_postorder()? {
         let join = &lowered.blocks[usize::try_from(block.get() - 1).expect("dense block position")];
         let snapshots = &snapshots[usize::try_from(block.get() - 1).expect("dense block position")];
-        if join.parameters.is_empty() && snapshots.is_empty() {
+        let byte_predicates = storage.byte_arrival_predicates(join)?;
+        if join.parameters.is_empty() && snapshots.is_empty() && byte_predicates.is_empty() {
             continue;
         }
         let entry = ProgramPoint::BlockEntry(join.id);
@@ -410,10 +514,18 @@ pub(crate) fn infer<'a>(
                 bounds,
             )?);
         }
-        if skip {
+        if skip || disjuncts.is_empty() {
             continue;
         }
-        let predicate = connective(disjuncts, false);
+        // Qualifications are conclusions at the destination, never premises
+        // on the edges that introduce them. The same arrival obligation
+        // substitutes these templates onto each actual and proves them there.
+        let predicate = connective(
+            std::iter::once(connective(disjuncts, false))
+                .chain(byte_predicates)
+                .collect(),
+            true,
+        );
         if predicate != Proposition::Truth {
             if let Some(row) = declared {
                 let previous = tables

@@ -387,6 +387,24 @@ producer's logical judgments requires host authorization for the exact artifact;
 receiving structural and installation checks retain their own obligations.
 These contract records add no executable call variant or work rule.
 
+A const telescope argument retains its existing tag `1` and counted UTF-8
+`CanonicalConstValue.atom()` string. The canonical static-value profile admits
+ordered arrays, records and variants containing scalar values and exact static
+callable selections. A callable atom is the literal tag `static-callable`
+followed by exactly three UTF-8 pieces in order: selected declaration identity,
+selected application identity, and named requirement identity. Each piece uses
+canonical decimal **byte length**, `:`, then those bytes; lengths have no
+leading zero except `0`. The declaration is nonempty. An empty application or
+requirement piece represents absence; a present identity is nonempty. Existing
+record field order remains semantic. The enclosing canonical value retains its
+actual declared carrier; display text contributes no identity or authority.
+
+This atom adds no telescope tag or envelope field and reinterprets no prior
+scalar or aggregate encoding. Unknown atom tags, trailing bytes and
+noncanonical framing refuse through the existing canonical-profile receiving
+check. The identities commit to exact selections; their framing grants no
+source visibility, executable binding, provider installation or proof premise.
+
 An unused selected family retains its selected identity, public contract
 commitment, reach row, and requirement bound without requiring an executable
 application or schema join header. If the same selection has retained

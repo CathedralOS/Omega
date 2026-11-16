@@ -4712,7 +4712,8 @@ mod normalized_expressions {
             (syntax_trees::types::TypeReferenceNode::Named(name), Some(decoded)) => {
                 CanonicalConstValue::from_atom(name.as_str(syntax_trees)).is_some_and(|value| {
                     let carrier = match &decoded {
-                        DecodedCanonicalConstValue::Float { .. } => return false,
+                        DecodedCanonicalConstValue::Float { .. }
+                        | DecodedCanonicalConstValue::StaticCallable { .. } => return false,
                         DecodedCanonicalConstValue::Boolean(_) => "bool".to_owned(),
                         DecodedCanonicalConstValue::Integer { integer_type, .. } => {
                             integer_type.name()

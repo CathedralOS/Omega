@@ -126,8 +126,20 @@ fn source() -> Source {
 }
 
 fn source_with_typed_record(typed_record: bool) -> Source {
-    let mut builder = SymbolTableBuilder::new();
-    let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+    let mut sources = source::SourceMap::default();
+    let file = sources.add_with_metadata(
+        std::path::PathBuf::from("implementation-values.omg"),
+        "root".into(),
+        std::path::PathBuf::from("implementation-values"),
+        semantic_vocabulary::PackageKeyIdentity::from_digest([7; 32]),
+        source::SourceOrigin::User,
+    );
+    let root_name = SymbolNameRef::Source(source::SourceSpan::new(
+        file.source_id,
+        source::Span::new(0, 4),
+    ));
+    let mut builder = SymbolTableBuilder::with_sources(Some(std::sync::Arc::new(sources)));
+    let root = builder.insert_root(SymbolKind::Root, root_name);
     let top = builder.insert_children(
         root,
         [
@@ -549,6 +561,8 @@ fn a_typed_const_record_keeps_its_value_binding_and_exact_named_call() {
         selected,
         advance,
         hold,
+        hold_apply,
+        hold_apply_state,
         main,
         partial,
         ..
@@ -580,6 +594,72 @@ fn a_typed_const_record_keeps_its_value_binding_and_exact_named_call() {
     assert_eq!(application.registration_operation, requirement);
     assert_eq!(application.lexical_owner, advance);
     assert!(application.arguments.is_empty());
+
+    let held = program
+        .conformances()
+        .iter()
+        .find(|declaration| program.symbols.name(declaration.symbol) == "Held")
+        .unwrap()
+        .symbol;
+    let record = program
+        .canonical_operation_record_value(hold, &[])
+        .expect("the selected record has a complete canonical value");
+    let alias = program
+        .canonical_operation_record_value(held, &[])
+        .expect("the record alias keeps the same fields");
+    assert_eq!(record.identity(), alias.identity());
+    let language_semantics::const_value::DecodedCanonicalConstValue::Record { fields, .. } =
+        record.decode_encoding().unwrap()
+    else {
+        panic!("an operation record")
+    };
+    assert_eq!(fields.len(), 1);
+    assert!(matches!(
+        &fields[0].1,
+        language_semantics::const_value::DecodedCanonicalConstValue::StaticCallable { .. }
+    ));
+    let signature = program
+        .trait_machine_signature(requirement)
+        .unwrap()
+        .1
+        .clone();
+    let contract = program.runtime_callable_contracts.insert(
+        typed_trees::callable_values::RuntimeCallableContract {
+            signature,
+            lexical_owner: step,
+            resolved_source: None,
+        },
+    );
+    let callable_type = program
+        .type_reference_table
+        .insert(typed_trees::types::TypeReferenceNode::Callable { contract });
+    let application = program.expression_table.retain_static_machine_application(
+        hold_apply_state,
+        Identifier::generated("apply"),
+        &[],
+    );
+    let source = program
+        .expression_table
+        .static_machine_application_mut(application);
+    source.binding_declaration = hold_apply;
+    source.lexical_owner = advance;
+    let retained = typed_trees::callable_values::MachineValue {
+        type_reference: callable_type,
+        selected: StaticMachineArgument {
+            symbol: hold_apply,
+            ..Default::default()
+        },
+        application,
+        conformance: hold,
+        requirement,
+    };
+    assert_eq!(
+        program
+            .canonical_static_callable_value(&retained, &[])
+            .unwrap(),
+        fields[0].1,
+        "a retained selection and a named record field are the same value production"
+    );
 
     prepare(&mut program).expect("typed record preparation");
     assert!(
@@ -615,6 +695,31 @@ fn a_typed_const_record_keeps_its_value_binding_and_exact_named_call() {
         typed_trees::types::TypeReferenceNode::Named { symbol, .. } if *symbol == hold)
     );
     let generated = program.symbols.get(first.target_symbol).parent;
+    let explicit = StaticMachineArgument {
+        symbol: advance,
+        ..Default::default()
+    };
+    let generated_selection = StaticMachineArgument {
+        symbol: generated,
+        ..Default::default()
+    };
+    assert_eq!(
+        typed_trees::type_identity::portable_machine_selection_identity(
+            &program,
+            &explicit,
+            first.authored_machine_application,
+            &[],
+        )
+        .unwrap(),
+        typed_trees::type_identity::portable_machine_selection_identity(
+            &program,
+            &generated_selection,
+            Default::default(),
+            &[],
+        )
+        .unwrap(),
+        "supplied source arguments and the generated body's retained bindings normalize alike",
+    );
     let [member] = calls(&program, generated)[..] else {
         panic!("one member call");
     };
@@ -653,6 +758,56 @@ fn a_typed_const_record_keeps_its_value_binding_and_exact_named_call() {
         program
             .specialization_source_identity(program.machine_specialization(generated).unwrap())
             .is_ok()
+    );
+
+    // A malformed value that selects code statically applied to itself is not
+    // a finite canonical record. Reject through the same active query instead
+    // of repeatedly starting a new callable projector.
+    let cycle = program
+        .symbols
+        .append_generated_children_from(step, [(hold, SymbolKind::Conformance, "Cycle")])
+        .start();
+    let generated_entry = only_state(&program, generated).symbol;
+    program.push_conformance(Conformance {
+        symbol: cycle,
+        trait_symbol: step,
+        trait_name: Identifier::generated("Step"),
+        rows: vec![ConformanceRow {
+            declaring_trait: step,
+            declaring_trait_name: Identifier::generated("Step"),
+            requirement,
+            requirement_name: Identifier::generated("apply"),
+            realization_machine: generated,
+            realization_state: generated_entry,
+            realization_name: Identifier::generated("advance"),
+            source: ConformanceRowSource::Reference,
+        }],
+        ..Default::default()
+    });
+    let cycle_reference =
+        program
+            .type_reference_table
+            .insert(typed_trees::types::TypeReferenceNode::Named {
+                symbol: cycle,
+                name: Identifier::generated("Cycle"),
+            });
+    let application = program
+        .machine_instantiation(generated)
+        .unwrap()
+        .unwrap()
+        .binding_application();
+    let mut bindings = program
+        .expression_table
+        .static_machine_application_bindings(application)
+        .to_vec();
+    bindings[0].value = StaticMachineBindingValue::Const(cycle_reference);
+    program
+        .expression_table
+        .set_static_machine_application_bindings(application, &bindings);
+    assert!(
+        program
+            .canonical_operation_record_value(cycle, &[])
+            .is_err()
     );
 }
 

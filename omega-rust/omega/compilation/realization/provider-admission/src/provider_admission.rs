@@ -43,6 +43,7 @@ mod terminal_authority_policy;
 mod terminal_authority_review;
 
 pub use crate::AdmittedInstalledInterruptCohort;
+pub use crate::installation_binding::{BoundInstallationAuthority, bind_installation_authority};
 pub use crate::installed_interrupt_helpers::bind_installations;
 pub use crate::native_bindings::{
     NativeBindingInput, RetainedNativeBinding, RetainedNativeBindings,
@@ -394,7 +395,8 @@ pub fn admit_native_providers<'request>(
         native_callbacks: crate::AdmittedNativeCallbackCohort {
             psi: input.plan().psi,
             callbacks: callback_entries::admit_entries(input, request, &entry_custody)
-                .map_err(|reason| realization_error("callback entry admission", reason))?,
+                .map_err(|reason| realization_error("callback entry admission", reason))?
+                .into(),
         },
         executions,
         terminal_authority_policy_identity: terminal_authority_closure_review.physical_policy(),

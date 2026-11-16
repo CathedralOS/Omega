@@ -24,10 +24,7 @@ use terminal_psi::{
     StructuralResultDeclaration,
 };
 
-pub(super) fn encode_boundary_settlement(
-    bytes: &mut Vec<u8>,
-    settlement: &LegalizedBoundarySettlement,
-) {
+pub fn encode_boundary_settlement(bytes: &mut Vec<u8>, settlement: &LegalizedBoundarySettlement) {
     crate::codec_bytes::push_encoded(bytes, settlement.operation.get().to_le_bytes());
     crate::codec_bytes::push_encoded(bytes, settlement.boundary.get().to_le_bytes());
     encode_provider_execution(bytes, settlement.provider_execution);
@@ -46,16 +43,13 @@ pub(super) fn encode_boundary_settlement(
     encode_ownership_roster(bytes, &settlement.ownership);
 }
 
-pub fn encode_external_execution(
-    bytes: &mut Vec<u8>,
-    execution: target_vocabulary::ExternalExecutionBinding,
-) {
+pub fn encode_external_execution(bytes: &mut Vec<u8>, execution: crate::ExternalExecutionBinding) {
     match execution {
-        target_vocabulary::ExternalExecutionBinding::Provider(provider) => {
+        crate::ExternalExecutionBinding::Provider(provider) => {
             bytes.push(0);
             encode_provider_execution(bytes, provider);
         }
-        target_vocabulary::ExternalExecutionBinding::NativeBinding(native) => {
+        crate::ExternalExecutionBinding::NativeBinding(native) => {
             bytes.push(1);
             bytes.extend_from_slice(&native.receipt());
             bytes.extend_from_slice(&native.contract());
@@ -64,10 +58,7 @@ pub fn encode_external_execution(
     }
 }
 
-pub fn encode_provider_execution(
-    bytes: &mut Vec<u8>,
-    execution: target_vocabulary::ProviderExecutionBinding,
-) {
+pub fn encode_provider_execution(bytes: &mut Vec<u8>, execution: crate::ProviderExecutionBinding) {
     bytes.extend_from_slice(
         &execution
             .provider_plan_report_identity()
@@ -94,7 +85,7 @@ pub fn encode_provider_execution(
     );
 }
 
-pub(super) fn encode_call_source(bytes: &mut Vec<u8>, source: &NativeCallOrigin) {
+pub fn encode_call_source(bytes: &mut Vec<u8>, source: &NativeCallOrigin) {
     match source {
         NativeCallOrigin::Authored => bytes.push(1),
         NativeCallOrigin::ProgramEntry {
@@ -140,10 +131,7 @@ pub(super) fn encode_call_source(bytes: &mut Vec<u8>, source: &NativeCallOrigin)
     }
 }
 
-pub(super) fn encode_provider_candidate(
-    bytes: &mut Vec<u8>,
-    provider: &ProviderCandidateConformance,
-) {
+pub fn encode_provider_candidate(bytes: &mut Vec<u8>, provider: &ProviderCandidateConformance) {
     crate::codec_bytes::push_encoded(bytes, provider.boundary.get().to_le_bytes());
     bytes.extend_from_slice(&provider.requirement_identity.0.to_le_bytes());
     bytes.extend_from_slice(&provider.source_requirement_identity.0.to_le_bytes());
@@ -208,7 +196,7 @@ fn encode_receipts(bytes: &mut Vec<u8>, receipts: &[terminal_psi::CompletionRece
     }
 }
 
-pub(super) fn encode_completion_roster(
+pub fn encode_completion_roster(
     bytes: &mut Vec<u8>,
     claim_sources: &[CompletionClaimSource],
     receipts: &[terminal_psi::CompletionReceipt],
@@ -220,7 +208,7 @@ pub(super) fn encode_completion_roster(
     encode_receipts(bytes, receipts);
 }
 
-pub(super) fn encode_completion_claim_source(bytes: &mut Vec<u8>, source: &CompletionClaimSource) {
+pub fn encode_completion_claim_source(bytes: &mut Vec<u8>, source: &CompletionClaimSource) {
     crate::codec_bytes::push_encoded(bytes, source.claim.get().to_le_bytes());
     encode_option(bytes, source.entry.as_ref(), encode_entry_claim);
     encode_option(bytes, source.content.as_ref(), |bytes, content| {
@@ -254,7 +242,7 @@ pub(super) fn encode_completion_claim_source(bytes: &mut Vec<u8>, source: &Compl
     });
 }
 
-pub(super) fn encode_claim_projection(bytes: &mut Vec<u8>, projection: &ClaimContentProjection) {
+pub fn encode_claim_projection(bytes: &mut Vec<u8>, projection: &ClaimContentProjection) {
     crate::codec_bytes::push_encoded(bytes, projection.projection.domain.get().to_le_bytes());
     bytes.extend_from_slice(
         &projection
@@ -265,7 +253,7 @@ pub(super) fn encode_claim_projection(bytes: &mut Vec<u8>, projection: &ClaimCon
     encode_content_algebra(bytes, &projection.algebra);
 }
 
-pub(super) fn encode_content_algebra(bytes: &mut Vec<u8>, algebra: &ContentAlgebra) {
+pub fn encode_content_algebra(bytes: &mut Vec<u8>, algebra: &ContentAlgebra) {
     bytes.push(match algebra.kind {
         ContentAlgebraKind::IntervalSet => 1,
         ContentAlgebraKind::CountedQuantity => 2,
@@ -273,12 +261,12 @@ pub(super) fn encode_content_algebra(bytes: &mut Vec<u8>, algebra: &ContentAlgeb
     encode_string(bytes, &algebra.parameter);
 }
 
-pub(super) fn encode_effect(bytes: &mut Vec<u8>, effect: EffectLink) {
+pub fn encode_effect(bytes: &mut Vec<u8>, effect: EffectLink) {
     crate::codec_bytes::push_encoded(bytes, effect.input.to_le_bytes());
     crate::codec_bytes::push_encoded(bytes, effect.output.to_le_bytes());
 }
 
-pub(super) fn encode_ownership_roster(bytes: &mut Vec<u8>, ownership: &[OwnershipEvent]) {
+pub fn encode_ownership_roster(bytes: &mut Vec<u8>, ownership: &[OwnershipEvent]) {
     encode_len(bytes, ownership.len());
     for event in ownership {
         match event {
@@ -313,7 +301,7 @@ pub(super) fn encode_ownership_roster(bytes: &mut Vec<u8>, ownership: &[Ownershi
     }
 }
 
-pub(super) fn encode_cleanup_action(
+pub fn encode_cleanup_action(
     bytes: &mut Vec<u8>,
     action: &terminal_psi::TerminalAffineCleanupAction,
 ) {
@@ -351,7 +339,7 @@ pub(super) fn encode_cleanup_action(
     }
 }
 
-pub(super) fn encode_operation_result(bytes: &mut Vec<u8>, result: &StructuralOperationResult) {
+pub fn encode_operation_result(bytes: &mut Vec<u8>, result: &StructuralOperationResult) {
     crate::codec_bytes::push_encoded(bytes, result.place.get().to_le_bytes());
     crate::codec_bytes::push_encoded(bytes, result.structural_type.get().to_le_bytes());
     encode_multiplicity(bytes, result.multiplicity);
@@ -368,7 +356,7 @@ pub(super) fn encode_operation_result(bytes: &mut Vec<u8>, result: &StructuralOp
     }
 }
 
-pub(super) fn encode_result(bytes: &mut Vec<u8>, result: &StructuralResultDeclaration) {
+pub fn encode_result(bytes: &mut Vec<u8>, result: &StructuralResultDeclaration) {
     crate::codec_bytes::push_encoded(bytes, result.place.get().to_le_bytes());
     crate::codec_bytes::push_encoded(bytes, result.structural_type.get().to_le_bytes());
     encode_multiplicity(bytes, result.multiplicity);
