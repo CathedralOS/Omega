@@ -586,6 +586,15 @@ machine write_number(ticket: &mut Ticket in Stamped) { ticket.number = 41; }
             source.replace("[reflect::callable(change)]", "[]"),
             Some("write"),
         ),
+        // Returning from the permitted invocation ends its delegation. A
+        // later direct helper call cannot reuse that grant on the same value.
+        (
+            source.replace(
+                "change(&mut ticket);",
+                "change(&mut ticket);\n    write_number(&mut ticket);",
+            ),
+            Some("write"),
+        ),
     ] {
         let mut typed = typed_source(&source);
         let main = typed.realized_machine_named("main").unwrap().symbol;
