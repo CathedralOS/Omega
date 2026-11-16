@@ -9299,11 +9299,12 @@ mod closed_requirement_declaration_tests {
         });
         for (ordinal, identity) in identities.iter().enumerate() {
             assert!(
-                identity.contains(
+                identity.contains(&super::atom(
+                    super::CoordinateTag::Template,
                     &program
                         .normalized_hermetic_symbol_identity(template)
-                        .unwrap()
-                )
+                        .unwrap(),
+                ))
             );
             assert!(
                 identities[..ordinal]

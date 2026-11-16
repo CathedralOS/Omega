@@ -1602,6 +1602,16 @@ machine entry() -> u64 crashes none {
                     .symbol
             })
             .collect::<Vec<_>>();
+        let mut selected = metadata.clone();
+        for &symbol in &metadata {
+            let owner = typed.trait_definition_by_symbol(symbol).unwrap();
+            selected.extend(
+                typed
+                    .trait_machine_signatures(owner)
+                    .iter()
+                    .map(|signature| signature.symbol),
+            );
+        }
         let (frozen, _) = typed_trees_to_typed_trees::prepare_typed_trees(
             typed,
             &typed_trees_to_typed_trees::PreparationRequest::settled(),
@@ -1614,7 +1624,7 @@ machine entry() -> u64 crashes none {
                 entries: &[entry],
                 subjects: &[],
                 purpose: source::DependencyScope::Product,
-                selected: &metadata,
+                selected: &selected,
                 bindings: &[],
                 calling: None,
                 providers: None,
