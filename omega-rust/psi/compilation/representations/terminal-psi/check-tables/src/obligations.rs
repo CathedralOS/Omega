@@ -432,10 +432,10 @@ fn parameter_inputs(
                     .map(|formal| formal.structural_type),
             );
             for operation in &block.operations {
-                if let Some(value) = operation.result.as_scalar() {
-                    if !extents {
-                        width_scalar(machine.id, value.scalar_type, &mut widths)?;
-                    }
+                if let Some(value) = operation.result.as_scalar()
+                    && !extents
+                {
+                    width_scalar(machine.id, value.scalar_type, &mut widths)?;
                 }
                 if let Some(result) = operation.result.as_structural() {
                     roots.push(result.structural_type);
