@@ -1489,7 +1489,7 @@ impl<'a> Lowering<'a> {
         operand: &Expression,
         expression: &Expression,
         clauses: &[semantic_vocabulary::Proposition],
-        stated: &str,
+        stated: Option<&terminal_check_tables::program::CastCondition>,
     ) -> Evaluation<Located> {
         let Some(ValueType::Record(record, after, _)) = expression.result else {
             return Err(self.internal("a record cast has no record result"));
@@ -1591,9 +1591,11 @@ impl<'a> Lowering<'a> {
                     id,
                 )?);
             }
-            self.sources
-                .predicate_establishments
-                .push((cast, stated.to_owned()));
+            if let Some(stated) = stated {
+                self.sources
+                    .predicate_establishments
+                    .push((cast, stated.clone()));
+            }
             self.invariants.push(terminal_psi::ScalarBlockInvariant {
                 machine: id,
                 header: cast,
@@ -2190,12 +2192,12 @@ impl<'a> Lowering<'a> {
             // computed (domains.md: "removing `D` with a cast changes no bits
             // or geometry"), but the result is a distinct place of a distinct
             // type, reached through the cast's own edge.
-            ExpressionKind::Requalify(operand) => self.requalify(operand, expression, &[], ""),
+            ExpressionKind::Requalify(operand) => self.requalify(operand, expression, &[], None),
             ExpressionKind::Establish {
                 operand,
                 clauses,
                 stated,
-            } => self.requalify(operand, expression, clauses, stated),
+            } => self.requalify(operand, expression, clauses, Some(stated)),
             ExpressionKind::Borrow { access, place, .. } => {
                 let StorageShape::Reference {
                     referent,

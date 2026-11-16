@@ -908,14 +908,16 @@ impl Lowering<'_> {
         scalar_type: ScalarType,
         qualification: crate::body::Qualification,
         clauses: &[Proposition],
-        stated: &str,
+        stated: Option<&terminal_check_tables::program::CastCondition>,
         source: SourceOrigin,
     ) -> Checked<ValueId> {
         let id = self.id;
         let established = self.block(source);
-        self.sources
-            .predicate_establishments
-            .push((established, stated.to_owned()));
+        if let Some(stated) = stated {
+            self.sources
+                .predicate_establishments
+                .push((established, stated.clone()));
+        }
         let result = self.value(
             scalar_type,
             ValueOrigin::BlockParameter {
