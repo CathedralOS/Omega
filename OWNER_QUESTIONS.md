@@ -104,3 +104,60 @@ obligation. Do not treat independent conditional termination promises as a
 proof of a mutual cycle. Strict descent required for recursive proof citation
 and the existing cross-package recursion restriction are unchanged. Other
 termination and compiler work can proceed.
+
+<a id="syscall-binding-calling-policy"></a>
+
+### 2. Which calling policy does a requirement with no `Calling<Policy>` get when Build binds it to a syscall?
+
+Decision name: `syscall-binding-calling-policy`.
+
+**Customer.** The bundled `std` binds about forty Linux filesystem requirements
+of `PosixFilesystemLinux` (`std/targets/linux_x86_64/posix_filesystem_impl.omg`)
+to `ForeignBinding::Syscall` locators in `std/build.omg`, for both
+`linux_x86_64` and `linux_arm64`. The trait declares no `Calling<Policy>`. Today
+the compiler picks the kernel convention from the locator:
+`native_calling_applications` (`provider-planning/src/calling_policy_plans/selected_application.rs`)
+uses `CallingPolicy::native_syscall_for_target` for a syscall locator and
+`native_for_target` for an import, and `has_valid_entry_mechanism`
+(`target-vocabulary/src/boundary/realizations.rs`) checks a syscall plan against
+the same built-in policy. On `linux_x86_64` a four-argument requirement therefore
+passes its fourth argument in `rcx` when bound to an import and in `r10` when
+bound to a syscall. The same file refuses any requirement that declares its own
+policy. The byte-view requirements (`PosixFilesystemLinuxX86ByteViews:
+Calling<LinuxX86ByteViewCalling>`) already declare a syscall policy, one trait
+per architecture.
+
+**Gap.** [Identity and selection](wiki/spec/build/calling_plans.md#identity-and-selection)
+says a `Build::bind` row retains the requirement's calling-policy application
+and "A locator, syscall number, or target label cannot select calling policy";
+[the page's opening](wiki/spec/build/calling_plans.md) says the requirement
+selects its policy. [Configuration](wiki/spec/build/configuration.md) says
+default calling policies belong to the selected target profile, which gives a
+requirement without `Calling<Policy>` the profile's default, but no page says
+whether that default is one policy (the platform C ABI) or a family the binding
+mechanism chooses from. A declared policy cannot stand in for the profile:
+`BoundarySignature` (`std/calling.omg`) carries no target, so one
+`Calling<Policy>` on a requirement shared by two architectures cannot place
+registers for both. [Foreign bindings](wiki/spec/build/foreign_bindings.md#locator-values)
+says the locator is not a calling convention, and is otherwise silent.
+
+**Question.** When a requirement declares no `Calling<Policy>` and Build binds
+it to a `Syscall` locator, does the compiler (a) give it the profile's ordinary
+C ABI and so refuse the binding, requiring every kernel requirement to move to a
+per-architecture trait that declares a syscall policy, as the byte-view traits
+do; or (b) give the profile a default syscall policy beside its default call
+policy, with the binding mechanism choosing between the two profile defaults
+while a declared policy is always kept and only checked against the locator?
+
+**Recommendation.** (a). It is the literal reading of the identity rule, keeps
+the ABI a property of the requirement, and std already shows the per-architecture
+form. It requires migrating every `PosixFilesystemLinux`, `LinuxClockWait` and
+`LinuxArmClockWait` binding, and a realization path that evaluates a declared
+policy for a native binding, which target preparation refuses today. This is a
+recommendation, not a settled rule.
+
+**Until answered.** The compiler keeps choosing the convention from the locator
+for requirements without a declared policy. Either answer keeps a declared
+policy and checks the locator against its entry control (a syscall needs
+`SupervisorCall`, an import `CallReturn`); that path is part of finishing calling
+policies under `STATIC-MACHINE-MIGRATION` in [TASKS.md](TASKS.md).
