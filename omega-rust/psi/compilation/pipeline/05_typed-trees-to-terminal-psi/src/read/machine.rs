@@ -3063,7 +3063,8 @@ impl<'t> Program<'t> {
                 None => nothing = false,
             }
         }
-        operators.sort_unstable();
+        operators
+            .sort_unstable_by_key(|expression| (expression.arena_index(), expression.generation()));
         operators.dedup();
         Ok((nothing, operators))
     }
