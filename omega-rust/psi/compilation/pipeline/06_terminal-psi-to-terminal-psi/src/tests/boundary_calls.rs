@@ -1156,6 +1156,45 @@ machine entry() -> u32 crashes none {
             "closed calls must publish with their nominated schema: {error:?}; {publication_scope}"
         )
     });
+    // A normal product also checks every declaration owned by its package.
+    // Use the actual compilation entrance so generic source forms are judged
+    // separately from the executable closure that must be published.
+    let package = prepared
+        .symbols
+        .source_map()
+        .unwrap()
+        .files()
+        .next()
+        .unwrap()
+        .package_identity
+        .unwrap();
+    let compilation = typed_trees_to_terminal_psi::prepare_compilation(
+        &prepared,
+        typed_trees_to_terminal_psi::Compilation {
+            calling: None,
+            providers: None,
+            declaration_metadata: &[probe],
+            entries: &[entry(&prepared)],
+            subjects: &[Some(package)],
+            purpose: source::DependencyScope::Product,
+            selected: &[],
+            bindings: &[],
+            supplies: &[],
+        },
+        terminal_codec::TerminalPublication::Portable,
+    );
+    let mut verdicts = crate::judge_compilation(compilation.program).into_iter();
+    let Ok(RouteVerdict::Accepted(executable)) = verdicts.next().unwrap() else {
+        panic!("the package's closed caller must be accepted");
+    };
+    for verdict in verdicts {
+        assert!(
+            matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+            "{verdict:?}"
+        );
+    }
+    executable.publish().unwrap();
+    executable.publish_invocation().unwrap();
     let mut wrongly_accepted = Vec::new();
     for missing in [false, true] {
         let mut changed = prepared.clone().into_inner();
