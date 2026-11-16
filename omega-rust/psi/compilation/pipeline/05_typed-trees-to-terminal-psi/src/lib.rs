@@ -1247,6 +1247,7 @@ fn lower_generic_for<'source>(
             signatures,
             &outcomes,
             &declared.records,
+            &module.structural_types,
             requirements.contains(&id),
             &mut qualifications,
         )?;

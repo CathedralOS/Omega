@@ -2979,7 +2979,7 @@ impl<'a> Lowering<'a> {
             return self.establish_laid_out(record, roster, source);
         }
         let operation = self.operation_identity(source);
-        self.owe_domains(operation, self.record_type(record)?.requires.len(), source)?;
+
         let (root, exact) = self.produce(
             operation,
             record,
@@ -3015,14 +3015,13 @@ impl<'a> Lowering<'a> {
         source: SourceOrigin,
     ) -> Evaluation<(PlaceId, ExactPlaceId)> {
         let (root, exact) = self.establish_zeroed(record, source)?;
-        let owed = self.record_type(record)?.requires.len();
         let fields = roster
             .into_iter()
             .map(|(field, operand)| (field.id, operand))
             .collect::<Vec<_>>();
         for (position, (field, operand)) in fields.into_iter().enumerate() {
             let operation = self.operation_identity(source);
-            self.owe_domains(operation, owed, source)?;
+
             let leaf = self.project(exact, Segment::Field(field))?;
             let at = ProgramPoint::AfterOperation(operation);
             match operand {
@@ -3234,7 +3233,7 @@ impl<'a> Lowering<'a> {
             }
         };
         let operation = self.operation_identity(source);
-        self.owe_domains(operation, self.record_type(record)?.requires.len(), source)?;
+
         let (root, exact) = self.produce(operation, record, kind)?;
         let at = ProgramPoint::AfterOperation(operation);
         self.write(exact, at, Content::Overwritten)?;
@@ -3906,10 +3905,9 @@ impl<'a> Lowering<'a> {
         source: SourceOrigin,
     ) -> Checked<(PlaceId, ExactPlaceId)> {
         let mut zeros = Vec::new();
-        let mut owed = 0;
-        self.zero_leaves(record, &mut Vec::new(), &mut zeros, &mut owed, source)?;
+        self.zero_leaves(record, &mut Vec::new(), &mut zeros, source)?;
         let operation = self.operation_identity(source);
-        self.owe_domains(operation, owed, source)?;
+
         let (root, exact) = self.produce(
             operation,
             record,
@@ -4015,16 +4013,6 @@ impl<'a> Lowering<'a> {
         {
             return Err(self.internal("a whole record assignment must rebind its local"));
         }
-        let mut owed = 0;
-        for step in &steps {
-            let owner = match step {
-                Step::Field { owner, .. }
-                | Step::Payload { owner, .. }
-                | Step::Index { owner, .. }
-                | Step::Referent { owner } => *owner,
-            };
-            owed += self.record_type(owner)?.requires.len();
-        }
         self.name_passed_clauses(root, &steps)?;
         if value.result.map(ValueType::erased) != Some(expected.erased()) {
             return Err(self.internal("a replacement has another type than its destination"));
@@ -4034,7 +4022,7 @@ impl<'a> Lowering<'a> {
             ValueType::Scalar(..) => {
                 let stored = continuing!(self.scalar(value));
                 let operation = self.operation_identity(source);
-                self.owe_domains(operation, owed, source)?;
+
                 let kind = if let Some(Step::Field { .. }) = steps.last() {
                     let field = self
                         .declared(
@@ -4076,7 +4064,7 @@ impl<'a> Lowering<'a> {
             ValueType::Record(stored, _, _) => {
                 let constructed = continuing!(self.record(value));
                 let operation = self.operation_identity(source);
-                self.owe_domains(operation, owed, source)?;
+
                 let mut storage =
                     self.storage_path(&steps, ExecutionSite::Operation(operation), source)?;
                 let view_field = match steps.last() {
@@ -4222,9 +4210,7 @@ impl<'a> Lowering<'a> {
     }
 
     /// Emits the zero constant of every scalar leaf of the zero value of
-    /// `record`, each with its path beneath the value, and counts the
-    /// `requires` clauses the zero value owes: the type's own, then those of
-    /// each data-typed field in declaration order, parent first. A sum's
+    /// `record`, each with its path beneath the value. A sum's
     /// zero value is its first declared case, so only that case's payload
     /// is walked.
     fn zero_leaves(
@@ -4232,11 +4218,9 @@ impl<'a> Lowering<'a> {
         record: StructuralTypeId,
         prefix: &mut Vec<Segment>,
         zeros: &mut Vec<(Vec<Segment>, ValueId)>,
-        owed: &mut usize,
         source: SourceOrigin,
     ) -> Checked<()> {
         let data = self.record_type(record)?;
-        *owed += data.requires.len();
         match data.shape {
             StorageShape::AtomicCell(_) => return Ok(()),
             StorageShape::Opaque => {
@@ -4256,7 +4240,7 @@ impl<'a> Lowering<'a> {
             } => {
                 for index in 0..length {
                     prefix.push(Segment::FixedIndex(index));
-                    self.zero_leaves(element, prefix, zeros, owed, source)?;
+                    self.zero_leaves(element, prefix, zeros, source)?;
                     prefix.pop();
                 }
                 return Ok(());
@@ -4306,34 +4290,13 @@ impl<'a> Lowering<'a> {
                 // nothing").
                 ValueType::Record(nested, _, _) if self.is_stored_view(nested)? => {}
                 ValueType::Record(nested, _, _) => {
-                    self.zero_leaves(nested, prefix, zeros, owed, source)?;
+                    self.zero_leaves(nested, prefix, zeros, source)?;
                 }
             }
             prefix.pop();
         }
         if case.is_some() {
             prefix.pop();
-        }
-        Ok(())
-    }
-
-    /// Mints the `DataDomain` obligations of `operation`, one per clause it
-    /// owes, at the point before it. data_and_literals.md: "Construction and
-    /// every restoring write prove the owning default-domain clauses."
-    fn owe_domains(
-        &mut self,
-        operation: OperationId,
-        clauses: usize,
-        source: SourceOrigin,
-    ) -> Checked<()> {
-        let before = self.here()?;
-        for clause in 0..clauses {
-            let clause = self.position(clause)?;
-            self.obligation(
-                ObligationKind::DataDomain { operation, clause },
-                before,
-                source,
-            );
         }
         Ok(())
     }

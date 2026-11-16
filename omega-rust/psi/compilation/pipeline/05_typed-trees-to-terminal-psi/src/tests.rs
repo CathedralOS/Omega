@@ -229,6 +229,7 @@ fn lower_records(
         signatures,
         outcomes,
         &declared.records,
+        &declared.structural_types,
         false,
         &mut crate::qualifications::Qualifications::default(),
     )

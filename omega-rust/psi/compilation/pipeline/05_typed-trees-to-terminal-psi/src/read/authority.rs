@@ -35,7 +35,7 @@ use semantic_vocabulary::{MachineId, StructuralTypeId};
 use terminal_check_tables::{Checked, Construct};
 
 use super::Program;
-use crate::body::{Expression, ExpressionKind, StorageShape, ValueType};
+use crate::body::{Expression, StorageShape, ValueType};
 use crate::{Unserved, refuse};
 
 /// What a site does to the contents of a value.
@@ -80,18 +80,6 @@ impl Program<'_> {
         value_type: ValueType,
         access: Access,
     ) -> Checked<()> {
-        self.authorized_in(id, value_type, access, false)
-    }
-
-    /// `authorized`, where `in_owner` says the value is a field of a data
-    /// value, whose clauses its domain joins.
-    fn authorized_in(
-        &self,
-        id: MachineId,
-        value_type: ValueType,
-        access: Access,
-        in_owner: bool,
-    ) -> Checked<()> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
         for domain in value_type.qualification().domains.members() {
             let definition = self.domain_theory(id, domain)?;
@@ -104,17 +92,9 @@ impl Program<'_> {
                     Access::Write => "write inside a value governed by an access policy",
                 });
             }
-            // dependent_values.md, "Invariant windows": a write that is not
-            // known to preserve the domain "opens a window on the place",
-            // closed by proving the predicates again. A window is kept for
-            // the clauses of a data type, which a field's domain joins
-            // (`predicates`); a data value that carries the domain itself
-            // has no such owner, so a partial write under it would leave a
-            // value its type no longer describes. A complete value of the
-            // same type brings its own membership.
-            if access == Access::Write && !in_owner && has_predicates(definition) {
-                return unserved("write inside a value whose domain has predicates");
-            }
+            // Pure predicates restrict validity, independently of access.
+            // Canonical default requirements keep their restoration windows
+            // on the actual storage, including standalone qualified roots.
         }
         Ok(())
     }
@@ -135,19 +115,14 @@ impl Program<'_> {
         Ok(Some(Opened(record)))
     }
 
-    /// `opened` for the value a place expression reads, which may be a
-    /// field of a data value whose clauses its domain joins.
+    /// Authorize the actual value a place expression projects through.
     pub(super) fn opened_place(
         &self,
         id: MachineId,
         base: &Expression,
         access: Access,
     ) -> Checked<Option<Opened>> {
-        let Some(value_type @ ValueType::Record(record, _, _)) = base.result else {
-            return Ok(None);
-        };
-        self.authorized_in(id, value_type, access, in_data_owner(base))?;
-        Ok(Some(Opened(record)))
+        self.opened(id, base.result, access)
     }
 
     /// Authorizes a partial write through `place`, a slot or a path of
@@ -161,7 +136,7 @@ impl Program<'_> {
             |capture| captures.resolve(capture),
             |_, base| {
                 if let Some(value_type) = base.result {
-                    self.authorized_in(id, value_type, Access::Write, in_data_owner(base))?;
+                    self.authorized(id, value_type, Access::Write)?;
                 }
                 Ok(())
             },
@@ -314,13 +289,4 @@ impl Program<'_> {
 pub(crate) fn has_predicates(definition: &typed_trees::domain::DomainDefinition) -> bool {
     definition.predicate_presence != language_semantics::DomainPredicatePresence::Absent
         || !definition.facts.is_empty()
-}
-
-/// Whether `place` is a field of a data value. A field's domain joins the
-/// clauses of the data type that declares the field (`predicates`), whose
-/// invariant window a partial write opens and the checker closes by proving
-/// them again (dependent_values.md, "Invariant windows"), so the write leaves
-/// no value its type no longer describes.
-fn in_data_owner(place: &Expression) -> bool {
-    matches!(place.kind, ExpressionKind::Field { .. })
 }

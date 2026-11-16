@@ -617,13 +617,18 @@ impl<'q> Asked<'q> {
 
 /// One clause of a data type's `requires` on one place of that type: what a
 /// `DataDomain` obligation is about.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub(crate) struct Owner {
     place: Lineage,
-    structural_type: StructuralTypeId,
-    /// The clause's position among its type's clauses.
-    position: usize,
+    requirement: terminal_semantics::structural_qualifications::DefaultRequirement,
 }
+
+impl PartialEq for Owner {
+    fn eq(&self, other: &Self) -> bool {
+        self.place == other.place && self.requirement.same_clause(&other.requirement)
+    }
+}
+impl Eq for Owner {}
 
 /// One invariant window: a `DataDomain` clause that the store or zero
 /// establishment owing it was not shown to keep. The obligation is the
@@ -743,6 +748,7 @@ pub(crate) struct Storage<'a> {
     /// The `requires` clauses of each data type, by its identity
     /// (`Elaboration::domains`).
     domains: &'a IdTable<StructuralTypeId, Vec<Proposition>>,
+    defaults: terminal_semantics::structural_qualifications::DefaultRequirements<'a>,
 }
 
 impl<'a> Storage<'a> {
@@ -790,6 +796,19 @@ impl<'a> Storage<'a> {
             observations: (0..graph.block_count()).map(|_| BTreeMap::new()).collect(),
             references,
             domains,
+            defaults: terminal_semantics::structural_qualifications::DefaultRequirements::new(
+                &module.structural_types,
+                &module.structural_domains,
+                lowered,
+            )
+            .map_err(|error| {
+                refusal(
+                    RefusalReason::ForeignIdentity,
+                    machine,
+                    Construct::Machine,
+                    error.detail,
+                )
+            })?,
         };
         // Entry observations occupy position zero. Install them before the
         // operation loop appends reads in position order for binary search.
@@ -1031,170 +1050,17 @@ impl<'a> Storage<'a> {
         first(self, beneath.len())
     }
 
-    /// The data-typed places of the zero value of `structural_type` at
-    /// `at`, parent first, fields in declaration order; a sum contributes
-    /// its first case's payload.
-    fn zero_typed(
-        &self,
-        structural_type: StructuralTypeId,
-        at: &mut Lineage,
-        found: &mut Vec<(Lineage, StructuralTypeId)>,
-        concerns: Construct,
-    ) -> Checked<()> {
-        let fields = match &self.declaration(structural_type, concerns)?.shape {
-            StructuralTypeShape::PrimitiveScalar(_) => return Ok(()),
-            StructuralTypeShape::AtomicCell(cell) if cell.bounds().is_none() => return Ok(()),
-            shape if is_shared_view(shape) => return Ok(()),
-            StructuralTypeShape::FixedArray {
-                element,
-                length: terminal_psi::ArrayExtent::Literal(length),
-            } => {
-                for index in 0..*length {
-                    at.segments.push(Segment::FixedIndex(index));
-                    self.zero_typed(*element, at, found, concerns)?;
-                    at.segments.pop();
-                }
-                return Ok(());
-            }
-            StructuralTypeShape::Record { fields, .. } => {
-                found.push((at.clone(), structural_type));
-                (None, fields)
-            }
-            StructuralTypeShape::Sum { cases } => {
-                found.push((at.clone(), structural_type));
-                let first = cases
-                    .first()
-                    .ok_or_else(|| self.foreign(concerns, "a sum declares no case"))?;
-                (Some(first.id), &first.fields)
-            }
-            _ => return Err(self.unsupported(concerns, "storage that is no plain data")),
-        };
-        if let Some(case) = fields.0 {
-            at.segments.push(Segment::Case(case));
-        }
-        for field in fields.1 {
-            match field.field_type {
-                StructuralFieldType::Scalar(_) | StructuralFieldType::Atomic(_) => {}
-                StructuralFieldType::Structural(nested) => {
-                    at.segments.push(Segment::Field(field.id));
-                    self.zero_typed(nested, at, found, concerns)?;
-                    at.segments.pop();
-                }
-                // The zero of a stored view is the empty shared view: a
-                // value of no data type, so it owes no clause.
-                ref stored if is_stored_view(stored) => {}
-                _ => return Err(self.unsupported(concerns, "a field type outside plain data")),
-            }
-        }
-        if fields.0.is_some() {
-            at.segments.pop();
-        }
-        Ok(())
-    }
-
-    /// The data-typed places whose `requires` an operation owes, in the
-    /// order `ObligationKind::DataDomain` numbers their clauses.
-    ///
-    /// - A record or case construction forms one value: its own type.
-    /// - A zero establishment forms the zero value: its type and the type
-    ///   of every data-typed place of that value, parent first.
-    /// - A store into a field changes every value that contains the field:
-    ///   the type that declares it and each type above it on the path, from
-    ///   the innermost outward. The stored value itself arrives formed: a
-    ///   scalar has no clauses and a record was established where it was
-    ///   constructed, so its own type owes nothing again.
-    fn owed(&self, operation: &Operation) -> Checked<Vec<(Lineage, StructuralTypeId)>> {
-        let concerns = Construct::Operation(operation.id);
-        let produced = operation.result.as_structural();
-        let carrier = match &operation.kind {
-            OperationKind::EstablishRecord { .. }
-            | OperationKind::EstablishScalarCase { .. }
-            | OperationKind::EstablishStructuralCase { .. } => {
-                let result = produced
-                    .ok_or_else(|| self.foreign(concerns, "a construction produces no place"))?;
-                return Ok(vec![(
-                    Lineage {
-                        root: result.place,
-                        segments: Vec::new(),
-                    },
-                    result.structural_type,
-                )]);
-            }
-            OperationKind::EstablishZeroedStructural {} => {
-                let result = produced.ok_or_else(|| {
-                    self.foreign(concerns, "a zero establishment produces no place")
-                })?;
-                let mut found = Vec::new();
-                let mut at = Lineage {
-                    root: result.place,
-                    segments: Vec::new(),
-                };
-                self.zero_typed(result.structural_type, &mut at, &mut found, concerns)?;
-                return Ok(found);
-            }
-            OperationKind::StructuralScalarFieldStore {
-                destination, path, ..
-            }
-            | OperationKind::StructuralByteViewFieldStore {
-                destination,
-                path,
-                field: Some(_),
-                ..
-            }
-            | OperationKind::StoreStructuralField {
-                destination,
-                path,
-                field: Some(_),
-                ..
-            } => self.stored_at(*destination, path, concerns)?,
-            OperationKind::WriteOnlyPrimitiveStore {
-                destination, path, ..
-            }
-            | OperationKind::StoreStructuralField {
-                destination,
-                path,
-                field: None,
-                ..
-            } => {
-                // The incoming value arrives formed. Only strict ancestors
-                // of the replaced value owe their domains again.
-                let mut carrier = self.stored_at(*destination, path, concerns)?;
-                if carrier.segments.pop().is_none() {
-                    return Ok(Vec::new());
-                }
-                carrier
-            }
-            _ => return Ok(Vec::new()),
-        };
-        let mut owners = Vec::new();
-        for length in (0..=carrier.segments.len()).rev() {
-            let owner = Lineage {
-                root: carrier.root,
-                segments: carrier.segments[..length].to_vec(),
-            };
-            match self.shape(&owner, concerns)? {
-                Shape::Typed(structural_type) => owners.push((owner, structural_type)),
-                // A case's payload namespace is no value of its own; the
-                // sum above it is.
-                Shape::Payload(_) => {}
-                Shape::Scalar(_) | Shape::Atomic(_) | Shape::View => {
-                    return Err(self.foreign(concerns, "a store path crosses a leaf field"));
-                }
-            }
-        }
-        Ok(owners)
-    }
-
     /// Checks that every operation's owed clauses each have exactly one
     /// `DataDomain` row: a clause no row names would be dropped in silence.
     pub(crate) fn owed_are_minted(&self, tables: &MachineTables) -> Checked<()> {
         for block in &self.lowered.blocks {
             for operation in &block.operations {
                 let concerns = Construct::Operation(operation.id);
-                let mut owed = 0;
-                for (_, structural_type) in self.owed(operation)? {
-                    owed += self.clauses_of(structural_type, concerns)?.len();
-                }
+                let owed = self
+                    .defaults
+                    .operation(operation)
+                    .map_err(|error| self.foreign(concerns, error.detail))?
+                    .len();
                 // ponytail: one scan of the obligation table per operation;
                 // a per-operation column if machines grow.
                 let mut named = vec![false; owed];
@@ -1497,25 +1363,23 @@ impl<'a> Storage<'a> {
         concerns: Construct,
     ) -> Checked<Owner> {
         let found = self.operation(operation, concerns)?;
-        let mut remaining = usize::try_from(clause).unwrap_or(usize::MAX);
-        for (place, structural_type) in self.owed(found)? {
-            let clauses = self.clauses_of(structural_type, concerns)?.len();
-            if remaining < clauses {
-                return Ok(Owner {
-                    place,
-                    structural_type,
-                    position: remaining,
-                });
-            }
-            remaining -= clauses;
-        }
-        Err(self.foreign(concerns, "an operation owes no such data requires clause"))
+        let requirements = self
+            .defaults
+            .operation(found)
+            .map_err(|error| self.foreign(concerns, error.detail))?;
+        let requirement = usize::try_from(clause)
+            .ok()
+            .and_then(|position| requirements.get(position))
+            .cloned()
+            .ok_or_else(|| self.foreign(concerns, "an operation owes no such default clause"))?;
+        let place = self.stored_at(requirement.root, &requirement.path, concerns)?;
+        Ok(Owner { place, requirement })
     }
 
-    fn clause(&self, owner: &Owner, concerns: Construct) -> Checked<&'a Proposition> {
-        self.clauses_of(owner.structural_type, concerns)?
-            .get(owner.position)
-            .ok_or_else(|| self.foreign(concerns, "a data type has no such requires clause"))
+    fn clause(&self, owner: &Owner, concerns: Construct) -> Checked<Proposition> {
+        self.defaults
+            .clause(&owner.requirement)
+            .map_err(|error| self.foreign(concerns, error.detail))
     }
 
     /// A clause with `self` replaced by what its place holds at the point
@@ -1542,7 +1406,7 @@ impl<'a> Storage<'a> {
             up_to,
             concerns,
         };
-        crate::substitute(self.clause(owner, concerns)?, &mut bindings)
+        crate::substitute(&self.clause(owner, concerns)?, &mut bindings)
             .map_err(|unbound| unbound.refusal(self.machine, concerns))
     }
 
@@ -1596,7 +1460,7 @@ impl<'a> Storage<'a> {
             place: &owner.place,
             found: Vec::new(),
         };
-        match crate::substitute(self.clause(owner, concerns)?, &mut names) {
+        match crate::substitute(&self.clause(owner, concerns)?, &mut names) {
             // A case test is recorded and left unstated, so that every part
             // of its connective is still followed.
             Ok(_) | Err(crate::Unbound::Unproved(_)) => {}
@@ -5866,6 +5730,18 @@ impl crate::Bindings for Held<'_, '_> {
         self.extent_of(&self.beneath(root, path)?, scalar_type)
     }
 
+    fn byte_predicate(
+        &mut self,
+        predicate: semantic_vocabulary::ByteSequencePredicate,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+    ) -> Result<ScalarTerm, crate::Unbound> {
+        // Membership selects a debt, never its proof. Only the existing byte
+        // source judgment may supply a fact about these actual contents.
+        self.storage
+            .byte_source(predicate, &self.beneath(root, path)?, self.concerns)
+    }
+
     fn case(
         &mut self,
         root: PlaceId,
@@ -5964,6 +5840,34 @@ impl crate::Bindings for Named<'_> {
                 "a clause term outside the scalar subset",
             )),
         }
+    }
+
+    fn extent(
+        &mut self,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+        scalar_type: semantic_vocabulary::IntegerType,
+    ) -> Result<ScalarTerm, Self::Error> {
+        self.beneath(root, path)?;
+        Ok(ScalarTerm::ViewExtent {
+            root,
+            path: path.to_vec(),
+            scalar_type,
+        })
+    }
+
+    fn byte_predicate(
+        &mut self,
+        predicate: semantic_vocabulary::ByteSequencePredicate,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+    ) -> Result<ScalarTerm, Self::Error> {
+        self.beneath(root, path)?;
+        Ok(ScalarTerm::byte_sequence_predicate(
+            predicate,
+            root,
+            path.to_vec(),
+        ))
     }
 
     fn case(
