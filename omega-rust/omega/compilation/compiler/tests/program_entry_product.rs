@@ -244,24 +244,28 @@ fn selected_entry_receipt_keeps_the_accepted_artifact_and_rejects_other_owners()
             .map(|(expected_owner, expected_source)| {
                 let path = repository.join(expected_source);
                 let mut rows = catalog.abi_signatures().iter().filter(|row| {
-                    row.projections.iter().any(|projection| {
-                        typed
-                            .trait_machine_signature(projection.source)
-                            .is_some_and(|(owner, signature)| {
-                                owner.name.as_str() == expected_owner
-                                    && signature.name.as_str() == "enter"
-                            })
-                            && typed
-                                .symbols
-                                .symbol_provenance_source_span(projection.source)
-                                .and_then(|span| typed.symbols.source_file(span))
-                                .is_some_and(|source| source.path == path)
-                    })
+                    row.projections_in_context(typed, source::DependencyScope::Product)
+                        .any(|projection| {
+                            typed
+                                .trait_machine_signature(projection.source)
+                                .is_some_and(|(owner, signature)| {
+                                    owner.name.as_str() == expected_owner
+                                        && signature.name.as_str() == "enter"
+                                })
+                                && typed
+                                    .symbols
+                                    .symbol_provenance_source_span(projection.source)
+                                    .and_then(|span| typed.symbols.source_file(span))
+                                    .is_some_and(|source| source.path == path)
+                        })
                 });
                 let row = rows
                     .next()
                     .expect("the fixed source owns its exact arrival ABI");
-                assert!(rows.next().is_none(), "one ABI per fixed source arrival");
+                assert!(
+                    rows.next().is_none(),
+                    "one Product ABI per fixed source arrival: {expected_owner}"
+                );
                 semantic_vocabulary::CallingAbiIdentity {
                     requirement_identity: row.requirement_identity.clone(),
                     declaring_application: row.declaring_application.clone(),
