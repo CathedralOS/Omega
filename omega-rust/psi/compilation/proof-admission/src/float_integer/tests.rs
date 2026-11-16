@@ -446,3 +446,153 @@ fn converter_lower_bound_switches_only_when_minimum_minus_one_rounds_to_minimum(
         }
     }
 }
+
+// This miniature oracle enumerates representable integer magnitudes from
+// significands and exponents. It does not use the production bit test or
+// FloatSemantics, and visits the complete signed eight-bit integer carrier.
+#[test]
+fn integer_float_exact_matches_an_independent_small_integer_model() {
+    let mut represented = std::collections::BTreeSet::from([0u128, 1, 2, 3]);
+    for significand in 4u128..8 {
+        for exponent in 0..=4 {
+            represented.insert(significand << exponent);
+        }
+    }
+    for value in -128i128..128 {
+        assert_eq!(
+            integer_magnitude_exact(value.unsigned_abs(), 3, 6),
+            represented.contains(&value.unsigned_abs()),
+            "{value}"
+        );
+    }
+}
+
+#[test]
+fn integer_float_exact_checks_complete_carriers_and_literal_certificates() {
+    for (format, precision) in [
+        (IeeeFloatFormat::Binary32, 24u16),
+        (IeeeFloatFormat::Binary64, 53),
+    ] {
+        for (sign, width, expected) in [
+            (IntegerSign::Signed, precision + 1, true),
+            (IntegerSign::Signed, precision + 2, false),
+            (IntegerSign::Unsigned, precision, true),
+            (IntegerSign::Unsigned, precision + 1, false),
+        ] {
+            let carrier = integer(sign, width);
+            let source = ScalarTerm::value(ValueId::new(1).unwrap(), ScalarType::Integer(carrier));
+            let context = PropositionContext::from_value_types([(
+                ValueId::new(1).unwrap(),
+                source.scalar_type(),
+            )])
+            .unwrap();
+            let goal = Proposition::IntegerIeeeFloatExact {
+                source,
+                target: format,
+            };
+            let proof = ProofNode {
+                conclusion: goal.clone(),
+                rule: ProofRule::IntegerFloatExact,
+            };
+            let result = accept_certificate(&context, &goal, &[], &[], &proof);
+            assert_eq!(result.is_ok(), expected, "{sign:?}/{width}/{format:?}");
+            if let Ok(accepted) = result {
+                assert!(
+                    accepted
+                        .rules
+                        .contains(&AcceptedProofRule::IntegerFloatExact)
+                );
+                assert!(AcceptedProofRule::IntegerFloatExact.is_provisional());
+            }
+        }
+    }
+    // Expected eligibility was computed with an independent integer nearest-
+    // even oracle and Fraction decoding, including sign and zero categories.
+    for (format, value, expected) in [
+        (IeeeFloatFormat::Binary32, 0i128, true),
+        (IeeeFloatFormat::Binary32, 1i128, true),
+        (IeeeFloatFormat::Binary32, -1i128, true),
+        (IeeeFloatFormat::Binary32, 16777215i128, true),
+        (IeeeFloatFormat::Binary32, 16777216i128, true),
+        (IeeeFloatFormat::Binary32, 16777217i128, false),
+        (IeeeFloatFormat::Binary32, 16777218i128, true),
+        (IeeeFloatFormat::Binary32, 16777219i128, false),
+        (IeeeFloatFormat::Binary32, -16777217i128, false),
+        (IeeeFloatFormat::Binary32, 9223372036854775808i128, true),
+        (IeeeFloatFormat::Binary32, 18446744073709551615i128, false),
+        (IeeeFloatFormat::Binary32, -9223372036854775808i128, true),
+        (IeeeFloatFormat::Binary64, 0i128, true),
+        (IeeeFloatFormat::Binary64, 1i128, true),
+        (IeeeFloatFormat::Binary64, -1i128, true),
+        (IeeeFloatFormat::Binary64, 9007199254740991i128, true),
+        (IeeeFloatFormat::Binary64, 9007199254740992i128, true),
+        (IeeeFloatFormat::Binary64, 9007199254740993i128, false),
+        (IeeeFloatFormat::Binary64, 9007199254740994i128, true),
+        (IeeeFloatFormat::Binary64, 9007199254740995i128, false),
+        (IeeeFloatFormat::Binary64, -9007199254740993i128, false),
+        (IeeeFloatFormat::Binary64, 9223372036854775808i128, true),
+        (IeeeFloatFormat::Binary64, 18446744073709551615i128, false),
+        (IeeeFloatFormat::Binary64, -9223372036854775808i128, true),
+    ] {
+        let carrier = integer(IntegerSign::Signed, 128);
+        let source = ScalarTerm::integer(carrier, IntegerValue::Signed(value)).unwrap();
+        let goal = Proposition::IntegerIeeeFloatExact {
+            source,
+            target: format,
+        };
+        let proof = ProofNode {
+            conclusion: goal.clone(),
+            rule: ProofRule::IntegerFloatExact,
+        };
+        assert_eq!(
+            accept_certificate(&PropositionContext::default(), &goal, &[], &[], &proof).is_ok(),
+            expected,
+            "{value}/{format:?}"
+        );
+    }
+}
+
+#[test]
+fn integer_float_exact_uses_checked_integer_equality_and_refuses_wrong_sources() {
+    let carrier = integer(IntegerSign::Unsigned, 64);
+    let source = ScalarTerm::value(ValueId::new(1).unwrap(), ScalarType::Integer(carrier));
+    let literal = ScalarTerm::integer(carrier, IntegerValue::Unsigned(1u128 << 63)).unwrap();
+    let goal = Proposition::IntegerIeeeFloatExact {
+        source: source.clone(),
+        target: IeeeFloatFormat::Binary64,
+    };
+    let computed = Proposition::IntegerIeeeFloatExact {
+        source: literal.clone(),
+        target: IeeeFloatFormat::Binary64,
+    };
+    let equation = Proposition::Equal(source.clone(), literal);
+    let context =
+        PropositionContext::from_value_types([(ValueId::new(1).unwrap(), source.scalar_type())])
+            .unwrap();
+    let proof = ProofNode {
+        conclusion: goal.clone(),
+        rule: ProofRule::ValueEqualityTransport {
+            premise: Box::new(ProofNode {
+                conclusion: computed,
+                rule: ProofRule::IntegerFloatExact,
+            }),
+            equalities: vec![ProofNode {
+                conclusion: equation.clone(),
+                rule: ProofRule::SemanticAxiom { index: 0 },
+            }],
+        },
+    };
+    let accepted = accept_certificate(&context, &goal, &[], &[equation], &proof).unwrap();
+    assert_eq!(accepted.semantic_axioms.len(), 1);
+    assert!(accept_certificate(&context, &goal, &[], &[Proposition::Truth], &proof).is_err());
+    let direct = ProofNode {
+        conclusion: goal.clone(),
+        rule: ProofRule::IntegerFloatExact,
+    };
+    assert!(accept_certificate(&context, &goal, &[], &[], &direct).is_err());
+    let wrong = Proposition::IntegerIeeeFloatExact {
+        source: ScalarTerm::IeeeFloatLiteral(IeeeFloatValue::Binary32(0)),
+        target: IeeeFloatFormat::Binary64,
+    };
+    assert!(wrong.validate().is_err());
+}

@@ -112,7 +112,8 @@ fn covered(
         Proposition::ScalarIeeeFloatComparison { .. }
         | Proposition::FloatMeaningEqual(_)
         | Proposition::FloatIntegerConversion(_)
-        | Proposition::IeeeFloatIntegerExact { .. } => true,
+        | Proposition::IeeeFloatIntegerExact { .. }
+        | Proposition::IntegerIeeeFloatExact { .. } => true,
         Proposition::Conjunction(parts) | Proposition::Disjunction(parts) => {
             parts.iter().all(|part| covered(part, fixed, width))
         }
@@ -606,6 +607,11 @@ impl<'a> Prover<'a> {
     }
 
     fn closed(&self, proposition: Proposition) -> Option<ProofNode> {
+        if matches!(proposition, Proposition::IntegerIeeeFloatExact { .. }) {
+            return proof_admission::check_integer_float_exact(self.context, &proposition)
+                .ok()
+                .map(|()| node(proposition, ProofRule::IntegerFloatExact));
+        }
         let integer_conversion = |proposition: &Proposition| {
             matches!(
                 proposition,
@@ -1195,6 +1201,25 @@ impl<'a> Prover<'a> {
             | Proposition::StructuralCaseMembership { .. }
             | Proposition::ContentConservation(_) => Err("goal form outside this prover"),
             Proposition::FloatMeaningEqual(_) => self.float_meaning(goal),
+            Proposition::IntegerIeeeFloatExact { .. } => {
+                proof_admission::check_integer_float_exact(self.context, goal)
+                    .map(|()| node(goal.clone(), ProofRule::IntegerFloatExact))
+                    .map_err(|error| match error {
+                        proof_admission::FloatIntegerError::NotEstablished => {
+                            "the live integer facts do not establish an exact float cast"
+                        }
+                        proof_admission::FloatIntegerError::Malformed(_) => {
+                            "exact float cast proof has a malformed source"
+                        }
+                        proof_admission::FloatIntegerError::Unsupported(detail) => detail,
+                        proof_admission::FloatIntegerError::Semantic(_) => {
+                            "exact float cast semantic evaluation failed"
+                        }
+                        proof_admission::FloatIntegerError::Transport(_) => {
+                            "exact float cast source substitution failed"
+                        }
+                    })
+            }
             Proposition::IeeeFloatIntegerExact { .. } => self
                 .closed(goal.clone())
                 .or_else(|| self.float_integer_conversion(goal))

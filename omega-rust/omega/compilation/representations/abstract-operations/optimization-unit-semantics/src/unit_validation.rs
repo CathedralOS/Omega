@@ -10673,7 +10673,8 @@ pub(crate) mod operation_contracts {
                         scalar_term_roots(&clause.source, roots);
                         scalar_term_roots(&clause.result, roots);
                     }
-                    Proposition::IeeeFloatIntegerExact { source, .. } => {
+                    Proposition::IeeeFloatIntegerExact { source, .. }
+                    | Proposition::IntegerIeeeFloatExact { source, .. } => {
                         scalar_term_roots(source, roots)
                     }
                     Proposition::FloatMeaningEqual(clause) => {
