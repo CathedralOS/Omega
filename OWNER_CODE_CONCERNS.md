@@ -98,9 +98,9 @@ framework or a list of unimplemented features.
 
 ### Later machine forms embed records from the prepared plan
 - Category: knowledge crossing a boundary
-- Where: [selected instructions](omega-rust/omega/compilation/representations/selected-instructions/Cargo.toml#L25), [register homes](omega-rust/omega/compilation/representations/register-homes/Cargo.toml#L13), [frame step](omega-rust/omega/compilation/backend/machine-emission/src/function_realization.rs#L345)
-- Saw: `selected-instructions` and `register-homes` embed call records, structural contracts and call-site owners defined in `legalized-operations`, so both depend on the prepared plan's crate. Stage 06's output omits the allocation it was computed from, so `stage_function_frame` takes the allocation and stage 06's output separately.
-- Cost: A change to a legalized-operations record changes the selected and allocated forms without passing through stage 03. Move the embedded records to the form that owns them, and let stage 06's output keep its allocation so the frame step reads one form.
+- Where: [selected instructions](omega-rust/omega/compilation/representations/selected-instructions/Cargo.toml#L25), [register homes](omega-rust/omega/compilation/representations/register-homes/Cargo.toml#L13)
+- Saw: `selected-instructions` and `register-homes` embed call records, structural contracts and call-site owners defined in `legalized-operations`, so both depend on the prepared plan's crate.
+- Cost: A change to a legalized-operations record changes the selected and allocated forms without passing through stage 03. Move the embedded records to the form that owns them.
 - Reported: 2026-11-16, Claude Code, while removing unused dependencies from stages 04 to 09.
 
 ### Image emission's replay validators share a file with object production
