@@ -76,7 +76,7 @@ impl Program<'_> {
                 continue;
             }
             let facts = super::span(
-                &self.typed.proof_facts,
+                |span| self.typed.proof_facts.span(span),
                 definition.facts,
                 id,
                 "domain requires span",

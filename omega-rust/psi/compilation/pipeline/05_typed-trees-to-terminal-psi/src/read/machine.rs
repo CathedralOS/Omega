@@ -61,7 +61,7 @@ impl<'t> Program<'t> {
         &self,
         id: MachineId,
         machine: &'t Machine,
-    ) -> Checked<&'t [typed_trees::data::TypeParameter]> {
+    ) -> Checked<arena::RootRows<'t, typed_trees::data::TypeParameter>> {
         let own = self.typed.machine_type_parameters(machine);
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Machine(what));
         if own.is_empty() != machine.type_parameters.is_empty() {
@@ -147,7 +147,7 @@ impl<'t> Program<'t> {
                 continue;
             };
             let contracts = span(
-                &self.typed.signature_contracts,
+                |span| self.typed.signature_contracts.span(span),
                 machine.contracts,
                 id,
                 "contract span",
@@ -947,7 +947,12 @@ impl<'t> Program<'t> {
                 "a data declaration cannot own a machine; declare an ordinary static machine",
             ));
         }
-        let states = span(&typed.machine_states, machine.states, id, "state span")?;
+        let states = span(
+            |span| typed.machine_states.span(span),
+            machine.states,
+            id,
+            "state span",
+        )?;
         let [state] = states else {
             return Err(refuse(
                 id,
@@ -1201,7 +1206,7 @@ impl<'t> Program<'t> {
 
         let typed = self.typed;
         let formals = span(
-            &typed.state_parameters,
+            |span| typed.state_parameters.span(span),
             state.parameters,
             id,
             "parameter span",
@@ -1378,13 +1383,18 @@ impl<'t> Program<'t> {
         if self.premise_reading {
             let mut requirements = Vec::new();
             for contract in span(
-                &self.typed.signature_contracts,
+                |span| self.typed.signature_contracts.span(span),
                 machine.contracts,
                 id,
                 "contract span",
             )? {
                 if contract.kind == SignatureContractKind::Requires {
-                    for fact in span(&self.typed.proof_facts, contract.facts, id, "fact span")? {
+                    for fact in span(
+                        |span| self.typed.proof_facts.span(span),
+                        contract.facts,
+                        id,
+                        "fact span",
+                    )? {
                         if let typed_trees::domain::ProofFact::Expression(expression) = fact {
                             requirements.push(*expression);
                         }
@@ -1593,7 +1603,7 @@ impl<'t> Program<'t> {
         // storage, multiplicity or static-value obligations. Only ordinary
         // unconstrained type parameters are served by this applied context.
         if span(
-            &typed.data_type_parameters,
+            |span| typed.data_type_parameters.span(span),
             definition.type_parameters,
             id,
             "trait type parameter span",
@@ -1701,7 +1711,7 @@ impl<'t> Program<'t> {
             signature.termination = self.requirement_termination(id, requirement)?;
         }
         let clauses = span(
-            &self.typed.signature_contracts,
+            |span| self.typed.signature_contracts.span(span),
             machine.contracts,
             id,
             "contract span",
@@ -1783,7 +1793,7 @@ impl<'t> Program<'t> {
             .machine_by_symbol(application.template())
             .ok_or_else(|| unserved("member application lost its template"))?;
         let parameters = self.typed.machine_callable_parameters(template);
-        let binders = self.value_binder_correspondence(id, &required, &parameters)?;
+        let binders = self.value_binder_correspondence(id, &required, (&parameters).into())?;
         let binding = application.binding_application();
         if !self
             .typed
@@ -1807,7 +1817,7 @@ impl<'t> Program<'t> {
         &self,
         id: MachineId,
         required: &[(SymbolHandle, semantic_vocabulary::ScalarType)],
-        parameters: &[typed_trees::data::TypeParameter],
+        parameters: arena::RootRows<'_, typed_trees::data::TypeParameter>,
     ) -> Checked<Vec<(SymbolHandle, semantic_vocabulary::ScalarType)>> {
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Machine(what));
         if parameters.len() != required.len() {
@@ -2141,7 +2151,12 @@ impl<'t> Program<'t> {
         bound: &[(SymbolHandle, semantic_vocabulary::ScalarTerm)],
     ) -> Checked<(Signature, MachineNames)> {
         let typed = self.typed;
-        let formals = span(&typed.state_parameters, formals, id, "parameter span")?;
+        let formals = span(
+            |span| typed.state_parameters.span(span),
+            formals,
+            id,
+            "parameter span",
+        )?;
         let mut parameters = Vec::with_capacity(formals.len());
         let mut erased = Vec::new();
         let mut borrowed = Vec::new();
@@ -2265,7 +2280,12 @@ impl<'t> Program<'t> {
         let mut ensures_text = Vec::new();
         let mut routes = Vec::new();
         let mut crash_clauses = false;
-        for contract in span(&typed.signature_contracts, contracts, id, "contract span")? {
+        for contract in span(
+            |span| typed.signature_contracts.span(span),
+            contracts,
+            id,
+            "contract span",
+        )? {
             if contract.binding.is_some() {
                 return Err(refuse(
                     id,
@@ -2273,7 +2293,12 @@ impl<'t> Program<'t> {
                     Unserved::Contract("result binding"),
                 ));
             }
-            let facts = span(&typed.proof_facts, contract.facts, id, "fact span")?;
+            let facts = span(
+                |span| typed.proof_facts.span(span),
+                contract.facts,
+                id,
+                "fact span",
+            )?;
             match contract.kind {
                 // A literal `true` asks nothing of a caller and promises
                 // nothing, so it adds no hypothesis. A written `requires`
@@ -2916,7 +2941,7 @@ impl<'t> Program<'t> {
         self.scope = self.scopes.get(id).cloned().unwrap_or_default();
         self.width_scope = self.width_scopes.get(id).cloned().unwrap_or_default();
         let formals = span(
-            &typed.state_parameters,
+            |span| typed.state_parameters.span(span),
             state.parameters,
             id,
             "parameter span",

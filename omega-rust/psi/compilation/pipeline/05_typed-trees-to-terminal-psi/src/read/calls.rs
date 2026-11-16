@@ -1750,7 +1750,7 @@ impl<'t> Program<'t> {
         } else {
             return unserved("requirement call lost its binding declaration");
         };
-        let binders = self.value_binder_correspondence(id, binders, &parameters)?;
+        let binders = self.value_binder_correspondence(id, binders, (&parameters).into())?;
         self.bound_scalar_values(id, &binders, application_handle)
     }
 
