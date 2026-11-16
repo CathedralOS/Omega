@@ -13,10 +13,9 @@ use crate::{AbstractFunction, AbstractResult};
 use semantic_vocabulary::{MachineId, ScalarType, StructuralDomainId, StructuralTypeId, ValueId};
 use terminal_psi::{
     BoundaryMachineResult, BoundaryStructuralResultDeclaration as ResultDeclaration,
-    OutcomeSpecificCallEvidence, StructuralAccess, StructuralArgument, StructuralMultiplicity,
+    OutcomeSpecificCallEvidence, StructuralArgument, StructuralMultiplicity,
     StructuralOperationResult, StructuralParameterDeclaration as ParameterDeclaration,
     StructuralPathQualification, StructuralResultDeclaration, TerminalDynamicSlot,
-    TerminalDynamicStructuralFormal as StructuralFormal,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -113,52 +112,7 @@ impl From<MachineId> for AbstractCallTarget {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct StructuralCallFormal<'declaration> {
-    pub position: u32,
-    pub structural_type: StructuralTypeId,
-    pub multiplicity: StructuralMultiplicity,
-    pub access: StructuralAccess,
-    pub qualifications: &'declaration [StructuralDomainId],
-    pub projected_qualifications: &'declaration [StructuralPathQualification],
-    pub additional_input_qualifications: &'declaration [StructuralPathQualification],
-}
-
-impl<'declaration> From<&'declaration ParameterDeclaration> for StructuralCallFormal<'declaration> {
-    fn from(parameter: &'declaration ParameterDeclaration) -> Self {
-        Self {
-            position: parameter.position,
-            structural_type: parameter.structural_type,
-            multiplicity: parameter.multiplicity,
-            access: parameter.access,
-            qualifications: &parameter.qualifications,
-            projected_qualifications: &parameter.projected_qualifications,
-            additional_input_qualifications: &parameter.additional_input_qualifications,
-        }
-    }
-}
-
-impl<'declaration> From<&'declaration StructuralFormal> for StructuralCallFormal<'declaration> {
-    fn from(parameter: &'declaration StructuralFormal) -> Self {
-        Self {
-            position: parameter.position,
-            structural_type: parameter.structural_type,
-            multiplicity: parameter.multiplicity,
-            access: parameter.access,
-            qualifications: &parameter.qualifications,
-            projected_qualifications: &[],
-            additional_input_qualifications: &[],
-        }
-    }
-}
-
-impl<'declaration> From<&StructuralCallFormal<'declaration>>
-    for StructuralCallFormal<'declaration>
-{
-    fn from(parameter: &StructuralCallFormal<'declaration>) -> Self {
-        *parameter
-    }
-}
+pub use native_vocabulary::calls::StructuralCallFormal;
 
 #[derive(Debug, Clone, Copy)]
 pub struct StructuralCallResult<'declaration> {

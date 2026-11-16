@@ -277,6 +277,17 @@ pub fn forbidden_rules() -> Vec<Rule> {
         except_owners: vec![],
         allowed: vec![],
     });
+    // The plan and selected form carry shared leaf vocabulary, never an abstract program.
+    rules.push(Rule {
+        owners: vec![
+            "omega-rust/omega/compilation/representations/target-operations/legalized-operations",
+            "omega-rust/omega/compilation/representations/selected-instructions",
+        ],
+        forbidden: vec!["omega-rust/omega/compilation/representations/abstract-operations"],
+        reason: "native execution and selected plans use native-vocabulary records rather than abstract program containers",
+        except_owners: vec![],
+        allowed: vec![],
+    });
     // Typing and Terminal stages consume representation-owned handoffs; their
     // drivers, not adjacent stages, coordinate deferred work.
     for (owners, stages) in [
@@ -835,6 +846,46 @@ mod tests {
                 permitted,
                 "selection -> {dependency} ({kind:?}): {violations:?}"
             );
+        }
+    }
+
+    #[test]
+    fn native_plans_cannot_read_abstract_program_containers() {
+        for owner in [
+            "omega-rust/omega/compilation/representations/target-operations/legalized-operations",
+            "omega-rust/omega/compilation/representations/selected-instructions",
+            "omega-rust/omega/compilation/representations/selected-instructions/analyses",
+        ] {
+            for (dependency, permitted) in [
+                (
+                    "omega-rust/omega/compilation/representations/abstract-operations",
+                    false,
+                ),
+                (
+                    "omega-rust/omega/compilation/representations/abstract-operations/optimization-unit",
+                    false,
+                ),
+                (
+                    "omega-rust/omega/compilation/representations/native-vocabulary",
+                    true,
+                ),
+            ] {
+                let metadata = Metadata {
+                    workspace_root: "/repo".to_owned(),
+                    packages: vec![pkg(
+                        "native-plan",
+                        owner,
+                        &[("dependency", dependency, None)],
+                    )],
+                };
+                let violations = forbidden_dependency_violations(&metadata, &forbidden_rules())
+                    .expect("fixture paths belong to the test workspace");
+                assert_eq!(
+                    violations.is_empty(),
+                    permitted,
+                    "{owner} -> {dependency}: {violations:?}"
+                );
+            }
         }
     }
 

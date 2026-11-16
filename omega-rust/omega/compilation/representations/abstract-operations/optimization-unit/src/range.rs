@@ -82,21 +82,7 @@ pub(crate) fn integer_value_cmp(
     }
 }
 
-pub(crate) fn encode_integer_type(canonical: &mut Vec<u8>, scalar_type: IntegerType) {
-    canonical.push(match scalar_type.carrier() {
-        IntegerCarrier::Fixed => 1,
-        IntegerCarrier::Address => 2,
-    });
-    canonical.push(match scalar_type.sign() {
-        IntegerSign::Signed => 1,
-        IntegerSign::Unsigned => 2,
-    });
-    // Rewrite/range fingerprints describe raw metadata as well as closed facts.
-    // Identity never grants a parameter the concrete interval needed for a fact.
-    scalar_type
-        .width()
-        .write_identity(|part| canonical.extend_from_slice(part));
-}
+pub(crate) use native_vocabulary::identity::encode_integer_carrier as encode_integer_type;
 
 pub(crate) fn encode_integer_value(canonical: &mut Vec<u8>, value: IntegerValue) {
     match value {

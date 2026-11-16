@@ -83,11 +83,11 @@ framework or a list of unimplemented features.
 - Reported: 2026-11-15, Codex, while measuring continuation construction and body completion.
 
 
-### The execution plan and selected form still depend on the abstract-program crates
+### The execution plan and selected form still depend on earlier program crates
 - Category: knowledge crossing a boundary
 - Where: [plan manifest](omega-rust/omega/compilation/representations/target-operations/legalized-operations/Cargo.toml), [selected-instructions manifest](omega-rust/omega/compilation/representations/selected-instructions/Cargo.toml), [retained types](omega-rust/omega/compilation/representations/target-operations/legalized-operations/src/lib.rs), [selection boundary rule](tools/xtask/src/boundary.rs)
-- Saw: Instruction selection no longer depends on `abstract-operations`, `optimization-unit` or `terminal-codec`, and `check-boundary` enforces that. The representations it reads and writes still do: `legalized-operations` uses `optimization_unit::{access_view_catalog_identity_bytes, scalar_refinement_identity_bytes}`, `OwnershipFrontierFact` and `abstract_operations::CompletionClaimSource`, and both it and `selected-instructions` list those crates. Structural declarations in the plan still state leaf scalars in the checking form, so the plan carries `RetainedIntegerTypes` to close them, with an `Unsealed` case for plans built without a module. Stage 03 also names about forty leaf types from `target-operations`.
-- Cost: Selection can still reach the earlier program containers through the crates of its own input. Move the identity encoders and the remaining leaf records to `native-vocabulary`, close the leaf scalars of structural declarations during preparation, then drop the dependencies and extend the boundary rule to the two representation crates.
+- Saw: Instruction selection cannot import `abstract-operations`, `optimization-unit` or `terminal-codec`, and its input and output representations cannot import the abstract-program crates. Both representations still depend on `target-operations` and `terminal-codec`. Structural declarations in the plan still state leaf scalars in the checking form, so the plan carries `RetainedIntegerTypes` to close them, with an `Unsealed` case for plans built without a module. Stage 03 also names about forty leaf types from `target-operations`.
+- Cost: Selection can still reach the earlier program containers through the crates of its own input. Move the remaining target leaf records to `native-vocabulary`, close the leaf scalars of structural declarations during preparation, then drop the target-program and codec dependencies and extend the boundary rule to the two representation crates.
 - Reported: 2026-11-16, Claude Code, while moving preparation of the execution plan from stage 03 to stage 02.
 
 ### Image emission still reads the target operations stage 02 keeps as a working form

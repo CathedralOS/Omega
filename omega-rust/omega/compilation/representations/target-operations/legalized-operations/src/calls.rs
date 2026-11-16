@@ -7,10 +7,10 @@
 // claim-completion-only boundary settlement alongside its admitted provider execution, work
 // settlements, effect link, and ownership events.
 
-use abstract_operations::CompletionClaimSource;
-use optimization_unit::EffectLink;
-use optimization_unit::OwnershipEvent;
-use optimization_unit::WorkSettlement;
+use native_vocabulary::CompletionClaimSource;
+use native_vocabulary::EffectLink;
+use native_vocabulary::OwnershipEvent;
+use native_vocabulary::WorkSettlement;
 use semantic_vocabulary::BoundaryMachineId;
 use semantic_vocabulary::OperationId;
 use semantic_vocabulary::ServiceId;
@@ -25,7 +25,7 @@ use terminal_psi::StructuralPlaceDeclaration;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LegalizedStructuralContract {
     pub result: Option<terminal_psi::StructuralResultDeclaration>,
-    pub structural_types: abstract_operations::StructuralTypeCatalog,
+    pub structural_types: native_vocabulary::StructuralTypeCatalog,
     pub parameters: Vec<LegalizedCallUnitParameter>,
     pub structural_places: Vec<StructuralPlaceDeclaration>,
     pub entry_claims: Vec<EntryClaim>,

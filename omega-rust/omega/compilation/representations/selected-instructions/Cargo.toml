@@ -14,14 +14,13 @@ name = "selected_instructions"
 path = "src/lib.rs"
 
 [dependencies]
+native-vocabulary = { path = "../native-vocabulary" }
 function-identity = { path = "../../../foundation/function-identity" }
 arena = { path = "../../../../psi/foundation/arena" }
 calling-conventions = { path = "../../backend/calling-conventions" }
 optimization-core = { path = "../../../foundation/optimization-core" }
-optimization-unit = { path = "../abstract-operations/optimization-unit" }
 register-model = { path = "../../backend/register-model" }
 target = { path = "../../backend/target" }
-abstract-operations = { path = "../abstract-operations" }
 legalized-operations = { path = "../target-operations/legalized-operations" }
 target-operations = { path = "../target-operations" }
 semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }

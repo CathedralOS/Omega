@@ -12,7 +12,7 @@
 use super::{LocalStorageSlotId, VirtualRegisterId};
 use crate::codec_bytes::push_encoded;
 use legalized_operations::{LegalizedStructuralCasePayload, encode_scalar_type};
-use optimization_unit::encode_value_definition_site_identity;
+use native_vocabulary::encode_value_definition_site_identity;
 use semantic_vocabulary::{PlaceId, StructuralCaseId};
 
 #[derive(Debug, Clone, PartialEq, Eq)]

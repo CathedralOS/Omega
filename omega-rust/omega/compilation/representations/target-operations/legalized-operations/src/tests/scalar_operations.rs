@@ -11,9 +11,9 @@ use super::{
     EffectLink, IntegerSign, IntegerValue, LegalizedOperationPlan, OwnershipEvent, PsiProvenance,
     WorkSettlement, id, scalar_call_unit_plan,
 };
-use abstract_operations::ValueBinding;
+use native_vocabulary::ValueBinding;
+use native_vocabulary::ValueDefinitionSite;
 use optimization_core::AcceptedObligationFactIdentity;
-use optimization_unit::ValueDefinitionSite;
 
 #[test]
 fn shared_descriptor_return_identity_binds_source_and_transport_kind() {
@@ -70,7 +70,7 @@ fn structural_control_identity_binds_descriptor_telescope_and_actual_source() {
             bindings: Vec::new(),
             work: Vec::new(),
             structural_bindings: vec![crate::LegalizedStructuralBinding {
-                semantic: abstract_operations::AbstractStructuralBinding {
+                semantic: native_vocabulary::AbstractStructuralBinding {
                     parameter: id(500),
                     argument: terminal_psi::StructuralArgument {
                         place: id(504),
@@ -309,7 +309,7 @@ fn structural_edge_identity_and_liveness_retain_selector_evidence() {
             work: Vec::new(),
             cleanup_calls: Vec::new(),
             structural_bindings: vec![crate::LegalizedStructuralBinding {
-                semantic: abstract_operations::AbstractStructuralBinding {
+                semantic: native_vocabulary::AbstractStructuralBinding {
                     parameter: id(500),
                     argument: terminal_psi::StructuralArgument {
                         place: id(504),
@@ -318,7 +318,7 @@ fn structural_edge_identity_and_liveness_retain_selector_evidence() {
                     },
                 },
                 indices: vec![crate::LegalizedRuntimeIndexOperand {
-                    operand: abstract_operations::AbstractResult {
+                    operand: native_vocabulary::AbstractResult {
                         value: id(510),
                         scalar_type: scalar_type.as_checking(),
                     },
@@ -374,7 +374,7 @@ fn lifecycle_identity_and_liveness_retain_original_owner_and_projection_evidence
         result: None,
         kind: LegalizedScalarInstructionKind::AccessLifecycle {
             boundary: id(401),
-            operands: abstract_operations::AccessLifecycleOperands::MoveOut {
+            operands: native_vocabulary::AccessLifecycleOperands::MoveOut {
                 storage: terminal_psi::StructuralArgument {
                     place: id(402),
                     path: vec![terminal_psi::StructuralPathSegment::RuntimeIndex {
@@ -390,7 +390,7 @@ fn lifecycle_identity_and_liveness_retain_original_owner_and_projection_evidence
                 },
             },
             indices: vec![crate::LegalizedRuntimeIndexOperand {
-                operand: abstract_operations::AbstractResult {
+                operand: native_vocabulary::AbstractResult {
                     value: id(403),
                     scalar_type: scalar_type.as_checking(),
                 },
@@ -436,8 +436,7 @@ fn lifecycle_identity_and_liveness_retain_original_owner_and_projection_evidence
         match mutation {
             0 => *boundary = id(407),
             1 => {
-                let abstract_operations::AccessLifecycleOperands::MoveOut { storage, .. } =
-                    operands
+                let native_vocabulary::AccessLifecycleOperands::MoveOut { storage, .. } = operands
                 else {
                     panic!("extraction fixture");
                 };

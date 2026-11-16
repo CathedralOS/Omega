@@ -282,7 +282,7 @@ pub mod constraints {
 }
 pub mod normalized_foreign {
     use crate::SelectedInstructionId;
-    use optimization_unit::{EffectLink, OwnershipEvent};
+    use native_vocabulary::{EffectLink, OwnershipEvent};
     use semantic_vocabulary::InvocationSite;
 
     #[derive(Debug, Clone, PartialEq, Eq)]
@@ -903,7 +903,7 @@ pub mod normalized_foreign {
                         result: TargetBoundaryResult::Unit,
                         callbacks: Vec::new(),
                     },
-                    effect: optimization_unit::EffectLink {
+                    effect: native_vocabulary::EffectLink {
                         input: 1,
                         output: 2,
                     },
@@ -1182,7 +1182,7 @@ pub mod ordinary {
     use crate::{SelectedBlockId, SelectedInstructionId};
     use legalized_operations::encode_hosted_read_byte_identity;
     use legalized_operations::identity::encode_boundary_execution_identity;
-    use optimization_unit::{EffectLink, OwnershipEvent};
+    use native_vocabulary::{EffectLink, OwnershipEvent};
     use semantic_vocabulary::InvocationSite::ExternalCompletion;
     use semantic_vocabulary::{BlockId, EdgeId, InvocationSite, OperationId, PlaceId};
 

@@ -22,7 +22,7 @@ use crate::{
     LegalizedScalarInstruction, LegalizedScalarInstructionKind, NativeCallOrigin,
 };
 use calling_conventions::{EntryControl, ValueLocation, ValuePlacement, ValueShape};
-use optimization_unit::OwnershipEvent;
+use native_vocabulary::OwnershipEvent;
 use terminal_psi::{ClaimTransfer, StructuralMultiplicity};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -238,7 +238,7 @@ fn validate_call_source(
 fn validate_completion(
     call: &LegalizedScalarCall,
     ownership: &[OwnershipEvent],
-    claim_sources: &[abstract_operations::CompletionClaimSource],
+    claim_sources: &[native_vocabulary::CompletionClaimSource],
     receipts: &[terminal_psi::CompletionReceipt],
 ) -> Result<(), LegalizedCallSourceError> {
     let structural_count = call
@@ -365,7 +365,7 @@ impl LegalizedScalarInstruction {
         };
         self.result.is_none()
             && self.ownership
-                == [optimization_unit::OwnershipEvent::ClaimCompletion(
+                == [native_vocabulary::OwnershipEvent::ClaimCompletion(
                     Vec::new(),
                 )]
             && result.multiplicity == StructuralMultiplicity::Affine

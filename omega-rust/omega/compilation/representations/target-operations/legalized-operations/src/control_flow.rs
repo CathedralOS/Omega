@@ -39,7 +39,7 @@ pub use scalar_graph::{
     LegalizedValueDefinition,
 };
 
-use optimization_unit::WorkSettlement;
+use native_vocabulary::WorkSettlement;
 use semantic_vocabulary::{
     BlockId, EdgeId, IntegerCarrier, IntegerSign, IntegerType, StructuralCaseId, StructuralFieldId,
 };

@@ -5,7 +5,7 @@
 */
 
 use super::{SelectedBlockId, SelectedInstructionId, VirtualRegisterId};
-use optimization_unit::ValueDefinitionSite;
+use native_vocabulary::ValueDefinitionSite;
 use register_model::{RegisterClassId, RegisterOperandAccess, RegisterViewId};
 use semantic_vocabulary::{PlaceId, ScalarType, ValueId};
 

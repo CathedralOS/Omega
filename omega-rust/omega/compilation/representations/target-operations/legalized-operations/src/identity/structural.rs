@@ -13,8 +13,8 @@ use super::structural_types::{
 };
 use super::{encode_ids, encode_len, encode_option, encode_work};
 use crate::{LegalizedBoundarySettlement, NativeCallOrigin};
-use abstract_operations::CompletionClaimSource;
-use optimization_unit::{EffectLink, OwnershipEvent};
+use native_vocabulary::CompletionClaimSource;
+use native_vocabulary::{EffectLink, OwnershipEvent};
 use semantic_vocabulary::{
     ContentAlgebra, ContentAlgebraKind, ContentPlaceSegment, ContentPlaceVersion,
 };

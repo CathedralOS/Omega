@@ -1197,7 +1197,7 @@ pub(crate) mod edge_values {
     #[cfg(test)]
     mod tests {
         use super::*;
-        use optimization_unit::WorkSettlement;
+        use native_vocabulary::WorkSettlement;
         use selected_instructions::{
             SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
             SelectedInstructionProvenance,
@@ -1318,7 +1318,7 @@ pub(crate) mod edge_values {
                     2 => instruction.provenance.operations.clear(),
                     3 => instruction.kind = SelectedInstructionKind::ReturnUnit,
                     _ => instruction.provenance.work.push(WorkSettlement {
-                        site: optimization_unit::PsiProvenance::Operation(*operation),
+                        site: native_vocabulary::PsiProvenance::Operation(*operation),
                         units: 1,
                     }),
                 }
@@ -1390,7 +1390,7 @@ pub(crate) mod edge_values {
                     [0]
                 .work
                 .push(WorkSettlement {
-                    site: optimization_unit::PsiProvenance::Operation(OperationId::new(2).unwrap()),
+                    site: native_vocabulary::PsiProvenance::Operation(OperationId::new(2).unwrap()),
                     units: 1,
                 })
             });
@@ -1866,7 +1866,7 @@ pub(crate) mod edge_values {
             return Ok(destination);
         }
         if destination_register.definition_site
-            != Some(optimization_unit::ValueDefinitionSite::BlockParameter {
+            != Some(native_vocabulary::ValueDefinitionSite::BlockParameter {
                 block: successor.source_target,
                 position: u32::try_from(parameter_index).map_err(|_| mismatch())?,
             })

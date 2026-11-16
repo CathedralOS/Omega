@@ -27,3 +27,26 @@ pub mod storage_projection;
 pub mod structural_stores;
 pub mod structural_type_catalog;
 pub mod values;
+
+pub mod calls;
+pub mod identity;
+pub mod ownership;
+pub mod ownership_frontiers;
+
+pub use access_lifecycles::AccessLifecycleOperands;
+pub use access_references::AccessReferenceBacking;
+pub use calls::StructuralCallFormal;
+pub use identity::{access_view_catalog_identity_bytes, scalar_refinement_identity_bytes};
+pub use ownership::CompletionClaimSource;
+pub use ownership_frontiers::{
+    OwnershipFrontierFact, OwnershipFrontierSite, OwnershipFrontierSnapshot,
+};
+pub use provenance::{
+    EffectLink, OwnershipEvent, PsiProvenance, ValueDefinitionSite, WorkSettlement,
+    encode_value_definition_site_identity,
+};
+pub use structural_stores::{
+    StructuralCopyPath, StructuralScalarStoreDestination, StructuralWindowRoot,
+};
+pub use structural_type_catalog::StructuralTypeCatalog;
+pub use values::{AbstractFunctionResult, AbstractResult, AbstractStructuralBinding, ValueBinding};

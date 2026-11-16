@@ -352,8 +352,8 @@ impl LegalizedNormalizedForeignCall {
 
     pub fn canonical_bytes_with_effects(
         &self,
-        effect: optimization_unit::EffectLink,
-        ownership: &[optimization_unit::OwnershipEvent],
+        effect: native_vocabulary::EffectLink,
+        ownership: &[native_vocabulary::OwnershipEvent],
     ) -> Vec<u8> {
         let mut bytes = self.canonical_bytes();
         super::structural::encode_effect(&mut bytes, effect);

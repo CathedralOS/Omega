@@ -484,7 +484,7 @@ pub mod structural_reference_input {
     }
 
     pub fn primitive_store(
-        destination: &abstract_operations::StructuralScalarStoreDestination,
+        destination: &native_vocabulary::StructuralScalarStoreDestination,
         path: &[StructuralPathSegment],
         scalar: ScalarType,
         declarations: &NativeGeometry<'_>,
@@ -497,7 +497,7 @@ pub mod structural_reference_input {
             return None;
         }
         match destination {
-            abstract_operations::StructuralScalarStoreDestination::Parameter(parameter) => {
+            native_vocabulary::StructuralScalarStoreDestination::Parameter(parameter) => {
                 if !matches!(
                     parameter.access,
                     terminal_psi::StructuralAccess::Owned
@@ -507,14 +507,12 @@ pub mod structural_reference_input {
                     return None;
                 }
             }
-            abstract_operations::StructuralScalarStoreDestination::OwnedResult {
-                result, ..
-            } => {
+            native_vocabulary::StructuralScalarStoreDestination::OwnedResult { result, .. } => {
                 if !result.qualification_establishments.is_empty() || !result.claims.is_empty() {
                     return None;
                 }
             }
-            abstract_operations::StructuralScalarStoreDestination::OwnedBlockParameter {
+            native_vocabulary::StructuralScalarStoreDestination::OwnedBlockParameter {
                 parameter,
                 ..
             } => {
@@ -701,7 +699,7 @@ pub mod structural_reference_input {
     }
 
     pub fn parameter_shape<'declaration>(
-        parameter: impl Into<abstract_operations::StructuralCallFormal<'declaration>>,
+        parameter: impl Into<native_vocabulary::StructuralCallFormal<'declaration>>,
         declarations: &NativeGeometry<'_>,
     ) -> Option<ValueShape> {
         use terminal_psi::StructuralAccess;

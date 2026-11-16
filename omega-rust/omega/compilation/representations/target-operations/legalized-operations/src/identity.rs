@@ -32,9 +32,9 @@ pub use structural::{encode_external_execution, encode_provider_execution};
 pub use structural_types::{encode_authored_field_storage, encode_structural_place};
 
 use crate::{LegalizedOperationPlan, LegalizedOperationPlanIdentity, LegalizedStructuralContract};
-use abstract_operations::ValueBinding;
 use calling_conventions::ConventionalSumLayout;
-use optimization_unit::{PsiProvenance, WorkSettlement};
+use native_vocabulary::ValueBinding;
+use native_vocabulary::{PsiProvenance, WorkSettlement};
 use semantic_vocabulary::{BoundaryMachineId, IntegerType, IntegerValue, OperationId};
 use structural_types::{
     encode_entry_claim, encode_structural_parameter, encode_structural_type,
@@ -302,7 +302,7 @@ pub fn encode_access_call_bindings(bytes: &mut Vec<u8>, bindings: &[TargetAccess
 pub(super) fn encode_structural_contract(
     bytes: &mut Vec<u8>,
     function: &LegalizedStructuralContract,
-    cached_catalog: &mut Option<(abstract_operations::StructuralTypeCatalog, Vec<u8>)>,
+    cached_catalog: &mut Option<(native_vocabulary::StructuralTypeCatalog, Vec<u8>)>,
 ) {
     encode_option(bytes, function.result.as_ref(), |bytes, result| {
         structural::encode_result(bytes, result)
@@ -324,7 +324,7 @@ pub(super) fn encode_structural_contract(
             bytes.push(u8::from(referent.foreign_descriptor));
             bytes.push(u8::from(referent.abstract_opaque));
         }
-        bytes.extend_from_slice(&optimization_unit::access_view_catalog_identity_bytes(
+        bytes.extend_from_slice(&native_vocabulary::access_view_catalog_identity_bytes(
             &function.structural_types,
         ));
         *cached_catalog = Some((function.structural_types.clone(), bytes[start..].to_vec()));

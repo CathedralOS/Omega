@@ -111,7 +111,7 @@ mod v6 {
         SelectedBlockId, SelectedInstructionId, SelectedInstructionKind,
         SelectedInstructionPlanIdentity, SelectedInstructionProvenance,
     };
-    use optimization_unit::{OwnershipEvent, PsiProvenance, WorkSettlement};
+    use native_vocabulary::{OwnershipEvent, PsiProvenance, WorkSettlement};
     use register_model::{
         RegisterConstraintCatalogIdentity, RegisterConstraintFamily, RegisterConstraintKey,
         RegisterUnitId, TargetRegisterEnvironmentIdentity,
