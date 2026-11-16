@@ -135,13 +135,6 @@ framework or a list of unimplemented features.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/proofs/classicality.md
 
 
-### The Psi interpreter compares and offsets host-returned addresses that the spec says it must refuse
-- Category: A verdict with nothing behind it
-- Where: [integer equality](omega-rust/psi/interpreter/src/engine_execution.rs#L3598), [integer order](omega-rust/psi/interpreter/src/engine_execution.rs#L3612), [compare_with](omega-rust/psi/foundation/semantic-vocabulary/src/proposition.rs#L627), [address subtraction](omega-rust/psi/foundation/semantic-vocabulary/src/proposition.rs#L385), [address cast](omega-rust/psi/foundation/semantic-vocabulary/src/proposition.rs#L419), [host address result](omega-rust/omega/interpreter/terminal-runtime/src/execution/host_imports/native_provider/original_homes.rs#L205), [host address ledger](omega-rust/omega/interpreter/terminal-runtime/src/execution/host_imports/allocation.rs#L115)
-- Saw: [host result validation](wiki/spec/terminal-psi/boundary_calls.md#L230) says the interpreter "never dereferences or offsets" a host-returned `addr` and "refuses any comparison or arithmetic that combines it with an interpreter-created address". Host provenance lives only in the terminal-runtime ledger, read only when an address goes back to a native import. `host_address_result` stores the value as a plain integer, and `IntegerEqual`, `IntegerLessThan`, `ExactIntegerAdd`, `ExactIntegerSubtract` and `IntegerExactCast` compute results on it, refusing only on a carrier mismatch. With `p` from a native import and `q = address_of(&local)`, `p < q` runs in Psi, ordering a stand-in identity against a real pointer, and `p == address_of(&x)` can be true in Psi alone.
-- Cost: `omega run --both` can report agreement or disagreement on a comparison with no defined meaning across the two runs. Carry host provenance on the scalar and refuse mixed comparison, arithmetic and offsets in the core operations.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/terminal-psi/boundary_calls.md
-
 ### A shared byte view of an array gives its elements different addresses in the Psi interpreter
 - Category: Re-deriving
 - Where: [shared view is a snapshot](omega-rust/psi/interpreter/src/boundary_inputs.rs#L1403), [shared reborrow snapshot](omega-rust/psi/interpreter/src/storage_bytes_and_views.rs#L1017), [fresh namespace](omega-rust/psi/interpreter/src/storage_bytes_and_views.rs#L3003), [view element address](omega-rust/psi/interpreter/src/storage_bytes_and_views.rs#L3077), [array element address](omega-rust/psi/interpreter/src/storage_primitives.rs#L6016)
