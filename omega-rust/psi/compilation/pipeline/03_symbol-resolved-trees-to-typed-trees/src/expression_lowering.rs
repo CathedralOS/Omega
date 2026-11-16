@@ -61,8 +61,13 @@ pub(crate) mod expression {
             domain: HandleSpan<resolved::name::DiagnosticName>,
             type_symbol: SymbolHandle,
             case_symbol: SymbolHandle,
-            is_pattern: bool,
         ) -> Option<typed::expression::ExpressionHandle> {
+            // `x in S::C` is domain membership, never `Equatable` equality
+            // (conformances.md: "Domain membership uses its own tag/domain
+            // rules"), in a pattern and in value position alike. Writing it
+            // as `Equal` would let equality preparation demand a conformance
+            // for a payload-bearing sum, and would make `x == S::C` look
+            // like a case test to Terminal Psi reading.
             case_membership_test(
                 program,
                 target,
@@ -70,11 +75,7 @@ pub(crate) mod expression {
                 source.name_path_members(domain),
                 type_symbol,
                 case_symbol,
-                if is_pattern {
-                    typed::expression::BinaryOperator::CaseMembership
-                } else {
-                    typed::expression::BinaryOperator::Equal
-                },
+                typed::expression::BinaryOperator::CaseMembership,
             )
         }
 
@@ -2480,7 +2481,6 @@ pub(crate) mod expression {
                         membership.domain,
                         membership.case_type_symbol,
                         membership.case_symbol,
-                        membership.is_pattern,
                     ) {
                         return Ok(lowered);
                     }

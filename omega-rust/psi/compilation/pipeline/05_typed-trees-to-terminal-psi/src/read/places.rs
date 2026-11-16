@@ -751,6 +751,29 @@ impl Program<'_> {
         ))
     }
 
+    /// `x == S::C` compares tags only when `S` is a payload-free sum: no
+    /// record fields and no case payloads (data_and_literals.md, "Primitive
+    /// and payload-free-sum equality is intrinsic"; conformances.md,
+    /// "payload-bearing sums require an explicit named conformance"). Psi
+    /// 03 replaces every `==` it can type on any other data with its selected
+    /// `Equatable` call, so one still here was never selected: refuse it
+    /// rather than silently read the tag alone.
+    pub(super) fn require_intrinsic_tag_equality(
+        &self,
+        id: MachineId,
+        record: Opened,
+    ) -> Checked<()> {
+        let source = self.source(id, record.record())?;
+        if source.fields.is_empty() && source.cases.iter().all(|(_, payload)| payload.is_empty()) {
+            return Ok(());
+        }
+        Err(refuse(
+            id,
+            Construct::Machine,
+            Unserved::Typing("`==` against a case of data with no selected Equatable comparison"),
+        ))
+    }
+
     /// The position of the case `symbol` names among `record`'s cases.
     /// structural_access.md: "Its case identity must belong to the exact
     /// selected sum type; matching case spellings in another type supply no
@@ -1408,13 +1431,16 @@ impl Program<'_> {
     }
 
     /// `subject in S::C`: the subject, read once, and the case's position in
-    /// the subject's own sum type.
+    /// the subject's own sum type. `equality` marks `subject == S::C`, which
+    /// is this test only on a sum whose equality is the intrinsic tag
+    /// comparison (`intrinsic_tag_equality`).
     pub(super) fn case_test(
         &mut self,
         id: MachineId,
         slots: &[Slot],
         subject: ExpressionHandle,
         case: SymbolHandle,
+        equality: bool,
         source: SourceOrigin,
     ) -> Checked<Expression> {
         let subject = self.expression(id, slots, subject, None)?;
@@ -1425,6 +1451,9 @@ impl Program<'_> {
                 Unserved::Typing("case test of a value that is not a sum"),
             ));
         };
+        if equality {
+            self.require_intrinsic_tag_equality(id, record)?;
+        }
         let case = self.case_position(id, record, case)?;
         Ok(Expression {
             call_context: None,
