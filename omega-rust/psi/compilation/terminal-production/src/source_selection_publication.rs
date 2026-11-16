@@ -1875,23 +1875,19 @@ machine entry() -> u32 crashes none {{
                 )
         );
 
-        // An actual authored reference still cannot select Build code in Product.
+        // A written call still owes visibility before it reaches admission.
         let (program, _) = closed_requirement_formed_in_build(true);
-        let source = accept_formation_program(program).unwrap();
-        let prepared = prepare(&source, source.module(), None).unwrap();
-        let refused = terminal_installation::selection_questions::admit_selection_questions(
-            source.module(),
-            &prepared.questions,
-            &terminal_installation::selection_questions::SelectionAuthorities {
-                build: None,
-                product: None,
-            },
-        )
-        .unwrap_err();
+        let sources = program.symbols.source_map().unwrap();
+        let errors = accept_formation_program(program).err().unwrap();
+        assert_eq!(errors.len(), 1, "{errors:?}");
+        let refused = &errors[0];
         assert!(
-            refused.contains("wrong Build/Product source context"),
-            "{refused}"
+            refused
+                .message
+                .contains("this call has no visible declaration in its source scope"),
+            "{refused:?}"
         );
+        assert_eq!(sources.text_at(refused.source_span.unwrap()), "build");
 
         for owner in [
             SymbolHandle::invalid(),
