@@ -1,0 +1,41 @@
+// The changed guard can recur at the limit, where both distances are zero.
+machine walk(bytes: &[u8], index: u64, checksum: u8) -> u8
+terminates by (index, bytes.len) -> Nat::BoundedDistance
+{
+    transition index < 4096 && index < bytes.len {
+        true -> walk(bytes, index + 1, checksum ^ bytes[index])
+        _ -> checksum
+    }
+}
+
+machine count(index: u32, limit: u32) -> u32
+terminates by (index, limit)
+{
+    transition index < 4096 && index <= limit {
+        true -> count(index + 1, limit)
+        _ -> index
+    }
+}
+
+machine count_to_constant(index: u64) -> u64
+terminates by (index, 8) -> Nat::BoundedDistance
+{
+    transition index < 8 {
+        true -> count_to_constant(index + 1)
+        _ -> index
+    }
+}
+
+machine main() crashes Trap {
+    let bytes: [u8; 3] = [17, 42, 99];
+    transition walk(&bytes[..], 0, 0) == 88
+        && walk(&bytes[..], 4, 73) == 73
+        && walk(&bytes[0..0], 1, 73) == 73
+        && count(2, 5) == 5 && count(6, 5) == 6
+        && count_to_constant(2) == 8 {
+        true -> done()
+        _ -> wrong()
+    }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}

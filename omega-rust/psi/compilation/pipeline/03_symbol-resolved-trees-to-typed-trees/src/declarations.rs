@@ -1162,7 +1162,11 @@ pub(crate) mod machine {
                         language_core::sealed_intrinsics::CompilerPrimitive::NaturalRanking,
                     ))
                     })
-                    .map(|_| language_semantics::RankingViewId::NAT_DESCENDING),
+                    .and_then(|candidate| {
+                        language_semantics::RankingViewId::canonical(candidate.name.as_str())
+                            .and_then(language_semantics::RankingViewId::catalog_declaration)
+                            .map(|declaration| declaration.view)
+                    }),
                 _ => None,
             };
         if let Some(view) = explicit

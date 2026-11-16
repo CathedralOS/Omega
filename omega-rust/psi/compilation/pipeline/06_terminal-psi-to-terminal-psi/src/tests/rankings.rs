@@ -462,6 +462,33 @@ machine entry() -> u32 terminates crashes none {{ countdown(4) }}
 }
 
 #[test]
+fn an_authored_bounded_distance_does_not_select_the_sealed_view() {
+    let program = typed_with_ranking_catalog(
+        r#"
+machine Nat::BoundedDistance(lower: u64, upper: u64) -> u64 { 0 }
+machine count(lower: u64, upper: u64) -> u64
+terminates by (lower, upper) -> Nat::BoundedDistance {
+    transition lower < upper {
+        true -> count(lower + 1, upper)
+        false -> lower
+    }
+}
+machine entry() -> u64 { count(2, 5) }
+"#,
+    );
+    let verdicts = super::boundary_calls::compilation_results_of(&program);
+    assert!(
+        verdicts.iter().any(|verdict| matches!(verdict,
+            Err(crate::CompilationRefusal::Elaboration(refusal)) | Ok(RouteVerdict::FallBack(refusal))
+                if refusal.detail.contains("ranking view is not an admitted compiler ranking declaration")
+                    || refusal.detail.contains("ranking view has no admitted resolved selection")
+        )),
+        "a same-signature authored machine has no ranking authority: {:?}",
+        observed_verdicts(&verdicts)
+    );
+}
+
+#[test]
 fn selected_ranking_views_check_their_own_subject_and_catalog_header() {
     let scalar_length = typed_with_ranking_catalog(
         "machine entry(n: u32) terminates by n -> Slice::Length crashes none {}",

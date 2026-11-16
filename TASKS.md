@@ -255,7 +255,7 @@ Write each item so any agent can start from it alone: current state, files and e
   - (d) child domains, aliases and indexed families in a type; have the invoker establish the entry parameter's default domain, then migrate the `established by` declarations and delete that clause.
 
 - **TERMINATION-RANKING-CHECKS.** (covers **GENERAL-CYCLIC-EXECUTION**, **CRASH-CONTRACT**, **OUTCOME-SPECIFIC-CALL-EVIDENCE**, **UNREACHABLE-BRANCH-DIAGNOSTICS**) Complete [termination](wiki/spec/language/termination.md) (`ranking_range/calls.rs`, `value_origins.rs`), crash/outcome evidence (`operator_crashes.rs`), and [unreachable warnings](wiki/spec/language/state_contracts.md#unreachable-branches).
-  - Support the remaining forms of a decreasing measure: `Nat::IncreasingTo`, `Nat::BoundedDistance`, declared measures, bounded ranges, and multiple subjects. Allow measures to read fields and handle the remaining signed, address, and width-generic inputs with the required proofs.
+  - Support the remaining forms of a decreasing measure: `Nat::IncreasingTo`, declared measures, bounded ranges, and multiple subjects. Allow measures to read fields and handle the remaining signed, address, and width-generic inputs with the required proofs.
   - Check loop result contracts (`ensures`), erased bindings, and the remaining storage cases. Check ranked non-tail recursion during proof or compile-time evaluation; runtime recursion remains tail-only.
   - Preserve termination promises when a program consumes a separately compiled package.
   - **Design blocked:** [termination](wiki/spec/language/termination.md#ranking) leaves undecided how authors write a shared measure for mutually recursive machines with different parameter shapes.

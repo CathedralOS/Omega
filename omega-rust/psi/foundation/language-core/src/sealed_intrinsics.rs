@@ -294,6 +294,12 @@ const ROWS: &[SealedIntrinsicRow] = &[
         SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::NaturalRanking),
     ),
     row(
+        "nat.omg",
+        "Nat::BoundedDistance",
+        bundled!("core/nat.omg"),
+        SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::NaturalRanking),
+    ),
+    row(
         "float_provider.omg",
         "NativeFloats",
         CORE_FLOAT_PROVIDER,
