@@ -687,10 +687,15 @@ impl<'q> Asked<'q> {
     }
 
     /// Whether a logged row ends a path of the walk. For contents, any
-    /// write to an overlapping place. For a case, a write to the sum or to
-    /// a place above it (structural_access.md: "A write to the sum or any
-    /// prefix retires these facts"); a store beneath the sum changes a
-    /// payload and not the case. For a window, the write that opened it, a
+    /// write to an overlapping place. For a case, any write that may
+    /// overlap the sum except one beneath it: a write to the sum or to a
+    /// place above it (structural_access.md: "A write to the sum or any
+    /// prefix retires these facts"), and a write that may reach it through
+    /// another path, such as a store to `items[j]` while the case of
+    /// `items[0]` is known (a store crossing a runtime element "overlaps
+    /// every element of that array"). A store beneath the sum changes a
+    /// payload and not the case. Both questions use the one `overlap`
+    /// relation, so a refinement of it reaches case facts too. For a window, the write that opened it, a
     /// write that replaces the place whole (to it or to a place above it:
     /// the new contents arrived as an established value) and a restoring
     /// store; any other store beneath the place only changes the contents
@@ -699,7 +704,9 @@ impl<'q> Asked<'q> {
         match self {
             Self::Contents(leaf) => overlap(&row.lineage, leaf),
             Self::Case(sum) => {
-                row.lineage.root == sum.root && sum.segments.starts_with(&row.lineage.segments)
+                overlap(&row.lineage, sum)
+                    && !(row.lineage.segments.len() > sum.segments.len()
+                        && row.lineage.segments.starts_with(&sum.segments))
             }
             Self::Window {
                 place,
@@ -2832,6 +2839,11 @@ impl<'a> Storage<'a> {
     ///   tested case, when the test stands in the branching block and no
     ///   write to the sum or a place above it follows the test there.
     ///
+    /// A membership whose path crosses a runtime element reads "some
+    /// element": it "names no canonical sum and keys no case fact"
+    /// (structural_access.md, case observation), so its true edge
+    /// establishes nothing either.
+    ///
     /// The false edge establishes nothing: "Otherwise the case holds when
     /// every other declared case of that sum is refuted" needs proof about
     /// the other cases and is not decided here.
@@ -2882,7 +2894,12 @@ impl<'a> Storage<'a> {
                 else {
                     return Ok(None);
                 };
-                if self.stored_at(*source, path, concerns)? != *sum {
+                if self.stored_at(*source, path, concerns)? != *sum
+                    || sum
+                        .segments
+                        .iter()
+                        .any(|segment| matches!(segment, Segment::RuntimeIndex { .. }))
+                {
                     return Ok(None);
                 }
                 let retired = self.log.iter().any(|row| {
