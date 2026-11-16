@@ -58,6 +58,9 @@ impl Program<'_> {
     /// A calling policy is checked with the product's other executable roots.
     /// Target evaluation later supplies ABI geometry to this same retained body.
     pub(crate) fn prepare_calling_policy_roots(&mut self, entry: MachineId) -> Checked<()> {
+        if self.declaration_metadata.is_empty() && self.boundary_symbols.is_empty() {
+            return Ok(());
+        }
         let typed = self.typed;
         let catalog = self
             .shared

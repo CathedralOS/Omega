@@ -474,17 +474,8 @@ impl ImmutableSourceParseCheckpoint {
         }
     }
 
-    pub fn with_toolchain_capture(
-        mut self,
-        capture: &crate::CapturedLocalSource,
-    ) -> Result<Self, Vec<Diagnostic>> {
-        Arc::make_mut(&mut self.source_storage).admit_toolchain_capture(capture)?;
-        if self.product_roots.is_none() {
-            return Err(vec![Diagnostic::error(
-                "toolchain capture admission must precede Product typing",
-            )]);
-        }
-        Ok(self)
+    pub fn toolchain_capture(&self) -> Option<&crate::CapturedLocalSource> {
+        self.source_storage.core_capture()
     }
 
     pub fn root_path(&self) -> &Path {

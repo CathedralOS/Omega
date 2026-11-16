@@ -186,8 +186,9 @@ fn selected_entry_receipt_keeps_the_accepted_artifact_and_rejects_other_owners()
                 .contains("source declaration")
             );
 
-            // Executable metadata is a new, fully judged request over the same
-            // source, not a patch to this already published Check artifact.
+            // Entry metadata belongs to the initial shared source request.
+            // Rejudging that same roster must preserve its accepted artifact;
+            // no target may patch metadata into an existing publication.
             let schema = package_compilation::selected_program_entry_boundary(
                 accepted.source(),
                 signature.target_slot(),
@@ -204,7 +205,7 @@ fn selected_entry_receipt_keeps_the_accepted_artifact_and_rejects_other_owners()
                     .contains("before Terminal publication")
             );
             let mut executable_roster = checked.terminal_publication().roster().unwrap().clone();
-            executable_roster.declaration_metadata.push(schema);
+            assert!(executable_roster.declaration_metadata.contains(&schema));
             let executable = executable_roster
                 .judge(std::sync::Arc::clone(accepted.source()))
                 .expect("all original scope is judged with the requested descriptors");
@@ -216,7 +217,7 @@ fn selected_entry_receipt_keeps_the_accepted_artifact_and_rejects_other_owners()
                 accepted.boundary_requirements_declared().unwrap(),
                 executable.boundary_requirements_declared().unwrap()
             );
-            assert!(module.calling_abi_signatures.is_empty());
+            assert_eq!(module.calling_abi_signatures.len(), 2);
             let native_code = executable
                 .produce(
                     Default::default(),
@@ -244,7 +245,7 @@ fn selected_entry_receipt_keeps_the_accepted_artifact_and_rejects_other_owners()
             assert!(
                 !linear.copyable && !linear.no_code_affine_cleanup && !linear.descriptor_cleanup
             );
-            assert_ne!(
+            assert_eq!(
                 native_code.artifact().manifest().semantic(),
                 program.artifact().manifest().semantic()
             );

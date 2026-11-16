@@ -59,9 +59,6 @@ pub(in crate::checked) fn typed_frontier_without_build(
     })?;
     child.admit_package_inputs()?;
     let package_inputs = child.package_inputs;
-    let core_root = package_compilation::source_imports::bundled_core_root()?;
-    let capture = package_compilation::capture_anonymous_compilation_source(&core_root)?;
-    let source = source.with_toolchain_capture(capture)?;
     source.admit_root(root)?;
     let (typed, mut timings) = prepare_typed_frontier(source, package_inputs, child.build.profile)?;
     let evaluated = EvaluatedBuild {

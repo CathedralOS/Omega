@@ -1,6 +1,6 @@
 // Materialize default ABI applications from canonical Terminal declarations
-// and validate their actual physical plans. Source calling-request preparation
-// is unavailable; it cannot be replaced by an empty request roster.
+// and validate their actual physical plans. Authored policies are evaluated
+// separately by CallingProgram; this helper cannot replace a missing policy.
 
 use crate::calling_policy_plans::boundary_signatures::BoundaryOpaqueMovementGeometry;
 use calling_conventions::{CallingPolicy, evaluate_ordinary_boundary_entry_plan};
@@ -84,11 +84,7 @@ pub(crate) fn evaluate_default_calling_applications(
             native_parameters: signature.native_parameters()?,
         };
         for representation in &canonical.opaque_uses {
-            movement.movement(
-                representation.shape_root,
-                &validated,
-                dispatch_only_formal,
-            )?;
+            movement.movement(representation.shape_root, &validated, dispatch_only_formal)?;
         }
         applications.push(canonical.native_application(&validated, dispatch_only_formal)?);
     }
