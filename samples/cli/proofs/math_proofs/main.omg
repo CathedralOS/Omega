@@ -17,7 +17,7 @@ use omega::language::core::Nat;
 // Engine increment: constant folding + reflexivity.
 machine pythagorean_three_four_five()
 ensures
-    3nat * 3nat + 4nat * 4nat == 5nat * 5nat
+    3 * 3 + 4 * 4 == 5 * 5
 {
 }
 

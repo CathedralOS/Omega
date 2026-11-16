@@ -4,12 +4,13 @@
 We optimize selected machine instructions between target instruction selection
 and physical register home assignment (`Omega 04`). Our entry point,
 `optimize_selected_instructions` in `selected_optimization.rs`, stages liveness
-and live-range facts over the incoming selected control-flow graph (`CFG`) and
-either publishes an identity route when no executed optimization rule is
-selected or stages allocation legality and runs the selected catalog slice from
+and live-range facts over the incoming selected control-flow graph (`CFG`).
+When no executed optimization rule is selected that is the whole result; when
+one is, it stages allocation legality and runs the selected catalog slice from
 `rewrites.rs` (`run_selected_lowering_optimizations` or
-`run_pre_allocation_optimizations`), producing one validated
-`SelectedInstructionOptimizationOutput`.
+`run_pre_allocation_optimizations`). Either way the stage hands Omega 05 one
+`SelectedAllocationInput` (the current program, its analyses and its
+`SelectedOptimizationRecord`) inside `SelectedInstructionOptimizationOutput`.
 */
 
 /*
@@ -20,14 +21,16 @@ publications are still intact. We seal `ValidatedSelectedAnalysis` to
 instruction selection's output and our own validated rewrite outputs so an
 unchecked `SelectedInstructionPlan` can never enter the shared selected-program
 analyses. Every rewrite reconstructs and validates the analyses it invalidates
-before handing custody to the next step.
+before handing custody to the next step. The default compile does not replay
+the finished run; `SelectedOptimizationReplay::validate` does that for tests
+and explicitly requested validators.
 */
 
 /*
 - Input: `SelectedOptimizationInput` from `Omega 03` (`target-operations-to-selected-instructions`).
-- Output: `SelectedInstructionOptimizationOutput` consumed by `Omega 05` (`selected-instructions-to-register-homes`).
+- Output: `SelectedInstructionOptimizationOutput`, whose `SelectedAllocationInput` `Omega 05` (`selected-instructions-to-register-homes`) consumes; the optional `SelectedOptimizationReplay` goes only to validators.
 - Flat module layout:
-  - `selected_optimization.rs`: stage admission, catalog phase dispatch, and `SelectedInstructionOptimizationOutput`.
+  - `selected_optimization.rs`: stage admission, catalog phase dispatch, restaging the rewritten program for allocation, `SelectedInstructionOptimizationOutput` and the opt-in `SelectedOptimizationReplay` validator.
   - `rewrites.rs`: stage rule catalog, shared condition-state/place-storage/window-hazard helpers, and the pre-allocation fixed-point driver.
   - `address_and_load_rewrites.rs`: displacement address folding and byte-exact stored-load forwarding.
   - `copy_and_extension_rewrites.rs`: direct-call copied operand folding, same-block copy removal, and redundant carrier-extension removal.
@@ -155,8 +158,8 @@ mod selected_optimization;
 pub mod unexecuted_rewrites;
 
 pub use selected_optimization::optimization_output::{
-    SelectedInstructionOptimizationError, SelectedInstructionOptimizationEvidence,
-    SelectedInstructionOptimizationOutput,
+    SelectedInstructionOptimizationError, SelectedInstructionOptimizationOutput,
+    SelectedOptimizationReplay, SelectedOptimizationReplayError,
 };
 
 pub use selected_instruction_analyses::SelectedOptimizationInput;
@@ -176,7 +179,6 @@ pub use analyses::{
     analyze_live_ranges_reusing, analyze_liveness, analyze_liveness_reusing,
     analyze_machine_effects, choose_spill_victims, classify_pressure_recovery,
     stage_optimized_allocation_legality,
-    stage_optimized_allocation_legality_for_active_resident_immediate_u64_multi_use_rematerialization_v1,
 };
 pub(crate) use analyses::{
     OptimizedLiveRangeCustodyError, OptimizedLivenessCustodyError, stage_optimized_live_ranges,

@@ -195,6 +195,7 @@ impl Program<'_> {
         }
         let id = self.next_identity()?;
         let (lowered, names) = self.declared_requirement_signature(id, signature, arguments)?;
+        self.retain_requirement_policy(id, signature, signature.symbol)?;
         self.symbols.push(signature.symbol);
         self.signatures.push(lowered);
         self.names.push(names);
@@ -606,6 +607,10 @@ mod tests {
         });
     }
     fn fixture() -> Fixture {
+        fixture_with_reach(false)
+    }
+
+    fn fixture_with_reach(authored_reach: bool) -> Fixture {
         let mut sources = source::SourceMap::default();
         let source = sources
             .add_with_metadata(
@@ -677,17 +682,38 @@ mod tests {
             ..Default::default()
         };
         let unit = typed.type_reference_table.insert(TypeReferenceNode::Unit);
+        let reach = if authored_reach {
+            let service = typed.service_reaches.intern(other, "Other");
+            typed.authored_service_reach_rows.push(
+                typed_trees::signature::AuthoredServiceReachRow {
+                    owner: requirement,
+                    keyword_source_spans: Vec::new(),
+                    targets: vec![typed_trees::signature::AuthoredServiceReachTarget {
+                        service: other,
+                        source_span: source::SourceSpan::new(source, source::Span::new(0, 4)),
+                    }],
+                    installation_bound: false,
+                },
+            );
+            typed.service_reach_rows.intern(vec![service])
+        } else {
+            typed.service_reach_rows.intern(Vec::new())
+        };
         for (symbol, req) in [(schema, requirement), (other, foreign)] {
             let machines = typed.trait_machine_signatures.insert_many([StateSignature {
                 symbol: req,
                 name: Identifier::generated("apply"),
                 return_type: unit,
+                service_reach_row: reach,
+                suspends: authored_reach && symbol == schema,
+                blocks: authored_reach && symbol == schema,
                 declares_no_crash_route: true,
                 ..Default::default()
             }]);
             typed.push_trait_definition(TraitDefinition {
                 symbol,
                 name: Identifier::generated(typed.symbols.name(symbol)),
+                is_boundary: authored_reach && symbol == other,
                 machines,
                 ..Default::default()
             });
@@ -934,6 +960,140 @@ mod tests {
             instances[0], instances[1],
             "the originating requirement does not identify its supplier binder"
         );
+    }
+
+    #[test]
+    fn finite_requirement_policies_complete_generic_helpers_without_closing_omitted_reach() {
+        use crate::body::{Body, Expression, ExpressionKind, Statement};
+        use semantic_vocabulary::IdTable;
+
+        for authored_reach in [true, false] {
+            let fixture = fixture_with_reach(authored_reach);
+            let mut program = Program::new(&fixture.typed, true);
+            let caller = program.machine(fixture.caller).unwrap();
+            let helper = program.const_application(fixture.nested).unwrap();
+            let (position, signature) = program
+                .record_requirement_signature(caller, fixture.parameters[0], fixture.requirement)
+                .unwrap()
+                .unwrap();
+            let ordinary = program.requirement(&signature, &[]).unwrap();
+            // Ordinary and record-bound logical requirements use the same
+            // declared policy and preserve distinct actual instance identities.
+            let record = program
+                .record_requirement(fixture.parameters[0], position, &signature, &[])
+                .unwrap();
+            assert_ne!(ordinary, record);
+            let source = crate::SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent);
+            let call = |callee: MachineId| {
+                Statement::discard(Expression {
+                    call_context: None,
+                    kind: ExpressionKind::Call {
+                        callee: callee.into(),
+                        arguments: Vec::new(),
+                        designated: None,
+                        required_contract: None,
+                        static_reach_binding: None,
+                    },
+                    result: None,
+                    source,
+                })
+            };
+            let mut bodies: IdTable<MachineId, Body> = program.symbols.map(|_, _| Body {
+                slots: Vec::new(),
+                statements: Vec::new(),
+            });
+            bodies.get_mut(caller).unwrap().statements = vec![call(helper)];
+            bodies.get_mut(helper).unwrap().statements = vec![call(ordinary), call(record)];
+            let components = crate::components::discover(&bodies).unwrap();
+            program
+                .finish_operational_envelopes(&bodies, &components)
+                .unwrap();
+            if !authored_reach {
+                assert!(matches!(
+                    program.signatures.get(record).unwrap().reaches,
+                    crate::Ceiling::Inferred
+                ));
+                assert!(!matches!(
+                    program.callables.envelopes.get(record),
+                    Some(Some(_))
+                ));
+                assert!(!matches!(
+                    program.callables.envelopes.get(helper),
+                    Some(Some(_))
+                ));
+                continue;
+            }
+            let expected = super::super::services::finite_reach(
+                &fixture.typed,
+                record,
+                signature.service_reach_row,
+            )
+            .unwrap();
+            assert!(!expected.is_empty());
+            for machine in [ordinary, record, helper, caller] {
+                let envelope = program
+                    .callables
+                    .envelopes
+                    .get(machine)
+                    .unwrap()
+                    .as_ref()
+                    .unwrap();
+                assert_eq!(envelope.service_reach, expected);
+                assert!(envelope.suspends && envelope.blocks);
+                assert!(envelope.invocations.is_empty());
+                assert_eq!(
+                    envelope.termination,
+                    terminal_psi::TerminalCallableTermination::NotGuaranteed
+                );
+            }
+            let prepared =
+                crate::finish_reading(program, Some(caller), bodies, None, None, None).unwrap();
+            let entry = prepared
+                .program
+                .module
+                .machines
+                .iter()
+                .find(|machine| machine.id == caller)
+                .unwrap();
+            assert!(
+                entry.declaration.is_some(),
+                "finite generic entry lost its declaration: {:?}",
+                prepared.program.undeclared
+            );
+            assert!(
+                prepared
+                    .program
+                    .module
+                    .callables
+                    .machine_envelope(caller)
+                    .is_some()
+            );
+            assert!(!entry.published_service_ceiling.is_empty());
+            for requirement in [ordinary, record] {
+                let machine = prepared
+                    .program
+                    .module
+                    .machines
+                    .iter()
+                    .find(|machine| machine.id == requirement)
+                    .unwrap();
+                assert!(machine.declaration.is_none());
+                assert!(machine.declared_service_reach.is_none());
+                assert_eq!(
+                    machine.published_service_ceiling,
+                    entry.published_service_ceiling
+                );
+                assert_eq!(
+                    prepared
+                        .program
+                        .requirement_ceilings
+                        .get(requirement)
+                        .unwrap()
+                        .reaches,
+                    crate::Ceiling::Authored(entry.published_service_ceiling.clone())
+                );
+            }
+        }
     }
 
     #[test]

@@ -486,12 +486,13 @@ impl<'t> Program<'t> {
                     | BinaryOperator::GreaterOrEqual
                     | BinaryOperator::CaseMembership => None,
                 };
-                // `subject in S::C`. Stage 01 writes the test as
-                // `CaseMembership` in a guard and as `Equal` in value
-                // position; in both the right operand names a case, which is
-                // what makes it a case test. `k == Kind::A` on a
-                // payload-free sum is the same test (data_and_literals.md:
-                // "Primitive and payload-free-sum equality is intrinsic").
+                // `subject in S::C` is a case test wherever it stands.
+                // `k == Kind::A` is the same test only on a payload-free sum
+                // (data_and_literals.md: "Primitive and payload-free-sum
+                // equality is intrinsic"). On a record or a payload-bearing
+                // sum, Psi 03 replaces a `==` it can type with the selected
+                // `Equatable` call, so a `==` that reaches here against a case
+                // has no selected comparison and `case_test` refuses it.
                 if matches!(
                     binary.operator,
                     BinaryOperator::CaseMembership
@@ -499,7 +500,14 @@ impl<'t> Program<'t> {
                         | BinaryOperator::NotEqual
                 ) && let Some(case) = self.named_case(binary.right)
                 {
-                    let test = self.case_test(id, slots, binary.left, case, source)?;
+                    let test = self.case_test(
+                        id,
+                        slots,
+                        binary.left,
+                        case,
+                        binary.operator != BinaryOperator::CaseMembership,
+                        source,
+                    )?;
                     return Ok(if binary.operator == BinaryOperator::NotEqual {
                         Expression {
                             call_context: None,

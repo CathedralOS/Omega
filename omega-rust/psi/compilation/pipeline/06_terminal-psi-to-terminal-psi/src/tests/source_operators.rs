@@ -273,9 +273,17 @@ fn an_unselected_declared_value_index_is_explicitly_refused_for_reads_and_writes
         .expect("the ordinary preparation path retains the indexed expression");
         let refusal = operator_program(&typed)
             .expect_err("an unselected value index cannot silently acquire builtin semantics");
+        let (reason, completion) = refusal
+            .split_once("; operator completion: ")
+            .expect("the refused source operation includes its completion coordinates");
         assert_eq!(
-            refusal,
+            reason,
             "admitted source selection Operator remains unresolved as CheckedOperator in `entry` at buffer[0]"
+        );
+        assert!(
+            completion.starts_with("expected (")
+                && completion.contains("; materialization source="),
+            "{completion}"
         );
     }
 }

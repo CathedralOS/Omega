@@ -950,6 +950,13 @@ pub enum FixedViewCopyPolicy {
     SharedSourceExitBeforeFixedUseV1, // Shared copy at a dominating block terminator when leaving one source segment end
 }
 
+/// Where active-resident rematerialization places a chosen immediate.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum PressureRematerializationPolicy {
+    SelectedActiveResidentImmediateU64BeforeSingleFutureFlexibleUseV1,
+    SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct FixedViewCopySourceEvidence {
     // Recovery consumes these three admitted plans together. There is no
@@ -1000,6 +1007,10 @@ pub struct FixedViewCopyDestination {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FixedViewCopyDecodeError {
+    InvalidCodeCatalog {
+        catalog: &'static str,
+        cause: terminal_wire::CodecError,
+    },
     InvalidProgramContracts(&'static str),
     InvalidBorrowedStorage(runtime_abi::BorrowedStorageEncodingError),
     InvalidQuotientCatalog,

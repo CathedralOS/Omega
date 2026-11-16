@@ -31,6 +31,10 @@ These tests verify three end-to-end properties of `orchestration`:
    runs the installed dependency's dynamic `Build` through the same discovery
    and review pipeline, and explicit provider readiness preserves public backing
    requirements while rejecting private dependency implementations.
+4. `stale_lock_refuses_compilation_before_the_changed_build_runs`: compiling a
+   locked project refuses an edited root or dependency source before that
+   source's Build executes, so a stale Build never runs its effects ahead of the
+   refusal.
 */
 
 use artifacts::compile_timings::counters;
@@ -799,4 +803,137 @@ fn dynamic_commands_publish_actual_sources_once_and_keep_failures_unpublished() 
         accepted_lock
     );
     assert!(!project.join("build/package-manager/proposal").exists());
+}
+
+// Publish a lock for the host target, accepting every pending decision.
+fn lock_for_host(project: &Path) {
+    let mut options = PackageCommandOptions {
+        project_root: project.to_path_buf(),
+        targets: vec![TargetProfile::host_if_supported().unwrap()],
+        offline: true,
+        build_inputs: None,
+    };
+    let mut session = BuildSession::create(&project.join("build/package-manager")).unwrap();
+    let mut outcome = execute_package_command(
+        PackageCommand::Update {
+            packages: Vec::new(),
+            revision: None,
+        },
+        options.clone(),
+        &mut session,
+    )
+    .unwrap();
+    for _ in 0..3 {
+        if outcome.status == PackageCommandStatus::Published {
+            break;
+        }
+        accept_decisions(&outcome.review_paths);
+        options.targets.clear();
+        outcome = execute_package_command(
+            PackageCommand::Resume {
+                kind: PackageCommandKind::Update,
+            },
+            options.clone(),
+            &mut session,
+        )
+        .unwrap();
+    }
+    assert_eq!(
+        outcome.status,
+        PackageCommandStatus::Published,
+        "{}",
+        outcome.report
+    );
+    session.close().unwrap();
+}
+
+// Check a locked project for the host and return the refusal, if any, with
+// the number of Builds that ran.
+fn check_locked_project(project: &Path) -> (Option<String>, u64) {
+    let before = counters::source_build_execution_count();
+    let result = build(BuildRequest {
+        stage_validators: Default::default(),
+        root_path: project.join("main.omg"),
+        build_directory: Some(project.join("build/stale")),
+        targets: BuildTargets::Host,
+        product: ProjectProduct::Check,
+        timings: false,
+        offline: true,
+        verify: false,
+        require_package_project: true,
+        optimization_rollback: Default::default(),
+        build_snapshot: None,
+    });
+    let executions = counters::source_build_execution_count() - before;
+    let refusal = match result {
+        Err(error) => Some(error.to_string()),
+        Ok(outcomes) => {
+            let errors = outcomes
+                .into_iter()
+                .filter_map(|outcome| outcome.result.err().map(|error| error.to_string()))
+                .collect::<Vec<_>>();
+            (!errors.is_empty()).then(|| errors.join("\n"))
+        }
+    };
+    (refusal, executions)
+}
+
+#[test]
+fn stale_lock_refuses_compilation_before_the_changed_build_runs() {
+    let workspace = TemporaryDirectory::create("stale-lock-build", false).unwrap();
+    let root = workspace.path();
+    copy_project(
+        root,
+        "executed_dependency_source_join_exit",
+        &["main.omg", "build.omg"],
+    );
+    copy_project(
+        root,
+        "executed_dependency_source_library",
+        &["main.omg", "build.omg"],
+    );
+    let project = root.join("executed_dependency_source_join_exit");
+    lock_for_host(&project);
+    let (refusal, executions) = check_locked_project(&project);
+    assert_eq!(refusal, None);
+    assert_eq!(executions, 2, "the accepted root and dependency Builds run");
+
+    // An edited root Build is refused before it runs.
+    let declaration = std::fs::read(project.join("build.omg")).unwrap();
+    std::fs::write(
+        project.join("build.omg"),
+        [declaration.as_slice(), b"\n// root edit\n"].concat(),
+    )
+    .unwrap();
+    let (refusal, executions) = check_locked_project(&project);
+    let refusal = refusal.expect("an edited root must be refused");
+    assert!(
+        refusal.contains("`executed_dependency_source_join_exit` source identity changed"),
+        "{refusal}"
+    );
+    assert_eq!(executions, 0, "the edited root Build must not run");
+    std::fs::write(project.join("build.omg"), &declaration).unwrap();
+
+    // An edited dependency is refused after the unchanged root Build requests
+    // it and before the dependency's own Build runs.
+    let dependency = root.join("executed_dependency_source_library/build.omg");
+    let contents = std::fs::read(&dependency).unwrap();
+    std::fs::write(
+        &dependency,
+        [contents.as_slice(), b"\n// dependency edit\n"].concat(),
+    )
+    .unwrap();
+    let (refusal, executions) = check_locked_project(&project);
+    let refusal = refusal.expect("an edited dependency must be refused");
+    assert!(
+        refusal.contains("`executed_dependency_source_library` source identity changed"),
+        "{refusal}"
+    );
+    assert_eq!(executions, 1, "only the unchanged root Build may run");
+    std::fs::write(&dependency, contents).unwrap();
+
+    // The restored sources check again under the same lock.
+    let (refusal, executions) = check_locked_project(&project);
+    assert_eq!(refusal, None);
+    assert_eq!(executions, 2);
 }

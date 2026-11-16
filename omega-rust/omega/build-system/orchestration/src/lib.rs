@@ -39,8 +39,9 @@ Product and target vocabulary:
   subdirectory even if the set has length 1).
 - `BuildError::outcome` classifies compilation refusals through
   `CompilerRequestOutcome::of_refusal`: only a refusal consisting entirely of
-  exceeded private provisions returns `Incomplete`; preparation, directory, and
-  publication errors always return `Reject`.
+  exceeded private provisions returns `Incomplete`; a failed independent stage
+  validator is the compiler's own defect and returns `InternalFailure`;
+  preparation, directory, and publication errors always return `Reject`.
 
 */
 
@@ -235,6 +236,7 @@ impl BuildError {
             Self::Diagnostics(diagnostics) => {
                 compiler::CompilerRequestOutcome::of_refusal(diagnostics)
             }
+            Self::StageValidation(_) => compiler::CompilerRequestOutcome::InternalFailure,
             _ => compiler::CompilerRequestOutcome::Reject,
         }
     }

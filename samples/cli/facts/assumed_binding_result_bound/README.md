@@ -28,10 +28,11 @@ accompanied by `<place>/invalid/` reject twins and `<place>/controls/insufficien
 | another machine | [other_machine/main.omg](other_machine/main.omg) | [invalid_other_machine/main.omg](invalid_other_machine/main.omg) | [other_machine/controls/insufficient_bound/main.omg](other_machine/controls/insufficient_bound/main.omg) | root-assumed bound forwarded through another machine |
 | another target body | [target_body/main.omg](target_body/main.omg) | [invalid_target_body/main.omg](invalid_target_body/main.omg) | [target_body/controls/insufficient_bound/main.omg](target_body/controls/insufficient_bound/main.omg) | root-assumed bound consumed across target-scoped body implementations |
 
-Run each place with `omega run --both <place>/main.omg`. Public Build
-evaluation of that place's `assume_binding_contract` projects the exact root
-Product risk rows for the activation. No `omega packages update` lock is required, and
-a retained lock must still match those rows.
+Run each place with `omega run --both <place>/main.omg` after accepting its
+`assume_binding_contract` risk row with `omega packages update`. The root's
+`Build` authorization alone is not acceptance: without an `omega.lock` the
+compiler refuses the runtime Product, and a retained lock must match the rows
+exactly.
 
 ## Requirements and Evidence
 

@@ -5,7 +5,7 @@ bodies, folded constants, quotients, scalar applications, and task-activation de
 */
 
 pub use crate::types_and_values::{types, values};
-pub use crate::{boundary, control_flow, identity, observation, ownership, proof};
+pub use crate::{boundary, control_flow, identity, ownership, proof};
 
 pub use boundary::*;
 pub(crate) mod folded_constants {
@@ -939,7 +939,6 @@ pub use control_flow::{
     TrappingIntegerOperation, TrappingIntegerPrimitive, structural_parameter_position,
 };
 pub use identity::*;
-pub use observation::*;
 pub use ownership::*;
 pub use proof::*;
 pub use proof_application_scope::{

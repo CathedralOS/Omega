@@ -1,6 +1,6 @@
 /*
 Companion artifact section codecs for `TerminalArtifactManifest` (`artifact_manifest`),
-`TerminalDebugMap` (`debug_map`), and `OptimizationExecutionReceipt` / `TerminalTraceV1`
+`TerminalDebugMap` (`debug_map`), and `OptimizationExecutionReceipt`
 (`optimization_execution`), plus re-export of `semantic_module`.
 */
 

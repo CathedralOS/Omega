@@ -166,6 +166,12 @@ allocation, instruction encoding and baseline layout. The request retains those
 inputs for that audit; default compilation does not. Current-artifact byte,
 frame, exit and machine-state checks remain required without the originals.
 
+`SelectedInstructionRewriteReplay` rebuilds each selected-instruction rewrite
+run step by step from that run's own input and requires the allocated
+program's optimization record to name exactly that run. The request retains
+the run for that audit; default compilation trusts the run and does not keep
+it. With no selected-instruction rewrite rule selected it is inapplicable.
+
 ## Required acceptance
 
 Exercise redundant and required markers independently on both axes, generic

@@ -105,9 +105,180 @@ proof of a mutual cycle. Strict descent required for recursive proof citation
 and the existing cross-package recursion restriction are unchanged. Other
 termination and compiler work can proceed.
 
+<a id="final-artifact-validation-placement"></a>
+
+### 2. Does default compilation re-check the native image it just wrote?
+
+Decision name: `final-artifact-validation-placement`.
+
+**Customer.** Every `omega build` and `omega run` of a native program on the
+four hosted targets. Each one pays for a second pass over the image it just
+emitted, and the result is bound into the published artifact's identity.
+
+**Gap.** [Machine-state evidence](wiki/spec/build/machine_state_evidence.md#certificate-and-replay)
+says "Final-artifact validation is mandatory" and binds a certificate of the
+exact final bytes. [Verification placement](omega-rust/pipeline.md#verification-placement)
+says a compile "does not revalidate, replay or rebuild output the same compile
+just produced", and [optimizations](wiki/spec/build/optimizations.md#phase-and-product-boundaries)
+repeats it, leaving such checks to tests and explicit
+[`--validator` requests](wiki/spec/build/command_line.md#independent-stage-validators).
+The code follows the first page: `validate_terminal_image` in
+`omega-rust/omega/compilation/backend/images/image-emission/src/image.rs` runs on
+every native build, decoding x86 and AArch64 address fields from the final
+bytes and checking import, relocation, region and literal-pool counts against
+the object plan. `native-artifact/src/publication.rs` and `identity.rs` then
+carry the resulting text and function validation digests into the published
+artifact. Neither page names the other as an exception.
+
+**Question.** Is final-artifact validation an exception to verification
+placement that every compile runs, or an independent validator that runs only
+in tests and under `--validator`? If it is optional, does the published
+artifact identity keep a validation digest at all when the validator did not
+run?
+
+**Recommendation.** Keep the final-image check in the default path and write it
+into verification placement as a named exception: the image is the trust
+boundary the machine-state certificate describes, and its digests already form
+part of the published identity. Moving it behind `--validator` would change
+artifact identity and the certificate contract, not only compile time. This is
+a recommendation, not a settled rule.
+
+**Until answered.** Leave `validate_terminal_image` and its digests in the
+default path. Do not extend the default final-image checks or add new default
+re-checks of other stage outputs on the strength of machine-state evidence.
+
+<a id="freestanding-machine-owner-authority"></a>
+
+### 3. Where does machine-owner assembly authority come from: the target or `Build.freestanding`?
+
+**Context.** A program that uses machine-control assembly, such as `cli` or a
+control-register write, compiles only if the build grants machine-owner
+authority. Today that grant is `builder.freestanding = true` in `build.omg`.
+It is one boolean for the whole build, with no target attached. Source checking
+turns it into `AsmAuthorityAdmission::MACHINE_OWNER` for every target the build
+binds. A build that binds both `uefi_x86_64` and `linux_x86_64` therefore admits
+machine-control assembly in the hosted Linux program as well. The flag does
+nothing else; it does not remove host packages or import thunks.
+
+**Gap.** The pages disagree and none is ratified over the others.
+[Build configuration](wiki/spec/build/configuration.md#durable-result) says the
+hosted/freestanding environment belongs to the selected target profile, "not
+duplicated mutable Build flags". [UEFI entry](wiki/spec/build/uefi_entry.md)
+calls freestanding "an immutable selected target/provider property".
+[Privileged services](wiki/spec/build/permissions.md#privileged-services)
+instead names "the evaluated `Build.freestanding` selection" as machine-owner
+admission and says machine-owner authority "stays `freestanding`-only".
+74 samples under `samples/cli/facts/` set `builder.freestanding = true` while
+binding only hosted targets (`linux_x86_64`, `windows_x86_64`, `macos_*`), so
+they depend on the third reading. [Device access](wiki/spec/resources/device_access.md)
+and [checked instructions](wiki/spec/build/hardware_materialization.md#checked-instructions)
+say which instructions need the authority, not who grants it.
+
+**Question.** Is machine-owner authority a property of the selected target
+(so only freestanding targets such as `uefi_x86_64` have it, and
+`Build.freestanding` is deleted), or a build grant? If it is a build grant, is
+it a per-target row like `elf_interpreter`, and may a hosted target receive it
+at all? What do the hosted-target samples that use it become?
+
+**Recommendation.** Follow configuration.md: the target profile carries
+hosted/freestanding and freestanding targets carry machine-owner authority;
+delete `Build.freestanding`. Hosted programs that only need to *check*
+machine-control instructions keep compiling through a per-target grant row
+beside `privileged_services`, never through an untargeted flag. This is a
+recommendation, not a settled rule.
+
+**Until answered.** `Build.freestanding` keeps its current meaning and is
+neither extended nor deleted. Do not add new consumers of it. Other build and
+assembly work can proceed.
+
+<a id="syscall-binding-calling-policy"></a>
+
+### 4. Which calling policy does a requirement with no `Calling<Policy>` get when Build binds it to a syscall?
+
+Decision name: `syscall-binding-calling-policy`.
+
+**Customer.** The bundled `std` binds about forty Linux filesystem requirements
+of `PosixFilesystemLinux` (`std/targets/linux_x86_64/posix_filesystem_impl.omg`)
+to `ForeignBinding::Syscall` locators in `std/build.omg`, for both
+`linux_x86_64` and `linux_arm64`. The trait declares no `Calling<Policy>`. Today
+the compiler picks the kernel convention from the locator:
+`native_calling_applications` (`provider-planning/src/calling_policy_plans/selected_application.rs`)
+uses `CallingPolicy::native_syscall_for_target` for a syscall locator and
+`native_for_target` for an import, and `has_valid_entry_mechanism`
+(`target-vocabulary/src/boundary/realizations.rs`) checks a syscall plan against
+the same built-in policy. On `linux_x86_64` a four-argument requirement therefore
+passes its fourth argument in `rcx` when bound to an import and in `r10` when
+bound to a syscall. The same file refuses any requirement that declares its own
+policy. The byte-view requirements (`PosixFilesystemLinuxX86ByteViews:
+Calling<LinuxX86ByteViewCalling>`) already declare a syscall policy, one trait
+per architecture.
+
+**Gap.** [Identity and selection](wiki/spec/build/calling_plans.md#identity-and-selection)
+says a `Build::bind` row retains the requirement's calling-policy application
+and "A locator, syscall number, or target label cannot select calling policy";
+[the page's opening](wiki/spec/build/calling_plans.md) says the requirement
+selects its policy. [Configuration](wiki/spec/build/configuration.md) says
+default calling policies belong to the selected target profile, which gives a
+requirement without `Calling<Policy>` the profile's default, but no page says
+whether that default is one policy (the platform C ABI) or a family the binding
+mechanism chooses from. A declared policy cannot stand in for the profile:
+`BoundarySignature` (`std/calling.omg`) carries no target, so one
+`Calling<Policy>` on a requirement shared by two architectures cannot place
+registers for both. [Foreign bindings](wiki/spec/build/foreign_bindings.md#locator-values)
+says the locator is not a calling convention, and is otherwise silent.
+
+**Question.** When a requirement declares no `Calling<Policy>` and Build binds
+it to a `Syscall` locator, does the compiler (a) give it the profile's ordinary
+C ABI and so refuse the binding, requiring every kernel requirement to move to a
+per-architecture trait that declares a syscall policy, as the byte-view traits
+do; or (b) give the profile a default syscall policy beside its default call
+policy, with the binding mechanism choosing between the two profile defaults
+while a declared policy is always kept and only checked against the locator?
+
+**Recommendation.** (a). It is the literal reading of the identity rule, keeps
+the ABI a property of the requirement, and std already shows the per-architecture
+form. It requires migrating every `PosixFilesystemLinux`, `LinuxClockWait` and
+`LinuxArmClockWait` binding, and a realization path that evaluates a declared
+policy for a native binding, which target preparation refuses today. This is a
+recommendation, not a settled rule.
+
+**Until answered.** The compiler keeps choosing the convention from the locator
+for requirements without a declared policy. Either answer keeps a declared
+policy and checks the locator against its entry control (a syscall needs
+`SupervisorCall`, an import `CallReturn`); that path is part of finishing calling
+policies under `STATIC-MACHINE-MIGRATION` in [TASKS.md](TASKS.md).
+
+### 5. May a `module` declaration follow imports or other declarations in its file?
+
+Decision name: `module-header-position`.
+
+**Customer.** Every multi-file Omega program names its modules, and a reader
+expects to learn a file's module before reading its declarations.
+[Modules](wiki/spec/language/modules.md) gives only the grammar
+`module_decl := "module" name_path ";"` and no position. The parser accepts the
+header anywhere among a file's items, and Psi 02's `declared_module_path`
+(`02_syntax-trees-to-symbol-resolved-trees/src/lowering.rs`) scans the whole
+file on purpose, so `machine f() {} module m;` puts `f` in module `m`. Several
+samples put `use` lines before the header, for example
+`samples/cli/scientific/spectrometer_attribution/main.omg` and
+`samples/cli/scientific/bounded_sensor_compression/domain/report.omg`.
+
+**Question.** Does the compiler (a) refuse a `module` declaration that follows
+any other item, including `use`; (b) refuse one that follows a declaration but
+allow imports before it; or (c) accept it anywhere, as today, and say so in the
+spec?
+
+**Recommendation.** (b). It keeps a file's module visible before any of its
+declarations without migrating the samples that import first. This is a
+recommendation, not a settled rule.
+
+**Until answered.** The compiler accepts the header anywhere. The language guide
+advises writing it before the file's declarations and says the compiler does
+not check the position.
+
 <a id="test-runner-filesystem-slot"></a>
 
-### 2. How does the test runner identify std's `FilesystemService` slot?
+### 6. How does the test runner identify std's `FilesystemService` slot?
 
 Decision name: `test-runner-filesystem-slot`.
 
@@ -143,4 +314,3 @@ settled rule.
 **Until answered.** The runner refuses every named service slot before any
 test runs (`omega-rust/omega/compilation/compiler/src/checked/test_roots.rs`).
 Test groups without services register and run on both engines.
-

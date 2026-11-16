@@ -25,6 +25,7 @@ selected-instructions-to-register-homes = { path = "../../pipeline/05_selected-i
 register-model = { path = "../register-model" }
 register-homes = { path = "../../representations/register-homes" }
 selected-instructions = { path = "../../representations/selected-instructions" }
+selected-instruction-analyses = { path = "../../representations/selected-instructions/analyses" }
 optimization-core = { path = "../../../foundation/optimization-core" }
 target = { path = "../target" }
 calling-conventions = { path = "../calling-conventions" }

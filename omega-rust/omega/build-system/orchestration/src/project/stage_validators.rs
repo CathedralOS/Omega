@@ -30,6 +30,9 @@ pub enum StageValidator {
     /// Compare fixed-frame machine output with its original allocation,
     /// encoding and baseline layout inputs.
     FixedFrameCorrespondence,
+    /// Rebuild each selected-instruction rewrite run (Omega 04) step by step
+    /// and require the allocated program's record to name exactly that run.
+    SelectedInstructionRewriteReplay,
 }
 
 impl StageValidator {
@@ -37,12 +40,14 @@ impl StageValidator {
     pub const ROSTER: &'static [Self] = &[
         Self::TargetOperationCorrespondence,
         Self::FixedFrameCorrespondence,
+        Self::SelectedInstructionRewriteReplay,
     ];
 
     pub const fn name(self) -> &'static str {
         match self {
             Self::TargetOperationCorrespondence => "TargetOperationCorrespondence",
             Self::FixedFrameCorrespondence => "FixedFrameCorrespondence",
+            Self::SelectedInstructionRewriteReplay => "SelectedInstructionRewriteReplay",
         }
     }
 
@@ -51,6 +56,7 @@ impl StageValidator {
         match self {
             Self::TargetOperationCorrespondence => "target operations",
             Self::FixedFrameCorrespondence => "fixed-frame machine code",
+            Self::SelectedInstructionRewriteReplay => "selected-instruction rewrites",
         }
     }
 
@@ -66,7 +72,9 @@ impl StageValidator {
     fn inapplicable_reason(self, product: &ProjectProduct) -> Option<&'static str> {
         match (self, product) {
             (
-                Self::TargetOperationCorrespondence | Self::FixedFrameCorrespondence,
+                Self::TargetOperationCorrespondence
+                | Self::FixedFrameCorrespondence
+                | Self::SelectedInstructionRewriteReplay,
                 ProjectProduct::Native {
                     destination: NativeDestination::Published,
                     ..
@@ -78,18 +86,25 @@ impl StageValidator {
             (Self::FixedFrameCorrespondence, ProjectProduct::Check) => {
                 Some("--check produces no fixed-frame machine code")
             }
+            (Self::SelectedInstructionRewriteReplay, ProjectProduct::Check) => {
+                Some("--check produces no selected instructions")
+            }
             (_, ProjectProduct::Terminal | ProjectProduct::Inspection { .. }) => {
                 Some("this product stops at Terminal Psi before target operations")
             }
             (
-                Self::TargetOperationCorrespondence | Self::FixedFrameCorrespondence,
+                Self::TargetOperationCorrespondence
+                | Self::FixedFrameCorrespondence
+                | Self::SelectedInstructionRewriteReplay,
                 ProjectProduct::Native {
                     destination: NativeDestination::RuntimeAdmission,
                     ..
                 },
             ) => Some("runtime admission stops before target lowering"),
             (
-                Self::TargetOperationCorrespondence | Self::FixedFrameCorrespondence,
+                Self::TargetOperationCorrespondence
+                | Self::FixedFrameCorrespondence
+                | Self::SelectedInstructionRewriteReplay,
                 ProjectProduct::Native {
                     destination: NativeDestination::Retained,
                     ..
@@ -209,7 +224,9 @@ impl StageValidatorRequest {
 impl StageValidator {
     fn check(self, report: Option<&compiler::CompileReport>) -> StageValidationResult {
         match self {
-            Self::TargetOperationCorrespondence | Self::FixedFrameCorrespondence => {
+            Self::TargetOperationCorrespondence
+            | Self::FixedFrameCorrespondence
+            | Self::SelectedInstructionRewriteReplay => {
                 let object = report.and_then(|report| {
                     report
                         .retained_native_artifact()
@@ -231,6 +248,17 @@ impl StageValidator {
                     }
                     Self::FixedFrameCorrespondence => {
                         image_emission::verify_retained_fixed_frame(object)
+                    }
+                    Self::SelectedInstructionRewriteReplay => {
+                        match image_emission::verify_retained_selected_optimization(object) {
+                            Ok(true) => Ok(()),
+                            Ok(false) => {
+                                return StageValidationResult::Inapplicable(
+                                    "no selected-instruction rewrite rule ran",
+                                );
+                            }
+                            Err(error) => Err(error),
+                        }
                     }
                 };
                 match checked {
@@ -373,7 +401,10 @@ mod tests {
             })
             .unwrap_err();
         assert!(matches!(error, BuildError::StageValidation(_)));
-        assert_eq!(error.outcome(), compiler::CompilerRequestOutcome::Reject);
+        assert_eq!(
+            error.outcome(),
+            compiler::CompilerRequestOutcome::InternalFailure
+        );
         let text = error.to_string();
         assert!(text.contains("stage validator TargetOperationCorrespondence (target linux_x86_64, stage target operations): failed: changed operand"), "{text}");
         assert!(

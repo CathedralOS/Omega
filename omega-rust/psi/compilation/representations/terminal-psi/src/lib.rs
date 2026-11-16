@@ -37,7 +37,6 @@ pub use call_contexts::{
 pub mod control_flow;
 pub use control_flow::ExecutionSite;
 pub mod identity;
-pub mod observation;
 #[macro_use]
 pub mod ownership;
 pub mod proof;

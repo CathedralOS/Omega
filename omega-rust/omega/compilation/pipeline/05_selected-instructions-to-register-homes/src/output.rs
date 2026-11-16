@@ -1,12 +1,14 @@
 /*
-We project each staged register-allocation route into a unified
-`AllocationOutput` borrow and construct `RetainedAllocation`, verifying that
-any exercised recovery matches the build's declared `AllocationRecovery`
-phase selection before capturing current allocation facts for `Omega 06`.
+We project the staged result of whichever allocation procedure ran
+(`StagedAllocation`) into one `AllocationOutput` borrow and admit it as
+`RetainedAllocation`. Admission checks that the recovery rule that ran is
+exactly the build's `AllocationRecovery` selection, and that the manifest
+carries the program's Omega 04 record unchanged, before capturing current
+allocation facts for `Omega 06`.
 */
 
 macro_rules! allocation_output {
-    ($self:expr, $placed:expr, $selected:expr, $evidence:expr) => {
+    ($self:expr, $placed:expr, $selected:expr, $history:expr, $evidence:expr) => {
         AllocationOutput {
             program: register_homes::AllocatedProgramRef {
                 selected: $placed,
@@ -21,6 +23,7 @@ macro_rules! allocation_output {
             environment: $self.register_environment(),
             selections: $self.selections(),
             budget: $self.budget_per_pass(),
+            history: $history,
             evidence: $evidence,
         }
     };
@@ -36,6 +39,7 @@ pub(crate) mod baseline {
                 self,
                 self.selected().plan(),
                 self.selected(),
+                self.history(),
                 AllocationEvidence::RegisterHomes(self.custody().to_owned())
             )
         }
@@ -50,8 +54,8 @@ pub(crate) mod current {
     use register_homes::{AllocatedProgram, AllocatedProgramFacts};
     use selected_instruction_analyses::SelectedProgramView;
     use selected_instruction_analyses::{
-        MachineEffectStageError, OwnedSelectedProgram, SelectedProgramRef,
-        ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedLiveness,
+        MachineEffectStageError, OwnedSelectedProgram, SelectedOptimizationRecord,
+        SelectedProgramRef, ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedLiveness,
         analyze_machine_effects,
     };
     use selected_instructions::PreAllocationMachineEffectPlan;
@@ -72,6 +76,7 @@ pub(crate) mod current {
         evidence: AllocationEvidence,
         selections: OptimizationSelections,
         budget: OptimizationWorkBudget,
+        history: SelectedOptimizationRecord,
         publication: Arc<register_homes::AllocationPublicationFacts>,
     }
 
@@ -99,6 +104,7 @@ pub(crate) mod current {
                 evidence: source.evidence().clone(),
                 selections: source.selections().clone(),
                 budget: source.budget_per_pass(),
+                history: source.history().clone(),
                 publication,
             })
         }
@@ -139,6 +145,7 @@ pub(crate) mod current {
                 evidence: self.evidence.clone(),
                 selections: &self.selections,
                 budget: self.budget,
+                history: &self.history,
             }
         }
     }
@@ -154,39 +161,8 @@ pub(crate) mod fixed_view {
                 self,
                 &self.selected().plan().transformed,
                 SelectedProgramRef::new(self.selected()),
+                self.history(),
                 AllocationEvidence::FixedViewCopies(self.custody().to_owned())
-            )
-        }
-    }
-}
-pub(crate) mod literal_folds {
-    use super::{AllocationEvidence, AllocationOutput, ProjectAllocation};
-    use crate::StagedOptimizedRegisterHomesAfterSelectedLowering;
-
-    impl ProjectAllocation for StagedOptimizedRegisterHomesAfterSelectedLowering {
-        fn project_allocation(&self) -> AllocationOutput<'_> {
-            let program = self.selected();
-            allocation_output!(
-                self,
-                program.plan(),
-                program,
-                AllocationEvidence::SelectedLowering(self.custody().to_owned())
-            )
-        }
-    }
-}
-pub(crate) mod pre_allocation {
-    use super::{AllocationEvidence, AllocationOutput, ProjectAllocation};
-    use crate::StagedOptimizedRegisterHomesAfterPreAllocation;
-
-    impl ProjectAllocation for StagedOptimizedRegisterHomesAfterPreAllocation {
-        fn project_allocation(&self) -> AllocationOutput<'_> {
-            let program = self.selected();
-            allocation_output!(
-                self,
-                program.plan(),
-                program,
-                AllocationEvidence::PreAllocation(self.custody().to_owned())
             )
         }
     }
@@ -202,6 +178,7 @@ pub(crate) mod rematerialization {
                 self,
                 self.rematerialization().transformed(),
                 SelectedProgramRef::new(self.rematerialization()),
+                self.history(),
                 AllocationEvidence::ActiveResidentRematerialization(self.custody().to_owned(),)
             )
         }
@@ -210,14 +187,8 @@ pub(crate) mod rematerialization {
 pub(crate) mod retained {
     use std::sync::Arc;
 
-    use super::{AllocationAdmissionError, AllocationOutput, ProjectAllocation};
-    use crate::FixedViewCopyPolicy;
-    use crate::{
-        StagedOptimizedActiveResidentRematerialization, StagedOptimizedRegisterHomes,
-        StagedOptimizedRegisterHomesAfterFixedViewCopies,
-        StagedOptimizedRegisterHomesAfterPreAllocation,
-        StagedOptimizedRegisterHomesAfterSelectedLowering,
-    };
+    use super::{AllocationAdmissionError, AllocationOutput, StagedAllocation};
+    use optimization_core::Optimization;
 
     #[derive(Debug, Clone)]
     pub struct RetainedAllocation {
@@ -246,16 +217,19 @@ pub(crate) mod retained {
             self.current.publication()
         }
 
-        fn capture(
-            current: &AllocationOutput<'_>,
-            runtime_spill_prefix_selection: Option<optimization_core::Optimization>,
+        /// Admit the result of the allocation procedure that ran. `recovery`
+        /// is the allocation-recovery rule that procedure carried out, if any.
+        pub(crate) fn admit(
+            staged: StagedAllocation,
+            recovery: Option<Optimization>,
         ) -> Result<Self, AllocationAdmissionError> {
-            validate_recovery_selection(current, runtime_spill_prefix_selection)?;
-            let publication = capture_publication_facts(current)?;
+            let current = staged.project();
+            validate_recovery_selection(&current, recovery)?;
+            let publication = capture_publication_facts(&current)?;
             // Recovery has finished changing instructions and homes. Derive the
             // preservation facts here, once, before physical lowering starts.
             let requirements = crate::stage_allocated_callee_saved_requirements(
-                current,
+                &current,
                 crate::AllocatedCalleeSavedRequirementPolicy::AllocatedSelectedWritesIntersectAbiPreservationV1,
                 current.budget_per_pass(),
             )
@@ -263,58 +237,58 @@ pub(crate) mod retained {
             Ok(Self {
                 requirements,
                 current: Arc::new(
-                    super::current::CurrentAllocation::capture(current, publication)
+                    super::current::CurrentAllocation::capture(&current, publication)
                         .map_err(AllocationAdmissionError::MachineEffects)?,
                 ),
             })
         }
     }
 
+    /// The manifest must carry the program's Omega 04 record unchanged, then
+    /// exactly the recovery rewrites this allocation applied; the record's
+    /// completions must agree with which Omega 04 phases the build selected.
     fn capture_publication_facts(
         current: &AllocationOutput<'_>,
     ) -> Result<Arc<register_homes::AllocationPublicationFacts>, AllocationAdmissionError> {
         use super::AllocationEvidence;
         use crate::PostAllocationSelectedTransformation;
-        use optimization_core::{OptimizationExecutionPhase, OptimizationSelections};
+        use optimization_core::OptimizationExecutionPhase;
 
         let post = current.post_allocation_manifest().record();
+        let history = current.history();
         let expected_transformations = match current.evidence() {
-            AllocationEvidence::RegisterHomes(_) => Vec::new(),
+            AllocationEvidence::RegisterHomes(_) => history.transformations.clone(),
             AllocationEvidence::FixedViewCopies(receipt) => {
-                vec![PostAllocationSelectedTransformation::FixedViewCopy(
+                history.followed_by(&[PostAllocationSelectedTransformation::FixedViewCopy(
                     receipt.source().source().transformation(),
-                )]
+                )])
             }
-            AllocationEvidence::SelectedLowering(receipt) => {
-                receipt.source().transformations().to_vec()
-            }
-            AllocationEvidence::ActiveResidentRematerialization(receipt) => vec![
+            AllocationEvidence::ActiveResidentRematerialization(receipt) => history.followed_by(&[
                 PostAllocationSelectedTransformation::PressureRematerialization(
                     receipt.rematerialization(),
                 ),
-            ],
-            AllocationEvidence::PreAllocation(receipt) => {
-                receipt.source().transformations().to_vec()
-            }
+            ]),
             AllocationEvidence::RuntimeSpill(identity) if *identity == post.identity => {
+                if !post
+                    .selected_transformations
+                    .starts_with(&history.transformations)
+                {
+                    return Err(AllocationAdmissionError::PublicationMismatch);
+                }
                 post.selected_transformations.clone()
             }
-            _ => return Err(AllocationAdmissionError::PublicationMismatch),
+            AllocationEvidence::RuntimeSpill(_) => {
+                return Err(AllocationAdmissionError::PublicationMismatch);
+            }
         };
-        let (lowering, completion) = match current.evidence() {
-            AllocationEvidence::SelectedLowering(receipt) => (
-                receipt.source().phase_selections(),
-                Some(receipt.source().identity()),
-            ),
-            _ => (OptimizationSelections::default().identity(), None),
-        };
+        let selected = |phase| !current.selections().for_phase(phase).is_empty();
         if post.selected_transformations != expected_transformations
-            || post.selected_lowering_completion != completion
-            || current
-                .selections()
-                .for_phase(OptimizationExecutionPhase::SelectedLowering)
-                .identity()
-                != lowering
+            || post.selected_lowering_completion != history.selected_lowering_completion
+            || post.pre_allocation_completion != history.pre_allocation_completion
+            || history.selected_lowering_completion.is_some()
+                != selected(OptimizationExecutionPhase::SelectedLowering)
+            || history.pre_allocation_completion.is_some()
+                != selected(OptimizationExecutionPhase::PreAllocation)
         {
             return Err(AllocationAdmissionError::PublicationMismatch);
         }
@@ -327,129 +301,22 @@ pub(crate) mod retained {
         ))
     }
 
-    macro_rules! retained_allocation_from_staged {
-        ($($source:ty),+ $(,)?) => {
-            $(
-                impl TryFrom<$source> for RetainedAllocation {
-                    type Error = AllocationAdmissionError;
-
-                    fn try_from(source: $source) -> Result<Self, Self::Error> {
-                        Self::capture(&source.project_allocation(), None)
-                    }
-                }
-            )+
-        };
-    }
-
-    retained_allocation_from_staged!(
-        StagedOptimizedRegisterHomes,
-        StagedOptimizedRegisterHomesAfterFixedViewCopies,
-        StagedOptimizedRegisterHomesAfterSelectedLowering,
-        StagedOptimizedRegisterHomesAfterPreAllocation,
-        StagedOptimizedActiveResidentRematerialization,
-    );
-
-    impl TryFrom<crate::assignment::runtime_spill::RuntimeSpillAllocation> for RetainedAllocation {
-        type Error = AllocationAdmissionError;
-
-        fn try_from(
-            source: crate::assignment::runtime_spill::RuntimeSpillAllocation,
-        ) -> Result<Self, Self::Error> {
-            Self::capture(
-                &source.project_allocation(),
-                source.recovery_prefix_selection(),
-            )
-        }
-    }
-
+    /// The recovery rule that ran must be exactly the build's
+    /// allocation-recovery selection: none when nothing is selected.
     fn validate_recovery_selection(
         current: &AllocationOutput<'_>,
-        runtime_spill_prefix_selection: Option<optimization_core::Optimization>,
+        recovery: Option<Optimization>,
     ) -> Result<(), AllocationAdmissionError> {
-        use super::AllocationEvidence;
-        use optimization_core::{Optimization, OptimizationExecutionPhase};
-        let expected: &[Optimization] = match current.evidence() {
-            AllocationEvidence::FixedViewCopies(receipt) => {
-                match receipt.source().source().policy() {
-                    FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1 => {
-                        &[Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1]
-                    }
-                    FixedViewCopyPolicy::LeafLocalBeforeFixedUseV1
-                    | FixedViewCopyPolicy::ImmediateBeforeFixedUseV1
-                    | FixedViewCopyPolicy::SharedSourceExitBeforeFixedUseV1 => &[],
-                }
-            }
-            AllocationEvidence::RuntimeSpill(_) => match runtime_spill_prefix_selection {
-                Some(Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1) => {
-                    &[Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1]
-                }
-                Some(Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1) => {
-                    &[Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1]
-                }
-                _ => &[],
-            },
-            AllocationEvidence::ActiveResidentRematerialization(_) => {
-                &[Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1]
-            }
-            AllocationEvidence::RegisterHomes(_)
-            | AllocationEvidence::SelectedLowering(_)
-            | AllocationEvidence::PreAllocation(_) => &[],
-        };
+        use optimization_core::OptimizationExecutionPhase;
         if current
             .selections()
             .for_phase(OptimizationExecutionPhase::AllocationRecovery)
             .as_slice()
-            != expected
+            != recovery.as_slice()
         {
             return Err(AllocationAdmissionError::SelectionMismatch);
         }
         Ok(())
-    }
-
-    #[cfg(test)]
-    pub(crate) mod tests {
-        #[test]
-        fn every_retained_constructor_checks_the_recovery_selection_before_capture() {
-            let source = include_str!("output.rs")
-                .split("mod retained {")
-                .nth(1)
-                .expect("the retained module")
-                .split("#[cfg(test)]")
-                .next()
-                .expect("the retained production body");
-            let rows = source
-                .split("retained_allocation_from_staged!(")
-                .nth(1)
-                .expect("the staged-result row list")
-                .split(");")
-                .next()
-                .expect("the row list body");
-            assert_eq!(rows.matches("StagedOptimized").count(), 5);
-            let constructors = source.split("impl TryFrom<").skip(1).collect::<Vec<_>>();
-            assert_eq!(constructors.len(), 2);
-            for constructor in &constructors {
-                assert!(constructor.contains("Self::capture("));
-            }
-            let capture = source
-                .split("fn capture(")
-                .nth(1)
-                .expect("the shared capture");
-            let policy = capture
-                .find("validate_recovery_selection(current")
-                .expect("the recovery-selection check");
-            let owned = capture
-                .find("CurrentAllocation::capture(current, publication)")
-                .expect("the owned current facts");
-            assert!(policy < owned);
-            assert_eq!(
-                source
-                    .matches("Self::capture(&source.project_allocation(), None)")
-                    .count(),
-                1
-            );
-            assert!(source.contains("source.recovery_prefix_selection(),"));
-            assert!(!source.contains("replay_allocation"));
-        }
     }
 }
 pub(crate) mod runtime_spill {
@@ -473,6 +340,7 @@ pub(crate) mod runtime_spill {
                 environment: self.source.register_environment(),
                 selections: self.source.selections(),
                 budget: self.source.budget_per_pass(),
+                history: self.source.history(),
                 evidence: AllocationEvidence::RuntimeSpill(self.manifest.record().identity),
             }
         }
@@ -480,21 +348,42 @@ pub(crate) mod runtime_spill {
 }
 
 use crate::{
-    AssignedRegisterHomes, StagedOptimizedActiveResidentRematerializationCustodyReceipt,
-    StagedOptimizedPostCopyRegisterHomeCustodyReceipt,
-    StagedOptimizedPostPreAllocationHomeCustodyReceipt,
-    StagedOptimizedPostSelectedLoweringHomeCustodyReceipt,
-    StagedOptimizedRegisterHomeCustodyReceipt, ValidatedPostAllocationOptimizationManifest,
+    AssignedRegisterHomes, StagedOptimizedActiveResidentRematerialization,
+    StagedOptimizedActiveResidentRematerializationCustodyReceipt,
+    StagedOptimizedPostCopyRegisterHomeCustodyReceipt, StagedOptimizedRegisterHomeCustodyReceipt,
+    StagedOptimizedRegisterHomes, StagedOptimizedRegisterHomesAfterFixedViewCopies,
+    ValidatedPostAllocationOptimizationManifest,
 };
 use optimization_core::{OptimizationSelections, OptimizationWorkBudget};
 use register_environment::ValidatedTargetRegisterEnvironment;
 pub use retained::RetainedAllocation;
 use selected_instruction_analyses::{
-    SelectedProgramRef, ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedLiveness,
+    SelectedOptimizationRecord, SelectedProgramRef, ValidatedAllocationLegality,
+    ValidatedLiveRanges, ValidatedLiveness,
 };
 
 trait ProjectAllocation {
     fn project_allocation(&self) -> AllocationOutput<'_>;
+}
+
+/// The staged result of the one allocation procedure that ran.
+#[derive(Debug)]
+pub(crate) enum StagedAllocation {
+    Homes(StagedOptimizedRegisterHomes),
+    FixedViewHomes(StagedOptimizedRegisterHomesAfterFixedViewCopies),
+    Rematerialized(StagedOptimizedActiveResidentRematerialization),
+    RuntimeSpill(crate::assignment::runtime_spill::RuntimeSpillAllocation),
+}
+
+impl StagedAllocation {
+    fn project(&self) -> AllocationOutput<'_> {
+        match self {
+            Self::Homes(staged) => staged.project_allocation(),
+            Self::FixedViewHomes(staged) => staged.project_allocation(),
+            Self::Rematerialized(staged) => staged.project_allocation(),
+            Self::RuntimeSpill(staged) => staged.project_allocation(),
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -510,9 +399,15 @@ pub struct AllocationOutput<'program> {
     evidence: AllocationEvidence,
     selections: &'program OptimizationSelections,
     budget: OptimizationWorkBudget,
+    history: &'program SelectedOptimizationRecord,
 }
 
 impl<'program> AllocationOutput<'program> {
+    /// The Omega 04 record of the program allocation received.
+    pub const fn history(&self) -> &'program SelectedOptimizationRecord {
+        self.history
+    }
+
     receipt_accessor_rows!(ref AllocationOutput {
         program: register_homes::AllocatedProgramRef<'program>,
     });
@@ -554,8 +449,6 @@ pub enum AllocationEvidence {
     RuntimeSpill(optimization_core::PostAllocationOptimizationManifestIdentity),
     RegisterHomes(StagedOptimizedRegisterHomeCustodyReceipt),
     FixedViewCopies(StagedOptimizedPostCopyRegisterHomeCustodyReceipt),
-    SelectedLowering(StagedOptimizedPostSelectedLoweringHomeCustodyReceipt),
-    PreAllocation(StagedOptimizedPostPreAllocationHomeCustodyReceipt),
     ActiveResidentRematerialization(StagedOptimizedActiveResidentRematerializationCustodyReceipt),
 }
 

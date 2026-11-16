@@ -31,11 +31,12 @@ on `--input` instead of quietly swallowing `--both` as a file name.
 Why `USAGE_ERROR_EXIT` is 64:
 
 Exit codes 0 through 3 are reserved by the compiler request contract
-(`wiki/spec/build/compiler_request.md`), where 0 is `Accept`, 1 is `Reject`,
-and 2 is `Incomplete` (a proof search that hit a resource bound without
-refuting the program). If argument errors exited with 1 or 2, a mistyped flag
-in a test harness or build script would be indistinguishable from a rejected or
-incomplete program. We use BSD `EX_USAGE` (64) so CLI usage mistakes stay
+(`wiki/spec/build/compiler_request.md`), where 0 is `Complete`, 1 is `Reject`,
+2 is `Incomplete` (a proof search that hit a resource bound without
+refuting the program), and 3 is `InternalFailure` (the compiler caught a defect
+in itself). If argument errors exited with 1 through 3, a mistyped flag in a
+test harness or build script would be indistinguishable from a compiler
+verdict. We use BSD `EX_USAGE` (64) so CLI usage mistakes stay
 disjoint from compiler verdicts.
 
 */
@@ -225,6 +226,25 @@ fn set_flag(value: &mut bool, flag: &str) -> Result<(), String> {
     }
     *value = true;
     Ok(())
+}
+
+// Every `--target` list is one exact target request: a set the spec normalizes
+// to canonical order with repeats removed
+// (`wiki/spec/build/configuration.md#exact-target-requests`). `ExplicitTargetSet`
+// owns that rule; no list means the command's default selection.
+fn explicit_targets(names: &[String]) -> Result<Vec<target::TargetProfile>, String> {
+    if names.is_empty() {
+        return Ok(Vec::new());
+    }
+    target::ExplicitTargetSet::from_caller_names(names)
+        .map(|targets| targets.profiles().to_vec())
+        .map_err(|diagnostics| {
+            diagnostics
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("\n")
+        })
 }
 
 fn option_value(arguments: &mut impl Iterator<Item = OsString>) -> Option<OsString> {
@@ -439,6 +459,54 @@ mod tests {
             .err()
             .unwrap();
         assert!(error.contains("missing source locator"), "{error}");
+    }
+
+    // `omega` and `omega packages` read a `--target` list the same way: the
+    // spec's exact target request is a set, so a repeat is dropped and the
+    // profiles come back in catalog order, while `all` is still refused.
+    #[test]
+    fn package_commands_read_target_lists_as_one_exact_target_set() {
+        use target::TargetProfile::{LinuxArm64, LinuxX64};
+        let targets = [
+            "--target",
+            "linux_x86_64",
+            "--target",
+            "linux_arm64",
+            "--target",
+            "linux_x86_64",
+        ];
+        let typed = |prefix: &[&'static str]| [prefix, &targets[..]].concat();
+        for command in [&["packages", "install", "lib"][..], &["packages", "update"]] {
+            match parse_slice(&typed(command)) {
+                Ok(Invocation::Package { options, .. }) => {
+                    assert_eq!(options.targets, [LinuxArm64, LinuxX64], "{command:?}");
+                }
+                _ => panic!("{command:?} with a repeated --target did not parse"),
+            }
+        }
+        match parse_slice(&typed(&["packages", "audit"])) {
+            Ok(Invocation::AuditPackages(options)) => {
+                assert_eq!(options.targets, [LinuxArm64, LinuxX64]);
+            }
+            _ => panic!("audit with a repeated --target did not parse"),
+        }
+        match parse_slice(&typed(&["main.omg"])) {
+            Ok(Invocation::Compile(arguments)) => {
+                assert_eq!(arguments.target_names, ["linux_x86_64", "linux_arm64"]);
+            }
+            _ => panic!("compile with a repeated --target did not parse"),
+        }
+
+        for command in [
+            &["packages", "install", "lib", "--target", "all"][..],
+            &["packages", "update", "--target", "all"],
+            &["packages", "audit", "--target", "all"],
+        ] {
+            let Err(error) = parse_slice(command) else {
+                panic!("{command:?} accepted the `all` wildcard");
+            };
+            assert!(error.contains("not an exact target profile"), "{error}");
+        }
     }
 
     #[test]
