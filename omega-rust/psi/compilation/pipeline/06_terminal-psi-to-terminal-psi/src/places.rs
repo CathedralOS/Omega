@@ -3168,7 +3168,10 @@ impl<'a> Storage<'a> {
     ///   the read equation names that value, so a store that broke the
     ///   clause can never lend it to a later read.
     /// - The clause names that one leaf and no other. A clause that relates
-    ///   it to a sibling cannot be stated on one read's value, and a case
+    ///   it to a sibling cannot be stated on one read's value; it is known
+    ///   instead of the values the record arrived with
+    ///   (`Storage::entry_type_premises`), which the read equation reaches
+    ///   while no store intervenes. A case
     ///   the clause tests must be established at `at` by structure, on the
     ///   place the observation goes through (a copy of what arrived, or
     ///   the place it arrived in): by a construction, a dominating true

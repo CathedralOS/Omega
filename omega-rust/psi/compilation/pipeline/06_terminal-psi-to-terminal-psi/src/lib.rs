@@ -1049,13 +1049,14 @@ fn fill_knowledge(
             },
         );
     }
-    // Each value a formal's field held at entry satisfies the clauses of
-    // the data types it lies in.
-    for premise in storage.entry_type_premises(tables)? {
+    // Each readable record formal of the machine or of a loop head arrived
+    // as a member of its type's domain, so the clauses of that type hold of
+    // its entry contents, including a clause that relates several fields.
+    for (block, premise) in storage.entry_type_premises(tables)? {
         push_knowledge(
             tables,
             premise,
-            ProgramPoint::BlockEntry(lowered.entry),
+            ProgramPoint::BlockEntry(block),
             Justification::FormalType,
         );
     }
