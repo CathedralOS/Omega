@@ -1495,7 +1495,7 @@ fn a_shared_collection_recast_keeps_payload_geometry_and_count_fit() {
     let mutable = source.replace("pixels as &[u8]", "pixels as &mut [u8]");
     assert_eq!(
         verdict(&mutable),
-        "storage view outside reference formation"
+        "expression storage view outside reference formation while reading the local binding of `build_entry::entry::bytes` while reading the body of `build_entry`"
     );
     let gated = format!(
         "data Positive requires value > 0 {{ value: i32; }}\n{}",
