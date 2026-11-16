@@ -1738,6 +1738,18 @@ machine entry() -> u64 crashes none {
     }
 
     fn accepted_source(text: &str, metadata_names: &[&str]) -> AcceptedTerminalSource {
+        accepted_source_with_publication(
+            text,
+            metadata_names,
+            terminal_codec::TerminalPublication::Invocation,
+        )
+    }
+
+    fn accepted_source_with_publication(
+        text: &str,
+        metadata_names: &[&str],
+        publication: terminal_codec::TerminalPublication,
+    ) -> AcceptedTerminalSource {
         let mut sources = source::SourceMap::default();
         let id = sources
             .add_checked_instance(
@@ -1808,7 +1820,7 @@ machine entry() -> u64 crashes none {
                 providers: None,
                 supplies: &[],
             },
-            terminal_codec::TerminalPublication::Invocation,
+            publication,
         )
         .unwrap()
     }
@@ -1888,7 +1900,7 @@ machine entry() { repeat(0); }
 
     #[test]
     fn domain_declarations_keep_their_subjects_without_splitting_their_meaning() {
-        let source = accepted_source(
+        let source = accepted_source_with_publication(
             r#"
 domain [u8; 2]::Ready requires true;
 domain [u8; 3]::Ready requires true;
@@ -1898,6 +1910,7 @@ machine entry() {
 }
 "#,
             &[],
+            terminal_codec::TerminalPublication::Portable,
         );
         let typed = source.source();
         let domains = typed
@@ -1928,7 +1941,33 @@ machine entry() {
             })
             .collect::<Vec<_>>();
         assert_ne!(identities[0], identities[1]);
+        let exact_sources =
+            source::source_identity::toolchain_source_identities(typed.symbols.source_files())
+                .unwrap();
+        let nominal = domains
+            .iter()
+            .map(|domain| {
+                typed
+                    .exact_owner_nominal_identity(domain.symbol, &exact_sources)
+                    .and_then(|identity| typed.type_identity_text(identity))
+                    .unwrap()
+            })
+            .collect::<Vec<_>>();
+        assert_ne!(nominal[0], nominal[1]);
         let module = source.module();
+        let bytes = terminal_codec::encode_module(module).unwrap();
+        let decoded = terminal_codec::decode_module(&bytes).unwrap();
+        assert_eq!(module.structural_domains, decoded.structural_domains);
+        assert_eq!(module.structural_domains.len(), 2);
+        let mut collapsed = module.clone();
+        collapsed.structural_domains[1].identity = collapsed.structural_domains[0].identity;
+        let invalid = terminal_codec::encode_module(&collapsed).unwrap();
+        assert!(matches!(
+            terminal_codec::decode_module(&invalid),
+            Err(terminal_codec::CodecError::MalformedStructuralFoundation(
+                "structural domain identity"
+            ))
+        ));
         let prepared = prepare(&source, module, None).unwrap();
         terminal_installation::selection_questions::validate_selection_questions(
             module,
