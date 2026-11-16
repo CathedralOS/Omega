@@ -19,13 +19,13 @@ use crate::{
     ScalarCallStackEvidence, UnitCallStackEvidence, UnitScalarHomeRecord,
     UnitScalarParameterLocationRecord,
 };
-use abstract_operations::AbstractResult;
 use calling_conventions::{CallPlan, ValuePlacement, ValueShape};
+use native_vocabulary::values::AbstractResult;
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ClaimId, EdgeId, IntegerType, IntegerValue, MachineId, OperationId,
     PlaceId, ScalarType, StructuralTypeId, ValueId,
 };
-use target_operations::CallSiteOwner;
+use target_vocabulary::CallSiteOwner;
 use terminal_psi::{
     ClaimTransfer, CompletionReceipt, ProviderCandidateConformance, StructuralArgument,
     StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
@@ -178,12 +178,12 @@ macro_rules! internal_arg_source_triple_pattern {
 pub mod callbacks {
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum CallbackAddressDestination {
-        Register(target_operations::MachineRegister),
+        Register(target_vocabulary::MachineRegister),
         OutgoingStack {
             byte_offset: u32,
         },
         RecordField {
-            root_register: target_operations::MachineRegister,
+            root_register: target_vocabulary::MachineRegister,
             placements: calling_conventions::PrivateCallbackPlacements,
         },
     }
@@ -201,7 +201,7 @@ pub mod callbacks {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct CallbackAddressMaterialization {
-        pub target: target_operations::TargetNativeCallbackArgument,
+        pub target: target_vocabulary::TargetNativeCallbackArgument,
         pub destination: CallbackAddressDestination,
         pub code_offset: usize,
         pub byte_count: usize,
@@ -401,7 +401,7 @@ pub mod internal {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct InternalStructuralResultHomeRecord {
-        pub requirement: target_operations::TargetStructuralHomeRequirement,
+        pub requirement: target_vocabulary::TargetStructuralHomeRequirement,
         pub home_byte_offset: u32,
         pub code_offset: usize,
         pub byte_count: usize,
@@ -429,7 +429,7 @@ pub mod internal {
         pub arguments: Vec<InternalUnitScalarCallArgumentRecord>,
         pub source_arguments: Vec<StructuralArgument>,
         pub claim_transfers: Vec<ClaimTransfer>,
-        pub completion_claim_sources: Vec<target_operations::CompletionClaimSource>,
+        pub completion_claim_sources: Vec<target_vocabulary::CompletionClaimSource>,
         pub completion_receipts: Vec<CompletionReceipt>,
         pub operation_ordinal: usize,
         pub code_offset: usize,
@@ -442,15 +442,16 @@ pub mod internal {
             boundary: BoundaryMachineId,
             entry: MachineId,
             source_signature: [u8; 32],
-            completion_claim_sources: Vec<target_operations::CompletionClaimSource>,
+            completion_claim_sources: Vec<target_vocabulary::CompletionClaimSource>,
             completion_receipts: Vec<CompletionReceipt>,
         },
         Authored,
         InstalledProvider {
             boundary: BoundaryMachineId,
             provider: Box<ProviderCandidateConformance>,
-            assumption: Option<target_operations::InstalledAssumedBindingEvidence>,
-            completion_claim_sources: Vec<abstract_operations::CompletionClaimSource>,
+            assumption: Option<target_vocabulary::InstalledAssumedBindingEvidence>,
+            completion_claim_sources:
+                Vec<native_vocabulary::completion_claims::CompletionClaimSource>,
             completion_receipts: Vec<CompletionReceipt>,
         },
     }
@@ -470,7 +471,7 @@ pub mod results {
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct StructuralReturnRecord {
         pub psi_edge: EdgeId,
-        pub scalar_parameters: Vec<target_operations::ScalarAbiValue>,
+        pub scalar_parameters: Vec<target_vocabulary::ScalarAbiValue>,
         pub parameters: Vec<StructuralParameterDeclaration>,
         pub parameter_placements: Vec<ValuePlacement>,
         pub source: StructuralParameterDeclaration,

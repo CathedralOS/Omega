@@ -58,13 +58,13 @@ fn deployment_profile_changes_identity_even_with_identical_machine_geometry() {
 #[test]
 fn call_identity_binds_both_runtime_selector_rosters() {
     use crate::{LegalizedRuntimeIndexOperand, LegalizedScalarArgument};
-    use target_operations::{TargetStructuralRuntimeIndex, TargetUnitScalarArgumentSource};
+    use target_vocabulary::{TargetStructuralRuntimeIndex, TargetUnitScalarArgumentSource};
 
     let mut plan = call_aware_plan();
     let index = LegalizedRuntimeIndexOperand {
         operand: native_vocabulary::values::AbstractResult {
             value: id(21),
-            scalar_type: target_operations::selector_carrier_type(),
+            scalar_type: target_vocabulary::selector_carrier_type(),
         },
         stride: 4,
         extent: Some(8),
@@ -156,7 +156,7 @@ fn scalar_graph_identity_binds_ordered_source_and_abi_custody() {
             }
             2 => function.blocks[0].instructions.swap(0, 1),
             3 => {
-                call_mut(function, 0).target = target_operations::NativeCallTarget::Machine(id(999))
+                call_mut(function, 0).target = target_vocabulary::NativeCallTarget::Machine(id(999))
             }
             4 => call_mut(function, 0).arguments.swap(0, 1),
             5 => {
@@ -304,7 +304,7 @@ fn call_aware_unit_identity_binds_semantic_and_target_custody() {
                 .push(id(1)),
             9 => {
                 structural_call_mut(&mut changed).target =
-                    target_operations::NativeCallTarget::Machine(id(3))
+                    target_vocabulary::NativeCallTarget::Machine(id(3))
             }
             10 => structural_call_mut(&mut changed).arguments.swap(0, 1),
             11 => structural_argument_mut(&mut structural_call_mut(&mut changed).arguments[0])
@@ -513,7 +513,7 @@ fn literal_identity_binds_payload_declaration_and_producer_reference() {
     let mut plan = call_aware_plan();
     let call = structural_call_mut(&mut plan);
     let (_, argument) = structural_argument_mut(&mut call.arguments[0]);
-    argument.source = target_operations::TargetStructuralArgumentSource::EstablishedByteView {
+    argument.source = target_vocabulary::TargetStructuralArgumentSource::EstablishedByteView {
         psi_operation: id(900),
     };
     let destination = StructuralPlaceDeclaration {
@@ -556,7 +556,7 @@ fn literal_identity_binds_payload_declaration_and_producer_reference() {
             let call = structural_call_mut(&mut changed);
             let (_, argument) = structural_argument_mut(&mut call.arguments[0]);
             argument.source = if mutation == 0 {
-                target_operations::TargetStructuralArgumentSource::EstablishedByteView {
+                target_vocabulary::TargetStructuralArgumentSource::EstablishedByteView {
                     psi_operation: id(901),
                 }
             } else {

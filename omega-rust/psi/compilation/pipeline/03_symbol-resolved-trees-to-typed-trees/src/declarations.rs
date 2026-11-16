@@ -807,11 +807,13 @@ pub(crate) mod machine {
                 .into_iter()
                 .map(|parameter| lower_type_parameter(lowerer, parameter))
                 .collect::<Result<Vec<_>, _>>()?;
-            parameters.extend_from_slice(
+            parameters.extend(
                 lowerer
                     .typed_trees
                     .data_type_parameters
-                    .span_or_empty(typed_machine.type_parameters),
+                    .span_or_empty(typed_machine.type_parameters)
+                    .iter()
+                    .cloned(),
             );
             typed_machine.type_parameters = lowerer
                 .typed_trees

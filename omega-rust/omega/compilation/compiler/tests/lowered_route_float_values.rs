@@ -1033,3 +1033,77 @@ fn exact_float_integer_casts_require_integrality_and_keep_the_converter_contract
         .unwrap_or_else(|panic| std::panic::resume_unwind(panic));
     });
 }
+
+#[test]
+fn exact_integer_float_casts_require_precision_and_keep_the_converter_contract() {
+    std::thread::scope(|scope| {
+        compiler::checked::spawn_compile_worker(scope, || {
+            use language_semantics::numeric_intrinsics::{NumericIntrinsic, NumericType};
+            use numerics::{arithmetic::ArithmeticDomain, integer_carrier::FixedInteger};
+            let main =
+                repository().join("tests/fixtures/run/float/exact_integer_to_float/main.omg");
+            let checked = orchestration::check_source(
+                &mut compiler::CompilationSession::default(),
+                compiler::CheckedCompileRequest::new(&main, Some("macos_arm64")),
+            )
+            .result
+            .unwrap_or_else(|failure| panic!("{:?}", failure.into_diagnostics()));
+            let publication = checked
+                .terminal_publication()
+                .accepted()
+                .unwrap()
+                .closure()
+                .publish()
+                .unwrap();
+            let reopened = terminal_codec::ClosedTerminalModule::from_semantic_bytes(
+                publication.artifact.semantic_bytes(),
+            )
+            .unwrap();
+            let module = reopened.module();
+            for (source, target) in [
+                (FixedInteger::signed(32), NumericType::F64),
+                (FixedInteger::signed(64), NumericType::F32),
+                (FixedInteger::unsigned(64), NumericType::F64),
+            ] {
+                let meaning = NumericIntrinsic::Conversion {
+                    source: NumericType::Integer(source),
+                    target,
+                    domain: ArithmeticDomain::Exact,
+                };
+                let boundary = module
+                    .boundary_machines
+                    .iter()
+                    .find(|row| row.numeric_intrinsic == Some(meaning))
+                    .unwrap();
+                terminal_semantics::numeric_primitives::validate_boundary(module, boundary)
+                    .unwrap();
+                assert_eq!(boundary.scalar_parameters.len(), 1);
+                assert_eq!(boundary.scalar_ensures.len(), 1);
+                assert!(matches!(
+                    &boundary.scalar_ensures[0],
+                    semantic_vocabulary::Proposition::FloatMeaningEqual(_)
+                ));
+            }
+            let invalid =
+                repository().join("tests/fixtures/fail/float/exact_integer_to_float/main.omg");
+            let diagnostics = orchestration::check_source(
+                &mut compiler::CompilationSession::default(),
+                compiler::CheckedCompileRequest::new(&invalid, Some("macos_arm64")),
+            )
+            .result
+            .expect_err("an interval permits integers that lose precision")
+            .into_diagnostics();
+            assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+            assert!(
+                diagnostics.iter().all(|row| row
+                    .message
+                    .contains("cannot prove the required condition of this cast")
+                    && row.message.contains("exactly representable in f32")),
+                "{diagnostics:?}"
+            );
+        })
+        .unwrap()
+        .join()
+        .unwrap_or_else(|panic| std::panic::resume_unwind(panic));
+    });
+}

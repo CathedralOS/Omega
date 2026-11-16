@@ -17,8 +17,8 @@ within its body.
 */
 
 use semantic_vocabulary::{
-    CanonicalStructuralPathSegment, IdTable, InvocationSite, MachineId, PlaceId, Proposition,
-    ScalarTerm, ScalarType, StructuralCaseId, ValueId,
+    BlockId, CanonicalStructuralPathSegment, EdgeId, IdTable, InvocationSite, MachineId, PlaceId,
+    Proposition, ScalarTerm, ScalarType, StructuralCaseId, ValueId,
 };
 use std::collections::VecDeque;
 use terminal_check_tables::edges::Callee;
@@ -35,9 +35,9 @@ use crate::{
     substitute, terminal_machine,
 };
 
-/// Callers precede helpers. The lowering of terminal call components already
-/// turns their internal calls into block arrivals; an unresolved dependency
-/// here supplies no inferred condition and still faces ordinary discharge.
+/// Ordinary callers precede helpers. A recursive component's internal calls
+/// are block arrivals: discover their conditions without an inductive
+/// assumption, then check every internal and external arrival normally.
 pub(crate) fn infer(
     scope: &mut crate::ReplayScope<'_>,
     unreached: &mut crate::Unreached,
@@ -48,6 +48,31 @@ pub(crate) fn infer(
         return Ok(());
     }
     let sites = CallSites::new(elaboration)?;
+    // Internal tail calls are block arrivals after frame reuse. Discover their
+    // conditions without a recursive hypothesis, then publish them as ordinary
+    // entry requirements and head predicates. Every real arrival must prove
+    // them, including the entry transfer of each separately callable member.
+    let mut loop_inputs = elaboration.tables.machines.map(|_, _| Vec::new());
+    for caller in elaboration.tables.machines.keys() {
+        describe_calls(
+            scope,
+            caller,
+            &sites,
+            true,
+            &mut loop_inputs,
+            unreached,
+            inhabitation,
+        )?;
+    }
+    for (callee, arrivals) in loop_inputs.iter() {
+        if !arrivals.is_empty() {
+            let predicate = canonical(joins::connective(arrivals.clone(), false), callee)?;
+            if predicate != Proposition::Truth {
+                scope.require(callee, predicate, &sites)?;
+            }
+        }
+    }
+    let elaboration = scope.source();
     let mut waiting = sites.incoming.map(|_, callers| callers.len());
     let mut bodies = elaboration.tables.machines.map(|_, _| true);
     for requirement in &elaboration.requirements {
@@ -60,8 +85,10 @@ pub(crate) fn infer(
                 .then_some(id)
         })
         .collect();
-    let mut incoming: IdTable<MachineId, Vec<Proposition>> =
-        elaboration.tables.machines.map(|_, _| Vec::new());
+    // Keep the internal arrivals when later acyclic caller inference adds
+    // facts. An ordinary caller alone cannot narrow a recursive helper past
+    // the inputs its other incoming edges admit.
+    let mut incoming = loop_inputs;
     while let Some(id) = ready.pop_front() {
         if sites.private.get(id) == Some(&true) {
             let arrivals =
@@ -73,7 +100,15 @@ pub(crate) fn infer(
                 }
             }
         }
-        describe_calls(scope, id, &sites, &mut incoming, unreached, inhabitation)?;
+        describe_calls(
+            scope,
+            id,
+            &sites,
+            false,
+            &mut incoming,
+            unreached,
+            inhabitation,
+        )?;
         for &site in terminal_check_tables::row(&sites.outgoing, id, id, Construct::Machine)? {
             let callee = sites.arrivals[site].callee;
             let remaining = machine_row_mut(&mut waiting, callee, id)?;
@@ -90,6 +125,7 @@ fn describe_calls(
     scope: &crate::ReplayScope<'_>,
     id: MachineId,
     sites: &CallSites,
+    transfers: bool,
     incoming: &mut IdTable<MachineId, Vec<Proposition>>,
     unreached: &mut crate::Unreached,
     inhabitation: &terminal_semantics::inhabitation::Inhabitation,
@@ -98,7 +134,19 @@ fn describe_calls(
     let original =
         terminal_check_tables::row(&elaboration.tables.machines, id, id, Construct::Machine)?;
     let outgoing = terminal_check_tables::row(&sites.outgoing, id, id, Construct::Machine)?;
-    if outgoing.is_empty() {
+    let edges = if transfers {
+        terminal_check_tables::row(&sites.transfers, id, id, Construct::Machine)?.as_slice()
+    } else {
+        &[][..]
+    };
+    let includes_call = |index: usize| {
+        !transfers
+            || sites
+                .heads
+                .get(sites.arrivals[index].callee)
+                .is_some_and(|heads| !heads.is_empty())
+    };
+    if !outgoing.iter().any(|&index| includes_call(index)) && edges.is_empty() {
         return Ok(());
     }
     // One caller's construction scratch; the final evidence tables remain
@@ -153,7 +201,46 @@ fn describe_calls(
         &mut tables,
         &mut decided,
     )?;
+    for &(edge, callee) in edges {
+        let (_, actuals, structural) = storage.arrival(edge, Construct::Edge(edge))?;
+        let target = terminal_machine(&elaboration.module.machines, callee, id)?;
+        let point = ProgramPoint::Edge(edge);
+        let known = known_at(&tables, &prepared.graph, &prepared.context, id, point)?;
+        let fields = storage.at_join(
+            &tables,
+            &target.structural_parameters,
+            structural,
+            &[],
+            point,
+            Construct::Edge(edge),
+        )?;
+        let crossing = target
+            .parameters
+            .iter()
+            .zip(actuals)
+            .map(|(formal, actual)| (ScalarTerm::value(formal.id, formal.scalar_type), *actual))
+            .collect::<Vec<_>>();
+        let predicate = describe(
+            &known,
+            &crossing,
+            &mut InputBindings {
+                actuals,
+                target,
+                denotation: crate::known::TransportInputs::new(known.equations.len()),
+                known: &known,
+                context: &prepared.context,
+                fields: fields.observations(),
+            },
+        );
+        incoming
+            .get_mut(callee)
+            .expect("callee was indexed")
+            .push(predicate);
+    }
     for &index in outgoing {
+        if !includes_call(index) {
+            continue;
+        }
         let site = &sites.arrivals[index];
         let callee = site.callee;
         let call = terminal_check_tables::row(
@@ -241,6 +328,12 @@ struct Arrival {
     position: CallPosition,
 }
 
+struct LoopHead {
+    caller: MachineId,
+    block: BlockId,
+    arrivals: Vec<terminal_psi::ScalarBlockInvariantArrival>,
+}
+
 /// Resolve the call graph and physical call positions once. Updating an
 /// inferred contract follows its own arrivals, not every machine again.
 /// Inference appends clauses and obligations; it never moves a block, an
@@ -250,6 +343,8 @@ pub(crate) struct CallSites {
     arrivals: Vec<Arrival>,
     incoming: IdTable<MachineId, Vec<usize>>,
     outgoing: IdTable<MachineId, Vec<usize>>,
+    transfers: IdTable<MachineId, Vec<(EdgeId, MachineId)>>,
+    heads: IdTable<MachineId, Vec<LoopHead>>,
 }
 
 impl CallSites {
@@ -263,7 +358,117 @@ impl CallSites {
             arrivals: Vec::new(),
             incoming: elaboration.tables.machines.map(|_, _| Vec::new()),
             outgoing: elaboration.tables.machines.map(|_, _| Vec::new()),
+            transfers: elaboration.tables.machines.map(|_, _| Vec::new()),
+            heads: elaboration.tables.machines.map(|_, _| Vec::new()),
         };
+        // Correspondence chooses candidates, never proof premises. Whatever
+        // condition it suggests is checked on all ordinary calls and all
+        // physical arrivals before any body can use it.
+        for (id, sources) in elaboration.sources.iter() {
+            if sources.heads.is_empty() {
+                continue;
+            }
+            let machine = terminal_machine(&elaboration.module.machines, id, id)?;
+            let tables = terminal_check_tables::row(
+                &elaboration.tables.machines,
+                id,
+                id,
+                Construct::Machine,
+            )?;
+            let mut arrivals = vec![Vec::new(); machine.blocks.len()];
+            for (obligation, row) in tables.obligations.iter() {
+                let ObligationKind::ArrivalInvariant { edge } = row.kind else {
+                    continue;
+                };
+                let edge_row =
+                    terminal_check_tables::row(&tables.edges, edge, id, Construct::Edge(edge))?;
+                if let terminal_check_tables::edges::Destination::Block(target) =
+                    edge_row.destination
+                {
+                    let index = usize::try_from(target.get() - 1).map_err(|_| {
+                        refusal(
+                            RefusalReason::ForeignIdentity,
+                            id,
+                            Construct::Block(target),
+                            "block position exceeds usize",
+                        )
+                    })?;
+                    arrivals
+                        .get_mut(index)
+                        .ok_or_else(|| {
+                            refusal(
+                                RefusalReason::ForeignIdentity,
+                                id,
+                                Construct::Block(target),
+                                "arrival names no block",
+                            )
+                        })?
+                        .push(terminal_psi::ScalarBlockInvariantArrival { edge, obligation });
+                }
+            }
+            let mut members = vec![None; machine.blocks.len()];
+            for &(head, callee) in &sources.heads {
+                if result.private.get(callee) != Some(&true) {
+                    continue;
+                }
+                let slot = usize::try_from(head.get() - 1)
+                    .ok()
+                    .and_then(|index| members.get_mut(index))
+                    .ok_or_else(|| {
+                        refusal(
+                            RefusalReason::ForeignIdentity,
+                            id,
+                            Construct::Block(head),
+                            "a loop head is outside its machine",
+                        )
+                    })?;
+                if slot.replace(callee).is_some() {
+                    return Err(refusal(
+                        RefusalReason::ForeignIdentity,
+                        id,
+                        Construct::Block(head),
+                        "a loop head has two member correspondences",
+                    ));
+                }
+                result
+                    .heads
+                    .get_mut(callee)
+                    .expect("private callee was indexed")
+                    .push(LoopHead {
+                        caller: id,
+                        block: head,
+                        arrivals: std::mem::take(&mut arrivals[(head.get() - 1) as usize]),
+                    });
+            }
+            for (edge, row) in tables.edges.iter() {
+                let terminal_check_tables::edges::Destination::Block(target) = row.destination
+                else {
+                    continue;
+                };
+                let Some(callee) = usize::try_from(target.get() - 1)
+                    .ok()
+                    .and_then(|index| members.get(index))
+                    .copied()
+                    .flatten()
+                else {
+                    continue;
+                };
+                // The synthetic root-to-head edge is checked against the
+                // inferred entry contract; it is not an authored caller.
+                if sources.edges.get(edge)
+                    == Some(&SourceOrigin::Unpositioned(
+                        terminal_check_tables::program::Unpositioned::MachineEntry,
+                    ))
+                {
+                    continue;
+                }
+                result
+                    .transfers
+                    .get_mut(id)
+                    .expect("caller was indexed")
+                    .push((edge, callee));
+            }
+        }
         for (id, tables) in elaboration.tables.machines.iter() {
             if !tables.invocations.values().any(|call| {
                 matches!(call.callee, Callee::Declared(semantic_vocabulary::TargetMachineCallable::Machine(callee)) if result.private.get(callee) == Some(&true))
@@ -740,6 +945,8 @@ pub(super) fn require(
                 "callee is past the module",
             )
         })?;
+    let parameters = target.parameters.clone();
+    let structural_parameters = target.structural_parameters.clone();
     let previous = target.contract.requires.clone();
     let mut clauses = previous.clone();
     clauses.push(predicate);
@@ -1008,5 +1215,80 @@ pub(super) fn require(
             }
         }
     }
+    // Frame reuse changes a call into an edge, not its entry requirement.
+    // Each copied head receives the same condition over its own formals,
+    // and the existing arrival judgment checks every edge before using it.
+    let heads = terminal_check_tables::row(&sites.heads, callee, callee, Construct::Machine)?;
+    if heads.is_empty() {
+        return Ok(());
+    }
+    let invariants = &mut elaboration.module.scalar_block_invariants;
+    invariants.sort_by_key(|row| (row.machine, row.header));
+    let mut added = Vec::new();
+    for head in heads {
+        let caller = terminal_machine(&elaboration.module.machines, head.caller, callee)?;
+        let block = caller
+            .blocks
+            .get((head.block.get() - 1) as usize)
+            .filter(|block| block.id == head.block)
+            .ok_or_else(|| {
+                refusal(
+                    RefusalReason::ForeignIdentity,
+                    head.caller,
+                    Construct::Block(head.block),
+                    "an inferred input names no loop head",
+                )
+            })?;
+        if parameters.len() != block.parameters.len()
+            || structural_parameters.len() != block.structural_parameters.len()
+        {
+            return Err(refusal(
+                RefusalReason::ForeignIdentity,
+                head.caller,
+                Construct::Block(head.block),
+                "a loop head does not match its member's input lanes",
+            ));
+        }
+        let values = parameters
+            .iter()
+            .zip(&block.parameters)
+            .map(|(formal, actual)| (formal.id, ScalarTerm::value(actual.id, actual.scalar_type)))
+            .collect();
+        let places = structural_parameters
+            .iter()
+            .zip(&block.structural_parameters)
+            .map(|(formal, actual)| (formal.place, (actual.place, Vec::new())))
+            .collect();
+        let predicate = joins::connective(
+            clauses
+                .iter()
+                .map(|clause| {
+                    let clause = terminal_semantics::substitution::substitute_proposition_values(
+                        clause, &values,
+                    );
+                    terminal_semantics::substitution::substitute_proposition_structural_places(
+                        &clause, &places,
+                    )
+                })
+                .collect(),
+            true,
+        );
+        if let Ok(index) = invariants
+            .binary_search_by_key(&(head.caller, head.block), |row| (row.machine, row.header))
+        {
+            let invariant = &mut invariants[index];
+            invariant.predicate =
+                joins::connective(vec![invariant.predicate.clone(), predicate], true);
+        } else {
+            added.push(terminal_psi::ScalarBlockInvariant {
+                machine: head.caller,
+                header: head.block,
+                predicate,
+                arrivals: head.arrivals.clone(),
+            });
+        }
+    }
+    invariants.extend(added);
+    invariants.sort_by_key(|row| (row.machine, row.header));
     Ok(())
 }

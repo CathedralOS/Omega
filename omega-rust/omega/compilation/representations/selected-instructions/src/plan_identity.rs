@@ -105,7 +105,7 @@ struct RetainedHeaderKey {
     attachment: Option<semantic_vocabulary::StructuralTypeId>,
     nominal_cleanup_subject: Option<semantic_vocabulary::StructuralTypeId>,
     entry_block: crate::SelectedBlockId,
-    provenance: target_operations::TerminalPsiProvenance,
+    provenance: target_vocabulary::TerminalPsiProvenance,
     structural: Option<legalized_operations::LegalizedStructuralContract>,
     outgoing_arguments: Vec<crate::SelectedOutgoingArgumentSlot>,
     calls: Vec<crate::SelectedCallContract>,
@@ -789,27 +789,27 @@ mod contracts {
         for row in &function.calls {
             crate::codec_bytes::push_encoded(bytes, row.instruction.0.to_le_bytes());
             match row.owner {
-                target_operations::CallSiteOwner::Operation(operation) => {
+                target_vocabulary::CallSiteOwner::Operation(operation) => {
                     bytes.push(0);
                     crate::codec_bytes::push_encoded(bytes, operation.get().to_le_bytes());
                 }
-                target_operations::CallSiteOwner::InvokeNoNormal(edge) => {
+                target_vocabulary::CallSiteOwner::InvokeNoNormal(edge) => {
                     bytes.push(3);
                     crate::codec_bytes::push_encoded(bytes, edge.get().to_le_bytes());
                 }
-                target_operations::CallSiteOwner::ExternalCompletion(edge) => {
+                target_vocabulary::CallSiteOwner::ExternalCompletion(edge) => {
                     bytes.push(2);
                     crate::codec_bytes::push_encoded(bytes, edge.get().to_le_bytes());
                 }
-                target_operations::CallSiteOwner::Installation { operation, role } => {
+                target_vocabulary::CallSiteOwner::Installation { operation, role } => {
                     bytes.push(4);
                     crate::codec_bytes::push_encoded(bytes, operation.get().to_le_bytes());
                     bytes.push(match role {
-                        target_operations::InstallationCallRole::Validate => 0,
-                        target_operations::InstallationCallRole::Work => 1,
+                        target_vocabulary::InstallationCallRole::Validate => 0,
+                        target_vocabulary::InstallationCallRole::Work => 1,
                     });
                 }
-                target_operations::CallSiteOwner::CleanupAction {
+                target_vocabulary::CallSiteOwner::CleanupAction {
                     edge,
                     action_ordinal,
                 } => {

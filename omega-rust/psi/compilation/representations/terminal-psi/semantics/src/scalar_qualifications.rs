@@ -508,7 +508,7 @@ fn validate_transfers(module: &TerminalModule) -> Result<(), ScalarQualification
                             "scalar field read differs from its declared qualification",
                         );
                     }
-                } else if qualified && !policy_result(module, &declared, operation)? {
+                } else if qualified {
                     return malformed(
                         "ordinary scalar operation cannot establish a declared domain",
                     );
@@ -535,10 +535,16 @@ fn validate_field_types(module: &TerminalModule) -> Result<(), ScalarQualificati
                 }
                 _ => continue,
             };
-            for field in fields
-                .iter()
-                .chain(cases.iter().flat_map(|case| &case.fields))
-                .filter(|field| field.id == row.field)
+            // A payload field belongs to its case: its path names the case,
+            // and its predicate is owed only of a value in that case.
+            for (field, case) in
+                fields
+                    .iter()
+                    .map(|field| (field, None))
+                    .chain(cases.iter().flat_map(|case| {
+                        case.fields.iter().map(move |field| (field, Some(case.id)))
+                    }))
+                    .filter(|(field, _)| field.id == row.field)
             {
                 found = true;
                 if field.relevance.is_erased()
@@ -562,7 +568,13 @@ fn validate_field_types(module: &TerminalModule) -> Result<(), ScalarQualificati
                     };
                     let root =
                         PlaceId::new(1).expect("the default domain has one symbolic self place");
-                    let path = vec![CanonicalStructuralPathSegment::Field(field.id)];
+                    let path = match case {
+                        None => vec![CanonicalStructuralPathSegment::Field(field.id)],
+                        Some(case) => vec![
+                            CanonicalStructuralPathSegment::Case(case),
+                            CanonicalStructuralPathSegment::Field(field.id),
+                        ],
+                    };
                     let term = match row.value_type.scalar_type {
                         ScalarType::Integer(scalar_type) => ScalarTerm::IntegerField {
                             version: ContentPlaceVersion::Current,
@@ -590,7 +602,14 @@ fn validate_field_types(module: &TerminalModule) -> Result<(), ScalarQualificati
                         },
                     )
                     .map_err(ScalarQualificationError::MalformedStructuralFoundation)?;
-                    if !retains_predicate(&expected, owner.requires.iter()) {
+                    let retained = match case {
+                        None => retains_predicate(&expected, owner.requires.iter()),
+                        Some(case) => owner.requires.iter().any(|clause| {
+                            case_guarded(clause, root, case, cases.len())
+                                .is_some_and(|owed| retains_predicate(&expected, owed.iter()))
+                        }),
+                    };
+                    if !retained {
                         return malformed(
                             "scalar field's default domain lost its declared predicate",
                         );
@@ -665,6 +684,53 @@ fn validate_predicate_binding<'a>(
         }
     }
     Ok(())
+}
+
+/// The conjuncts a sum's clause owes of a value in `case`, when the clause is
+/// the reader's case-guarded form: `(self in C && owed...) || self in D || ...`
+/// with one membership test for each other case, or the conjunction alone
+/// for a sum with one case. Any other clause owes nothing conditionally.
+fn case_guarded<'a>(
+    clause: &'a Proposition,
+    root: semantic_vocabulary::PlaceId,
+    case: semantic_vocabulary::StructuralCaseId,
+    case_count: usize,
+) -> Option<&'a [Proposition]> {
+    let membership = |proposition: &Proposition| match proposition {
+        Proposition::StructuralCaseMembership { subject, case }
+            if *subject == semantic_vocabulary::StructuralCaseSubject::new(root, Vec::new()) =>
+        {
+            Some(*case)
+        }
+        _ => None,
+    };
+    let guarded = |proposition: &'a Proposition| -> Option<&'a [Proposition]> {
+        match proposition {
+            Proposition::Conjunction(owed)
+                if owed
+                    .iter()
+                    .any(|conjunct| membership(conjunct) == Some(case)) =>
+            {
+                Some(owed.as_slice())
+            }
+            _ => None,
+        }
+    };
+    match clause {
+        Proposition::Disjunction(disjuncts) if disjuncts.len() == case_count => {
+            let mut owed = None;
+            for disjunct in disjuncts {
+                match (guarded(disjunct), membership(disjunct)) {
+                    (Some(conjuncts), _) if owed.is_none() => owed = Some(conjuncts),
+                    (None, Some(other)) if other != case => {}
+                    _ => return None,
+                }
+            }
+            owed
+        }
+        Proposition::Conjunction(_) if case_count == 1 => guarded(clause),
+        _ => None,
+    }
 }
 
 fn retains_predicate<'a>(
@@ -848,90 +914,6 @@ fn storage_type_qualifications(
         .find(|row| row.structural_type == tip.id)
         .map_or(ScalarQualificationSetId::ZERO, |row| {
             row.value_type.qualifications
-        }))
-}
-
-fn policy_result(
-    module: &TerminalModule,
-    values: &ScalarValues<'_>,
-    operation: &terminal_psi::Operation,
-) -> Result<bool, ScalarQualificationError> {
-    use numerics::arithmetic::ArithmeticDomain::{Saturating, Trapping, Wrapping};
-    use terminal_psi::{OperationKind as Kind, TrappingIntegerOperation};
-    let Some(result) = operation.result.scalar_ref() else {
-        return Ok(false);
-    };
-    let semantic_vocabulary::ScalarType::Integer(_) = result.scalar_type else {
-        return Ok(false);
-    };
-    let (policy, first, second) = match &operation.kind {
-        Kind::WrappingIntegerAdd { left, right }
-        | Kind::WrappingIntegerSubtract { left, right }
-        | Kind::WrappingIntegerMultiply { left, right }
-        | Kind::WrappingIntegerDivide { left, right, .. }
-        | Kind::WrappingIntegerRemainder { left, right, .. } => {
-            (Some(Wrapping), *left, Some(*right))
-        }
-        Kind::SaturatingIntegerAdd { left, right }
-        | Kind::SaturatingIntegerSubtract { left, right }
-        | Kind::SaturatingIntegerMultiply { left, right }
-        | Kind::SaturatingIntegerDivide { left, right, .. }
-        | Kind::SaturatingIntegerRemainder { left, right, .. } => {
-            (Some(Saturating), *left, Some(*right))
-        }
-        Kind::WrappingIntegerShiftLeft { value, .. }
-        | Kind::WrappingIntegerShiftRight { value, .. } => (Some(Wrapping), *value, None),
-        Kind::ExactIntegerShiftRight { value, .. } => (Some(Saturating), *value, None),
-        Kind::TrappingInteger { operation } => match operation {
-            TrappingIntegerOperation::Add { left, right }
-            | TrappingIntegerOperation::Subtract { left, right }
-            | TrappingIntegerOperation::Multiply { left, right }
-            | TrappingIntegerOperation::Divide { left, right }
-            | TrappingIntegerOperation::Remainder { left, right } => {
-                (Some(Trapping), *left, Some(*right))
-            }
-            TrappingIntegerOperation::ShiftLeft { value, .. }
-            | TrappingIntegerOperation::ShiftRight { value, .. } => (Some(Trapping), *value, None),
-            TrappingIntegerOperation::Convert { .. } => return Ok(false),
-        },
-        Kind::IntegerBitwiseNot { operand } => (None, *operand, None),
-        Kind::IntegerBitwiseAnd { left, right }
-        | Kind::IntegerBitwiseOr { left, right }
-        | Kind::IntegerBitwiseXor { left, right } => (None, *left, Some(*right)),
-        _ => return Ok(false),
-    };
-    let operands = [
-        Some(values.get(first)?),
-        second.map(|id| values.get(id)).transpose()?,
-    ];
-    let carries_policy = |operand| same_type(result, operand);
-    // A policy arithmetic overload carries the qualification from one or both
-    // operands. Its plain partner stays plain and must have the same carrier.
-    if !operands.into_iter().flatten().any(carries_policy)
-        || !operands.into_iter().flatten().all(|operand| {
-            carries_policy(operand)
-                || (operand.scalar_type == result.scalar_type && operand.qualifications.is_empty())
-        })
-    {
-        return Ok(false);
-    }
-    let domains = qualification_domains(module, result.qualifications).ok_or(
-        ScalarQualificationError::MalformedStructuralFoundation(
-            "policy result has an absent qualification set",
-        ),
-    )?;
-    Ok(domains.len() == 1
-        && scalar_domain(module, domains[0]).is_some_and(|domain| {
-            domain.predicate.is_none()
-                && domain.establishment_routes.is_none()
-                && domain.has_no_required_memberships()
-                && [Wrapping, Saturating, Trapping]
-                    .into_iter()
-                    .filter(|candidate| policy.is_none_or(|policy| policy == *candidate))
-                    .any(|policy| {
-                        arithmetic_policy_identity(policy)
-                            == module.identities.text(domain.identity)
-                    })
         }))
 }
 

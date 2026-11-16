@@ -76,7 +76,7 @@ impl Program<'_> {
                 continue;
             }
             let facts = super::span(
-                &self.typed.proof_facts,
+                |span| self.typed.proof_facts.span(span),
                 definition.facts,
                 id,
                 "domain requires span",
@@ -378,13 +378,12 @@ impl Program<'_> {
         result: ValueType,
     ) -> Checked<(Vec<Proposition>, String)> {
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
-        // A byte view's domains are its primitive byte predicates, judged
-        // at each store from the bytes supplied (`field_predicates`), never
-        // a clause a cast states.
+        // A shared view can establish a predicate over bytes that stay
+        // unchanged for the duration of its loan.
         if let ValueType::Record(row, _, _) = result
             && matches!(
                 self.data_type(id, row)?.shape,
-                crate::StorageShape::ByteSequence(_)
+                crate::StorageShape::ByteSequence(carrier) if !carrier.is_shared_readable_view()
             )
         {
             return Err(unserved(

@@ -710,6 +710,7 @@ integer math and content operands are their own encodings inside the row.
 | 19 | FloatMeaningEqual | counted float-meaning clause rows + `u32` left slot + `u32` right slot |
 | 20 | FloatIntegerConversion | scalar source + scalar integer result + projection contract + semantic application contract |
 | 21 | IeeeFloatIntegerExact | scalar source + integer type |
+| 22 | IntegerIeeeFloatExact | scalar integer source + IEEE target format |
 
 A `FloatMeaningEqual` clause records structural meaning equality before a
 call supplies its actual arguments and result. Its slots index only its own
@@ -1525,6 +1526,8 @@ table decoding. The native terminal-input record uses `OMGNTI33` and rejects
 `OMGNTI32`. The separate in-memory proof-system marker is 8; its conversion
 rule fingerprints every checked child, without adding a stored certificate
 decoder or changing the `PSICORE` envelope.
+
+Semantic format marker 282 adds proposition tag 22, `IntegerIeeeFloatExact`. Its source retains the complete integer scalar term, including signedness, width, value or storage version; its target is a permanent IEEE format. Vocabulary marker 139 distinguishes this predicate. The native terminal-input record uses `OMGNTI34`; old records reject. Proof-system marker 9 separately records the provisional representability rule and its fingerprint tag 32.
 
 A checked-machine declaration encodes `u32` identity-table indices for the
 exact-owner machine, initial state and semantic declaration; counted `u32`
@@ -2845,14 +2848,14 @@ written inline with no sharing table.
 
 Each codec-emitted envelope opens with an eight-byte magic and a `u16` format
 marker; the semantic module and debug map envelopes then carry the shared `u16`
-vocabulary marker (138). A receiver rejects an unknown magic or stale marker
+vocabulary marker (139). A receiver rejects an unknown magic or stale marker
 before reading any counted table. The installation record `PSIINST\0` is emitted
 outside this codec.
 
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 281 | yes |
+| semantic module | `PSITERM\0` | 282 | yes |
 | canonical artifact | `PSIART\0\0` | 3 | no |
 | debug map | `PSIDBG\0\0` | 1 | yes |
 | optimization execution | `PSIOEXE\0` | 2 | no |

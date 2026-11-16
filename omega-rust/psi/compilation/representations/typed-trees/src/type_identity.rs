@@ -317,9 +317,13 @@ pub(crate) mod callable_identity {
             requirement: &StateSignature,
         ) -> Option<(Vec<String>, String, usize)> {
             let mut type_parameters = self.trait_type_parameters(owner).to_vec();
-            type_parameters.extend_from_slice(self.state_signature_type_parameters(requirement));
+            type_parameters.extend(
+                self.state_signature_type_parameters(requirement)
+                    .iter()
+                    .cloned(),
+            );
             self.signature_definition_types(
-                super::callable_type_binders(owner.symbol, &type_parameters),
+                super::callable_type_binders(owner.symbol, (&type_parameters).into()),
                 (requirement.symbol, requirement.symbol),
                 &[
                     (owner.symbol, owner.lifetime_parameters.len()),
@@ -8289,7 +8293,11 @@ impl TypedTrees {
         requirement: &crate::signature::StateSignature,
     ) -> callable_identity::CallableIdentityParts {
         let mut type_parameters = self.trait_type_parameters(trait_definition).to_vec();
-        type_parameters.extend_from_slice(self.state_signature_type_parameters(requirement));
+        type_parameters.extend(
+            self.state_signature_type_parameters(requirement)
+                .iter()
+                .cloned(),
+        );
         let mut identity = self.named_callable_identity_parts(
             &format!(
                 "{}::{}",
@@ -8297,7 +8305,7 @@ impl TypedTrees {
                 requirement.name
             ),
             trait_definition.symbol,
-            &type_parameters,
+            (&type_parameters).into(),
             self.state_signature_parameters(requirement),
             requirement.return_type,
         );
@@ -8364,7 +8372,7 @@ impl TypedTrees {
         &self,
         path: &str,
         owner_symbol: SymbolHandle,
-        type_parameters: &[data::TypeParameter],
+        type_parameters: arena::RootRows<'_, data::TypeParameter>,
         parameters: &[crate::signature::StateParameter],
         return_type: TypeReferenceHandle,
     ) -> callable_identity::CallableIdentityParts {
@@ -8406,7 +8414,7 @@ impl TypedTrees {
 
 fn callable_type_binders(
     owner: SymbolHandle,
-    parameters: &[data::TypeParameter],
+    parameters: arena::RootRows<'_, data::TypeParameter>,
 ) -> Vec<(SymbolHandle, String)> {
     let mut binders = Vec::with_capacity(parameters.len() + 1);
     if owner.is_valid() {

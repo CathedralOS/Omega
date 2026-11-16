@@ -54,6 +54,7 @@ use super::authority::{Access, Opened};
 use super::contracts::{ClauseScope, DataSubject, MathematicalTerms, ResultTerm};
 use super::{Program, Slot};
 use crate::body::{CaseType, Expression, ExpressionKind, RecordField, RecordType, ValueType};
+use crate::canonical::{self, Repeated};
 use crate::{SourceOrigin, Unserved, refuse};
 
 /// The symbols a data type was resolved from: its declaration, each field
@@ -434,7 +435,7 @@ impl Program<'_> {
             }),
         };
         let facts = super::span(
-            &typed.proof_facts,
+            |span| typed.proof_facts.span(span),
             data.requires_facts,
             id,
             "data requires span",
@@ -456,10 +457,18 @@ impl Program<'_> {
             .iter()
             .map(|field| (field.id, field.value_type))
             .collect();
-        let payloads: Vec<ValueType> = declared
+        let cases: Vec<(StructuralCaseId, Vec<(StructuralFieldId, ValueType)>)> = declared
             .cases()
             .iter()
-            .flat_map(|case| case.fields.iter().map(|field| field.value_type))
+            .map(|case| {
+                (
+                    case.id,
+                    case.fields
+                        .iter()
+                        .map(|field| (field.id, field.value_type))
+                        .collect(),
+                )
+            })
             .collect();
         for (field, value_type) in fields {
             let path = [semantic_vocabulary::CanonicalStructuralPathSegment::Field(
@@ -467,14 +476,48 @@ impl Program<'_> {
             )];
             requires.extend(self.field_predicates(id, &path, value_type)?);
         }
-        // A payload's clause holds only of a value in its case, and no
-        // clause here is conditional on the case yet.
-        for value_type in payloads {
-            for domain in value_type.qualification().domains.members() {
-                if super::authority::has_predicates(self.domain_theory(id, domain)?) {
-                    return Err(unserved("case payload in a domain with predicates"));
-                }
+        // A payload's domain holds only of a value in its case
+        // (data_and_literals.md: "case-dependent projections require
+        // established case knowledge"). It is owed as the clause an author
+        // would write in the declaration's `requires`: the value is in that
+        // case and its payload meets the predicates, or it is in another
+        // case. Construction proves it and a case test assumes it, like any
+        // other data clause.
+        for (position, (case, fields)) in cases.iter().enumerate() {
+            let mut owed = Vec::new();
+            for &(field, value_type) in fields {
+                let path = [
+                    semantic_vocabulary::CanonicalStructuralPathSegment::Case(*case),
+                    semantic_vocabulary::CanonicalStructuralPathSegment::Field(field),
+                ];
+                owed.extend(self.field_predicates(id, &path, value_type)?);
             }
+            if owed.is_empty() {
+                continue;
+            }
+            let in_case = |case| semantic_vocabulary::Proposition::StructuralCaseMembership {
+                subject: semantic_vocabulary::StructuralCaseSubject::new(root, Vec::new()),
+                case,
+            };
+            owed.push(in_case(*case));
+            let mut disjuncts = vec![semantic_vocabulary::Proposition::Conjunction(
+                canonical::clauses(owed, Repeated::Refuse, id)?,
+            )];
+            disjuncts.extend(
+                cases
+                    .iter()
+                    .enumerate()
+                    .filter(|(other, _)| *other != position)
+                    .map(|(_, (other, _))| in_case(*other)),
+            );
+            requires.push(match disjuncts.len() {
+                1 => disjuncts.remove(0),
+                _ => semantic_vocabulary::Proposition::Disjunction(canonical::clauses(
+                    disjuncts,
+                    Repeated::Refuse,
+                    id,
+                )?),
+            });
         }
         self.records
             .get_mut(record)
@@ -487,7 +530,11 @@ impl Program<'_> {
     /// in declaration order. Fields and cases are read first and identities
     /// minted after, so a nested data type resolves, and takes its
     /// identities, before its owner and each type's fields are consecutive.
-    fn declared_members(&mut self, id: MachineId, members: &[DataMember]) -> Checked<Members> {
+    fn declared_members(
+        &mut self,
+        id: MachineId,
+        members: arena::RootRows<'_, DataMember>,
+    ) -> Checked<Members> {
         let typed = self.typed;
         let mut fields = Vec::new();
         let mut field_symbols = Vec::new();
@@ -1276,7 +1323,9 @@ fn record_shape<'m>(
     members: &'m [DataMember],
     payload: impl Fn(&'m typed_trees::data::DataVariant) -> &'m [DataField],
 ) -> Checked<()> {
-    record_shape_for(id, data, application, false, members, payload)
+    record_shape_for(id, data, application, false, members.into(), |variant| {
+        payload(variant).into()
+    })
 }
 
 fn record_shape_for<'m>(
@@ -1284,8 +1333,8 @@ fn record_shape_for<'m>(
     data: &DataDefinition,
     application: Option<&typed_trees::SourceTypeApplication>,
     descriptor_storage: bool,
-    members: &'m [DataMember],
-    payload: impl Fn(&'m typed_trees::data::DataVariant) -> &'m [DataField],
+    members: arena::RootRows<'m, DataMember>,
+    payload: impl Fn(&'m typed_trees::data::DataVariant) -> arena::RootRows<'m, DataField>,
 ) -> Checked<()> {
     let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Type(what)));
     if data.supply_mode == language_semantics::DataSupplyMode::BoundaryOpaque && !members.is_empty()

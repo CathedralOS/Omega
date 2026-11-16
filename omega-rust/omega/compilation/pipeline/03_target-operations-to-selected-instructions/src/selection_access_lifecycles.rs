@@ -2554,7 +2554,7 @@ pub(crate) mod resource_profile {
                                         additional_input_qualifications: Vec::new(),
                                     };
                                     LegalizedCallUnitParameter {
-                                        target: target_operations::TargetStructuralParameter {
+                                        target: target_vocabulary::TargetStructuralParameter {
                                             place,
                                             structural_type,
                                             multiplicity: semantic.multiplicity,
@@ -2574,7 +2574,7 @@ pub(crate) mod resource_profile {
                                 machine: MachineId::new(1).unwrap(),
                                 attachment: None,
                                 nominal_cleanup_subject: None,
-                                provenance: target_operations::TerminalPsiProvenance {
+                                provenance: target_vocabulary::TerminalPsiProvenance {
                                     operations: vec![row.operation],
                                     edges: vec![],
                                 },
@@ -4644,22 +4644,18 @@ pub(crate) mod tests {
             profile: None,
             entry: MachineId::new(1).unwrap(),
             scalar_functions: vec![],
-            retained_integers: legalized_operations::RetainedIntegerTypes::Unsealed,
             installation_operations: Vec::new(),
         };
         let geometries = crate::native_geometry::NativeGeometries::new(std::iter::empty()).unwrap();
         let backings = crate::selection::foreign_scalar_backings::ForeignScalarBackings::new(
             &program,
             &geometries,
-            crate::native_geometry::UNSEALED,
         );
         let installed_interrupts =
             provider_admission::AdmittedInstalledInterruptCohort::empty(program.psi);
         let interrupt_helpers =
             crate::installed_interrupts::PreparedHelperCohort::new(&installed_interrupts);
         let mut builder = Builder {
-            // This standalone emitter fixture has no published source owner.
-            closed_types: crate::native_geometry::UNSEALED,
             installed_interrupts: &installed_interrupts,
             installed_stack_requirements: &[],
             installed_entry_execution: None,

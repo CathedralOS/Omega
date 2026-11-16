@@ -1448,32 +1448,32 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &LegalizedScalarSuccessor) {
 
 fn encode_cleanup_calls(
     bytes: &mut Vec<u8>,
-    calls: &[(target_operations::CallSiteOwner, crate::LegalizedScalarCall)],
+    calls: &[(target_vocabulary::CallSiteOwner, crate::LegalizedScalarCall)],
 ) {
     encode_len(bytes, calls.len());
     for (owner, call) in calls {
         match owner {
-            target_operations::CallSiteOwner::InvokeNoNormal(edge) => {
+            target_vocabulary::CallSiteOwner::InvokeNoNormal(edge) => {
                 bytes.push(3);
                 crate::codec_bytes::push_encoded(bytes, edge.get().to_le_bytes());
             }
-            target_operations::CallSiteOwner::ExternalCompletion(edge) => {
+            target_vocabulary::CallSiteOwner::ExternalCompletion(edge) => {
                 bytes.push(2);
                 crate::codec_bytes::push_encoded(bytes, edge.get().to_le_bytes());
             }
-            target_operations::CallSiteOwner::Operation(operation) => {
+            target_vocabulary::CallSiteOwner::Operation(operation) => {
                 bytes.push(0);
                 crate::codec_bytes::push_encoded(bytes, operation.get().to_le_bytes());
             }
-            target_operations::CallSiteOwner::Installation { operation, role } => {
+            target_vocabulary::CallSiteOwner::Installation { operation, role } => {
                 bytes.push(4);
                 crate::codec_bytes::push_encoded(bytes, operation.get().to_le_bytes());
                 bytes.push(match role {
-                    target_operations::InstallationCallRole::Validate => 0,
-                    target_operations::InstallationCallRole::Work => 1,
+                    target_vocabulary::InstallationCallRole::Validate => 0,
+                    target_vocabulary::InstallationCallRole::Work => 1,
                 });
             }
-            target_operations::CallSiteOwner::CleanupAction {
+            target_vocabulary::CallSiteOwner::CleanupAction {
                 edge,
                 action_ordinal,
             } => {
@@ -1555,11 +1555,11 @@ fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator
                 semantic_vocabulary::ExternalCompletionKind::ProcessExit => bytes.push(1),
             }
             match binding {
-                target_operations::ExternalCompletionBinding::Boundary(binding) => {
+                target_vocabulary::ExternalCompletionBinding::Boundary(binding) => {
                     bytes.push(0);
                     super::calling::encode_binding(bytes, binding);
                 }
-                target_operations::ExternalCompletionBinding::Checked {
+                target_vocabulary::ExternalCompletionBinding::Checked {
                     callee,
                     origin,
                     call_plan,

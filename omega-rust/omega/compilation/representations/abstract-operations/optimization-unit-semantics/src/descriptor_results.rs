@@ -1521,6 +1521,15 @@ fn adapt(
                 .collect(),
                 ..Default::default()
             };
+            if matches!(
+                operation,
+                O::Call { .. }
+                    | O::CallStructural { .. }
+                    | O::BoundaryCall { .. }
+                    | O::InvokeNoNormal { .. }
+            ) {
+                graph.calls.insert(position, None);
+            }
             if let Some(result) = result {
                 graph.payload_producers.insert(position, result.place);
                 let index = graph
@@ -2218,7 +2227,7 @@ fn adapt(
                         graph.unresolved_contents_writes.insert(position);
                         step.may_escape = true;
                     }
-                    graph.calls.insert(position, call);
+                    graph.calls.insert(position, Some(call));
                 }
                 O::CallStructural {
                     callee,
@@ -2284,7 +2293,7 @@ fn adapt(
                         }
                         graph.calls.insert(
                             position,
-                            DescriptorInvocation {
+                            Some(DescriptorInvocation {
                                 scalar_arguments: kernel::descriptor_scalar_arguments(
                                     callee
                                         .parameters
@@ -2299,7 +2308,7 @@ fn adapt(
                                 argument_contents,
                                 result: descriptor_result
                                     .map(|result| DescriptorLocation::whole(result.place)),
-                            },
+                            }),
                         );
                         if !exact_arguments {
                             step.may_escape = true;
@@ -2440,7 +2449,7 @@ fn adapt(
                     {
                         graph.calls.insert(
                             position,
-                            kernel::provider_invocation(
+                            Some(kernel::provider_invocation(
                                 node.operation.psi_operation()?,
                                 types,
                                 slot_kind,
@@ -2453,7 +2462,7 @@ fn adapt(
                                     _ => None,
                                 },
                                 &graph.place_types,
-                            )?,
+                            )?),
                         );
                     }
                 }

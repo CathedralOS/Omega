@@ -1493,9 +1493,19 @@ fn a_shared_collection_recast_keeps_payload_geometry_and_count_fit() {
     );
 
     let mutable = source.replace("pixels as &[u8]", "pixels as &mut [u8]");
+    let refused = judge_build(&mutable);
+    let Ok(RouteVerdict::FallBack(refusal)) = refused else {
+        panic!("the unsupported mutable presentation must refuse: {refused:?}");
+    };
     assert_eq!(
-        verdict(&mutable),
-        "expression storage view outside reference formation while reading the local binding of `build_entry::entry::bytes` while reading the body of `build_entry`"
+        refusal.reason,
+        terminal_check_tables::RefusalReason::Unsupported
+    );
+    assert!(
+        refusal
+            .detail
+            .contains("storage view outside reference formation"),
+        "{refusal:?}"
     );
     let gated = format!(
         "data Positive requires value > 0 {{ value: i32; }}\n{}",

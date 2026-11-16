@@ -63,23 +63,6 @@ impl<'a> NativeGeometries<'a> {
     }
 }
 
-/// Copy the accepted module's retained integer types into the plan's own
-/// membership record. The module must be the exact one origin admission used;
-/// clones of the retained owner share that immutable module.
-pub fn retained_types(
-    closed: &terminal_codec::ClosedTerminalModule,
-    psi: terminal_psi::TerminalPsiIdentity,
-    module: &terminal_psi::TerminalModule,
-) -> Option<crate::RetainedIntegerTypes> {
-    (closed.identity() == psi && std::ptr::eq(closed.module(), module)).then(|| {
-        crate::RetainedIntegerTypes::from_module(closed.closed_types().retained_integers())
-    })
-}
-
-/// A plan prepared without an accepted module: unit fixtures and the
-/// module-less audit entry.
-pub const UNSEALED: &crate::RetainedIntegerTypes = &crate::RetainedIntegerTypes::Unsealed;
-
 /// An exact integer cast is native when both carriers fit a register shape
 /// and the checking rules admit the conversion.
 pub fn exact_cast_has_native_carriers(
@@ -92,49 +75,17 @@ pub fn exact_cast_has_native_carriers(
         && source.can_exact_cast_to(target)
 }
 
+/// A plan input together with the layouts prepared for its structural
+/// declarations. It carries no type membership: every scalar a consumer
+/// needs is already closed on the value, parameter or operation it types.
 pub struct NativeInput<'a, T> {
     source: &'a T,
     geometry: &'a NativeGeometry<'a>,
-    closed_types: &'a crate::RetainedIntegerTypes,
 }
 
 impl<'a, T> NativeInput<'a, T> {
-    /// An input with no accepted module behind it: unit fixtures and the
-    /// module-less validator entry.
     pub fn new(source: &'a T, geometry: &'a NativeGeometry<'a>) -> Self {
-        Self::with_types(source, geometry, UNSEALED)
-    }
-
-    /// Published inputs retain their exact catalog. Independent plan metadata
-    /// has no publication authority and can only close concrete descriptors.
-    pub fn with_types(
-        source: &'a T,
-        geometry: &'a NativeGeometry<'a>,
-        closed_types: &'a crate::RetainedIntegerTypes,
-    ) -> Self {
-        Self {
-            source,
-            geometry,
-            closed_types,
-        }
-    }
-
-    pub fn closed_scalar(
-        &self,
-        scalar: semantic_vocabulary::ScalarType,
-    ) -> Option<semantic_vocabulary::ClosedScalarType> {
-        self.closed_types.scalar(scalar)
-    }
-
-    pub fn closed_integer(
-        &self,
-        integer: semantic_vocabulary::IntegerType,
-    ) -> Option<semantic_vocabulary::ClosedIntegerType> {
-        self.closed_types.integer(integer)
-    }
-
-    pub const fn closed_types(&self) -> &'a crate::RetainedIntegerTypes {
-        self.closed_types
+        Self { source, geometry }
     }
 
     pub fn geometry(&self) -> &'a NativeGeometry<'a> {
@@ -221,63 +172,6 @@ mod tests {
             ValueShape::integer(32, 8)
         );
         assert!(prepared.get(&rows, &[]).is_none());
-    }
-
-    #[test]
-    fn published_inputs_refuse_foreign_types_instead_of_closing_them_again() {
-        let integer = IntegerType::new(IntegerSign::Unsigned, 13).unwrap();
-        let scalar = ScalarType::Integer(integer);
-        let geometry = NativeGeometry::new(&[]).unwrap();
-        let source = ();
-        let independent = super::NativeInput::new(&source, &geometry);
-        assert_eq!(independent.closed_integer(integer).unwrap().bits(), 13);
-        let mut module = terminal_psi::TerminalModule::declarations();
-        let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
-        let identity = identities.intern("native_closed_input");
-        module.identities = identities.build();
-        let mut row = declaration(1, StructuralTypeShape::PrimitiveScalar(scalar));
-        row.identity = identity;
-        row.copyable = true;
-        module.structural_types.push(row);
-        let published = terminal_codec::ClosedTerminalModule::new(module).unwrap();
-        assert!(
-            super::retained_types(&published, published.identity(), published.module()).is_some()
-        );
-        let other =
-            terminal_codec::ClosedTerminalModule::new(terminal_psi::TerminalModule::declarations())
-                .unwrap();
-        assert!(super::retained_types(&published, other.identity(), published.module()).is_none());
-        let cloned = published.clone();
-        assert!(super::retained_types(&cloned, published.identity(), published.module()).is_some());
-        let foreign_owner =
-            terminal_codec::ClosedTerminalModule::new(published.module().clone()).unwrap();
-        assert_eq!(foreign_owner.identity(), published.identity());
-        assert!(
-            super::retained_types(&foreign_owner, published.identity(), published.module())
-                .is_none()
-        );
-        let retained =
-            super::retained_types(&published, published.identity(), published.module()).unwrap();
-        let verified = super::NativeInput::with_types(&source, &geometry, &retained);
-        assert_eq!(verified.closed_integer(integer).unwrap().bits(), 13);
-        assert!(verified.closed_scalar(scalar).is_some());
-        let foreign = IntegerType::new(IntegerSign::Unsigned, 17).unwrap();
-        assert!(independent.closed_integer(foreign).is_some());
-        assert!(verified.closed_integer(foreign).is_none());
-        assert!(
-            verified
-                .closed_scalar(ScalarType::Integer(foreign))
-                .is_none()
-        );
-        let symbolic = IntegerType::parameterized(
-            IntegerSign::Unsigned,
-            semantic_vocabulary::WidthParameter {
-                owner: semantic_vocabulary::MachineId::new(1).unwrap(),
-                value: semantic_vocabulary::ValueId::new(1).unwrap(),
-            },
-        );
-        assert!(independent.closed_integer(symbolic).is_none());
-        assert!(verified.closed_integer(symbolic).is_none());
     }
 
     #[test]

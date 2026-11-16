@@ -109,6 +109,12 @@ pub enum Justification {
     /// established at every invocation under exact actual-argument
     /// substitution."
     EntryRequirement { clause: u32 },
+    /// A `requires` clause of a data type that a formal's scalar leaf lies
+    /// in, stated on the value that leaf held at entry.
+    /// `wiki/spec/language/dependent_values.md`: "no consumption sees the
+    /// value outside its required domain", so the caller proved it where it
+    /// passed the formal.
+    FormalType,
     /// One normal-return guarantee of a callee, by position, on the normal
     /// continuation of that invocation. calls_and_outcomes.md: "They apply
     /// only on normal return".

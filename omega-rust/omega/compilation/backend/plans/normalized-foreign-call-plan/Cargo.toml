@@ -16,7 +16,7 @@ test-support = [
     "dep:legalized-operations",
     "dep:native-vocabulary",
     "dep:task-plans",
-    "dep:target-operations",
+    "dep:target-vocabulary",
     "dep:terminal-psi",
 ]
 
@@ -31,5 +31,5 @@ function-identity = { path = "../../../../foundation/function-identity", optiona
 legalized-operations = { path = "../../../representations/target-operations/legalized-operations", optional = true }
 native-vocabulary = { path = "../../../representations/native-vocabulary", optional = true }
 task-plans = { path = "../../runtime/task-plans", optional = true }
-target-operations = { path = "../../../representations/target-operations", optional = true }
+target-vocabulary = { path = "../../../representations/target-operations/target-vocabulary", optional = true }
 terminal-psi = { path = "../../../../../psi/compilation/representations/terminal-psi", optional = true }

@@ -56,6 +56,13 @@ direction; leaving a coherent file intact can be right.
 Send one checked route from producer through consumers, deleting the paths it
 replaces. Write non-obvious reasoning where readers need it.
 
+Code unused on `main` may still be needed by work in progress. Before deleting
+it, search the lines that open pull requests and recently pushed `work/*`
+branches add for each name you remove, keep anything they use, and leave files
+they modify alone. A duplicate between a producer and its independent validator
+is deliberate: the validator must not share the producer's mistakes, so do not
+merge the two.
+
 Delegate only complete, independent pieces; whoever does each lands it, and you
 review it.
 

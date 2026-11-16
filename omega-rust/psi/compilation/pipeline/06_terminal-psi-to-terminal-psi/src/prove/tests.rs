@@ -47,6 +47,124 @@ fn a_later_named_result_can_bound_the_same_expression_more_tightly() {
 }
 
 #[test]
+fn policy_translation_maps_bounds_only_with_the_required_headroom() {
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+    let scalar_type = ScalarType::Integer(integer);
+    let mut values = IdTable::default();
+    let [input, result] = [
+        ValueOrigin::MachineParameter { position: 0 },
+        ValueOrigin::Operation(OperationId::new(1).unwrap()),
+    ]
+    .map(|origin| {
+        let id = values.push(ValueRow {
+            scalar_type,
+            origin,
+            rigid: None,
+        });
+        ScalarTerm::value(id, scalar_type)
+    });
+    let literal = |n| ScalarTerm::integer(integer, IntegerValue::Unsigned(n)).unwrap();
+    let context =
+        PropositionContext::from_value_types(values.iter().map(|(id, row)| (id, row.scalar_type)))
+            .unwrap();
+    let add = ScalarTerm::wrapping_integer_add(integer, input.clone(), literal(2)).unwrap();
+    let subtract =
+        ScalarTerm::wrapping_integer_subtract(integer, input.clone(), literal(2)).unwrap();
+    for (expression, guard, dependent_bound, ordinary_bound) in [
+        (
+            add,
+            Proposition::LessOrEqual(input.clone(), literal(9)),
+            Proposition::LessOrEqual(literal(2), result.clone()),
+            Proposition::LessThan(result.clone(), literal(12)),
+        ),
+        (
+            subtract,
+            Proposition::LessOrEqual(literal(2), input.clone()),
+            Proposition::LessOrEqual(result.clone(), literal(253)),
+            Proposition::LessOrEqual(literal(0), result.clone()),
+        ),
+    ] {
+        let axioms = [Proposition::Equal(result.clone(), expression)];
+        let assumptions = [guard];
+        let mut prover = Prover::new(&context, &assumptions, &axioms, &values);
+        for goal in [&dependent_bound, &ordinary_bound] {
+            let proof = prover.prove(goal).unwrap();
+            proof_admission::accept_certificate(&context, goal, &assumptions, &axioms, &proof)
+                .unwrap();
+        }
+        assert!(
+            Prover::new(&context, &[], &axioms, &values)
+                .prove(&dependent_bound)
+                .is_err()
+        );
+    }
+}
+
+#[test]
+fn remaining_capacity_bounds_the_exact_sum_and_its_use() {
+    let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+    let scalar_type = ScalarType::Integer(integer);
+    let mut values = IdTable::default();
+    let [position, count, length, capacity, next] = [
+        ValueOrigin::MachineParameter { position: 0 },
+        ValueOrigin::MachineParameter { position: 1 },
+        ValueOrigin::MachineParameter { position: 2 },
+        ValueOrigin::Operation(OperationId::new(1).unwrap()),
+        ValueOrigin::Operation(OperationId::new(2).unwrap()),
+    ]
+    .map(|origin| {
+        let id = values.push(ValueRow {
+            scalar_type,
+            origin,
+            rigid: None,
+        });
+        ScalarTerm::value(id, scalar_type)
+    });
+    let context =
+        PropositionContext::from_value_types(values.iter().map(|(id, row)| (id, row.scalar_type)))
+            .unwrap();
+    let remaining =
+        ScalarTerm::exact_integer_subtract(integer, length.clone(), position.clone()).unwrap();
+    let sum = ScalarTerm::exact_integer_add(integer, position.clone(), count.clone()).unwrap();
+    let sum_fits = Proposition::IntegerMathLessOrEqual(
+        lift_exact_integer_order(&Proposition::LessOrEqual(sum.clone(), sum.clone()))
+            .and_then(|goal| match goal {
+                Proposition::IntegerMathLessOrEqual(term, _) => Some(term),
+                _ => None,
+            })
+            .unwrap(),
+        IntegerMathTerm::literal(integer.maximum_value().unwrap()),
+    );
+    let capacity_equation = Proposition::Equal(capacity.clone(), remaining);
+    let next_equation = Proposition::Equal(next.clone(), sum);
+    let assumptions = [
+        Proposition::LessOrEqual(position, length.clone()),
+        Proposition::LessOrEqual(count.clone(), capacity.clone()),
+    ];
+    let arithmetic_axioms = [capacity_equation.clone()];
+    let evaluated_axioms = [capacity_equation, next_equation];
+    let next_in_bounds = Proposition::LessOrEqual(next, length);
+    for (goal, axioms) in [
+        (&sum_fits, arithmetic_axioms.as_slice()),
+        (&next_in_bounds, evaluated_axioms.as_slice()),
+    ] {
+        let proof = Prover::new(&context, &assumptions, axioms, &values)
+            .prove(goal)
+            .unwrap();
+        proof_admission::accept_certificate(&context, goal, &assumptions, axioms, &proof).unwrap();
+        let reversed = [
+            assumptions[0].clone(),
+            Proposition::LessOrEqual(capacity.clone(), count.clone()),
+        ];
+        assert!(
+            Prover::new(&context, &reversed, axioms, &values)
+                .prove(goal)
+                .is_err()
+        );
+    }
+}
+
+#[test]
 fn ieee_order_search_uses_only_connected_ordered_premises() {
     use semantic_vocabulary::{IeeeFloatComparisonKind as Kind, IeeeFloatFormat, IeeeFloatValue};
     let format = IeeeFloatFormat::Binary64;

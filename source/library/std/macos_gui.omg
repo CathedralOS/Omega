@@ -406,7 +406,7 @@ invokes ObjectiveC
     let r32: u32 = narrow_u64_to_u32_wrapping(rc);
     r32
 }
-public machine macos_window_blit(window_state: &Window, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, mut pixels: [i32; 4096], info: [i32; 11]) -> u32
+public machine macos_window_blit(window_state: &Window, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [i32; 4096], info: [i32; 11]) -> u32
 reaches
     NativeCodeExecution + WindowManagement + SurfacePresentation +
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
@@ -416,10 +416,10 @@ reaches
     ProcessOutput + ProcessExit
 invokes ObjectiveC invokes MacosImageData invokes MacosImageObjects
 {
-    macos_window_present(window_state, source_width, source_height, &mut pixels[0..4096])
+    macos_window_present(window_state, source_width, source_height, &pixels[0..4096])
 }
 
-public machine macos_window_present(window_state: &Window, source_width: u32, source_height: u32, pixels: &mut [i32]) -> u32
+public machine macos_window_present(window_state: &Window, source_width: u32, source_height: u32, pixels: &[i32]) -> u32
 reaches
     NativeCodeExecution + WindowManagement + SurfacePresentation +
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
@@ -434,7 +434,7 @@ invokes ObjectiveC invokes MacosImageData invokes MacosImageObjects
         true -> present(window_state, source_width, source_height, pixels)
         _ -> (0)
     }
-    machine present(window_state: &Window, source_width: u32, source_height: u32, pixels: &mut [i32]) -> u32
+    machine present(window_state: &Window, source_width: u32, source_height: u32, pixels: &[i32]) -> u32
     requires source_width > 0 && source_width <= 8192
     requires source_height > 0 && source_height <= 8192
     requires pixels.len == (source_width as u64) * (source_height as u64)

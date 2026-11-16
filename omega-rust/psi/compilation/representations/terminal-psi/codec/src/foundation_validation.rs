@@ -5879,7 +5879,10 @@ pub(crate) mod scalar_observations {
                     scalars.push((&clause.source, false));
                     scalars.push((&clause.result, false));
                 }
-                Proposition::IeeeFloatIntegerExact { source, .. } => scalars.push((source, false)),
+                Proposition::IeeeFloatIntegerExact { source, .. }
+                | Proposition::IntegerIeeeFloatExact { source, .. } => {
+                    scalars.push((source, false))
+                }
                 Proposition::Equal(a, b)
                 | Proposition::LessThan(a, b)
                 | Proposition::LessOrEqual(a, b)

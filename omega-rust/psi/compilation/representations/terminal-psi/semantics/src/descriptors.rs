@@ -2775,7 +2775,7 @@ pub mod descriptor_results {
                             position: machine.entry,
                         });
                     }
-                    calls.extend(machine.calls.iter().filter_map(|(&position, call)| {
+                    calls.extend(machine.known_invocations().filter_map(|(&position, call)| {
                         call.stored_effects_callee()
                             .map(|callee| (machine.id, position, callee))
                     }));
@@ -14768,6 +14768,13 @@ pub mod descriptor_results {
                             .push((location, ScalarTerm::value(result.id, result.scalar_type)));
                     }
                     let mut step = DescriptorFlowStep::default();
+                    let is_invocation = matches!(
+                        &operation.kind,
+                        terminal_psi::call_structural_argument_variants!(_arguments)
+                    ) || matches!(&operation.kind, OperationKind::Call { .. });
+                    if is_invocation {
+                        graph.calls.insert(position, None);
+                    }
                     // A scalar sibling does not observe the reference leaves
                     // beside it. Retain the representation's projected uses;
                     // reducing them to roots spuriously extends those loans.
@@ -15814,7 +15821,7 @@ pub mod descriptor_results {
                                 graph.unresolved_contents_writes.insert(position);
                                 step.may_escape = true;
                             }
-                            graph.calls.insert(position, call);
+                            graph.calls.insert(position, Some(call));
                         }
                         _ if direct_call.is_some() => {
                             let (callee, structural_arguments) = direct_call?;
@@ -15891,7 +15898,7 @@ pub mod descriptor_results {
                                 {
                                     *effects_machine = (complete && implemented).then_some(callee);
                                 }
-                                graph.calls.insert(position, call);
+                                graph.calls.insert(position, Some(call));
                             } else {
                                 let mut matching = module
                                     .machines
@@ -15963,7 +15970,7 @@ pub mod descriptor_results {
                                 }
                                 graph.calls.insert(
                                     position,
-                                    DescriptorInvocation {
+                                    Some(DescriptorInvocation {
                                         scalar_arguments: super::descriptor_scalar_arguments(
                                             callee
                                                 .parameters
@@ -15978,7 +15985,7 @@ pub mod descriptor_results {
                                         argument_contents,
                                         result: descriptor_result
                                             .map(|result| DescriptorLocation::whole(result.place)),
-                                    },
+                                    }),
                                 );
                             }
                         }
@@ -16070,7 +16077,7 @@ pub mod descriptor_results {
                             {
                                 graph.calls.insert(
                                     position,
-                                    provider_invocation(
+                                    Some(provider_invocation(
                                         operation.id,
                                         &module.structural_types,
                                         slot_kind,
@@ -16078,7 +16085,7 @@ pub mod descriptor_results {
                                         structural_arguments,
                                         result,
                                         &graph.place_types,
-                                    )?,
+                                    )?),
                                 );
                             }
                         }
@@ -16287,6 +16294,7 @@ pub mod descriptor_results {
                         structural_arguments,
                         ..
                     } => {
+                        graph.calls.insert(position, None);
                         // These invocations can write before terminating.
                         // Their absent normal result is not an empty frame;
                         // no selected terminal-call frame is represented here.
@@ -17003,11 +17011,29 @@ pub mod descriptor_results {
         pub unresolved_contents_writes: BTreeSet<DescriptorPosition>,
         pub storage_derivations:
             BTreeSet<(DescriptorPosition, DescriptorLocation, DescriptorLocation)>,
-        pub calls: BTreeMap<DescriptorPosition, DescriptorInvocation>,
+        /// A missing row is not a call; a present `None` is an invocation
+        /// whose effects cannot yet be represented. Never turn the latter
+        /// into an empty access frame.
+        pub calls: BTreeMap<DescriptorPosition, Option<DescriptorInvocation>>,
         pub normal_exits: Vec<DescriptorPosition>,
     }
 
     impl DescriptorMachine {
+        pub fn known_invocation(
+            &self,
+            position: &DescriptorPosition,
+        ) -> Option<&DescriptorInvocation> {
+            self.calls.get(position)?.as_ref()
+        }
+
+        pub fn known_invocations(
+            &self,
+        ) -> impl Iterator<Item = (&DescriptorPosition, &DescriptorInvocation)> {
+            self.calls
+                .iter()
+                .filter_map(|(position, call)| call.as_ref().map(|call| (position, call)))
+        }
+
         pub(crate) fn producer(&self, root: PlaceId) -> Option<DescriptorPosition> {
             let index = self
                 .places
@@ -17725,7 +17751,7 @@ pub mod descriptor_results {
                     continue;
                 }
             };
-            for call in graph.calls.values() {
+            for (_, call) in graph.known_invocations() {
                 match &call.target {
                     DescriptorInvocationTarget::Machine(callee) => pending.push(*callee),
                     DescriptorInvocationTarget::Public {

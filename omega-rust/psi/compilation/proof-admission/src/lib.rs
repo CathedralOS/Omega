@@ -299,8 +299,9 @@ pub(crate) mod admission {
 
             #[test]
             fn proof_system_marker_has_no_compatibility_ladder() {
-                assert_eq!(ProofSystemMarker::new(8), Some(ProofSystemMarker::CURRENT));
-                assert!(ProofSystemMarker::new(9).is_none());
+                assert_eq!(ProofSystemMarker::new(9), Some(ProofSystemMarker::CURRENT));
+                assert!(ProofSystemMarker::new(10).is_none());
+                assert!(ProofSystemMarker::new(8).is_none());
                 assert!(ProofSystemMarker::new(7).is_none());
                 assert!(ProofSystemMarker::new(6).is_none());
                 assert!(ProofSystemMarker::new(5).is_none());
@@ -317,8 +318,9 @@ mod classicality;
 mod closed_proposition;
 mod float_integer;
 pub use float_integer::{
-    FloatIntegerError, check_float_integer_conversion, closed_float_integer_relation,
-    float_integer_conversion_substitution, float_integer_equality_subject,
+    FloatIntegerError, check_float_integer_conversion, check_integer_float_exact,
+    closed_float_integer_relation, float_integer_conversion_substitution,
+    float_integer_equality_subject,
 };
 mod float_meaning;
 mod ieee_float_rules;

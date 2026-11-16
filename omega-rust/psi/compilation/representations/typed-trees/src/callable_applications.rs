@@ -4400,7 +4400,7 @@ pub(crate) mod requirement_instances {
         pub trait_scope: crate::trait_definition::RetainedTraitScope,
         pub trait_arguments: &'program [types::TypeReferenceHandle],
         pub local_arguments: &'program [RequirementLocalArgument],
-        pub invocation_contract_parameters: &'program [data::TypeParameter],
+        pub invocation_contract_parameters: arena::RootRows<'program, data::TypeParameter>,
         pub application: static_applications::StaticMachineApplicationHandle,
         pub signature: &'program signature::StateSignature,
     }
@@ -4409,7 +4409,7 @@ pub(crate) mod requirement_instances {
         pub fn requirement_invocation_contract_parameters<'program>(
             &'program self,
             signature: &'program signature::StateSignature,
-        ) -> &'program [data::TypeParameter] {
+        ) -> arena::RootRows<'program, data::TypeParameter> {
             self.closed_requirement_application(signature.symbol)
                 .map(|application| application.invocation_contract_parameters)
                 .unwrap_or_else(|| self.state_signature_type_parameters(signature))

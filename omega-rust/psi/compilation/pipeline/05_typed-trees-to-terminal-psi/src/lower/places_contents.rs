@@ -18,13 +18,6 @@ struct Named {
     leaves: Vec<(PlaceId, Vec<Segment>, ScalarType)>,
 }
 
-#[derive(Clone, Copy)]
-pub(in crate::lower) struct ContentDemand {
-    scalar_type: ScalarType,
-    /// An authored block predicate observes this leaf anew on each entry.
-    block_entry: bool,
-}
-
 fn path(path: &[CanonicalStructuralPathSegment]) -> Result<Vec<Segment>, &'static str> {
     path.iter()
         .map(|segment| match segment {
@@ -84,6 +77,19 @@ impl ClauseBindings for Named {
         })
     }
 
+    fn byte_predicate(
+        &mut self,
+        predicate: semantic_vocabulary::ByteSequencePredicate,
+        root: PlaceId,
+        selected: &[CanonicalStructuralPathSegment],
+    ) -> Result<ScalarTerm, Self::Error> {
+        Ok(ScalarTerm::byte_sequence_predicate(
+            predicate,
+            root,
+            selected.to_vec(),
+        ))
+    }
+
     fn case(
         &mut self,
         _: PlaceId,
@@ -97,51 +103,11 @@ impl ClauseBindings for Named {
 }
 
 impl Lowering<'_> {
-    pub(super) fn demand_content(
-        &mut self,
-        leaf: ExactPlaceId,
-        scalar_type: ScalarType,
-        block_entry: bool,
-    ) -> Checked<()> {
-        let index = usize::try_from(leaf.get() - 1)
-            .map_err(|_| self.internal("place identity exceeds the address space"))?;
-        if self.demanded_contents.len() <= index {
-            self.demanded_contents.resize(index + 1, None);
-        }
-        let demand = self.demanded_contents[index].get_or_insert(ContentDemand {
-            scalar_type,
-            block_entry,
-        });
-        if demand.scalar_type != scalar_type {
-            return Err(self.internal("a demanded storage leaf has two scalar types"));
-        }
-        demand.block_entry |= block_entry;
-        Ok(())
-    }
-
     pub(in crate::lower) fn name_clause_contents(
         &mut self,
         clause: &Proposition,
         bindings: &[(PlaceId, ExactPlaceId)],
         result: Option<PlaceId>,
-    ) -> Checked<()> {
-        self.name_clause_observations(clause, bindings, result, false)
-    }
-
-    pub(in crate::lower) fn name_block_clause_contents(
-        &mut self,
-        clause: &Proposition,
-        bindings: &[(PlaceId, ExactPlaceId)],
-    ) -> Checked<()> {
-        self.name_clause_observations(clause, bindings, None, true)
-    }
-
-    fn name_clause_observations(
-        &mut self,
-        clause: &Proposition,
-        bindings: &[(PlaceId, ExactPlaceId)],
-        result: Option<PlaceId>,
-        block_entry: bool,
     ) -> Checked<()> {
         let mut named = Named { leaves: Vec::new() };
         let _ = substitute_clause(clause, &mut named);
@@ -159,7 +125,7 @@ impl Lowering<'_> {
             for segment in path {
                 leaf = self.project(leaf, segment)?;
             }
-            self.demand_content(leaf, scalar_type, block_entry)?;
+            self.initial_content(leaf, scalar_type)?;
         }
         Ok(())
     }
@@ -174,17 +140,14 @@ impl Lowering<'_> {
             .collect();
         call_operations.sort_unstable();
         for slot in 0..self.demanded_contents.len() {
-            let Some(ContentDemand {
-                scalar_type,
-                block_entry,
-            }) = self.demanded_contents[slot]
-            else {
+            let Some(scalar_type) = self.demanded_contents[slot] else {
                 continue;
             };
             let leaf = ExactPlaceId::new(slot as u64 + 1)
                 .ok_or_else(|| self.internal("a storage observation identity overflow"))?;
             let mut at = leaf;
             let mut calls = Vec::<OperationId>::new();
+            let mut block_observation = true;
             let root = loop {
                 let row = self
                     .tables
@@ -206,14 +169,42 @@ impl Lowering<'_> {
                 }
                 match row.origin {
                     PlaceOrigin::Root(root) => break root,
-                    PlaceOrigin::Projection { parent, .. } => at = parent,
+                    PlaceOrigin::Projection { parent, segment } => {
+                        block_observation &= matches!(
+                            segment,
+                            Segment::Field(_)
+                                | Segment::Case(_)
+                                | Segment::FixedIndex(_)
+                                | Segment::Referent
+                                | Segment::Extent
+                        );
+                        at = parent;
+                    }
                 }
             };
-            if match self.roots.get(root).map(|(kind, _)| kind) {
+            // Inference discovers a helper's condition after lowering. Every
+            // demanded, readable field therefore needs its entry name, even
+            // when no authored header clause named it. Runtime selectors do
+            // not have a binding at that entry and cannot name a snapshot.
+            let named_entry = match self.roots.get(root).map(|(kind, _)| kind) {
                 Some(StructuralPlaceKind::Parameter { .. }) => true,
-                Some(StructuralPlaceKind::BlockParameter { .. }) => block_entry,
+                Some(StructuralPlaceKind::BlockParameter { block, position })
+                    if block_observation =>
+                {
+                    let formal = self
+                        .blocks
+                        .get(*block)
+                        .and_then(|body| body.structural_parameters.get(*position as usize))
+                        .filter(|formal| formal.place == root)
+                        .ok_or_else(|| self.internal("a block content has no structural formal"))?;
+                    terminal_psi::structural_access_covers(
+                        formal.access,
+                        terminal_psi::StructuralAccess::SharedBorrow,
+                    )
+                }
                 _ => false,
-            } {
+            };
+            if named_entry {
                 self.value(
                     scalar_type,
                     ValueOrigin::StorageContent {

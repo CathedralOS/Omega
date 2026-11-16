@@ -141,11 +141,18 @@ pub(crate) mod accessor_scalar_access {
             }
             registers.push(register);
         }
-        // The accessor's declared scalar is a structural declaration; close it once for the result.
-        let demand_scalar = builder.closed_scalar(demand.scalar).ok_or_else(invalid)?;
+        // Preparation closed the result's type; it must be the accessor's declared scalar.
+        if row
+            .result
+            .is_some_and(|result| result.scalar_type.as_checking() != demand.scalar)
+        {
+            return Err(invalid());
+        }
         let output = row
             .result
-            .map(|result| builder.register(result.value, result.definition_site, demand_scalar))
+            .map(|result| {
+                builder.register(result.value, result.definition_site, result.scalar_type)
+            })
             .transpose()?;
         if let Some(output) = output {
             registers.push(output);
@@ -181,15 +188,13 @@ pub(crate) mod accessor_scalar_access {
         )?;
         if let (Some(raw), Some(result)) = (output, row.result) {
             let normalization = crate::selection::scalar_call_abi::integer_carrier_normalization(
-                builder
-                    .closed_scalar(demand.scalar)
-                    .ok_or_else(SelectedInstructionError::custody)?,
+                result.scalar_type,
             );
             let output = if normalization == SelectedInstructionKind::CopyI64 {
                 raw
             } else {
                 let output =
-                    builder.register(result.value, result.definition_site, demand_scalar)?;
+                    builder.register(result.value, result.definition_site, result.scalar_type)?;
                 builder.emit(
                     normalization,
                     builder.constraints.keys.copy_i64,
@@ -198,9 +203,12 @@ pub(crate) mod accessor_scalar_access {
                 )?;
                 output
             };
-            builder
-                .definitions
-                .push((result.value, output, result.definition_site, demand_scalar));
+            builder.definitions.push((
+                result.value,
+                output,
+                result.definition_site,
+                result.scalar_type,
+            ));
         }
         Ok(true)
     }
@@ -218,22 +226,22 @@ pub(crate) mod aggregate_argument {
         operation: &impl super::call_arguments::InvocationArgumentSource,
         argument_index: usize,
         semantic: &terminal_psi::StructuralArgument,
-        target: &target_operations::TargetStructuralArgument,
+        target: &target_vocabulary::TargetStructuralArgument,
         indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
         builder: &mut Builder<'_>,
     ) -> Result<Vec<VirtualRegisterId>, SelectedInstructionError> {
         let place = semantic.place;
         let slot = match target.source {
-            target_operations::TargetStructuralArgumentSource::StructuralHome { psi_operation } => {
+            target_vocabulary::TargetStructuralArgumentSource::StructuralHome { psi_operation } => {
                 Some(LocalStorageSlotId::Structural {
                     operation: psi_operation,
                     place,
                 })
             }
-            target_operations::TargetStructuralArgumentSource::BlockParameter { block, place } => {
+            target_vocabulary::TargetStructuralArgumentSource::BlockParameter { block, place } => {
                 Some(LocalStorageSlotId::StructuralBlockParameter { block, place })
             }
-            target_operations::TargetStructuralArgumentSource::Placement(_) => None,
+            target_vocabulary::TargetStructuralArgumentSource::Placement(_) => None,
             _ => return Err(SelectedInstructionError::custody()),
         };
         if empty_aggregate_placement(&target.destination)
@@ -319,7 +327,7 @@ pub(crate) mod aggregate_argument {
     pub(crate) fn transport(
         operation: &impl super::call_arguments::InvocationArgumentSource,
         argument_index: usize,
-        target: &target_operations::TargetStructuralArgument,
+        target: &target_vocabulary::TargetStructuralArgument,
         indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
         pointer: Option<VirtualRegisterId>,
         pointer_byte_offset: u32,
@@ -811,7 +819,7 @@ pub(crate) mod aggregate_return {
         returned: &legalized_operations::LegalizedScalarReturn,
         builder: &mut Builder<'_>,
         cleanup_calls: &[(
-            target_operations::CallSiteOwner,
+            target_vocabulary::CallSiteOwner,
             legalized_operations::LegalizedScalarCall,
         )],
         environment: &register_environment::ValidatedTargetRegisterEnvironment,
@@ -1088,15 +1096,12 @@ pub(crate) mod atomic_access {
             let (_, register, _, actual_type) = builder
                 .resolve(*value)
                 .ok_or(SelectedInstructionError::custody())?;
-            if actual_type.as_checking() != scalar_type {
+            if actual_type != scalar_type {
                 return Err(SelectedInstructionError::custody());
             }
             registers.push(register);
         }
-        // The cell's declared scalar is a structural declaration; close it once for the result.
-        let closed_type = builder
-            .closed_scalar(scalar_type)
-            .ok_or_else(SelectedInstructionError::custody)?;
+        let closed_type = scalar_type;
         let raw = if let Some(result) = row.result {
             let register = builder.register(result.value, result.definition_site, closed_type)?;
             registers.push(register);
@@ -1153,11 +1158,8 @@ pub(crate) mod atomic_access {
             ),
         )?;
         if let (Some(raw), Some(result)) = (raw, row.result) {
-            let normalization = crate::selection::scalar_call_abi::integer_carrier_normalization(
-                builder
-                    .closed_scalar(scalar_type)
-                    .ok_or_else(SelectedInstructionError::custody)?,
-            );
+            let normalization =
+                crate::selection::scalar_call_abi::integer_carrier_normalization(closed_type);
             let output = if normalization == SelectedInstructionKind::CopyI64 {
                 raw
             } else {
@@ -2056,7 +2058,7 @@ pub(crate) mod call_arguments {
         operation: &impl InvocationArgumentSource,
         argument_index: usize,
         semantic: &terminal_psi::StructuralArgument,
-        target: &target_operations::TargetStructuralArgument,
+        target: &target_vocabulary::TargetStructuralArgument,
         indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
         builder: &mut Builder<'_>,
     ) -> Result<Vec<VirtualRegisterId>, SelectedInstructionError> {
@@ -2138,7 +2140,7 @@ pub(crate) mod call_arguments {
         operation: &impl InvocationArgumentSource,
         argument_index: usize,
         semantic: &terminal_psi::StructuralArgument,
-        target: &target_operations::TargetStructuralArgument,
+        target: &target_vocabulary::TargetStructuralArgument,
         indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
     ) -> Result<Option<VirtualRegisterId>, SelectedInstructionError> {
         let pointer = referent_pointer(
@@ -2171,7 +2173,7 @@ pub(crate) mod call_arguments {
         operation: &impl InvocationArgumentSource,
         argument_index: usize,
         semantic: &terminal_psi::StructuralArgument,
-        target: &target_operations::TargetStructuralArgument,
+        target: &target_vocabulary::TargetStructuralArgument,
         indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
     ) -> Result<PreparedReferent, SelectedInstructionError> {
         let reference =
@@ -2363,7 +2365,7 @@ pub(crate) mod call_arguments {
         operation: &impl InvocationArgumentSource,
         argument_index: usize,
         pointer_place: semantic_vocabulary::PlaceId,
-        target: &target_operations::TargetStructuralArgument,
+        target: &target_vocabulary::TargetStructuralArgument,
         pointer: VirtualRegisterId,
     ) -> Result<Option<VirtualRegisterId>, SelectedInstructionError> {
         let Some(stack_byte_offset) = stack_pointer_offset(&target.destination) else {
@@ -2406,7 +2408,7 @@ pub(crate) mod call_arguments {
         function: usize,
         source: &crate::native_geometry::NativeFunction<'_>,
         call: &LegalizedScalarCall,
-        owner: target_operations::CallSiteOwner,
+        owner: target_vocabulary::CallSiteOwner,
         builder: &Builder<'_>,
         environment: &register_environment::ValidatedTargetRegisterEnvironment,
         invalid: impl Fn() -> SelectedInstructionError,
@@ -2428,7 +2430,7 @@ pub(crate) mod call_arguments {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn emit_call(
         builder: &mut Builder<'_>,
-        owner: target_operations::CallSiteOwner,
+        owner: target_vocabulary::CallSiteOwner,
         call: &LegalizedScalarCall,
         effect: native_vocabulary::provenance::EffectLink,
         ownership: Vec<native_vocabulary::provenance::OwnershipEvent>,
@@ -2454,7 +2456,7 @@ pub(crate) mod cleanup_call {
     use calling_conventions::ValueClass;
     use legalized_operations::{LegalizedScalarArgument, LegalizedScalarCall};
     use native_vocabulary::provenance::EffectLink;
-    use target_operations::{CallSiteOwner, NativeCallOrigin};
+    use target_vocabulary::{CallSiteOwner, NativeCallOrigin};
 
     pub(crate) fn emit(
         owner: CallSiteOwner,
@@ -4735,7 +4737,7 @@ pub(crate) mod no_normal {
         else {
             return Err(SelectedInstructionError::custody());
         };
-        let owner = target_operations::CallSiteOwner::InvokeNoNormal(*psi_edge);
+        let owner = target_vocabulary::CallSiteOwner::InvokeNoNormal(*psi_edge);
         call.validate_no_normal_shape()
             .map_err(|_| SelectedInstructionError::custody())?;
         call.validate_source(ownership)
@@ -5867,7 +5869,7 @@ pub(crate) mod process_exit {
                 function,
                 source_function,
                 &call,
-                target_operations::CallSiteOwner::ExternalCompletion(*psi_edge),
+                target_vocabulary::CallSiteOwner::ExternalCompletion(*psi_edge),
                 builder,
                 environment,
                 SelectedInstructionError::custody,
@@ -5896,7 +5898,7 @@ pub(crate) mod process_exit {
             )?;
             super::call_arguments::emit_call(
                 builder,
-                target_operations::CallSiteOwner::ExternalCompletion(*psi_edge),
+                target_vocabulary::CallSiteOwner::ExternalCompletion(*psi_edge),
                 &call,
                 *effect,
                 ownership.clone(),
@@ -5915,32 +5917,32 @@ pub(crate) mod process_exit {
             )?;
             return exit_after(builder, *psi_edge).map(Some);
         }
-        let target_operations::ExternalCompletionBinding::Boundary(binding) = binding else {
+        let target_vocabulary::ExternalCompletionBinding::Boundary(binding) = binding else {
             return Err(SelectedInstructionError::custody());
         };
         if binding.boundary != *boundary
             || !matches!(
                 binding.execution,
-                target_operations::BoundaryExecutionBinding::AdmittedProvider(_)
-                    | target_operations::BoundaryExecutionBinding::NativeBinding(_)
-                    | target_operations::BoundaryExecutionBinding::CompilerBuiltin(
-                        target_operations::CompilerBuiltinExecution::HostedExitProcessI32
+                target_vocabulary::BoundaryExecutionBinding::AdmittedProvider(_)
+                    | target_vocabulary::BoundaryExecutionBinding::NativeBinding(_)
+                    | target_vocabulary::BoundaryExecutionBinding::CompilerBuiltin(
+                        target_vocabulary::CompilerBuiltinExecution::HostedExitProcessI32
                     )
             )
         {
             return Err(SelectedInstructionError::custody());
         }
-        if let target_operations::BoundarySettlementRealization::NormalizedForeignCall(foreign) =
+        if let target_vocabulary::BoundarySettlementRealization::NormalizedForeignCall(foreign) =
             &binding.realization
         {
             let provider_execution = match binding.execution {
-                target_operations::BoundaryExecutionBinding::AdmittedProvider(execution) => {
-                    target_operations::ExternalExecutionBinding::Provider(execution)
+                target_vocabulary::BoundaryExecutionBinding::AdmittedProvider(execution) => {
+                    target_vocabulary::ExternalExecutionBinding::Provider(execution)
                 }
-                target_operations::BoundaryExecutionBinding::NativeBinding(execution) => {
-                    target_operations::ExternalExecutionBinding::NativeBinding(execution)
+                target_vocabulary::BoundaryExecutionBinding::NativeBinding(execution) => {
+                    target_vocabulary::ExternalExecutionBinding::NativeBinding(execution)
                 }
-                target_operations::BoundaryExecutionBinding::CompilerBuiltin(_) => {
+                target_vocabulary::BoundaryExecutionBinding::CompilerBuiltin(_) => {
                     return Err(SelectedInstructionError::custody());
                 }
             };
@@ -5951,7 +5953,7 @@ pub(crate) mod process_exit {
                 scalar_arguments: arguments.clone(),
                 structural_arguments: Vec::new(),
                 structural_indices: Vec::new(),
-                result: target_operations::TargetBoundaryResult::Unit,
+                result: target_vocabulary::TargetBoundaryResult::Unit,
                 callbacks: Vec::new(),
                 descriptor_input: None,
             };
@@ -5972,8 +5974,8 @@ pub(crate) mod process_exit {
         }
         if !matches!(
             binding.realization,
-            target_operations::BoundarySettlementRealization::Builtin(
-                target_operations::BoundaryRealization::HostedExitProcessI32(_)
+            target_vocabulary::BoundarySettlementRealization::Builtin(
+                target_vocabulary::BoundaryRealization::HostedExitProcessI32(_)
             )
         ) {
             return Err(SelectedInstructionError::custody());
@@ -6087,7 +6089,7 @@ pub(crate) mod register_access {
         }
         .ok_or_else(|| SelectedInstructionError::unsupported_shape(function))?;
         let matches_carrier = |scalar, bits| {
-            matches!(builder.closed_scalar(scalar), Some(semantic_vocabulary::ClosedScalarType::Integer(integer))
+            matches!(scalar, semantic_vocabulary::ClosedScalarType::Integer(integer)
             if !integer.is_address() && integer.bits() == bits && integer.sign() == IntegerSign::Unsigned)
         };
         let mut registers = Vec::new();
@@ -6095,7 +6097,7 @@ pub(crate) mod register_access {
             let (_, register, _, scalar) = builder
                 .resolve(*value)
                 .ok_or_else(SelectedInstructionError::custody)?;
-            if !matches_carrier(scalar.as_checking(), carrier.bits()) {
+            if !matches_carrier(scalar, carrier.bits()) {
                 return Err(SelectedInstructionError::custody());
             }
             registers.push(register);
@@ -6103,7 +6105,7 @@ pub(crate) mod register_access {
         let output = match (operation.result_carrier(), row.result) {
             (None, None) => None,
             (Some(carrier), Some(result))
-                if matches_carrier(result.scalar_type.as_checking(), carrier.bits()) =>
+                if matches_carrier(result.scalar_type, carrier.bits()) =>
             {
                 let register =
                     builder.register(result.value, result.definition_site, result.scalar_type)?;
@@ -6177,7 +6179,7 @@ pub(crate) mod scalar_call {
             function,
             source,
             call,
-            target_operations::CallSiteOwner::Operation(operation.operation),
+            target_vocabulary::CallSiteOwner::Operation(operation.operation),
             builder,
             environment,
             invalid,
@@ -6186,7 +6188,7 @@ pub(crate) mod scalar_call {
             super::call_arguments::marshal(source, operation, call, builder, invalid)?;
         if let Some(selector) = call.target.selector() {
             let (_, input, site, scalar_type) = builder.resolve(selector).ok_or_else(invalid)?;
-            if scalar_type.as_checking() != target_operations::selector_carrier_type() {
+            if scalar_type.as_checking() != target_vocabulary::selector_carrier_type() {
                 return Err(invalid());
             }
             operands.push(builder.copy(input, selector, site, scalar_type)?);
@@ -6200,7 +6202,7 @@ pub(crate) mod scalar_call {
         operands.push(short_result);
         super::call_arguments::emit_call(
             builder,
-            target_operations::CallSiteOwner::Operation(operation.operation),
+            target_vocabulary::CallSiteOwner::Operation(operation.operation),
             call,
             operation.effect,
             operation.ownership.clone(),
@@ -6904,7 +6906,7 @@ pub(crate) mod unit_call {
             function,
             source,
             call,
-            target_operations::CallSiteOwner::Operation(operation.operation),
+            target_vocabulary::CallSiteOwner::Operation(operation.operation),
             builder,
             environment,
             SelectedInstructionError::custody,
@@ -6948,7 +6950,7 @@ pub(crate) mod unit_call {
             let (_, input, site, scalar_type) = builder
                 .resolve(selector)
                 .ok_or(SelectedInstructionError::custody())?;
-            if scalar_type.as_checking() != target_operations::selector_carrier_type() {
+            if scalar_type.as_checking() != target_vocabulary::selector_carrier_type() {
                 return Err(SelectedInstructionError::custody());
             }
             let dispatch = builder.copy(input, selector, site, scalar_type)?;
@@ -6974,7 +6976,7 @@ pub(crate) mod unit_call {
         };
         super::call_arguments::emit_call(
             builder,
-            target_operations::CallSiteOwner::Operation(operation.operation),
+            target_vocabulary::CallSiteOwner::Operation(operation.operation),
             call,
             operation.effect,
             operation.ownership.clone(),
@@ -7112,7 +7114,6 @@ pub(crate) fn block_containing_operation(
 pub(crate) fn build_with_environment(
     function: usize,
     source: &legalized_operations::LegalizedScalarFunction,
-    closed_types: &legalized_operations::RetainedIntegerTypes,
     geometry: &crate::native_geometry::NativeGeometry<'_>,
     constraints: &SelectedSelectionConstraints,
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
@@ -7122,7 +7123,7 @@ pub(crate) fn build_with_environment(
     interrupt_helpers: &crate::installed_interrupts::PreparedHelperCohort<'_>,
     installed_entry_execution: Option<&provider_admission::AdmittedInstalledEntryExecution>,
 ) -> Result<SelectedFunction, SelectedInstructionError> {
-    let source = crate::native_geometry::NativeInput::with_types(source, geometry, closed_types);
+    let source = crate::native_geometry::NativeInput::new(source, geometry);
     let mut current_operation = None;
     select_function(
         function,
@@ -7160,7 +7161,6 @@ pub(crate) fn select_function(
     };
     let class = operand.class;
     let mut builder = Builder {
-        closed_types: source.closed_types(),
         environment,
         backings,
         installed_interrupts,
@@ -7424,7 +7424,7 @@ pub(crate) fn select_function(
                             ),
                             LegalizedScalarInstructionKind::SelectImplementation { table } => (
                                 selected_instructions::SelectedImageAddressReference::ImplementationTable { table: *table },
-                                target_operations::selector_carrier_type(),
+                                target_vocabulary::selector_carrier_type(),
                             ),
                             _ => return Err(invalid()),
                         };
@@ -7674,7 +7674,6 @@ pub(crate) fn select_function(
         blocks: blocks.into(),
     };
     crate::selection::edge_transfers::prepare(
-        source,
         function,
         &mut selected,
         constraints,
@@ -7696,7 +7695,6 @@ pub(crate) fn next_index(len: usize) -> Result<u32, SelectedInstructionError> {
 }
 
 pub(crate) struct Builder<'a> {
-    pub(crate) closed_types: &'a legalized_operations::RetainedIntegerTypes,
     pub(crate) installed_entry_execution:
         Option<&'a provider_admission::AdmittedInstalledEntryExecution>,
     pub(crate) installed_interrupts: &'a provider_admission::AdmittedInstalledInterruptCohort,
@@ -7728,20 +7726,6 @@ pub(crate) struct Builder<'a> {
 }
 
 impl Builder<'_> {
-    pub(crate) fn closed_scalar(
-        &self,
-        scalar: ScalarType,
-    ) -> Option<semantic_vocabulary::ClosedScalarType> {
-        self.closed_types.scalar(scalar)
-    }
-
-    pub(crate) fn closed_integer(
-        &self,
-        integer: semantic_vocabulary::IntegerType,
-    ) -> Option<semantic_vocabulary::ClosedIntegerType> {
-        self.closed_types.integer(integer)
-    }
-
     pub(crate) fn crash_form(
         &self,
     ) -> Result<(SelectedInstructionKind, RegisterConstraintKey), SelectedInstructionError> {

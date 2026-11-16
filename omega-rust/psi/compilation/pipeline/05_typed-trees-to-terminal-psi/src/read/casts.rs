@@ -302,6 +302,50 @@ impl Program<'_> {
                 operand,
                 source,
             )?
+        } else if let (Some(ScalarType::Integer(from)), Some(ScalarType::IeeeFloat(to))) =
+            (source_type.scalar(), target.scalar())
+        {
+            use language_semantics::numeric_intrinsics::{NumericIntrinsic, NumericType};
+            let carrier = semantic_vocabulary::fixed_integer_type(from)
+                .map_err(|detail| refuse(id, Construct::Machine, Unserved::Expression(detail)))?;
+            let source_term = semantic_vocabulary::ScalarTerm::value(
+                semantic_vocabulary::ValueId::new(1).expect("fixed predicate formal"),
+                ScalarType::Integer(from),
+            );
+            let operand = Expression {
+                result: operand.result,
+                kind: ExpressionKind::Establish {
+                    operand: Box::new(operand),
+                    clauses: vec![semantic_vocabulary::Proposition::IntegerIeeeFloatExact {
+                        source: source_term,
+                        target: to,
+                    }],
+                    stated: terminal_check_tables::program::CastCondition::ExactRepresentation(
+                        format!(
+                            "the integer value is exactly representable in {}",
+                            match to {
+                                semantic_vocabulary::IeeeFloatFormat::Binary32 => "f32",
+                                semantic_vocabulary::IeeeFloatFormat::Binary64 => "f64",
+                            }
+                        ),
+                    ),
+                },
+                call_context: None,
+                source,
+            };
+            self.exact_numeric_conversion(
+                id,
+                NumericIntrinsic::Conversion {
+                    source: NumericType::Integer(carrier),
+                    target: match to {
+                        semantic_vocabulary::IeeeFloatFormat::Binary32 => NumericType::F32,
+                        semantic_vocabulary::IeeeFloatFormat::Binary64 => NumericType::F64,
+                    },
+                    domain: ArithmeticDomain::Exact,
+                },
+                operand,
+                source,
+            )?
         } else {
             let (Some(ScalarType::Integer(from)), Some(carrier @ ScalarType::Integer(to))) =
                 (source_type.scalar(), target.scalar())
@@ -512,30 +556,17 @@ impl Program<'_> {
                             },
                             carrier,
                         )?,
-                        // `"text" as +Utf8`: a primitive byte predicate is
-                        // decided by the bytes the view shows, and a view in
-                        // a domain is served only as a data field's type
-                        // (`view_type`), so this value is stored into
-                        // such a field or dropped. The checker judges each
-                        // store into a predicate field from the octets of
-                        // the literal it supplies (byte_views.md: "Checking
-                        // rejoins the source's declared predicates or
-                        // literal contents"), so the cast states no clause.
-                        // Its operand is a quoted literal, the one source
-                        // whose bytes that judgment reads.
+                        // A literal supplies its octets directly to the
+                        // existing byte predicate checks at calls and stores.
                         (ValueType::Record(row, _, _), Some(_))
-                            if self.is_view(id, row)?
+                            if matches!(operand.kind, ExpressionKind::ByteLiteral(_))
+                                && self.is_view(id, row)?
                                 && typed_trees::byte_predicates::domain_byte_predicate(
                                     self.typed,
                                     domain.declaration,
                                 )
                                 .is_some() =>
                         {
-                            if !matches!(operand.kind, ExpressionKind::ByteLiteral(_)) {
-                                return unserved(
-                                    "cast that adds a byte predicate to other than a quoted literal",
-                                );
-                            }
                             (Vec::new(), String::new())
                         }
                         // An array or record, or a reference displaying a

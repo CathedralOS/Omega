@@ -890,9 +890,11 @@ impl Program<'_> {
                 declaration.shape,
                 crate::StorageShape::FixedArray { .. }
                     | crate::StorageShape::PrimitiveScalar { .. }
+                    | crate::StorageShape::AtomicCell(_)
             ) {
                 // These physical shapes have no nominal declaration or
-                // field schema. Their actual type reference is retained,
+                // field schema; a builtin atomic cell such as `AtomicU32`
+                // is one too. Their actual type reference is retained,
                 // but cannot mint nominal source authority.
                 if source.declaration.is_valid()
                     || !source.fields.is_empty()

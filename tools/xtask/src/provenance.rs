@@ -151,6 +151,8 @@ fn find_latest_antigravity_transcript(home: &Path) -> Option<(PathBuf, SystemTim
     newest_user.or(newest_any)
 }
 
+/// Newest main Claude Code conversation, for a standalone shell that no
+/// harness identifies.
 fn find_latest_claude_transcript(home: &Path) -> Option<(PathBuf, SystemTime)> {
     let projects = home.join(".claude/projects");
     let mut newest: Option<(PathBuf, SystemTime)> = None;
@@ -170,6 +172,207 @@ fn find_latest_claude_transcript(home: &Path) -> Option<(PathBuf, SystemTime)> {
         }
     }
     newest
+}
+
+/// Claude Code keeps a session's main conversation at
+/// `projects/<project>/<session>.jsonl` and every subagent or workflow agent it
+/// starts below `projects/<project>/<session>/` (for example
+/// `subagents/agent-<id>.jsonl`). All of them share one `CLAUDE_CODE_SESSION_ID`
+/// and one process environment, so the environment cannot say which of them
+/// ran this command. Without a session ID, only transcripts written in the
+/// last hour can hold a command that is running now.
+fn claude_candidate_transcripts(home: &Path, session_id: Option<&str>) -> Vec<PathBuf> {
+    let projects = home.join(".claude/projects");
+    let recent = SystemTime::now()
+        .checked_sub(std::time::Duration::from_secs(3600))
+        .unwrap_or(SystemTime::UNIX_EPOCH);
+    let mut found = Vec::new();
+    let mut stack = Vec::new();
+    for project in fs::read_dir(&projects).into_iter().flatten().flatten() {
+        let project = project.path();
+        match session_id {
+            Some(id) => {
+                let main = project.join(format!("{id}.jsonl"));
+                if main.is_file() {
+                    found.push(main);
+                }
+                stack.push(project.join(id));
+            }
+            None => stack.push(project),
+        }
+    }
+    while let Some(dir) = stack.pop() {
+        for entry in fs::read_dir(dir).into_iter().flatten().flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                stack.push(path);
+            } else if path.extension().and_then(|e| e.to_str()) == Some("jsonl")
+                && (session_id.is_some()
+                    || fs::metadata(&path)
+                        .and_then(|meta| meta.modified())
+                        .is_ok_and(|modified| modified >= recent))
+            {
+                found.push(path);
+            }
+        }
+    }
+    found.sort();
+    found
+}
+
+/// The command a Claude Code agent is running now, if it mentions
+/// `provenance`. Claude Code writes each tool call to the agent's own
+/// transcript before it runs the call and writes the result afterward, so the
+/// transcript of the agent that invoked this tool is the one whose
+/// `provenance` call has no result yet.
+struct PendingCall {
+    command: String,
+    cwd: String,
+}
+
+fn claude_pending_provenance_call(path: &Path) -> Option<PendingCall> {
+    let content = fs::read_to_string(path).ok()?;
+    let mut pending: Option<(String, PendingCall)> = None;
+    for line in content.lines() {
+        let Ok(val) = serde_json::from_str::<Value>(line) else {
+            continue;
+        };
+        let Some(blocks) = val["message"]["content"].as_array() else {
+            continue;
+        };
+        for block in blocks {
+            match (val["type"].as_str(), block["type"].as_str()) {
+                (Some("assistant"), Some("tool_use")) => {
+                    if let (Some(id), Some(command)) =
+                        (block["id"].as_str(), block["input"]["command"].as_str())
+                        && command.contains("provenance")
+                    {
+                        let call = PendingCall {
+                            command: command.to_owned(),
+                            cwd: val["cwd"].as_str().unwrap_or_default().to_owned(),
+                        };
+                        pending = Some((id.to_owned(), call));
+                    }
+                }
+                (Some("user"), Some("tool_result"))
+                    if pending
+                        .as_ref()
+                        .is_some_and(|(id, _)| block["tool_use_id"].as_str() == Some(id)) =>
+                {
+                    pending = None;
+                }
+                _ => {}
+            }
+        }
+    }
+    pending.map(|(_, call)| call)
+}
+
+/// Pick the transcript of the agent running this command: the coordinator's
+/// own conversation, or the subagent's when a subagent runs it. Several agents
+/// running `provenance` at once are told apart by the checkout each one names.
+/// Refuse rather than audit another agent's work.
+fn select_claude_transcript(home: &Path, root: &Path) -> Result<PathBuf, String> {
+    let session_id = std::env::var("CLAUDE_CODE_SESSION_ID")
+        .ok()
+        .filter(|id| !id.is_empty());
+    let mut running: Vec<(PathBuf, PendingCall)> =
+        claude_candidate_transcripts(home, session_id.as_deref())
+            .into_iter()
+            .filter_map(|path| claude_pending_provenance_call(&path).map(|call| (path, call)))
+            .collect();
+    if running.len() > 1 {
+        let root_text = root.to_string_lossy();
+        running.retain(|(_, call)| {
+            call.command.contains(root_text.as_ref()) || Path::new(&call.cwd).starts_with(root)
+        });
+    }
+    let session = session_id
+        .map(|id| format!("session {id}"))
+        .unwrap_or_else(|| "any recent session".to_owned());
+    match running.len() {
+        1 => Ok(running.remove(0).0),
+        0 => Err(format!(
+            "no Claude Code transcript in {session} shows this `provenance` command running; pass --transcript <your transcript .jsonl> (a subagent's is under ~/.claude/projects/<project>/<session>/subagents/)"
+        )),
+        _ => Err(format!(
+            "several Claude Code transcripts in {session} are running `provenance` in {}; pass --transcript <your transcript .jsonl>: {}",
+            root.display(),
+            running
+                .iter()
+                .map(|(path, _)| path.display().to_string())
+                .collect::<Vec<_>>()
+                .join(", ")
+        )),
+    }
+}
+
+/// Whether a Claude Code `user` record is a message a person typed, so it can
+/// count as a steer. Claude Code writes many other things as `user` records:
+/// - tool results (content blocks of type `tool_result`);
+/// - a subagent's prompt and everything else in a subagent's or workflow
+///   agent's transcript (`isSidechain: true`), which no person typed;
+/// - harness-injected turns: task and background-job notifications, peer and
+///   coordinator messages and scheduled check-ins carry an `origin` whose
+///   `kind` is not `human` or a `promptSource` of `system`;
+/// - meta, synthetic and compaction-summary records (`isMeta`,
+///   `isSynthetic`, `isCompactSummary`, `isVisibleInTranscriptOnly`);
+/// - harness text wrapped in its own tags (`<system-reminder>`,
+///   `<task-notification>`, `<local-command-...>`, `<bash-stdout>`,
+///   `<bash-stderr>`) and interrupt markers (`[Request interrupted ...`).
+///
+/// Everything else in the main transcript is a person's message.
+fn claude_human_message(val: &Value) -> bool {
+    if val["type"].as_str() != Some("user")
+        || [
+            "isSidechain",
+            "isMeta",
+            "isSynthetic",
+            "isCompactSummary",
+            "isVisibleInTranscriptOnly",
+        ]
+        .iter()
+        .any(|flag| val[*flag].as_bool() == Some(true))
+        || val["origin"]["kind"]
+            .as_str()
+            .is_some_and(|kind| kind != "human")
+        || val["promptSource"].as_str() == Some("system")
+    {
+        return false;
+    }
+    let content = &val["message"]["content"];
+    let text = match content {
+        Value::String(text) => text.as_str(),
+        Value::Array(blocks) => {
+            if blocks
+                .iter()
+                .any(|block| block["type"].as_str() == Some("tool_result"))
+            {
+                return false;
+            }
+            let Some(text) = blocks.iter().find_map(|block| {
+                (block["type"].as_str() == Some("text"))
+                    .then(|| block["text"].as_str())
+                    .flatten()
+            }) else {
+                return false;
+            };
+            text
+        }
+        _ => return false,
+    };
+    let text = text.trim_start();
+    !text.is_empty()
+        && ![
+            "<system-reminder>",
+            "<task-notification>",
+            "<local-command-",
+            "<bash-stdout>",
+            "<bash-stderr>",
+            "[Request interrupted",
+        ]
+        .iter()
+        .any(|tag| text.starts_with(tag))
 }
 
 fn codex_transcript_matches_thread(path: &Path, thread_id: &str) -> bool {
@@ -351,7 +554,14 @@ fn parse_claude_transcript(
     if !content.contains("\"api-request\"") && !content.contains("\"parentUuid\"") {
         return None;
     }
-    let default_effort = claude_settings_effort(home).unwrap_or_else(|| "high".to_owned());
+    // Claude Code exports the session's effort to its tools' environment;
+    // `api-request` records, when present, still override it below.
+    let default_effort = std::env::var("CLAUDE_EFFORT")
+        .ok()
+        .map(|effort| effort.trim().to_ascii_lowercase())
+        .filter(|effort| !effort.is_empty())
+        .or_else(|| claude_settings_effort(home))
+        .unwrap_or_else(|| "high".to_owned());
     let mut metrics = SessionMetrics {
         agent: "Claude Code".to_owned(),
         model: String::new(),
@@ -359,6 +569,7 @@ fn parse_claude_transcript(
         ..SessionMetrics::default()
     };
     let mut window_user_inputs = 0u64;
+    let mut counted_responses = std::collections::HashSet::new();
     let mut prev_ts: Option<i64> = None;
 
     for line in content.lines() {
@@ -398,15 +609,19 @@ fn parse_claude_transcript(
             }
             prev_ts = Some(ts);
         }
-        match val["type"].as_str() {
-            Some("user") => {
-                window_user_inputs += 1;
+        if claude_human_message(&val) {
+            window_user_inputs += 1;
+        }
+        if val["type"].as_str() == Some("assistant") {
+            let msg = &val["message"];
+            if let Some(m) = msg["model"].as_str() {
+                metrics.model = m.to_owned();
             }
-            Some("assistant") => {
-                let msg = &val["message"];
-                if let Some(m) = msg["model"].as_str() {
-                    metrics.model = m.to_owned();
-                }
+            // Claude Code writes one record per content block of a response
+            // (thinking, text, each tool call), and every record repeats the
+            // whole response's usage. Count each response once.
+            let response = msg["id"].as_str().or_else(|| val["requestId"].as_str());
+            if response.is_none_or(|id| counted_responses.insert(id.to_owned())) {
                 let usage = &msg["usage"];
                 let uncached = usage["input_tokens"].as_u64().unwrap_or(0)
                     + usage["cache_creation_input_tokens"].as_u64().unwrap_or(0);
@@ -419,7 +634,6 @@ fn parse_claude_transcript(
                     metrics.output_tokens += out;
                 }
             }
-            _ => {}
         }
     }
 
@@ -427,6 +641,7 @@ fn parse_claude_transcript(
         return None;
     }
 
+    // The first human message in the window gives the task; later ones steer.
     metrics.steers = window_user_inputs.saturating_sub(1);
     Some(metrics)
 }
@@ -610,10 +825,25 @@ pub fn run(args: &[String]) -> Result<(), u8> {
     } else if std::env::var_os("CLAUDECODE").is_some()
         || std::env::var_os("CLAUDE_CODE_ENTRYPOINT").is_some()
     {
-        home.as_deref()
-            .and_then(find_latest_claude_transcript)
-            .and_then(|(path, _)| parse_claude_transcript(&path, home.as_deref(), since_epoch))
-            .unwrap_or_default()
+        let selected = home
+            .as_deref()
+            .ok_or_else(|| "cannot find the home directory that holds ~/.claude".to_owned())
+            .and_then(|home| select_claude_transcript(home, &root))
+            .and_then(|path| {
+                parse_claude_transcript(&path, home.as_deref(), since_epoch).ok_or_else(|| {
+                    format!(
+                        "{} has no measured activity in the current work interval; start the interval with `mbx xtask worktree begin` in this checkout, or pass --full-session for whole-transcript numbers",
+                        path.display()
+                    )
+                })
+            });
+        match selected {
+            Ok(metrics) => metrics,
+            Err(error) => {
+                eprintln!("provenance: {error}");
+                return Err(2);
+            }
+        }
     } else if let Some(thread_id) = std::env::var_os("CODEX_THREAD_ID") {
         let Some(thread_id) = thread_id.to_str().filter(|thread_id| !thread_id.is_empty()) else {
             eprintln!("provenance: CODEX_THREAD_ID must be a nonempty Unicode thread ID");
