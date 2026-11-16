@@ -487,6 +487,7 @@ impl CompilationSession {
                     crate::CompilationProduct::Native(request) => {
                         Some(crate::CompilationProduct::Native(NativeProductRequest {
                             retain_native_inputs: false,
+                            retain_native_stage_inputs: false,
                             image: products::NativeImageDemand::Emit,
                             private_entry_ram: Vec::new(),
                             ..request.clone()

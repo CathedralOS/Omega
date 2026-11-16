@@ -134,6 +134,7 @@ fn prepare_project(
             timings: false,
             product: CompilationProduct::Native(products::NativeProductRequest {
                 retain_native_inputs: true,
+                retain_native_stage_inputs: false,
                 installation_assumptions: Vec::new(),
                 image: Default::default(),
                 private_entry_ram: Vec::new(),
@@ -266,6 +267,7 @@ fn finish_saved_project(
     let mut prepared = native_compiler::prepare(
         &retained,
         native_compiler::NativeCompileRequest {
+            retain_native_stage_inputs: false,
             installation_assumptions: &assumptions,
             private_entry_ram: &[],
             optimization_selections: proposal.post_terminal_optimizations().selections(),

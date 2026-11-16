@@ -23,6 +23,8 @@ pub struct PostAllocationMachineProgram {
     pub machine: Arc<PostAllocationMachinePlan>,
     pub environment: ValidatedTargetRegisterEnvironment,
     pub preservation: AllocatedCalleeSavedRequirements,
+    pub publication: Arc<register_homes::AllocationPublicationFacts>,
+    pub phase: crate::PostAllocationMachinePhaseReceipt,
     pub functions: selected_instructions::SelectedFunctions,
     pub identity: [u8; 32],
 }
@@ -48,7 +50,7 @@ impl PostAllocationMachineProgram {
     /// its original checked owner; this digest does not hash that body again.
     pub fn recomputed_identity(&self) -> [u8; 32] {
         let mut digest =
-            crate::digest_encoder::DomainDigestEncoder::new(b"omega.physical-machine-program.v2\0");
+            crate::digest_encoder::DomainDigestEncoder::new(b"omega.physical-machine-program.v3\0");
         digest.raw(self.psi.program_fingerprint.as_bytes());
         digest.raw(&self.psi.vocabulary_marker.get().to_le_bytes());
         digest.raw(&self.work_schedule.marker().to_le_bytes());
@@ -58,6 +60,10 @@ impl PostAllocationMachineProgram {
         digest.raw(&self.environment.identity().bytes());
         digest.raw(&self.physical().identity().bytes());
         digest.raw(&self.preservation.identity().bytes());
+        digest.raw(&self.publication.identity_bytes());
+        digest.raw(&self.phase.complete_selection().bytes());
+        digest.raw(&self.phase.phase_selections().bytes());
+        digest.raw(&self.phase.result().bytes());
         digest.u64(self.functions.len() as u64);
         for function in self.functions.identity_digests() {
             digest.raw(&function);

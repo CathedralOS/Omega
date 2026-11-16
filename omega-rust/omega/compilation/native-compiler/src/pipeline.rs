@@ -140,6 +140,7 @@ pub(crate) fn emit_target(
         terminal_psi_to_abstract_operations::provider_admission::BoundInstallationAuthority,
     >,
     observation: &NativePipelineObservation,
+    retain_native_stage_inputs: bool,
 ) -> Result<native_artifact::FragmentObjectProjection, BodyEmissionError> {
     let register_environment = baseline_target_register_environment(optimized_target.target())
         .map_err(OptimizedVerifiedPhysicalPipelineError::RegisterEnvironment)?;
@@ -182,12 +183,10 @@ pub(crate) fn emit_target(
         stage_optimized_post_allocation_machine_plan(allocation.facts())
             .map_err(OptimizedVerifiedPhysicalPipelineError::PostAllocationMachine)
     }?;
-    let current = allocation.current();
     let framed = machine_emission::stage_function_frame(
         machine.current().clone(),
         machine_emission::frame_layout::TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
     )?;
-    let (framed, frame) = framed.into_parts();
     let encoding = {
         observation.enter(NativePipelineStage::SelectedFormEncoding);
         stage_optimized_layout_independent_selected_form_encoding(framed)
@@ -202,31 +201,29 @@ pub(crate) fn emit_target(
         observation.enter(NativePipelineStage::LayoutOptimization);
         execute_resolved_layout_optimization(
             layout.current(),
-            &current
+            &layout
+                .current()
+                .instructions
+                .publication
                 .selections()
                 .project_phase(OptimizationExecutionPhase::FunctionRelativeLayout),
-            current.budget_per_pass(),
+            layout.current().instructions.publication.budget(),
         )
         .map_err(FunctionRelativeOptimizationRealizationError::LayoutOptimization)
     }?;
-    let realization = machine_emission::assemble_fixed_frame_realization(
-        machine_emission::FixedFrameRealizationInput {
-            current: optimized_layout,
-            receipts: machine_emission::FunctionRelativePublicationReceipts::capture(
-                &current,
-                &machine,
-                frame,
-                target_input.optimized().pre_physical_manifest().identity,
-            ),
-            replay: machine_emission::FunctionRealizationReplay {
-                allocation,
-                target_input: std::sync::Arc::clone(&target_input),
-                machine,
-                encoding,
-                baseline_layout: layout,
-            },
-        },
-    )?;
+    let realization = machine_emission::assemble_fixed_frame_realization(optimized_layout)?;
+    let realization = if retain_native_stage_inputs {
+        realization.retain_replay_for_validation(machine_emission::FunctionRealizationReplay {
+            allocation,
+            target_input: std::sync::Arc::clone(&target_input),
+            machine,
+            encoding,
+            baseline_layout: layout,
+        })
+    } else {
+        drop((allocation, machine, encoding, layout));
+        realization
+    };
     let physical = StagedOptimizedFunctionFragmentEmissionSource::new(
         realization,
         target_input,

@@ -67,6 +67,23 @@ fn a_named_validator_runs_on_the_compiled_target_operations_and_passes() {
 }
 
 #[test]
+fn a_fixed_frame_request_retains_and_audits_the_original_allocation() {
+    let name = "FixedFrameCorrespondence";
+    let (success, console, report) = compile(
+        "fixed-frame",
+        "run/ownership/borrowed_root_replacement",
+        &["--validator", name],
+    );
+    assert!(success, "{console}");
+    let host = target::TargetProfile::from_omega_target_name(None)
+        .unwrap()
+        .target_name();
+    let expected =
+        format!("stage validator {name} (target {host}, stage fixed-frame machine code): passed");
+    assert!(report.lines().any(|line| line == expected), "{report}");
+}
+
+#[test]
 fn byte_view_home_retirement_passes_the_named_validator() {
     let (success, console, report) = compile(
         "view-retirement",
@@ -87,7 +104,7 @@ fn every_validator_reports_what_ran_and_what_was_inapplicable() {
         report
             .lines()
             .any(|line| line.starts_with("stage validator roster (omega ")
-                && line.ends_with(&format!("): {NAME}"))),
+                && line.ends_with(&format!("): {NAME}, FixedFrameCorrespondence"))),
         "{report}"
     );
     let (success, console, report) = compile(

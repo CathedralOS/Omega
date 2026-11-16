@@ -1978,6 +1978,7 @@ dependencies = [
  "isa-aarch64",
  "isa-x86_64",
  "machine-code",
+ "optimization-core",
  "post-allocation-machine",
  "register-model",
  "selected-instructions",

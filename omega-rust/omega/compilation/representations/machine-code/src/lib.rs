@@ -22,7 +22,7 @@ Why this crate separates representation data from stage admission:
 Every struct and canonical SHA-256 identity digest (`SelectedFormEncodingIdentity`,
 `ResolvedSelectedFormLayoutIdentity`, `WholeFunctionExitContractIdentity`,
 `FunctionFragmentEmissionIdentity`, `TerminalRelocationFreeTextSectionIdentity`) describes
-the current machine-code artifact and its replay inputs so downstream stages and independent
+the current machine-code artifact and its retained roots so downstream stages and independent
 object/artifact verifiers can audit exact byte, fixup, and provenance correspondence without
 importing producer transformation passes. Constructing or decoding a record checks wire and
 digest consistency only; it never grants lowering, optimization, or publication authority.
@@ -492,9 +492,10 @@ pub use layout::text_section::{
 pub use layout::{
     EncodedMachineProgram, FramedMachineProgram, ResolvedBranchEvidence,
     ResolvedConditionalBranchEvidence, ResolvedConditionalBranchPredicate, ResolvedJumpEvidence,
-    ResolvedMachineLayout, ResolvedMachineProgram, ResolvedSelectedBlockLayout,
-    ResolvedSelectedFormLayoutIdentity, ResolvedSelectedFormRow, ResolvedSelectedFunctionLayout,
-    SelectedFunctionLayoutPolicy, X86BranchRelaxationIdentity, resolved_machine_layout_identity,
+    ResolvedLayoutRoots, ResolvedMachineLayout, ResolvedMachineProgram,
+    ResolvedSelectedBlockLayout, ResolvedSelectedFormLayoutIdentity, ResolvedSelectedFormRow,
+    ResolvedSelectedFunctionLayout, SelectedFunctionLayoutPolicy, X86BranchRelaxationIdentity,
+    resolved_machine_layout_identity,
 };
 pub use ownership::*;
 pub use provenance::*;

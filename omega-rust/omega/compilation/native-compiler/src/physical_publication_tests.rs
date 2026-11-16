@@ -32,6 +32,7 @@ fn authorize_fixture(
 
 fn emit_body<'execution>(
     mut admitted: terminal_psi_to_abstract_operations::AdmittedNativeRealization<'execution>,
+    retain_native_stage_inputs: bool,
     inspect_target: impl FnOnce(
         &abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations,
     ),
@@ -65,15 +66,20 @@ fn emit_body<'execution>(
     });
     inspect_target(&target);
     let installations = crate::pipeline::bound_installations(&target, None, Vec::new()).unwrap();
-    let projection = crate::pipeline::emit_target(target, installations, &observation)
-        .unwrap_or_else(|error| match error {
-            crate::pipeline::BodyEmissionError::Physical(error) => {
-                panic!("constant emission: {error}")
-            }
-            crate::pipeline::BodyEmissionError::Object(errors) => {
-                panic!("constant object: {errors:?}")
-            }
-        });
+    let projection = crate::pipeline::emit_target(
+        target,
+        installations,
+        &observation,
+        retain_native_stage_inputs,
+    )
+    .unwrap_or_else(|error| match error {
+        crate::pipeline::BodyEmissionError::Physical(error) => {
+            panic!("constant emission: {error}")
+        }
+        crate::pipeline::BodyEmissionError::Object(errors) => {
+            panic!("constant object: {errors:?}")
+        }
+    });
     (projection, admitted.providers)
 }
 
@@ -523,11 +529,20 @@ fn checked_value_plan() -> effects::provider_plan::ProviderPlan {
 
 #[test]
 fn physical_publication_rejoins_emitted_object_and_receiver() {
-    check_publication(false);
-    check_publication(true);
+    for through_boundary in [false, true] {
+        let ordinary = check_publication(through_boundary, false);
+        let audited = check_publication(through_boundary, true);
+        assert_eq!(
+            ordinary, audited,
+            "retaining originals changes no artifact identity"
+        );
+    }
 }
 
-fn check_publication(through_boundary: bool) {
+fn check_publication(
+    through_boundary: bool,
+    retain_native_stage_inputs: bool,
+) -> native_artifact::NativeArtifactIdentity {
     use terminal_psi_to_abstract_operations::provider_admission::{
         ProviderAdmissionRequest, current_terminal_authority_policy,
     };
@@ -585,7 +600,7 @@ fn check_publication(through_boundary: bool) {
         &admission,
     )
     .expect("canonical constant admits without provider authority");
-    let (projection, providers) = emit_body(admitted, |target| {
+    let (projection, providers) = emit_body(admitted, retain_native_stage_inputs, |target| {
         check_published_plan(target, bootstrap_entry);
         if !through_boundary {
             reject_changed_entry_literal(target, bootstrap_entry);
@@ -613,6 +628,13 @@ fn check_publication(through_boundary: bool) {
     .expect("publish actual emitted object");
     image_emission::verify_retained_target_operations(&published.object)
         .expect("independent target audit accepts the emitted object's retained source");
+    let audit = image_emission::verify_retained_fixed_frame(&published.object);
+    if retain_native_stage_inputs {
+        audit.expect("explicitly retained originals admit the fixed-frame correspondence audit");
+    } else {
+        let error = audit.expect_err("default publication retains no original allocation graph");
+        assert!(error.to_string().contains("ReplayUnavailable"), "{error}");
+    }
     let requested = native_artifact::RequestedNativeArtifact::emit_admitted(
         profile.native_target(),
         artifact,
@@ -637,10 +659,12 @@ fn check_publication(through_boundary: bool) {
     native
         .validate()
         .expect("independent receiver replays emitted code");
+    let identity = native.identity();
     let mut parts = native.into_parts();
     parts.physical_evidence = None;
     assert!(
         native_artifact::NativeArtifact::from_replayed_parts(parts).is_err(),
         "receiver must reject stripped complete physical evidence"
     );
+    identity
 }

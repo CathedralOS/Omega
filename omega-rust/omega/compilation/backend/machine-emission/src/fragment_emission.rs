@@ -3,7 +3,7 @@ We project a validated function-relative realization's resolved machine layout
 into unplaced function fragments and seal their v10 manifest custody.
 
 `stage_optimized_function_fragment_emission` retains the current resolved
-machine program alongside the replay inputs, projects each function's fragment
+machine program, retaining originals only for explicit audits, and projects each function's fragment
 bytes, block and instruction spans, semantic control provenance, and
 function-relative fixup coordinates (`emit_resolved_function_fragments`), and
 seals `ValidatedFunctionFragmentEmissionManifest` together with
@@ -45,9 +45,8 @@ use optimization_core::{
 };
 use selected_instructions::{
     SelectedBlock, SelectedFunction, SelectedInstruction, SelectedInstructionKind,
-    SelectedInstructionPlan, SelectedSuccessor, SelectedTerminator, terminator_instruction,
+    SelectedSuccessor, SelectedTerminator, terminator_instruction,
 };
-use selected_instructions_to_register_homes::SelectedProgramView;
 use semantic_vocabulary::MachineId;
 use std::sync::Arc;
 
@@ -73,11 +72,7 @@ pub(crate) fn validate_optimized_function_fragment_emission(
     staged: &StagedOptimizedFunctionFragmentEmission,
 ) -> Result<StagedFunctionFragmentEmissionCustodyReceipt, FunctionFragmentEmissionError> {
     validate_source(&staged.source)?;
-    validate_resolved_function_fragments(
-        &staged.source.replay().shared_selected_plan(),
-        staged.source.program(),
-        &staged.fragments,
-    )?;
+    validate_resolved_function_fragments(staged.source.program(), &staged.fragments)?;
     validate_manifest(staged)?;
     let expected = receipt(&staged.manifest, &staged.fragments);
     if staged.custody != expected {
@@ -132,15 +127,13 @@ impl StagedOptimizedFunctionFragmentEmission {
         self.source.provider_installation()
     }
 
-    pub const fn function_relative_manifest(
+    pub fn function_relative_manifest(
         &self,
     ) -> &ValidatedFunctionRelativeOptimizationRealizationManifest {
         self.source.function_relative_manifest()
     }
 
-    pub fn post_allocation_manifest(
-        &self,
-    ) -> &selected_instructions_to_register_homes::ValidatedPostAllocationOptimizationManifest {
+    pub fn post_allocation_manifest(&self) -> &register_homes::AllocationPublicationFacts {
         self.source.post_allocation_manifest()
     }
 
@@ -215,162 +208,27 @@ impl From<FunctionFragmentStatisticsOverflow> for FunctionFragmentEmissionError 
 }
 
 #[derive(Debug)]
-pub(crate) struct FunctionFragmentReplayInputs {
-    realization: StagedFixedFrameFunctionRelativeRealization, // Retained realization for independent replay verification.
-}
-
-impl From<StagedFixedFrameFunctionRelativeRealization> for FunctionFragmentReplayInputs {
-    fn from(realization: StagedFixedFrameFunctionRelativeRealization) -> Self {
-        Self { realization }
-    }
-}
-
-impl FunctionFragmentReplayInputs {
-    pub(crate) fn fixed_frame(&self) -> &StagedFixedFrameFunctionRelativeRealization {
-        &self.realization
-    }
-
-    fn allocation(&self) -> &selected_instructions_to_register_homes::RetainedAllocation {
-        &self.realization.replay().allocation
-    }
-
-    pub fn machine(
-        &self,
-    ) -> &register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan {
-        &self.realization.replay().machine
-    }
-
-    pub(crate) fn layout_optimization(&self) -> &crate::OptimizedFunctionLayout {
-        self.realization.layout_optimization()
-    }
-
-    pub const fn exit_contract(&self) -> &StagedWholeFunctionExitContract {
-        self.realization.exit_contract()
-    }
-
-    pub const fn function_relative_manifest(
-        &self,
-    ) -> &ValidatedFunctionRelativeOptimizationRealizationManifest {
-        self.realization.manifest()
-    }
-
-    pub fn post_allocation_manifest(
-        &self,
-    ) -> &selected_instructions_to_register_homes::ValidatedPostAllocationOptimizationManifest {
-        &self
-            .realization
-            .publication_receipts()
-            .post_allocation_manifest
-    }
-
-    pub fn shared_selected_plan(&self) -> Arc<SelectedInstructionPlan> {
-        self.allocation()
-            .current()
-            .selected()
-            .shared_selected_plan()
-    }
-
-    pub fn target_input_owner(
-        &self,
-    ) -> &Arc<abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations> {
-        &self.realization.replay().target_input
-    }
-
-    pub fn encoding(
-        &self,
-    ) -> &post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding
-    {
-        &self.realization.replay().encoding
-    }
-}
-
-#[derive(Debug, Clone)]
-struct CurrentFunctionFragmentInput {
-    installation_authority: Arc<provider_admission::BoundInstallationAuthority>,
-    program: ResolvedMachineProgram,
-    exit: StagedWholeFunctionExitContract,
-    manifest: ValidatedFunctionRelativeOptimizationRealizationManifest,
-    post_allocation_manifest:
-        selected_instructions_to_register_homes::ValidatedPostAllocationOptimizationManifest,
-    target_input: Arc<abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations>,
-}
-
-impl CurrentFunctionFragmentInput {
-    fn retain(
-        realization: &StagedFixedFrameFunctionRelativeRealization,
-        target_input: Arc<
-            abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations,
-        >,
-        installation_authority: Arc<provider_admission::BoundInstallationAuthority>,
-    ) -> Self {
-        Self {
-            installation_authority,
-            program: realization.layout_optimization().program().clone(),
-            exit: realization.exit_contract().clone(),
-            manifest: realization.manifest().clone(),
-            post_allocation_manifest: realization
-                .publication_receipts()
-                .post_allocation_manifest
-                .clone(),
-            target_input,
-        }
-    }
-
-    fn validate_against(
-        &self,
-        replay: &FunctionFragmentReplayInputs,
-    ) -> Result<(), FunctionFragmentEmissionError> {
-        let ResolvedMachineProgram {
-            frame_identity,
-            protocol_identity,
-            instructions,
-            encoding,
-            layout,
-            frame,
-            protocol,
-        } = &self.program;
-        if *frame_identity != replay.fixed_frame().frame().receipt().identity()
-            || *protocol_identity != replay.fixed_frame().protocol().receipt().identity()
-            || instructions != replay.machine().current()
-            || !matches_shared_plan(encoding, replay.encoding().program())
-            || !matches_shared_plan(layout, replay.layout_optimization().layout())
-            || !matches_shared_plan(frame, replay.fixed_frame().frame().plan())
-            || !matches_shared_plan(protocol, replay.fixed_frame().protocol().plan())
-            || &self.exit != replay.exit_contract()
-            || &self.manifest != replay.function_relative_manifest()
-            || &self.post_allocation_manifest != replay.post_allocation_manifest()
-        {
-            return Err(FunctionFragmentEmissionError::RootMismatch);
-        }
-        Ok(())
-    }
-}
-
-fn matches_shared_plan<Plan: Eq>(current: &Arc<Plan>, replay: &Plan) -> bool {
-    std::ptr::eq(current.as_ref(), replay) || current.as_ref() == replay
-}
-
-#[derive(Debug)]
 pub struct StagedOptimizedFunctionFragmentEmissionSource {
-    current: CurrentFunctionFragmentInput, // Current program and admission facts.
-    replay: FunctionFragmentReplayInputs, // Retained producer-stage objects for independent replay.
+    realization: StagedFixedFrameFunctionRelativeRealization,
+    target_input: Arc<abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations>,
+    installation_authority: Arc<provider_admission::BoundInstallationAuthority>,
 }
 
 impl StagedOptimizedFunctionFragmentEmissionSource {
     pub fn installation_authority(&self) -> &Arc<provider_admission::BoundInstallationAuthority> {
-        &self.current.installation_authority
+        &self.installation_authority
     }
 
     pub fn program(&self) -> &ResolvedMachineProgram {
-        &self.current.program
+        self.realization.program()
     }
 
     pub fn resolved_layout(&self) -> &ResolvedMachineLayout {
-        &self.current.program.layout
+        &self.realization.program().layout
     }
 
     pub fn physical_program(&self) -> &post_allocation_machine::PostAllocationMachineProgram {
-        &self.current.program.instructions
+        &self.realization.program().instructions
     }
 
     pub fn register_environment(
@@ -380,37 +238,35 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
     }
 
     pub fn encoding(&self) -> &machine_code::SelectedFormEncoding {
-        &self.current.program.encoding
+        &self.realization.program().encoding
     }
 
     pub fn frame_protocol(&self) -> &machine_code::TargetFrameProtocolEncodingPlan {
-        &self.current.program.protocol
+        &self.realization.program().protocol
     }
 
     pub fn frame_layout(&self) -> &machine_code::TargetFrameLayoutPlan {
-        &self.current.program.frame
+        &self.realization.program().frame
     }
 
-    pub const fn exit_contract(&self) -> &StagedWholeFunctionExitContract {
-        &self.current.exit
+    pub fn exit_contract(&self) -> &StagedWholeFunctionExitContract {
+        self.realization.exit_contract()
     }
 
-    pub const fn function_relative_manifest(
+    pub fn function_relative_manifest(
         &self,
     ) -> &ValidatedFunctionRelativeOptimizationRealizationManifest {
-        &self.current.manifest
+        self.realization.manifest()
     }
 
-    pub fn post_allocation_manifest(
-        &self,
-    ) -> &selected_instructions_to_register_homes::ValidatedPostAllocationOptimizationManifest {
-        &self.current.post_allocation_manifest
+    pub fn post_allocation_manifest(&self) -> &register_homes::AllocationPublicationFacts {
+        &self.physical_program().publication
     }
 
     pub fn optimized_target(
         &self,
     ) -> &abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations {
-        &self.current.target_input
+        &self.target_input
     }
 
     pub fn pre_physical_manifest(&self) -> &optimization_unit::PrePhysicalOptimizationManifest {
@@ -427,12 +283,35 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
         self.optimized_target().provider_installation()
     }
 
-    pub(crate) fn replay(&self) -> &FunctionFragmentReplayInputs {
-        &self.replay
+    pub fn has_original_replay(&self) -> bool {
+        self.realization.has_original_replay()
     }
 
-    fn validate_current(&self) -> Result<(), FunctionFragmentEmissionError> {
-        self.current.validate_against(&self.replay)
+    /// Compare current output with original allocation and lowering owners.
+    /// A compile that did not request their retention cannot claim this audit.
+    pub fn verify_original_correspondence(&self) -> Result<(), FunctionFragmentEmissionError> {
+        validate_source(self)?;
+        crate::function_realization::verify_fixed_frame_original_correspondence(&self.realization)
+            .map_err(FunctionFragmentEmissionError::Source)?;
+        let original = self
+            .realization
+            .replay()
+            .map_err(FunctionFragmentEmissionError::Source)?;
+        let expected = original
+            .target_input
+            .optimized()
+            .selections()
+            .for_phase(optimization_core::OptimizationExecutionPhase::AllocationRecovery)
+            .identity();
+        if self
+            .function_relative_manifest()
+            .record()
+            .allocation_recovery_selections
+            != expected
+        {
+            return Err(FunctionFragmentEmissionError::RootMismatch);
+        }
+        Ok(())
     }
 }
 
@@ -453,13 +332,11 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
         ) {
             return Err(FunctionFragmentEmissionError::RootMismatch);
         }
-        let current = CurrentFunctionFragmentInput::retain(
-            &realization,
+        let source = Self {
+            realization,
             target_input,
             installation_authority,
-        );
-        let replay = FunctionFragmentReplayInputs::from(realization);
-        let source = Self { current, replay };
+        };
         source.validate_target_input()?;
         Ok(source)
     }
@@ -484,25 +361,9 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
 fn validate_source(
     source: &StagedOptimizedFunctionFragmentEmissionSource,
 ) -> Result<(), FunctionFragmentEmissionError> {
-    validate_fixed_frame_function_relative_realization(source.replay().fixed_frame())
+    validate_fixed_frame_function_relative_realization(&source.realization)
         .map_err(FunctionFragmentEmissionError::Source)?;
-    source.validate_current()?;
     source.validate_target_input()?;
-    let expected_allocation_recovery = source
-        .replay()
-        .target_input_owner()
-        .optimized()
-        .selections()
-        .for_phase(optimization_core::OptimizationExecutionPhase::AllocationRecovery)
-        .identity();
-    if source
-        .function_relative_manifest()
-        .record()
-        .allocation_recovery_selections
-        != expected_allocation_recovery
-    {
-        return Err(FunctionFragmentEmissionError::RootMismatch);
-    }
     Ok(())
 }
 
@@ -1203,10 +1064,10 @@ fn translate_foreign_fixup(
 }
 
 pub(crate) fn validate_resolved_function_fragments(
-    selected: &SelectedInstructionPlan,
     program: &ResolvedMachineProgram,
     fragments: &FunctionFragmentEmissionPlan,
 ) -> Result<(), ResolvedFragmentEmissionError> {
+    let selected = &program.instructions;
     let layout = &program.layout;
     require(
         fragments.psi == selected.psi
@@ -1244,7 +1105,7 @@ fn byte_span(
 }
 
 fn check_ordinary_fragments(
-    selected: &SelectedInstructionPlan,
+    selected: &post_allocation_machine::PostAllocationMachineProgram,
     layout: &ResolvedMachineLayout,
     fragments: &FunctionFragmentEmissionPlan,
 ) -> Result<(), ResolvedFragmentEmissionError> {
@@ -1252,12 +1113,15 @@ fn check_ordinary_fragments(
         selected.functions.len() == layout.functions.len()
             && fragments.functions.len() == selected.functions.len(),
     )?;
-    for (source, claimed) in selected.functions.iter().zip(&fragments.functions) {
-        let resolved = layout.function(source.machine).ok_or(
-            ResolvedFragmentEmissionError::MissingFunction(source.machine),
-        )?;
+    for ((source, resolved), claimed) in selected
+        .functions
+        .iter()
+        .zip(&layout.functions)
+        .zip(&fragments.functions)
+    {
         require(
-            claimed.machine == source.machine
+            resolved.machine == source.machine
+                && claimed.machine == source.machine
                 && claimed.attachment == source.attachment
                 && claimed.provenance == source.provenance
                 && claimed.byte_count == resolved.byte_count
@@ -1278,17 +1142,16 @@ fn check_ordinary_fragments(
                     && actual.instructions.len() == block.instructions.len()
                     && block.instructions.len() == selected_block.instructions.len() + 1,
             )?;
-            for (row, span) in block.instructions.iter().zip(&actual.instructions) {
-                let terminal = terminator_instruction(&selected_block.terminator);
-                let selected_instruction = selected_block
-                    .instructions
-                    .iter()
-                    .chain(std::iter::once(terminal))
-                    .find(|value| value.id == row.instruction)
-                    .ok_or(ResolvedFragmentEmissionError::MissingInstruction(
-                        row.instruction,
-                    ))?;
-                require(row.offset == offset)?;
+            let terminal = terminator_instruction(&selected_block.terminator);
+            for ((row, span), selected_instruction) in
+                block.instructions.iter().zip(&actual.instructions).zip(
+                    selected_block
+                        .instructions
+                        .iter()
+                        .chain(std::iter::once(terminal)),
+                )
+            {
+                require(row.offset == offset && row.instruction == selected_instruction.id)?;
                 check_instruction_span(source, selected_block, selected_instruction, row, span)?;
                 byte_span(&claimed.bytes, offset, &span.bytes)?;
                 offset = offset

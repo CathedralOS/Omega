@@ -8,6 +8,7 @@ version.workspace = true
 isa-aarch64 = { path = "../../backend/isa/isa-aarch64" }
 isa-x86_64 = { path = "../../backend/isa/isa-x86_64" }
 machine-code = { path = "../../representations/machine-code" }
+optimization-core = { path = "../../../foundation/optimization-core" }
 post-allocation-machine = { path = "../../representations/post-allocation-machine" }
 register-model = { path = "../../backend/register-model" }
 selected-instructions = { path = "../../representations/selected-instructions" }

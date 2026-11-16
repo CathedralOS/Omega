@@ -84,6 +84,7 @@ pub fn stage_optimized_resolved_selected_form_layout(
     let program = Arc::new(compute(&input.instructions, &input.encoding)?);
     Ok(StagedOptimizedResolvedSelectedFormLayout {
         current: machine_code::ResolvedMachineProgram {
+            storage: Arc::clone(&input.storage),
             frame_identity: input.frame_identity,
             protocol_identity: input.protocol_identity,
             instructions: input.instructions.clone(),
@@ -116,12 +117,39 @@ pub fn validate_optimized_resolved_selected_form_layout(
         replay,
     )
     .map_err(OptimizedResolvedSelectedFormLayoutError::CurrentProgram)?;
+    if pre_layout != artifact.current.encoding.as_ref() {
+        return Err(OptimizedResolvedSelectedFormLayoutError::RootMismatch);
+    }
     validation::validate(
-        replay.selected,
-        replay.machine,
-        replay.environment.physical(),
+        &artifact.current.instructions,
         pre_layout,
         artifact.program(),
+        false,
+    )
+}
+
+/// Validate the current layout, including short x86 conditional branches only
+/// when the retained phase selection permits that representation.
+pub fn validate_current_resolved_layout(
+    program: &machine_code::ResolvedMachineProgram,
+) -> Result<(), OptimizedResolvedSelectedFormLayoutError> {
+    post_allocation_machine::program_validation::validate_current_program_integrity(
+        &program.instructions,
+    )
+    .map_err(OptimizedResolvedSelectedFormLayoutError::CurrentProgram)?;
+    let allow_x86_short = program
+        .instructions
+        .publication
+        .selections()
+        .contains(optimization_core::Optimization::X86RelaxConditionalBranchesToRel8V1);
+    if allow_x86_short && program.instructions.target.architecture != target::Architecture::X86_64 {
+        return Err(OptimizedResolvedSelectedFormLayoutError::RootMismatch);
+    }
+    validation::validate(
+        &program.instructions,
+        &program.encoding,
+        &program.layout,
+        allow_x86_short,
     )
 }
 

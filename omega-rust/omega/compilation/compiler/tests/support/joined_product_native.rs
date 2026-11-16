@@ -15,6 +15,7 @@ pub fn execute_joined_product(
     let product = compiler::CompilationProduct::Native(products::NativeProductRequest {
         installation_assumptions: Vec::new(),
         retain_native_inputs: false,
+        retain_native_stage_inputs: false,
         image: Default::default(),
         private_entry_ram: Vec::new(),
         terminal_authority_policy: terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy(),

@@ -17,6 +17,8 @@ pub enum PhysicalProgramValidationError {
     MachineMismatch,
     RegisterMismatch,
     PreservationMismatch,
+    PublicationMismatch,
+    PhaseMismatch,
     FunctionRosterMismatch,
     BlockRosterMismatch,
     InstructionRosterMismatch,
@@ -30,6 +32,8 @@ pub struct PhysicalProgramReplay<'source> {
     pub machine: &'source PostAllocationMachinePlan,
     pub environment: &'source ValidatedTargetRegisterEnvironment,
     pub preservation: &'source AllocatedCalleeSavedRequirements,
+    pub publication: &'source register_homes::AllocationPublicationFacts,
+    pub phase: crate::PostAllocationMachinePhaseReceipt,
 }
 
 pub fn validate_current_program(
@@ -42,6 +46,8 @@ pub fn validate_current_program(
         machine,
         environment,
         preservation: original_preservation,
+        publication: original_publication,
+        phase: original_phase,
     } = replay;
     let physical = environment.physical();
     if selected.identity != selected_instruction_plan_identity(selected.plan)
@@ -80,30 +86,82 @@ pub fn validate_current_program(
     {
         return Err(Error::PreservationMismatch);
     }
-    if program.functions.len() != selected.plan.functions.len()
-        || program.functions.len() != machine.functions.len()
-    {
+    if program.publication.as_ref() != original_publication {
+        return Err(Error::PublicationMismatch);
+    }
+    if program.phase != original_phase {
+        return Err(Error::PhaseMismatch);
+    }
+    if program.functions.len() != selected.plan.functions.len() {
         return Err(Error::FunctionRosterMismatch);
     }
-    for ((current, original), physical) in program
-        .functions
-        .iter()
-        .zip(selected.plan.functions.iter())
-        .zip(&machine.functions)
-    {
-        if current.machine != physical.machine
-            || current.contracts != original.contracts
+    for (current, original) in program.functions.iter().zip(selected.plan.functions.iter()) {
+        if current.contracts != original.contracts
             || current.entry_block != original.entry_block
             || current.blocks != original.blocks
-            || current.local_storage_slots != physical.local_storage_slots
-            || current.outgoing_arguments != physical.outgoing_arguments
         {
             return Err(Error::SourceMismatch);
         }
-        if current.blocks.len() != physical.blocks.len() {
+    }
+    validate_current_program_integrity(program)
+}
+
+/// Check a current artifact's own columns and checked metadata. This does not
+/// claim correspondence with an earlier program; that separate request above
+/// supplies its original admitted owners.
+pub fn validate_current_program_integrity(
+    program: &PostAllocationMachineProgram,
+) -> Result<(), PhysicalProgramValidationError> {
+    use PhysicalProgramValidationError as Error;
+    let machine = &program.machine;
+    if machine.identity != post_allocation_machine_identity(machine) {
+        return Err(Error::MachineMismatch);
+    }
+    if machine.register_environment != program.environment.identity()
+        || machine.physical_register_model != program.physical().identity()
+        || machine.target != program.environment.target()
+    {
+        return Err(Error::RegisterMismatch);
+    }
+    let requirements = program.preservation.plan();
+    if register_homes::allocated_callee_saved_requirement_identity(requirements)
+        != program.preservation.identity()
+        || requirements.selected != machine.selected
+        || requirements.homes != machine.homes
+        || requirements.post_allocation_manifest != machine.post_allocation_manifest
+        || requirements.register_environment != machine.register_environment
+        || requirements.physical_register_model != machine.physical_register_model
+        || requirements.target != machine.target
+        || requirements.budget != program.publication.budget()
+    {
+        return Err(Error::PreservationMismatch);
+    }
+    let publication = program.publication.record();
+    if publication.identity != publication.recomputed_identity()
+        || publication.identity != machine.post_allocation_manifest
+        || publication.selected != machine.selected
+        || publication.homes != machine.homes
+        || publication.ranges != machine.ranges
+        || publication.legality != machine.legality
+        || publication.target != machine.target
+        || publication.register_environment != machine.register_environment
+    {
+        return Err(Error::PublicationMismatch);
+    }
+    if program.functions.len() != machine.functions.len() {
+        return Err(Error::FunctionRosterMismatch);
+    }
+    for (function, physical) in program.functions.iter().zip(&machine.functions) {
+        if function.machine != physical.machine
+            || function.local_storage_slots != physical.local_storage_slots
+            || function.outgoing_arguments != physical.outgoing_arguments
+        {
+            return Err(Error::FunctionRosterMismatch);
+        }
+        if function.blocks.len() != physical.blocks.len() {
             return Err(Error::BlockRosterMismatch);
         }
-        for (block, physical) in current.blocks.iter().zip(&physical.blocks) {
+        for (block, physical) in function.blocks.iter().zip(&physical.blocks) {
             if block.id != physical.block
                 || block.instructions.len() + 1 != physical.instructions.len()
             {
@@ -119,6 +177,17 @@ pub fn validate_current_program(
                 return Err(Error::InstructionRosterMismatch);
             }
         }
+    }
+    if program.phase.complete_selection() != program.publication.selections().identity()
+        || program.phase.phase_selections()
+            != program
+                .publication
+                .selections()
+                .for_phase(optimization_core::OptimizationExecutionPhase::PostAllocationMachine)
+                .identity()
+        || program.phase.result() != machine.identity
+    {
+        return Err(Error::PhaseMismatch);
     }
     if program.identity != program.recomputed_identity() {
         return Err(Error::IdentityMismatch);
@@ -254,6 +323,52 @@ mod tests {
             }],
         };
         machine.identity = post_allocation_machine_identity(&machine);
+        let budget =
+            optimization_core::OptimizationWorkBudget::new(100, 100, 100, 100, 100).unwrap();
+        let selections = optimization_core::OptimizationSelections::default();
+        let mut publication_record = register_homes::PostAllocationOptimizationManifest {
+            identity: PostAllocationOptimizationManifestIdentity::from_bytes([0; 32]),
+            stage: register_homes::PostAllocationManifestStage::RegisterHomes,
+            pre_physical: optimization_core::PrePhysicalOptimizationManifestIdentity::from_bytes(
+                [10; 32],
+            ),
+            target: machine.target,
+            selected: machine.selected,
+            selected_lowering_completion: None,
+            pre_allocation_completion: None,
+            selected_transformations: Vec::new(),
+            liveness: selected_instructions::LivenessIdentity::from_bytes([11; 32]),
+            ranges: machine.ranges,
+            legality: machine.legality,
+            register_environment: machine.register_environment,
+            allocator_availability: register_homes::AllocatorAvailabilityIdentity::from_bytes(
+                [12; 32],
+            ),
+            homes: machine.homes,
+            spills: register_homes::PostAllocationSpillStatus::NotRequiredForValidatedHomePlan,
+            frame: register_homes::PostAllocationUnavailableData::Unavailable,
+            emission: register_homes::PostAllocationUnavailableData::Unavailable,
+            publication: register_homes::PostAllocationUnavailableData::Unavailable,
+            statistics: register_homes::PostAllocationStatistics {
+                functions: 1,
+                ..Default::default()
+            },
+        };
+        publication_record.identity = publication_record.recomputed_identity();
+        machine.post_allocation_manifest = publication_record.identity;
+        machine.identity = post_allocation_machine_identity(&machine);
+        let publication = Arc::new(register_homes::AllocationPublicationFacts::retain(
+            publication_record,
+            selections.clone(),
+            budget,
+        ));
+        let phase = crate::PostAllocationMachinePhaseReceipt::from_parts(
+            selections.identity(),
+            selections
+                .for_phase(optimization_core::OptimizationExecutionPhase::PostAllocationMachine)
+                .identity(),
+            machine.identity,
+        );
         let convention = register_environment::selected_abi_preservation(&environment).unwrap();
         let preservation_plan = register_homes::AllocatedCalleeSavedRequirementPlan {
             selected: machine.selected,
@@ -265,7 +380,7 @@ mod tests {
             abi: convention.kind,
             callee_saved_units: convention.convention.callee_saved.clone(),
             policy: register_homes::AllocatedCalleeSavedRequirementPolicy::AllocatedSelectedWritesIntersectAbiPreservationV1,
-            budget: optimization_core::OptimizationWorkBudget::new(100, 100, 100, 100, 100).unwrap(),
+            budget,
             usage: Default::default(),
             functions: vec![register_homes::FunctionAllocatedCalleeSavedRequirements {
                 machine: machine_id,
@@ -285,6 +400,8 @@ mod tests {
             entry: selected.entry,
             environment,
             preservation,
+            publication,
+            phase,
             machine: Arc::new(machine),
             identity: [0; 32],
             functions: selected.functions.clone(),
@@ -311,7 +428,53 @@ mod tests {
             machine: &admitted.machine,
             environment: &admitted.environment,
             preservation: &admitted.preservation,
+            publication: &admitted.publication,
+            phase: admitted.phase,
         }
+    }
+
+    #[test]
+    fn a_rehashed_publication_selection_cannot_replace_the_admitted_selection() {
+        let (selected, mut program) = fixture();
+        let admitted = program.clone();
+        let selections = optimization_core::OptimizationSelections::new([
+            optimization_core::Optimization::X86RelaxConditionalBranchesToRel8V1,
+        ])
+        .unwrap();
+        program.publication = Arc::new(register_homes::AllocationPublicationFacts::retain(
+            program.publication.record().clone(),
+            selections.clone(),
+            program.publication.budget(),
+        ));
+        program.phase = crate::PostAllocationMachinePhaseReceipt::from_parts(
+            selections.identity(),
+            selections
+                .for_phase(optimization_core::OptimizationExecutionPhase::PostAllocationMachine)
+                .identity(),
+            program.machine.identity,
+        );
+        program.identity = program.recomputed_identity();
+        assert_eq!(super::validate_current_program_integrity(&program), Ok(()));
+        assert_eq!(
+            validate_current_program(&program, replay(&selected, &admitted)),
+            Err(Error::PublicationMismatch)
+        );
+    }
+
+    #[test]
+    fn rehashed_phase_roots_cannot_replace_the_original_completion() {
+        let (selected, mut program) = fixture();
+        let admitted = program.clone();
+        program.phase = crate::PostAllocationMachinePhaseReceipt::from_parts(
+            program.phase.complete_selection(),
+            program.phase.phase_selections(),
+            crate::PostAllocationMachineIdentity::from_bytes([44; 32]),
+        );
+        program.identity = program.recomputed_identity();
+        assert_eq!(
+            validate_current_program(&program, replay(&selected, &admitted)),
+            Err(Error::PhaseMismatch)
+        );
     }
 
     #[test]
