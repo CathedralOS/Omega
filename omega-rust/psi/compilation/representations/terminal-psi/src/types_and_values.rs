@@ -72,7 +72,7 @@ pub mod types {
         use semantic_vocabulary::{DomainSemanticId, ScalarDomainId, StructuralDomainId};
 
         trait RequirementNode {
-            type Carrier: Copy + Eq;
+            type Carrier: Copy + Eq + Ord;
 
             fn semantic_domain(&self) -> DomainSemanticId;
             fn carrier(&self) -> Self::Carrier;
@@ -191,6 +191,106 @@ pub mod types {
                     closure(resolve(rows, row.semantic_domain(), root.carrier())?, rows)
                 })
                 .collect()
+        }
+
+        // Prepare one answer per declaration. Resolve each required identity
+        // once; missing/ambiguous edges and cycles cannot satisfy the query.
+        fn requirements_satisfy<Node: RequirementNode>(
+            rows: &[Node],
+            local: impl Fn(&Node) -> bool,
+        ) -> Vec<bool> {
+            let mut index: Vec<_> = rows
+                .iter()
+                .enumerate()
+                .map(|(position, row)| ((row.carrier(), row.semantic_domain()), position))
+                .collect();
+            index.sort_unstable_by_key(|row| row.0);
+            let mut answers: Vec<_> = rows.iter().map(&local).collect();
+            let mut remaining = vec![0usize; rows.len()];
+            let mut dependents = vec![Vec::new(); rows.len()];
+            for (position, row) in rows.iter().enumerate() {
+                let own = index
+                    .binary_search_by_key(&(row.carrier(), row.semantic_domain()), |row| row.0)
+                    .expect("the index contains each input declaration");
+                if (own > 0 && index[own - 1].0 == index[own].0)
+                    || index
+                        .get(own + 1)
+                        .is_some_and(|next| next.0 == index[own].0)
+                {
+                    answers[position] = false;
+                }
+                let Some(required) = row
+                    .required()
+                    .filter(|required| required.windows(2).all(|pair| pair[0] < pair[1]))
+                else {
+                    answers[position] = false;
+                    continue;
+                };
+                for required in required {
+                    let key = (row.carrier(), *required);
+                    let Ok(found) = index.binary_search_by_key(&key, |row| row.0) else {
+                        answers[position] = false;
+                        continue;
+                    };
+                    if (found > 0 && index[found - 1].0 == key)
+                        || index.get(found + 1).is_some_and(|next| next.0 == key)
+                    {
+                        answers[position] = false;
+                        continue;
+                    }
+                    let dependency = index[found].1;
+                    remaining[position] += 1;
+                    dependents[dependency].push(position);
+                }
+            }
+            let mut pending: std::collections::VecDeque<_> = remaining
+                .iter()
+                .enumerate()
+                .filter_map(|(position, count)| (*count == 0).then_some(position))
+                .collect();
+            while let Some(position) = pending.pop_front() {
+                for dependent in &dependents[position] {
+                    answers[*dependent] &= answers[position];
+                    remaining[*dependent] -= 1;
+                    if remaining[*dependent] == 0 {
+                        pending.push_back(*dependent);
+                    }
+                }
+            }
+            for (answer, remaining) in answers.iter_mut().zip(remaining) {
+                *answer &= remaining == 0;
+            }
+            answers
+        }
+
+        impl StructuralDomainDeclaration {
+            /// Prepare which already held memberships have no content facts
+            /// to invalidate. This is not authority to establish a membership.
+            pub fn content_independent_memberships(domains: &[Self]) -> Vec<StructuralDomainId> {
+                let mut identities: Vec<_> = domains.iter().map(|row| row.id).collect();
+                identities.sort_unstable();
+                if identities.windows(2).any(|pair| pair[0] == pair[1]) {
+                    return Vec::new();
+                }
+                let answers = requirements_satisfy(domains, |row| {
+                    row.complete_predicate_theory
+                        && row.predicate.as_ref().is_some_and(|predicate| {
+                            matches!(
+                                predicate.proposition,
+                                semantic_vocabulary::Proposition::Truth
+                            )
+                        })
+                        && row.byte_predicate.is_none()
+                        && row.content_projection.is_none()
+                });
+                let mut held: Vec<_> = domains
+                    .iter()
+                    .zip(answers)
+                    .filter_map(|(row, holds)| holds.then_some(row.id))
+                    .collect();
+                held.sort_unstable();
+                held
+            }
         }
 
         macro_rules! requirement_queries {
