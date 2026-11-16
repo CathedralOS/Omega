@@ -18,6 +18,123 @@ fn receiving_error(module: terminal_psi::TerminalModule) -> String {
     }
 }
 
+#[test]
+fn trapping_float_integer_conversions_retain_the_guarded_crash_contract() {
+    std::thread::scope(|scope| {
+        compiler::checked::spawn_compile_worker(scope, || {
+            use language_semantics::numeric_intrinsics::{NumericIntrinsic, NumericType};
+            use numerics::arithmetic::ArithmeticDomain;
+            use semantic_vocabulary::{CrashCause, Proposition};
+            let main =
+                repository().join("tests/fixtures/run/float/trapping_integer_conversion/main.omg");
+            let checked = orchestration::check_source(
+                &mut compiler::CompilationSession::default(),
+                compiler::CheckedCompileRequest::new(&main, Some("macos_arm64")),
+            )
+            .result
+            .unwrap_or_else(|failure| panic!("{:?}", failure.into_diagnostics()));
+            let publication = checked
+                .terminal_publication()
+                .accepted()
+                .unwrap()
+                .closure()
+                .publish()
+                .unwrap();
+            let reopened = terminal_codec::ClosedTerminalModule::from_semantic_bytes(
+                publication.artifact.semantic_bytes(),
+            )
+            .unwrap();
+            let module = reopened.module();
+            let mut conversions = Vec::new();
+            for boundary in &module.boundary_machines {
+                let Some(
+                    meaning @ NumericIntrinsic::Conversion {
+                        source: NumericType::F32 | NumericType::F64,
+                        target: NumericType::Integer(_),
+                        domain: ArithmeticDomain::Trapping,
+                    },
+                ) = boundary.numeric_intrinsic
+                else {
+                    continue;
+                };
+                terminal_semantics::numeric_primitives::validate_boundary(module, boundary)
+                    .unwrap();
+                assert!(boundary.scalar_requires.is_empty());
+                let [Proposition::FloatIntegerConversion(relation)] =
+                    boundary.scalar_ensures.as_slice()
+                else {
+                    panic!("normal completion retains the integer-result graph")
+                };
+                relation.validate().unwrap();
+                let terminal_psi::BoundaryMachineResult::Scalar(result) = boundary.result else {
+                    panic!("integer result")
+                };
+                assert!(terminal_semantics::numeric_primitives::result_matches(
+                    module, meaning, result
+                ));
+                let [route] = boundary.crash_routes.as_slice() else {
+                    panic!("one complete Trap route")
+                };
+                assert_eq!(route.cause, CrashCause::Trap);
+                let [terminal_psi::CrashRouteGuard::Predicate(guard)] =
+                    route.alternatives.as_slice()
+                else {
+                    panic!("a guarded route, not unconditional permission")
+                };
+                let Proposition::Disjunction(alternatives) = guard.proposition() else {
+                    panic!("the NaN and two out-of-range alternatives survive")
+                };
+                assert_eq!(alternatives.len(), 3);
+                conversions.push(boundary.id);
+            }
+            assert_eq!(conversions.len(), 4);
+            for mutation in 0..3 {
+                let mut changed = module.clone();
+                let boundary = changed
+                    .boundary_machines
+                    .iter_mut()
+                    .find(|boundary| boundary.id == conversions[0])
+                    .unwrap();
+                match mutation {
+                    0 => boundary.crash_routes.clear(),
+                    1 => boundary.crash_routes[0].cause = CrashCause::Abort,
+                    2 => {
+                        boundary.crash_routes[0].alternatives =
+                            vec![terminal_psi::CrashRouteGuard::Truth]
+                    }
+                    _ => unreachable!(),
+                }
+                let error = receiving_error(changed);
+                assert!(error.contains("MalformedStructuralFoundation"), "{error}");
+            }
+            let invalid =
+                repository().join("tests/fixtures/fail/float/trapping_integer_conversion/main.omg");
+            let diagnostics = orchestration::check_source(
+                &mut compiler::CompilationSession::default(),
+                compiler::CheckedCompileRequest::new(&invalid, Some("macos_arm64")),
+            )
+            .result
+            .expect_err("a crashes-none helper must exclude the conversion's Trap guard")
+            .into_diagnostics();
+            assert!(
+                diagnostics.iter().any(|diagnostic| {
+                    diagnostic.message.to_ascii_lowercase().contains("crash")
+                }),
+                "{diagnostics:?}"
+            );
+            assert!(
+                diagnostics
+                    .iter()
+                    .all(|diagnostic| !diagnostic.message.contains("not supported yet")),
+                "{diagnostics:?}"
+            );
+        })
+        .unwrap()
+        .join()
+        .unwrap_or_else(|panic| std::panic::resume_unwind(panic));
+    });
+}
+
 fn refuse_undeclared_conversion(module: &terminal_psi::TerminalModule) {
     use language_semantics::numeric_intrinsics::{NumericIntrinsic, NumericType};
     use numerics::{arithmetic::ArithmeticDomain, integer_carrier::FixedInteger};

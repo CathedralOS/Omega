@@ -2044,7 +2044,15 @@ impl<'t> Program<'t> {
             requires: terminal_semantics::numeric_primitives::requires(meaning)
                 .map_err(unavailable)?,
             ensures,
-            crashes: CrashCeiling::DeclaredNone,
+            crashes: {
+                let routes = terminal_semantics::numeric_primitives::crash_routes(meaning)
+                    .map_err(unavailable)?;
+                if routes.is_empty() {
+                    CrashCeiling::DeclaredNone
+                } else {
+                    CrashCeiling::Authored(routes)
+                }
+            },
             reaches: crate::Ceiling::Authored(Vec::new()),
             invokes: crate::Ceiling::Authored(Vec::new()),
             termination: Termination::Promised,

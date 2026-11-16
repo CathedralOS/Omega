@@ -157,6 +157,44 @@ pub fn float_integer_preconditions(
     ])
 }
 
+/// The authored Trapping converter fails exactly outside its normal input
+/// conditions. The self-inequality alternative catches NaNs; with those
+/// already covered, reversing each ordered bound gives its failure condition.
+/// This is a conversion guard, not a general IEEE comparison complement.
+pub fn float_integer_failure_condition(
+    source: ScalarTerm,
+    target: FixedInteger,
+) -> Result<crate::Proposition, &'static str> {
+    use crate::{IeeeFloatComparisonKind as Kind, Proposition};
+    let mut failures = Vec::new();
+    for condition in float_integer_preconditions(source, target)? {
+        let Proposition::ScalarIeeeFloatComparison {
+            kind,
+            format,
+            left,
+            right,
+        } = condition
+        else {
+            return Err("integer conversion has a noncanonical normal condition");
+        };
+        let (kind, left, right) = match kind {
+            Kind::Equal => (Kind::NotEqual, left, right),
+            Kind::LessThan => (Kind::LessOrEqual, right, left),
+            Kind::LessOrEqual => (Kind::LessThan, right, left),
+            _ => return Err("integer conversion has a noncanonical bound"),
+        };
+        failures.push(Proposition::ScalarIeeeFloatComparison {
+            kind,
+            format,
+            left,
+            right,
+        });
+    }
+    failures.sort();
+    failures.dedup();
+    Ok(Proposition::Disjunction(failures))
+}
+
 fn projection_contract(
     source: &ScalarTerm,
 ) -> Result<FloatProjectionContractIdentity, &'static str> {
