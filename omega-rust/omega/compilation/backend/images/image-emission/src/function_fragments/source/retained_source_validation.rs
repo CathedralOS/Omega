@@ -85,6 +85,76 @@ pub(in crate::function_fragments) fn establish_geometry(
     Ok(())
 }
 
+// Original selection correspondence belongs beside the other retained-source
+// checks. Ordinary pool validation reads exact current instruction owners.
+fn validate_image_selection_origins(
+    source: &StagedOptimizedRelocationFreeObjectContainer,
+) -> Result<(), Error> {
+    use selected_instructions::SelectedImageAddressReference as Reference;
+    let catalogs = super::code_catalogs(source);
+    for address in &source.source().text_section().unresolved_image_addresses {
+        if !matches!(
+            address.reference,
+            Reference::MachineDescriptor { .. }
+                | Reference::ImplementationTable { .. }
+                | Reference::NativeCodeLayout { .. }
+        ) {
+            continue;
+        }
+        let function = abstract_function(source, address.machine)?;
+        let matches = function
+            .operations()
+            .filter(|operation| match (address.reference, operation) {
+                (
+                    Reference::ImplementationTable { table },
+                    AbstractOperation::SelectImplementation {
+                        psi_operation,
+                        table: original,
+                        ..
+                    },
+                ) => *psi_operation == address.operation && *original == table,
+                (
+                    Reference::MachineDescriptor { descriptor },
+                    AbstractOperation::SelectMachine {
+                        psi_operation,
+                        descriptor: original,
+                        result,
+                    },
+                ) => {
+                    *psi_operation == address.operation
+                        && *original == descriptor
+                        && catalogs
+                            .callables()
+                            .descriptor(descriptor)
+                            .is_some_and(|row| {
+                                result.scalar_type
+                                    == semantic_vocabulary::ScalarType::Callable(row.contract)
+                            })
+                }
+                (
+                    Reference::NativeCodeLayout { machine },
+                    AbstractOperation::EstablishNativeCodeLayout {
+                        psi_operation,
+                        machine: original,
+                        ..
+                    },
+                ) => *psi_operation == address.operation && *original == machine,
+                _ => false,
+            })
+            .count();
+        if matches != 1 {
+            return Err(Error::Mismatch(
+                if matches!(address.reference, Reference::NativeCodeLayout { .. }) {
+                    "native metadata address differs from its exact query"
+                } else {
+                    "code descriptor address differs from its checked selection"
+                },
+            ));
+        }
+    }
+    Ok(())
+}
+
 // Match writer custody once per original/current roster. Ordinary publication
 // reads the located current row; only this audit opens the prepared program.
 type ByteWriterRow = (
@@ -190,6 +260,7 @@ pub(in crate::function_fragments) fn admit(
             "current callable facts differ from the prepared execution input",
         ));
     }
+    validate_image_selection_origins(source)?;
     validate_byte_writers(published, current.physical_program())?;
     let abstract_plan = current.optimized_target().optimized().plan();
     privileged_termination::validate(
@@ -376,9 +447,9 @@ pub(in crate::function_fragments) fn admit(
                         _ => false,
                     }
                 }
-                AbstractOperation::PortWrite { psi_operation, port, value, .. } => {
+                AbstractOperation::PortWrite { psi_operation, service, port, value } => {
                     selected.instructions().any(|instruction| {
-                        instruction.kind == selected_instructions::SelectedInstructionKind::PortWrite { port: *port, value: *value }
+                        instruction.kind == selected_instructions::SelectedInstructionKind::PortWrite { service: *service, port: *port, value: *value }
                             && instruction.provenance.operations.as_slice() == [*psi_operation]
                     })
                 }

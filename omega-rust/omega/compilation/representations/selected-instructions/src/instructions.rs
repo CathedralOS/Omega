@@ -174,6 +174,8 @@ pub enum SelectedInstructionKind {
         table_bytes: u32,
     },
     PortWrite {
+        // Publication needs the declared service as well as the encoded operands.
+        service: semantic_vocabulary::ServiceId,
         port: u16,
         value: u8,
     },

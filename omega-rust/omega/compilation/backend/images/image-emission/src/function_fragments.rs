@@ -5,6 +5,8 @@ evidence into a sealed `ObjectArtifact`, verifying that every abstract and
 target operation is accounted for in the final native instructions.
 */
 
+mod current_image_selections;
+
 mod attribution {
     use super::{Error, host};
     use crate::order::strictly_increasing;
@@ -2418,6 +2420,7 @@ pub(crate) mod code_descriptors {
     pub(super) fn validate(
         source: &object_file::StagedOptimizedRelocationFreeObjectContainer,
         artifact: &crate::ObjectArtifact,
+        selections: Option<&super::current_image_selections::CurrentImageSelections>,
     ) -> Result<(), Error> {
         let catalogs = super::source::code_catalogs(source);
         let Some(pool) = &artifact.code_descriptor_pool else {
@@ -2451,47 +2454,24 @@ pub(crate) mod code_descriptors {
                 "code descriptor inputs differ from admitted source",
             ));
         }
-        for address in &pool.addresses {
-            let function = super::source::abstract_function(source, address.machine)?;
-            if function
-                .operations()
-                .filter(|operation| match operation {
-                    abstract_operations::AbstractOperation::SelectImplementation {
-                        psi_operation,
-                        table,
-                        ..
-                    } => {
-                        *psi_operation == address.operation
-                            && address_source(address)
-                                == Some(CodeDescriptorSource::ImplementationTable(*table))
-                    }
-                    abstract_operations::AbstractOperation::SelectMachine {
-                        psi_operation,
-                        result,
-                        descriptor,
-                    } => {
-                        *psi_operation == address.operation
-                            && address_source(address)
-                                == Some(CodeDescriptorSource::Machine(*descriptor))
-                            && pool
-                                .catalogs
-                                .callables()
-                                .descriptor(*descriptor)
-                                .is_some_and(|selected| {
-                                    result.scalar_type
-                                        == semantic_vocabulary::ScalarType::Callable(
-                                            selected.contract,
-                                        )
-                                })
-                    }
-                    _ => false,
-                })
-                .count()
-                != 1
-            {
-                return Err(Error::Mismatch(
-                    "code descriptor address differs from its checked selection",
-                ));
+        if !pool.addresses.is_empty() {
+            let selections = selections.ok_or(Error::Mismatch(
+                "descriptor addresses have no current selection index",
+            ))?;
+            for address in &pool.addresses {
+                let result = match address.machine_descriptor() {
+                    Some(descriptor) => Some(semantic_vocabulary::ScalarType::Callable(
+                        pool.catalogs
+                            .callables()
+                            .descriptor(descriptor)
+                            .ok_or(Error::Mismatch(
+                                "code descriptor has no current callable contract",
+                            ))?
+                            .contract,
+                    )),
+                    None => None,
+                };
+                selections.require(address, result)?;
             }
         }
         let mut expected = ObjectPlan::with_capacity(artifact.target, 1, pool.descriptors.len());
@@ -2546,6 +2526,21 @@ pub(crate) mod code_descriptors {
         let mut expected = Vec::new();
         for namespace in crate::object::private_object_composition::namespaces(artifact) {
             let local = namespace.artifact;
+            let image_selections = if let Some(replay) = &local.fragment_replay {
+                let current = replay
+                    .0
+                    .source()
+                    .source()
+                    .source()
+                    .source()
+                    .physical_program();
+                super::current_image_selections::CurrentImageSelections::prepare_for(
+                    &replay.0.source().text_section().unresolved_image_addresses,
+                    current.functions.iter(),
+                )?
+            } else {
+                None
+            };
             let Some(pool) = &local.code_descriptor_pool else {
                 if !local.data_bytes.is_empty() && local.native_code_layout_pool.is_none() {
                     return Err(Error::Mismatch(
@@ -2553,14 +2548,17 @@ pub(crate) mod code_descriptors {
                     ));
                 }
                 expected.extend(super::native_code_layouts::image_data_records(
-                    &namespace, artifact, object,
+                    &namespace,
+                    artifact,
+                    object,
+                    image_selections.as_ref(),
                 )?);
                 continue;
             };
             let replay = local.fragment_replay.as_ref().ok_or(Error::Mismatch(
                 "code descriptor data requires admitted fragment source",
             ))?;
-            validate(&replay.0, local)?;
+            validate(&replay.0, local, image_selections.as_ref())?;
             for symbol in pool
                 .descriptors
                 .iter()
@@ -2589,7 +2587,10 @@ pub(crate) mod code_descriptors {
                 expected.push(record);
             }
             expected.extend(super::native_code_layouts::image_data_records(
-                &namespace, artifact, object,
+                &namespace,
+                artifact,
+                object,
+                image_selections.as_ref(),
             )?);
         }
         validate_data_relocation_roster(&expected, relocations)
@@ -3399,6 +3400,7 @@ pub(crate) mod native_code_layouts {
     pub(super) fn validate(
         source: &object_file::StagedOptimizedRelocationFreeObjectContainer,
         artifact: &crate::ObjectArtifact,
+        selections: Option<&super::current_image_selections::CurrentImageSelections>,
     ) -> Result<(), Error> {
         let addresses = source
             .source()
@@ -3431,13 +3433,13 @@ pub(crate) mod native_code_layouts {
                 "native metadata selection or prefix differs from admitted source",
             ));
         }
-        for address in &addresses {
-            let SelectedImageAddressReference::NativeCodeLayout { machine } = address.reference
-            else {
-                unreachable!()
-            };
-            let function = super::source::abstract_function(source, address.machine)?;
-            if function.operations().filter(|operation| matches!(operation, abstract_operations::AbstractOperation::EstablishNativeCodeLayout { psi_operation, machine: target, .. } if *psi_operation == address.operation && *target == machine)).count() != 1 { return Err(Error::Mismatch("native metadata address differs from its exact query")); }
+        if !addresses.is_empty() {
+            let selections = selections.ok_or(Error::Mismatch(
+                "native metadata has no current selection index",
+            ))?;
+            for address in &addresses {
+                selections.require(address, None)?;
+            }
         }
         let mut object = ObjectPlan::with_capacity(artifact.target, 1, pool.layouts.len());
         let mut data = artifact
@@ -3490,6 +3492,7 @@ pub(crate) mod native_code_layouts {
         namespace: &crate::object::private_object_composition::ObjectNamespace<'_>,
         root: &crate::ObjectArtifact,
         object: &ObjectPlan,
+        selections: Option<&super::current_image_selections::CurrentImageSelections>,
     ) -> Result<Vec<RelocationRecord>, Error> {
         let local = namespace.artifact;
         let Some(pool) = &local.native_code_layout_pool else {
@@ -3498,7 +3501,7 @@ pub(crate) mod native_code_layouts {
         let replay = local.fragment_replay.as_ref().ok_or(Error::Mismatch(
             "native metadata requires admitted final placement",
         ))?;
-        validate(&replay.0, local)?;
+        validate(&replay.0, local, selections)?;
         for symbol in pool
             .layouts
             .iter()
@@ -3535,7 +3538,6 @@ pub(crate) mod native_code_layouts {
 mod port_effects {
     use super::{Error, attribution, host, source, structural::placed_text_offset};
     use crate::ObjectPortEffect;
-    use abstract_operations::AbstractOperation;
     use machine_code::{PortEffectRecord, SemanticCodeSite};
     use object_file::StagedOptimizedRelocationFreeObjectContainer;
     use selected_instructions::{MachineAlternativeFamily, MachineAlternativeKey};
@@ -3545,56 +3547,258 @@ mod port_effects {
     ) -> Result<Vec<ObjectPortEffect>, Error> {
         let mut effects = Vec::new();
         for placed in &container.source().text_section().functions {
-            let function = source::abstract_function(container, placed.machine)?;
+            let function = source::current_function(container, placed.machine)?;
             let fragment = source::fragments(container)
                 .function(placed.machine)
                 .ok_or(Error::Mismatch(
                     "port event lost its current function fragment",
                 ))?;
-            for operation in function.operations() {
-                let AbstractOperation::PortWrite {
-                    psi_operation,
+            append_function_effects(
+                function.instructions(),
+                fragment,
+                source::publication_function(container, placed.machine)?,
+                placed.section_offset,
+                &mut effects,
+            )?;
+        }
+        Ok(effects)
+    }
+
+    fn append_function_effects<'input>(
+        instructions: impl IntoIterator<Item = &'input selected_instructions::SelectedInstruction>,
+        fragment: &machine_code::FunctionFragment,
+        publication: &target_vocabulary::NativeFunctionPublication,
+        section_offset: u64,
+        effects: &mut Vec<ObjectPortEffect>,
+    ) -> Result<(), Error> {
+        if fragment.machine != publication.machine {
+            return Err(Error::Mismatch("port event has another function owner"));
+        }
+        let mut spans: Vec<_> = fragment
+            .instructions()
+            .filter(|span| span.alternative.family == MachineAlternativeFamily::PortWrite)
+            .collect();
+        spans.sort_unstable_by_key(|span| span.instruction);
+        if spans
+            .windows(2)
+            .any(|rows| rows[0].instruction == rows[1].instruction)
+        {
+            return Err(Error::Mismatch("port event has two selected spans"));
+        }
+        let start = effects.len();
+        for instruction in instructions {
+            let selected_instructions::SelectedInstructionKind::PortWrite {
+                service,
+                port,
+                value,
+            } = instruction.kind
+            else {
+                continue;
+            };
+            let [psi_operation] = instruction.provenance.operations.as_slice() else {
+                return Err(Error::Mismatch("port event has no exact source occurrence"));
+            };
+            let index = spans
+                .binary_search_by_key(&instruction.id, |span| span.instruction)
+                .map_err(|_| Error::Mismatch("port event has no exact selected span"))?;
+            let span = spans[index];
+            if span.alternative
+                != (MachineAlternativeKey {
+                    family: MachineAlternativeFamily::PortWrite,
+                    variant: 0,
+                })
+                || span.provenance.operations.as_slice() != [*psi_operation]
+            {
+                return Err(Error::Mismatch(
+                    "port event differs from its current instruction",
+                ));
+            }
+            let code_offset = host(span.offset)?;
+            effects.push(ObjectPortEffect {
+                machine: publication.machine,
+                text_offset: placed_text_offset(section_offset, code_offset)?,
+                effect: PortEffectRecord {
+                    psi_operation: *psi_operation,
                     service,
                     port,
                     value,
-                } = operation
-                else {
-                    continue;
-                };
-                let mut matching = fragment.instructions().filter(|span| {
-                    span.alternative
-                        == MachineAlternativeKey {
-                            family: MachineAlternativeFamily::PortWrite,
-                            variant: 0,
-                        }
-                        && span.provenance.operations.as_slice() == [*psi_operation]
-                });
-                let span = matching
-                    .next()
-                    .ok_or(Error::Mismatch("port event has no exact selected span"))?;
-                if matching.next().is_some() {
-                    return Err(Error::Mismatch("port event has two selected spans"));
-                }
-                let code_offset = host(span.offset)?;
-                effects.push(ObjectPortEffect {
-                    machine: placed.machine,
-                    text_offset: placed_text_offset(placed.section_offset, code_offset)?,
-                    effect: PortEffectRecord {
-                        psi_operation: *psi_operation,
-                        service: *service,
-                        port: *port,
-                        value: *value,
-                        operation_ordinal: attribution::ordinal(
-                            source::publication_function(container, placed.machine)?,
-                            SemanticCodeSite::Operation(*psi_operation),
-                        )?,
-                        code_offset,
-                        byte_count: span.bytes.len(),
-                    },
-                });
+                    operation_ordinal: attribution::ordinal(
+                        publication,
+                        SemanticCodeSite::Operation(*psi_operation),
+                    )?,
+                    code_offset,
+                    byte_count: span.bytes.len(),
+                },
+            });
+        }
+        if effects.len() - start != spans.len() {
+            return Err(Error::Mismatch("port event has an unowned selected span"));
+        }
+        // Preserve authored order even when native block placement changes.
+        effects[start..].sort_unstable_by_key(|row| row.effect.operation_ordinal);
+        if effects[start..]
+            .windows(2)
+            .any(|rows| rows[0].effect.operation_ordinal == rows[1].effect.operation_ordinal)
+        {
+            return Err(Error::Mismatch("port event repeats its source occurrence"));
+        }
+        Ok(())
+    }
+
+    #[cfg(test)]
+    mod current_event_tests {
+        use super::*;
+        use machine_code::{
+            FunctionFragment, FunctionFragmentBlockSpan, FunctionFragmentControlProvenance,
+            FunctionFragmentInstructionSpan,
+        };
+        use selected_instructions::{
+            SelectedBlockId, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
+            SelectedInstructionProvenance,
+        };
+        use semantic_vocabulary::{MachineId, OperationId, ServiceId};
+
+        fn instruction(
+            id: u32,
+            operation: u64,
+            service: u64,
+            port: u16,
+            value: u8,
+        ) -> SelectedInstruction {
+            SelectedInstruction {
+                id: SelectedInstructionId(id),
+                kind: SelectedInstructionKind::PortWrite {
+                    service: ServiceId::new(service).unwrap(),
+                    port,
+                    value,
+                },
+                constraint: register_model::RegisterConstraintKey::instruction(0),
+                operands: Vec::new(),
+                implicit_uses: Vec::new(),
+                implicit_defs: Vec::new(),
+                clobbers: Vec::new(),
+                provenance: SelectedInstructionProvenance {
+                    operations: vec![OperationId::new(operation).unwrap()],
+                    ..Default::default()
+                },
             }
         }
-        Ok(effects)
+
+        fn span(instruction: &SelectedInstruction, offset: u64) -> FunctionFragmentInstructionSpan {
+            let physical = register_model::validate_physical_register_model(
+                isa_x86_64::x86_64_physical_register_model(),
+            )
+            .unwrap();
+            let alternative = MachineAlternativeKey {
+                family: MachineAlternativeFamily::PortWrite,
+                variant: 0,
+            };
+            let encoded = isa_x86_64::encode_x86_64_selected_form(
+                &physical,
+                instruction.kind,
+                alternative,
+                &[],
+            )
+            .unwrap();
+            FunctionFragmentInstructionSpan {
+                instruction: instruction.id,
+                alternative,
+                offset,
+                bytes: encoded.bytes().to_vec(),
+                branch: None,
+                internal_machine_fixup: None,
+                normalized_foreign_call_fixup: None,
+                image_address_fixup: None,
+                provenance: instruction.provenance.clone(),
+                control: FunctionFragmentControlProvenance::None,
+            }
+        }
+
+        #[test]
+        fn current_port_events_keep_service_authored_order_and_exact_native_owners() {
+            // Model only these current columns; the actual x86 encoder supplies
+            // span bytes. This does not execute privileged port instructions.
+            let later = instruction(0, 2, 12, 0x2f8, 0x42);
+            let earlier = instruction(1, 1, 11, 0x3f8, 0x41);
+            let first = span(&later, 0);
+            let offset = first.bytes.len() as u64;
+            let second = span(&earlier, offset);
+            let bytes = [first.bytes.as_slice(), second.bytes.as_slice()].concat();
+            let machine = MachineId::new(1).unwrap();
+            let fragment = FunctionFragment {
+                machine,
+                attachment: None,
+                provenance: Default::default(),
+                byte_count: bytes.len() as u64,
+                bytes,
+                blocks: vec![FunctionFragmentBlockSpan {
+                    block: SelectedBlockId(0),
+                    offset: 0,
+                    byte_count: offset + second.bytes.len() as u64,
+                    instructions: vec![first, second],
+                }],
+            };
+            let publication = target_vocabulary::NativeFunctionPublication {
+                machine,
+                operation_count: 2,
+                sites: vec![
+                    (
+                        target_vocabulary::publication::PsiProvenance::Operation(
+                            OperationId::new(1).unwrap(),
+                        ),
+                        0,
+                    ),
+                    (
+                        target_vocabulary::publication::PsiProvenance::Operation(
+                            OperationId::new(2).unwrap(),
+                        ),
+                        1,
+                    ),
+                ],
+                byte_literals: Vec::new(),
+                call_targets: Vec::new(),
+            };
+            let instructions = [later, earlier];
+            let run = |fragment: &_, publication: &_| {
+                let mut rows = Vec::new();
+                append_function_effects(&instructions, fragment, publication, 32, &mut rows)?;
+                Ok::<_, Error>(rows)
+            };
+            let rows = run(&fragment, &publication).unwrap();
+            assert_eq!(
+                rows.iter()
+                    .map(|row| (
+                        row.effect.psi_operation.get(),
+                        row.effect.service.get(),
+                        row.effect.port,
+                        row.effect.value,
+                        row.effect.operation_ordinal
+                    ))
+                    .collect::<Vec<_>>(),
+                [(1, 11, 0x3f8, 0x41, 0), (2, 12, 0x2f8, 0x42, 1)]
+            );
+            assert_eq!(rows[0].text_offset, 32 + offset as usize);
+            assert_eq!(rows[1].text_offset, 32);
+            let mut missing = fragment.clone();
+            missing.blocks[0].instructions.pop();
+            assert!(run(&missing, &publication).is_err());
+            let mut repeated = fragment.clone();
+            let duplicate = repeated.blocks[0].instructions[0].clone();
+            repeated.blocks[0].instructions.push(duplicate);
+            assert!(run(&repeated, &publication).is_err());
+            let mut foreign = fragment.clone();
+            foreign.blocks[0].instructions[0].provenance.operations[0] =
+                OperationId::new(3).unwrap();
+            assert!(run(&foreign, &publication).is_err());
+            let mut orphan = fragment.clone();
+            let mut extra = orphan.blocks[0].instructions[0].clone();
+            extra.instruction = SelectedInstructionId(9);
+            orphan.blocks[0].instructions.push(extra);
+            assert!(run(&orphan, &publication).is_err());
+            let mut unbound = publication;
+            unbound.sites.clear();
+            assert!(run(&fragment, &unbound).is_err());
+        }
     }
 }
 
@@ -20620,6 +20824,21 @@ mod source {
         source: &StagedOptimizedRelocationFreeObjectContainer,
     ) -> &FunctionFragmentEmissionPlan {
         source.source().source().fragments()
+    }
+
+    /// Borrow this function's instructions and contracts from the current form.
+    pub(super) fn current_function(
+        source: &StagedOptimizedRelocationFreeObjectContainer,
+        machine: MachineId,
+    ) -> Result<&post_allocation_machine::PhysicalFunction, Error> {
+        source
+            .source()
+            .source()
+            .source()
+            .source()
+            .physical_program()
+            .function(machine)
+            .ok_or(Error::Mismatch("current native form has no function"))
     }
 
     /// The optimized program's function for `machine`, which must be unique.
