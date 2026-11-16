@@ -12544,15 +12544,40 @@ pub mod descriptor_results {
                     let accesses: Vec<_> = graph[0].flow[&(field_body.entry, 0)]
                         .inputs
                         .iter()
-                        .filter_map(|(_, access)| access.as_ref())
+                        .filter(|(_, access)| access.is_some())
                         .collect();
-                    assert!(
-                        matches!(accesses.as_slice(),
-                        [(access_plans::AccessOperation::Take, crate::descriptor_lifetimes::DescriptorFlowSource::Contents(query))]
+                    assert_eq!(accesses.len(), 1);
+                    let (location, Some((access_plans::AccessOperation::Take, access))) =
+                        accesses[0]
+                    else {
+                        panic!("the projected move retains its take operation");
+                    };
+                    assert_eq!(
+                        location,
+                        &DescriptorLocation {
+                            root: source,
+                            path: vec![crate::descriptor_lifetimes::DescriptorPathSegment::Field(
+                                moved
+                            )],
+                        },
+                        "the moved field cannot become its disjoint sibling"
+                    );
+                    if matches!(
+                        module.structural_types[1].shape,
+                        StructuralTypeShape::ByteSequence(_)
+                    ) {
+                        assert!(
+                            matches!(access, crate::descriptor_lifetimes::DescriptorFlowSource::Unavailable(root) if *root == source),
+                            "the byte-payload footprint remains unavailable"
+                        );
+                    } else {
+                        assert!(
+                            matches!(access, crate::descriptor_lifetimes::DescriptorFlowSource::Contents(query)
                             if query.root == source && query.steps == [DescriptorContentsStep::Address(
                                 crate::descriptor_lifetimes::DescriptorPathSegment::Field(moved))]),
-                        "a projected move keeps its actual field rather than authorizing a sibling"
-                    );
+                            "the element descriptor keeps its actual typed field query"
+                        );
+                    }
                     let frames = crate::borrowed_storage::inferred_write_frames(&module).unwrap();
                     assert_eq!(frames.get(field_body.id), Some(&Some(Vec::new())));
                     let mut analysis =
