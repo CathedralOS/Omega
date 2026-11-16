@@ -108,13 +108,29 @@ impl Program<'_> {
                 self.complete_builtin_operator(machine, owner, expression, &operands)
             }
             _ => {
-                let operands = match &value.kind {
+                // Inequality negates the same validated comparison. A case
+                // test has already resolved its case within the subject's
+                // exact sum, so both operands have that retained carrier.
+                let operation = match &value.kind {
+                    ExpressionKind::Not(inner)
+                        if matches!(
+                            self.typed.expression_table.expression(expression),
+                            ExpressionNode::Binary(binary)
+                                if binary.operator == typed_trees::expression::BinaryOperator::NotEqual
+                        ) =>
+                    {
+                        &inner.kind
+                    }
+                    operation => operation,
+                };
+                let operands = match operation {
                     ExpressionKind::Strict { left, right, .. }
                     | ExpressionKind::ShortCircuit { left, right, .. } => {
                         [left.result, right.result]
                     }
                     ExpressionKind::Index { base, index }
                     | ExpressionKind::ByteElement { base, index } => [base.result, index.result],
+                    ExpressionKind::IsCase { subject, .. } => [subject.result; 2],
                     _ => [None, None],
                 }
                 .map(|operand| {
