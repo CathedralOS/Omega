@@ -136,6 +136,7 @@ struct Questions<'source> {
     source: &'source AcceptedTerminalSource,
     module: &'source TerminalModule,
     declarations: Declarations<'source>,
+    exact_toolchain_sources: std::cell::OnceCell<Result<Vec<(source::SourceId, [u8; 32])>, String>>,
     output: SelectionQuestions,
     build_sites: HashMap<
         (SymbolHandle, typed_trees::expression::ExpressionHandle),
@@ -172,6 +173,7 @@ impl<'source> Questions<'source> {
             source,
             module,
             declarations: Declarations::new(source, module)?,
+            exact_toolchain_sources: Default::default(),
             output: SelectionQuestions::default(),
             build_sites: HashMap::default(),
             requirements,
@@ -567,6 +569,15 @@ impl<'source> Questions<'source> {
                     lexical_owner: supplier,
                     binders: &[],
                     lifetime_binders: &[],
+                    exact_toolchain_sources: self
+                        .exact_toolchain_sources
+                        .get_or_init(|| {
+                            source::source_identity::toolchain_source_identities(
+                                typed.symbols.source_files(),
+                            )
+                        })
+                        .as_deref()
+                        .map_err(refused)?,
                 },
             )
             .and_then(|identity| typed.type_identity_text(identity))

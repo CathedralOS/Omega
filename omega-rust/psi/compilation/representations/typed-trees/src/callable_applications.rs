@@ -164,7 +164,12 @@ impl crate::TypedTrees {
         .map_err(
             |_| "a canonical callable lost its exact selected declaration or static application",
         )?;
-        self.canonical_callable_atom(declaration, application, requirement, exact_sources)
+        let nominal = self
+            .exact_owner_nominal_identity(declaration, exact_sources)
+            .and_then(|identity| self.type_identity_text(identity))
+            .filter(|identity| !identity.is_empty())
+            .ok_or("a canonical callable lost its exact declaration owner")?;
+        self.canonical_callable_atom(declaration, application, requirement, nominal)
     }
 
     pub(crate) fn canonical_callable_selection_value_in_context(
@@ -172,13 +177,13 @@ impl crate::TypedTrees {
         selected: &crate::expression::StaticMachineArgument,
         application: crate::static_applications::StaticMachineApplicationHandle,
         requirement: Option<String>,
-        exact_sources: &[(source::SourceId, [u8; 32])],
         context: &crate::type_identity::identity_context::TypeIdentityContext<'_>,
     ) -> Result<language_semantics::const_value::DecodedCanonicalConstValue, &'static str> {
         let (declaration, application) = crate::type_identity::portable_machine_selection_identity_in_context(
             self, selected, application, context,
         ).map_err(|_| "a canonical callable lost its exact selected declaration or static application")?;
-        self.canonical_callable_atom(declaration, application, requirement, exact_sources)
+        let nominal = context.name(self, declaration, "");
+        self.canonical_callable_atom(declaration, application, requirement, nominal)
     }
 
     fn canonical_callable_atom(
@@ -186,18 +191,16 @@ impl crate::TypedTrees {
         declaration: symbols::SymbolHandle,
         application: Option<String>,
         requirement: Option<String>,
-        exact_sources: &[(source::SourceId, [u8; 32])],
+        nominal: String,
     ) -> Result<language_semantics::const_value::DecodedCanonicalConstValue, &'static str> {
+        if nominal.is_empty() {
+            return Err("a canonical callable lost its declaration owner");
+        }
         let callable = self
             .machine_by_symbol(declaration)
             .and_then(|machine| self.machine_callable_identity_text(machine))
             .filter(|identity| !identity.is_empty())
             .ok_or("a canonical callable lost its selected overload identity")?;
-        let nominal = self
-            .exact_owner_nominal_identity(declaration, exact_sources)
-            .and_then(|identity| self.type_identity_text(identity))
-            .filter(|identity| !identity.is_empty())
-            .ok_or("a canonical callable lost its exact declaration owner")?;
         let declaration = language_semantics::type_identity::encoding::callable_declaration_path(
             &nominal, &callable,
         );
@@ -304,7 +307,6 @@ impl crate::TypedTrees {
     pub(crate) fn canonical_operation_record_value_in_context(
         &self,
         symbol: symbols::SymbolHandle,
-        exact_sources: &[(source::SourceId, [u8; 32])],
         context: &crate::type_identity::identity_context::TypeIdentityContext<'_>,
     ) -> Result<language_semantics::const_value::CanonicalConstValue, &'static str> {
         use crate::trait_definition::AppliedTraitScope;
@@ -370,7 +372,6 @@ impl crate::TypedTrees {
                     &selected,
                     crate::static_applications::StaticMachineApplicationHandle::invalid(),
                     Some(requirement.clone()),
-                    exact_sources,
                     context,
                 )?;
                 fields.push((requirement, value));
@@ -4127,6 +4128,7 @@ mod declaration_invocations {
                             lexical_owner: invocation.lexical_owner,
                             binders: &[],
                             lifetime_binders: &[],
+                            exact_toolchain_sources: &[],
                         },
                     )
                     .ok_or("bodyless call argument has no complete declared identity")
@@ -4364,6 +4366,7 @@ mod declaration_invocations {
                             lexical_owner: invocation.lexical_owner,
                             binders: &[],
                             lifetime_binders: &[],
+                            exact_toolchain_sources: &[],
                         },
                     )
                     .ok_or("selected call argument has no exact declared identity")
@@ -4548,6 +4551,7 @@ mod declaration_invocations {
                                 lexical_owner: *lexical_owner,
                                 binders: &[],
                                 lifetime_binders: &[],
+                                exact_toolchain_sources: &[],
                             },
                         ) == Some(*known)
                     })

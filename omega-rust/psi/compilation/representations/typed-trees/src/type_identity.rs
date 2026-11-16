@@ -1521,6 +1521,7 @@ pub(crate) mod identity_context {
                         operand: IndexIdentityArgument::TypeArgument(reference),
                         lexical_owner: owner,
                         binders: &[],
+                        exact_toolchain_sources: &[],
                         lifetime_binders: &[
                             (region(owner), 0),
                             (
@@ -6437,17 +6438,36 @@ pub(crate) mod portable_machine_applications {
         symbol: SymbolHandle,
         exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     ) -> Result<language_semantics::const_value::CanonicalConstValue, String> {
+        operation_record_value_in_context(
+            program,
+            symbol,
+            &TypeIdentityContext {
+                qualification: TypeIdentityQualification::PackageQualified,
+                exact_toolchain_sources,
+                ..Default::default()
+            },
+        )
+    }
+
+    pub(crate) fn operation_record_value_in_context(
+        program: &TypedTrees,
+        symbol: SymbolHandle,
+        context: &TypeIdentityContext<'_>,
+    ) -> Result<language_semantics::const_value::CanonicalConstValue, String> {
         let projection = PortableMachineApplications::default();
         let invalid = Cell::new(false);
+        // Local operand comparisons retain their actual application and region
+        // scope. Portable records additionally require every exact source owner.
         let context = TypeIdentityContext {
             portable_machine_applications: Some(&projection),
-            qualification: TypeIdentityQualification::PackageQualified,
-            exact_toolchain_sources,
-            missing_exact_nominal_owner: Some(&invalid),
-            invalid_application: Some(&invalid),
-            encountered_elided_regions: Some(&invalid),
-            invalid_index_argument: Some(&invalid),
-            ..Default::default()
+            missing_exact_nominal_owner: context.missing_exact_nominal_owner.or_else(|| {
+                (context.qualification == TypeIdentityQualification::PackageQualified)
+                    .then_some(&invalid)
+            }),
+            invalid_application: context.invalid_application.or(Some(&invalid)),
+            encountered_elided_regions: context.encountered_elided_regions.or(Some(&invalid)),
+            invalid_index_argument: context.invalid_index_argument.or(Some(&invalid)),
+            ..*context
         };
         let result = projection.record_value(program, symbol, &context)?;
         if let Some(reason) = projection.error.into_inner() {
@@ -6541,11 +6561,7 @@ pub(crate) mod portable_machine_applications {
             }
             self.active.borrow_mut().push(symbol);
             let result = program
-                .canonical_operation_record_value_in_context(
-                    symbol,
-                    context.exact_toolchain_sources,
-                    context,
-                )
+                .canonical_operation_record_value_in_context(symbol, context)
                 .map_err(str::to_owned);
             self.active.borrow_mut().pop();
             if let Err(reason) = &result {
@@ -7272,6 +7288,7 @@ pub(crate) mod static_operand_identity {
         pub lexical_owner: SymbolHandle,
         pub binders: &'a [(SymbolHandle, String)],
         pub lifetime_binders: &'a [(super::LifetimeParameterIdentity, usize)],
+        pub exact_toolchain_sources: &'a [(source::SourceId, [u8; 32])],
     }
 
     impl TypedTrees {
@@ -7411,6 +7428,7 @@ pub(crate) mod static_operand_identity {
                     application_argument_owner: request.lexical_owner,
                     binders: request.binders,
                     lifetime_binders: request.lifetime_binders,
+                    exact_toolchain_sources: request.exact_toolchain_sources,
                     qualification: super::TypeIdentityQualification::PackageQualified,
                     invalid_application: Some(&invalid),
                     encountered_elided_regions: Some(&invalid),
@@ -7895,10 +7913,8 @@ pub(crate) mod substitution {
         {
             return match context.portable_machine_applications {
                 Some(projection) => projection.record_value(program, symbol, context),
-                None => super::portable_machine_applications::portable_operation_record_value(
-                    program,
-                    symbol,
-                    context.exact_toolchain_sources,
+                None => super::portable_machine_applications::operation_record_value_in_context(
+                    program, symbol, context,
                 ),
             }
             .ok()

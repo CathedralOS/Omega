@@ -80,6 +80,7 @@ pub enum BuildMachineExecutionMode {
 /// The input source is retained as metadata, never as a checked-program witness.
 pub struct PreparedBuildMachineProgram {
     source: Arc<TypedTrees>,
+    exact_toolchain_sources: Box<[(source::SourceId, [u8; 32])]>,
     authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
     purpose: source::DependencyScope,
     source_consent: Option<Arc<dyn crate::InvocationSourceConsent>>,
@@ -582,8 +583,13 @@ impl PreparedBuildMachineProgram {
     ) -> Result<Self, Vec<Diagnostic>> {
         // Retaining source is preparation, not acceptance. Each actual job is
         // checked with its materialized arguments before any execution starts.
+        let exact_toolchain_sources =
+            source::source_identity::toolchain_source_identities(typed.symbols.source_files())
+                .map_err(invocation_error)?
+                .into_boxed_slice();
         Ok(Self {
             source: Arc::new(typed.clone()),
+            exact_toolchain_sources,
             authority,
             purpose,
             source_consent,
@@ -985,20 +991,28 @@ impl PreparedBuildMachineProgram {
         }
         self.source
             .static_operand_region_supplier(selection, selection_owner)?;
-        let identity = |operand| {
+        let identity = |operand: &typed_trees::expression::StaticMachineArgument, form| {
             self.source
                 .declared_static_operand_identity(DeclaredStaticOperandIdentityRequest {
                     operand: IndexIdentityArgument::StaticArgument(operand),
                     lexical_owner: selection_owner,
                     binders: &[],
                     lifetime_binders: &[],
+                    exact_toolchain_sources: &self.exact_toolchain_sources,
                 })
-                .ok_or("selected source invocation has no complete operand identity")
+                .ok_or_else(|| {
+                    format!(
+                        "selected source invocation has no complete operand identity: {form} \
+                         operand `{}` supplied by `{}`",
+                        self.source.symbols.display_path(operand.symbol, "::"),
+                        self.source.symbols.display_path(selection_owner, "::"),
+                    )
+                })
         };
-        let retained = identity(selection)?;
+        let retained = identity(selection, "retained")?;
         let mut explicit = selection.clone();
         explicit.type_reference = Default::default();
-        if identity(&explicit)? != retained {
+        if identity(&explicit, "explicit")? != retained {
             return Err("selected source invocation changed its complete operand tuple".into());
         }
         // This is the requested public declaration only. The probe closes its
@@ -1075,6 +1089,18 @@ pub(crate) mod tests {
     // interpreter all see these actual programs. No accepted callee or artifact
     // is fabricated by this helper.
     pub(crate) fn typed(source: &str) -> TypedTrees {
+        typed_with_custody(
+            source,
+            source::SourceOrigin::User,
+            semantic_vocabulary::PackageKeyIdentity::from_digest([1; 32]),
+        )
+    }
+
+    fn typed_with_custody(
+        source: &str,
+        origin: source::SourceOrigin,
+        package: Option<semantic_vocabulary::PackageKeyIdentity>,
+    ) -> TypedTrees {
         let tokens = source_files_to_tokens::Lexer::new(source)
             .tokenize()
             .expect("lex source");
@@ -1084,8 +1110,8 @@ pub(crate) mod tests {
             "/job/policy.omg".into(),
             source.into(),
             "/job".into(),
-            semantic_vocabulary::PackageKeyIdentity::from_digest([1; 32]),
-            source::SourceOrigin::User,
+            package,
+            origin,
         );
         let mut request = syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax);
         request.sources = Some(Arc::new(sources));
@@ -2124,6 +2150,161 @@ pub(crate) mod tests {
             };
             assert!(error.contains("requires"), "{error}");
         }
+    }
+
+    #[test]
+    fn bare_selected_entries_keep_their_exact_toolchain_source_identity() {
+        use typed_trees::type_identity::{
+            DeclaredStaticOperandIdentityRequest, IndexIdentityArgument,
+        };
+
+        let authored = "public trait Policy {
+                 machine plan(value: u64) -> u64 requires value > 0 ensures result > 0;
+             }
+             Local satisfies Policy {
+                 machine plan(value: u64) -> u64 requires true
+                 ensures result == 41u64 { 41u64 }
+             }
+             Other satisfies Policy {
+                 machine plan(value: u64) -> u64 requires true
+                 ensures result == 42u64 { 42u64 }
+             }
+             machine request() -> u64 { Local::plan(7u64) }";
+        let prepare = |text: &str| {
+            PreparedBuildMachineProgram::prepare(
+                &typed_with_custody(text, source::SourceOrigin::Toolchain, None),
+                None,
+            )
+            .unwrap()
+        };
+        let program = prepare(authored);
+        let source = program.typed();
+        let (requester, expression) = returned_source_call(source, "request");
+        let call = source.expression_table.call_node(expression).unwrap();
+        let (operand, owner) = source
+            .source_call_selected_operand(
+                requester,
+                typed_trees::references::StaticArgumentCall::Expression(expression, call),
+            )
+            .unwrap();
+        assert!(
+            operand.application.is_none(),
+            "a bare private implementation"
+        );
+        let identity = |sources: &[(source::SourceId, [u8; 32])]| {
+            source.declared_static_operand_identity(DeclaredStaticOperandIdentityRequest {
+                operand: IndexIdentityArgument::StaticArgument(&operand),
+                lexical_owner: owner,
+                binders: &[],
+                lifetime_binders: &[],
+                exact_toolchain_sources: sources,
+            })
+        };
+        assert!(
+            identity(&[]).is_none(),
+            "missing exact source ownership refuses"
+        );
+        let retained = identity(&program.exact_toolchain_sources)
+            .expect("the complete schema and selected callable retain exact source owners");
+
+        let mut captured_source = source.clone();
+        let mut captured = operand.clone().into_owned();
+        if captured.path.is_empty() {
+            captured.path = vec![typed_trees::name::Identifier::from(
+                captured_source.symbols.name(captured.symbol),
+            )]
+            .into_boxed_slice();
+        }
+        captured.type_reference = captured_source
+            .static_operand_type_reference_in_scope(&captured, owner)
+            .unwrap();
+        assert_eq!(
+            captured_source.static_operand_region_supplier(&captured, owner),
+            Ok(owner),
+            "local comparison keeps the complete captured tuple without portable source context",
+        );
+        captured.symbol = captured_source
+            .conformances()
+            .iter()
+            .find(|implementation| {
+                implementation
+                    .alias
+                    .as_ref()
+                    .is_some_and(|name| name.as_str() == "Other")
+            })
+            .unwrap()
+            .symbol;
+        assert_eq!(
+            captured_source.static_operand_region_supplier(&captured, owner),
+            Err("static operand changed its retained selected application"),
+            "a different selected declaration cannot replace the captured tuple",
+        );
+
+        let entry = program
+            .entry_selected(
+                requester,
+                owner,
+                &operand,
+                call.target_symbol,
+                &[BuildTimeValue::Int(7)],
+            )
+            .expect("a bare private selection uses the same complete identity route");
+        let mut accounting = crate::SourceCompletionAccounting::default();
+        assert_eq!(
+            entry
+                .invoke_recorded(target(), &mut accounting)
+                .unwrap()
+                .value(),
+            &BuildTimeValue::Int(41)
+        );
+        let refusal = program
+            .entry_selected(
+                requester,
+                owner,
+                &operand,
+                call.target_symbol,
+                &[BuildTimeValue::Int(0)],
+            )
+            .err()
+            .expect("the selected public requirement still applies");
+        assert!(refusal.contains("requires"), "{refusal}");
+
+        // Identical declarations in a different retained toolchain revision
+        // cannot acquire the original operation-record identity.
+        let changed = prepare(&format!(
+            "{authored}\n// different retained source revision\n"
+        ));
+        let (changed_requester, changed_expression) =
+            returned_source_call(changed.typed(), "request");
+        let changed_call = changed
+            .typed()
+            .expression_table
+            .call_node(changed_expression)
+            .unwrap();
+        let (changed_operand, changed_owner) = changed
+            .typed()
+            .source_call_selected_operand(
+                changed_requester,
+                typed_trees::references::StaticArgumentCall::Expression(
+                    changed_expression,
+                    changed_call,
+                ),
+            )
+            .unwrap();
+        let changed_identity = changed
+            .typed()
+            .declared_static_operand_identity(DeclaredStaticOperandIdentityRequest {
+                operand: IndexIdentityArgument::StaticArgument(&changed_operand),
+                lexical_owner: changed_owner,
+                binders: &[],
+                lifetime_binders: &[],
+                exact_toolchain_sources: &changed.exact_toolchain_sources,
+            })
+            .unwrap();
+        assert_ne!(
+            source.type_identity_text(retained),
+            changed.typed().type_identity_text(changed_identity),
+        );
     }
 
     #[test]

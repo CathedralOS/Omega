@@ -57,6 +57,7 @@ pub(super) fn publish(
                         lexical_owner: *owner,
                         binders: &[],
                         lifetime_binders: &[],
+                        exact_toolchain_sources: sources,
                     },
                 )
                 .ok_or("selected application has no complete argument identity")?;
@@ -160,6 +161,7 @@ pub(super) fn publish(
                         lexical_owner: source_owner,
                         binders: &[],
                         lifetime_binders: &[],
+                        exact_toolchain_sources: sources,
                     },
                 )
                 .and_then(|identity| typed.type_identity_text(identity))
