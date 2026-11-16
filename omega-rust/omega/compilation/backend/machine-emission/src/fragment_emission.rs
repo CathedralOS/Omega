@@ -73,7 +73,11 @@ pub(crate) fn validate_optimized_function_fragment_emission(
     staged: &StagedOptimizedFunctionFragmentEmission,
 ) -> Result<StagedFunctionFragmentEmissionCustodyReceipt, FunctionFragmentEmissionError> {
     validate_source(&staged.source)?;
-    validate_resolved_function_fragments(staged.source.program(), &staged.fragments)?;
+    validate_resolved_function_fragments(
+        &staged.source.replay().shared_selected_plan(),
+        staged.source.program(),
+        &staged.fragments,
+    )?;
     validate_manifest(staged)?;
     let expected = receipt(&staged.manifest, &staged.fragments);
     if staged.custody != expected {
@@ -227,27 +231,17 @@ impl FunctionFragmentReplayInputs {
     }
 
     fn allocation(&self) -> &selected_instructions_to_register_homes::RetainedAllocation {
-        self.realization.allocation()
+        &self.realization.replay().allocation
     }
 
-    pub fn machine(&self) -> &crate::AllocatedMachinePlan {
-        self.realization.machine()
+    pub fn machine(
+        &self,
+    ) -> &register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan {
+        &self.realization.replay().machine
     }
 
     pub(crate) fn layout_optimization(&self) -> &crate::OptimizedFunctionLayout {
         self.realization.layout_optimization()
-    }
-
-    pub fn register_homes(
-        &self,
-    ) -> &selected_instructions_to_register_homes::AssignedRegisterHomes {
-        self.allocation().current().homes()
-    }
-
-    pub fn register_environment(
-        &self,
-    ) -> &register_environment::ValidatedTargetRegisterEnvironment {
-        self.allocation().current().register_environment()
     }
 
     pub const fn exit_contract(&self) -> &StagedWholeFunctionExitContract {
@@ -263,7 +257,10 @@ impl FunctionFragmentReplayInputs {
     pub fn post_allocation_manifest(
         &self,
     ) -> &selected_instructions_to_register_homes::ValidatedPostAllocationOptimizationManifest {
-        self.allocation().current().post_allocation_manifest()
+        &self
+            .realization
+            .publication_receipts()
+            .post_allocation_manifest
     }
 
     pub fn shared_selected_plan(&self) -> Arc<SelectedInstructionPlan> {
@@ -273,17 +270,23 @@ impl FunctionFragmentReplayInputs {
             .shared_selected_plan()
     }
 
-    pub fn encoding(&self) -> &crate::EncodedFunction {
-        self.realization.encoding()
+    pub fn target_input_owner(
+        &self,
+    ) -> &Arc<abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations> {
+        &self.realization.replay().target_input
+    }
+
+    pub fn encoding(
+        &self,
+    ) -> &post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding
+    {
+        &self.realization.replay().encoding
     }
 }
 
 #[derive(Debug, Clone)]
 struct CurrentFunctionFragmentInput {
     program: ResolvedMachineProgram,
-    machine: crate::AllocatedMachinePlan,
-    homes: selected_instructions_to_register_homes::AssignedRegisterHomes,
-    environment: register_environment::ValidatedTargetRegisterEnvironment,
     exit: StagedWholeFunctionExitContract,
     manifest: ValidatedFunctionRelativeOptimizationRealizationManifest,
     post_allocation_manifest:
@@ -293,30 +296,19 @@ struct CurrentFunctionFragmentInput {
 
 impl CurrentFunctionFragmentInput {
     fn retain(
-        replay: &FunctionFragmentReplayInputs,
+        realization: &StagedFixedFrameFunctionRelativeRealization,
         target_input: Arc<
             abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations,
         >,
     ) -> Self {
-        let machine = replay.machine().clone();
-        let homes = replay.register_homes().clone();
         Self {
-            program: ResolvedMachineProgram {
-                selected: replay.shared_selected_plan(),
-                homes: homes.shared_plan(),
-                effects: Arc::clone(machine.effects()),
-                machine: machine.machine().shared_plan(),
-                encoding: replay.encoding().shared_program(),
-                layout: replay.layout_optimization().shared_layout(),
-                frame: replay.fixed_frame().frame().shared_plan(),
-                protocol: replay.fixed_frame().protocol().shared_plan(),
-            },
-            machine,
-            homes,
-            environment: replay.register_environment().clone(),
-            exit: replay.exit_contract().clone(),
-            manifest: replay.function_relative_manifest().clone(),
-            post_allocation_manifest: replay.post_allocation_manifest().clone(),
+            program: realization.layout_optimization().program().clone(),
+            exit: realization.exit_contract().clone(),
+            manifest: realization.manifest().clone(),
+            post_allocation_manifest: realization
+                .publication_receipts()
+                .post_allocation_manifest
+                .clone(),
             target_input,
         }
     }
@@ -326,29 +318,21 @@ impl CurrentFunctionFragmentInput {
         replay: &FunctionFragmentReplayInputs,
     ) -> Result<(), FunctionFragmentEmissionError> {
         let ResolvedMachineProgram {
-            selected,
-            homes,
-            effects,
-            machine,
+            frame_identity,
+            protocol_identity,
+            instructions,
             encoding,
             layout,
             frame,
             protocol,
         } = &self.program;
-        if selected != &replay.shared_selected_plan()
-            || !matches_shared_plan(homes, replay.register_homes().plan())
-            || !matches_shared_plan(effects, replay.machine().effects())
-            || !matches_shared_plan(machine, replay.machine().machine().plan())
+        if *frame_identity != replay.fixed_frame().frame().receipt().identity()
+            || *protocol_identity != replay.fixed_frame().protocol().receipt().identity()
+            || instructions != replay.machine().current()
             || !matches_shared_plan(encoding, replay.encoding().program())
             || !matches_shared_plan(layout, replay.layout_optimization().layout())
             || !matches_shared_plan(frame, replay.fixed_frame().frame().plan())
             || !matches_shared_plan(protocol, replay.fixed_frame().protocol().plan())
-            || self.machine.effects() != replay.machine().effects()
-            || self.machine.machine() != replay.machine().machine()
-            || self.machine.optimization() != replay.machine().optimization()
-            || self.machine.custody() != replay.machine().custody()
-            || &self.homes != replay.register_homes()
-            || &self.environment != replay.register_environment()
             || &self.exit != replay.exit_contract()
             || &self.manifest != replay.function_relative_manifest()
             || &self.post_allocation_manifest != replay.post_allocation_manifest()
@@ -374,28 +358,18 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
         &self.current.program
     }
 
-    pub fn machine(&self) -> &crate::AllocatedMachinePlan {
-        &self.current.machine
-    }
-
     pub fn resolved_layout(&self) -> &ResolvedMachineLayout {
         &self.current.program.layout
     }
 
-    pub fn selected_plan(&self) -> &SelectedInstructionPlan {
-        &self.current.program.selected
-    }
-
-    pub fn register_homes(
-        &self,
-    ) -> &selected_instructions_to_register_homes::AssignedRegisterHomes {
-        &self.current.homes
+    pub fn physical_program(&self) -> &post_allocation_machine::PostAllocationMachineProgram {
+        &self.current.program.instructions
     }
 
     pub fn register_environment(
         &self,
     ) -> &register_environment::ValidatedTargetRegisterEnvironment {
-        &self.current.environment
+        &self.physical_program().environment
     }
 
     pub fn encoding(&self) -> &machine_code::SelectedFormEncoding {
@@ -466,11 +440,9 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
             abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations,
         >,
     ) -> Result<Self, FunctionFragmentEmissionError> {
+        let current = CurrentFunctionFragmentInput::retain(&realization, target_input);
         let replay = FunctionFragmentReplayInputs::from(realization);
-        let source = Self {
-            current: CurrentFunctionFragmentInput::retain(&replay, target_input),
-            replay,
-        };
+        let source = Self { current, replay };
         source.validate_target_input()?;
         Ok(source)
     }
@@ -493,7 +465,8 @@ fn validate_source(
     source.validate_current()?;
     source.validate_target_input()?;
     let expected_allocation_recovery = source
-        .optimized_target()
+        .replay()
+        .target_input_owner()
         .optimized()
         .selections()
         .for_phase(optimization_core::OptimizationExecutionPhase::AllocationRecovery)
@@ -728,9 +701,9 @@ pub(crate) fn function_fragment_emission_statistics(
 pub(crate) fn emit_resolved_function_fragments(
     program: &ResolvedMachineProgram,
 ) -> Result<FunctionFragmentEmissionPlan, ResolvedFragmentEmissionError> {
-    let selected = &program.selected;
+    let selected = &program.instructions;
     let layout = &program.layout;
-    if selected.target != layout.target || layout.selected != program.machine.selected {
+    if selected.target != layout.target || layout.selected != selected.machine.selected {
         return Err(ResolvedFragmentEmissionError::RootMismatch);
     }
     let mut fragments = FunctionFragmentEmissionPlan {
@@ -745,7 +718,7 @@ pub(crate) fn emit_resolved_function_fragments(
     if selected.functions.len() != layout.functions.len() {
         return Err(ResolvedFragmentEmissionError::RootMismatch);
     }
-    for function in &selected.functions {
+    for function in selected.functions.iter() {
         let resolved = layout.function(function.machine).ok_or(
             ResolvedFragmentEmissionError::MissingFunction(function.machine),
         )?;
@@ -759,7 +732,7 @@ pub(crate) fn emit_resolved_function_fragments(
 }
 
 fn emit_ordinary_function(
-    selected: &SelectedFunction,
+    selected: &post_allocation_machine::PhysicalFunction,
     resolved: &ResolvedSelectedFunctionLayout,
 ) -> Result<FunctionFragment, ResolvedFragmentEmissionError> {
     let mut bytes = Vec::new();
@@ -783,7 +756,7 @@ fn emit_ordinary_function(
 }
 
 fn emit_block(
-    selected: &SelectedFunction,
+    selected: &post_allocation_machine::PhysicalFunction,
     resolved: &ResolvedSelectedBlockLayout,
     bytes: &mut Vec<u8>,
 ) -> Result<FunctionFragmentBlockSpan, ResolvedFragmentEmissionError> {
@@ -832,7 +805,7 @@ fn emit_block(
 }
 
 fn control_provenance(
-    function: &SelectedFunction,
+    function: &selected_instructions::SelectedFunctionContracts,
     block: &SelectedBlock,
     instruction: &SelectedInstruction,
 ) -> Result<FunctionFragmentControlProvenance, ResolvedFragmentEmissionError> {
@@ -992,7 +965,7 @@ fn successor_provenance(successor: &SelectedSuccessor) -> FunctionFragmentSucces
 }
 
 fn emit_instruction(
-    function: &SelectedFunction,
+    function: &selected_instructions::SelectedFunctionContracts,
     block: &SelectedBlock,
     instruction: &SelectedInstruction,
     row: &ResolvedSelectedFormRow,
@@ -1206,16 +1179,16 @@ fn translate_foreign_fixup(
 }
 
 pub(crate) fn validate_resolved_function_fragments(
+    selected: &SelectedInstructionPlan,
     program: &ResolvedMachineProgram,
     fragments: &FunctionFragmentEmissionPlan,
 ) -> Result<(), ResolvedFragmentEmissionError> {
-    let selected = &program.selected;
     let layout = &program.layout;
     require(
         fragments.psi == selected.psi
             && fragments.work_schedule == selected.work_schedule
             && fragments.selected == layout.selected
-            && layout.selected == program.machine.selected
+            && layout.selected == program.instructions.machine.selected
             && fragments.target == selected.target
             && layout.target == selected.target
             && fragments.entry == selected.entry,
@@ -1658,7 +1631,7 @@ mod tests {
         ResolvedSelectedBlockLayout, ResolvedSelectedFormRow, ResolvedSelectedFunctionLayout,
         SelectedFormInternalMachineFixupState, SelectedFunction, SelectedInstruction,
         SelectedInstructionKind, SelectedSuccessor, SelectedTerminator, check_successor_provenance,
-        emit_ordinary_function, translate_fixup, translate_foreign_fixup,
+        translate_fixup, translate_foreign_fixup,
     };
     use machine_code::{SelectedFormInternalMachineFixup, SelectedFormInternalMachineFixupKind};
     use register_model::{RegisterConstraintFamily, RegisterConstraintKey};
@@ -1805,6 +1778,18 @@ mod tests {
         let mut missing = detached;
         missing.internal_machine_fixup = None;
         assert!(translate_fixup(&missing, &selected).is_err());
+    }
+
+    fn emit_ordinary_function(
+        selected: &SelectedFunction,
+        layout: &ResolvedSelectedFunctionLayout,
+    ) -> Result<machine_code::FunctionFragment, ResolvedFragmentEmissionError> {
+        let current = post_allocation_machine::PhysicalFunction {
+            contracts: std::sync::Arc::clone(&selected.contracts),
+            entry_block: selected.entry_block,
+            blocks: selected.blocks.clone(),
+        };
+        super::emit_ordinary_function(&current, layout)
     }
 
     fn fixture(instruction_count: u32) -> (SelectedFunction, ResolvedSelectedFunctionLayout) {

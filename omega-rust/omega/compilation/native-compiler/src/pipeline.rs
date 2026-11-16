@@ -155,34 +155,22 @@ pub(crate) fn emit_target(
         })
         .map_err(OptimizedVerifiedPhysicalPipelineError::SelectedOptimization)
     }?;
-    let machine = {
-        let allocation = {
-            observation.enter(NativePipelineStage::RegisterAllocation);
-            stage_register_allocation(selected.into_selected_output())
-                .map_err(OptimizedVerifiedPhysicalPipelineError::RegisterAllocation)
-        }?;
-        observation.enter(NativePipelineStage::PostAllocationMachine);
-        let current = allocation.current();
-        stage_optimized_post_allocation_machine_plan(
-            allocation.clone(),
-            current.register_environment(),
-            current.selections(),
-            current.budget_per_pass(),
-        )
-        .map_err(OptimizedVerifiedPhysicalPipelineError::PostAllocationMachine)
+    let allocation = {
+        observation.enter(NativePipelineStage::RegisterAllocation);
+        stage_register_allocation(selected.into_selected_output())
+            .map_err(OptimizedVerifiedPhysicalPipelineError::RegisterAllocation)
     }?;
-    // Stage 09's selections and the work budget are configuration the
-    // allocation carries; read them through stage 06 before framing takes it.
-    let selections = machine
-        .source()
-        .current()
-        .selections()
-        .project_phase(OptimizationExecutionPhase::FunctionRelativeLayout);
-    let budget = machine.source().current().budget_per_pass();
+    let machine = {
+        observation.enter(NativePipelineStage::PostAllocationMachine);
+        stage_optimized_post_allocation_machine_plan(allocation.facts())
+            .map_err(OptimizedVerifiedPhysicalPipelineError::PostAllocationMachine)
+    }?;
+    let current = allocation.current();
     let framed = machine_emission::stage_function_frame(
-        machine,
+        machine.current().clone(),
         machine_emission::frame_layout::TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
     )?;
+    let (framed, frame) = framed.into_parts();
     let encoding = {
         observation.enter(NativePipelineStage::SelectedFormEncoding);
         stage_optimized_layout_independent_selected_form_encoding(framed)
@@ -190,15 +178,38 @@ pub(crate) fn emit_target(
     }?;
     let layout = {
         observation.enter(NativePipelineStage::ResolvedLayout);
-        stage_optimized_resolved_selected_form_layout(encoding)
+        stage_optimized_resolved_selected_form_layout(encoding.current())
             .map_err(FunctionRelativeOptimizationRealizationError::Layout)
     }?;
     let optimized_layout = {
         observation.enter(NativePipelineStage::LayoutOptimization);
-        execute_resolved_layout_optimization(layout, &selections, budget)
-            .map_err(FunctionRelativeOptimizationRealizationError::LayoutOptimization)
+        execute_resolved_layout_optimization(
+            layout.current(),
+            &current
+                .selections()
+                .project_phase(OptimizationExecutionPhase::FunctionRelativeLayout),
+            current.budget_per_pass(),
+        )
+        .map_err(FunctionRelativeOptimizationRealizationError::LayoutOptimization)
     }?;
-    let realization = machine_emission::assemble_fixed_frame_realization(optimized_layout)?;
+    let realization = machine_emission::assemble_fixed_frame_realization(
+        machine_emission::FixedFrameRealizationInput {
+            current: optimized_layout,
+            receipts: machine_emission::FunctionRelativePublicationReceipts::capture(
+                &current,
+                &machine,
+                frame,
+                target_input.optimized().pre_physical_manifest().identity,
+            ),
+            replay: machine_emission::FunctionRealizationReplay {
+                allocation,
+                target_input: std::sync::Arc::clone(&target_input),
+                machine,
+                encoding,
+                baseline_layout: layout,
+            },
+        },
+    )?;
     let physical = StagedOptimizedFunctionFragmentEmissionSource::new(realization, target_input)
         .map_err(|error| {
             BodyEmissionError::Object(vec![diagnostics::Diagnostic::error(format!(

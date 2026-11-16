@@ -239,7 +239,7 @@ mod tests {
             let encoded = source.encode();
             assert_eq!(&encoded[8..12], &50_u32.to_le_bytes());
             assert_eq!(PreAllocationMachineEffectPlan::decode(&encoded), Ok(source));
-            for version in (0_u32..49).chain([50]) {
+            for version in (0_u32..50).chain([51]) {
                 let mut wrong_version = encoded.clone();
                 crate::codec_bytes::patch_encoded(&mut wrong_version, 8, version.to_le_bytes());
                 assert_eq!(

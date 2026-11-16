@@ -13,7 +13,7 @@ be projected onto concrete physical storage, read, and write units.
 Our stage (`stage_optimized_post_allocation_machine_plan`) executes in three
 deterministic steps:
 
-    AllocatedProgramSource + ValidatedTargetRegisterEnvironment
+    AllocatedProgramFacts (including its register environment)
       |
       |  1. plan::compute_post_allocation_machine_plan (:UniqueApplicableChoice)
       v
@@ -59,17 +59,17 @@ target instruction definitions in one place.
 /*
 Provenance and custody boundaries:
 
-We borrow `AllocatedProgramFacts` through a retained `AllocatedProgramSource`
-from `register-homes` (produced by Stage 05), alongside the
-`ValidatedTargetRegisterEnvironment` from `register-environment`. We produce
-`StagedOptimizedPostAllocationMachinePlan`, which keeps that source for frame
-planning and pairs the sealed `ValidatedPostAllocationMachinePlan`
-(`post-allocation-machine`) with the shared
+We consume `AllocatedProgramFacts` from `register-homes` (produced by Stage 05),
+including its settled preservation requirements and register environment. We
+produce `StagedOptimizedPostAllocationMachinePlan`, which pairs the sealed
+`ValidatedPostAllocationMachinePlan` (`post-allocation-machine`) with the shared
 `PreAllocationMachineEffectPlan`, the `PostAllocationMachineOptimizationRun`
 evidence, and a `StagedOptimizedPostAllocationMachineCustodyReceipt`
 (`:PostAllocationCustody`). Stage 07 (`post-allocation-machine-to-selected-form-encoding`)
-and backend machine emission consume this staged plan to encode layout-independent
-instruction bytes and frame-slot accesses.
+and backend machine emission read its current `PostAllocationMachineProgram`.
+That form owns physical choices and shares the exact unchanged function
+instruction/contract chunks. It retains no selected-program container or
+allocation callback.
 */
 
 #![forbid(unsafe_code)]
@@ -113,12 +113,9 @@ mod plan;
 
 use std::sync::Arc;
 
-use optimization_core::{
-    OptimizationSelectionIdentity, OptimizationSelections, OptimizationWorkBudget,
-};
+use optimization_core::OptimizationSelectionIdentity;
 use post_allocation_machine::PostAllocationMachineIdentity;
-use register_environment::ValidatedTargetRegisterEnvironment;
-use register_homes::AllocatedProgramSource;
+use register_homes::AllocatedProgramFacts;
 use selected_instructions::PreAllocationMachineEffectPlan;
 
 use optimization::execute_post_allocation_machine_optimizations;
@@ -131,16 +128,10 @@ pub use plan::{
     PostAllocationMachineError, PostAllocationMachineReceipt, ValidatedPostAllocationMachinePlan,
 };
 
-pub fn stage_optimized_post_allocation_machine_plan<Source: AllocatedProgramSource>(
-    source: Source,
-    environment: &ValidatedTargetRegisterEnvironment,
-    selections: &OptimizationSelections,
-    budget: OptimizationWorkBudget,
-) -> Result<
-    StagedOptimizedPostAllocationMachinePlan<Source>,
-    OptimizedPostAllocationMachinePipelineError,
-> {
-    let allocation = source.allocation_facts();
+pub fn stage_optimized_post_allocation_machine_plan(
+    allocation: AllocatedProgramFacts<'_>,
+) -> Result<StagedOptimizedPostAllocationMachinePlan, OptimizedPostAllocationMachinePipelineError> {
+    let environment = allocation.environment;
     let mut machine = compute_post_allocation_machine_plan(&PlanSources {
         allocation,
         register_environment: environment.identity(),
@@ -152,34 +143,33 @@ pub fn stage_optimized_post_allocation_machine_plan<Source: AllocatedProgramSour
         &mut machine,
         allocation.selected.plan,
         allocation.effects,
-        selections,
-        budget,
+        allocation.selections,
+        allocation.budget,
     )
     .map_err(OptimizedPostAllocationMachinePipelineError::Optimization)?;
     let machine = seal_post_allocation_machine_plan(machine)
         .map_err(OptimizedPostAllocationMachinePipelineError::PostAllocation)?;
-    Ok(seal_staged_post_allocation_machine(
-        Arc::clone(allocation.effects),
-        machine,
-        optimization,
-        source,
-    ))
-}
-
-fn seal_staged_post_allocation_machine<Source>(
-    effects: Arc<PreAllocationMachineEffectPlan>,
-    machine: ValidatedPostAllocationMachinePlan,
-    optimization: PostAllocationMachineOptimizationRun,
-    source: Source,
-) -> StagedOptimizedPostAllocationMachinePlan<Source> {
+    let mut current = post_allocation_machine::PostAllocationMachineProgram {
+        contracts: Arc::clone(&allocation.selected.plan.contracts),
+        psi: allocation.selected.plan.psi,
+        work_schedule: allocation.selected.work_schedule,
+        entry: allocation.selected.plan.entry,
+        machine: machine.shared_plan(),
+        environment: environment.clone(),
+        preservation: allocation.preservation.clone(),
+        functions: allocation.selected.plan.functions.clone(),
+        identity: [0; 32],
+    };
+    current.identity = current.recomputed_identity();
+    let effects = Arc::clone(allocation.effects);
     let custody = post_allocation_machine_custody(&effects, &machine, &optimization);
-    StagedOptimizedPostAllocationMachinePlan {
-        source,
+    Ok(StagedOptimizedPostAllocationMachinePlan {
+        current,
         effects,
         machine,
         optimization,
         custody,
-    }
+    })
 }
 
 fn post_allocation_machine_custody(
@@ -201,17 +191,17 @@ fn post_allocation_machine_custody(
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StagedOptimizedPostAllocationMachinePlan<Source> {
-    source: Source,
+pub struct StagedOptimizedPostAllocationMachinePlan {
+    current: post_allocation_machine::PostAllocationMachineProgram,
     effects: Arc<PreAllocationMachineEffectPlan>, // Retained pre-allocation machine effects paired with the plan.
     machine: ValidatedPostAllocationMachinePlan,  // Sealed post-allocation physical machine plan.
     optimization: PostAllocationMachineOptimizationRun, // Post-allocation optimization phase run evidence.
     custody: StagedOptimizedPostAllocationMachineCustodyReceipt, // Custody receipt binding effects, machine, and phase run.
 }
 
-impl<Source> StagedOptimizedPostAllocationMachinePlan<Source> {
+impl StagedOptimizedPostAllocationMachinePlan {
     borrowed_accessors! {
-        source: Source,
+        current: post_allocation_machine::PostAllocationMachineProgram,
         effects: Arc<PreAllocationMachineEffectPlan>,
         machine: ValidatedPostAllocationMachinePlan,
         optimization: PostAllocationMachineOptimizationRun,

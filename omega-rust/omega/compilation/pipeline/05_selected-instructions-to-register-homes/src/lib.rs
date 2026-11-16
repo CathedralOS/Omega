@@ -79,7 +79,6 @@ macro_rules! stage_error_display {
     };
 }
 
-pub(crate) use optimization_core::digest_encoder;
 #[macro_use]
 extern crate selected_instruction_analyses;
 

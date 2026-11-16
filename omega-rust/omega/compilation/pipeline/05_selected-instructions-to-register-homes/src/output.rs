@@ -100,8 +100,15 @@ pub(crate) mod current {
             })
         }
 
-        pub(crate) fn facts(&self) -> AllocatedProgramFacts<'_> {
+        pub(crate) fn facts<'a>(
+            &'a self,
+            preservation: &'a register_homes::AllocatedCalleeSavedRequirements,
+        ) -> AllocatedProgramFacts<'a> {
             AllocatedProgramFacts {
+                preservation,
+                environment: &self.environment,
+                selections: &self.selections,
+                budget: self.budget,
                 selected: self.selected.current_program(),
                 effects: &self.effects,
                 ranges: self.ranges.plan(),
@@ -210,6 +217,7 @@ pub(crate) mod retained {
     #[derive(Debug, Clone)]
     pub struct RetainedAllocation {
         current: Arc<super::current::CurrentAllocation>,
+        requirements: crate::ValidatedAllocatedCalleeSavedRequirements,
     }
 
     impl RetainedAllocation {
@@ -222,7 +230,11 @@ pub(crate) mod retained {
         }
 
         pub fn facts(&self) -> register_homes::AllocatedProgramFacts<'_> {
-            self.current.facts()
+            self.current.facts(self.requirements.retained())
+        }
+
+        pub fn preservation(&self) -> &crate::ValidatedAllocatedCalleeSavedRequirements {
+            &self.requirements
         }
 
         fn capture(
@@ -230,18 +242,21 @@ pub(crate) mod retained {
             runtime_spill_prefix_selection: Option<optimization_core::Optimization>,
         ) -> Result<Self, AllocationAdmissionError> {
             validate_recovery_selection(current, runtime_spill_prefix_selection)?;
+            // Recovery has finished changing instructions and homes. Derive the
+            // preservation facts here, once, before physical lowering starts.
+            let requirements = crate::stage_allocated_callee_saved_requirements(
+                current,
+                crate::AllocatedCalleeSavedRequirementPolicy::AllocatedSelectedWritesIntersectAbiPreservationV1,
+                current.budget_per_pass(),
+            )
+            .map_err(AllocationAdmissionError::Preservation)?;
             Ok(Self {
+                requirements,
                 current: Arc::new(
                     super::current::CurrentAllocation::capture(current)
                         .map_err(AllocationAdmissionError::MachineEffects)?,
                 ),
             })
-        }
-    }
-
-    impl register_homes::AllocatedProgramSource for RetainedAllocation {
-        fn allocation_facts(&self) -> register_homes::AllocatedProgramFacts<'_> {
-            self.facts()
         }
     }
 
@@ -481,6 +496,7 @@ pub enum AllocationEvidence {
 pub enum AllocationAdmissionError {
     SelectionMismatch,
     MachineEffects(selected_instruction_analyses::MachineEffectStageError),
+    Preservation(crate::AllocatedCalleeSavedRequirementError),
 }
 
 stage_error_display!(AllocationAdmissionError, "allocation admission failed");

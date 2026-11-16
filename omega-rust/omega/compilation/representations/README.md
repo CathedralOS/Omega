@@ -17,7 +17,7 @@ tokens or replay evidence a stage keeps beside it.
 | `target-operations/` | [`TargetOperationPlan`](target-operations/src/lib.rs) | [Omega 02](../pipeline/02_abstract-operations-to-target-operations/src/lib.rs) lowers abstract operations with target and provider settlements; Omega 03 consumes the resulting target program. |
 | `selected-instructions/` | [`SelectedInstructionPlan`](selected-instructions/src/lib.rs) | [Omega 03](../pipeline/03_target-operations-to-selected-instructions/src/optimized.rs) legalizes target operations and selects instructions; [Omega 04](../pipeline/04_selected-instructions-to-selected-instructions/src/selected_optimization.rs) rewrites that same program form; Omega 05 assigns register homes. |
 | `register-homes/` | [`AllocatedProgram`](register-homes/src/lib.rs), including [`RegisterHomePlan`](register-homes/src/lib.rs) | [Omega 05](../pipeline/05_selected-instructions-to-register-homes/src/register_allocation.rs) consumes the selected program and publishes its current allocation; Omega 06 consumes the replayed allocation. |
-| `post-allocation-machine/` | [`PostAllocationMachinePlan`](post-allocation-machine/src/lib.rs) | [Omega 06](../pipeline/06_register-homes-to-post-allocation-machine/src/lib.rs) derives physical machine instructions from the allocation; Omega 07 encodes them (`post-allocation-machine`). |
+| `post-allocation-machine/` | [`PostAllocationMachineProgram`](post-allocation-machine/src/program.rs), including physical choices in [`PostAllocationMachinePlan`](post-allocation-machine/src/lib.rs) | [Omega 06](../pipeline/06_register-homes-to-post-allocation-machine/src/lib.rs) derives physical machine instructions and carries settled preservation requirements; frame planning and Omega 07 read that current form. |
 | `machine-code/` | Encoding, resolved-layout, and emitted-code roots listed below | Omega 07–09 and backend emission share this family while retaining distinct program forms. |
 
 Three more representation packages sit inside their program families:
@@ -73,15 +73,15 @@ type; the folder is not one IR:
 
 | Program form | Root and operation |
 | --- | --- |
-| Framed machine program | [`FramedMachineProgram`](machine-code/src/machine_forms.rs): the post-allocation machine plan with its frame layout, and the selected program and register model it was allocated against. [Backend machine emission](../backend/machine-emission/src/function_realization.rs) produces it when it computes the frame; it is the one form Omega 07 reads. |
-| Layout-independent selected-form encoding | [`SelectedFormEncoding`](machine-code/src/encoding.rs), produced by [Omega 07](../pipeline/07_post-allocation-machine-to-selected-form-encoding/src/lib.rs) from the framed machine program, which its output keeps. |
-| Function-relative resolved layout | [`ResolvedMachineLayout`](machine-code/src/layout.rs), produced by [Omega 08](../pipeline/08_selected-form-encoding-to-resolved-layout/src/lib.rs) from Omega 07's output, which its output keeps. [Omega 09](../pipeline/09_resolved-layout-to-resolved-layout/src/lib.rs) optimizes the same layout type and keeps Omega 08's output. Each stage reads its input through the traits in [`machine_forms.rs`](machine-code/src/machine_forms.rs), so final assembly takes Omega 09's output alone. |
+| Framed machine program | [`FramedMachineProgram`](machine-code/src/layout.rs): current physical instructions and function contracts with concrete frame coordinates and protocol. [Backend machine emission](../backend/machine-emission/src/function_realization.rs) computes it from one current physical program; Omega 07 reads it. |
+| Layout-independent selected-form encoding | [`EncodedMachineProgram`](machine-code/src/layout.rs), produced by [Omega 07](../pipeline/07_post-allocation-machine-to-selected-form-encoding/src/lib.rs), adds actual encoded rows while retaining the current instruction and frame columns. |
+| Function-relative resolved layout | [`ResolvedMachineProgram`](machine-code/src/layout.rs), produced by [Omega 08](../pipeline/08_selected-form-encoding-to-resolved-layout/src/lib.rs), adds exact layout rows. [Omega 09](../pipeline/09_resolved-layout-to-resolved-layout/src/lib.rs) rewrites that layout in the same current form. Final assembly reads the resolved form and checked publication receipts; original stage artifacts remain only in named independent replay custody. |
 | Emitted machine-code program | [`FunctionFragmentEmissionPlan`](machine-code/src/fragments.rs) placed into one [`RelocationFreeTextSectionPlacement`](machine-code/src/layout/text_section.rs), containing target fragments and their executable bytes. [Backend machine emission](../backend/machine-emission/src/lib.rs) owns function realization, fragment emission, frame application, and text placement; object and image owners consume their results. |
 
 [`ResolvedMachineProgram`](machine-code/src/layout.rs)
-holds the selected, allocated, physical, encoding, layout and frame inputs that
-fragment emission shares. It refers to the original representation artifacts;
-it does not embed producer-stage objects or replace the roots above.
+holds current physical instruction/contract, encoding, layout and frame
+columns that fragment emission shares. It contains neither earlier program
+containers nor a chain of producer-stage objects.
 
 ## Supporting data belongs with its domain
 

@@ -739,7 +739,12 @@ fn validate_normalized_foreign_call(
     row: &SelectedFormEncodingRow,
     encoded: &SelectedFormEncodedRowStore,
 ) -> Result<(), Error> {
-    let record = normalized_foreign_call_record(target, instruction, kind, selected_function)?;
+    let record = normalized_foreign_call_record(
+        target,
+        instruction,
+        kind,
+        &selected_function.normalized_foreign_calls,
+    )?;
     if record.call.binding.table_dispatch().is_some() {
         if !matches!(row.state, SelectedFormEncodingState::Encoded) {
             return Err(Error::ArtifactMismatch);

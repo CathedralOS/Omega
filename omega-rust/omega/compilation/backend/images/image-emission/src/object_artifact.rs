@@ -153,11 +153,10 @@ mod carriers {
                 .source();
             Some(NativeInstructionSourceRows {
                 frame_application: source.fragment_replay.as_ref()?.0.source().source(),
-                selected: current.selected_plan(),
+                selected: current.physical_program(),
                 physical: current
-                    .machine()
-                    .machine()
-                    .plan()
+                    .physical_program()
+                    .machine
                     .functions
                     .iter()
                     .flat_map(|function| {
@@ -363,7 +362,7 @@ mod carriers {
 
     pub struct NativeInstructionSourceRows<'a> {
         pub frame_application: &'a machine_emission::StagedFunctionFragmentFrameApplication,
-        pub selected: &'a selected_instructions::SelectedInstructionPlan,
+        pub selected: &'a post_allocation_machine::PostAllocationMachineProgram,
         pub physical: Vec<(MachineId, selected_instructions::SelectedInstructionId)>,
     }
 
@@ -1136,9 +1135,7 @@ pub(crate) mod installed_stack {
         use selected_instructions::{
             MachineEncodedTrapBehavior as Trap, SelectedInstructionKind as Kind,
         };
-        use selected_instructions::{
-            SelectedInstruction, SelectedInstructionId, SelectedInstructionPlan,
-        };
+        use selected_instructions::{SelectedInstruction, SelectedInstructionId};
         use semantic_vocabulary::MachineId;
         mod ram {
             use crate::FunctionFragmentObjectArtifactError as Error;
@@ -1146,13 +1143,12 @@ pub(crate) mod installed_stack {
             use provider_admission::{
                 AdmittedInstalledEntryExecution, AdmittedInstalledInterruptCohort,
             };
-            use selected_instructions::SelectedInstructionPlan;
             use semantic_vocabulary::MachineId;
             use target_operations::{CallSiteOwner, NativeCallTarget};
 
             pub(super) fn validate(
                 source: &AbstractOperationPlan,
-                selected: &SelectedInstructionPlan,
+                selected: &post_allocation_machine::PostAllocationMachineProgram,
                 cohort: &AdmittedInstalledInterruptCohort,
                 execution: &AdmittedInstalledEntryExecution,
                 machines: &[MachineId],
@@ -1189,7 +1185,7 @@ pub(crate) mod installed_stack {
                         "installed RAM helper identity is duplicated",
                     ));
                 }
-                for function in &selected.functions {
+                for function in selected.functions.iter() {
                     let body = bodies
                         .binary_search_by_key(&function.machine, |body| body.machine)
                         .ok()
@@ -1276,8 +1272,8 @@ pub(crate) mod installed_stack {
                 "installed fault analysis requires the exact retained native pipeline",
             ))?;
             let current = replay.0.source().source().source().source();
-            let selected = current.selected_plan();
-            let physical = current.machine().machine().plan();
+            let selected = current.physical_program();
+            let physical = &current.physical_program().machine;
             if selected.psi != body.psi()
                 || selected.entry != body.entry()
                 || physical.target != body.target()
@@ -1435,7 +1431,7 @@ pub(crate) mod installed_stack {
         }
 
         pub fn correlate_native_instruction_sources(
-            selected: &SelectedInstructionPlan,
+            selected: &post_allocation_machine::PostAllocationMachineProgram,
             physical: impl IntoIterator<Item = (MachineId, SelectedInstructionId)>,
         ) -> Result<Vec<(MachineId, &SelectedInstruction)>, Error> {
             let mut instructions: Vec<_> = selected
@@ -1985,11 +1981,11 @@ mod normalized_foreign_calls {
         let section = source.source().text_section();
         let emissions = source.source().source().source().source();
         let optimized = emissions.optimized_target();
-        let selected = emissions.selected_plan();
+        let selected = emissions.physical_program();
         let layout = emissions.frame_layout();
         let architecture = source.source().source().fragments().target.architecture;
         let mut custody = Vec::new();
-        for function in &selected.functions {
+        for function in selected.functions.iter() {
             let fragment =
                 caller_fragment(section, function.machine).ok_or(ObjectError::TextSizeOverflow)?;
             if function.normalized_foreign_calls.is_empty() {

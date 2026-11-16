@@ -101,7 +101,7 @@ pub(crate) mod callable_entry_transport {
             let encoding = source.encoding();
             let encoded_rows = index_encoded_rows(
                 source
-                    .program()
+                    .physical_program()
                     .machine
                     .functions
                     .iter()
@@ -134,7 +134,7 @@ pub(crate) mod callable_entry_transport {
                     .function(machine)
                     .ok_or(Error::Mismatch("interrupt callee lacks final native body"))?;
                 let selected = source
-                    .selected_plan()
+                    .physical_program()
                     .function(machine)
                     .ok_or(Error::Mismatch("interrupt callee lacks selected contract"))?;
                 let protocols = source.frame_protocol();
