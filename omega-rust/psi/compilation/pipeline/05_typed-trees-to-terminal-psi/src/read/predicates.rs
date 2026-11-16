@@ -107,7 +107,7 @@ impl Program<'_> {
             let selected = typed
                 .authored_declaration_selections()
                 .get(occurrence)
-                .and_then(|selection| selection.target().as_resolved())
+                .and_then(|selection| selection.target().as_resolved().copied())
                 .map(|selected| selected.selected_symbol());
             if selected != Some(domain.declaration) {
                 return Err(unavailable(
