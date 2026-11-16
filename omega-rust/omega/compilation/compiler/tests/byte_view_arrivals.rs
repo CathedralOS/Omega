@@ -21,6 +21,84 @@ fn fixtures() -> PathBuf {
 }
 
 #[test]
+fn representation_views_keep_backing_bytes_and_prove_the_converted_count() {
+    let root = fixtures().join("run/views/representation_collection/main.omg");
+    let checked = orchestration::check_source(
+        &mut compiler::CompilationSession::default(),
+        compiler::CheckedCompileRequest::new(&root, Some("windows_x86_64")),
+    )
+    .result
+    .unwrap_or_else(|failure| panic!("{:?}", failure.into_diagnostics()));
+    let accepted = checked.terminal_publication().accepted().unwrap().closure();
+    terminal_codec::EvidenceSealValidator::new(&accepted.elaboration.module, &accepted.seals)
+        .validate_all()
+        .expect("native publication must retain the checked count-fit seal");
+    let mut changed = accepted.elaboration.module.clone();
+    let source_element = changed
+        .structural_types
+        .iter()
+        .find_map(|row| match row.shape {
+            StructuralTypeShape::ElementView { element, .. } => Some(element),
+            _ => None,
+        })
+        .expect("the original view retains its declared source element");
+    changed
+        .structural_types
+        .iter_mut()
+        .find(|row| row.id == source_element)
+        .unwrap()
+        .shape = StructuralTypeShape::PrimitiveScalar(semantic_vocabulary::ScalarType::Integer(
+        semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+            .unwrap(),
+    ));
+    assert!(
+        matches!(
+            terminal_codec::EvidenceSealValidator::new(&changed, &accepted.seals).validate_all(),
+            Err(terminal_codec::EvidenceSealValidationError::SealMismatch { .. })
+        ),
+        "changing the source stride must invalidate its previously sealed count goal"
+    );
+    let published = accepted.publish().unwrap();
+    let reopened = CanonicalTerminalArtifact::from_bytes(&published.artifact.to_bytes()).unwrap();
+    assert!(
+        reopened
+            .view()
+            .module()
+            .operations()
+            .any(|operation| matches!(
+                operation.kind,
+                OperationKind::EstablishElementView {
+                    region: terminal_psi::ElementViewRegion::WholeRepresentation { .. },
+                    ..
+                }
+            ))
+    );
+    let program = TerminalProgram::borrow(reopened.view());
+    let mut execution = program
+        .instantiate(TerminalInstantiation::default())
+        .unwrap();
+    assert_eq!(
+        execution.invoke(&mut WorkMeter::unbounded()).unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+
+    let root = fixtures().join("fail/views/representation_collection/main.omg");
+    let diagnostics = orchestration::check_source(
+        &mut compiler::CompilationSession::default(),
+        compiler::CheckedCompileRequest::new(&root, Some("windows_x86_64")),
+    )
+    .result
+    .expect_err("an unbounded input count cannot be multiplied by four")
+    .into_diagnostics();
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("cannot prove operation safety in machine `as_bytes`")),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
 fn reopened_byte_views_read_the_original_backing_after_arrival() {
     for fixture in [
         "mutable_byte_view_arrival",

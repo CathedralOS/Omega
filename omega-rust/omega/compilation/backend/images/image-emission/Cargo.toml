@@ -42,6 +42,7 @@ installation-evidence = { path = "../../runtime/installation-evidence" }
 boundary-applications = { path = "../../artifacts/boundary-applications" }
 target-operations = { path = "../../../representations/target-operations" }
 native-preparation = { path = "../../../pipeline/02_abstract-operations-to-target-operations/native-preparation" }
+abstract-operations-to-target-operations = { path = "../../../pipeline/02_abstract-operations-to-target-operations" }
 target-operations-to-selected-instructions = { path = "../../../pipeline/03_target-operations-to-selected-instructions" }
 task-plans = { path = "../../runtime/task-plans" }
 isa-aarch64 = { path = "../../isa/isa-aarch64" }
@@ -60,7 +61,6 @@ abstract-operations-to-abstract-operations = { path = "../../../pipeline/01_abst
 compiler = { path = "../../../compiler" }
 image-emission = { path = ".", features = ["test-support"] }
 layout-plans = { path = "../../../../../psi/foundation/layout-plans" }
-abstract-operations-to-target-operations = { path = "../../../pipeline/02_abstract-operations-to-target-operations" }
 optimization-core = { path = "../../../../foundation/optimization-core", features = ["test-support"] }
 extents = { path = "../../../../../psi/foundation/extents" }
 source-files-to-tokens = { path = "../../../../../psi/compilation/pipeline/00_source-files-to-tokens" }

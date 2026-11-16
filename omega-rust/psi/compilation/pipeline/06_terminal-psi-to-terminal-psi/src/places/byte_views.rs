@@ -434,6 +434,16 @@ impl Storage<'_> {
                 "a whole-representation view whose target elements do not exactly tile its source elements",
             ));
         };
+        let StructuralTypeShape::ElementView {
+            element: source_element,
+            ..
+        } = selected.shape
+        else {
+            return Err(self.unsupported(
+                concerns,
+                "a whole-representation view needs a readable borrowed source view",
+            ));
+        };
         let byte_result = operation.result.as_structural().is_some_and(|result| {
             self.declaration(result.structural_type, concerns)
                 .is_ok_and(|row| matches!(row.shape, StructuralTypeShape::ByteSequence(_)))
@@ -447,6 +457,38 @@ impl Storage<'_> {
         );
         if byte_result && !byte_leaf {
             return Err(self.foreign(concerns, "a byte view re-views elements that are not bytes"));
+        }
+        let actual = self.collection_backing_source(source, 0, source_element, concerns)?;
+        if !self.domains.get(*element).is_some_and(Vec::is_empty)
+            || self
+                .declaration(*element, concerns)?
+                .scalar_restriction
+                .is_some()
+        {
+            return Err(self.unsupported(
+                concerns,
+                "an array view without plain element storage and unclaimed backing",
+            ));
+        }
+        let (whole, projected) = terminal_psi::StructuralPathQualification::select_restorable(
+            &actual.qualifications,
+            &actual.projected_qualifications,
+            &source.path,
+        )
+        .ok_or_else(|| {
+            self.unsupported(
+                concerns,
+                "a collection view cannot discard an enclosing qualification",
+            )
+        })?;
+        if !whole.is_empty()
+            || !projected.is_empty()
+            || !actual.additional_input_qualifications.is_empty()
+        {
+            return Err(self.unsupported(
+                concerns,
+                "collection view needs its whole plain backing without qualification loss",
+            ));
         }
         if backing.storage != terminal_semantics::CollectionStorage::Borrowed
             || !self.descriptor_access(
@@ -1040,6 +1082,12 @@ impl Storage<'_> {
                     region: terminal_psi::ElementViewRegion::WholeRepresentation { .. },
                     ..
                 } => {
+                    if (!self.current_extent(producer, trace)?
+                        || !self.current_extent(producer, &history)?)
+                        && self.repeated_extent(producer)?
+                    {
+                        return Ok(None);
+                    }
                     let formation = self.operation(producer, concerns)?;
                     self.array_view_formation(formation)?;
                     let count = self.representation_count(formation)?;

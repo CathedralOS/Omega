@@ -10,7 +10,7 @@ pub(crate) mod model {
 
     pub(crate) fn legalization_validator_identity() -> OptimizationValidatorIdentity {
         OptimizationValidatorIdentity::from_canonical_bytes(
-            b"omega.terminal-target-legalization-independent-replay.v70",
+            b"omega.terminal-target-legalization-independent-replay.v71",
         )
     }
 
@@ -710,6 +710,15 @@ pub fn verify_execution_plan(
                 "a closed type the module does not retain",
             ));
         }
+    }
+    if plan.borrowed_storage_layouts != target.borrowed_storage_layouts {
+        return Err(mismatch(
+            None,
+            "borrowed storage geometry differs from the target's",
+        ));
+    }
+    if plan.function_abis != function_abis(target)? {
+        return Err(mismatch(None, "function ABI rows differ from the target's"));
     }
     crate::installed_interrupts::validate_target(
         target,
