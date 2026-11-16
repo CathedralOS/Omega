@@ -101,11 +101,14 @@ reaches FilesystemContentRead + FilesystemMetadataQuery + DirectoryEnumeration {
     requires (parent as -WindowsPrivateNonalertFileOrAbsent) != 0 && length > 0 && length < 4096
         && (access == 1114240 || access == 1114241) {
         entry.characters[4095] = 0;
+        // The terminated copy carries `WindowsNativePath`; a domain cannot be
+        // added through the borrow of `entry.characters` itself.
+        let native: [u16; 4096] in WindowsNativePath = entry.characters as +WindowsNativePath;
         let name: WindowsNativeUnicodeString = WindowsNativeUnicodeString {
             // length < 4096 makes this explicit narrowing exact; retain the
             // arithmetic expression so the record proves its even byte count.
             length: (length * 2) as u16, capacity: 8192, padding: 0,
-            buffer: &entry.characters
+            buffer: &native
         };
         let attributes: WindowsNativeObjectAttributes = WindowsNativeObjectAttributes {
             // Traversal admits only retained disk-directory parents. The
