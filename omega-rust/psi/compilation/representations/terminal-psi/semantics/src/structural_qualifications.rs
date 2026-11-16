@@ -2028,7 +2028,20 @@ mod operation_permissions {
                     DescriptorContentsQuery::from_location(location)
                 }
                 DescriptorFlowSource::Contents(query) => query.clone(),
-                DescriptorFlowSource::Unavailable(_) => {
+                DescriptorFlowSource::Unavailable(root) => {
+                    let body = self.machine(machine)?;
+                    let instruction = body
+                        .block(&position.0)
+                        .and_then(|block| block.operations.get(position.1 as usize));
+                    let carrier = self.descriptor(machine)?.place_types.get(root).copied();
+                    eprintln!(
+                        "[unavailable permission] machine={machine:?} position={position:?} input={input} access={operation:?} source={source:?} instruction={:?} carrier={carrier:?} declaration={:?}",
+                        instruction.map(|row| &row.kind),
+                        carrier.and_then(|id| terminal_psi::find_structural_type(
+                            &self.module.structural_types,
+                            id
+                        ))
+                    );
                     return Err(failure(machine, "memory access has no exact payload query"));
                 }
             };
