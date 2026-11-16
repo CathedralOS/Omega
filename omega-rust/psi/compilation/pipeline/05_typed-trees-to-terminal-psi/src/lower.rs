@@ -1106,7 +1106,7 @@ impl<'a> Lowering<'a> {
                 })
                 .collect::<Checked<Vec<_>>>()?;
             for clause in &signature.requires {
-                self.name_block_clause_contents(clause, &bindings)?;
+                self.name_clause_contents(clause, &bindings, None)?;
             }
             self.heads.push(Head {
                 member: *member,
