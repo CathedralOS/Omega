@@ -4012,6 +4012,7 @@ fn target_plan(
         })
         .collect();
     TargetOperationPlan {
+        publication: crate::capture_source_publication(plan).unwrap(),
         psi: plan.psi,
         target: HOST(),
         profile: None,

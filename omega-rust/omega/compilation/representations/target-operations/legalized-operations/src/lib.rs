@@ -70,6 +70,7 @@ pub struct LegalizedOperationPlan {
     /// reached by foreign calls. The host bridge reads it to borrow guest
     /// values; the plan carries it so nothing reads stage 02's working form.
     pub borrowed_storage_layouts: runtime_abi::NativeBorrowedStorageLayouts,
+    pub publication: target_vocabulary::NativePublicationFacts,
 }
 
 impl LegalizedOperationPlan {

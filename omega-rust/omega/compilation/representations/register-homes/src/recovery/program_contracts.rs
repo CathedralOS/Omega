@@ -31,6 +31,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, contracts: &SelectedProgramContracts) 
     for abi in contracts.function_abis().iter() {
         target_vocabulary::identity::function_abi::encode_function_abi(bytes, abi);
     }
+    contracts.publication().encode(bytes);
 }
 
 pub(super) fn decode(
@@ -53,8 +54,14 @@ pub(super) fn decode(
     };
     // Machine ID, empty calling plan, three row counts and two option tags.
     let function_abis = decode_rows(cursor, 65, decode_abi)?;
-    SelectedProgramContracts::new(borrowed_storage_layouts, profile, Arc::from(function_abis))
-        .map_err(Error::InvalidProgramContracts)
+    let publication = super::publication::decode(cursor)?;
+    SelectedProgramContracts::new(
+        borrowed_storage_layouts,
+        profile,
+        Arc::from(function_abis),
+        publication,
+    )
+    .map_err(Error::InvalidProgramContracts)
 }
 
 fn decode_abi(cursor: &mut Cursor<'_>) -> Result<LegalizedFunctionAbi, Error> {
@@ -136,7 +143,7 @@ fn decode_parameters(
     decode_rows(cursor, 48, decode_abi_parameter)
 }
 
-fn decode_rows<T>(
+pub(super) fn decode_rows<T>(
     cursor: &mut Cursor<'_>,
     minimum: usize,
     mut decode: impl FnMut(&mut Cursor<'_>) -> Result<T, Error>,
@@ -226,6 +233,18 @@ mod tests {
         }
     }
 
+    fn publication(machine: MachineId) -> target_vocabulary::NativePublicationFacts {
+        target_vocabulary::NativePublicationFacts::seal(vec![
+            target_vocabulary::NativeFunctionPublication {
+                machine,
+                operation_count: 0,
+                sites: Vec::new(),
+                byte_literals: Vec::new(),
+            },
+        ])
+        .unwrap()
+    }
+
     #[test]
     fn recovery_retains_complete_nonempty_abi_rows_and_profile() {
         use crate::{FixedViewCopyPlan, FixedViewCopyPolicy};
@@ -239,6 +258,7 @@ mod tests {
                     Default::default(),
                     Some(target::TargetProfile::WindowsX64),
                     Arc::from([abi]),
+                    publication(plan.transformed.entry),
                 )
                 .unwrap(),
             );
@@ -261,6 +281,7 @@ mod tests {
         for _ in 0..2 {
             target_vocabulary::identity::function_abi::encode_function_abi(&mut bytes, &abi);
         }
+        target_vocabulary::NativePublicationFacts::default().encode(&mut bytes);
         assert_eq!(
             decode(&mut Cursor::new(&bytes), Default::default()).unwrap_err(),
             Error::InvalidProgramContracts("function ABI rows are unordered or repeated")
@@ -276,9 +297,13 @@ mod tests {
     fn entry_conversion_unavailability_is_preserved_and_never_becomes_direct_transport() {
         let mut abi = abi(MachineId::new(1).unwrap(), true);
         abi.entry_scalar_codecs[1] = None;
-        let contracts =
-            SelectedProgramContracts::new(Default::default(), None, Arc::from([abi.clone()]))
-                .unwrap();
+        let contracts = SelectedProgramContracts::new(
+            Default::default(),
+            None,
+            Arc::from([abi.clone()]),
+            publication(abi.machine),
+        )
+        .unwrap();
         let mut bytes = Vec::new();
         encode(&mut bytes, &contracts);
         assert_eq!(
@@ -288,8 +313,13 @@ mod tests {
         for codec in [Some(0), Some(u64::MAX)] {
             abi.entry_scalar_codecs[1] = codec;
             assert_eq!(
-                SelectedProgramContracts::new(Default::default(), None, Arc::from([abi.clone()]))
-                    .unwrap_err(),
+                SelectedProgramContracts::new(
+                    Default::default(),
+                    None,
+                    Arc::from([abi.clone()]),
+                    publication(abi.machine)
+                )
+                .unwrap_err(),
                 "function ABI has an incompatible entry conversion"
             );
         }

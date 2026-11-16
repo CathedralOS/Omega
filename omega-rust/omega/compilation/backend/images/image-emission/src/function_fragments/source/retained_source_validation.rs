@@ -180,6 +180,11 @@ pub(in crate::function_fragments) fn admit(
             "current publication contracts differ from the prepared ABI and profile",
         ));
     }
+    if contracts.publication() != &published.publication {
+        return Err(Error::Mismatch(
+            "current source sites and literals differ from the prepared publication",
+        ));
+    }
     validate_byte_writers(published, current.physical_program())?;
     let abstract_plan = current.optimized_target().optimized().plan();
     privileged_termination::validate(

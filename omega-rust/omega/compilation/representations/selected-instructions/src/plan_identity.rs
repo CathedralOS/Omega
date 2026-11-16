@@ -2,7 +2,7 @@
   Canonical SHA-256 identity producer for `SelectedInstructionPlan`.
 
   Owns the byte-stable encoding over which `SelectedInstructionPlanIdentity` is
-  derived (`omega.terminal-selected-instructions.v58\0`). The identity is
+  derived (`omega.terminal-selected-instructions.v59\0`). The identity is
   hierarchical: `Sha256` over the plan's roots and the ordered digests of its
   functions, each function digest (`omega.terminal-selected-instruction-function.v4\0`)
   retaining its static metadata, 64-register pages, local frame storage slots,
@@ -41,7 +41,7 @@ pub(crate) struct RetainedPlanPrefix {
 pub fn selected_instruction_plan_identity(
     plan: &SelectedInstructionPlan,
 ) -> SelectedInstructionPlanIdentity {
-    let domain = b"omega.terminal-selected-instructions.v58\0".as_slice();
+    let domain = b"omega.terminal-selected-instructions.v59\0".as_slice();
     let mut header_bytes = Vec::with_capacity(128);
     header_bytes.extend_from_slice(domain);
     header_bytes.extend_from_slice(plan.psi.program_fingerprint.as_bytes());

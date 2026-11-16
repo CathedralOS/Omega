@@ -10,7 +10,7 @@ pub(crate) mod model {
 
     pub(crate) fn legalization_validator_identity() -> OptimizationValidatorIdentity {
         OptimizationValidatorIdentity::from_canonical_bytes(
-            b"omega.terminal-target-legalization-independent-replay.v72",
+            b"omega.terminal-target-legalization-independent-replay.v73",
         )
     }
 
@@ -624,6 +624,20 @@ pub fn prepare_execution_plan(
     crate::installed_interrupts::authorize_target(target, origins.module, installed_interrupts)?;
     validate_boundary_origins(target, origins)?;
     let rosters = source::derive_target_function_rosters(target, evidence, types)?;
+    if target.publication.functions().len() != target.functions.len()
+        || target
+            .publication
+            .functions()
+            .iter()
+            .zip(&target.functions)
+            .any(|(publication, function)| publication.machine != function.machine)
+    {
+        return Err(LegalizationError::InstructionMetadata {
+            machine: None,
+            operation: None,
+            reason: "publication function roster differs from the target functions",
+        });
+    }
     let plan = LegalizedOperationPlan {
         psi: target.psi,
         optimization_unit: evidence.optimization_unit,
@@ -635,6 +649,7 @@ pub fn prepare_execution_plan(
         installation_operations: surviving_installations(target),
         function_abis: function_abis(target, types)?,
         borrowed_storage_layouts: target.borrowed_storage_layouts.clone(),
+        publication: target.publication.clone(),
     };
     let (callable_invocations, entry_invocations) = callable_invocations
         .for_target(target, evidence)
@@ -712,6 +727,12 @@ fn audit_target_operation_plan_with_module(
     closed_types: &crate::native_geometry::ModuleTypes,
     module: Option<&terminal_psi::TerminalModule>,
 ) -> Result<(), LegalizationError> {
+    crate::publication::verify_source_publication(abstract_plan, &target.publication).map_err(
+        |reason| LegalizationError::PublishedPlanMismatch {
+            machine: None,
+            part: reason,
+        },
+    )?;
     let expected = derive_expected_functions(target, abstract_plan, unit, closed_types, module)?;
     let retained = source::derive_target_function_rosters(
         target,
@@ -754,6 +775,11 @@ pub fn verify_execution_plan(
         crate::native_geometry::accepted_types(closed_module, target.psi, origins.module)
             .ok_or_else(LegalizationError::custody)?;
     let plan = prepared.plan();
+    crate::publication::verify_source_publication(abstract_plan, &plan.publication)
+        .map_err(|part| mismatch(None, part))?;
+    if plan.publication != target.publication {
+        return Err(mismatch(None, "publication facts differ from the target's"));
+    }
     if !prepared.is_intact() {
         return Err(mismatch(None, "the plan no longer matches its seal"));
     }
