@@ -21,7 +21,11 @@ Current-artifact validation checks bytes, frame geometry, exit effects and
 publication roots without retaining allocation or earlier layout graphs.
 `FixedFrameCorrespondence` additionally compares the result with original
 inputs, retained only when requested. Missing originals refuse that audit;
-they never suppress the mandatory final-artifact checks.
+they never suppress the mandatory final-artifact checks. The same retained
+replay can carry Omega 04's completed rewrite run as an opaque
+`RetainedSelectedOptimizationRun`; `SelectedInstructionRewriteReplay` asks it
+to rebuild itself against the record the allocated program carries. Emission
+never reads it.
 
 Layout and exit-contract code computes each result once. Their separate
 validators serve explicit checks, retained-artifact readers and tests;

@@ -161,6 +161,10 @@ pub struct FunctionRealizationReplay {
     pub machine: StagedOptimizedPostAllocationMachinePlan,
     pub encoding: StagedOptimizedSelectedFormEncoding,
     pub baseline_layout: StagedOptimizedResolvedSelectedFormLayout,
+    /// The Omega 04 rewrite run behind the allocated program, when a rewrite
+    /// phase ran. Only its own validator reads it.
+    pub selected_optimization:
+        Option<Box<dyn selected_instruction_analyses::RetainedSelectedOptimizationRun>>,
 }
 
 pub type EncodedFunction = StagedOptimizedSelectedFormEncoding;
@@ -203,6 +207,43 @@ impl StagedFixedFrameFunctionRelativeRealization {
 
     pub fn has_original_replay(&self) -> bool {
         self.replay.is_some()
+    }
+
+    /// The retained Omega 04 rewrite run, if one produced this program, and
+    /// the record the allocated program carries. Only validators read them.
+    pub fn selected_optimization_evidence(
+        &self,
+    ) -> Result<
+        (
+            Option<&dyn selected_instruction_analyses::RetainedSelectedOptimizationRun>,
+            &selected_instruction_analyses::SelectedOptimizationRecord,
+        ),
+        FunctionRelativeOptimizationRealizationError,
+    > {
+        let replay = self.replay()?;
+        Ok((
+            replay.selected_optimization.as_deref(),
+            replay.allocation.current().history(),
+        ))
+    }
+
+    /// Replay the retained Omega 04 rewrite run against the record the
+    /// allocated program carries. `Ok(false)` means no rewrite phase produced
+    /// this program, so there was nothing to check; a record that names a run
+    /// nobody retained refuses.
+    pub fn verify_selected_optimization_replay(
+        &self,
+    ) -> Result<bool, FunctionRelativeOptimizationRealizationError> {
+        match self.selected_optimization_evidence()? {
+            (Some(run), record) => run
+                .validate(record)
+                .map(|()| true)
+                .map_err(FunctionRelativeOptimizationRealizationError::SelectedOptimizationReplay),
+            (None, record) if record.is_rewritten() => {
+                Err(FunctionRelativeOptimizationRealizationError::ReplayUnavailable)
+            }
+            (None, _) => Ok(false),
+        }
     }
 
     pub fn relaxation(&self) -> Option<&StagedOptimizedX86BranchRelaxation> {
@@ -268,6 +309,8 @@ pub enum FunctionRelativeOptimizationRealizationError {
     FrameProtocol(crate::frame_protocol::TargetFrameProtocolEncodingError),
     StatisticsOverflow,
     ReplayUnavailable,
+    /// The retained Omega 04 run failed its independent replay.
+    SelectedOptimizationReplay(String),
     CurrentProgram(post_allocation_machine::program_validation::PhysicalProgramValidationError),
     RootMismatch,
     ReceiptMismatch,

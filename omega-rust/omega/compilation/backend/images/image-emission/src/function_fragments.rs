@@ -4131,7 +4131,10 @@ pub(crate) mod replay {
     mod validation;
 
     use std::sync::Arc;
-    pub use validation::{verify_retained_fixed_frame, verify_retained_target_operations};
+    pub use validation::{
+        verify_retained_fixed_frame, verify_retained_selected_optimization,
+        verify_retained_target_operations,
+    };
 
     use object_file::StagedOptimizedRelocationFreeObjectContainer;
 

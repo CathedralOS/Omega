@@ -287,6 +287,31 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
         self.realization.has_original_replay()
     }
 
+    /// The retained Omega 04 run and allocated program record, for validators.
+    pub fn selected_optimization_evidence(
+        &self,
+    ) -> Result<
+        (
+            Option<&dyn selected_instruction_analyses::RetainedSelectedOptimizationRun>,
+            &selected_instruction_analyses::SelectedOptimizationRecord,
+        ),
+        FunctionFragmentEmissionError,
+    > {
+        self.realization
+            .selected_optimization_evidence()
+            .map_err(FunctionFragmentEmissionError::Source)
+    }
+
+    /// Replay the retained Omega 04 rewrite run behind this body's allocated
+    /// program; `Ok(false)` when no rewrite phase ran.
+    pub fn verify_selected_optimization_replay(
+        &self,
+    ) -> Result<bool, FunctionFragmentEmissionError> {
+        self.realization
+            .verify_selected_optimization_replay()
+            .map_err(FunctionFragmentEmissionError::Source)
+    }
+
     /// Compare current output with original allocation and lowering owners.
     /// A compile that did not request their retention cannot claim this audit.
     pub fn verify_original_correspondence(&self) -> Result<(), FunctionFragmentEmissionError> {

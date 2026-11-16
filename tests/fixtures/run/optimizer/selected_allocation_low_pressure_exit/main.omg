@@ -1,0 +1,14 @@
+// Expected exit: 0
+// Few values are live at once, so allocation needs no spill.
+machine mix(seed: u64 in Wrapping) -> u64 in Wrapping {
+    let kept: u64 in Wrapping = seed + 0;
+    let more: u64 in Wrapping = kept + 5;
+    more + 0
+}
+
+machine main() crashes Trap {
+    let value: u64 in Wrapping = mix(37u64 as u64 in Wrapping);
+    transition value == 42 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
