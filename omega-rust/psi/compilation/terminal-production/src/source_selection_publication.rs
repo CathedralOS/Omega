@@ -1814,6 +1814,79 @@ machine entry() -> u64 crashes none {
     }
 
     #[test]
+    fn domain_declarations_keep_their_subjects_without_splitting_their_meaning() {
+        let source = accepted_source(
+            r#"
+domain [u8; 2]::Ready requires true;
+domain [u8; 3]::Ready requires true;
+machine entry() {
+    let first: [u8; 2] in Ready = [1u8, 2u8] as +Ready;
+    let second: [u8; 3] in Ready = [3u8, 4u8, 5u8] as +Ready;
+}
+"#,
+            &[],
+        );
+        let typed = source.source();
+        let domains = typed
+            .domain_definitions()
+            .iter()
+            .filter(|domain| domain.name.as_str().ends_with("::Ready"))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            domains.len(),
+            2,
+            "the fixture must retain both qualified Ready declarations: {:?}",
+            typed
+                .domain_definitions()
+                .iter()
+                .map(|domain| domain.name.as_str())
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            domains[0].semantic_id, domains[1].semantic_id,
+            "the same normalized predicate keeps its meaning across capacities"
+        );
+        let identities = domains
+            .iter()
+            .map(|domain| {
+                typed
+                    .normalized_hermetic_symbol_identity(domain.symbol)
+                    .unwrap()
+            })
+            .collect::<Vec<_>>();
+        assert_ne!(identities[0], identities[1]);
+        let module = source.module();
+        let prepared = prepare(&source, module, None).unwrap();
+        terminal_installation::selection_questions::validate_selection_questions(
+            module,
+            &prepared.questions,
+        )
+        .unwrap();
+        let rows = prepared
+            .questions
+            .declarations
+            .iter()
+            .filter_map(|(id, row)| identities.contains(&row.identity).then_some(id))
+            .collect::<Vec<_>>();
+        assert_eq!(rows.len(), 2);
+        let mut duplicate = prepared.questions.clone();
+        duplicate.declarations.get_mut(rows[1]).unwrap().identity = prepared
+            .questions
+            .declarations
+            .get(rows[0])
+            .unwrap()
+            .identity
+            .clone();
+        assert!(
+            terminal_installation::selection_questions::validate_selection_questions(
+                module, &duplicate
+            )
+            .is_err(),
+            "different subjects must not bypass the duplicate declaration guard"
+        );
+    }
+
+    #[test]
     fn requirement_overloads_keep_their_signatures_and_refuse_header_swaps() {
         // Publish both complete headers directly. A signature-free named call
         // would test overload selection before reaching this identity owner.

@@ -9088,6 +9088,29 @@ impl TypedTrees {
                     &path, &callable,
                 )
             }
+            None if self.symbols.get(symbol).kind == symbols::SymbolKind::Domain => {
+                let declaration = self
+                    .domain_definition(symbol)
+                    .ok_or("a domain identity has no retained declaration")?;
+                let subject = crate::reflection::construction::schema_type_identity(
+                    self,
+                    declaration.target_type,
+                    declaration.symbol,
+                )
+                .map_err(|detail| {
+                    format!("a domain identity lost its declared subject: {detail}")
+                })?;
+                // Domain meaning may be shared across carrier capacities. The
+                // source declarations still have different complete subjects;
+                // the family display path cannot identify either occurrence.
+                compound(
+                    CoordinateTag::Declaration,
+                    [
+                        atom(CoordinateTag::Path, &path),
+                        compound(CoordinateTag::Owner, [subject]),
+                    ],
+                )
+            }
             None => path,
         };
         if let Some(package) = self.symbols.symbol_package_identity(symbol) {
