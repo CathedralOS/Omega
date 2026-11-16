@@ -121,7 +121,9 @@ fn check_pressure(manifest: &PostAllocationOptimizationManifest, prefix: usize, 
 
 #[test]
 fn identity_input_allocates_with_and_without_pressure() {
-    let _compilation = COMPILATIONS.lock().unwrap();
+    let _compilation = COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     for (fixture, pressure) in [(LOW_PRESSURE, false), (HIGH_PRESSURE, true)] {
         compile(fixture, &[], true, |object| {
             let object = object.unwrap_or_else(|error| panic!("{fixture}: {error}"));
@@ -142,7 +144,9 @@ fn identity_input_allocates_with_and_without_pressure() {
 
 #[test]
 fn pre_allocation_output_allocates_with_and_without_pressure() {
-    let _compilation = COMPILATIONS.lock().unwrap();
+    let _compilation = COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     for (fixture, pressure) in [(LOW_PRESSURE, false), (HIGH_PRESSURE, true)] {
         compile(fixture, &[PRE_ALLOCATION], true, |object| {
             let object = object.unwrap_or_else(|error| panic!("{fixture}: {error}"));
@@ -174,7 +178,9 @@ fn pre_allocation_output_allocates_with_and_without_pressure() {
 
 #[test]
 fn selected_lowering_output_allocates_through_the_same_entrance() {
-    let _compilation = COMPILATIONS.lock().unwrap();
+    let _compilation = COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     compile(LOW_PRESSURE, &[SELECTED_LOWERING], true, |object| {
         let object = object.unwrap_or_else(|error| panic!("{error}"));
         let manifest = manifest(object);
@@ -200,7 +206,9 @@ fn selected_lowering_output_allocates_through_the_same_entrance() {
 
 #[test]
 fn a_default_compile_keeps_no_omega_04_run() {
-    let _compilation = COMPILATIONS.lock().unwrap();
+    let _compilation = COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     compile(LOW_PRESSURE, &[PRE_ALLOCATION], false, |object| {
         let object = object.unwrap_or_else(|error| panic!("{error}"));
         assert!(manifest(object).pre_allocation_completion.is_some());
@@ -212,7 +220,9 @@ fn a_default_compile_keeps_no_omega_04_run() {
 
 #[test]
 fn a_retained_run_refuses_another_programs_record() {
-    let _compilation = COMPILATIONS.lock().unwrap();
+    let _compilation = COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     compile(LOW_PRESSURE, &[PRE_ALLOCATION], true, |low| {
         let low = low.unwrap_or_else(|error| panic!("{error}"));
         compile(HIGH_PRESSURE, &[PRE_ALLOCATION], true, |high| {
@@ -233,7 +243,9 @@ fn a_retained_run_refuses_another_programs_record() {
 
 #[test]
 fn each_recovery_entry_runs_its_own_procedure() {
-    let _compilation = COMPILATIONS.lock().unwrap();
+    let _compilation = COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     // The fixed-view entry splits fixed-register conflicts with copies; this
     // program has none, so the copy step applies none and assignment follows.
     compile(LOW_PRESSURE, &[FIXED_VIEW_RECOVERY], true, |object| {
@@ -263,7 +275,9 @@ fn each_recovery_entry_runs_its_own_procedure() {
 
 #[test]
 fn unsupported_compositions_still_refuse() {
-    let _compilation = COMPILATIONS.lock().unwrap();
+    let _compilation = COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     for keep in [
         [SELECTED_LOWERING, PRE_ALLOCATION],
         [PRE_ALLOCATION, FIXED_VIEW_RECOVERY],
