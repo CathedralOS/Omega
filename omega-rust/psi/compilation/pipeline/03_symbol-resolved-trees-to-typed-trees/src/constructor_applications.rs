@@ -1403,7 +1403,13 @@ mod tests {
             let wanted = if declaration.name.as_str() == "bytes" {
                 PrimitiveType::U8
             } else {
-                PrimitiveType::U16
+                PrimitiveType::Integer(
+                    numerics::integer_carrier::FixedInteger::new(
+                        numerics::IntegerSign::Unsigned,
+                        16,
+                    )
+                    .unwrap(),
+                )
             };
             assert_eq!(
                 program.primitive_type_reference(*element_type),
