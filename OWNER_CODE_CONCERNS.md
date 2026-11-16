@@ -216,13 +216,6 @@ framework or a list of unimplemented features.
 - Cost: The coverage verdict has nothing behind it. Only an arm whose fields are all binders or `as _` should close its case.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/patterns.md
 
-### The Omega-written resolver accepts type names spelled like builtin integers
-- Category: One idea, several implementations
-- Where: [builtin_shadow](source/psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/resolver.omg#L288), [builtin_type](source/psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/resolver.omg#L1470), [type_binding](source/psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/resolver.omg#L1224), [Rust check](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_builtin_type_names.rs#L23)
-- Saw: [builtin type names](wiki/spec/language/modules.md#L146) makes the integer family "every `i` or `u` followed by decimal digits" and says a data declaration or generic type binder with such a spelling "rejects where it is introduced" (`data u7 { value: u32; } // Rejected`). The Omega-written resolver checks only root type declarations against a fixed list (`u8`…`u64`, `i8`…`i64`, …), so `data u7` and `data u128` are accepted, and it never checks generic binders, so in `machine pick<u32>(x: u32) -> u32` the binder silently hides the builtin. The Rust compiler refuses both with the open-ended `is_builtin_type_spelling`.
-- Cost: The same source means different types in the two compilers. Use the open-ended family test for every type introducer, generic binders included.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/modules.md
-
 ### Omega-written typing re-scans integer literals from source bytes
 - Category: Re-deriving
 - Where: [literal_value](source/psi/pipeline/03_symbol-resolved-trees-to-typed-trees/literals.omg#L15), [suffix_carrier](source/psi/pipeline/03_symbol-resolved-trees-to-typed-trees/literals.omg#L180), [lexer](source/psi/pipeline/00_source_files_to_tokens.omg#L944), [token kind](source/psi/representations/tokens.omg#L109)

@@ -339,3 +339,4 @@ Write each item so any agent can start from it alone: current state, files and e
 ## Omega-written compiler (after Rust completion)
 
 - **OMEGA-PRODUCT-COMPILER-SOURCE.** Finish `source/psi/` and `source/omega/{build,main}.omg` under [compiler_request.md](wiki/spec/build/compiler_request.md) and [source/psi/README.md](source/psi/README.md).
+  - No program that names `psi::SourceSet` compiles, so no `tests/psi/*/test-*.sh` gate runs: the lowered-form checker refuses its `[u8; 4194304] in Trapping` fields as an "arithmetic policy on a type that is not an integer" (`05_typed-trees-to-terminal-psi/src/read/types.rs`, `type_qualification`), and `source/psi/` writes `] in Trapping` 53 times. The resolver gate also fails 16 harness diagnostics on unqualified values passed for `Trapping` places (`tests/psi/resolver/harness.omg`). Move the policy to the element type or drop it, then run the resolver gate, whose builtin-type-spelling cases have never run.
