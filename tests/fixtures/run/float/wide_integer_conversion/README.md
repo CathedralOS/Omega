@@ -23,12 +23,14 @@ only signed32_plain's upper bound. It retains the other conditions and the
 original runtime program. Exactly one diagnostic rejects the missing requires
 clause 2.
 
-The unchanged program also exposed missing source information during
-publication. The compiler now retains actual intrinsic headers, checks the
-operators and argument types in their source contracts, and resolves qualified
-names through their declarations. Fixed mathematical vocabulary keeps its
-installed identity. Numeric operations stay on their catalog-owned execution
-path, and receiving checks reconstruct their complete callable identities.
+The same program exposed source-checking bugs. The compiler now keeps the
+built-in machine headers and records which operators their contracts use,
+checking each operator’s argument types. Qualified calls and compiler-provided
+names such as `core::Identity` retain their exact declarations. The numeric
+checker reconstructs each machine’s identity from its full signature, matching
+the source compiler. Float comparison and division lookup checks the bundled
+source declaration, so the new identity format does not hide those operators.
+These numeric operations use their checked compiler implementation.
 
 The frozen pair on a7c9bf84c5e refused all twelve named calls at fixed base
 5c768555ccc, using the verified applicable b6c3ae8cfbf producer. The final
