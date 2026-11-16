@@ -173,6 +173,86 @@ fn published_service_signature(elaboration: &typed_trees_to_terminal_psi::Elabor
     .unwrap()
 }
 
+// Inherited methods retain their parent's actual type argument and declaration.
+// Two paths applying that same parent differently cannot supply one schema.
+#[test]
+fn inherited_boundary_schemas_keep_declaring_applications_and_refuse_conflicts() {
+    let source = r#"
+boundary trait Parent<Value> {
+    machine echo(value: Value) -> Value reaches none crashes none;
+}
+boundary trait Child: Parent<i32> {}
+boundary trait Concrete {
+    machine echo(value: i32) -> i32 reaches none crashes none;
+}
+machine entry() reaches Child {}
+"#;
+    let program = typed(source);
+    assert_eq!(
+        source_service_signature(&program, "Child"),
+        source_service_signature(&program, "Concrete"),
+        "the inherited signature must use i32, not its unapplied parent binder"
+    );
+    let parent = program
+        .traits()
+        .iter()
+        .find(|owner| owner.name.as_str() == "Parent")
+        .unwrap();
+    let parent_symbol = parent.symbol;
+    let required = program.trait_machine_signatures(parent)[0].symbol;
+    let form = |program: typed_trees::TypedTrees| {
+        let child = program
+            .traits()
+            .iter()
+            .find(|owner| owner.name.as_str() == "Child")
+            .unwrap()
+            .symbol;
+        let entry = entry(&program);
+        let frozen: typed_trees::FrozenTypedTrees = program.into();
+        typed_trees_to_terminal_psi::elaborate_for(
+            &frozen,
+            typed_trees_to_terminal_psi::Compilation {
+                calling: None,
+                providers: None,
+                declaration_metadata: &[child],
+                entries: &[entry],
+                subjects: &[],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Invocation,
+        )
+    };
+    let elaboration = form(program).expect("the inherited schema keeps its original parent");
+    let parent_schema = elaboration
+        .static_schemas
+        .iter()
+        .find(|schema| schema.declaration == parent_symbol)
+        .expect("the parent still owns its requirement schema");
+    assert_eq!(parent_schema.requirements.len(), 1);
+    assert_eq!(parent_schema.requirements[0].declaration, required);
+    assert!(matches!(
+        judge(Ok(elaboration)).unwrap(),
+        RouteVerdict::Accepted(_)
+    ));
+
+    let conflicting = source.replace(
+        "boundary trait Child: Parent<i32> {}",
+        "boundary trait Other: Parent<bool> {}
+boundary trait Child: Parent<i32> + Other {}",
+    );
+    let refused = form(typed(&conflicting))
+        .expect_err("two different parent applications cannot become one schema");
+    assert!(
+        refused
+            .detail
+            .contains("inherited with different applications"),
+        "{refused:?}"
+    );
+}
+
 #[test]
 fn source_boundary_applied_signature_keeps_actual_types_and_caller_lifetimes() {
     use typed_trees::trait_definition::{AppliedTraitScope, TraitApplicationArguments};
