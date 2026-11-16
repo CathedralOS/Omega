@@ -599,9 +599,16 @@ impl Qualifications {
             return Err(unavailable("structural domain has a nonstructural carrier"));
         };
         let definition = source.domain_theory(diagnostic, symbol)?;
+        // A complete empty theory has an explicit Truth predicate in the
+        // saved representation. None continues to mean unavailable theory.
         let predicate = declared
             .predicate
             .clone()
+            .or_else(|| {
+                declared
+                    .complete_predicate_theory
+                    .then_some(semantic_vocabulary::Proposition::Truth)
+            })
             .map(|proposition| {
                 Ok::<_, terminal_check_tables::Refusal>(StructuralDomainPredicate {
                     subject: crate::body::self_place()

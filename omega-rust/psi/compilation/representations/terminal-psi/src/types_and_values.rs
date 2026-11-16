@@ -274,7 +274,12 @@ pub mod types {
                 }
                 let answers = requirements_satisfy(domains, |row| {
                     row.complete_predicate_theory
-                        && row.predicate.is_none()
+                        && row.predicate.as_ref().is_some_and(|predicate| {
+                            matches!(
+                                predicate.proposition,
+                                semantic_vocabulary::Proposition::Truth
+                            )
+                        })
                         && row.byte_predicate.is_none()
                         && row.content_projection.is_none()
                 });
@@ -432,9 +437,15 @@ pub mod types {
             /// were checked against. They cannot establish another theory,
             /// an issuer restriction or independent memory-access rules.
             pub fn pure_byte_predicate(&self) -> Option<crate::ByteSequencePredicate> {
-                (self.is_pure_predicate() && self.predicate.is_none())
-                    .then_some(self.byte_predicate)
-                    .flatten()
+                (self.is_pure_predicate()
+                    && self.predicate.as_ref().is_none_or(|predicate| {
+                        matches!(
+                            predicate.proposition,
+                            semantic_vocabulary::Proposition::Truth
+                        )
+                    }))
+                .then_some(self.byte_predicate)
+                .flatten()
             }
 
             pub fn authorizes_boundary_requirement(

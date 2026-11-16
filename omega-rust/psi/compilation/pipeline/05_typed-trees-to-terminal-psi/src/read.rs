@@ -833,7 +833,7 @@ mod tests {
             [
                 Some(&Proposition::Falsehood),
                 Some(&Proposition::Truth),
-                None
+                Some(&Proposition::Truth)
             ]
         );
         assert_eq!(

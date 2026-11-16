@@ -7457,7 +7457,10 @@ pub mod descriptor_results {
                 let domain = |raw| StructuralDomainDeclaration {
                     required_memberships: Some(Vec::new()),
                     complete_predicate_theory: true,
-                    predicate: None,
+                    predicate: Some(StructuralDomainPredicate {
+                        subject: PlaceId::new(1).unwrap(),
+                        proposition: Proposition::Truth,
+                    }),
                     id: id(raw),
                     semantic_domain: semantic(raw),
                     identity: Default::default(),
@@ -7500,7 +7503,9 @@ pub mod descriptor_results {
                 cycle.required_memberships = Some(vec![semantic(8)]);
                 let mut missing = domain(9);
                 missing.required_memberships = Some(vec![semantic(99)]);
-                malformed.extend([cycle, missing]);
+                let mut missing_predicate = domain(10);
+                missing_predicate.predicate = None;
+                malformed.extend([cycle, missing, missing_predicate]);
                 assert_eq!(
                     StructuralDomainDeclaration::content_independent_memberships(&malformed),
                     content_independent

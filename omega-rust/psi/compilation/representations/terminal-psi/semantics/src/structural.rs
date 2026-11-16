@@ -295,8 +295,14 @@ pub(crate) mod inline_carriers {
                 observations: Vec::new(),
                 reach: Default::default(),
             });
+            let mut complete_truth = pure.clone();
+            complete_truth.predicate = Some(StructuralDomainPredicate {
+                subject: PlaceId::new(1).unwrap(),
+                proposition: Proposition::Truth,
+            });
             for (domain, expected) in [
                 (pure, true),
+                (complete_truth, true),
                 (incomplete, false),
                 (extra, false),
                 (governed, false),
