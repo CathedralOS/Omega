@@ -643,6 +643,65 @@ fn qualified_operator_labels_do_not_hide_actual_attachment_obligations() {
 }
 
 #[test]
+fn a_retained_type_parameter_stays_open_and_keeps_its_selected_declaration() {
+    let Source {
+        mut program,
+        forward,
+        relay,
+        boolean,
+        ..
+    } = source();
+    let mut selected = argument(relay.parameter, "T");
+    selected.type_reference = program
+        .static_operand_type_reference_in_scope(&selected, relay.machine)
+        .expect("the authored type argument retains its original scope");
+    assert!(
+        !program
+            .prepare_data_application_view(selected.type_reference)
+            .unwrap(),
+        "an open parameter is not a closed data application"
+    );
+    let operand = super::Operand::read(
+        &mut program,
+        forward.parameter,
+        &TypeParameterKind::Type,
+        &selected,
+    )
+    .unwrap_or_else(|_| panic!("an open type parameter can be passed to another generic body"));
+    assert!(operand.is_open(&program));
+    assert_eq!(operand.declaration(), Some(relay.parameter));
+    assert_eq!(
+        operand.value,
+        StaticMachineBindingValue::Type(selected.type_reference)
+    );
+    assert_eq!(
+        program
+            .type_reference_table
+            .operand_lifetime_owner(selected.type_reference),
+        relay.machine
+    );
+
+    let mut changed = selected.clone();
+    changed.symbol = boolean;
+    assert!(super::named_type(&mut program, &changed).is_err());
+    let parameters = program
+        .machine_by_symbol(relay.machine)
+        .unwrap()
+        .type_parameters;
+    let carrier = named(&mut program, boolean, "bool");
+    program
+        .data_type_parameters
+        .get_mut(parameters.start())
+        .kind = TypeParameterKind::Const {
+        type_reference: carrier,
+    };
+    assert!(
+        super::named_type(&mut program, &selected).is_err(),
+        "a const parameter cannot be passed as a type"
+    );
+}
+
+#[test]
 fn a_closed_type_application_enters_one_generated_machine_per_argument_tuple() {
     let Source {
         mut program,
