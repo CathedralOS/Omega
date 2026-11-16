@@ -1,3 +1,4 @@
+module domain::mathematics;
 // Bounded private scalar evaluators. Validated positive integer doses are
 // <=10000; log-half bounds extend measured doses by a factor ten, and hill
 // is [.2,5]. Thus every exponential argument has magnitude below 70.

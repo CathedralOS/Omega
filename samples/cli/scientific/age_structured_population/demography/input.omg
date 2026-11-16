@@ -1,3 +1,4 @@
+module demography::input;
 use omega_language_std::ByteRead;
 use omega_language_std::Console;
 public data Parsed [copy] { value: i64 in Wrapping; valid: bool; }

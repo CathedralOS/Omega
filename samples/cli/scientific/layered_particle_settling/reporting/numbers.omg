@@ -1,3 +1,4 @@
+module reporting::numbers;
 use omega_language_std::Console;
 use omega::language::core::I32::from_f64;
 

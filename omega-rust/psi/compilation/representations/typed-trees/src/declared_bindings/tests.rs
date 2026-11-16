@@ -462,7 +462,7 @@ fn published_rows_refresh_same_shape_storage_and_state_span_edits() {
         },
     );
     assert_ne!(incoming.revision(), program.machines.revision());
-    *program.tables.machines = incoming;
+    *program.tables.machines = incoming.into();
     matches_global_roster(&program, &binders);
     assert_eq!(program.unique_local_data_for_symbol(binders[1]), None);
     assert!(program.unique_local_data_for_symbol(binders[3]).is_some());

@@ -1159,15 +1159,7 @@ impl<'source> Declarations<'source> {
         source: &'source AcceptedTerminalSource,
         module: &TerminalModule,
     ) -> Result<Self, Diagnostic> {
-        let mut identities = SymbolRows::new(
-            source
-                .source()
-                .symbols
-                .symbols()
-                .nodes()
-                .storage_slice()
-                .len(),
-        );
+        let mut identities = SymbolRows::new(source.source().symbols.symbols().nodes().len());
         let elaboration = &source.closure().elaboration;
         for machine in &module.machines {
             let symbol = elaboration
@@ -1198,15 +1190,8 @@ impl<'source> Declarations<'source> {
         }
         // Prepare this association once. Only an admitted contract's meaning
         // is normalized, so unrelated generic contracts never become work.
-        let mut contracts: SymbolRows<Vec<RuntimeCallableContractHandle>> = SymbolRows::new(
-            source
-                .source()
-                .symbols
-                .symbols()
-                .nodes()
-                .storage_slice()
-                .len(),
-        );
+        let mut contracts: SymbolRows<Vec<RuntimeCallableContractHandle>> =
+            SymbolRows::new(source.source().symbols.symbols().nodes().len());
         for (handle, contract) in source.source().runtime_callable_contracts.iter() {
             contracts
                 .get_or_insert_with(contract.signature.symbol, Vec::new)?
@@ -1214,15 +1199,7 @@ impl<'source> Declarations<'source> {
         }
         Ok(Self {
             typed: source.source(),
-            ids: SymbolRows::new(
-                source
-                    .source()
-                    .symbols
-                    .symbols()
-                    .nodes()
-                    .storage_slice()
-                    .len(),
-            ),
+            ids: SymbolRows::new(source.source().symbols.symbols().nodes().len()),
             identities,
             contracts,
             sources: Vec::new(),

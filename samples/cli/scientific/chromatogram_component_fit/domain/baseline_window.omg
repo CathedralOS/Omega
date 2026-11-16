@@ -1,3 +1,4 @@
+module domain::baseline_window;
 use omega::language::core::I32::from_f64;
 
 // A four-sample detector scratch splits into a leading baseline window and a
@@ -5,7 +6,7 @@ use omega::language::core::I32::from_f64;
 // window back to the caller.
 data Held<'samples> { values: &'samples mut [f64]; }
 
-machine window<'samples>(samples: &'samples mut [f64; 4], which: i64) -> &'samples mut [f64]
+public machine window<'samples>(samples: &'samples mut [f64; 4], which: i64) -> &'samples mut [f64]
 ensures result.len == 2
 {
     match which {

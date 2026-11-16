@@ -1,8 +1,10 @@
+module domain::report;
 use omega_language_std::Console;
 use omega::language::core::I64::from_f64;
 use omega::language::core::narrow_i32_to_u8_trapping;
 use omega::language::core::narrow_i64_to_i32_trapping;
 use domain::equilibrium;
+use domain::equilibrium::Equilibrium;
 
 
 // Scientific notation preserves tiny species; normalized mantissa fits i64.

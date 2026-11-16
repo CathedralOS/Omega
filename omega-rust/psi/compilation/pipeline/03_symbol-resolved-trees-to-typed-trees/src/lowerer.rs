@@ -120,12 +120,13 @@ pub(crate) mod progress {
             })
             .collect::<Result<Vec<_>, Diagnostic>>()?;
 
-        for machine in program.machines_mut().iter_mut().skip(machine_frontier) {
+        for position in machine_frontier..program.machines().len() {
+            let machine = program.machines().at(position);
             if let Some((_, interface)) = authored_updates
                 .iter()
                 .find(|(symbol, _)| *symbol == machine.symbol)
             {
-                machine.termination_plan.interface = interface.clone();
+                program.machine_mut(position).termination_plan.interface = interface.clone();
             }
         }
 
@@ -142,12 +143,13 @@ pub(crate) mod progress {
             })
             .map(|machine| Ok((machine.symbol, inherited_guarantee(program, machine)?)))
             .collect::<Result<Vec<_>, Diagnostic>>()?;
-        for machine in program.machines_mut().iter_mut().skip(machine_frontier) {
+        for position in machine_frontier..program.machines().len() {
+            let machine = program.machines().at(position);
             if let Some((_, Some(guarantee))) = inherited_updates
                 .iter()
                 .find(|(symbol, _)| *symbol == machine.symbol)
             {
-                machine.termination_plan.interface =
+                program.machine_mut(position).termination_plan.interface =
                     TerminationInterface::Published(guarantee.clone());
             }
         }
@@ -1722,7 +1724,7 @@ fn complete_retained_machine_body(
         .clone();
     let implementation = lowerer.source_trees.machine(symbol).ok_or_else(lost_base)?;
     crate::declarations::machine::complete_machine_body(lowerer, implementation, &mut declaration)?;
-    lowerer.typed_trees.machines_mut()[ordinal] = declaration;
+    lowerer.typed_trees.set_machine(ordinal, declaration);
     Ok(())
 }
 
@@ -2074,8 +2076,8 @@ impl Lowerer<'_> {
         result
     }
 
-    /// Lowers the contracts of a machine or state, the proof facts that may
-    /// use a suffixed policy operator.
+    /// Proof expressions keep the same selected arithmetic policy as code.
+    /// Totality is checked later, before their condition supplies any facts.
     pub(crate) fn admitting_contract_policy_operators<T>(
         &mut self,
         operation: impl FnOnce(&mut Self) -> Result<T, Diagnostic>,

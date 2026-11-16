@@ -598,6 +598,12 @@ impl TableTerm for ProofNode {
 
     fn children<'term>(&'term self, premises: &mut Vec<&'term Self>) {
         match &self.rule {
+            ProofRule::FloatIntegerConversion { premise, computed } => {
+                premises.push(premise);
+                if let Some(computed) = computed {
+                    premises.push(computed);
+                }
+            }
             ProofRule::ValueEqualityTransport {
                 premise,
                 equalities,
@@ -742,6 +748,10 @@ impl TableTerm for ProofNode {
 
 fn write_proof_row(writer: &mut Writer, node: &ProofNode) -> Result<(), CodecError> {
     match &node.rule {
+        ProofRule::FloatIntegerConversion { computed, .. } => {
+            writer.u8(31);
+            writer.u8(u8::from(computed.is_some()));
+        }
         ProofRule::ValueEqualityTransport { equalities, .. } => {
             writer.u8(0);
             writer.len("certificate children", equalities.len())?;
@@ -757,6 +767,7 @@ fn write_proof_row(writer: &mut Writer, node: &ProofNode) -> Result<(), CodecErr
                 PrimitiveJudgment::ClosedIntegerRelation => 2,
                 PrimitiveJudgment::IntegerCarrierBound => 3,
                 PrimitiveJudgment::ClosedIeeeFloatRelation => 4,
+                PrimitiveJudgment::ClosedFloatIntegerRelation => 5,
             });
         }
         ProofRule::SemanticAxiom { index: cited } => {
@@ -1319,6 +1330,37 @@ mod tests {
         let encoded = canonical_certificate_bytes(&closed).unwrap();
         closed.rule = ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation);
         assert_ne!(canonical_certificate_bytes(&closed).unwrap(), encoded);
+    }
+
+    #[test]
+    fn integer_conversion_fingerprint_keeps_each_premise_and_form() {
+        let leaf = |index| {
+            Box::new(ProofNode {
+                conclusion: Proposition::Truth,
+                rule: ProofRule::Assumption { index },
+            })
+        };
+        let proof = |first, second: Option<usize>| ProofNode {
+            conclusion: Proposition::Truth,
+            rule: ProofRule::FloatIntegerConversion {
+                premise: leaf(first),
+                computed: second.map(leaf),
+            },
+        };
+        let original = canonical_certificate_bytes(&proof(0, Some(1))).unwrap();
+        for changed in [
+            proof(7, Some(1)),
+            proof(0, Some(7)),
+            proof(1, Some(0)),
+            proof(0, None),
+        ] {
+            assert_ne!(canonical_certificate_bytes(&changed).unwrap(), original);
+        }
+        let mut closed = proof(0, None);
+        closed.rule = ProofRule::Primitive(PrimitiveJudgment::ClosedFloatIntegerRelation);
+        let integer = canonical_certificate_bytes(&closed).unwrap();
+        closed.rule = ProofRule::Primitive(PrimitiveJudgment::ClosedIeeeFloatRelation);
+        assert_ne!(canonical_certificate_bytes(&closed).unwrap(), integer);
     }
 
     #[test]

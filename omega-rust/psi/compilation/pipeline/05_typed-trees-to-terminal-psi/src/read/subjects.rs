@@ -431,10 +431,10 @@ impl Program<'_> {
             })();
             self.keep(read)?;
         }
-        for definition in typed.mathematical_definitions() {
+        for (definition_index, definition) in typed.mathematical_definitions().iter().enumerate() {
             let read = (|| -> Checked<()> {
                 if self.owner(entry, definition.symbol, subjects, purpose)? == Owner::Subject {
-                    self.mathematical_predicate_definition(entry, definition, None, &[])?;
+                    self.mathematical_predicate_definition(entry, definition_index, None, &[])?;
                 }
                 Ok(())
             })();
@@ -564,8 +564,8 @@ impl Program<'_> {
     /// route reads. So the reading holds both to what the reading of an
     /// application serves (`source_records::source_application`):
     ///
-    /// - the header binds types, and integer constants of a builtin integer
-    ///   type, with no bound, lifetime, `requires`, cleanup, carry policy or
+    /// - the header binds types and constants with copyable, address-free
+    ///   carriers, with no bound, lifetime, `requires`, cleanup, carry policy or
     ///   quotient, each of which a declaration would owe a judgment for here;
     /// - each member is an ordinary runtime field or payload field, and its
     ///   type is built from builtin scalars, the header's own type
@@ -603,20 +603,14 @@ impl Program<'_> {
             let served = parameter.bounds == typed_trees::data::DataProperties::default()
                 && match parameter.kind {
                     TypeParameterKind::Type => true,
-                    TypeParameterKind::Const { type_reference } => matches!(
-                        typed.type_reference_table.type_reference(type_reference),
-                        typed_trees::types::TypeReferenceNode::Named { symbol, .. }
-                            if matches!(
-                                typed.symbols.builtin_type_atom(*symbol),
-                                Some(symbols::BuiltinTypeAtom::Integer(_))
-                            )
-                    ),
+                    TypeParameterKind::Const { type_reference } => {
+                        typed_trees::canonical_const_carrier_is_supported(typed, type_reference)
+                    }
                     _ => false,
                 };
             if !served {
                 return Err(unserved(
-                    "generic data with a bounded parameter or one that is neither a type nor an \
-                     integer constant",
+                    "generic data with a bounded parameter or unsupported canonical const carrier",
                 ));
             }
         }
@@ -831,6 +825,9 @@ fn judged_where_used(
             })
 }
 
-fn symbols_of<T>(rows: &[T], symbol: impl Fn(&T) -> SymbolHandle) -> Vec<SymbolHandle> {
+fn symbols_of<T>(
+    rows: arena::RootRows<'_, T>,
+    symbol: impl Fn(&T) -> SymbolHandle,
+) -> Vec<SymbolHandle> {
     rows.iter().map(symbol).collect()
 }

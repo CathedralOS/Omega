@@ -5,9 +5,14 @@ use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 use omega_language_std::LineReadResult;
 use clearance::model;
+use clearance::model::Plan;
+use clearance::model::Certificate;
 use clearance::search;
+use clearance::search::solve;
 use input::parse;
+use input::parse::parse;
 use reporting::certificate;
+use reporting::certificate::report;
 
 data Clearance {
     input: [u8; 11];

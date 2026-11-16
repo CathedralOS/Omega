@@ -3,7 +3,12 @@ use omega::language::core::ProcessExit;
 // Expected output contains: hypotheses
 use omega_language_std::Console;
 use io::input;
+use io::input::Raw;
+use io::input::read;
 use domain::indexing;
+use domain::indexing::Problem;
+use domain::indexing::decode;
+use domain::indexing::enumerate;
 data Main { }
 machine main(main: &mut Main) reaches ProcessExit + Console {
     let mut raw: Raw = Raw { values: [0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0], count: 0, };

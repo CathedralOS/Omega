@@ -18,7 +18,7 @@ use ::selected_instructions::{
     SelectedScalarReferenceSource, SelectedSuccessor, SelectedSuccessorRole, SelectedTerminator,
     SelectedValueBinding, SelectedValueTransport, VirtualRegisterId,
 };
-use abstract_operations::ValueBinding;
+use native_vocabulary::values::ValueBinding;
 use semantic_vocabulary::{BlockId, EdgeId, OperationId, ValueId};
 
 use crate::FixedViewCopyDecodeError;
@@ -337,7 +337,7 @@ pub(super) fn decode_successor(
     let structural_case = decode_case(cursor)?;
     let structural_bindings = decode_list(cursor, |cursor| {
         let source_indices = decode_runtime_indices(cursor)?;
-        let semantic = abstract_operations::AbstractStructuralBinding {
+        let semantic = native_vocabulary::values::AbstractStructuralBinding {
             parameter: decode_id(cursor, semantic_vocabulary::PlaceId::new)?,
             argument: decode_semantic_argument(cursor)?,
         };
@@ -471,7 +471,9 @@ fn decode_case(
         let field_byte_offset = cursor.u32()?;
         let parameter = legalized_operations::LegalizedValueDefinition {
             value: decode_id(cursor, ValueId::new)?,
-            scalar_type: decode_scalar(cursor)?,
+            // A payload parameter is a value of the prepared plan, which carries closed types.
+            scalar_type: semantic_vocabulary::ClosedScalarType::try_from(decode_scalar(cursor)?)
+                .map_err(|_| FixedViewCopyDecodeError::InvalidIntegerType)?,
             definition_site: decode_definition_site(cursor)?,
         };
         let transport = match cursor.byte()? {
@@ -574,7 +576,7 @@ mod tests {
             .structural_bindings
             .push(SelectedStructuralBinding {
                 source_indices: vec![legalized_operations::LegalizedRuntimeIndexOperand {
-                    operand: abstract_operations::AbstractResult {
+                    operand: native_vocabulary::values::AbstractResult {
                         value: ValueId::new(14).unwrap(),
                         scalar_type: ScalarType::Integer(
                             IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
@@ -586,7 +588,7 @@ mod tests {
                     obligation: semantic_vocabulary::ObligationId::new(15).unwrap(),
                     accepted_fact: AcceptedObligationFactIdentity::from_bytes([16; 32]),
                 }],
-                semantic: abstract_operations::AbstractStructuralBinding {
+                semantic: native_vocabulary::values::AbstractStructuralBinding {
                     parameter: PlaceId::new(31).unwrap(),
                     argument: terminal_psi::StructuralArgument {
                         place: PlaceId::new(9).unwrap(),
@@ -797,8 +799,8 @@ mod tests {
                         clobbers: Vec::new(),
                         provenance: SelectedInstructionProvenance {
                             edges: vec![edge],
-                            work: vec![optimization_unit::WorkSettlement {
-                                site: optimization_unit::PsiProvenance::Edge(edge),
+                            work: vec![native_vocabulary::provenance::WorkSettlement {
+                                site: native_vocabulary::provenance::PsiProvenance::Edge(edge),
                                 units: 2,
                             }],
                             ..Default::default()
@@ -874,7 +876,7 @@ mod tests {
             .structural_bindings
             .push(SelectedStructuralBinding {
                 source_indices: Vec::new(),
-                semantic: abstract_operations::AbstractStructuralBinding {
+                semantic: native_vocabulary::values::AbstractStructuralBinding {
                     parameter: PlaceId::new(31).unwrap(),
                     argument: terminal_psi::StructuralArgument {
                         place: PlaceId::new(37).unwrap(),
@@ -1055,11 +1057,12 @@ mod tests {
                     field_byte_offset: 4,
                     parameter: legalized_operations::LegalizedValueDefinition {
                         value: ValueId::new(9).unwrap(),
-                        scalar_type: ScalarType::Boolean,
-                        definition_site: optimization_unit::ValueDefinitionSite::BlockParameter {
-                            block: original.source_target,
-                            position: 1,
-                        },
+                        scalar_type: semantic_vocabulary::ClosedScalarType::Boolean,
+                        definition_site:
+                            native_vocabulary::provenance::ValueDefinitionSite::BlockParameter {
+                                block: original.source_target,
+                                position: 1,
+                            },
                     },
                 },
                 transport: SelectedCasePayloadTransport::Unused,
@@ -1124,7 +1127,7 @@ mod tests {
                 }
                 _ => {
                     case.payloads[0].semantic.parameter.definition_site =
-                        optimization_unit::ValueDefinitionSite::FunctionParameter(1)
+                        native_vocabulary::provenance::ValueDefinitionSite::FunctionParameter(1)
                 }
             }
             let mut encoded = Vec::new();
@@ -1147,7 +1150,7 @@ mod tests {
             .structural_bindings
             .push(SelectedStructuralBinding {
                 source_indices: Vec::new(),
-                semantic: abstract_operations::AbstractStructuralBinding {
+                semantic: native_vocabulary::values::AbstractStructuralBinding {
                     parameter: semantic_vocabulary::PlaceId::new(12).unwrap(),
                     argument: terminal_psi::StructuralArgument {
                         place: semantic_vocabulary::PlaceId::new(11).unwrap(),
@@ -1236,7 +1239,7 @@ mod tests {
                 .structural_bindings
                 .push(SelectedStructuralBinding {
                     source_indices: Vec::new(),
-                    semantic: abstract_operations::AbstractStructuralBinding {
+                    semantic: native_vocabulary::values::AbstractStructuralBinding {
                         parameter: join,
                         argument: terminal_psi::StructuralArgument {
                             place: semantic_vocabulary::PlaceId::new(11).unwrap(),

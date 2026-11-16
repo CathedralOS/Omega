@@ -2,7 +2,7 @@
 Canonical identity construction for `LegalizedOperationPlan` and its subordinate representations.
 
 We compute collision-resistant SHA-256 identity digests (`LegalizedOperationPlanIdentity`) over
-the canonical wire encoding of a legalized plan (`omega.terminal-legalized-operations.v82\0` and
+the canonical wire encoding of a legalized plan (`omega.terminal-legalized-operations.v84\0` and
 `ordinary-scalar-graph.v43\0`). Every optional field uses a tagged `0` / `1 + payload` frame
 (`encode_option`) so an absent row and an empty payload never share bytes.
 */
@@ -10,7 +10,7 @@ the canonical wire encoding of a legalized plan (`omega.terminal-legalized-opera
 /*
 Shared structural type catalogs (`StructuralTypeCatalog`) are pointer-cached across functions in
 the same plan (`cached_catalog`) while still binding the actual retained access-view catalog
-identity bytes (`access_view_catalog_identity_bytes`), ensuring a stale copied catalog cannot
+identity bytes (their canonical Terminal encodings), ensuring a stale copied catalog cannot
 borrow a unit's identity.
 */
 
@@ -32,9 +32,10 @@ pub use structural::{encode_external_execution, encode_provider_execution};
 pub use structural_types::{encode_authored_field_storage, encode_structural_place};
 
 use crate::{LegalizedOperationPlan, LegalizedOperationPlanIdentity, LegalizedStructuralContract};
-use abstract_operations::ValueBinding;
 use calling_conventions::ConventionalSumLayout;
-use optimization_unit::{PsiProvenance, WorkSettlement};
+use native_vocabulary::provenance::PsiProvenance;
+use native_vocabulary::provenance::WorkSettlement;
+use native_vocabulary::values::ValueBinding;
 use semantic_vocabulary::{BoundaryMachineId, IntegerType, IntegerValue, OperationId};
 use structural_types::{
     encode_entry_claim, encode_structural_parameter, encode_structural_type,
@@ -47,7 +48,7 @@ pub fn legalized_operation_plan_identity(
     plan: &LegalizedOperationPlan,
 ) -> LegalizedOperationPlanIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-legalized-operations.v82\0");
+    bytes.extend_from_slice(b"omega.terminal-legalized-operations.v84\0");
     bytes.extend_from_slice(plan.psi.program_fingerprint.as_bytes());
     crate::codec_bytes::push_encoded(&mut bytes, plan.psi.vocabulary_marker.get().to_le_bytes());
     bytes.extend_from_slice(&plan.optimization_unit.bytes());
@@ -59,6 +60,20 @@ pub fn legalized_operation_plan_identity(
         bytes.extend_from_slice(name);
     });
     crate::codec_bytes::push_encoded(&mut bytes, plan.entry.get().to_le_bytes());
+    match &plan.retained_integers {
+        crate::RetainedIntegerTypes::Unsealed => bytes.push(0),
+        crate::RetainedIntegerTypes::Module(retained) => {
+            bytes.push(1);
+            encode_len(&mut bytes, retained.len());
+            for integer in retained {
+                encode_integer_type(&mut bytes, integer.as_checking());
+            }
+        }
+    }
+    encode_len(&mut bytes, plan.installation_operations.len());
+    for operation in &plan.installation_operations {
+        crate::codec_bytes::push_encoded(&mut bytes, operation.get().to_le_bytes());
+    }
     bytes.extend_from_slice(b"ordinary-scalar-graph.v43\0");
     encode_len(&mut bytes, plan.scalar_functions.len());
     let mut cached_catalog = None;
@@ -66,6 +81,27 @@ pub fn legalized_operation_plan_identity(
         scalar_graph::encode(&mut bytes, function, &mut cached_catalog);
     }
     LegalizedOperationPlanIdentity::from_canonical_bytes(&bytes)
+}
+
+/// Bind the catalog's access views, placement lifecycles and placed formals
+/// by their canonical Terminal encodings, the same bytes the sealed module
+/// stores them under. The plan is prepared from an accepted module, so these
+/// catalogs are canonical; a failure here is a preparation bug.
+fn encode_access_view_catalog(
+    bytes: &mut Vec<u8>,
+    catalog: &native_vocabulary::structural_type_catalog::StructuralTypeCatalog,
+) {
+    let views = terminal_codec::encode_access_view_catalog(catalog.access_views())
+        .expect("canonical access-view plans");
+    encode_len(bytes, views.len());
+    bytes.extend_from_slice(&views);
+    let lifecycles = catalog.access_lifecycle_identity_bytes();
+    encode_len(bytes, lifecycles.len());
+    bytes.extend_from_slice(lifecycles);
+    let inputs = terminal_codec::encode_access_view_input_catalog(catalog.access_view_inputs())
+        .expect("canonical placed-formal demands");
+    encode_len(bytes, inputs.len());
+    bytes.extend_from_slice(&inputs);
 }
 
 pub fn encode_work(bytes: &mut Vec<u8>, work: &[WorkSettlement]) {
@@ -292,7 +328,10 @@ pub fn encode_access_call_bindings(bytes: &mut Vec<u8>, bindings: &[TargetAccess
 pub(super) fn encode_structural_contract(
     bytes: &mut Vec<u8>,
     function: &LegalizedStructuralContract,
-    cached_catalog: &mut Option<(abstract_operations::StructuralTypeCatalog, Vec<u8>)>,
+    cached_catalog: &mut Option<(
+        native_vocabulary::structural_type_catalog::StructuralTypeCatalog,
+        Vec<u8>,
+    )>,
 ) {
     encode_option(bytes, function.result.as_ref(), |bytes, result| {
         structural::encode_result(bytes, result)
@@ -314,9 +353,7 @@ pub(super) fn encode_structural_contract(
             bytes.push(u8::from(referent.foreign_descriptor));
             bytes.push(u8::from(referent.abstract_opaque));
         }
-        bytes.extend_from_slice(&optimization_unit::access_view_catalog_identity_bytes(
-            &function.structural_types,
-        ));
+        encode_access_view_catalog(bytes, &function.structural_types);
         *cached_catalog = Some((function.structural_types.clone(), bytes[start..].to_vec()));
     }
     encode_len(bytes, function.parameters.len());

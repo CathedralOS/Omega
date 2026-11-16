@@ -69,7 +69,11 @@ pub fn prepare_replay<'source>(
             )
         },
     )?;
-    module(&elaboration.module, activity)?;
+    module(
+        &elaboration.module,
+        &elaboration.predicate_sources,
+        activity,
+    )?;
     Ok(ReplayScope { elaboration })
 }
 
@@ -657,6 +661,7 @@ pub(crate) fn contract(
 /// in for a declaration's complete term inventory.
 pub(crate) fn module(
     module: &TerminalModule,
+    predicate_sources: &[terminal_check_tables::program::PredicateSource],
     activity: &mut crate::ProofSearchActivity,
 ) -> Checked<()> {
     let diagnostic = module
@@ -664,6 +669,81 @@ pub(crate) fn module(
         .first()
         .map(|machine| machine.id)
         .unwrap_or_else(|| MachineId::new(1).expect("nonzero"));
+    if module
+        .scalar_predicate_definitions
+        .windows(2)
+        .any(|pair| pair[0].declaration >= pair[1].declaration)
+    {
+        return Err(crate::refusal(
+            RefusalReason::ForeignIdentity,
+            diagnostic,
+            Construct::Machine,
+            "mathematical predicate declarations are duplicated or unordered",
+        ));
+    }
+    for definition in &module.scalar_predicate_definitions {
+        let source = predicate_sources
+            .binary_search_by_key(&definition.declaration, |source| source.declaration)
+            .ok()
+            .map(|position| &predicate_sources[position]);
+        let diagnostic = source.map_or(diagnostic, |source| source.machine);
+        let invalid = |detail: &str| {
+            crate::refusal(
+                RefusalReason::ForeignIdentity,
+                diagnostic,
+                Construct::Machine,
+                detail,
+            )
+        };
+        if module
+            .identities
+            .text(definition.declaration)
+            .is_none_or(str::is_empty)
+        {
+            return Err(invalid(
+                "mathematical predicate has no exact declaration identity",
+            ));
+        }
+        if definition
+            .parameters
+            .iter()
+            .any(|parameter| !parameter.qualifications.is_empty())
+        {
+            return Err(invalid(
+                "qualified mathematical predicate input is not supported",
+            ));
+        }
+        PropositionContext::from_value_types(
+            definition
+                .parameters
+                .iter()
+                .map(|parameter| (parameter.id, parameter.scalar_type)),
+        )
+        .and_then(|context| context.validate(&definition.body))
+        .map_err(|error| invalid(&format!("mathematical predicate formal scope: {error:?}")))?;
+        let mut scope = Scope {
+            module,
+            diagnostic,
+            inputs: definition.parameters.clone(),
+            result: None,
+            roots: Vec::new(),
+            subject_prefix: Vec::new(),
+            completion: false,
+            facts: Facts::default(),
+            activity: &mut *activity,
+        };
+        // The body defines a proposition; it supplies no premise, including
+        // when a conjunct states a bound another conjunct would need.
+        substitute_clause(&definition.body, &mut scope).map_err(|error| {
+            let owner = source.map_or_else(
+                || "mathematical definition".to_owned(),
+                |source| format!("named predicate `{}`", source.name),
+            );
+            scope
+                .error(error, &owner)
+                .with_source_span(source.and_then(|source| source.source_span))
+        })?;
+    }
     for machine in &module.machines {
         contract(module, machine.id, &machine.contract, activity)?;
     }

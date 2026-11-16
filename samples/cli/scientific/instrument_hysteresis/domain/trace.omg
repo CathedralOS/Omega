@@ -1,9 +1,10 @@
+module domain::trace;
 use omega::language::core::max_i32;
 
 // Direction uses the last nonzero stimulus change. A plateau inherits it;
 // without a prior change direction remains ambiguous. At a reversal the new
 // branch applies immediately. The first row is always ambiguous.
-data Trace {
+public data Trace {
     previous: i32 in Wrapping;
     rows: i32 in Wrapping;
     branch: i32 in Wrapping;
@@ -18,7 +19,7 @@ data Trace {
     reverse_max: i32 in Wrapping;
     width_max: i32 in Wrapping;
 }
-machine identify(trace: &mut Trace, stimulus: i32 in Wrapping) {
+public machine identify(trace: &mut Trace, stimulus: i32 in Wrapping) {
     transition trace.rows == 0 {
         true -> first(trace, stimulus)
         false -> compare(trace, stimulus)
@@ -72,7 +73,7 @@ machine identify(trace: &mut Trace, stimulus: i32 in Wrapping) {
 machine magnitude(value: i32 in Wrapping) -> i32 in Wrapping {
     transition value < 0 { true -> (0 - value) false -> (value) }
 }
-machine residual_statistics(trace: &mut Trace, residual: i32 in Wrapping) {
+public machine residual_statistics(trace: &mut Trace, residual: i32 in Wrapping) {
     let absolute: i32 in Wrapping = magnitude(residual);
     transition trace.branch == 1 {
         true -> forward(trace, absolute)

@@ -6,7 +6,10 @@ use omega_language_std::ByteRead;
 use omega_language_std::Console;
 use omega_language_std::LineReadResult;
 use domain::model;
+use domain::model::Community;
+use domain::model::analyze;
 use io::report;
+use io::report::report;
 data Main {
     line: [u8; 256];
     tokens: [u64 in Wrapping; 30];

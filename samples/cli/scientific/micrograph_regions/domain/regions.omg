@@ -1,4 +1,6 @@
+module domain::regions;
 use domain::input;
+use domain::input::Image;
 
 // Row-major seeds, FIFO flood, mark before enqueue: a pixel enters the
 // private 64-slot queue at most once. Bounds guards prove every array access.

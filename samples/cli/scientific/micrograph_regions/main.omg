@@ -3,8 +3,12 @@ use omega::language::core::ProcessExit;
 // Expected exit: 2 (EOF from the generic sample harness is invalid input).
 // Expected output contains: ERROR invalid image:
 use domain::input;
+use domain::input::Image;
+use domain::input::read_image;
 use domain::regions;
+use domain::regions::label_regions;
 use domain::output;
+use domain::output::render;
 use omega_language_std::Console;
 
 data Main { }

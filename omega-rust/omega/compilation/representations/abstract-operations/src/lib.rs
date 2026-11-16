@@ -63,16 +63,16 @@ impl AbstractOperationPlan {
     }
 }
 
-mod access_lifecycles;
-mod access_references;
 pub mod ownership;
-pub use access_lifecycles::AccessLifecycleOperands;
-pub use access_references::{
+pub use native_vocabulary::access_lifecycles::AccessLifecycleOperands;
+pub use native_vocabulary::access_references::{
     AccessReferenceBacking, BorrowedExtentBacking, ResidentReferenceBacking,
 };
-mod structural_type_catalog;
+pub use native_vocabulary::structural_type_catalog;
+pub use native_vocabulary::structural_type_catalog::{
+    StructuralTypeCatalog, closed_owned_sequence_bounds,
+};
 pub use ownership::CompletionClaimSource;
-pub use structural_type_catalog::{StructuralTypeCatalog, closed_owned_sequence_bounds};
 pub mod atomic;
 pub use atomic::{
     AbstractAtomicEvent, AbstractAtomicFenceOrdering, AbstractAtomicReadModifyWrite,
@@ -90,21 +90,19 @@ pub use control_flow::{
     AbstractStructuralCasePayloadBinding, AbstractStructuralCaseSuccessor, AbstractSuccessor,
 };
 pub mod values;
-pub use values::{
-    AbstractFunctionResult, AbstractParameter, AbstractResult, ValueBinding, binding_arguments,
-};
-mod integer_arithmetic;
-pub use integer_arithmetic::{
+pub use native_vocabulary::integer_arithmetic::{
     IntegerArithmetic, IntegerArithmeticOperator, IntegerOverflowPolicy, IntegerShiftDirection,
     IntegerShiftPolicy,
 };
+pub use values::{
+    AbstractFunctionResult, AbstractParameter, AbstractResult, ValueBinding, binding_arguments,
+};
 pub mod operations;
+pub use native_vocabulary::structural_stores::{
+    StructuralCopyPath, StructuralScalarStoreDestination, StructuralWindowRoot,
+};
 pub use operations::{
     AbstractOperation, ModuleInvocation, StructuralResultMetadata, StructuralResultRole,
-};
-mod structural_stores;
-pub use structural_stores::{
-    StructuralCopyPath, StructuralScalarStoreDestination, StructuralWindowRoot,
 };
 
 mod storage_mutations;

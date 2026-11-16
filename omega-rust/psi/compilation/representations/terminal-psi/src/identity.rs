@@ -527,9 +527,9 @@ pub(crate) mod vocabulary {
         }
 
         pub const fn get(self) -> u16 {
-            // Complete callable contracts and saved domain access policies retain
-            // exact declaration identities in one combined semantic vocabulary.
-            140
+            // Complete callable/source/installation identities and scalar predicate
+            // definitions include integer-result conversion and exactness graphs.
+            141
         }
     }
 }

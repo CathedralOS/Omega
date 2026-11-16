@@ -284,10 +284,9 @@ fn a_wrapped_sum_is_not_the_mathematical_sum() {
 }
 
 #[test]
-fn a_saturating_shift_is_refused_by_name() {
-    // A Saturating shift "still owes the Exact count proof" under an
-    // operation the lowering does not emit; a Wrapping shift reduces its
-    // count and is total.
+fn a_saturating_shift_must_prove_its_count_even_if_the_shifted_bits_can_be_reduced() {
+    // Saturation covers the result, and the original count still needs its
+    // width check. Wrapping uses the total reducing primitive directly.
     let shift = |policy| {
         unit(
             vec![qualified(policy), plain()],
@@ -304,7 +303,20 @@ fn a_saturating_shift_is_refused_by_name() {
         operations(&closure.elaboration).as_slice(),
         [OperationKind::WrappingIntegerShiftLeft { .. }]
     ));
-    let refusal = lower_lending(vec![shift(Policy::Saturating)]).unwrap_err();
-    assert_eq!(refusal.reason, RefusalReason::Unsupported);
-    assert_eq!(refusal.detail, "expression saturating shift");
+    let saturated = lower_lending(vec![shift(Policy::Saturating)]).unwrap();
+    let kinds = operations(&saturated);
+    assert!(
+        kinds
+            .iter()
+            .any(|kind| matches!(kind, OperationKind::ExactIntegerShiftRight { .. }))
+    );
+    let unproved = match judge(Ok(saturated)).unwrap() {
+        RouteVerdict::Incomplete(unproved) | RouteVerdict::Rejected { unproved, .. } => unproved,
+        verdict => panic!("the count requires a proof: {verdict:?}"),
+    };
+    assert!(
+        unproved
+            .iter()
+            .any(|obligation| matches!(obligation.kind, ObligationKind::OperationSafety { .. }))
+    );
 }

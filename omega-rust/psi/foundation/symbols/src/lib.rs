@@ -36,8 +36,11 @@
 mod builtin;
 mod fast_map;
 mod retained_declaration;
+mod storage;
 mod symbol;
 mod table;
+
+pub use storage::{SymbolHierarchy, SymbolRows};
 
 /*
     The custody gate in front of the sealed intrinsic catalog: only a file the

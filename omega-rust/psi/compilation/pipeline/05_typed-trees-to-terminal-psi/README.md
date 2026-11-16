@@ -428,11 +428,14 @@ destination declares").
   `Trap` site. Its `CrashCoverage` obligation needs either the Exact
   operation to be defined or a published route of the machine for the same
   cause. The checker knows the Exact result only on its normal successor.
-  `Trapping`-qualified types are still unsupported on this route; the
-  compiler-owned suffixed operators do not supply the core policy-domain
-  declarations tracked in `OPERATION-ARITHMETIC-POLICY`.
+  A `Trapping`-qualified value selects the same trap route for arithmetic
+  and shifts. Bitwise operations preserve its type and need no crash route.
+- **Core word signatures.** A shift takes an independently typed integer
+  count. The shifted value alone selects the shift behavior and result type.
+  Saturating left shift checks the original count and clamps the shifted
+  result against the carrier bounds.
 - **Contracts.** A clause names a policy-qualified formal, field or result
-  as its stored value.
+  as its stored value. Bitwise operations keep their total denotation.
 
 The checker takes each operation's obligation and result equation from
 Terminal semantics, so a policy operation is judged as itself: nothing here
@@ -443,14 +446,10 @@ Refused by name:
 
 | Construct | Refusal detail |
 | --- | --- |
-| `T in Trapping`, whose every operation is its own `Trap` site, and a cast into it | `type constrained by Trapping`, `expression cast into Trapping` |
 | a type constrained by a declared domain, alone or beside a policy | `type constrained by a domain that is not one arithmetic policy` |
 | a policy on `bool` or a float | `type arithmetic policy on a type that is not an integer` |
-| an operator over a policy-qualified operand and a plain binding: [policy-domain signatures](../../../../../wiki/spec/language/numeric_values.md#policy-domains) admit this in either order; remove the literal-only implementation restriction under `OPERATION-ARITHMETIC-POLICY` | `expression operator between a policy-qualified operand and a plain operand that is not a literal` |
-| operands under two different policies | `typing operands under two arithmetic policies` |
-| `&`, `\|`, `^` and `~` over a policy-qualified operand, which the policy catalog has no row for | `expression bitwise operator on a policy-qualified operand`, `typing unary operand type` |
-| a Saturating shift, which owes the Exact count proof under an operation the lowering does not emit | `expression saturating shift` |
-| a shift whose count is policy-qualified | `expression shift by a policy-qualified count` |
+| non-shift operands under two different policies | `typing operands under two arithmetic policies` |
+| Saturating left shift as a contract term | `contract selected arithmetic operator has no canonical contract term` |
 | a cast that changes the carrier of an integer that already carries a policy ("Rejected: each of these changes the carrier of a qualified value") | `expression cast that changes the carrier of a policy-qualified integer` |
 | a literal or other plain value where a policy-qualified one is declared: `let x: u32 in Wrapping = 5;`, an argument, a field initializer, a result ("An expected type selects the carrier in which an anonymous literal lands. It never inserts a domain cast") | `typing local initializer without the arithmetic policy of its local`, `typing argument types`, `typing record literal field type`, `typing arm value type`, `typing final value type`, `typing assigned value type` |
 | a policy-qualified local declared without an initializer, `&T in Wrapping`, a loan of such a place, an `[erased]` one, and a value `match` that yields one | `statement uninitialized local of a policy-qualified type`, `parameter reference to a policy-qualified integer`, `call loan of a policy-qualified integer`, `parameter erased parameter of a policy-qualified type`, `expression match with a policy-qualified result` |
@@ -569,14 +568,15 @@ same through two or more machines.
 forever and owes no rank". [Call cycles as loops](#call-cycles-as-loops)
 gives the lowered form.
 
-A loop can name its decreasing measure with `terminates by remaining` or
-`terminates by bytes -> Slice::Length`. The reader uses the resolved typed
-expressions and the selected view declaration, and checks an explicit
-`Nat::Descending` against its sealed catalog header. Short forms use the
-carrier's canonical default; a user-written declaration that looks like a
-catalog view grants no ranking rules. Measures may use scalar formals,
-integer constants, exact subtraction and the length of a borrowed byte-view
-formal. In a ranked group of mutually recursive machines, every member keeps
+A loop can name its decreasing measure with `terminates by remaining`,
+`terminates by bytes -> Slice::Length` or `terminates by (cursor, limit) ->
+Nat::BoundedDistance`. The reader uses the resolved typed expressions and
+checks explicit natural views against their sealed catalog headers. Short
+forms use the carrier's canonical default. A user-written lookalike grants
+no ranking rules. Measures may use scalar formals, integer constants,
+exact subtraction and the length of a borrowed byte-view formal. Bounded
+distance uses ordinary unsigned saturating subtraction to keep zero at
+and beyond the limit. In a ranked group of mutually recursive machines, every member keeps
 a private measure. A recursive call group may declare
 its decreasing measure in one machine and pass the values it needs through
 helpers. The compiler follows each call's actual argument bindings to express
@@ -602,7 +602,7 @@ name until the slice that serves it:
 | a call of a member whose result the caller goes on to use, `1 + f(n)` | `call recursion outside a terminal position` |
 | a view with no admitted resolved selection, including an authored lookalike | `contract ranking view has no admitted resolved selection`, `contract selected ranking view is not an admitted compiler ranking declaration` |
 | view arguments or a rank range, `in lower..=upper` | `contract ranking view arguments and bounded ranges` |
-| several subjects under the served catalog views | `contract selected ranking view requires exactly one subject` |
+| several subjects under a single-subject view | `contract selected ranking view requires exactly one subject` |
 | a signed subject under `Nat::Descending` | `contract natural ranking needs an unsigned integer subject` |
 | an address or width-generic rank carrier | `contract ranking needs a closed finite integer carrier` |
 | a length measure whose base is not a formal | `contract length ranking subject is not a resolved formal` |
@@ -610,7 +610,6 @@ name until the slice that serves it:
 | a witness without resolved typed subjects | `contract ranking subjects have no resolved expressions` |
 | a termination promise that reaches a cycle with a member lacking a measure | `contract termination promise over a call cycle` |
 | `terminates` under a progress premise | `contract termination under a progress premise` |
-| `ensures` on a member | `contract ensures on a call cycle` |
 | a `crashes Cause` clause with a route guard on a member | `contract guarded crash route on a call cycle` |
 | an `[erased]` formal or local in a member | `machine erased binding on a call cycle` |
 | a formal, result or local of a type parameter in a member | `machine value of a type parameter on a call cycle` |

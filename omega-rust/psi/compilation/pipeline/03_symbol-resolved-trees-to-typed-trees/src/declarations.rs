@@ -1166,7 +1166,11 @@ pub(crate) mod machine {
                         language_core::sealed_intrinsics::CompilerPrimitive::NaturalRanking,
                     ))
                     })
-                    .map(|_| language_semantics::RankingViewId::NAT_DESCENDING),
+                    .and_then(|candidate| {
+                        language_semantics::RankingViewId::canonical(candidate.name.as_str())
+                            .and_then(language_semantics::RankingViewId::catalog_declaration)
+                            .map(|declaration| declaration.view)
+                    }),
                 _ => None,
             };
         if let Some(view) = explicit
@@ -1284,10 +1288,15 @@ pub(crate) mod mathematical {
                 resolved::mathematical::MathematicalBody::Assumption => {
                     typed::mathematical::MathematicalBody::Assumption
                 }
+                // A definition keeps its selected arithmetic policy, like a
+                // contract. The lowered-form checker proves totality under
+                // the definition's own inputs.
                 resolved::mathematical::MathematicalBody::Definition(term) => {
-                    typed::mathematical::MathematicalBody::Definition(lower_expression_handle(
-                        lowerer, *term,
-                    )?)
+                    typed::mathematical::MathematicalBody::Definition(
+                        lowerer.admitting_contract_policy_operators(|lowerer| {
+                            lower_expression_handle(lowerer, *term)
+                        })?,
+                    )
                 }
             },
         };
@@ -1591,9 +1600,13 @@ pub(crate) mod provider_defaults {
     pub(crate) fn finalize_provider_default_calls(
         typed: &mut TypedTrees,
     ) -> Result<(), Diagnostic> {
-        for machine in typed.machines_mut() {
-            if machine.name.as_str().ends_with("::provider_defaults") {
-                machine.purpose = typed_trees::machine::MachinePurpose::ProviderDefaults;
+        for position in 0..typed.machines().len() {
+            let machine = typed.machines().at(position);
+            if machine.name.as_str().ends_with("::provider_defaults")
+                && machine.purpose != typed_trees::machine::MachinePurpose::ProviderDefaults
+            {
+                typed.machine_mut(position).purpose =
+                    typed_trees::machine::MachinePurpose::ProviderDefaults;
             }
         }
         let occurrences = typed

@@ -1,1 +1,1 @@
-assignment stores a value not provably within its data's `requires` facts
+this write opens the invariant window: it is not shown to keep requires clause 1 of a data type

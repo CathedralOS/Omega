@@ -1,3 +1,4 @@
+module geometry::profile;
 // Vertical gate silhouette: width is linear between adjacent elevations.
 // Nodes are validated before clipping; a zero width is a legitimate tip.
 

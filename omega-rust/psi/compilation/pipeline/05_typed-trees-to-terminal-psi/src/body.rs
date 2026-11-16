@@ -216,6 +216,16 @@ pub enum Policy {
 }
 
 impl Policy {
+    pub const fn domain(policy: Option<Self>) -> numerics::arithmetic::ArithmeticDomain {
+        use numerics::arithmetic::ArithmeticDomain;
+        match policy {
+            None => ArithmeticDomain::Exact,
+            Some(Self::Wrapping) => ArithmeticDomain::Wrapping,
+            Some(Self::Saturating) => ArithmeticDomain::Saturating,
+            Some(Self::Trapping) => ArithmeticDomain::Trapping,
+        }
+    }
+
     /// The policy a written arithmetic domain names; `Exact` names none.
     pub const fn of_domain(domain: numerics::arithmetic::ArithmeticDomain) -> Option<Self> {
         use numerics::arithmetic::ArithmeticDomain;
@@ -1149,7 +1159,7 @@ pub enum ExpressionKind {
         operand: Box<Expression>,
         clauses: Vec<Proposition>,
         /// The condition the cast must establish, for a diagnostic.
-        stated: String,
+        stated: terminal_check_tables::program::CastCondition,
     },
     /// `&&` when `conjunction`, else `||`: the right operand runs only when
     /// the left does not decide the result.

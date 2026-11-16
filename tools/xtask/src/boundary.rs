@@ -264,6 +264,21 @@ pub fn forbidden_rules() -> Vec<Rule> {
             allowed: FIREWALL_ALLOWANCES.to_vec(),
         },
     ];
+    // Instruction selection is handed the execution plan stage 02 prepared.
+    // The abstract program, the optimization unit and its fact tables, and the
+    // sealed module's codec are what that plan was prepared from; selection
+    // must not be able to name them. Leaf vocabulary those forms share lives
+    // in representations/native-vocabulary, below all of them.
+    rules.push(Rule {
+        owners: vec![OMEGA_STAGES[3]],
+        forbidden: vec![
+            "omega-rust/omega/compilation/representations/abstract-operations",
+            "omega-rust/psi/compilation/representations/terminal-psi/codec",
+        ],
+        reason: "instruction selection reads the prepared execution plan, not the abstract program, the optimization unit or the sealed module (omega-rust/pipeline.md); carry what selection needs in the plan",
+        except_owners: vec![],
+        allowed: vec![],
+    });
     // Typing and Terminal stages consume representation-owned handoffs; their
     // drivers, not adjacent stages, coordinate deferred work.
     for (owners, stages) in [
@@ -370,6 +385,89 @@ pub fn stale_allowance_violations(
                 "{} -> {}: edge removed; delete its row from FIREWALL_ALLOWANCES so it cannot return",
                 allowed.owner, allowed.dependency
             ));
+        }
+    }
+    Ok(violations)
+}
+
+/// Earlier executable program forms: the abstract program, the optimization
+/// unit, and the unit's independent semantic checker (all under this path).
+const EARLIER_PROGRAM_FORMS: &str =
+    "omega-rust/omega/compilation/representations/abstract-operations";
+
+/// The forms from the prepared plan onward, the stages that turn one into the
+/// next, the target setup they share, and the leaf vocabulary they carry. Instruction selection is handed only the prepared
+/// execution plan; if one of these crates could reach an earlier program form,
+/// so could selection, one dependency away. The check follows every production
+/// edge, so a new path through a helper crate is caught too.
+const SELECTION_REPRESENTATIONS: &[&str] = &[
+    "omega-rust/omega/compilation/representations/native-vocabulary",
+    "omega-rust/omega/compilation/representations/target-operations",
+    "omega-rust/omega/compilation/representations/target-operations/legalized-operations",
+    "omega-rust/omega/compilation/representations/selected-instructions",
+    "omega-rust/omega/compilation/representations/selected-instructions/analyses",
+    "omega-rust/omega/compilation/representations/register-homes",
+    "omega-rust/omega/compilation/representations/post-allocation-machine",
+    "omega-rust/omega/compilation/representations/machine-code",
+    "omega-rust/omega/compilation/backend/register-environment",
+    "omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions",
+    "omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes",
+    "omega-rust/omega/compilation/pipeline/06_register-homes-to-post-allocation-machine",
+    "omega-rust/omega/compilation/pipeline/07_post-allocation-machine-to-selected-form-encoding",
+    "omega-rust/omega/compilation/pipeline/08_selected-form-encoding-to-resolved-layout",
+    "omega-rust/omega/compilation/pipeline/09_resolved-layout-to-resolved-layout",
+];
+
+/// Report each of `roots` that can reach a crate under `forbidden` through
+/// production dependencies, with the chain that reaches it. Dev-dependencies
+/// are ignored; optional dependencies count, since a feature can enable them.
+pub fn transitive_forbidden_violations(
+    metadata: &Metadata,
+    roots: &[&str],
+    forbidden: &str,
+    reason: &str,
+) -> Result<Vec<String>, String> {
+    let root = Path::new(&metadata.workspace_root);
+    let mut packages: BTreeMap<String, &Package> = BTreeMap::new();
+    for package in &metadata.packages {
+        if let Some(parent) = Path::new(&package.manifest_path).parent() {
+            packages.insert(normalize_relative(root, parent)?, package);
+        }
+    }
+    let mut violations = Vec::new();
+    for &start in roots {
+        let Some(&first) = packages.get(start) else {
+            return Err(format!("{start} is absent from the workspace"));
+        };
+        let mut pending = vec![(start.to_owned(), vec![first.name.clone()])];
+        let mut visited = BTreeSet::new();
+        while let Some((directory, chain)) = pending.pop() {
+            if !visited.insert(directory.clone()) {
+                continue;
+            }
+            if under(&directory, &[forbidden]) {
+                violations.push(format!("{}: {reason}", chain.join(" -> ")));
+                continue;
+            }
+            let Some(&package) = packages.get(&directory) else {
+                continue;
+            };
+            for dependency in &package.dependencies {
+                if dependency.kind.as_deref() == Some("dev") {
+                    continue;
+                }
+                let Some(dep_path) = &dependency.path else {
+                    continue;
+                };
+                let rel = normalize_relative(root, Path::new(dep_path))?;
+                let mut next = chain.clone();
+                next.push(
+                    packages
+                        .get(&rel)
+                        .map_or_else(|| dependency.name.clone(), |package| package.name.clone()),
+                );
+                pending.push((rel, next));
+            }
         }
     }
     Ok(violations)
@@ -494,6 +592,66 @@ fn line_has_retired_string_representation_spelling(line: &str) -> bool {
     false
 }
 
+/// The entry points of stage 02's validator.
+const PLAN_VALIDATOR_ENTRIES: &[&str] = &[
+    "verify_execution_plan(",
+    "verify_target_operation_plan(",
+    "verify_target_operation_plan_with_closed_module(",
+];
+/// The crate that defines the validator, and the one production caller: the
+/// explicit stage-validator request (`omega --validator ...`).
+const PLAN_VALIDATOR_OWNER: &str = "omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/native-preparation/";
+const PLAN_VALIDATOR_REQUEST: &str =
+    "omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments.rs";
+
+fn is_test_source(relative: &str) -> bool {
+    relative.contains("/tests/") || relative.ends_with("tests.rs")
+}
+
+fn line_calls_plan_validator(line: &str) -> bool {
+    let code = line.trim_start();
+    !code.starts_with("//")
+        && PLAN_VALIDATOR_ENTRIES
+            .iter()
+            .any(|entry| code.contains(entry))
+}
+
+/// Ordinary compilation does not re-verify its own stage output
+/// (omega-rust/pipeline.md, "Verification placement"). Stage 02's validator
+/// derives the execution plan a second time, so a call to it from the default
+/// path would both hide a preparation bug and double the stage's work. Only
+/// the explicit validator request and tests may call it.
+pub fn plan_validator_call_violations(root: &Path) -> Vec<String> {
+    let mut violations = Vec::new();
+    let mut files = Vec::new();
+    collect_rs_files(&root.join(OMEGA), &mut files);
+    for path in files {
+        let rel = path
+            .strip_prefix(root)
+            .unwrap_or(&path)
+            .to_string_lossy()
+            .replace('\\', "/");
+        if rel.starts_with(PLAN_VALIDATOR_OWNER)
+            || rel == PLAN_VALIDATOR_REQUEST
+            || is_test_source(&rel)
+        {
+            continue;
+        }
+        let Ok(text) = fs::read_to_string(&path) else {
+            continue;
+        };
+        for (index, line) in text.lines().enumerate() {
+            if line_calls_plan_validator(line) {
+                violations.push(format!(
+                    "{rel}:{}: stage 02's plan validator is called outside the explicit validator request and tests",
+                    index + 1
+                ));
+            }
+        }
+    }
+    violations
+}
+
 pub fn representation_spelling_violations(root: &Path) -> Vec<String> {
     let mut violations = Vec::new();
     for owner in [PSI, OMEGA] {
@@ -555,6 +713,13 @@ pub fn run(args: &[String]) -> Result<(), u8> {
 
     let check_all = || -> Result<Vec<String>, String> {
         let mut violations = representation_spelling_violations(&root);
+        violations.extend(plan_validator_call_violations(&root));
+        violations.extend(transitive_forbidden_violations(
+            &metadata,
+            SELECTION_REPRESENTATIONS,
+            EARLIER_PROGRAM_FORMS,
+            "a representation instruction selection reads or writes reaches an earlier program form; move the shared leaf type to native-vocabulary",
+        )?);
         violations.extend(psi_omega_dependency_violations(&metadata)?);
         violations.extend(dependency_violations(
             &metadata,
@@ -684,6 +849,117 @@ mod tests {
                 violations.is_empty(),
                 permitted,
                 "{owner} -> {dependency}: {violations:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn selection_representations_cannot_reach_earlier_forms_through_any_crate() {
+        let plan =
+            "omega-rust/omega/compilation/representations/target-operations/legalized-operations";
+        let helper = "omega-rust/omega/compilation/backend/helper";
+        let unit =
+            "omega-rust/omega/compilation/representations/abstract-operations/optimization-unit";
+        let reaches = |kind: Option<&str>| Metadata {
+            workspace_root: "/repo".to_owned(),
+            packages: vec![
+                pkg("legalized-operations", plan, &[("helper", helper, None)]),
+                pkg("helper", helper, &[("optimization-unit", unit, kind)]),
+                pkg("optimization-unit", unit, &[]),
+            ],
+        };
+        let violations =
+            transitive_forbidden_violations(&reaches(None), &[plan], EARLIER_PROGRAM_FORMS, "no")
+                .unwrap();
+        assert_eq!(
+            violations,
+            vec!["legalized-operations -> helper -> optimization-unit: no".to_owned()]
+        );
+        assert!(
+            transitive_forbidden_violations(
+                &reaches(Some("dev")),
+                &[plan],
+                EARLIER_PROGRAM_FORMS,
+                "no"
+            )
+            .unwrap()
+            .is_empty(),
+            "a test-only edge is not a production path"
+        );
+    }
+
+    #[test]
+    fn only_requests_and_tests_may_call_the_plan_validator() {
+        assert!(line_calls_plan_validator(
+            "    native_preparation::verify_execution_plan(plan, target)?;"
+        ));
+        assert!(line_calls_plan_validator(
+            "let _ = verify_target_operation_plan_with_closed_module("
+        ));
+        assert!(!line_calls_plan_validator(
+            "    /// (`native_preparation::verify_execution_plan(...)`)."
+        ));
+        assert!(!line_calls_plan_validator(
+            "    native_preparation::prepare_execution_plan(target, evidence)?;"
+        ));
+        assert!(is_test_source(
+            "omega-rust/omega/compilation/native-compiler/src/physical_publication_tests.rs"
+        ));
+        assert!(is_test_source(
+            "omega-rust/omega/compilation/compiler/tests/executed_fixture_discovery.rs"
+        ));
+        assert!(!is_test_source(
+            "omega-rust/omega/compilation/native-compiler/src/pipeline.rs"
+        ));
+    }
+
+    #[test]
+    fn selection_cannot_reach_the_forms_its_plan_was_prepared_from() {
+        const ABSTRACT: &str = "omega-rust/omega/compilation/representations/abstract-operations";
+        for (dependency, kind, permitted) in [
+            (ABSTRACT, None, false),
+            (
+                "omega-rust/omega/compilation/representations/abstract-operations/optimization-unit",
+                None,
+                false,
+            ),
+            (
+                "omega-rust/omega/compilation/representations/abstract-operations/optimization-unit-semantics",
+                None,
+                false,
+            ),
+            (
+                "omega-rust/psi/compilation/representations/terminal-psi/codec",
+                None,
+                false,
+            ),
+            // Tests may build a plan the way stage 02 does.
+            (ABSTRACT, Some("dev"), true),
+            (
+                "omega-rust/omega/compilation/representations/target-operations/legalized-operations",
+                None,
+                true,
+            ),
+            (
+                "omega-rust/omega/compilation/representations/native-vocabulary",
+                None,
+                true,
+            ),
+        ] {
+            let metadata = Metadata {
+                workspace_root: "/repo".to_owned(),
+                packages: vec![pkg(
+                    "selection",
+                    OMEGA_STAGES[3],
+                    &[("dependency", dependency, kind)],
+                )],
+            };
+            let violations = forbidden_dependency_violations(&metadata, &forbidden_rules())
+                .expect("fixture paths belong to the test workspace");
+            assert_eq!(
+                violations.is_empty(),
+                permitted,
+                "selection -> {dependency} ({kind:?}): {violations:?}"
             );
         }
     }

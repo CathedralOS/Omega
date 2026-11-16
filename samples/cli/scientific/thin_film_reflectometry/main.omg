@@ -2,8 +2,15 @@ use omega::language::core::ProcessExit;
 // Expected exit: 0 with input.txt; malformed or out-of-domain stdin exits 10.
 // Numerical output oracle: fixtures.json (both engines).
 use domain::input;
+use domain::input::Reader;
+use domain::input::Number;
+use domain::input::number;
+use domain::input::ended;
 use domain::report;
+use domain::report::field;
 use domain::complex;
+use domain::complex::norm;
+use domain::complex::quotient;
 use omega::language::core::complex::Complex;
 use omega::language::core::F64::from_i32;
 use omega::language::core::I32::from_f64;

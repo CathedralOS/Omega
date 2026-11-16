@@ -211,9 +211,14 @@ pub(crate) fn numeric_requirement_schema(
         .numeric_intrinsic
         .ok_or("numeric primitive has no complete top-level requirement")?;
     let declaration = terminal_semantics::numeric_primitives::declaration_path(meaning)?;
-    let (owner, method) = declaration
-        .rsplit_once("::")
-        .ok_or("numeric primitive has no declaration owner")?;
+    let (owner, method) = if boundary.kind == semantic_vocabulary::BoundaryRequirementKind::Operator
+    {
+        (text(module, boundary.identity)?, "realize")
+    } else {
+        declaration
+            .rsplit_once("::")
+            .ok_or("numeric primitive has no declaration owner")?
+    };
     requirement_schema(
         module,
         boundary,

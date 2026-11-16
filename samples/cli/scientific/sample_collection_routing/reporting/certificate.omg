@@ -1,6 +1,8 @@
+module reporting::certificate;
 use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 use routing::model;
+use routing::model::Certificate;
 
 // Fixed-width decimal keeps every output field easy to compare as raw bytes.
 machine number(value: i32 in Saturating) reaches Console

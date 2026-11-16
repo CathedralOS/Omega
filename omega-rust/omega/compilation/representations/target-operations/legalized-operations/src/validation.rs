@@ -22,7 +22,7 @@ use crate::{
     LegalizedScalarInstruction, LegalizedScalarInstructionKind, NativeCallOrigin,
 };
 use calling_conventions::{EntryControl, ValueLocation, ValuePlacement, ValueShape};
-use optimization_unit::OwnershipEvent;
+use native_vocabulary::provenance::OwnershipEvent;
 use terminal_psi::{ClaimTransfer, StructuralMultiplicity};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -35,6 +35,22 @@ pub enum LegalizedScalarCallShapeError {
 }
 
 impl LegalizedScalarCall {
+    /// Whether this call follows the calling plan stored on it: the plan uses
+    /// the caller's policy, and every argument and the result sit where the
+    /// plan puts them. This reads the stored plan; it does not compute it
+    /// again. Stage 02's validator compares the stored plan with the callee's.
+    pub fn stored_plan_placements(&self, caller: calling_conventions::CallingPolicy) -> Option<()> {
+        (self.call_plan.policy == caller
+            && self.arguments.len() == self.call_plan.parameters.len()
+            && self
+                .arguments
+                .iter()
+                .zip(&self.call_plan.parameters)
+                .all(|(argument, placement)| argument.placement() == placement)
+            && self.result_placement == self.call_plan.result)
+            .then_some(())
+    }
+
     pub fn validate_source(
         &self,
         ownership: &[OwnershipEvent],
@@ -222,7 +238,7 @@ fn validate_call_source(
 fn validate_completion(
     call: &LegalizedScalarCall,
     ownership: &[OwnershipEvent],
-    claim_sources: &[abstract_operations::CompletionClaimSource],
+    claim_sources: &[native_vocabulary::completion_claims::CompletionClaimSource],
     receipts: &[terminal_psi::CompletionReceipt],
 ) -> Result<(), LegalizedCallSourceError> {
     let structural_count = call
@@ -349,9 +365,7 @@ impl LegalizedScalarInstruction {
         };
         self.result.is_none()
             && self.ownership
-                == [optimization_unit::OwnershipEvent::ClaimCompletion(
-                    Vec::new(),
-                )]
+                == [native_vocabulary::provenance::OwnershipEvent::ClaimCompletion(Vec::new())]
             && result.multiplicity == StructuralMultiplicity::Affine
             && result.qualifications.is_empty()
             && result.projected_qualifications.is_empty()

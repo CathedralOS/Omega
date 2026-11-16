@@ -1,3 +1,4 @@
+module domain::mixture;
 use omega::language::core::sqrt_f64;
 
 // Two independent gross measurements and either one reused tare or two

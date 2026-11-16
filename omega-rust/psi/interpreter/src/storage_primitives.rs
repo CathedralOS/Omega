@@ -2783,6 +2783,30 @@ pub(crate) mod primitive_storage {
             self.primitive_home_access(self.capture_primitive_home(place)?, writing, path)
         }
 
+        /// One scalar write of a store that replaces the whole value at
+        /// `replaced`, such as `holder.bytes = text as +Utf8` writing each
+        /// byte of `bytes`. The replacement installs the stored value's own
+        /// domains on `replaced` (`execute_store_structural_field` repairs
+        /// those memberships), so a domain held at or under `replaced` does
+        /// not restrict the single writes that make it up. A domain enclosing
+        /// `replaced` still does, as for any other write.
+        pub(crate) fn primitive_replacement_access(
+            &self,
+            place: PlaceId,
+            replaced: &[StructuralPathSegment],
+            path: &[StructuralPathSegment],
+        ) -> Result<(PrimitiveStorage, ScalarType, bool), TerminalInterpretError> {
+            if !path.starts_with(replaced) {
+                return Err(malformed());
+            }
+            self.primitive_home_access_within(
+                self.capture_primitive_home(place)?,
+                true,
+                path,
+                Some(replaced),
+            )
+        }
+
         fn reference_primitive_access(
             &self,
             owner: &TerminalStructuralValue,
@@ -3031,6 +3055,7 @@ pub(crate) mod primitive_storage {
             home: PrimitiveStorageHome,
             writing: bool,
             path: &[StructuralPathSegment],
+            replaced: Option<&[StructuralPathSegment]>,
         ) -> Result<(StructuralTypeId, bool), TerminalInterpretError> {
             let machine_id = self.owned_array_home(&home)?;
             let machine = self.program.machine(machine_id)?;
@@ -3039,6 +3064,23 @@ pub(crate) mod primitive_storage {
                  whole: &[semantic_vocabulary::StructuralDomainId],
                  projected: &[terminal_psi::StructuralPathQualification],
                  additional_input: &[terminal_psi::StructuralPathQualification]| {
+                    // `primitive_replacement_access`: the replaced value's
+                    // own domains are installed with it, not preserved.
+                    let enclosing: Vec<_>;
+                    let (whole, projected) = match replaced {
+                        Some(replaced) => {
+                            enclosing = projected
+                                .iter()
+                                .filter(|row| !row.path.starts_with(replaced))
+                                .cloned()
+                                .collect();
+                            (
+                                if replaced.is_empty() { &[][..] } else { whole },
+                                enclosing.as_slice(),
+                            )
+                        }
+                        None => (whole, projected),
+                    };
                     terminal_semantics::primitive_store_restriction(
                         self.structural_types().values(),
                         self.program.catalogs.structural_domains.iter(),
@@ -3153,7 +3195,7 @@ pub(crate) mod primitive_storage {
                 ) {
                     continue;
                 }
-                self.primitive_home_contract(home, false, path)?;
+                self.primitive_home_contract(home, false, path, None)?;
                 let homes = if home.depth == self.call_stack.len() {
                     &self.structural_values
                 } else {
@@ -3256,6 +3298,16 @@ pub(crate) mod primitive_storage {
             writing: bool,
             path: &[StructuralPathSegment],
         ) -> Result<(PrimitiveStorage, ScalarType, bool), TerminalInterpretError> {
+            self.primitive_home_access_within(home, writing, path, None)
+        }
+
+        fn primitive_home_access_within(
+            &self,
+            home: PrimitiveStorageHome,
+            writing: bool,
+            path: &[StructuralPathSegment],
+            replaced: Option<&[StructuralPathSegment]>,
+        ) -> Result<(PrimitiveStorage, ScalarType, bool), TerminalInterpretError> {
             let place = home.place;
             let (
                 machine_id,
@@ -3301,7 +3353,8 @@ pub(crate) mod primitive_storage {
                     },
                 })?
             {
-                let (_, shared_view) = self.primitive_home_contract(home, writing, path)?;
+                let (_, shared_view) =
+                    self.primitive_home_contract(home, writing, path, replaced)?;
                 return Ok((
                     element.storage,
                     ScalarType::Integer(
@@ -3311,7 +3364,7 @@ pub(crate) mod primitive_storage {
                 ));
             }
             if path.contains(&StructuralPathSegment::Referent) {
-                self.primitive_home_contract(home, writing, path)?;
+                self.primitive_home_contract(home, writing, path, replaced)?;
                 let owner = structural_values.require(&place)?;
                 if owner.structural_type != home.structural_type {
                     return Err(malformed());
@@ -3321,7 +3374,7 @@ pub(crate) mod primitive_storage {
                 }
             }
             if let Some(loan) = element_view_values.get(&place) {
-                self.primitive_home_contract(home, writing, path)?;
+                self.primitive_home_contract(home, writing, path, replaced)?;
                 let owner = structural_values.require(&place)?;
                 if owner.structural_type != home.structural_type
                     || !loan.matches_descriptor_home(owner)
@@ -3350,7 +3403,7 @@ pub(crate) mod primitive_storage {
                 return Ok((loan.storage.clone(), loan.scalar_type, loan.shared_view));
             }
             let (structural_type, shared_view) =
-                self.primitive_home_contract(home, writing, path)?;
+                self.primitive_home_contract(home, writing, path, replaced)?;
             if let Some(backing) = aggregate_argument_backings.get(&place) {
                 if let Some(region) = backing.region {
                     let (storage, scalar_type, _) = self.aggregate_view_primitive_access(

@@ -5,9 +5,15 @@ use omega_language_std::Console;
 use omega::language::core::F64::from_u64;
 use omega::language::core::U64::from_f64;
 use domain::input;
+use domain::input::Input;
+use domain::input::read;
 use domain::model;
+use domain::model::Analysis;
+use domain::model::analyze;
 use domain::quality;
+use domain::quality::qualify;
 use domain::report;
+use domain::report::report;
 data Main { input: Input; analysis: Analysis; }
 machine main(main: &mut Main) reaches ProcessExit + Console {
  block read(&mut main.input);

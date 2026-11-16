@@ -4,10 +4,22 @@ use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 use omega_language_std::LineReadResult;
 use mechanics::model;
+use mechanics::model::Laminate;
+use mechanics::model::absolute;
+use mechanics::model::transform;
+use mechanics::model::assemble;
+use mechanics::model::prepare_system;
+use mechanics::model::layer_stress;
 use mechanics::solve;
+use mechanics::solve::solve;
 use mechanics::report;
+use mechanics::report::Reporter;
+use mechanics::report::number;
+use mechanics::report::matrix;
 use mechanics::checks;
+use mechanics::checks::matches;
 use mechanics::fixtures;
+use mechanics::fixtures::fixture;
 data Main { reporter: Reporter; model: Laminate; input: [u8; 4]; }
 machine main(main: &mut Main) reaches ProcessExit + Console {
     let observed: LineReadResult = block Console::read_line(&mut main.input[..]);

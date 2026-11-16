@@ -13,9 +13,9 @@ and image-address fixups.
 pub mod identity;
 pub mod publication;
 
-use abstract_operations::ValueBinding;
+use native_vocabulary::provenance::WorkSettlement;
+use native_vocabulary::values::ValueBinding;
 use optimization_core::FunctionFragmentEmissionIdentity;
-use optimization_unit::WorkSettlement;
 use selected_instructions::{
     MachineAlternativeKey, SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity,
     SelectedInstructionProvenance,

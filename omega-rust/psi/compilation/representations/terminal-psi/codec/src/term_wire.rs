@@ -1263,12 +1263,15 @@ pub(crate) mod proof_declaration_wire {
         EvidenceInterfaceIdentity, EvidenceProjectionIdentity, EvidenceRequirementIdentity,
         PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
         PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
-        PropositionDeclaration, PropositionEvidence, TerminalIdentityIndex,
+        PropositionDeclaration, PropositionEvidence, ScalarPredicateDefinition,
+        TerminalIdentityIndex,
     };
 
     use super::CodecError;
     use super::wire::{Reader, Writer};
-    use super::wire_fields::{Field, Id, Index, List, Optional, Text, wire_enum, wire_record};
+    use super::wire_fields::{
+        Field, Id, Index, List, Optional, Proposition, Text, wire_enum, wire_record,
+    };
 
     wire_record! {
         Declaration: PropositionDeclaration {
@@ -1277,6 +1280,11 @@ pub(crate) mod proof_declaration_wire {
             binders: List<Binder>,
             parameter_types: List<Text>,
             evidence: Evidence,
+        }
+        ScalarPredicate: ScalarPredicateDefinition {
+            declaration: Index,
+            parameters: List<super::machine_wire::Declaration>,
+            body: Proposition,
         }
         Binder: PropositionBinderDeclaration { name: Text, kind: BinderKind }
         Application: PropositionApplicationIdentity {
@@ -1839,6 +1847,7 @@ pub(crate) mod proposition_wire {
         decode_content_algebra, decode_content_term, encode_content_algebra, encode_content_term,
     };
     use super::integer_math_term_wire::{decode_integer_math_term, encode_integer_math_term};
+    use super::scalar_wire::{decode_integer_type, encode_integer_type};
     use super::structural_field_wire::{
         decode_byte_sequence_field, decode_canonical_structural_field,
         decode_ieee_float_comparison_kind, decode_ieee_float_field, decode_ieee_float_format,
@@ -1852,8 +1861,8 @@ pub(crate) mod proposition_wire {
     use super::module_wire::float_meaning_wire;
     use super::wire_fields::{Field, List, u32_newtypes, wire_enum, wire_record};
     use semantic_vocabulary::{
-        FloatMeaningClause, FloatMeaningClauseOperand, FloatMeaningClauseValue, FloatMeaningSlot,
-        ScalarTerm,
+        FloatIntegerConversion, FloatMeaningClause, FloatMeaningClauseOperand,
+        FloatMeaningClauseValue, FloatMeaningSlot, ScalarTerm,
     };
 
     struct MeaningSource;
@@ -1868,6 +1877,11 @@ pub(crate) mod proposition_wire {
     u32_newtypes! { MeaningSlot: FloatMeaningSlot; }
     wire_record! {
         MeaningEquation: FloatMeaningClause { values: List<MeaningValue>, left: MeaningSlot, right: MeaningSlot }
+        IntegerConversion: FloatIntegerConversion {
+            source: MeaningSource, result: MeaningSource,
+            projection: float_meaning_wire::ProjectionContract,
+            operation: float_meaning_wire::ApplicationContract,
+        }
     }
     wire_enum! {
         MeaningValue: FloatMeaningClauseValue, "FloatMeaningClauseValue" {
@@ -2017,6 +2031,15 @@ pub(crate) mod proposition_wire {
                 writer.u8(19);
                 MeaningEquation::write(writer, clause)?;
             }
+            Proposition::FloatIntegerConversion(clause) => {
+                writer.u8(20);
+                IntegerConversion::write(writer, clause)?;
+            }
+            Proposition::IeeeFloatIntegerExact { source, target } => {
+                writer.u8(21);
+                encode_scalar_term(writer, source)?;
+                encode_integer_type(writer, *target)?;
+            }
             Proposition::StructuralIdentity { left, right } => {
                 writer.u8(18);
                 for subject in [left, right] {
@@ -2115,6 +2138,11 @@ pub(crate) mod proposition_wire {
                 }
             }
             19 => Proposition::FloatMeaningEqual(MeaningEquation::read(reader)?),
+            20 => Proposition::FloatIntegerConversion(IntegerConversion::read(reader)?),
+            21 => Proposition::IeeeFloatIntegerExact {
+                source: decode_scalar_term(reader)?,
+                target: decode_integer_type(reader)?,
+            },
             tag => return Err(CodecError::InvalidTag("Proposition", tag)),
         })
     }
@@ -2126,6 +2154,58 @@ pub(crate) mod proposition_wire {
             FloatSemanticValueKind::{Format, Meaning},
         };
         use semantic_vocabulary::{IeeeFloatFormat, ScalarType, ValueId};
+
+        #[test]
+        fn integer_conversion_predicates_round_trip_the_complete_contract_and_carriers() {
+            use numerics::float_semantics::FloatSemanticValueKind;
+            use numerics::integer_carrier::FixedInteger;
+            use semantic_vocabulary::{FloatIntegerConversion, IntegerSign, IntegerType};
+            let target = IntegerType::new(IntegerSign::Signed, 32).unwrap();
+            let source = ScalarTerm::value(
+                ValueId::new(1).unwrap(),
+                ScalarType::IeeeFloat(IeeeFloatFormat::Binary64),
+            );
+            let result = ScalarTerm::value(ValueId::new(2).unwrap(), ScalarType::Integer(target));
+            let operation = FloatSemanticOperation::from_source_identity(
+                "FloatSemantics",
+                "to_i32",
+                &[Meaning],
+                FloatSemanticValueKind::Integer(FixedInteger::signed(32)),
+            )
+            .unwrap();
+            let graph =
+                FloatIntegerConversion::new(source.clone(), result, operation.contract_identity())
+                    .unwrap();
+            for original in [
+                Proposition::FloatIntegerConversion(graph.clone()),
+                Proposition::IeeeFloatIntegerExact { source, target },
+            ] {
+                let mut writer = Writer::default();
+                encode_proposition(&mut writer, &original).unwrap();
+                let bytes = writer.finish();
+                let mut reader = Reader::new(&bytes);
+                let decoded = decode_proposition(&mut reader).unwrap();
+                decoded.validate().unwrap();
+                assert_eq!(reader.remaining(), 0);
+                assert_eq!(decoded, original);
+                if matches!(original, Proposition::FloatIntegerConversion(_)) {
+                    for commitment in [graph.operation.commitment, graph.projection.commitment] {
+                        let mut changed = bytes.clone();
+                        let position = changed
+                            .windows(commitment.len())
+                            .position(|window| window == commitment)
+                            .unwrap();
+                        changed[position] ^= 1;
+                        assert!(
+                            decode_proposition(&mut Reader::new(&changed))
+                                .unwrap()
+                                .validate()
+                                .is_err()
+                        );
+                    }
+                }
+            }
+        }
 
         #[test]
         fn integer_float_meaning_operands_round_trip_and_reject_carrier_substitution() {

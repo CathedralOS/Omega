@@ -52,12 +52,14 @@ nothing else: lowering never asks what a place holds.
 - What a formal holds at entry is not a write. It is one value per scalar
   leaf with `ValueOrigin::StorageContent { place, after: None }`. Clauses
   and operations request the leaves; final lowering names them in place order.
-  A call that returns a result or an exclusive argument supplies a distinct
-  `after: Some(call)` version. Later writes do not change either snapshot.
+  A block formal binds a new snapshot on each arrival. A call that returns a
+  result or an exclusive argument supplies a distinct `after: Some(call)`
+  version. Later writes do not change a captured snapshot.
 */
 
 #[path = "places_contents.rs"]
 mod contents;
+pub(super) use contents::ContentDemand;
 
 use crate::body::Qualification;
 use semantic_vocabulary::{
@@ -69,7 +71,7 @@ use terminal_check_tables::edges::Destination;
 use terminal_check_tables::obligations::{ExecutionSite, Lender, ObligationKind};
 use terminal_check_tables::values::ValueOrigin;
 use terminal_check_tables::{
-    Checked, Construct, ExactPlaceId, ProgramPoint, PsiSemanticId, Refusal, RefusalReason,
+    Checked, Construct, ExactPlaceId, ProgramPoint, Refusal, RefusalReason,
 };
 use terminal_psi::{
     NativeLayoutCatalog, NativeLayoutFieldIdentity, Operation, OperationKind, OperationResult,
@@ -1362,16 +1364,7 @@ impl<'a> Lowering<'a> {
     /// Register a demanded scalar leaf. Logical identities are allocated in
     /// exact-place order after lowering, including leaves named only in clauses.
     fn initial_content(&mut self, leaf: ExactPlaceId, scalar_type: ScalarType) -> Checked<()> {
-        let index = usize::try_from(leaf.get() - 1)
-            .map_err(|_| self.internal("place identity exceeds the address space"))?;
-        if self.demanded_contents.len() <= index {
-            self.demanded_contents.resize(index + 1, None);
-        }
-        if self.demanded_contents[index].is_some_and(|previous| previous != scalar_type) {
-            return Err(self.internal("a demanded storage leaf has two scalar types"));
-        }
-        self.demanded_contents[index] = Some(scalar_type);
-        Ok(())
+        self.demand_content(leaf, scalar_type, false)
     }
 
     /// Register the storage leaves a use or type contract observes. Calls and
@@ -1607,28 +1600,24 @@ impl<'a> Lowering<'a> {
     }
 
     fn index_step(&mut self, owner: StructuralTypeId, expression: &Expression) -> Evaluation<Step> {
+        // A literal index the array's length admits becomes a fixed path
+        // step, which needs no proof. Any other index, a literal outside
+        // the length included, becomes a runtime step that owes the
+        // operation-safety obligation `index < length`; the lowered-form
+        // checker then refuses an out-of-range literal with the same
+        // "cannot prove index is within length" diagnostic as any other
+        // unproved index.
         let (_, _, extent) = self.array_element(owner)?;
-        let fixed = if let CollectionExtent::Fixed(length) = extent {
-            let fixed = match expression.kind {
-                ExpressionKind::Integer(IntegerValue::Unsigned(value)) => {
-                    Some(u64::try_from(value))
-                }
-                ExpressionKind::Integer(IntegerValue::Signed(value)) => Some(u64::try_from(value)),
-                _ => None,
-            };
-            match fixed {
-                Some(Ok(index)) if index < length => Some(index),
-                Some(_) => {
-                    return Err(refuse(
-                        self.id,
-                        Construct::Machine,
-                        Unserved::Typing("array index outside its declared extent"),
-                    ));
-                }
-                None => None,
-            }
-        } else {
-            None
+        let fixed = match (extent, &expression.kind) {
+            (
+                CollectionExtent::Fixed(length),
+                ExpressionKind::Integer(IntegerValue::Unsigned(value)),
+            ) => u64::try_from(*value).ok().filter(|index| *index < length),
+            (
+                CollectionExtent::Fixed(length),
+                ExpressionKind::Integer(IntegerValue::Signed(value)),
+            ) => u64::try_from(*value).ok().filter(|index| *index < length),
+            _ => None,
         };
         let selector = continuing!(self.scalar(expression));
         Ok(Reached::Value(Step::Index {
@@ -1662,7 +1651,7 @@ impl<'a> Lowering<'a> {
         operand: &Expression,
         expression: &Expression,
         clauses: &[semantic_vocabulary::Proposition],
-        stated: &str,
+        stated: Option<&terminal_check_tables::program::CastCondition>,
     ) -> Evaluation<Located> {
         let Some(ValueType::Record(record, after, _)) = expression.result else {
             return Err(self.internal("a record cast has no record result"));
@@ -1760,9 +1749,11 @@ impl<'a> Lowering<'a> {
                     id,
                 )?);
             }
-            self.sources
-                .predicate_establishments
-                .push((cast, stated.to_owned()));
+            if let Some(stated) = stated {
+                self.sources
+                    .predicate_establishments
+                    .push((cast, stated.clone()));
+            }
             self.invariants.push(terminal_psi::ScalarBlockInvariant {
                 machine: id,
                 header: cast,
@@ -2193,7 +2184,18 @@ impl<'a> Lowering<'a> {
                 let source = StructuralArgument {
                     place: captured,
                     path: Vec::new(),
-                    access: StructuralAccess::SharedBorrow,
+                    access: match self.record_type(record)?.shape {
+                        StorageShape::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BorrowedView {
+                                access: Some(access),
+                            },
+                        )
+                        | StorageShape::ElementView {
+                            access: Some(access),
+                            ..
+                        } => access,
+                        _ => return Err(self.internal("a range lost its descriptor access")),
+                    },
                 };
                 let exact = self.exact_root(captured)?;
                 self.name_contents(exact, ValueType::record(record))?;
@@ -2347,12 +2349,12 @@ impl<'a> Lowering<'a> {
             // computed (domains.md: "removing `D` with a cast changes no bits
             // or geometry"), but the result is a distinct place of a distinct
             // type, reached through the cast's own edge.
-            ExpressionKind::Requalify(operand) => self.requalify(operand, expression, &[], ""),
+            ExpressionKind::Requalify(operand) => self.requalify(operand, expression, &[], None),
             ExpressionKind::Establish {
                 operand,
                 clauses,
                 stated,
-            } => self.requalify(operand, expression, clauses, stated),
+            } => self.requalify(operand, expression, clauses, Some(stated)),
             ExpressionKind::Borrow { access, place, .. } => {
                 let StorageShape::Reference {
                     referent,

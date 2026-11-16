@@ -8,7 +8,7 @@ or borrowed restoration obligations.
 Carrier casts start with an unqualified operand and perform an exact scalar
 conversion before adding a policy. Float widening uses the authenticated Core
 conversion whose entire input format is exactly representable in its result.
-Trapping conversions, storage recasts and unserved anonymous operands refuse.
+Storage recasts and unserved anonymous operands refuse here.
 */
 
 use semantic_vocabulary::{MachineId, ScalarType};
@@ -41,12 +41,7 @@ impl Program<'_> {
         // with the policy beside it (`cast.domain`); a target written as a
         // constrained type goes through the type route like any other.
         use numerics::arithmetic::ArithmeticDomain;
-        let named = match cast.domain {
-            ArithmeticDomain::Exact => None,
-            ArithmeticDomain::Wrapping => Some(Policy::Wrapping),
-            ArithmeticDomain::Saturating => Some(Policy::Saturating),
-            ArithmeticDomain::Trapping => return unserved("cast into Trapping"),
-        };
+        let named = Policy::of_domain(cast.domain);
         let target = match (self.value_type(id, cast.target_type)?, named) {
             (
                 ValueType::Scalar(carrier @ ScalarType::Integer(_), Qualification::NONE),
@@ -147,12 +142,14 @@ impl Program<'_> {
                     kind: ExpressionKind::Establish {
                         operand: Box::new(operand),
                         clauses: vec![semantic_vocabulary::Proposition::FloatMeaningEqual(clause)],
-                        stated: format!(
-                            "the float value is exactly representable in {}",
-                            match to {
-                                semantic_vocabulary::IeeeFloatFormat::Binary32 => "f32",
-                                semantic_vocabulary::IeeeFloatFormat::Binary64 => "f64",
-                            }
+                        stated: terminal_check_tables::program::CastCondition::ExactRepresentation(
+                            format!(
+                                "the float value is exactly representable in {}",
+                                match to {
+                                    semantic_vocabulary::IeeeFloatFormat::Binary32 => "f32",
+                                    semantic_vocabulary::IeeeFloatFormat::Binary64 => "f64",
+                                }
+                            ),
                         ),
                     },
                     call_context: None,
@@ -164,6 +161,44 @@ impl Program<'_> {
                 NumericIntrinsic::Conversion {
                     source: numeric(from),
                     target: numeric(to),
+                    domain: ArithmeticDomain::Exact,
+                },
+                operand,
+                source,
+            )?
+        } else if let (Some(ScalarType::IeeeFloat(from)), Some(ScalarType::Integer(to))) =
+            (source_type.scalar(), target.scalar())
+        {
+            use language_semantics::numeric_intrinsics::{NumericIntrinsic, NumericType};
+            let carrier = semantic_vocabulary::fixed_integer_type(to)
+                .map_err(|detail| refuse(id, Construct::Machine, Unserved::Expression(detail)))?;
+            let source_term = semantic_vocabulary::ScalarTerm::value(
+                semantic_vocabulary::ValueId::new(1).expect("fixed predicate formal"),
+                ScalarType::IeeeFloat(from),
+            );
+            let operand = Expression {
+                result: operand.result,
+                kind: ExpressionKind::Establish {
+                    operand: Box::new(operand),
+                    clauses: vec![semantic_vocabulary::Proposition::IeeeFloatIntegerExact {
+                        source: source_term,
+                        target: to,
+                    }],
+                    stated: terminal_check_tables::program::CastCondition::ExactRepresentation(
+                        format!("the float value is exactly representable in {carrier}"),
+                    ),
+                },
+                call_context: None,
+                source,
+            };
+            self.exact_numeric_conversion(
+                id,
+                NumericIntrinsic::Conversion {
+                    source: match from {
+                        semantic_vocabulary::IeeeFloatFormat::Binary32 => NumericType::F32,
+                        semantic_vocabulary::IeeeFloatFormat::Binary64 => NumericType::F64,
+                    },
+                    target: NumericType::Integer(carrier),
                     domain: ArithmeticDomain::Exact,
                 },
                 operand,
@@ -296,10 +331,12 @@ impl Program<'_> {
         // A literal lands in the carrier of the type the cast gives it
         // (domains.md, "Literals and expected types": "An expected type
         // selects the carrier in which an anonymous literal lands"). A
-        // quoted literal's carrier is the view the cast qualifies.
+        // quoted literal's carrier is the view the cast qualifies, and an
+        // array literal's is the array: `[65u8, 66u8] as +Text` is a plain
+        // `[u8; 2]` given the domain.
         let landing = if self.wholly_anonymous(cast.value) {
             result.scalar().map(ValueType::plain)
-        } else if self.byte_literal_operand(cast.value) {
+        } else if self.byte_literal_operand(cast.value) || self.array_literal_operand(cast.value) {
             result.qualified(Qualification::NONE)
         } else {
             None
@@ -427,7 +464,10 @@ impl Program<'_> {
                             kind: ExpressionKind::Establish {
                                 operand: Box::new(operand),
                                 clauses,
-                                stated,
+                                stated:
+                                    terminal_check_tables::program::CastCondition::DomainMembership(
+                                        stated,
+                                    ),
                             },
                             result: Some(result),
                             source,
@@ -674,6 +714,14 @@ impl Program<'_> {
             )
     }
 
+    fn array_literal_operand(&self, expression: typed_trees::expression::ExpressionHandle) -> bool {
+        expression.is_valid()
+            && matches!(
+                self.typed.expression_table.expression(expression),
+                typed_trees::expression::ExpressionNode::ArrayLiteral(_)
+            )
+    }
+
     /// Whether the record row `row` is a shared byte view.
     fn is_view(&self, id: MachineId, row: semantic_vocabulary::StructuralTypeId) -> Checked<bool> {
         Ok(matches!(
@@ -740,21 +788,12 @@ mod tests {
             }),
             "expression cast naming a domain"
         );
-        // A cast into Trapping is refused before its target is read.
-        assert_eq!(
-            refused(TableCastExpression {
-                domain: ArithmeticDomain::Trapping,
-                ..plain()
-            }),
-            "expression cast into Trapping"
-        );
-        // A plain cast with no target type is refused by the type route,
-        // and so is one into Wrapping or Saturating: the policy is read,
-        // then the carrier it qualifies.
+        // The type route checks the carrier before applying any policy.
         for domain in [
             ArithmeticDomain::Exact,
             ArithmeticDomain::Wrapping,
             ArithmeticDomain::Saturating,
+            ArithmeticDomain::Trapping,
         ] {
             assert_eq!(
                 refused(TableCastExpression { domain, ..plain() }),

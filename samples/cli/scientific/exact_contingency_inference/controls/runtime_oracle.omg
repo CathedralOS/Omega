@@ -1,10 +1,15 @@
+module controls::runtime_oracle;
 use omega::language::core::ProcessExit;
 // Numeric execution control frozen from the independent Cartesian oracle before execution.
 // The real application remains stdin-driven; this opcode also checks Terminal's calculations,
 // since the shipped --both route compares termination rather than stdout.
 use omega_language_std::Console;
 use domain::tables;
+use domain::tables::Table;
+use domain::tables::Model;
+use domain::tables::Inference;
 use domain::inference;
+use domain::inference::analyze;
 machine snapshot(model: &Model, expected: &Inference) -> bool {
     let actual: Inference = analyze(model);
     actual.status == expected.status && actual.count == expected.count &&

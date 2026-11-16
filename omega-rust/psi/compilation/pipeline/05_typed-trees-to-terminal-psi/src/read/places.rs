@@ -924,7 +924,7 @@ impl Program<'_> {
             return Err(self.unselected_member(id, slots, member, source));
         }
         let base = self.place(id, slots, member.receiver, None, access)?;
-        let Some(record) = self.opened(id, base.result, access)? else {
+        let Some(record) = self.opened_place(id, &base, access)? else {
             return Err(refuse(
                 id,
                 Construct::Machine,

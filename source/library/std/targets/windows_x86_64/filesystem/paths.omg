@@ -11,7 +11,6 @@ use omega::language::core::FilesystemNamespaceMutation;
 
 machine windows_filesystem_remove_dir_all(path: &[u8] in Path) -> UnitResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
-invokes WindowsFilesystemHost
 {
     let status: i32 = block WindowsFilesystemHost::remove_tree(path);
     windows_filesystem_unit(status)
@@ -19,7 +18,6 @@ invokes WindowsFilesystemHost
 
 machine windows_filesystem_read_link(path: &[u8] in Path, output: &mut [u8], count: u64) -> IoResult
 reaches FilesystemMetadataQuery
-invokes WindowsFilesystemHost
 {
     let transferred: i64 = block WindowsFilesystemHost::read_link(path, output, count);
     windows_filesystem_transferred(transferred, count)
@@ -121,7 +119,6 @@ terminates by budget
 
 machine windows_filesystem_create_dir(path: &[u8] in Path) -> UnitResult
 reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
-invokes WindowsFilesystemHost
 {
     let status: i32 = block WindowsFilesystemHost::create_directory(path);
     windows_filesystem_unit(status)
@@ -129,7 +126,6 @@ invokes WindowsFilesystemHost
 
 machine windows_filesystem_remove_dir(path: &[u8] in Path) -> UnitResult
 reaches FilesystemNamespaceMutation
-invokes WindowsFilesystemHost
 {
     let status: i32 = block WindowsFilesystemHost::remove_directory(path);
     windows_filesystem_unit(status)
@@ -137,7 +133,6 @@ invokes WindowsFilesystemHost
 
 machine windows_filesystem_remove(path: &[u8] in Path) -> UnitResult
 reaches FilesystemNamespaceMutation
-invokes WindowsFilesystemHost
 {
     let status: i32 = block WindowsFilesystemHost::delete_file(path);
     windows_filesystem_unit(status)
@@ -145,7 +140,6 @@ invokes WindowsFilesystemHost
 
 machine windows_filesystem_rename(from: &[u8] in Path, to: &[u8] in Path) -> UnitResult
 reaches FilesystemNamespaceMutation
-invokes WindowsFilesystemHost
 {
     let status: i32 = block WindowsFilesystemHost::rename_file(from, to);
     windows_filesystem_unit(status)
@@ -153,7 +147,6 @@ invokes WindowsFilesystemHost
 
 machine windows_filesystem_existing_directory(path: &[u8] in Path, original: ErrorKind) -> UnitResult
 reaches FilesystemMetadataQuery
-invokes WindowsFilesystemHost
 {
     let result: MetadataResult = block windows_filesystem_metadata_path(path, false);
     transition result {
@@ -170,7 +163,6 @@ invokes WindowsFilesystemHost
 
 machine windows_filesystem_hard_link(original: &[u8] in Path, link: &[u8] in Path) -> UnitResult
 reaches FilesystemNamespaceMutation
-invokes WindowsFilesystemHost
 {
     let status: i32 = block WindowsFilesystemHost::hard_link(original, link);
     windows_filesystem_unit(status)
@@ -178,7 +170,6 @@ invokes WindowsFilesystemHost
 
 machine windows_filesystem_canonicalize(path: &[u8] in Path, output: &mut [u8]) -> UnitResult
 reaches FilesystemMetadataQuery
-invokes WindowsFilesystemHost
 {
     let status: i32 = block WindowsFilesystemHost::canonicalize(path, output);
     windows_filesystem_unit(status)
@@ -186,7 +177,6 @@ invokes WindowsFilesystemHost
 
 machine windows_filesystem_create_dir_existing(path: &[u8] in Path) -> UnitResult
 reaches FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery
-invokes WindowsFilesystemHost
 {
     let result: UnitResult = block windows_filesystem_create_dir(path);
     transition result {
@@ -203,9 +193,8 @@ invokes WindowsFilesystemHost
 
 machine windows_filesystem_create_dir_all(path: &[u8] in Path) -> UnitResult
 reaches FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery
-invokes WindowsFilesystemHost
 {
-    let root: u64 = windows_filesystem_root_length(path);
+    let root: u64 = windows_filesystem_root_length(path as -Path);
     transition root < path.len {
         true -> block walk(path, root)
         false -> block root(path)
@@ -234,7 +223,6 @@ invokes WindowsFilesystemHost
 // a fabricated progress promise about the OS.
 machine windows_filesystem_create_components(path: &[u8] in Path, start: u64) -> UnitResult
 reaches FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery
-invokes WindowsFilesystemHost
 {
     transition { _ -> block walk(path, start) }
     machine walk(path: &[u8] in Path, position: u64) -> UnitResult {
@@ -248,7 +236,7 @@ invokes WindowsFilesystemHost
     }
     machine inspect(path: &[u8] in Path, position: u64) -> UnitResult
     requires position < path.len {
-        transition position > 0 && windows_filesystem_separator(path, path[position]) {
+        transition position > 0 && windows_filesystem_separator(path as -Path, path[position]) {
             true -> block create(path, position)
             false -> block walk(path, position + 1)
         }

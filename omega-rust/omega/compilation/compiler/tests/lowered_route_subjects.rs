@@ -1735,6 +1735,16 @@ const POLICY_INTEGERS: &[(&str, &str)] = &[
         "machine spare(left: u32 in Wrapping, right: u32) -> u32 in Wrapping { left + right }",
     ),
     (
+        "wrapping_compared_with_plain_field",
+        "data Clock [copy] { at: u64; }\n\
+         machine spare(sum: u64 in Wrapping, clock: Clock) -> u32 {\n    \
+         transition sum < clock.at { true -> 1 false -> 0 }\n}",
+    ),
+    (
+        "wrapping_and_plain_binding_of_another_carrier",
+        "machine spare(left: u32 in Wrapping, right: u64) -> u32 in Wrapping { left + right }",
+    ),
+    (
         "two_policies",
         "machine spare(left: u8 in Wrapping, right: u8 in Saturating) -> u8 in Wrapping {\n    \
          left + right\n}",
@@ -1752,12 +1762,15 @@ const POLICY_INTEGERS: &[(&str, &str)] = &[
         "machine spare(left: u32 in Trapping, right: u32 in Trapping) -> u32 in Trapping {\n    \
          left + right\n}",
     ),
+    (
+        "trapping_forbidden",
+        "machine spare(left: u32 in Trapping, right: u32 in Trapping) -> u32 in Trapping crashes none { left + right }",
+    ),
 ];
 
-/// An integer of type `T in Wrapping` or `T in Saturating` is judged with
-/// its policy's operations; the route used to refuse every machine that
-/// named such a type (`type constrained`) and every suffixed operator's
-/// rewrite. A policy operation owes what Terminal semantics says it owes: an
+/// Each policy-qualified integer is judged with its policy's operations.
+/// The route used to refuse qualified types (`type constrained`) and every
+/// suffixed operator's rewrite. A policy operation owes what Terminal semantics says it owes: an
 /// add nothing, a divide its divisor. It is never read as the Exact
 /// operation: an Exact add beside a Wrapping one still owes its range. That
 /// a wrapped sum is not taken for the mathematical sum is pinned in
@@ -1784,10 +1797,11 @@ fn a_policy_qualified_integer_is_judged_with_its_policys_operations() {
         Verdict::Accepted(2),
         Verdict::Rejected,
         Verdict::Accepted(2),
-        falls_back(
-            "expression operator between a policy-qualified operand and a plain operand that is not a literal \
-             while reading the body of `spare`",
-        ),
+        // `left + right` with a plain `right` of the same carrier selects
+        // core's `(T in Wrapping, T)` operator; another carrier selects none.
+        Verdict::Accepted(2),
+        Verdict::Accepted(2),
+        Verdict::Rejected,
         falls_back(
             "typing operands under two arithmetic policies while reading the body of `spare`",
         ),
@@ -1796,7 +1810,8 @@ fn a_policy_qualified_integer_is_judged_with_its_policys_operations() {
         // errors of the program, not forms the route does not serve.
         Verdict::Rejected,
         Verdict::Rejected,
-        falls_back("type constrained by Trapping while reading the signature of `spare`"),
+        Verdict::Accepted(2),
+        Verdict::Rejected,
     ];
     assert_eq!(expected.len(), POLICY_INTEGERS.len());
     let mut wrong = Vec::new();

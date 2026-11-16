@@ -14,8 +14,8 @@
 use super::SelectedInstructionId;
 use super::SelectedMemoryAccessRole::{ReadIndexedPrimitive, ReadPlace};
 use super::{SelectedBlockId, SelectedInstruction, VirtualRegister, VirtualRegisterId};
-use abstract_operations::ValueBinding;
-use optimization_unit::WorkSettlement;
+use native_vocabulary::provenance::WorkSettlement;
+use native_vocabulary::values::ValueBinding;
 use semantic_vocabulary::{BlockId, EdgeId, MachineId, OperationId};
 use target_operations::TerminalPsiProvenance;
 
@@ -239,7 +239,7 @@ pub struct SelectedSuccessor {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedStructuralBinding {
-    pub semantic: abstract_operations::AbstractStructuralBinding,
+    pub semantic: native_vocabulary::values::AbstractStructuralBinding,
     pub transport: SelectedStructuralTransport,
     pub source_indices: Vec<legalized_operations::LegalizedRuntimeIndexOperand>,
 }

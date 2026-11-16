@@ -300,6 +300,7 @@ pub(crate) mod optimized {
         pub(super) optimized: OptimizedAbstractProgram,
         lowering_facts: AdmittedLoweringFacts,
         current_program: Arc<TargetOperationPlan>,
+        prepared: legalized_operations::PreparedExecutionPlan,
         installed_stack_requirements:
             Vec<installation_evidence::InstalledInterruptStackRequirement>,
         installed_entry_execution: Option<provider_admission::AdmittedInstalledEntryExecution>,
@@ -384,23 +385,16 @@ pub(crate) mod optimized {
         }
 
         pub fn boundary_origins(&self) -> target_operations::BoundaryOriginFacts<'_> {
-            let input = &self.lowering_facts;
-            target_operations::BoundaryOriginFacts {
-                program_entry: input.program_entry().map(|call| {
-                    target_operations::ProgramEntryOrigin {
-                        boundary: call.boundary(),
-                        entry: call.entry(),
-                        source_signature: call.source_signature(),
-                    }
-                }),
-                assumed_bindings: input.assumed_bindings(),
-                target_context: input.target_context(),
-                module: input.module(),
-            }
+            boundary_origins(&self.lowering_facts)
         }
 
         pub fn target(&self) -> NativeTarget {
             self.current_program.target
+        }
+
+        /// The execution plan this stage publishes for instruction selection.
+        pub const fn execution_plan(&self) -> &legalized_operations::PreparedExecutionPlan {
+            &self.prepared
         }
 
         pub fn target_operations(&self) -> &TargetOperationPlan {
@@ -413,6 +407,23 @@ pub(crate) mod optimized {
 
         pub fn provider_installation(&self) -> Option<&AdmittedProviderInstallation> {
             self.provider_installation.as_deref()
+        }
+    }
+
+    fn boundary_origins(
+        input: &AdmittedLoweringFacts,
+    ) -> target_operations::BoundaryOriginFacts<'_> {
+        target_operations::BoundaryOriginFacts {
+            program_entry: input.program_entry().map(|call| {
+                target_operations::ProgramEntryOrigin {
+                    boundary: call.boundary(),
+                    entry: call.entry(),
+                    source_signature: call.source_signature(),
+                }
+            }),
+            assumed_bindings: input.assumed_bindings(),
+            target_context: input.target_context(),
+            module: input.module(),
         }
     }
 
@@ -450,14 +461,72 @@ pub(crate) mod optimized {
                 Some(&lowering_facts),
             )
             .map_err(|error| error.with_boundary_context(optimized.plan()))?;
+        let prepared = prepare(&optimized, &lowering_facts, &program)?;
         Ok(ValidatedOptimizedTargetOperations {
             optimized,
             lowering_facts,
             current_program: Arc::new(program),
+            prepared,
             installed_stack_requirements: Vec::new(),
             installed_entry_execution: None,
             provider_installation: installation.map(Box::new),
         })
+    }
+
+    /// Finish the stage: join the lowered target operations to the optimized
+    /// program's facts, the admitted origins and installations, and the sealed
+    /// module's retained types. Everything read here is this stage's own input
+    /// or output, so nothing has to reach instruction selection separately.
+    fn prepare(
+        optimized: &OptimizedAbstractProgram,
+        lowering_facts: &AdmittedLoweringFacts,
+        program: &TargetOperationPlan,
+    ) -> Result<legalized_operations::PreparedExecutionPlan, LoweringError> {
+        let custody = || {
+            LoweringError::Preparation(Box::new(
+                native_preparation::TargetOperationAuditError::custody(),
+            ))
+        };
+        let unit = optimized.unit();
+        let retained = native_preparation::retained_types(
+            lowering_facts.closed_module(),
+            program.psi,
+            lowering_facts.module(),
+        )
+        .ok_or_else(custody)?;
+        let callable_roots =
+            lowering_facts
+                .callable_invocation_roots(program)
+                .map_err(|reason| {
+                    LoweringError::Preparation(Box::new(
+                        native_preparation::TargetOperationAuditError::CallableInvocationRoots {
+                            reason,
+                        },
+                    ))
+                })?;
+        let callable_invocations = native_preparation::PreparedCallableInvocations::new(
+            unit,
+            &callable_roots,
+        )
+        .map_err(|reason| {
+            LoweringError::Preparation(Box::new(
+                native_preparation::TargetOperationAuditError::CallableValueProvenance { reason },
+            ))
+        })?;
+        native_preparation::prepare_execution_plan(
+            program,
+            native_preparation::PreparationEvidence {
+                optimization_unit: unit.identity,
+                work_schedule: unit.work_schedule,
+                accepted_obligation_facts: &unit.accepted_obligation_facts,
+                ownership_frontier_facts: &unit.ownership_frontier_facts,
+            },
+            boundary_origins(lowering_facts),
+            &callable_invocations,
+            lowering_facts.installed_interrupts(),
+            retained,
+        )
+        .map_err(|error| LoweringError::Preparation(Box::new(error)))
     }
 
     /// The host bridge needs the admitted storage geometry before it can

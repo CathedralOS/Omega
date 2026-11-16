@@ -5492,6 +5492,27 @@ pub mod expression {
             )
         }
 
+        pub fn is_shift(self) -> bool {
+            matches!(self, Self::ShiftLeft | Self::ShiftRight)
+        }
+
+        /// Choose the policy of an unsuffixed core signature once the exact
+        /// operand carriers and absence of other domains have been checked.
+        pub fn core_integer_policy(
+            self,
+            left: numerics::arithmetic::ArithmeticDomain,
+            right: numerics::arithmetic::ArithmeticDomain,
+        ) -> Option<numerics::arithmetic::ArithmeticDomain> {
+            use numerics::arithmetic::ArithmeticDomain::Exact;
+            if self.is_shift() || right == Exact || right == left {
+                Some(left)
+            } else if left == Exact {
+                Some(right)
+            } else {
+                None
+            }
+        }
+
         pub fn is_comparison(self) -> bool {
             matches!(
                 self,

@@ -1,14 +1,15 @@
+module domain::calibration;
 // Immutable private calibration tables. Values are response milliunits.
 // Input validation establishes [0,100]; the scanner selects one of three
 // positive-width intervals and never extrapolates. Products fit signed i32:
 // the largest response delta is 50000 and the largest stimulus delta is 50.
 data Knot [copy] { stimulus: i32 in Wrapping; response: i32 in Wrapping; }
-data Calibration { forward: [Knot; 4]; reverse: [Knot; 4]; }
-machine initialize(table: &mut Calibration) {
+public data Calibration { forward: [Knot; 4]; reverse: [Knot; 4]; }
+public machine initialize(table: &mut Calibration) {
     table.forward = [Knot { stimulus: 0, response: 0 }, Knot { stimulus: 20, response: 18000 }, Knot { stimulus: 50, response: 55000 }, Knot { stimulus: 100, response: 105000 }];
     table.reverse = [Knot { stimulus: 0, response: 4000 }, Knot { stimulus: 20, response: 25000 }, Knot { stimulus: 50, response: 60000 }, Knot { stimulus: 100, response: 105000 }];
 }
-machine interpolate(points: &[Knot], stimulus: i32 in Wrapping) -> i32 in Wrapping {
+public machine interpolate(points: &[Knot], stimulus: i32 in Wrapping) -> i32 in Wrapping {
     transition points.len >= 2 {
         true -> interval(points, stimulus)
         false -> (-1)

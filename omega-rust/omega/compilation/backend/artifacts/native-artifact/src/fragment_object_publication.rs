@@ -44,12 +44,13 @@ impl FragmentObjectProjection {
             .source()
             .source()
             .optimized_target()
-            .target_operations();
+            .execution_plan()
+            .plan();
         targeted
-            .functions
+            .scalar_functions
             .iter()
             .find(|function| function.machine == self.object.entry())
-            .map(|function| &function.graph.call_plan)
+            .map(|function| &function.call_plan)
             .ok_or_else(|| {
                 native_artifact_error(
                     "entry transport",

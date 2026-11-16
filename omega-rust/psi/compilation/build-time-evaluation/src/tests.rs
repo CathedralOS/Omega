@@ -555,7 +555,8 @@ machine holder() { let value: u32 = 0; }
     assert!(typed.deferred_refusals.is_empty());
     assert!(pending.activate_sources(&typed).is_ok());
 
-    let [predicate] = typed.mathematical_definitions() else {
+    let predicates = typed.mathematical_definitions();
+    let (1, Some(predicate)) = (predicates.len(), predicates.first()) else {
         panic!("the written predicate");
     };
     let MathematicalType::Ordinary(result) = typed.mathematical_type(predicate.result) else {
@@ -2354,7 +2355,8 @@ fn equal_const_indices_keep_the_same_record_type_through_build_invocation() {
                 "{argument}"
             );
             if argument == "CAPACITY" {
-                let [constant] = program.const_declarations() else {
+                let constants = program.const_declarations();
+                let (1, Some(constant)) = (constants.len(), constants.first()) else {
                     panic!("one selected const declaration");
                 };
                 let origins = program
@@ -2431,7 +2433,8 @@ machine read() -> u64 {
         ),
     ]);
     let mut program = base.typed().clone();
-    let [schema] = program.wire_schemas() else {
+    let schemas = program.wire_schemas();
+    let (1, Some(schema)) = (schemas.len(), schemas.first()) else {
         panic!("ordinary numbered data derives its schema");
     };
     assert!(schema.encoding.is_none());

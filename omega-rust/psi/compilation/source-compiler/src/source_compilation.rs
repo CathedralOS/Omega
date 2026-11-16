@@ -1523,6 +1523,11 @@ mod resolution_handoff_tests {
         let (activated, activation) = frontier.activate_sources(sources, Vec::new()).unwrap();
         frontier = activated;
         typing = typing.activate_body_completion(activation).unwrap();
+        let root = frontier.trees().symbols.root();
+        assert!(std::ptr::eq(
+            typing.typed().symbols.get(root),
+            frontier.trees().symbols.get(root),
+        ));
         let pending: Vec<_> = frontier.pending_machines().collect();
         assert_eq!(pending.len(), 2);
         for selected in pending {

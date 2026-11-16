@@ -551,7 +551,11 @@ pub(crate) fn goal(
 enum RankValue {
     Scalar(ValueId),
     Integer(IntegerValue),
-    Difference(Box<RankValue>, Box<RankValue>),
+    Difference {
+        left: Box<RankValue>,
+        right: Box<RankValue>,
+        saturating: bool,
+    },
     Length(
         semantic_vocabulary::PlaceId,
         Vec<terminal_psi::StructuralPathSegment>,
@@ -706,21 +710,26 @@ impl Normalize<'_, '_> {
                     .ok_or_else(|| foreign(self.machine.id, "rank producer is absent"))?;
                 match &operation.kind {
                     OperationKind::IntegerConstant { value } => Ok(RankValue::Integer(*value)),
-                    OperationKind::ExactIntegerSubtract { left, right, .. } => {
-                        Ok(RankValue::Difference(
-                            Box::new(self.value(
+                    OperationKind::ExactIntegerSubtract { left, right, .. }
+                    | OperationKind::SaturatingIntegerSubtract { left, right } => {
+                        Ok(RankValue::Difference {
+                            left: Box::new(self.value(
                                 *left,
                                 substitution,
                                 ProgramPoint::AfterOperation(producer),
                                 budget,
                             )?),
-                            Box::new(self.value(
+                            right: Box::new(self.value(
                                 *right,
                                 substitution,
                                 ProgramPoint::AfterOperation(producer),
                                 budget,
                             )?),
-                        ))
+                            saturating: matches!(
+                                operation.kind,
+                                OperationKind::SaturatingIntegerSubtract { .. }
+                            ),
+                        })
                     }
                     OperationKind::ByteSequenceLength { source }
                     | OperationKind::ElementViewLength { source } => {

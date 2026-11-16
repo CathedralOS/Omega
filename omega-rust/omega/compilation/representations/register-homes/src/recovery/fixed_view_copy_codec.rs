@@ -1,6 +1,6 @@
 /*
 We encode and decode the self-authenticating `FixedViewCopyPlan` artifact
-(`OMGFCV\0\0`, version 107), binding the source selected-instruction, live-range,
+(`OMGFCV\0\0`, version 108), binding the source selected-instruction, live-range,
 and legality roots, the required segment-home evidence, the inserted
 fixed-view copies, and the authenticated transformed `SelectedInstructionPlan`
 payload. Native-binding receipts and hosted imports remain distinct from finite
@@ -25,10 +25,10 @@ use ::selected_instructions::{
     SelectedInstructionProvenance, VirtualFixedConstraintSite, VirtualRegister, VirtualRegisterId,
     VirtualRegisterOrigin, selected_instruction_plan_identity,
 };
-use optimization_core::AcceptedObligationFactIdentity;
-use optimization_unit::{
+use native_vocabulary::provenance::{
     PsiProvenance, ValueDefinitionSite, WorkSettlement, encode_value_definition_site_identity,
 };
+use optimization_core::AcceptedObligationFactIdentity;
 use register_model::{
     RegisterClassId, RegisterConstraintFamily, RegisterConstraintKey, RegisterOperandAccess,
     RegisterViewId, TargetRegisterEnvironmentIdentity, encode_constraint_key,
@@ -54,10 +54,10 @@ use super::selected_blocks::{decode_block, encode_block};
 use super::structural_contracts::{decode_contracts, encode_contracts};
 
 const MAGIC: &[u8; 8] = b"OMGFCV\0\0";
-// Recovery binds complete callable/numeric/installation contracts and saved
-// domain access policies with their exact declaration identities. Reject both
-// predecessor recovery schemas before reading their payload.
-pub(super) const VERSION: u32 = 107;
+// Recovery binds complete callable/numeric/installation contracts, saved domain
+// access policies and transparent scalar predicates with their exact identities.
+// Reject predecessor recovery schemas before reading their payload.
+pub(super) const VERSION: u32 = 108;
 pub(super) const ENVELOPE: Envelope = Envelope::new(MAGIC, VERSION);
 const ENVELOPE_DOMAIN: &[u8] = b"omega-fixed-view-copy-envelope-v61\0";
 

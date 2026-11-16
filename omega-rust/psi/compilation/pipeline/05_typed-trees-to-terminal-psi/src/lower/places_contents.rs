@@ -18,6 +18,16 @@ struct Named {
     leaves: Vec<(PlaceId, Vec<Segment>, ScalarType)>,
 }
 
+#[derive(Clone, Copy)]
+pub(in crate::lower) struct ContentDemand {
+    scalar_type: ScalarType,
+    /// A clause observes this leaf. On a block formal, the clause needs the
+    /// value the formal holds at each entry, whether the clause is the
+    /// block's own predicate or a callee requirement stated within it: the
+    /// checker traces an arrival's actual back to that snapshot.
+    clause: bool,
+}
+
 fn path(path: &[CanonicalStructuralPathSegment]) -> Result<Vec<Segment>, &'static str> {
     path.iter()
         .map(|segment| match segment {
@@ -91,6 +101,28 @@ impl ClauseBindings for Named {
 }
 
 impl Lowering<'_> {
+    pub(super) fn demand_content(
+        &mut self,
+        leaf: ExactPlaceId,
+        scalar_type: ScalarType,
+        clause: bool,
+    ) -> Checked<()> {
+        let index = usize::try_from(leaf.get() - 1)
+            .map_err(|_| self.internal("place identity exceeds the address space"))?;
+        if self.demanded_contents.len() <= index {
+            self.demanded_contents.resize(index + 1, None);
+        }
+        let demand = self.demanded_contents[index].get_or_insert(ContentDemand {
+            scalar_type,
+            clause,
+        });
+        if demand.scalar_type != scalar_type {
+            return Err(self.internal("a demanded storage leaf has two scalar types"));
+        }
+        demand.clause |= clause;
+        Ok(())
+    }
+
     pub(in crate::lower) fn name_clause_contents(
         &mut self,
         clause: &Proposition,
@@ -113,7 +145,7 @@ impl Lowering<'_> {
             for segment in path {
                 leaf = self.project(leaf, segment)?;
             }
-            self.initial_content(leaf, scalar_type)?;
+            self.demand_content(leaf, scalar_type, true)?;
         }
         Ok(())
     }
@@ -128,13 +160,20 @@ impl Lowering<'_> {
             .collect();
         call_operations.sort_unstable();
         for slot in 0..self.demanded_contents.len() {
-            let Some(scalar_type) = self.demanded_contents[slot] else {
+            let Some(ContentDemand {
+                scalar_type,
+                clause,
+            }) = self.demanded_contents[slot]
+            else {
                 continue;
             };
             let leaf = ExactPlaceId::new(slot as u64 + 1)
                 .ok_or_else(|| self.internal("a storage observation identity overflow"))?;
             let mut at = leaf;
             let mut calls = Vec::<OperationId>::new();
+            // A block-entry snapshot names one fixed leaf: no runtime index
+            // or range selects it.
+            let mut fixed = true;
             let root = loop {
                 let row = self
                     .tables
@@ -156,13 +195,41 @@ impl Lowering<'_> {
                 }
                 match row.origin {
                     PlaceOrigin::Root(root) => break root,
-                    PlaceOrigin::Projection { parent, .. } => at = parent,
+                    PlaceOrigin::Projection { parent, segment } => {
+                        fixed &= matches!(
+                            segment,
+                            Segment::Field(_)
+                                | Segment::Case(_)
+                                | Segment::FixedIndex(_)
+                                | Segment::Referent
+                                | Segment::Extent
+                        );
+                        at = parent;
+                    }
                 }
             };
-            if matches!(
-                self.roots.get(root).map(|(kind, _)| kind),
-                Some(StructuralPlaceKind::Parameter { .. })
-            ) {
+            if match self.roots.get(root).map(|(kind, _)| *kind) {
+                Some(StructuralPlaceKind::Parameter { .. }) => true,
+                // A block formal binds a new snapshot on each arrival, which
+                // only a readable formal can supply.
+                Some(StructuralPlaceKind::BlockParameter { block, .. }) => {
+                    clause
+                        && fixed
+                        && self.blocks.get(block).is_some_and(|draft| {
+                            terminal_psi::StructuralParameterDeclaration::find_by_place(
+                                &draft.structural_parameters,
+                                root,
+                            )
+                            .is_some_and(|formal| {
+                                terminal_psi::structural_access_covers(
+                                    formal.access,
+                                    terminal_psi::StructuralAccess::SharedBorrow,
+                                )
+                            })
+                        })
+                }
+                _ => false,
+            } {
                 self.value(
                     scalar_type,
                     ValueOrigin::StorageContent {

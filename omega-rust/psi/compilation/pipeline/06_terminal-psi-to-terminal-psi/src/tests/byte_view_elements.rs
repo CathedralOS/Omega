@@ -323,6 +323,68 @@ fn a_subslice_keeps_the_selected_bytes_and_exact_extent() {
 }
 
 #[test]
+fn mutable_windows_reborrow_the_same_backing_without_moving_the_parent() {
+    let source = r#"
+        machine write(bytes: &mut [u8]) requires bytes.len > 0 { bytes[0] = 7; }
+        machine window(bytes: &mut [u8], end: u64)
+            requires end > 0 && end <= bytes.len
+        { write(&mut bytes[0..end]); }
+        machine build_entry() {
+            let mut bytes: [u8; 3] = [17, 42, 99];
+            window(&mut bytes[..], 2);
+            use_byte(bytes[0]);
+        }
+        machine use_byte(byte: u8) {}
+    "#;
+    assert_eq!(verdict(source), "accepted");
+    let shared = source.replace("window(bytes: &mut [u8]", "window(bytes: &[u8]");
+    let refusal = verdict(&shared);
+    assert!(
+        refusal.contains("a subslice without authenticated backing and access"),
+        "{refusal}"
+    );
+    let unbounded = source.replace("end > 0 && end <= bytes.len", "end > 0");
+    assert!(verdict(&unbounded).starts_with("rejected"));
+
+    let direct = source.replace("window(&mut bytes[..], 2);", "write(&mut bytes[1..2]);");
+    assert_eq!(verdict(&direct), "accepted");
+
+    let shared = r#"
+        machine read(bytes: &[u8]) -> u8 requires bytes.len > 0 { bytes[0] }
+        machine window(bytes: &[u8]) -> u8 requires bytes.len > 0 {
+            read(&bytes[0..1])
+        }
+        machine build_entry(bytes: &[u8]) requires bytes.len > 0 { use_byte(window(bytes)); }
+        machine use_byte(byte: u8) {}
+    "#;
+    assert_eq!(verdict(shared), "accepted");
+
+    let cohort = r#"
+        machine build_entry(bytes: &mut [u8]) requires bytes.len > 0 {
+            let selected: &[u8] = &bytes[0..1];
+            use_byte(selected[0]);
+            bytes[0] = 9;
+        }
+        machine use_byte(byte: u8) {}
+    "#;
+    assert_eq!(verdict(cohort), "accepted");
+    let conflict = cohort.replace(
+        "use_byte(selected[0]);\n            bytes[0] = 9;",
+        "bytes[0] = 9;\n            use_byte(selected[0]);",
+    );
+    let rejected = judge_build(&conflict);
+    let Ok(RouteVerdict::Rejected { conflicts, .. }) = rejected else {
+        panic!("the parent write must conflict with its live shared child: {rejected:?}");
+    };
+    assert!(
+        conflicts
+            .iter()
+            .any(|conflict| conflict.conflict == crate::LoanConflict::ChangeWhileBorrowed),
+        "{conflicts:?}"
+    );
+}
+
+#[test]
 fn a_length_can_be_used_directly_as_a_call_argument() {
     assert_eq!(
         verdict("machine build_entry(path: &[u8]) { use(path.len); } machine use(length: u64) {}"),
@@ -356,6 +418,37 @@ fn shared_subslices_compose_with_literals_calls_and_stored_views() {
     ] {
         assert_eq!(verdict(program), "accepted", "{program}");
     }
+}
+
+#[test]
+fn a_qualified_byte_range_keeps_its_typed_builtin_formation() {
+    let program = r#"
+        domain [u8]::Path requires no_nul(self);
+        machine prefix_length(path: &[u8] in Path, position: u64) -> u64
+        requires position <= path.len {
+            let prefix: &[u8] = &path[0..position];
+            prefix.len
+        }
+        machine build_entry() {
+            let length: u64 = prefix_length("foo/bar" as +Path, 3);
+        }
+    "#;
+    assert_eq!(verdict(program), "accepted");
+
+    let outside = program.replace(r#""foo/bar" as +Path, 3"#, r#""foo/bar" as +Path, 8"#);
+    assert_eq!(verdict(&outside), "rejected");
+
+    let authored = format!(
+        r#"machine [..] alternative(path: &[u8] in Path, start: u64, end: u64) -> &[u8] {{
+               "alternative"
+           }}
+           {program}"#
+    );
+    let actual = verdict(&authored);
+    assert!(
+        actual.contains("range of qualified bytes without its selected operand type"),
+        "{actual}"
+    );
 }
 
 #[test]

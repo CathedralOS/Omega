@@ -55,6 +55,12 @@ mod source_review;
 pub mod source_selections;
 pub use source_review::{IntegerBinaryKind, SemanticDependencyKind};
 
+mod float_integer_conversions;
+pub use float_integer_conversions::{
+    FloatIntegerConversion, FloatIntegerConversionError, fixed_integer_type,
+    float_integer_preconditions,
+};
+
 mod float_meaning_clauses;
 pub use float_meaning_clauses::{
     FloatMeaningClause, FloatMeaningClauseOperand, FloatMeaningClauseValue, FloatMeaningSlot,

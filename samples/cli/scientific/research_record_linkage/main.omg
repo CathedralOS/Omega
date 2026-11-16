@@ -4,8 +4,14 @@ use omega::language::core::ProcessExit;
 // Empty stdin smoke control; finite-input scientific oracles are data/*.stdout.
 use omega_language_std::Console;
 use input::parser;
+use input::parser::Input;
+use input::parser::read;
 use linkage::model;
+use linkage::model::Record;
+use linkage::model::Linkage;
+use linkage::model::solve;
 use report::output;
+use report::output::report;
 
 data Main {
     input: Input;

@@ -38,11 +38,23 @@ Three more representation packages sit inside their program families:
   [independent semantic checker](abstract-operations/optimization-unit-semantics/src/lib.rs)
   has its own manifest; neither representation package depends on it.
 - [`target-operations/legalized-operations/`](target-operations/legalized-operations/src/lib.rs)
-  owns `LegalizedOperationPlan`. Omega 03 first
-  [legalizes the target program](../pipeline/03_target-operations-to-selected-instructions/src/legalization.rs),
-  then [selects instructions from that checked result](../pipeline/03_target-operations-to-selected-instructions/src/selection.rs).
-  This is a separate level of detail inside the stage, with its own package
-  and its own replay; it is not an extra numbered stage.
+  owns `LegalizedOperationPlan` and its sealed form, `PreparedExecutionPlan`:
+  the execution plan Omega 02 publishes. Omega 02
+  [prepares it from the target program](../pipeline/02_abstract-operations-to-target-operations/native-preparation/src/legalization.rs)
+  as its last step, and Omega 03
+  [selects instructions from it](../pipeline/03_target-operations-to-selected-instructions/src/selection.rs)
+  without reading anything behind it. The package also holds the layout
+  queries both stages ask of the plan's structural declarations.
+- [`native-vocabulary/`](native-vocabulary/src/lib.rs) owns the leaf types
+  every native form carries unchanged: provenance and work records,
+  structural store destinations, access-reference backings, and the pure
+  predicates over structural declarations, integer arithmetic policies, call
+  targets and formals, completion claim sources, ownership-frontier facts,
+  and the canonical scalar and integer type encoders. It holds no program, so
+  a later stage can name these without being able to read an earlier one.
+  `check-boundary` proves that `target-operations`, `legalized-operations`,
+  `selected-instructions` and its analyses cannot reach `abstract-operations`
+  through any production dependency.
 
 Nesting keeps each package separate. It shows an intermediate form's family;
 it does not make the package a module of its parent or producing stage.

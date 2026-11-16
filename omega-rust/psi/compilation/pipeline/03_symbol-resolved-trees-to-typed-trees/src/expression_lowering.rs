@@ -1164,7 +1164,7 @@ pub(crate) mod expression {
                         && !self.admits_policy_operators
                     {
                         return Err(Diagnostic::error(format!(
-                            "the policy operator `{}{}` is supported only in executable machine code and in the contracts of a machine; this position cannot use a suffixed operator yet",
+                            "the policy operator `{}{}` is supported only in executable machine code, contracts and mathematical definitions; this position cannot use a suffixed operator yet",
                             binary.operator.display_name(),
                             binary.policy.operator_suffix(),
                         ))
@@ -3458,15 +3458,17 @@ pub(crate) mod expression {
                 .lower(expression)
         }
 
-        pub(crate) fn lower_expression_handle_from_table_in_scope(
+        pub(crate) fn lower_scoped_expression(
             program: &resolved::SymbolResolvedTrees,
             source: &resolved::expression::ExpressionTable,
             target: &mut typed::TypedTrees,
             expression: resolved::expression::ExpressionHandle,
             source_owner: symbols::SymbolHandle,
+            admits_policy_operators: bool,
         ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
             lowerer::ExpressionTableLowerer::new(Some(program), source, target, None)
                 .with_source_owner(source_owner)
+                .admitting_policy_operators(admits_policy_operators)
                 .lower(expression)
         }
 
@@ -3549,15 +3551,17 @@ pub(crate) mod expression {
             typed_trees,
             source_trees,
             source_owner,
+            admits_contract_policy_operators,
             ..
         } = lowerer;
         let source = &source_trees.tables.bodies.expressions;
-        table::lower_expression_handle_from_table_in_scope(
+        table::lower_scoped_expression(
             source_trees,
             source,
             typed_trees,
             expression,
             *source_owner,
+            *admits_contract_policy_operators,
         )
     }
 

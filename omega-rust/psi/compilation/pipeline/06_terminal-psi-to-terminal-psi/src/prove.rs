@@ -51,6 +51,8 @@ use semantic_vocabulary::{
     PropositionContext, ScalarTerm, ScalarType, ValueId,
 };
 
+#[path = "prove/float_integer.rs"]
+mod float_integer;
 #[path = "prove/float_meaning.rs"]
 mod float_meaning;
 #[path = "prove/ieee_float_order.rs"]
@@ -107,7 +109,10 @@ fn covered(
     }
     match goal {
         Proposition::Truth | Proposition::Falsehood => true,
-        Proposition::ScalarIeeeFloatComparison { .. } | Proposition::FloatMeaningEqual(_) => true,
+        Proposition::ScalarIeeeFloatComparison { .. }
+        | Proposition::FloatMeaningEqual(_)
+        | Proposition::FloatIntegerConversion(_)
+        | Proposition::IeeeFloatIntegerExact { .. } => true,
         Proposition::Conjunction(parts) | Proposition::Disjunction(parts) => {
             parts.iter().all(|part| covered(part, fixed, width))
         }
@@ -306,6 +311,7 @@ pub(crate) struct Prover<'a> {
     axioms: &'a [Proposition],
     values: &'a dyn ProofValues,
     facts: Vec<Fact>,
+    float_integer_equalities: float_integer::Equalities,
     /// Checked definitions for transport: Boolean values, literals, exact
     /// initial-content aliases, and semantic integer expressions retaining
     /// their selected arithmetic meaning, each citing its prepared fact.
@@ -451,6 +457,7 @@ impl<'a> Prover<'a> {
             arrival_equations,
             arrival_definitions,
         } = crate::known::Known::new(context, assumptions, axioms, values);
+        let float_integer_equalities = float_integer::Equalities::new(&facts);
         let transport = crate::known::TransportInputs::new(equations.len());
         let bounds = definitions.map(|_, _| [Slot::Unknown, Slot::Unknown]);
         Self {
@@ -460,6 +467,7 @@ impl<'a> Prover<'a> {
             axioms,
             values,
             facts,
+            float_integer_equalities,
             equations,
             definitions,
             arrival_equations,
@@ -606,7 +614,17 @@ impl<'a> Prover<'a> {
     }
 
     fn closed(&self, proposition: Proposition) -> Option<ProofNode> {
-        let judgment = if matches!(proposition, Proposition::ScalarIeeeFloatComparison { .. })
+        let integer_conversion = |proposition: &Proposition| {
+            matches!(
+                proposition,
+                Proposition::FloatIntegerConversion(_) | Proposition::IeeeFloatIntegerExact { .. }
+            )
+        };
+        let judgment = if integer_conversion(&proposition)
+            || matches!(&proposition, Proposition::Implication { premise, conclusion } if **conclusion == Proposition::Falsehood && integer_conversion(premise))
+        {
+            PrimitiveJudgment::ClosedFloatIntegerRelation
+        } else if matches!(proposition, Proposition::ScalarIeeeFloatComparison { .. })
             || matches!(&proposition, Proposition::Implication { premise, conclusion }
                 if **conclusion == Proposition::Falsehood && matches!(**premise, Proposition::ScalarIeeeFloatComparison { .. }))
         {
@@ -740,7 +758,7 @@ impl<'a> Prover<'a> {
                     // machine publishes no route for its cause. It holds
                     // only where what is known is contradictory.
                     | Proposition::Falsehood
-            )
+            ) && !covered(goal, &|_| false, &|_| false)
         {
             return direct;
         }
@@ -1197,10 +1215,18 @@ impl<'a> Prover<'a> {
             | Proposition::StructuralCaseMembership { .. }
             | Proposition::ContentConservation(_) => Err("goal form outside this prover"),
             Proposition::FloatMeaningEqual(_) => self.float_meaning(goal),
+            Proposition::IeeeFloatIntegerExact { .. } => self
+                .closed(goal.clone())
+                .or_else(|| self.float_integer_conversion(goal))
+                .ok_or("the live float facts do not establish an exact integer cast"),
+            Proposition::FloatIntegerConversion(_) => self
+                .closed(goal.clone())
+                .ok_or("the integer conversion result relation is not established"),
             Proposition::ScalarIeeeFloatComparison { .. } => self
                 .closed(goal.clone())
                 .or_else(|| self.ieee_float_order(goal))
-                .ok_or("the IEEE order premises do not establish this comparison"),
+                .or_else(|| self.float_integer_conversion(goal))
+                .ok_or("the IEEE premises do not establish this comparison"),
             Proposition::Implication {
                 premise,
                 conclusion,
@@ -1224,6 +1250,9 @@ impl<'a> Prover<'a> {
                 .relation(left, right, strict)
                 .or_else(|| (!strict).then(|| self.successor(left, right)).flatten())
         {
+            return Ok(proof);
+        }
+        if let Some(proof) = self.saturating_subtract_order(left, right, strict) {
             return Ok(proof);
         }
         let (left_literal, left_proof) = self.side(left, Direction::Upper)?;
@@ -1355,6 +1384,104 @@ impl<'a> Prover<'a> {
                 premise: Box::new(carrier),
                 equalities,
             },
+        ))
+    }
+
+    /// Compare results from their checked definitions. In the strict form
+    /// a strict coordinate is useful only above the larger result's clamp.
+    fn saturating_subtract_order(
+        &mut self,
+        smaller: &ScalarTerm,
+        larger: &ScalarTerm,
+        strict: bool,
+    ) -> Option<ProofNode> {
+        let (smaller_equation, smaller_minuend, smaller_subtrahend) =
+            self.saturating_subtract_definition(smaller)?;
+        let (larger_equation, larger_minuend, larger_subtrahend) =
+            self.saturating_subtract_definition(larger)?;
+        let minuends = (smaller_minuend, larger_minuend.clone());
+        let subtrahends = (larger_subtrahend.clone(), smaller_subtrahend);
+        let mut proofs;
+        let conclusion = if strict {
+            let positive = self
+                .prove(&Proposition::LessThan(larger_subtrahend, larger_minuend))
+                .ok()?;
+            proofs = self
+                .prove(&Proposition::LessThan(
+                    minuends.0.clone(),
+                    minuends.1.clone(),
+                ))
+                .and_then(|first| {
+                    self.prove(&Proposition::LessOrEqual(
+                        subtrahends.0.clone(),
+                        subtrahends.1.clone(),
+                    ))
+                    .map(|second| vec![first, second])
+                })
+                .or_else(|_| {
+                    let second =
+                        self.prove(&Proposition::LessThan(subtrahends.0, subtrahends.1))?;
+                    let first = self.prove(&Proposition::LessOrEqual(minuends.0, minuends.1))?;
+                    Ok::<_, Unproven>(vec![first, second])
+                })
+                .ok()?;
+            proofs.push(positive);
+            Proposition::LessThan(smaller.clone(), larger.clone())
+        } else {
+            proofs = vec![
+                self.prove(&Proposition::LessOrEqual(minuends.0, minuends.1))
+                    .ok()?,
+                self.prove(&Proposition::LessOrEqual(subtrahends.0, subtrahends.1))
+                    .ok()?,
+            ];
+            Proposition::LessOrEqual(smaller.clone(), larger.clone())
+        };
+        let order = node(
+            Proposition::Conjunction(
+                proofs
+                    .iter()
+                    .map(|proof| proof.conclusion.clone())
+                    .collect(),
+            ),
+            ProofRule::ConjunctionIntroduction(proofs),
+        );
+        Some(node(
+            conclusion,
+            ProofRule::IntegerSubtractAntitone {
+                smaller: Box::new(smaller_equation),
+                larger: Box::new(larger_equation),
+                order: Box::new(order),
+            },
+        ))
+    }
+
+    fn saturating_subtract_definition(
+        &self,
+        subject: &ScalarTerm,
+    ) -> Option<(ProofNode, ScalarTerm, ScalarTerm)> {
+        let ScalarTerm::Value { id, .. } = subject else {
+            return None;
+        };
+        let index = self.definitions.get(*id)?.as_ref()?;
+        let fact = self.facts.get(self.equations[*index])?;
+        let Proposition::Equal(
+            _,
+            ScalarTerm::SaturatingIntegerSubtract {
+                scalar_type,
+                left,
+                right,
+            },
+        ) = &fact.proposition
+        else {
+            return None;
+        };
+        if scalar_type.sign() != semantic_vocabulary::IntegerSign::Unsigned {
+            return None;
+        }
+        Some((
+            fact.proof(&self.facts),
+            left.as_ref().clone(),
+            right.as_ref().clone(),
         ))
     }
 

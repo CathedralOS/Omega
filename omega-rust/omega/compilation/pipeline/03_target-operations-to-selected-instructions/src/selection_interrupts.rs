@@ -23,7 +23,7 @@ pub(crate) mod interrupt_installation {
         FrameStorageSlotId, LocalStorageSlotId, SelectedImageAddressReference,
         SelectedLocalStorageSlot, SelectedMemoryAccessRole,
     };
-    use semantic_vocabulary::{IntegerValue, ScalarType};
+    use semantic_vocabulary::IntegerValue;
     use target_operations::InstallationCallRole;
     pub(crate) mod address {
         use super::{SelectedInstructionError, failure};
@@ -85,7 +85,7 @@ pub(crate) mod interrupt_installation {
         let result = row
             .result
             .ok_or_else(|| failure("installation lost its Boolean refusal result"))?;
-        if result.scalar_type != ScalarType::Boolean {
+        if result.scalar_type != semantic_vocabulary::ClosedScalarType::Boolean {
             return Err(failure("installation refusal result is not Boolean"));
         }
         let output = builder.register(result.value, result.definition_site, result.scalar_type)?;
@@ -498,10 +498,10 @@ pub(crate) mod interrupt_installation_calls {
         fn invocation_call_plan(&self) -> Option<&calling_conventions::CallPlan> {
             Some(&self.call.call_plan)
         }
-        fn invocation_ownership(&self) -> &[optimization_unit::OwnershipEvent] {
+        fn invocation_ownership(&self) -> &[native_vocabulary::provenance::OwnershipEvent] {
             &[]
         }
-        fn invocation_work(&self) -> &[optimization_unit::WorkSettlement] {
+        fn invocation_work(&self) -> &[native_vocabulary::provenance::WorkSettlement] {
             &[]
         }
         fn invocation_argument_place(
@@ -541,7 +541,7 @@ pub(crate) mod interrupt_installation_calls {
             }
             InstallationCallRole::Work => crate::selection::scalar_call_abi::no_normal_key(
                 call,
-                &abstract_operations::AbstractFunctionResult::Unit,
+                &native_vocabulary::values::AbstractFunctionResult::Unit,
                 environment,
             ),
         }

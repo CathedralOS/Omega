@@ -6,7 +6,7 @@ custody-checked `StagedOptimizedSelectedInstructions` product.
 */
 
 pub(crate) mod constraints {
-    use crate::ValidatedLegalizedOperations;
+    use crate::BoundExecutionPlan;
     use selected_instructions::{SelectedFixedInputConstraint, SelectedSelectionConstraints};
     use semantic_vocabulary::MachineId;
     use target_operations::MachineRegister;
@@ -14,7 +14,7 @@ pub(crate) mod constraints {
     use register_environment::ValidatedTargetRegisterEnvironment;
 
     pub(crate) fn selection_constraints(
-        legalized: &ValidatedLegalizedOperations,
+        legalized: &BoundExecutionPlan<'_>,
         environment: &ValidatedTargetRegisterEnvironment,
     ) -> SelectedSelectionConstraints {
         let mut fixed_inputs = Vec::new();
@@ -79,106 +79,72 @@ pub(crate) mod constraints {
 }
 pub(crate) mod construction {
     use crate::{
-        ValidatedLegalizedOperations, ValidatedSelectedInstructions,
-        legalization::legalize_retained_target_operations,
-        selection::select_instructions_with_types,
+        BoundExecutionPlan, ValidatedSelectedInstructions, selection::select_instructions,
     };
     use register_environment::ValidatedTargetRegisterEnvironment;
 
     use super::constraints::selection_constraints;
-    use super::input::TargetSelectionInput;
     use super::model::OptimizedSelectionPipelineError;
 
     pub(crate) fn construct_optimized_instruction_selection(
-        input: &TargetSelectionInput<'_>,
+        bound: &BoundExecutionPlan<'_>,
         register_environment: &ValidatedTargetRegisterEnvironment,
-    ) -> Result<
-        (ValidatedLegalizedOperations, ValidatedSelectedInstructions),
-        OptimizedSelectionPipelineError,
-    > {
-        let closed_types = crate::native_geometry::retained_types(
-            input.closed_module,
-            input.target.psi,
-            input.origins.module,
-        )
-        .ok_or_else(|| {
-            OptimizedSelectionPipelineError::Legalization(crate::LegalizationError::custody())
-        })?;
-        let legalized = legalize_retained_target_operations(
-            input.target,
-            input.evidence,
-            input.origins,
-            input.callable_invocations,
-            input.installed_interrupts,
-            input.installed_entry_execution,
-            input.installed_stack_requirements,
-        )
-        .map_err(OptimizedSelectionPipelineError::Legalization)?;
-        let selection_constraints = selection_constraints(&legalized, register_environment);
-        let selected = select_instructions_with_types(
-            &legalized,
-            &selection_constraints,
-            register_environment,
-            Some(closed_types),
-        )
-        .map_err(OptimizedSelectionPipelineError::Selection)?;
-        Ok((legalized, selected))
+    ) -> Result<ValidatedSelectedInstructions, OptimizedSelectionPipelineError> {
+        let selection_constraints = selection_constraints(bound, register_environment);
+        select_instructions(bound, &selection_constraints, register_environment)
+            .map_err(OptimizedSelectionPipelineError::Selection)
     }
 }
 pub(crate) mod custody {
-    use crate::{ValidatedLegalizedOperations, ValidatedSelectedInstructions};
+    use crate::{BoundExecutionPlan, ValidatedSelectedInstructions};
     use register_environment::ValidatedTargetRegisterEnvironment;
 
-    use super::input::TargetSelectionInput;
+    use super::input::SelectionInput;
     use super::model::StagedOptimizedSelectionCustodyReceipt;
 
     use selected_instructions::StagedOptimizedCustodyCore;
 
     pub(crate) fn selection_custody_receipt(
-        input: &TargetSelectionInput<'_>,
+        input: &SelectionInput<'_>,
         register_environment: &ValidatedTargetRegisterEnvironment,
-        legalized: &ValidatedLegalizedOperations,
+        bound: &BoundExecutionPlan<'_>,
         selected: &ValidatedSelectedInstructions,
     ) -> StagedOptimizedSelectionCustodyReceipt {
-        let target = input.target;
+        let plan = bound.plan();
         StagedOptimizedSelectionCustodyReceipt {
             core: StagedOptimizedCustodyCore {
-                psi: target.psi,
-                target: target.target,
-                entry: target.entry,
+                psi: plan.psi,
+                target: plan.target,
+                entry: plan.entry,
                 optimization: input.optimization,
                 projection: input.projection,
                 manifest: input.manifest,
-                optimization_unit: input.evidence.optimization_unit,
-                work_schedule: input.evidence.work_schedule,
+                optimization_unit: plan.optimization_unit,
+                work_schedule: plan.work_schedule,
                 register_environment: register_environment.identity(),
             },
-            legalized: legalized.receipt().identity(),
-            legalization_validator: legalized.receipt().validator(),
+            legalized: bound.receipt().identity(),
+            legalization_validator: bound.receipt().validator(),
             selected: selected.receipt().identity(),
             function_count: selected.plan().functions.len(),
         }
     }
 }
 pub(crate) mod input {
+    use legalized_operations::{LegalizedOperationPlan, PreparationReceipt, PreparedExecutionPlan};
     use optimization_core::{
         OptimizationIdentityBundleIdentity, OptimizationSelections, OptimizationWorkBudget,
         OptimizedAbstractPlanProjectionIdentity, PrePhysicalOptimizationManifestIdentity,
     };
-    use target_operations::{BoundaryOriginFacts, TargetOperationPlan};
 
+    /// What instruction selection is given: the execution plan stage 02
+    /// published, the installations the driver bound to it, and the
+    /// optimization identities the custody receipt records. No source module,
+    /// abstract program or optimization-unit table is part of this input.
     #[derive(Debug)]
-    pub struct TargetSelectionInput<'input> {
-        pub target: &'input TargetOperationPlan,
-        pub evidence: TargetSelectionEvidence<'input>,
-        pub closed_module: &'input terminal_codec::ClosedTerminalModule,
-        pub origins: BoundaryOriginFacts<'input>,
-        pub callable_invocations: &'input PreparedCallableInvocations,
-        pub installed_entry_execution:
-            Option<&'input provider_admission::AdmittedInstalledEntryExecution>,
-        pub installed_interrupts: &'input provider_admission::AdmittedInstalledInterruptCohort,
-        pub installed_stack_requirements:
-            &'input [installation_evidence::InstalledInterruptStackRequirement],
+    pub struct SelectionInput<'input> {
+        pub plan: &'input PreparedExecutionPlan,
+        pub installations: BoundInstallations<'input>,
         pub optimization: OptimizationIdentityBundleIdentity,
         pub projection: OptimizedAbstractPlanProjectionIdentity,
         pub manifest: PrePhysicalOptimizationManifestIdentity,
@@ -186,69 +152,97 @@ pub(crate) mod input {
         pub budget_per_pass: OptimizationWorkBudget,
     }
 
-    /// The actual optimized-unit query result prepared before retained selection.
-    /// Its private association prevents a result from another graph, entry or
-    /// work schedule from being attached to this target's instruction plan.
-    #[derive(Debug)]
-    pub struct PreparedCallableInvocations {
-        psi: terminal_psi::TerminalPsiIdentity,
-        optimization_unit: optimization_core::OptimizationUnitIdentity,
-        work_schedule: semantic_vocabulary::WorkScheduleIdentity,
-        entry: semantic_vocabulary::MachineId,
-        invocations:
-            std::sync::Arc<terminal_semantics::callable_values::ReachableCallableInvocations>,
+    /// Installation authority the driver resolved after preparation: the
+    /// admitted interrupt cohort, the installed entry, and the stack each
+    /// installed handler needs. It grants permission and deployment
+    /// resources; the plan alone says what the program does.
+    #[derive(Debug, Clone, Copy)]
+    pub struct BoundInstallations<'input> {
+        pub interrupts: &'input provider_admission::AdmittedInstalledInterruptCohort,
+        pub entry_execution: Option<&'input provider_admission::AdmittedInstalledEntryExecution>,
+        pub stack_requirements:
+            &'input [installation_evidence::InstalledInterruptStackRequirement],
     }
 
-    impl PreparedCallableInvocations {
-        pub fn new(
-            unit: &optimization_unit::PsiOptimizationUnit,
-            roots: &terminal_semantics::callable_values::CallableInvocationRoots,
-        ) -> Result<Self, &'static str> {
-            let program =
-                optimization_unit_semantics::callable_values::optimized_callable_values(unit)?;
-            let invocations =
-                terminal_semantics::callable_values::reachable_callable_invocations_with_roots(
-                    &program,
-                    [unit.entry],
-                    roots,
-                )?;
+    /// Why a set of installations cannot be used with a plan.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum InstallationBindingError {
+        InterruptCohortProgram,
+        EntryExecution,
+        StackRequirement,
+    }
+
+    /// A plan together with installations that were checked to belong to it.
+    #[derive(Debug, Clone, Copy)]
+    pub(crate) struct BoundExecutionPlan<'input> {
+        prepared: &'input PreparedExecutionPlan,
+        installations: BoundInstallations<'input>,
+    }
+
+    impl<'input> BoundExecutionPlan<'input> {
+        /// Installations name the program, target and entry they were
+        /// admitted for. Refuse any that name another plan.
+        pub(crate) fn bind(
+            prepared: &'input PreparedExecutionPlan,
+            installations: BoundInstallations<'input>,
+        ) -> Result<Self, InstallationBindingError> {
+            let plan = prepared.plan();
+            if installations.interrupts.psi() != plan.psi {
+                return Err(InstallationBindingError::InterruptCohortProgram);
+            }
+            if let Some(execution) = installations.entry_execution {
+                let entry = execution.entry().entry();
+                if entry.psi() != plan.psi
+                    || entry.target() != plan.target
+                    || entry.machine() != plan.entry
+                {
+                    return Err(InstallationBindingError::EntryExecution);
+                }
+            }
+            if installations
+                .stack_requirements
+                .iter()
+                .any(|requirement| requirement.psi != plan.psi || requirement.target != plan.target)
+            {
+                return Err(InstallationBindingError::StackRequirement);
+            }
             Ok(Self {
-                psi: unit.psi,
-                optimization_unit: unit.identity,
-                work_schedule: unit.work_schedule,
-                entry: unit.entry,
-                invocations: std::sync::Arc::new(invocations),
+                prepared,
+                installations,
             })
         }
 
-        pub(crate) fn for_target(
-            &self,
-            target: &TargetOperationPlan,
-            evidence: TargetSelectionEvidence<'_>,
-        ) -> Result<
-            std::sync::Arc<terminal_semantics::callable_values::ReachableCallableInvocations>,
-            &'static str,
-        > {
-            if self.psi != target.psi
-                || self.optimization_unit != evidence.optimization_unit
-                || self.work_schedule != evidence.work_schedule
-                || self.entry != target.entry
-            {
-                return Err(
-                    "callable invocation facts differ from the actual target unit, schedule or entry",
-                );
-            }
-            Ok(std::sync::Arc::clone(&self.invocations))
+        pub(crate) fn plan(&self) -> &'input LegalizedOperationPlan {
+            self.prepared.plan()
         }
-    }
 
-    /// Immutable judgments and input identities, not executable input bodies.
-    #[derive(Debug, Clone, Copy)]
-    pub struct TargetSelectionEvidence<'input> {
-        pub optimization_unit: optimization_core::OptimizationUnitIdentity,
-        pub work_schedule: semantic_vocabulary::WorkScheduleIdentity,
-        pub accepted_obligation_facts: &'input [optimization_unit::AcceptedObligationFact],
-        pub ownership_frontier_facts: &'input [optimization_unit::OwnershipFrontierFact],
+        pub(crate) fn callable_invocations(
+            &self,
+        ) -> &'input terminal_semantics::callable_values::ReachableCallableInvocations {
+            self.prepared.callable_invocations()
+        }
+
+        pub(crate) fn receipt(&self) -> PreparationReceipt {
+            self.prepared.receipt()
+        }
+
+        pub(crate) fn installed_interrupts(
+            &self,
+        ) -> &'input provider_admission::AdmittedInstalledInterruptCohort {
+            self.installations.interrupts
+        }
+
+        pub(crate) fn installed_entry_execution(
+            &self,
+        ) -> Option<&'input provider_admission::AdmittedInstalledEntryExecution> {
+            self.installations.entry_execution
+        }
+
+        pub(crate) fn installed_stack_requirements(
+            &self,
+        ) -> &'input [installation_evidence::InstalledInterruptStackRequirement] {
+            self.installations.stack_requirements
+        }
     }
 }
 pub(crate) mod model {
@@ -261,7 +255,7 @@ pub(crate) mod model {
     use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
     use terminal_psi::TerminalPsiIdentity;
 
-    use crate::{LegalizationError, SelectedInstructionError, ValidatedSelectedInstructions};
+    use crate::{SelectedInstructionError, ValidatedSelectedInstructions};
     use register_environment::ValidatedTargetRegisterEnvironment;
     use selected_instructions::StagedOptimizedCustodyCore;
 
@@ -337,7 +331,7 @@ pub(crate) mod model {
 
     #[derive(Debug)]
     pub enum OptimizedSelectionPipelineError {
-        Legalization(LegalizationError),
+        Binding(super::input::InstallationBindingError),
         Selection(SelectedInstructionError),
     }
 
@@ -349,7 +343,8 @@ pub(crate) mod model {
     impl std::error::Error for OptimizedSelectionPipelineError {}
 }
 
-pub use input::{PreparedCallableInvocations, TargetSelectionEvidence, TargetSelectionInput};
+pub(crate) use input::BoundExecutionPlan;
+pub use input::{BoundInstallations, InstallationBindingError, SelectionInput};
 pub use model::{
     OptimizedSelectionPipelineError, StagedOptimizedSelectedInstructions,
     StagedOptimizedSelectionCustodyReceipt,
@@ -357,14 +352,33 @@ pub use model::{
 
 use register_environment::ValidatedTargetRegisterEnvironment;
 
+/// Select instructions from a prepared plan and its bound installations
+/// alone, without the optimization identities a staged product records.
+///
+/// This is the whole of what selection needs about the program. Stage 02's
+/// tests call it to show that a plan they prepared can be selected with the
+/// source module, the abstract program and the optimization unit out of reach.
+pub fn select_instructions_for_plan(
+    plan: &legalized_operations::PreparedExecutionPlan,
+    installations: BoundInstallations<'_>,
+    register_environment: &ValidatedTargetRegisterEnvironment,
+) -> Result<crate::ValidatedSelectedInstructions, OptimizedSelectionPipelineError> {
+    let bound = BoundExecutionPlan::bind(plan, installations)
+        .map_err(OptimizedSelectionPipelineError::Binding)?;
+    construction::construct_optimized_instruction_selection(&bound, register_environment)
+}
+
+/// Select instructions for a prepared execution plan.
 pub fn stage_optimized_instruction_selection(
-    input: TargetSelectionInput<'_>,
+    input: SelectionInput<'_>,
     register_environment: ValidatedTargetRegisterEnvironment,
 ) -> Result<StagedOptimizedSelectedInstructions, OptimizedSelectionPipelineError> {
-    let (legalized, selected) =
-        construction::construct_optimized_instruction_selection(&input, &register_environment)?;
+    let bound = BoundExecutionPlan::bind(input.plan, input.installations)
+        .map_err(OptimizedSelectionPipelineError::Binding)?;
+    let selected =
+        construction::construct_optimized_instruction_selection(&bound, &register_environment)?;
     let custody =
-        custody::selection_custody_receipt(&input, &register_environment, &legalized, &selected);
+        custody::selection_custody_receipt(&input, &register_environment, &bound, &selected);
     Ok(StagedOptimizedSelectedInstructions {
         register_environment,
         selections: input.selections,

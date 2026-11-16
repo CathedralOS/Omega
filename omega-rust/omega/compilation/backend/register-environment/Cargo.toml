@@ -9,10 +9,10 @@ name = "register_environment"
 path = "src/lib.rs"
 
 [dependencies]
+calling-conventions = { path = "../calling-conventions" }
 register-model = { path = "../register-model" }
 selected-instructions = { path = "../../representations/selected-instructions" }
 target = { path = "../target" }
-target-operations = { path = "../../representations/target-operations" }
 isa-aarch64 = { path = "../isa/isa-aarch64" }
 isa-x86_64 = { path = "../isa/isa-x86_64" }
 

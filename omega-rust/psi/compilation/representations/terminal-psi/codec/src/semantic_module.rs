@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 280`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 282`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -592,6 +592,20 @@ pub(crate) mod canonical_order {
         }
         require_increasing(
             module
+                .scalar_predicate_definitions
+                .iter()
+                .map(|definition| definition.declaration),
+            "scalar predicate definitions by declaration identity",
+        )?;
+        for definition in &module.scalar_predicate_definitions {
+            require_increasing(
+                definition.parameters.iter().map(|parameter| parameter.id),
+                "scalar predicate inputs by ValueId",
+            )?;
+            validate_canonical_proposition(&definition.body)?;
+        }
+        require_increasing(
+            module
                 .proposition_declarations
                 .iter()
                 .cloned()
@@ -1004,6 +1018,12 @@ pub(crate) mod canonical_order {
                         clause
                             .validate()
                             .map_err(CodecError::MalformedStructuralFoundation)?;
+                    }
+                    Proposition::FloatIntegerConversion(_)
+                    | Proposition::IeeeFloatIntegerExact { .. } => {
+                        proposition
+                            .validate()
+                            .map_err(CodecError::MalformedProposition)?;
                     }
                     Proposition::Truth | Proposition::Falsehood | Proposition::Atom(_) => {}
                     Proposition::Equal(left, right) => {
@@ -4257,6 +4277,14 @@ mod routed_scalar_tests {
     #[test]
     fn routed_specialization_retains_guarded_acquisitions_and_exact_issuer() {
         let mut module = module();
+        // Even an empty application commits to its original callable. A
+        // placeholder hash would fail before the acquisition and issuer checks.
+        let commitment =
+            language_semantics::conformance_identity::MachineApplicationCommitment::new(
+                module.identities.text(TerminalIdentityIndex(3)).unwrap(),
+            )
+            .unwrap()
+            .finish();
         let declaration = module.machines[0].declaration.as_mut().unwrap();
         declaration.callable = TerminalIdentityIndex(2);
         declaration.specialization = Some(CheckedMachineSpecialization {
@@ -4265,7 +4293,7 @@ mod routed_scalar_tests {
             template: NominalDeclarationIdentity::new(TerminalIdentityIndex(1)),
             template_callable: TerminalIdentityIndex(3),
             template_semantic_declaration: TerminalIdentityIndex(1),
-            commitment: [9; 32],
+            commitment,
         });
         module.machines[0].closed_reach_application = Some(ClosedReachApplication {
             template_identity: TerminalIdentityIndex(1),
@@ -4282,7 +4310,7 @@ mod routed_scalar_tests {
             suspension_dependency: false.into(),
             blocking_dependency: false.into(),
             conditional_carry: Vec::new(),
-            specialization_commitment: [9; 32],
+            specialization_commitment: commitment,
             parameter_kinds: Vec::new(),
             telescope: Vec::new(),
             capture: None,
@@ -4293,6 +4321,26 @@ mod routed_scalar_tests {
         assert_eq!(
             decode_module(&encode_module(&module).unwrap()).unwrap(),
             module
+        );
+        let mut stale_commitment = module.clone();
+        stale_commitment.machines[0]
+            .declaration
+            .as_mut()
+            .unwrap()
+            .specialization
+            .as_mut()
+            .unwrap()
+            .commitment = [9; 32];
+        stale_commitment.machines[0]
+            .closed_reach_application
+            .as_mut()
+            .unwrap()
+            .specialization_commitment = [9; 32];
+        assert_eq!(
+            decode_module(&encode_raw(&stale_commitment).unwrap()),
+            Err(crate::CodecError::MalformedStructuralFoundation(
+                "machine application arguments differ from their retained commitment",
+            ))
         );
         let mut missing = module.clone();
         missing.machines[0].closed_reach_application = None;
@@ -4396,6 +4444,10 @@ mod routed_scalar_tests {
             )
             .unwrap();
         }
+        assert_eq!(
+            decode_module(&encode_module(&module).unwrap()).unwrap(),
+            module
+        );
         // A captured helper still uses the callback supplied to its method.
         // The guard names that method slot after the capture's type slot.
         let capture_commitment = {
@@ -4458,7 +4510,12 @@ mod routed_scalar_tests {
             .unwrap()
             .conditional_carry
             .clear();
-        assert!(decode_module(&encode_raw(&module).unwrap()).is_err());
+        assert_eq!(
+            decode_module(&encode_raw(&module).unwrap()),
+            Err(crate::CodecError::MalformedStructuralFoundation(
+                "closed callback contract differs from its committed bounds, dependencies, or conditional carry",
+            ))
+        );
         module = preserved.clone();
         module.machines[0]
             .closed_reach_application
@@ -4467,7 +4524,12 @@ mod routed_scalar_tests {
             .conditional_carry[0]
             .condition
             .parameters = vec![2];
-        assert!(decode_module(&encode_raw(&module).unwrap()).is_err());
+        assert_eq!(
+            decode_module(&encode_raw(&module).unwrap()),
+            Err(crate::CodecError::MalformedStructuralFoundation(
+                "published callback dependency is not a normalized term over its telescope",
+            ))
+        );
         module = preserved.clone();
         module.machines[0]
             .closed_reach_application
@@ -4475,7 +4537,12 @@ mod routed_scalar_tests {
             .unwrap()
             .conditional_carry[0]
             .subject = language_semantics::SuspensionValueOrigin::CallArgument { position: 0 };
-        assert!(decode_module(&encode_raw(&module).unwrap()).is_err());
+        assert_eq!(
+            decode_module(&encode_raw(&module).unwrap()),
+            Err(crate::CodecError::MalformedStructuralFoundation(
+                "closed callback contract differs from its committed bounds, dependencies, or conditional carry",
+            ))
+        );
         module = preserved.clone();
         if let terminal_psi::ClosedReachParameter::Machine(binding) = &mut module.machines[0]
             .closed_reach_application
@@ -4485,7 +4552,12 @@ mod routed_scalar_tests {
         {
             binding.selected_may_suspend = true;
         }
-        assert!(decode_module(&encode_raw(&module).unwrap()).is_err());
+        assert_eq!(
+            decode_module(&encode_raw(&module).unwrap()),
+            Err(crate::CodecError::MalformedStructuralFoundation(
+                "closed callback substitution differs from its published operational contract",
+            ))
+        );
         module = preserved;
         assert_eq!(
             decode_module(&encode_module(&module).unwrap()).unwrap(),
@@ -4499,7 +4571,13 @@ mod routed_scalar_tests {
             .as_mut()
             .unwrap()
             .template_callable = TerminalIdentityIndex(4);
-        assert!(decode_module(&encode_raw(&module).unwrap()).is_err());
+        let error = decode_module(&encode_raw(&module).unwrap())
+            .expect_err("another template callable cannot supply exact issuer authority");
+        assert!(
+            matches!(error, crate::CodecError::MalformedScalarReturnFoundation { ref reason, .. }
+            if reason.contains("origin authorized=false")),
+            "{error:?}"
+        );
     }
 }
 #[cfg(test)]
@@ -4775,11 +4853,12 @@ pub(crate) use wire::{Reader, Writer, decode_canonical, decode_counted};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
-// Marker 280 combines complete callable/service/provider contracts, typed
-// integer float-equation operands and installation bounds with saved domain
-// access policies, exact subject/type/case/field identities and template entries.
-// Both incompatible marker-279 predecessors refuse before payload decoding.
-pub(crate) const FORMAT_MARKER: u16 = 280;
+// Marker 282 combines complete callable/service/provider contracts, exact
+// source/header/body and installation records, typed float equations, saved
+// domain access policies and template entries with transparent scalar predicate
+// definitions and integer-result conversion/exact-cast predicates. Independent
+// marker-280 and marker-281 layouts reject before any payload is interpreted.
+pub(crate) const FORMAT_MARKER: u16 = 282;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
@@ -5851,7 +5930,7 @@ mod format_marker_tests {
 
     #[test]
     fn predecessor_vocabularies_are_refused_before_payload_interpretation() {
-        for vocabulary in [136u16, 137, 138, 139] {
+        for vocabulary in [136u16, 137, 138, 139, 140] {
             for payload in [&[][..], &[0xff, 0xff, 0xff][..]] {
                 let mut bytes = MAGIC.to_vec();
                 bytes.extend_from_slice(&FORMAT_MARKER.to_le_bytes());
@@ -5867,11 +5946,11 @@ mod format_marker_tests {
 
     #[test]
     fn legacy_semantic_markers_are_refused_before_payload_interpretation() {
-        // Independent predecessors shared markers 251, 252, 277, 278 and 279.
+        // Independent predecessors shared markers through 280; main also used 281.
         // None may enter the combined grammar, regardless of payload.
         for legacy in [
             250u16, 251, 252, 256, 260, 261, 264, 265, 266, 267, 268, 269, 270, 271, 272, 273, 274,
-            275, 276, 277, 278, 279,
+            275, 276, 277, 278, 279, 280, 281,
         ] {
             for payload in [&[][..], &[0xff, 0xff, 0xff][..]] {
                 let mut bytes = MAGIC.to_vec();
@@ -5883,5 +5962,115 @@ mod format_marker_tests {
                 ));
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod scalar_predicate_definition_tests {
+    use super::*;
+    use semantic_vocabulary::{
+        IntegerSign, IntegerType, IntegerValue, Proposition, ScalarQualificationSetId, ScalarTerm,
+        ScalarType, ValueId,
+    };
+    use terminal_psi::{ScalarPredicateDefinition, ValueDeclaration};
+
+    fn predicate_module() -> TerminalModule {
+        let mut module = TerminalModule::declarations();
+        let mut identities = module.identities.into_builder();
+        let declaration = identities.intern("test::predicate");
+        module.identities = identities.build();
+        let integer = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
+        let scalar = ScalarType::Integer(integer);
+        let formal = ValueId::new(1).unwrap();
+        module
+            .scalar_predicate_definitions
+            .push(ScalarPredicateDefinition {
+                declaration,
+                parameters: vec![ValueDeclaration {
+                    id: formal,
+                    scalar_type: scalar,
+                    qualifications: ScalarQualificationSetId::ZERO,
+                }],
+                body: Proposition::LessOrEqual(
+                    ScalarTerm::integer(integer, IntegerValue::Unsigned(0)).unwrap(),
+                    ScalarTerm::value(formal, scalar),
+                ),
+            });
+        module
+    }
+
+    #[test]
+    fn scalar_predicate_definition_roundtrip_retains_body_and_formal_scope() {
+        let original = predicate_module();
+        let bytes = encode_module(&original).unwrap();
+        assert_eq!(decode_module(&bytes).unwrap(), original);
+        let mut changed = original.clone();
+        changed.scalar_predicate_definitions[0].body = Proposition::Truth;
+        assert_ne!(
+            semantic_fingerprint(&original).unwrap(),
+            semantic_fingerprint(&changed).unwrap()
+        );
+
+        let mut capture = original.clone();
+        capture.scalar_predicate_definitions[0]
+            .body
+            .remap_value_ids(|_| ValueId::new(2).unwrap());
+        assert!(matches!(
+            decode_module(&encode_module(&capture).unwrap()),
+            Err(CodecError::MalformedProposition(_))
+        ));
+
+        let mut duplicate_input = original.clone();
+        let input = duplicate_input.scalar_predicate_definitions[0].parameters[0];
+        duplicate_input.scalar_predicate_definitions[0]
+            .parameters
+            .push(input);
+        assert!(matches!(
+            decode_module(&module_wire::encode_raw(&duplicate_input).unwrap()),
+            Err(CodecError::NonCanonicalOrder(
+                "scalar predicate inputs by ValueId"
+            ))
+        ));
+
+        let mut duplicate_declaration = original.clone();
+        duplicate_declaration
+            .scalar_predicate_definitions
+            .push(duplicate_declaration.scalar_predicate_definitions[0].clone());
+        assert!(matches!(
+            decode_module(&module_wire::encode_raw(&duplicate_declaration).unwrap()),
+            Err(CodecError::NonCanonicalOrder(
+                "scalar predicate definitions by declaration identity"
+            ))
+        ));
+
+        let mut unordered = original.clone();
+        let mut identities = unordered.identities.into_builder();
+        let mut second = unordered.scalar_predicate_definitions[0].clone();
+        second.declaration = identities.intern("test::other-predicate");
+        unordered.identities = identities.build();
+        unordered.scalar_predicate_definitions.push(second);
+        unordered.scalar_predicate_definitions.swap(0, 1);
+        assert!(matches!(
+            decode_module(&module_wire::encode_raw(&unordered).unwrap()),
+            Err(CodecError::NonCanonicalOrder(
+                "scalar predicate definitions by declaration identity"
+            ))
+        ));
+
+        let mut unknown = original.clone();
+        unknown.scalar_predicate_definitions[0].declaration =
+            terminal_psi::TerminalIdentityIndex(u32::MAX);
+        assert!(matches!(
+            decode_module(&encode_module(&unknown).unwrap()),
+            Err(CodecError::MalformedStructuralFoundation(_))
+        ));
+
+        let mut qualified = original;
+        qualified.scalar_predicate_definitions[0].parameters[0].qualifications =
+            ScalarQualificationSetId::new(1);
+        assert!(matches!(
+            decode_module(&encode_module(&qualified).unwrap()),
+            Err(CodecError::MalformedStructuralFoundation(_))
+        ));
     }
 }

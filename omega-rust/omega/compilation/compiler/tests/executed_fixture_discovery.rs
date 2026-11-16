@@ -283,11 +283,11 @@ fn target_audit_rejoins_compiled_foreign_operands() {
 fn target_audit_checks_the_retained_indirect_result_register() {
     use calling_conventions::MachineRegister::{Aarch64X, X86Rcx, X86Rdi, X86Rdx};
     use calling_conventions::{IndirectPointerLocation, ValueLocation, ValueShape};
-    use target::TargetProfile::{LinuxArm64, LinuxX64, MacosArm64, WindowsX64};
-    use target_operations::{NativeCallOrigin, TargetCallResult, TargetUnitOperation};
-    use target_operations_to_selected_instructions::{
+    use native_preparation::{
         TargetOperationAuditError, verify_target_operation_plan_with_closed_module,
     };
+    use target::TargetProfile::{LinuxArm64, LinuxX64, MacosArm64, WindowsX64};
+    use target_operations::{NativeCallOrigin, TargetCallResult, TargetUnitOperation};
 
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
     let root =

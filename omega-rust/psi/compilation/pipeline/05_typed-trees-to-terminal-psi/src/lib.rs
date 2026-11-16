@@ -182,8 +182,8 @@ pub struct Compilation<'a> {
 pub use typed_trees::trait_definition::Supply;
 
 pub use terminal_check_tables::program::{
-    Branch, ConformanceWitness, Elaboration, MachineSources, Selected, SuppliedRequirement,
-    Unpositioned, Unreachable,
+    Branch, ConformanceWitness, Elaboration, MachineSources, PredicateSource, Selected,
+    SuppliedRequirement, Unpositioned, Unreachable,
 };
 
 /// What the subset does not serve, named for the refusal. Closed: a new
@@ -1680,6 +1680,7 @@ fn lower_program<'source>(
             external_provider_candidates,
             static_schemas,
             static_conformances,
+            predicate_sources: Vec::new(),
         },
     };
     if declarations.is_none() {

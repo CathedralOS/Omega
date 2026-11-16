@@ -2681,7 +2681,8 @@ pub(crate) mod tests {
                 module.declaration_contracts
             );
         };
-        let [owner] = accepted.source().traits() else {
+        let owners = accepted.source().traits();
+        let (1, Some(owner)) = (owners.len(), owners.first()) else {
             panic!("one actual source trait")
         };
         let requirements = accepted.source().trait_machine_signatures(owner);

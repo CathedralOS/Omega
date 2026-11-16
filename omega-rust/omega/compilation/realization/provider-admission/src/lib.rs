@@ -44,6 +44,7 @@ pub use admission_source::{
 };
 pub use lowering_facts::{AdmittedInstalledInterruptCohort, AdmittedNativeCallbackCohort};
 
+pub mod installed_interrupt_helpers;
 pub mod native_bindings;
 pub use native_bindings::{
     NativeBindingInput, RetainedNativeBinding, RetainedNativeBindings,

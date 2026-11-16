@@ -3066,7 +3066,12 @@ pub mod operator {
                         .len()
                 );
 
-                let mut values = program.tables.operators.storage_view().items.to_vec();
+                let mut values = program
+                    .tables
+                    .operators
+                    .stored_values()
+                    .cloned()
+                    .collect::<Vec<_>>();
                 values[0].spelling = Some(OperatorSpelling::Divide);
                 program.tables.operators = rows(values, 1).into();
                 compare(&program, unsigned, signed);
@@ -3074,7 +3079,12 @@ pub mod operator {
                 let prior_rows = program
                     .operator_spelling_rows(OperatorSpelling::Add)
                     .unwrap();
-                let mut replacement = program.tables.operators.storage_view().items.to_vec();
+                let mut replacement = program
+                    .tables
+                    .operators
+                    .stored_values()
+                    .cloned()
+                    .collect::<Vec<_>>();
                 replacement[0].spelling = Some(OperatorSpelling::Add);
                 program.tables.operators = rows(replacement, 1).into();
                 assert_ne!(program.tables.operators.revision(), revision);
@@ -3088,9 +3098,9 @@ pub mod operator {
                 let mut domains = program
                     .tables
                     .domain_definitions
-                    .storage_view()
-                    .items
-                    .to_vec();
+                    .stored_values()
+                    .cloned()
+                    .collect::<Vec<_>>();
                 domains[0].symbol = domains[1].symbol;
                 domains[0].name = Identifier::from("Replacement");
                 program.tables.domain_definitions = rows(domains, 1).into();
@@ -3102,9 +3112,9 @@ pub mod operator {
                 let mut replacement = program
                     .tables
                     .domain_definitions
-                    .storage_view()
-                    .items
-                    .to_vec();
+                    .stored_values()
+                    .cloned()
+                    .collect::<Vec<_>>();
                 replacement[0].operators = span(6, 1, 1);
                 replacement[0].name = Identifier::from("AnotherReplacement");
                 program.tables.domain_definitions = rows(replacement, 1).into();
@@ -3122,13 +3132,20 @@ pub mod operator {
                     "another row at the old position cannot become that owner"
                 );
 
-                let values = program.tables.operators.storage_view().items.to_vec();
-                program.tables.operators = rows(values, 2).into();
+                let values = program
+                    .tables
+                    .operators
+                    .stored_values()
+                    .cloned()
+                    .collect::<Vec<_>>();
+                let arena = rows(values, 2);
+                program.tables.operators = arena.clone().into();
                 program.roots.operators = rebase(program.roots.operators, 2);
                 program.roots.machine_token_bindings =
                     rebase(program.roots.machine_token_bindings, 2);
                 let root = program.roots.domain_definitions;
-                for domain in program.tables.domain_definitions.span_mut_or_empty(root) {
+                for handle in root.handles() {
+                    let domain = program.tables.domain_definitions.get_mut(handle);
                     domain.operators = rebase(domain.operators, 2);
                 }
                 compare(&program, unsigned, signed);
@@ -3136,14 +3153,14 @@ pub mod operator {
                 let values = program
                     .tables
                     .domain_definitions
-                    .storage_view()
-                    .items
-                    .to_vec();
-                program.tables.domain_definitions = rows(values, 2).into();
+                    .stored_values()
+                    .cloned()
+                    .collect::<Vec<_>>();
+                let domain_arena = rows(values, 2);
+                program.tables.domain_definitions = domain_arena.clone().into();
                 program.roots.domain_definitions = rebase(program.roots.domain_definitions, 2);
                 compare(&program, unsigned, signed);
 
-                let arena = Arena::clone(&*program.tables.operators);
                 let bytes =
                     compiler_storage::encode(&arena, compiler_storage::RecordLimits::default())
                         .unwrap();
@@ -3160,7 +3177,6 @@ pub mod operator {
                         .unwrap();
                 assert_eq!(restored, program.tables.operators);
                 assert!(restored.storage_identity() != program.tables.operators.storage_identity());
-                let domain_arena = Arena::clone(&*program.tables.domain_definitions);
                 let domain_bytes = compiler_storage::encode(
                     &domain_arena,
                     compiler_storage::RecordLimits::default(),

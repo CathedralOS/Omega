@@ -64,18 +64,9 @@ pub(crate) mod byte_views {
         parameter: &terminal_psi::StructuralParameterDeclaration,
         structural_types: &StructuralTypeLookup<'_>,
     ) -> bool {
-        parameter.access == StructuralAccess::SharedBorrow
-            && parameter.multiplicity == StructuralMultiplicity::Unrestricted
-            && structural_types
-                .get(parameter.structural_type)
-                .is_some_and(|declaration| {
-                    matches!(
-                        declaration.shape,
-                        StructuralTypeShape::ByteSequence(
-                            terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
-                        )
-                    )
-                })
+        abstract_operations::control_flow::owner_loans::is_shared_byte_view(parameter, |identity| {
+            structural_types.get(identity).copied()
+        })
     }
 
     pub(crate) fn is_byte_parameter(

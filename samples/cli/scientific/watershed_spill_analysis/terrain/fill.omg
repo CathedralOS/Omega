@@ -1,9 +1,11 @@
+module terrain::fill;
 use terrain::raster;
+use terrain::raster::Raster;
 
 // Dijkstra over max(path height), using a bounded linear priority scan.
 // Strict improvement and ascending cell scan fix ties reproducibly. Each
 // interior parent was settled earlier, so equal-height plateaus cannot cycle.
-machine fill(raster: &mut Raster) -> bool {
+public machine fill(raster: &mut Raster) -> bool {
     transition { _ -> initialize(raster, 0) }
     machine initialize(raster: &mut Raster, index: i32 in Wrapping) -> bool {
         transition index >= 0 && index < 25 {
@@ -96,7 +98,7 @@ machine fill(raster: &mut Raster) -> bool {
     }
 }
 
-machine sum_volumes(raster: &mut Raster) -> bool {
+public machine sum_volumes(raster: &mut Raster) -> bool {
     raster.total = 0;
     transition { _ -> cell(raster, 0) }
     machine cell(raster: &mut Raster, index: i32 in Wrapping) -> bool {

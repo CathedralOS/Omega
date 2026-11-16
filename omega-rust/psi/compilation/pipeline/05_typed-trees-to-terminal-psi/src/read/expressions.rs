@@ -6,7 +6,7 @@ are the same computation. Record literals and member paths are read in
 */
 
 use crate::body::Qualification;
-use semantic_vocabulary::{IntegerType, MachineId, ScalarType};
+use semantic_vocabulary::{IntegerSign, IntegerType, MachineId, ScalarType};
 use terminal_check_tables::{Checked, Construct};
 use typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableNamePath, UnaryOperator,
@@ -331,19 +331,27 @@ impl<'t> Program<'t> {
                         UnaryOperator::LogicalNot,
                         Some(ValueType::Scalar(ScalarType::Boolean, Qualification::NONE)),
                     ) => (ExpressionKind::Not(Box::new(operand)), ScalarType::Boolean),
-                    (
-                        UnaryOperator::BitwiseNot,
-                        Some(ValueType::Scalar(ScalarType::Integer(address), Qualification::NONE)),
-                    ) if address.is_address() => {
-                        return unserved("arithmetic on an address");
+                    (UnaryOperator::BitwiseNot, Some(value_type)) => {
+                        if matches!(value_type.scalar(), Some(ScalarType::Integer(integer))
+                            if integer.is_address())
+                        {
+                            return unserved("arithmetic on an address");
+                        }
+                        let result =
+                            crate::policy::bitwise_not_type(value_type).ok_or_else(|| {
+                                refuse(
+                                    id,
+                                    Construct::Machine,
+                                    Unserved::Typing("unary operand type"),
+                                )
+                            })?;
+                        return Ok(Expression {
+                            call_context: None,
+                            kind: ExpressionKind::BitwiseNot(Box::new(operand)),
+                            result: Some(result),
+                            source,
+                        });
                     }
-                    (
-                        UnaryOperator::BitwiseNot,
-                        Some(ValueType::Scalar(
-                            integer @ ScalarType::Integer(_),
-                            Qualification::NONE,
-                        )),
-                    ) => (ExpressionKind::BitwiseNot(Box::new(operand)), integer),
                     _ => {
                         return Err(refuse(
                             id,
@@ -1141,6 +1149,7 @@ fn binary_expression(
     suffix: Option<Policy>,
     source: SourceOrigin,
 ) -> Checked<Expression> {
+    let (left, right) = comparison_operands(operator, left, right);
     let (operation, policy, result) = binary_selection(
         id,
         operator,
@@ -1171,6 +1180,73 @@ fn binary_expression(
     })
 }
 
+/// numeric_values.md, "Integer equality and order" (`mixed-integer-comparison`):
+/// a builtin comparison relates the exact integer values of its operands,
+/// whatever their widths or signedness. Widening the narrower operand to a
+/// fixed carrier that holds every value of both keeps each value exactly, so
+/// comparing there is that relation. The common carrier is at most 64 bits:
+/// native code has no widening into `i128`, so a pair that needs one (`u64`
+/// with a signed partner) stays refused rather than passing the checker and
+/// failing in native lowering. Operands that carry a domain or policy are
+/// left unchanged for selection to judge.
+fn comparison_operands(
+    operator: BinaryOperator,
+    left: Expression,
+    right: Expression,
+) -> (Expression, Expression) {
+    let comparison = matches!(
+        operator,
+        BinaryOperator::Equal
+            | BinaryOperator::NotEqual
+            | BinaryOperator::Less
+            | BinaryOperator::LessOrEqual
+            | BinaryOperator::Greater
+            | BinaryOperator::GreaterOrEqual
+    );
+    let plain_integer = |expression: &Expression| match expression.result {
+        Some(ValueType::Scalar(ScalarType::Integer(integer), qualification))
+            if qualification == Qualification::NONE && !integer.is_address() =>
+        {
+            Some(integer)
+        }
+        _ => None,
+    };
+    let (Some(left_type), Some(right_type)) = (plain_integer(&left), plain_integer(&right)) else {
+        return (left, right);
+    };
+    if !comparison || left_type == right_type {
+        return (left, right);
+    }
+    let common = if left_type.can_widen_to(right_type) {
+        Some(right_type)
+    } else if right_type.can_widen_to(left_type) {
+        Some(left_type)
+    } else {
+        [16, 32, 64]
+            .into_iter()
+            .filter_map(|bits| IntegerType::new(IntegerSign::Signed, bits).ok())
+            .find(|carrier| left_type.can_widen_to(*carrier) && right_type.can_widen_to(*carrier))
+    };
+    let Some(common) = common else {
+        return (left, right);
+    };
+    let widen = |operand: Expression, integer: IntegerType| {
+        if integer == common {
+            return operand;
+        }
+        Expression {
+            call_context: None,
+            source: operand.source,
+            result: Some(ValueType::Scalar(
+                ScalarType::Integer(common),
+                Qualification::NONE,
+            )),
+            kind: ExpressionKind::Cast(Box::new(operand)),
+        }
+    };
+    (widen(left, left_type), widen(right, right_type))
+}
+
 /// A contract and an executable expression select the same operator from
 /// the same operand types. The selected policy belongs to the operation;
 /// this query neither builds an operation nor proves its formation condition.
@@ -1186,6 +1262,8 @@ pub(super) fn binary_selection(
     enum Operands {
         /// Same integer type; the result has it.
         Arithmetic,
+        /// Same integer carrier, retaining its selected qualification.
+        Bitwise,
         /// Integer value and integer count, each its own type; the result
         /// has the value's type.
         Shift,
@@ -1227,20 +1305,8 @@ pub(super) fn binary_selection(
     let (Some(left_type), Some(right_type)) = (left, right) else {
         return Err(typing("Unit operand"));
     };
-    // Builtin operators are over scalars. Equality of two records needs
-    // synthesized structural comparison evidence
-    // (`wiki/spec/terminal-psi/structural_predicates.md`) and is refused.
-    // A policy-qualified operand is its carrier under that policy
-    // (numeric_values.md, "Policy domains": core declares each unsuffixed
-    // arithmetic operator "for two operands carrying the domain and for one
-    // such operand with a plain operand of the same carrier, so
-    // `counter + 1` needs no cast", and "its result carries the same
-    // domain"). Two different policies select no operator ("incompatible
-    // policies do not mix implicitly").
-    //
-    // The reader currently serves a plain partner only when it is a literal.
-    // Policy-domain signatures also permit a plain binding of the same
-    // carrier; that implementation gap is tracked by OPERATION-ARITHMETIC-POLICY.
+    // Core signatures accept plain scalars and single arithmetic policies.
+    // Declared domains need their own operator declaration and arrive as calls.
     let carried = |value_type| match value_type {
         // domains.md, "Operands": builtin operators take unqualified
         // operands only. An arithmetic policy is the one qualification that
@@ -1262,32 +1328,6 @@ pub(super) fn binary_selection(
             ),
         ));
     };
-    let operand_policy = match (left_policy, right_policy) {
-        (Some(left), Some(right)) if left != right => {
-            return Err(typing("operands under two arithmetic policies"));
-        }
-        (left, right) => left.or(right),
-    };
-    // A shift's count is the exception: it "keeps its own" type and is
-    // never the operand a policy is matched against.
-    let shift = matches!(
-        operator,
-        BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight
-    );
-    let plain_binding = match (left_policy, right_policy) {
-        (Some(_), None) => !anonymous.1 && !shift,
-        (None, Some(_)) => !anonymous.0,
-        (Some(_), Some(_)) | (None, None) => false,
-    };
-    if plain_binding {
-        return Err(refuse(
-            id,
-            Construct::Machine,
-            Unserved::Expression(
-                "operator between a policy-qualified operand and a plain operand that is not a literal",
-            ),
-        ));
-    }
     let (operation, operands) = match operator {
         BinaryOperator::And | BinaryOperator::Or => {
             if left_type != ScalarType::Boolean || right_type != ScalarType::Boolean {
@@ -1307,9 +1347,9 @@ pub(super) fn binary_selection(
         BinaryOperator::Multiply => (Strict::Multiply, Operands::Arithmetic),
         BinaryOperator::Divide => (Strict::Divide, Operands::Arithmetic),
         BinaryOperator::Modulo => (Strict::Remainder, Operands::Arithmetic),
-        BinaryOperator::BitwiseAnd => (Strict::BitwiseAnd, Operands::Arithmetic),
-        BinaryOperator::BitwiseOr => (Strict::BitwiseOr, Operands::Arithmetic),
-        BinaryOperator::BitwiseXor => (Strict::BitwiseXor, Operands::Arithmetic),
+        BinaryOperator::BitwiseAnd => (Strict::BitwiseAnd, Operands::Bitwise),
+        BinaryOperator::BitwiseOr => (Strict::BitwiseOr, Operands::Bitwise),
+        BinaryOperator::BitwiseXor => (Strict::BitwiseXor, Operands::Bitwise),
         BinaryOperator::ShiftLeft => (Strict::ShiftLeft, Operands::Shift),
         BinaryOperator::ShiftRight => (Strict::ShiftRight, Operands::Shift),
         BinaryOperator::Equal => (Strict::Equal, Operands::Equality),
@@ -1319,6 +1359,26 @@ pub(super) fn binary_selection(
         BinaryOperator::Greater => (Strict::Greater, Operands::Ordering),
         BinaryOperator::GreaterOrEqual => (Strict::GreaterOrEqual, Operands::Ordering),
     };
+    // A count has its own carrier and qualification. Only the shifted value
+    // selects a shift policy. The other families require any two operand
+    // policies to agree, regardless of where a plain operand came from.
+    let operand_policy = operator
+        .core_integer_policy(Policy::domain(left_policy), Policy::domain(right_policy))
+        .map(Policy::of_domain)
+        .ok_or_else(|| typing("operands under two arithmetic policies"))?;
+    // A qualified operand and a plain operand must share a carrier. A
+    // shift is exempt because its count has an independent type.
+    if !operator.is_shift()
+        && left_policy.is_some() != right_policy.is_some()
+        && left_type != right_type
+    {
+        return Err(reject(
+            id,
+            right_source,
+            "no arithmetic-policy operator takes a policy-qualified operand and a plain \
+             operand of another carrier; cast one operand so both have the same carrier",
+        ));
+    }
     let integer = |scalar_type| matches!(scalar_type, ScalarType::Integer(_));
     let boolean = ValueType::plain(ScalarType::Boolean);
     // Only an operand's qualification carries through to the computed value.
@@ -1329,26 +1389,10 @@ pub(super) fn binary_selection(
     };
     let policy = suffix.or(operand_policy);
     let result = match operands {
-        // The policy catalog has no bitwise row: `&`, `|` and `^` cannot
-        // overflow, and whether core declares them for a policy-qualified
-        // operand the specification's "each unsuffixed arithmetic
-        // operator" does not say.
-        Operands::Arithmetic
-            if policy.is_some()
-                && matches!(
-                    operation,
-                    Strict::BitwiseAnd | Strict::BitwiseOr | Strict::BitwiseXor
-                ) =>
+        Operands::Arithmetic | Operands::Bitwise
+            if integer(left_type) && left_type == right_type =>
         {
-            return Err(unserved("bitwise operator on a policy-qualified operand"));
-        }
-        Operands::Arithmetic if integer(left_type) && left_type == right_type => {
             computed(left_type)
-        }
-        // A shift's count keeps its own type and chooses nothing: the
-        // value operand's policy is the operation's.
-        Operands::Shift if right_policy.is_some() => {
-            return Err(unserved("shift by a policy-qualified count"));
         }
         Operands::Shift if integer(left_type) && integer(right_type) => computed(left_type),
         // A comparison compares the stored values, whatever policy either
@@ -1380,15 +1424,18 @@ pub(super) fn binary_selection(
                 ),
             ));
         }
-        Operands::Arithmetic | Operands::Shift | Operands::Equality | Operands::Ordering => {
-            return Err(typing("operand types"));
-        }
+        Operands::Arithmetic
+        | Operands::Bitwise
+        | Operands::Shift
+        | Operands::Equality
+        | Operands::Ordering => return Err(typing("operand types")),
     };
     Ok((
         Some(operation),
         match operands {
             Operands::Arithmetic | Operands::Shift => policy,
-            Operands::Equality | Operands::Ordering => None,
+            // Bitwise operations preserve a qualification but are total.
+            Operands::Bitwise | Operands::Equality | Operands::Ordering => None,
         },
         result,
     ))
@@ -1707,77 +1754,96 @@ mod tests {
         .map_err(|refusal| refusal.detail)
     }
 
-    /// An arithmetic operator over a policy-qualified operand is that
-    /// policy's and its result carries the policy; a comparison yields
-    /// `bool`. The partner is an operand of the same policy or a literal.
-    /// Two policies, a plain binding, a bitwise operator, a
-    /// policy-qualified shift count and two carriers are each refused by
-    /// name, and two plain operands are untouched.
     #[test]
-    fn an_operator_takes_its_policy_from_its_operands_and_never_from_a_plain_binding() {
-        let plain = ValueType::Scalar(carrier(), Qualification::NONE);
-        let wrapping = ValueType::Scalar(carrier(), Qualification::of_policy(Policy::Wrapping));
-        let saturating = ValueType::Scalar(carrier(), Qualification::of_policy(Policy::Saturating));
-        let boolean = ValueType::Scalar(ScalarType::Boolean, Qualification::NONE);
+    fn core_integer_operator_types_follow_their_selected_signatures() {
+        let plain = ValueType::plain(carrier());
+        let qualified = |policy| ValueType::Scalar(carrier(), Qualification::of_policy(policy));
+        let wrapping = qualified(Policy::Wrapping);
+        let saturating = qualified(Policy::Saturating);
+        let trapping = qualified(Policy::Trapping);
+        let policies = [
+            None,
+            Some(Policy::Wrapping),
+            Some(Policy::Saturating),
+            Some(Policy::Trapping),
+        ];
+        let types = [plain, wrapping, saturating, trapping];
+        let boolean = ValueType::plain(ScalarType::Boolean);
         let neither = (false, false);
+        let id = MachineId::new(1).unwrap();
+        let source = SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent);
+        let select = |operator, left, right| {
+            binary_selection(
+                id,
+                operator,
+                Some(left),
+                Some(right),
+                neither,
+                None,
+                (source, source),
+            )
+        };
+
         for operator in [
             BinaryOperator::Add,
             BinaryOperator::Subtract,
             BinaryOperator::Multiply,
             BinaryOperator::Divide,
             BinaryOperator::Modulo,
+            BinaryOperator::BitwiseAnd,
+            BinaryOperator::BitwiseOr,
+            BinaryOperator::BitwiseXor,
+            BinaryOperator::Less,
+            BinaryOperator::Equal,
         ] {
-            assert_eq!(typed(operator, plain, plain, neither), Ok(plain));
-            assert_eq!(typed(operator, wrapping, wrapping, neither), Ok(wrapping));
-            assert_eq!(
-                typed(operator, saturating, saturating, neither),
-                Ok(saturating)
+            let comparison = matches!(operator, BinaryOperator::Less | BinaryOperator::Equal);
+            let bitwise = matches!(
+                operator,
+                BinaryOperator::BitwiseAnd | BinaryOperator::BitwiseOr | BinaryOperator::BitwiseXor
             );
-            // `w + 1` and `1 + w`: the literal landed in the carrier.
+            for (value_type, policy) in types.into_iter().zip(policies) {
+                let selected_policy = if comparison || bitwise { None } else { policy };
+                let result = if comparison { boolean } else { value_type };
+                for (left, right) in [
+                    (value_type, value_type),
+                    (value_type, plain),
+                    (plain, value_type),
+                ] {
+                    let (_, found_policy, found_type) = select(operator, left, right).unwrap();
+                    assert_eq!((found_policy, found_type), (selected_policy, result));
+                }
+            }
+            let literal_result = if comparison { boolean } else { wrapping };
             assert_eq!(
                 typed(operator, wrapping, plain, (false, true)),
-                Ok(wrapping)
+                Ok(literal_result)
             );
             assert_eq!(
                 typed(operator, plain, wrapping, (true, false)),
-                Ok(wrapping)
+                Ok(literal_result)
             );
-            for (left, right) in [(wrapping, plain), (plain, wrapping)] {
-                assert_eq!(
-                    typed(operator, left, right, neither).unwrap_err(),
-                    "expression operator between a policy-qualified operand and a plain operand that is not a literal"
-                );
-            }
             assert_eq!(
-                typed(operator, wrapping, saturating, neither).unwrap_err(),
+                select(operator, wrapping, saturating).unwrap_err().detail,
                 "typing operands under two arithmetic policies"
             );
         }
-        for operator in [BinaryOperator::Less, BinaryOperator::Equal] {
-            assert_eq!(typed(operator, wrapping, wrapping, neither), Ok(boolean));
-            assert_eq!(typed(operator, wrapping, plain, (false, true)), Ok(boolean));
-            assert_eq!(
-                typed(operator, wrapping, plain, neither).unwrap_err(),
-                "expression operator between a policy-qualified operand and a plain operand that is not a literal"
-            );
+
+        // The count has a different sign and width. None of its four exact
+        // qualifications can select the value's policy or transfer to the result.
+        let count = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 64).unwrap());
+        for operator in [BinaryOperator::ShiftLeft, BinaryOperator::ShiftRight] {
+            for (value_type, value_policy) in types.into_iter().zip(policies) {
+                for count_policy in policies {
+                    let count_type = ValueType::Scalar(
+                        count,
+                        count_policy.map_or(Qualification::NONE, Qualification::of_policy),
+                    );
+                    let (_, found_policy, found_type) =
+                        select(operator, value_type, count_type).unwrap();
+                    assert_eq!((found_policy, found_type), (value_policy, value_type));
+                }
+            }
         }
-        // A shift's count keeps its own plain type, literal or binding.
-        assert_eq!(
-            typed(BinaryOperator::ShiftLeft, wrapping, plain, neither),
-            Ok(wrapping)
-        );
-        assert_eq!(
-            typed(BinaryOperator::ShiftRight, wrapping, wrapping, neither).unwrap_err(),
-            "expression shift by a policy-qualified count"
-        );
-        assert_eq!(
-            typed(BinaryOperator::BitwiseAnd, wrapping, wrapping, neither).unwrap_err(),
-            "expression bitwise operator on a policy-qualified operand"
-        );
-        assert_eq!(
-            typed(BinaryOperator::BitwiseAnd, plain, plain, neither),
-            Ok(plain)
-        );
         // A policy does not make two carriers one.
         let wider = ValueType::Scalar(
             ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
@@ -1785,6 +1851,65 @@ mod tests {
         );
         assert_eq!(
             typed(BinaryOperator::Add, wrapping, wider, neither).unwrap_err(),
+            "typing operand types"
+        );
+        // A plain operand of another carrier matches no policy operator.
+        let plain_wider = ValueType::Scalar(
+            ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
+            Qualification::NONE,
+        );
+        for (left, right) in [(wrapping, plain_wider), (plain_wider, wrapping)] {
+            assert!(
+                typed(BinaryOperator::Add, left, right, neither)
+                    .unwrap_err()
+                    .starts_with("no arithmetic-policy operator takes a policy-qualified operand"),
+            );
+        }
+    }
+
+    /// A comparison relates exact values across widths and signedness; the
+    /// narrower operand widens to a carrier holding both. Arithmetic still
+    /// needs one carrier, and a pair with no common carrier of at most 64 bits
+    /// stays refused.
+    #[test]
+    fn a_comparison_widens_operands_of_different_integer_carriers() {
+        let integer = |sign, bits| {
+            ValueType::Scalar(
+                ScalarType::Integer(IntegerType::new(sign, bits).unwrap()),
+                Qualification::NONE,
+            )
+        };
+        let boolean = ValueType::Scalar(ScalarType::Boolean, Qualification::NONE);
+        let neither = (false, false);
+        let u32_ = integer(IntegerSign::Unsigned, 32);
+        let u64_ = integer(IntegerSign::Unsigned, 64);
+        let i32_ = integer(IntegerSign::Signed, 32);
+        for operator in [
+            BinaryOperator::Less,
+            BinaryOperator::Equal,
+            BinaryOperator::GreaterOrEqual,
+        ] {
+            assert_eq!(typed(operator, u32_, u64_, neither), Ok(boolean));
+            assert_eq!(typed(operator, u64_, u32_, neither), Ok(boolean));
+            assert_eq!(typed(operator, i32_, u32_, neither), Ok(boolean));
+        }
+        assert_eq!(
+            typed(BinaryOperator::Add, u32_, u64_, neither).unwrap_err(),
+            "typing operand types"
+        );
+        assert_eq!(
+            typed(
+                BinaryOperator::Less,
+                integer(IntegerSign::Unsigned, 128),
+                integer(IntegerSign::Signed, 8),
+                neither
+            )
+            .unwrap_err(),
+            "typing operand types"
+        );
+        // `u64` against `i32` would need `i128`, which native code cannot widen to.
+        assert_eq!(
+            typed(BinaryOperator::Less, u64_, i32_, neither).unwrap_err(),
             "typing operand types"
         );
     }

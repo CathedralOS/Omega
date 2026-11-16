@@ -619,11 +619,12 @@ fn qualified_operator_labels_do_not_hide_actual_attachment_obligations() {
             ..
         } = source();
         let attachment = named(&mut program, byte, "u8");
-        let machine = program
-            .machines_mut()
-            .iter_mut()
-            .find(|machine| machine.symbol == relay.machine)
+        let position = program
+            .machines()
+            .iter()
+            .position(|machine| machine.symbol == relay.machine)
             .unwrap();
+        let machine = program.machine_mut(position);
         machine.spelling = Some(language_core::operator_spelling::OperatorSpelling::Add);
         machine.attached_data = Some(Identifier::generated("Distance"));
         if attached {
@@ -1488,11 +1489,12 @@ fn copied_progress_keeps_its_promise_and_rebinds_private_witnesses() {
             view_path: "Nat::Descending".into(),
             ..RankingWitness::default()
         };
-        let original = program
-            .machines_mut()
-            .iter_mut()
-            .find(|machine| machine.symbol == relay.machine)
+        let position = program
+            .machines()
+            .iter()
+            .position(|machine| machine.symbol == relay.machine)
             .unwrap();
+        let original = program.machine_mut(position);
         original.termination_plan.interface =
             TerminationInterface::Published(TerminationGuarantee::Terminates {
                 premises: vec![ProgressPremise {

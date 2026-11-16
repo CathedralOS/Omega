@@ -1,7 +1,9 @@
+module reporting::ledger;
 use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 use omega::language::core::U64::from_f64;
 use physics::model;
+use physics::model::Lab;
 // Bounded scientific output: signed fixed point with six fractional digits.
 // Model validation and 8-event cap keep all printed magnitudes below 10^9.
 public machine integer(value:u64) reaches ProcessExit + Console

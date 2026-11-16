@@ -1,5 +1,7 @@
+module report::output;
 use omega_language_std::Console;
 use linkage::model;
+use linkage::model::Linkage;
 
 public machine number(value: u64) reaches Console
 invokes Console

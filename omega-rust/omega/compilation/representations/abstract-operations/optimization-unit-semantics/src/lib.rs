@@ -65,7 +65,7 @@ abstract and target realization boundaries:
 - `error`: `OperationSite` coordinates and `OptimizationUnitValidationError`.
 */
 
-pub mod access_references;
+pub use native_vocabulary::access_reference_validation as access_references;
 pub mod callable_values;
 mod candidates;
 mod current_ownership;

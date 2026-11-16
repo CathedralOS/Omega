@@ -25,7 +25,7 @@ use omega::language::core::narrow_i64_to_u64_wrapping;
 // arithmetic theorem; the qualified result is never returned by the raw API.
 machine windows_synchronous_duplicate(handle: u64) -> i64 in WindowsSynchronousFileOrAbsent {
     let pinned: i64 = block windows_query_synchronous_duplicate(handle);
-    pinned
+    pinned as +WindowsSynchronousFileOrAbsent
 }
 
 machine windows_query_synchronous_duplicate(handle: u64) -> i64
@@ -86,7 +86,7 @@ reaches FilesystemContentWrite {
     machine transfer(duplicate: i64 in WindowsSynchronousFileOrAbsent, bytes: &[u8]) -> i64
     requires (duplicate as -WindowsSynchronousFileOrAbsent) != 0 {
         let result: i64 = block windows_write_pinned(duplicate, bytes);
-        let closed: i32 = block windows_filesystem_native_close_handle(narrow_i64_to_u64_wrapping(duplicate as i64));
+        let closed: i32 = block windows_filesystem_native_close_handle(narrow_i64_to_u64_wrapping(duplicate as -WindowsSynchronousFileOrAbsent));
         windows_transfer_completion(result, closed)
     }
 }
@@ -107,7 +107,7 @@ reaches FilesystemContentRead {
     machine transfer(duplicate: i64 in WindowsSynchronousFileOrAbsent, buffer: &mut [u8], count: u64) -> i64
     requires (duplicate as -WindowsSynchronousFileOrAbsent) != 0 {
         let result: i64 = block windows_read_pinned(duplicate, buffer, count);
-        let closed: i32 = block windows_filesystem_native_close_handle(narrow_i64_to_u64_wrapping(duplicate as i64));
+        let closed: i32 = block windows_filesystem_native_close_handle(narrow_i64_to_u64_wrapping(duplicate as -WindowsSynchronousFileOrAbsent));
         windows_transfer_completion(result, closed)
     }
 }

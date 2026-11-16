@@ -202,7 +202,7 @@ pub fn selector_carrier_type() -> semantic_vocabulary::ScalarType {
     )
 }
 
-pub type NativeCallTarget = abstract_operations::AbstractCallTarget;
+pub type NativeCallTarget = native_vocabulary::calls::AbstractCallTarget;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetAccessCallBinding {
@@ -222,6 +222,6 @@ pub enum TargetAccessCallAssociation {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetAccessInterpretation {
-    Captured(abstract_operations::AccessReferenceBacking),
+    Captured(native_vocabulary::access_references::AccessReferenceBacking),
     Formal(terminal_psi::TerminalAccessViewInput),
 }

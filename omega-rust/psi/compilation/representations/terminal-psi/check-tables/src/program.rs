@@ -71,6 +71,23 @@ impl SourceOrigin {
     }
 }
 
+/// What a cast must prove of its operand before its result exists, kept so a
+/// refusal names the kind of condition that failed. The lowered form carries
+/// only the invariant itself, which does not say whether it came from a
+/// domain or from exact narrowing.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CastCondition {
+    /// `value as +D` for a domain with predicates
+    /// (`wiki/spec/language/domains.md`, "Domain-only casts": "Has
+    /// predicates | Prove them for this value."). Holds the domain's stated
+    /// requirement, such as "domain `u64::D` requires `self > 0`".
+    DomainMembership(String),
+    /// A float narrowing whose result must equal its operand exactly. Holds
+    /// the stated condition, such as "the float value is exactly
+    /// representable in f32".
+    ExactRepresentation(String),
+}
+
 /// One machine's source correspondence: one row per lowered identity, indexed
 /// by that identity and minted in lockstep with it.
 #[derive(Debug, Clone, Default)]
@@ -87,7 +104,7 @@ pub struct MachineSources {
     /// Each cast that must establish a predicate continues in this block.
     /// Lowering retains its stated requirement for diagnostics; the lowered
     /// form carries the actual invariant and owes it on every arrival.
-    pub predicate_establishments: Vec<(BlockId, String)>,
+    pub predicate_establishments: Vec<(BlockId, CastCondition)>,
     /// The statements lowering left out because the call before them never
     /// returns, one row per such call (`lower`, `body`). The lowered form
     /// holds nothing of them, so the advisory warning about them is read
@@ -276,6 +293,9 @@ pub struct Elaboration {
     pub external_provider_candidates: Vec<crate::contracts::ExternalProviderCandidate>,
     pub static_schemas: Vec<crate::contracts::StaticSchemaQuestion>,
     pub static_conformances: Vec<crate::contracts::StaticConformanceQuestion>,
+    /// Diagnostic custody only. The module owns predicate bodies and formals;
+    /// these rows cannot add a definition or affect its arithmetic judgment.
+    pub predicate_sources: Vec<PredicateSource>,
 }
 
 /// The complete declared identity of the source implementation operand and
@@ -285,6 +305,15 @@ pub struct Elaboration {
 pub struct SelectedSourceOperand {
     pub identity: String,
     pub supplier: SymbolHandle,
+}
+
+/// The source of a retained predicate, ordered by its module declaration identity.
+#[derive(Debug, Clone)]
+pub struct PredicateSource {
+    pub declaration: terminal_psi::TerminalIdentityIndex,
+    pub name: String,
+    pub machine: MachineId,
+    pub source_span: Option<source::SourceSpan>,
 }
 
 /// One call through an implementation parameter in a machine stage 04

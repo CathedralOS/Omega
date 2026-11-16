@@ -1,7 +1,10 @@
+module model::paths;
 // Normal-incidence sample model: each layer contributes floor(2000*d/v)
 // nanoseconds. Enumerate primary, double and triple round trips at each
 // boundary. A match window is inclusive; overlapping paths retain all matches.
 use model::records;
+use model::records::Acquisition;
+use model::records::EchoResult;
 public machine build_boundaries(acquisition: &mut Acquisition) {
     transition { _ -> step(acquisition, 0, 0) }
     machine step(acquisition: &mut Acquisition, layer: u64 in Saturating, cumulative: i64 in Saturating) {

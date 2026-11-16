@@ -1831,8 +1831,10 @@ mod value_expressions {
         binders precede enclosing generic names. A common descriptor synthesized
         from a value binder keeps that binder identity for application substitution;
         ordinary common fields still resolve through declaration lookup. Machine
-        parameters and preceding locals retain their normal frontier. Namespace-headed paths
-        keep the declaration identity already selected by ordinary type resolution.
+        parameters and preceding locals retain their normal frontier. Namespace-headed
+        paths select constants in the source's declaration scope: the preceding
+        type-name pass cannot bind a constant in a value slot. Other namespace
+        selections retain that pass's declaration identity.
     */
     fn resolve_index_subject(
         symbols: &SymbolTable,
@@ -1905,7 +1907,9 @@ mod value_expressions {
                 .unwrap_or_else(SymbolHandle::invalid),
             );
         }
-        None
+        let constant =
+            crate::symbols::lookup::top_level_symbol_for_source(symbols, SymbolKind::Const, name);
+        constant.is_valid().then_some(constant)
     }
 
     #[cfg(test)]

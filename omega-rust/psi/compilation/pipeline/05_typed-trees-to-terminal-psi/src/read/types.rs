@@ -379,13 +379,12 @@ impl Program<'_> {
         }
     }
 
-    /// Whether two closed types are the same type, when both are builtin
-    /// scalar types: decided by the compiler-installed atom each symbol
-    /// names, never by a spelling. A type parameter the machine being read
-    /// is checked at (`Reading::Alternative`, or a generic machine applied
-    /// at a call's type arguments) is the scalar type the scope fixes it
-    /// to. `None` for any other operand (a rigid type parameter, a data
-    /// type, an application), which is not decided here. generics.md,
+    /// Compare closed scalar and record types by their retained identities.
+    /// A record application must retain its complete tuple and exact source
+    /// members, including indices unused by its layout. The scope fixes a
+    /// type parameter when reading a finite alternative or an applied call.
+    /// Rigid parameters, qualifications and unsupported premises stay open.
+    /// generics.md,
     /// "Static type equality": "`==` between type expressions states exact
     /// normalized type equality".
     fn closed_type_equation(
@@ -397,14 +396,46 @@ impl Program<'_> {
         enum Closed {
             Atom(BuiltinTypeAtom),
             Scalar(ScalarType),
+            Record(symbols::SymbolHandle, Option<TypeReferenceHandle>),
         }
-        // A qualified type is no closed builtin type: only a plain name is
-        // read, through the parameter it may stand for.
+        let record = |reference: TypeReferenceHandle| {
+            let data = self.typed.closed_data_definition(reference)?;
+            // The same source application check that admits record storage
+            // checks its complete tuple and substituted members here. A type
+            // equation cannot hide an unserved generic premise.
+            if !data.requires_facts.is_empty() || !data.lifetime_parameters.is_empty() {
+                return None;
+            }
+            super::source_records::source_application(
+                self.typed,
+                data,
+                reference,
+                MachineId::new(1)?,
+            )
+            .ok()?;
+            let declaration = match data.generic_instance {
+                Some(origin) => match self.typed.type_reference_table.type_reference(origin) {
+                    TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
+                    _ => return None,
+                },
+                None => data.symbol,
+            };
+            Some(Closed::Record(
+                declaration,
+                data.generic_instance.map(|_| reference),
+            ))
+        };
+        // Qualifications need their own equality rules; retain the existing
+        // refusal rather than comparing only their underlying storage.
         let closed = |handle: TypeReferenceHandle, scope: Scope<'_>| {
             if !handle.is_valid()
+                || !self
+                    .typed
+                    .type_reference_table
+                    .contains_type_reference(handle)
                 || !matches!(
                     self.typed.type_reference_table.type_reference(handle),
-                    TypeReferenceNode::Named { .. }
+                    TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
                 )
             {
                 return None;
@@ -413,11 +444,34 @@ impl Program<'_> {
                 Bound::Value(ValueType::Scalar(scalar_type, Qualification::NONE)) => {
                     Some(Closed::Scalar(scalar_type))
                 }
+                Bound::Value(ValueType::Record(
+                    record_id,
+                    Qualification::NONE,
+                    crate::body::Regions::NONE,
+                )) => {
+                    let source = self.record_sources.get(record_id)?;
+                    if let Some(application) = &source.application {
+                        record(application.reference)
+                    } else {
+                        Some(Closed::Record(source.declaration, None))
+                    }
+                }
                 Bound::Written(Written::Symbol(symbol)) if symbol.is_valid() => self
                     .typed
                     .symbols
                     .builtin_type_atom(symbol)
-                    .map(Closed::Atom),
+                    .map(Closed::Atom)
+                    .or_else(|| {
+                        (self
+                            .typed
+                            .type_reference_table
+                            .type_reference(handle)
+                            .as_named_symbol()
+                            == Some(symbol))
+                        .then(|| record(handle))
+                        .flatten()
+                    }),
+                Bound::Written(Written::Reference(reference)) => record(reference),
                 Bound::Value(_) | Bound::Written(_) => None,
             }
         };
@@ -430,6 +484,18 @@ impl Program<'_> {
             (Closed::Scalar(left), Closed::Scalar(right)) => left == right,
             (Closed::Scalar(fixed), Closed::Atom(atom))
             | (Closed::Atom(atom), Closed::Scalar(fixed)) => scalar(atom)? == fixed,
+            (Closed::Record(left, left_application), Closed::Record(right, right_application)) => {
+                left == right
+                    && match (left_application, right_application) {
+                        (None, None) => true,
+                        (Some(left), Some(right)) => {
+                            self.typed.normalized_type_identity(left)
+                                == self.typed.normalized_type_identity(right)
+                        }
+                        _ => false,
+                    }
+            }
+            (Closed::Record(..), _) | (_, Closed::Record(..)) => false,
         })
     }
 
@@ -831,22 +897,14 @@ impl Program<'_> {
         for constraint in typed.type_reference_table.constraints(constraints) {
             match constraint {
                 TypeConstraintNode::ArithmeticDomain(ArithmeticDomain::Exact) => {}
-                TypeConstraintNode::ArithmeticDomain(ArithmeticDomain::Trapping) => {
-                    return unserved("constrained by Trapping");
-                }
-                TypeConstraintNode::ArithmeticDomain(
-                    policy @ (ArithmeticDomain::Wrapping | ArithmeticDomain::Saturating),
-                ) => {
+                TypeConstraintNode::ArithmeticDomain(policy) => {
                     if qualification.policy.is_some() {
                         return unserved("constrained by more than one arithmetic policy");
                     }
                     if !matches!(carrier, ValueType::Scalar(ScalarType::Integer(_), _)) {
                         return unserved("arithmetic policy on a type that is not an integer");
                     }
-                    qualification.policy = Some(match policy {
-                        ArithmeticDomain::Wrapping => Policy::Wrapping,
-                        _ => Policy::Saturating,
-                    });
+                    qualification.policy = Policy::of_domain(*policy);
                 }
                 TypeConstraintNode::Domain(domain)
                     if domain.subject == DomainConstraintSubject::Declared =>

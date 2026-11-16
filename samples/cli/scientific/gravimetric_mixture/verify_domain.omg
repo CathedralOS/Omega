@@ -6,6 +6,8 @@ use omega::language::core::ProcessExit;
 // Expected output contains: VERIFIED: domain_oracles
 use omega_language_std::Console;
 use domain::mixture;
+use domain::mixture::Mixture;
+use domain::mixture::correct;
 
 data Main { result: Mixture; }
 

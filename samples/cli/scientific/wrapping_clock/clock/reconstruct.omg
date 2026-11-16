@@ -1,9 +1,11 @@
+module clock::reconstruct;
 use clock::model;
+use clock::model::Acquisition;
 
 // Each edge admits deltas congruent to the raw difference modulo M. The least
 // admissible delta plus M tests uniqueness, including identical residues and
 // intervals spanning several wraps. Never infer order from raw magnitude.
-machine reconstruct(acquisition: &mut Acquisition) {
+public machine reconstruct(acquisition: &mut Acquisition) {
     transition acquisition.used >= 11 {
         true -> header(acquisition)
         false -> fail(acquisition, 1)

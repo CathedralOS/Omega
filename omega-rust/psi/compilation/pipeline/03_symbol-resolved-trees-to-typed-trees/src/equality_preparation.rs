@@ -733,7 +733,7 @@ mod tests {
         program
             .tables
             .data_definitions
-            .span_mut_or_empty(program.roots.data_definitions)[0]
+            .get_mut(program.roots.data_definitions.start())
             .quotient = Some(typed_trees::data::QuotientDefinition {
             carrier,
             relation: Vec::new(),
@@ -780,7 +780,7 @@ mod tests {
         program
             .tables
             .conformances
-            .span_mut_or_empty(program.roots.conformances)[1]
+            .get_mut(program.roots.conformances.handle_at(1))
             .arguments = arguments;
         let (family, _) = super::prepare_selections(&program).unwrap();
         assert_eq!(family.len(), 2);

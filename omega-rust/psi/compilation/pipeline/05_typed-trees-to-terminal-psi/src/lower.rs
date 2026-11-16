@@ -773,7 +773,7 @@ struct Lowering<'a> {
     roots: IdTable<PlaceId, (StructuralPlaceKind, StructuralTypeId)>,
     /// Scalar leaves requested by operations and clauses, indexed by exact
     /// place. Final lowering allocates their entry and returned snapshots.
-    demanded_contents: Vec<Option<ScalarType>>,
+    demanded_contents: Vec<Option<places::ContentDemand>>,
     /// The branch decisions on the path to the open block, in program order:
     /// each the branch value equal to the Boolean its edge took. Every arm
     /// completes the machine, and a short-circuit or `match` rejoins its

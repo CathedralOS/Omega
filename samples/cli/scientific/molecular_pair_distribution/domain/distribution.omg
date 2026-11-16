@@ -1,9 +1,16 @@
+module domain::distribution;
 use omega::language::core::F64::from_i32;
 use omega_language_std::Console;
 use omega::language::core::widen_i32_to_i64;
 use domain::model;
+use domain::model::Distribution;
 use io::output;
+use io::output::integer;
+use io::output::real;
+use io::output::precise_real;
 use domain::precision;
+use domain::precision::Precise;
+use domain::precision::normalized;
 
 // Canonicalize independently along each axis before the minimum-image fold.
 // Bounded integer coordinates preserve exact squared radial-edge decisions.

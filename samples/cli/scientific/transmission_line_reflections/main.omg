@@ -6,8 +6,15 @@ use omega::language::core::ProcessExit;
 // in micro-units; see data/oracle.json for independently frozen exact fractions.
 use omega_language_std::Console;
 use physics::model;
+use physics::model::LineModel;
+use physics::model::preset;
+use physics::model::ReflectionTree;
+use physics::model::propagate;
 use io::input;
+use io::input::Request;
+use io::input::read_request;
 use io::report;
+use io::report::report;
 
 data Main { }
 machine main(main: &mut Main) reaches ProcessExit + Console {

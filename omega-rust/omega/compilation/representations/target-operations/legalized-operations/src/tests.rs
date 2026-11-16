@@ -15,12 +15,15 @@ use super::{
     LegalizedScalarReturnValue, LegalizedScalarTerminator, LegalizedStructuralContract,
     LegalizedValueDefinition, NativeCallOrigin, legalized_operation_plan_identity,
 };
-pub(super) use abstract_operations::CompletionClaimSource;
 pub(super) use calling_conventions::{
     CallSignature, CallingPolicy, ValueShape, evaluate_call_plan,
 };
+pub(super) use native_vocabulary::completion_claims::CompletionClaimSource;
+pub(super) use native_vocabulary::provenance::EffectLink;
+use native_vocabulary::provenance::OwnershipEvent;
+use native_vocabulary::provenance::PsiProvenance;
+use native_vocabulary::provenance::WorkSettlement;
 pub(super) use optimization_core::OptimizationUnitIdentity;
-pub(super) use optimization_unit::{EffectLink, OwnershipEvent, PsiProvenance, WorkSettlement};
 pub(super) use semantic_vocabulary::{
     BoundaryMachineId, ClaimId, EdgeId, IntegerSign, IntegerType, IntegerValue, OperationId,
     ScalarType, StructuralDomainId, StructuralFieldId, StructuralPlaceKind, StructuralTypeId,
@@ -149,6 +152,8 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
     let call = id::<OperationId>(1);
     let return_edge = id::<EdgeId>(1);
     LegalizedOperationPlan {
+        retained_integers: crate::RetainedIntegerTypes::Unsealed,
+        installation_operations: Vec::new(),
         psi: TerminalPsiIdentity {
             vocabulary_marker: VocabularyMarker::CURRENT,
             program_fingerprint: SemanticFingerprint::from_bytes([7; 32]),
@@ -193,7 +198,8 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
                                 relevance: BindingRelevance::Relevant,
                                 field_type: StructuralFieldType::Scalar(
                                     semantic_vocabulary::ScalarType::Integer(
-                                        IntegerType::address(64).expect("addr"),
+                                        semantic_vocabulary::IntegerType::address(64)
+                                            .expect("addr"),
                                     ),
                                 ),
                             },
@@ -206,7 +212,11 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
                                 relevance: BindingRelevance::Relevant,
                                 field_type: StructuralFieldType::Scalar(
                                     semantic_vocabulary::ScalarType::Integer(
-                                        IntegerType::new(IntegerSign::Unsigned, 64).expect("u64"),
+                                        semantic_vocabulary::IntegerType::new(
+                                            IntegerSign::Unsigned,
+                                            64,
+                                        )
+                                        .expect("u64"),
                                     ),
                                 ),
                             },
@@ -393,7 +403,8 @@ pub(super) fn scalar_call_unit_plan() -> LegalizedOperationPlan {
     let mut plan = call_aware_plan();
     plan.scalar_functions.clear();
     plan.target = NativeTarget::linux_x64();
-    let scalar_type = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+    let scalar_type =
+        semantic_vocabulary::ClosedIntegerType::new(IntegerSign::Unsigned, 64).unwrap();
     let shape = ValueShape::integer(8, 8);
     let call_plan = evaluate_call_plan(
         CallingPolicy::native_for_target(plan.target),
@@ -410,7 +421,8 @@ pub(super) fn scalar_call_unit_plan() -> LegalizedOperationPlan {
     let operations = [id(105), id(106), id(107), id(108), id(109)];
     let values = [id(110), id(111), id(112), id(113), id(114)];
     let edge = id(115);
-    let definition = |node| optimization_unit::ValueDefinitionSite::Node { block, node };
+    let definition =
+        |node| native_vocabulary::provenance::ValueDefinitionSite::Node { block, node };
     let work = |operation| {
         vec![WorkSettlement {
             site: PsiProvenance::Operation(operation),
@@ -425,7 +437,7 @@ pub(super) fn scalar_call_unit_plan() -> LegalizedOperationPlan {
         operation: operations[index],
         result: Some(LegalizedValueDefinition {
             value: values[index],
-            scalar_type: ScalarType::Integer(scalar_type),
+            scalar_type: semantic_vocabulary::ClosedScalarType::Integer(scalar_type),
             definition_site: definition(index as u32),
         }),
         kind,

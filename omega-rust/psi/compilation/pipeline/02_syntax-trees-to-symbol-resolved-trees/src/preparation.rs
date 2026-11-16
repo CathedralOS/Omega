@@ -1900,8 +1900,18 @@ pub(crate) mod module_normalization {
             if !module_sources.contains(&constant.name.source_span().source_id) {
                 continue;
             }
-            if mode != ConstResolutionMode::Complete {
-            } else if module_literal_constant(syntax, constant, Some(selection)) {
+            if mode != ConstResolutionMode::Complete
+                || crate::preparation::generic_data::const_destination_requires_proof(
+                    syntax,
+                    constant,
+                    Some(selection),
+                )
+            {
+                // The retained initializer checks this destination in its
+                // own module, using the same route as a root declaration.
+                continue;
+            }
+            if module_literal_constant(syntax, constant, Some(selection)) {
                 if matches!(
                     syntax_type_references(syntax).type_reference(constant.type_reference),
                     TypeReferenceNode::FixedArray { .. }

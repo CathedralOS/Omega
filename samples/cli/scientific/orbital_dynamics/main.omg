@@ -2,7 +2,15 @@ use omega::language::core::ProcessExit;
 // Expected exit: 64 (empty stdin); valid orbital fixtures exit 0 or collision 2.
 // Expected output contains: ERROR syntax
 use io::protocol;
+use io::protocol::Protocol;
+use io::protocol::read;
+use io::protocol::integer;
+use io::protocol::number;
 use domain::orbit;
+use domain::orbit::Orbit;
+use domain::orbit::coordinate;
+use domain::orbit::diagnostics;
+use domain::orbit::step;
 use omega_language_std::Console;
 use omega::language::core::F64::from_i32;
 use omega::language::core::I32::from_f64;

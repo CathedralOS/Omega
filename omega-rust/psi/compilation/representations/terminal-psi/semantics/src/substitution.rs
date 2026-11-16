@@ -33,6 +33,18 @@ pub fn substitute_proposition_values_with<'input>(
                 substitute_scalar_term_values_with(source, substitutions)
             }))
         }
+        Proposition::FloatIntegerConversion(clause) => {
+            let mut mapped = clause.clone();
+            mapped.source = substitute_scalar_term_values_with(&clause.source, substitutions);
+            mapped.result = substitute_scalar_term_values_with(&clause.result, substitutions);
+            Proposition::FloatIntegerConversion(mapped)
+        }
+        Proposition::IeeeFloatIntegerExact { source, target } => {
+            Proposition::IeeeFloatIntegerExact {
+                source: substitute_scalar_term_values_with(source, substitutions),
+                target: *target,
+            }
+        }
         Proposition::Truth => Proposition::Truth,
         Proposition::Falsehood => Proposition::Falsehood,
         Proposition::Atom(atom) => Proposition::Atom(*atom),
@@ -151,6 +163,18 @@ pub fn substitute_proposition_structural_places_with<'input>(
             Proposition::FloatMeaningEqual(clause.map_sources_or_invalid(|source| {
                 substitute_scalar_term_places(source, substitutions)
             }))
+        }
+        Proposition::FloatIntegerConversion(clause) => {
+            let mut mapped = clause.clone();
+            mapped.source = substitute_scalar_term_places(&clause.source, substitutions);
+            mapped.result = substitute_scalar_term_places(&clause.result, substitutions);
+            Proposition::FloatIntegerConversion(mapped)
+        }
+        Proposition::IeeeFloatIntegerExact { source, target } => {
+            Proposition::IeeeFloatIntegerExact {
+                source: substitute_scalar_term_places(source, substitutions),
+                target: *target,
+            }
         }
         Proposition::Truth => Proposition::Truth,
         Proposition::Falsehood => Proposition::Falsehood,

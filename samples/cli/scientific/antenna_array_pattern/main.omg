@@ -10,8 +10,16 @@ use omega_language_std::Console;
 use omega::language::core::F64::from_i32;
 use omega::language::core::I32::from_f64;
 use domain::array;
+use domain::array::Geometry;
+use domain::array::valid;
+use domain::array::pattern_power;
+use domain::array::amplitude;
+use domain::array::duplicates;
 use data::fixtures;
+use data::fixtures::fixtures_load;
 use data::expected;
+use data::expected::expected_power;
+use data::expected::normalized;
 
 data Main {
     geometry: Geometry;

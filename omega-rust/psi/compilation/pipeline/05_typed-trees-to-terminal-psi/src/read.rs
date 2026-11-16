@@ -40,6 +40,7 @@ mod clause_calls;
 mod constant_values;
 mod contracts;
 mod expressions;
+mod fixed_bytes;
 pub(crate) mod logical;
 mod machine;
 mod mathematics;
@@ -92,6 +93,13 @@ pub(crate) struct DeclaredDomain {
     pub predicate: Option<semantic_vocabulary::Proposition>,
 }
 
+pub(crate) struct PredicateDefinition {
+    pub symbol: SymbolHandle,
+    pub diagnostic: MachineId,
+    pub parameters: Vec<terminal_psi::ValueDeclaration>,
+    pub body: semantic_vocabulary::Proposition,
+}
+
 pub(crate) struct Program<'t> {
     type_purpose: storage_metadata::TypePurpose,
     /// Sorted exact record IDs whose complete nested source type was read for a value use.
@@ -110,6 +118,9 @@ pub(crate) struct Program<'t> {
     /// Choices made by this reader, prepared once before source admission.
     pub(crate) completed_operators: crate::selection_questions::CompletedOperators,
     pub purpose: source::DependencyScope,
+    /// One output slot per source mathematical declaration, not per call.
+    /// Publication assigns portable identities to the prepared definitions.
+    pub predicate_definitions: Vec<Option<PredicateDefinition>>,
     named_captures: crate::NamedCaptures,
     /// The typed-tree machine of each discovered `MachineId`.
     pub symbols: IdTable<MachineId, SymbolHandle>,
@@ -209,10 +220,10 @@ pub(crate) struct Program<'t> {
     pub applications: Vec<MachineId>,
     /// The type arguments each of those was read at.
     applied: Vec<(MachineId, Vec<ValueType>)>,
-    /// The types a finite family's alternative fixes the entry's type
-    /// parameters to, in declaration order, when this program is that
-    /// alternative's check (`Reading::Alternative`).
-    pub alternative: Option<Vec<ValueType>>,
+    /// The source types a finite alternative fixes the entry's parameters to.
+    /// Materialize them under this reader's numbering before checking its body;
+    /// record IDs from the reader that discovered the family cannot cross here.
+    pub alternative: Option<Vec<typed_trees::types::TypeReferenceHandle>>,
     /// The locals of the body being read whose value is decided statically
     /// by closed type equations (`static_truth`), by the local's symbol.
     static_truths: Vec<(SymbolHandle, bool)>,
@@ -378,6 +389,9 @@ impl<'t> Program<'t> {
             publication: terminal_codec::TerminalPublication::Portable,
             purpose,
             declaration_metadata: Vec::new(),
+            predicate_definitions: std::iter::repeat_with(|| None)
+                .take(typed.mathematical_definitions().len())
+                .collect(),
             typed,
             type_purpose: storage_metadata::TypePurpose::Value,
             value_records: Vec::new(),

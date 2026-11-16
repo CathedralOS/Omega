@@ -42,7 +42,7 @@ returns as `Err`:
 - the place table must hold one place per path, since a place identity
   stands for its path wherever a table names one
   (`places_are_interned`);
-- a storage snapshot must name a scalar leaf at invocation entry or the
+- a storage snapshot must name a scalar leaf at its owner's entry or the
   normal return of its exact establishing call, with the leaf's type
   (`Storage::initial_contents_are_declared`).
 */
@@ -537,7 +537,7 @@ impl<'a> Storage<'a> {
             }
             OperationKind::ByteSequenceSubslice { .. }
             | OperationKind::ElementViewSubslice { .. } => {
-                self.shared_subslice(references, operation)?;
+                self.subslice(references, operation)?;
                 rows.push((fresh()?, Stored::Established));
             }
             OperationKind::EstablishReference { .. }

@@ -1,4 +1,6 @@
+module calorimetry::report;
 use calorimetry::input;
+use calorimetry::input::Reader;
 use omega::language::core::narrow_i64_to_i32_wrapping;
 use omega_language_std::Console;
 use omega::language::core::I64::from_f64;

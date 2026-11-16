@@ -1,5 +1,14 @@
+module domain::inference;
 use domain::tables;
+use domain::tables::Table;
+use domain::tables::Model;
+use domain::tables::Inference;
+use domain::tables::margins_valid;
+use domain::tables::table_valid;
 use domain::statistics;
+use domain::statistics::table_weight;
+use domain::statistics::score_denominator;
+use domain::statistics::association_score;
 // Enumerate the first two cells; margins determine the remaining four.
 // At most 81 candidates. Structural-zero conditioning renormalizes factorial weights.
 public machine analyze(model: &Model) -> Inference {

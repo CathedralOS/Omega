@@ -1,7 +1,9 @@
+module domain::adc;
 // Exact rational two-point calibration, then endpoint-inclusive quantization.
 // Bounded inputs keep every i64 Wrapping intermediate below 10^12: the policy
 // makes arithmetic defined, while the application envelope prevents wrapping.
 use domain::settings;
+use domain::settings::Settings;
 public data Conversion {
     code: i64 in Wrapping;
     reconstruction_numerator: i64 in Wrapping;

@@ -1148,13 +1148,13 @@ pub(crate) mod callable_entry_transport {
             .source()
             .source()
             .optimized_target()
-            .target_operations();
+            .execution_plan()
+            .plan();
         let internal = &targeted
-            .functions
+            .scalar_functions
             .iter()
             .find(|function| function.machine == body.entry)
             .ok_or(Error::Mismatch("callable body entry plan missing"))?
-            .graph
             .call_plan;
         if inbound_ordinals.len() != internal.parameters.len()
             || inbound.call.parameters.len() != internal.parameters.len()

@@ -2,7 +2,14 @@ use omega::language::core::ProcessExit;
 // Expected exit: 0 with bounded input.txt; complete numerical oracle in validation/.
 use omega_language_std::Console;
 use io::protocol;
+use io::protocol::Protocol;
+use io::protocol::read;
+use io::protocol::integer;
+use io::protocol::number;
 use domain::model;
+use domain::model::direct_time;
+use domain::model::Model;
+use domain::model::branch;
 use omega::language::core::I32::from_f64;
 data Main {
  protocol: Protocol; model: Model; best_time: f64; best_branch: i32 in Wrapping;

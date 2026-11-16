@@ -1,3 +1,4 @@
+module model::netlist;
 // Private acyclic netlist. Inputs precede gates; every edge points backwards.
 // Positive integral delays guarantee that scheduling cannot revisit this time.
 public data Gate [copy] { kind: i32; left: u64; right: u64; delay: u64; }

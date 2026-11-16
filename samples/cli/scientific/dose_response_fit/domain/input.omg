@@ -1,8 +1,13 @@
+module domain::input;
 use omega_language_std::ByteRead;
 use omega_language_std::Console;
 use omega::language::core::F64::from_i32;
 use domain::model;
+use domain::model::Observations;
 use domain::mathematics;
+use domain::mathematics::logarithm;
+use domain::mathematics::clamp;
+use domain::mathematics::magnitude;
 
 public data InputReader {
     remaining: i32 in Wrapping;

@@ -8,8 +8,8 @@ use crate::{
     MixedStructuralScalarFunctionAbi, ScalarAbiValue, ScalarFunctionAbi, TargetBooleanExpression,
     TargetStructuralParameter, TargetUnitOperation, TerminalPsiProvenance,
 };
-use abstract_operations::ValueBinding;
 use calling_conventions::CallPlan;
+use native_vocabulary::values::ValueBinding;
 use semantic_vocabulary::{BlockId, EdgeId, MachineId, ScalarType, StructuralTypeId, ValueId};
 use terminal_psi::TerminalAffineCleanupAction;
 
@@ -38,7 +38,7 @@ pub struct TargetStructuralContract {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetControlGraph {
-    pub structural_types: abstract_operations::StructuralTypeCatalog,
+    pub structural_types: native_vocabulary::structural_type_catalog::StructuralTypeCatalog,
     pub call_plan: CallPlan,
     pub scalar_parameters: Vec<ScalarAbiValue>,
     pub parameters: Vec<TargetStructuralParameter>,
@@ -66,9 +66,9 @@ pub struct TargetControlBlock {
 /// This is not an executable operation or a reference to an earlier body.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetOperationMetadata {
-    pub work: Vec<optimization_unit::WorkSettlement>,
-    pub effect: optimization_unit::EffectLink,
-    pub ownership: Vec<optimization_unit::OwnershipEvent>,
+    pub work: Vec<native_vocabulary::provenance::WorkSettlement>,
+    pub effect: native_vocabulary::provenance::EffectLink,
+    pub ownership: Vec<native_vocabulary::provenance::OwnershipEvent>,
 }
 
 impl TargetControlBlock {
@@ -110,7 +110,7 @@ pub enum TargetControlTerminator {
         claim_transfers: Vec<terminal_psi::ClaimTransfer>,
         requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
         crash_continuations: Vec<terminal_psi::CrashRouteBucket>,
-        declared_result: abstract_operations::AbstractFunctionResult,
+        declared_result: native_vocabulary::values::AbstractFunctionResult,
     },
     ExternalCompletion {
         psi_edge: EdgeId,
@@ -248,9 +248,9 @@ pub struct TargetControlCaseSuccessor {
     pub case_tag: i32,
     pub target: BlockId,
     pub payloads: Vec<TargetControlCasePayload>,
-    pub structural_bindings: Vec<abstract_operations::AbstractStructuralBinding>,
+    pub structural_bindings: Vec<native_vocabulary::values::AbstractStructuralBinding>,
     pub structural_indices: Vec<Vec<crate::TargetStructuralRuntimeIndex>>,
-    pub work: Vec<optimization_unit::WorkSettlement>,
+    pub work: Vec<native_vocabulary::provenance::WorkSettlement>,
     pub cleanup_actions: Vec<terminal_psi::TerminalAffineCleanupAction>,
 }
 
@@ -266,9 +266,9 @@ pub struct TargetControlSuccessor {
     pub psi_edge: EdgeId,
     pub target: BlockId,
     pub bindings: Vec<ValueBinding>,
-    pub structural_bindings: Vec<abstract_operations::AbstractStructuralBinding>,
+    pub structural_bindings: Vec<native_vocabulary::values::AbstractStructuralBinding>,
     pub structural_indices: Vec<Vec<crate::TargetStructuralRuntimeIndex>>,
-    pub work: Vec<optimization_unit::WorkSettlement>,
+    pub work: Vec<native_vocabulary::provenance::WorkSettlement>,
     pub cleanup_actions: Vec<TerminalAffineCleanupAction>,
 }
 
@@ -276,7 +276,7 @@ impl TargetControlSuccessor {
     pub fn structural_binding(
         &self,
         parameter: semantic_vocabulary::PlaceId,
-    ) -> Option<&abstract_operations::AbstractStructuralBinding> {
+    ) -> Option<&native_vocabulary::values::AbstractStructuralBinding> {
         self.structural_bindings
             .iter()
             .find(|binding| binding.parameter == parameter)

@@ -1,8 +1,12 @@
+module io::report;
 // Signed micro-units avoid dependence on a floating-point text library.
 // Values truncate toward zero; validation allows one micro-unit quantization.
 use omega_language_std::Console;
 use omega::language::core::I64::from_f64;
 use domain::model;
+use domain::model::Problem;
+use domain::model::Fit;
+use domain::model::residual;
 public data Output { }
 public machine write_scaled(output: &mut Output, value: f64) reaches Console
 invokes Console

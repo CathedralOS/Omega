@@ -65,8 +65,8 @@ pub enum ValueOrigin {
     /// The result of an operation, including reads and call results.
     Operation(OperationId),
     /// The value one scalar leaf holds at an established storage boundary:
-    /// invocation entry (`None`), or the normal return of an exact call.
-    /// Different calls supply different immutable snapshots of the same leaf.
+    /// its owner's invocation or block entry (`None`), or the normal return
+    /// of an exact call. A block formal is bound anew on each arrival.
     /// This logical name is not an executable scalar operand. The storage
     /// checker authenticates the boundary and follows later writes separately.
     StorageContent {

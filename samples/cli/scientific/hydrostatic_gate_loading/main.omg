@@ -4,9 +4,18 @@ use omega::language::core::ProcessExit;
 // Expected output contains: HYDROSTATIC_GATE_V1 micro_units (valid input).
 // Every domain operation and all bounded scratch data are application-private.
 use geometry::profile;
+use geometry::profile::Profile;
+use geometry::profile::WetSegment;
+use geometry::profile::clip;
 use loading::pressure;
+use loading::pressure::SegmentLoad;
+use loading::pressure::integrate;
 use input::tokens;
+use input::tokens::Reader;
+use input::tokens::next;
 use output::numbers;
+use output::numbers::write_integer;
+use output::numbers::write_scaled;
 use omega_language_std::Console;
 use omega::language::core::F64::from_i64;
 

@@ -25,7 +25,7 @@ fn form(clauses: Vec<Proposition>) -> Checked<()> {
         ..machine(vec![u32_type(), u32_type()], vec![returns(unsigned(0))])
     }])?;
     let mut activity = crate::ProofSearchActivity::default();
-    crate::formation::module(&elaboration.module, &mut activity)
+    crate::formation::module(&elaboration.module, &[], &mut activity)
 }
 
 #[test]
@@ -110,6 +110,40 @@ fn a_bodyless_contract_is_not_exempt_from_formation() {
 }
 
 #[test]
+fn predicate_definitions_form_without_assuming_their_bodies() {
+    let mut module = terminal_psi::TerminalModule::declarations();
+    let mut identities = module.identities.into_builder();
+    let declaration = identities.intern("test-predicate");
+    module.identities = identities.build();
+    let input = formal(1, u32_type());
+    module
+        .scalar_predicate_definitions
+        .push(terminal_psi::ScalarPredicateDefinition {
+            declaration,
+            parameters: vec![terminal_psi::ValueDeclaration {
+                id: id(1),
+                scalar_type: ScalarType::Integer(integer_type(IntegerSign::Unsigned)),
+                qualifications: semantic_vocabulary::ScalarQualificationSetId::ZERO,
+            }],
+            body: Proposition::Conjunction(vec![
+                Proposition::LessOrEqual(number(1), input.clone()),
+                nonnegative(subtract(input.clone(), number(1))),
+            ]),
+        });
+    let mut activity = crate::ProofSearchActivity::default();
+    let error = crate::formation::module(&module, &[], &mut activity).unwrap_err();
+    assert_eq!(error.reason, RefusalReason::Violation);
+    assert!(
+        error
+            .detail
+            .contains("mathematical definition: contract arithmetic is not proved total")
+    );
+    module.scalar_predicate_definitions[0].body =
+        nonnegative(subtract(number(u32::MAX.into()), input));
+    crate::formation::module(&module, &[], &mut activity).unwrap();
+}
+
+#[test]
 fn guarantees_cannot_form_an_input_precondition() {
     let mut elaboration =
         lower(vec![machine(vec![u32_type()], vec![returns(unsigned(0))])]).unwrap();
@@ -120,7 +154,7 @@ fn guarantees_cannot_form_an_input_precondition() {
         proposition: Proposition::LessOrEqual(number(1), formal(1, u32_type())),
     });
     let mut activity = crate::ProofSearchActivity::default();
-    assert!(crate::formation::module(&elaboration.module, &mut activity).is_err());
+    assert!(crate::formation::module(&elaboration.module, &[], &mut activity).is_err());
 }
 
 #[test]
@@ -341,14 +375,14 @@ machine build_entry() {}
     predicate.proposition =
         Proposition::LessOrEqual(subtract(number_field, number(1)), number(u32::MAX.into()));
     let mut activity = crate::ProofSearchActivity::default();
-    crate::formation::module(module, &mut activity).unwrap();
+    crate::formation::module(module, &[], &mut activity).unwrap();
 
     module.structural_domains[0]
         .predicate
         .as_mut()
         .unwrap()
         .subject = id(8);
-    let refusal = crate::formation::module(module, &mut activity).unwrap_err();
+    let refusal = crate::formation::module(module, &[], &mut activity).unwrap_err();
     assert_eq!(refusal.reason, RefusalReason::Unsupported);
     assert!(
         refusal

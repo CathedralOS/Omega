@@ -39,7 +39,8 @@ pub fn arithmetic_policy_identity(
     match policy {
         numerics::arithmetic::ArithmeticDomain::Wrapping => Some("builtin:policy:Wrapping"),
         numerics::arithmetic::ArithmeticDomain::Saturating => Some("builtin:policy:Saturating"),
-        _ => None,
+        numerics::arithmetic::ArithmeticDomain::Trapping => Some("builtin:policy:Trapping"),
+        numerics::arithmetic::ArithmeticDomain::Exact => None,
     }
 }
 
@@ -855,8 +856,8 @@ fn policy_result(
     values: &ScalarValues<'_>,
     operation: &terminal_psi::Operation,
 ) -> Result<bool, ScalarQualificationError> {
-    use numerics::arithmetic::ArithmeticDomain::{Saturating, Wrapping};
-    use terminal_psi::OperationKind as Kind;
+    use numerics::arithmetic::ArithmeticDomain::{Saturating, Trapping, Wrapping};
+    use terminal_psi::{OperationKind as Kind, TrappingIntegerOperation};
     let Some(result) = operation.result.scalar_ref() else {
         return Ok(false);
     };
@@ -880,6 +881,19 @@ fn policy_result(
         }
         Kind::WrappingIntegerShiftLeft { value, .. }
         | Kind::WrappingIntegerShiftRight { value, .. } => (Some(Wrapping), *value, None),
+        Kind::ExactIntegerShiftRight { value, .. } => (Some(Saturating), *value, None),
+        Kind::TrappingInteger { operation } => match operation {
+            TrappingIntegerOperation::Add { left, right }
+            | TrappingIntegerOperation::Subtract { left, right }
+            | TrappingIntegerOperation::Multiply { left, right }
+            | TrappingIntegerOperation::Divide { left, right }
+            | TrappingIntegerOperation::Remainder { left, right } => {
+                (Some(Trapping), *left, Some(*right))
+            }
+            TrappingIntegerOperation::ShiftLeft { value, .. }
+            | TrappingIntegerOperation::ShiftRight { value, .. } => (Some(Trapping), *value, None),
+            TrappingIntegerOperation::Convert { .. } => return Ok(false),
+        },
         Kind::IntegerBitwiseNot { operand } => (None, *operand, None),
         Kind::IntegerBitwiseAnd { left, right }
         | Kind::IntegerBitwiseOr { left, right }
@@ -896,9 +910,7 @@ fn policy_result(
     if !operands.into_iter().flatten().any(carries_policy)
         || !operands.into_iter().flatten().all(|operand| {
             carries_policy(operand)
-                || (policy.is_some()
-                    && operand.scalar_type == result.scalar_type
-                    && operand.qualifications.is_empty())
+                || (operand.scalar_type == result.scalar_type && operand.qualifications.is_empty())
         })
     {
         return Ok(false);
@@ -913,7 +925,7 @@ fn policy_result(
             domain.predicate.is_none()
                 && domain.establishment_routes.is_none()
                 && domain.has_no_required_memberships()
-                && [Wrapping, Saturating]
+                && [Wrapping, Saturating, Trapping]
                     .into_iter()
                     .filter(|candidate| policy.is_none_or(|policy| policy == *candidate))
                     .any(|policy| {

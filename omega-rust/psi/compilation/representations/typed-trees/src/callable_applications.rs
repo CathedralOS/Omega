@@ -7967,19 +7967,21 @@ impl CallableApplication {
         let ordinal = elision
             .region()
             .ok_or("invocation result has ambiguous lifetime elision")?;
-        let machine = program
-            .machines_mut()
-            .get_mut(*position)
-            .filter(|machine| machine.symbol == *owner)
-            .ok_or("invocation lost its unique lifetime declaration")?;
-        if machine.lifetime_parameters.len() == ordinal {
-            machine
-                .lifetime_parameters
-                .push(crate::name::Identifier::generated(format!(
-                    "@invocation-region-{ordinal}"
-                )));
+        if !program
+            .machines()
+            .get(*position)
+            .is_some_and(|machine| machine.symbol == *owner)
+        {
+            return Err("invocation lost its unique lifetime declaration");
         }
-        let name = machine
+        if program.machines().at(*position).lifetime_parameters.len() == ordinal {
+            program.machine_mut(*position).lifetime_parameters.push(
+                crate::name::Identifier::generated(format!("@invocation-region-{ordinal}")),
+            );
+        }
+        let name = program
+            .machines()
+            .at(*position)
             .lifetime_parameters
             .get(ordinal)
             .cloned()

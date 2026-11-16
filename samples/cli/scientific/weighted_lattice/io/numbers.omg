@@ -1,7 +1,8 @@
+module io::numbers;
 use omega_language_std::Console;
 use omega::language::core::narrow_u64_to_i32_trapping;
 
-machine decimal(value: u64) reaches Console {
+public machine decimal(value: u64) reaches Console {
     transition value >= 10 {
         true -> prefix(value)
         false -> digit(value)
@@ -14,7 +15,7 @@ machine decimal(value: u64) reaches Console {
         Console::write_byte(narrow_u64_to_i32_trapping(value % 10 + 48));
     }
 }
-machine number_line(label: &[u8], value: u64) reaches Console {
+public machine number_line(label: &[u8], value: u64) reaches Console {
     Console::write(label);
     decimal(value);
     Console::write_line("");

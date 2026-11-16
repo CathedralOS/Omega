@@ -1,7 +1,9 @@
+module domain::beamforming;
 // Discrete far-field model: c/f_s equals one geometry unit; cardinal unit
 // vectors yield exact signed sample delays. Alignment reads sample t + r dot u
 // at t=2..5. Finite observations are never padded or extrapolated.
 use domain::records;
+use domain::records::Beamforming;
 
 public machine analyze(records: &mut Beamforming) -> u64 {
     records.active = 0;

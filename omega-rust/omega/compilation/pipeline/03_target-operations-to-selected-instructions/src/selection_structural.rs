@@ -509,7 +509,7 @@ pub(crate) mod atomic_outcome {
                 };
                 let (_, proposed, _, proposed_type) =
                     builder.resolve(*replacement).ok_or_else(invalid)?;
-                if proposed_type != scalar {
+                if proposed_type.as_checking() != scalar {
                     return Err(invalid());
                 }
                 let one = super::fragmented_scalar::constant(builder, row, result.place, 1)?;
@@ -961,7 +961,9 @@ pub(crate) mod leaf_copy {
             .find(|(place, _)| *place == *source)
             .map(|(_, pointer)| *pointer);
         let geometry = match path {
-            abstract_operations::StructuralCopyPath::Ordinary(path) if !path.is_empty() => {
+            native_vocabulary::structural_stores::StructuralCopyPath::Ordinary(path)
+                if !path.is_empty() =>
+            {
                 function.structural.as_ref().ok_or(invalid())?;
                 let root = crate::selection::reference_input::root_type(function, *source)
                     .ok_or(invalid())?;
@@ -971,7 +973,7 @@ pub(crate) mod leaf_copy {
                         .ok_or(invalid())?,
                 )
             }
-            abstract_operations::StructuralCopyPath::Case(path) => {
+            native_vocabulary::structural_stores::StructuralCopyPath::Case(path) => {
                 function.structural.as_ref().ok_or(invalid())?;
                 let root = crate::selection::reference_input::root_type(function, *source)
                     .ok_or(invalid())?;
@@ -1050,7 +1052,7 @@ pub(crate) mod leaf_copy {
             return Err(invalid());
         };
         let destination_admits = match destination {
-            abstract_operations::StructuralWindowRoot::Parameter(destination) => {
+            native_vocabulary::structural_stores::StructuralWindowRoot::Parameter(destination) => {
                 matches!(
                     destination.access,
                     terminal_psi::StructuralAccess::Owned
@@ -1066,10 +1068,11 @@ pub(crate) mod leaf_copy {
                     .iter()
                     .any(|block| block.structural_parameters.contains(destination)))
             }
-            abstract_operations::StructuralWindowRoot::OwnedResult { .. } => true,
-            abstract_operations::StructuralWindowRoot::OwnedBlockParameter { block, parameter } => {
-                block_home(source, parameter.place) == Some((*block, parameter))
-            }
+            native_vocabulary::structural_stores::StructuralWindowRoot::OwnedResult { .. } => true,
+            native_vocabulary::structural_stores::StructuralWindowRoot::OwnedBlockParameter {
+                block,
+                parameter,
+            } => block_home(source, parameter.place) == Some((*block, parameter)),
         };
         if row.result.is_some() || !destination_admits {
             return Err(invalid());
@@ -1766,7 +1769,7 @@ pub(crate) mod activation_storage {
         )?;
         let (_, committed_register, _, committed_type) =
             builder.resolve(*committed).ok_or_else(invalid)?;
-        if !matches!(builder.closed_scalar(committed_type), Some(semantic_vocabulary::ClosedScalarType::Integer(integer)) if integer.bits() == 64 && integer.sign() == super::IntegerSign::Unsigned && integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed)
+        if !matches!(committed_type, semantic_vocabulary::ClosedScalarType::Integer(integer) if integer.bits() == 64 && integer.sign() == super::IntegerSign::Unsigned && integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed)
         {
             return Err(invalid());
         }
@@ -1967,7 +1970,7 @@ pub(crate) use local_storage::{byte_field_argument, fixed_array_argument};
 pub(crate) mod case_membership {
     use super::runtime_address::{cross_references, projection_origin, scale};
     use super::{
-        Builder, LegalizedScalarInstruction, LegalizedScalarInstructionKind, ScalarType,
+        Builder, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
         SelectedInstructionKind, VirtualRegisterId,
     };
     use crate::SelectedInstructionError;
@@ -1994,7 +1997,7 @@ pub(crate) mod case_membership {
             return Err(invalid());
         };
         let result = row.result.ok_or_else(|| invalid())?;
-        if result.scalar_type != ScalarType::Boolean {
+        if result.scalar_type != semantic_vocabulary::ClosedScalarType::Boolean {
             return Err(invalid());
         }
         let place = *place;
@@ -2056,7 +2059,11 @@ pub(crate) mod case_membership {
             &[tag, expected],
             Default::default(),
         )?;
-        let output = builder.register(result.value, result.definition_site, ScalarType::Boolean)?;
+        let output = builder.register(
+            result.value,
+            result.definition_site,
+            semantic_vocabulary::ClosedScalarType::Boolean,
+        )?;
         builder.emit(
             SelectedInstructionKind::MaterializeBooleanEqual,
             builder.constraints.keys.materialize_boolean,
@@ -2339,7 +2346,7 @@ pub(crate) mod primitive_locals {
         };
         let (_, value_register, _, actual) =
             builder.resolve(value.value).ok_or_else(|| invalid())?;
-        if actual != scalar {
+        if actual.as_checking() != scalar {
             return Err(invalid());
         }
         let byte_size = u8::try_from(shape.byte_size).map_err(|_| invalid())?;
@@ -2422,8 +2429,9 @@ pub(crate) mod primitive_locals {
             );
         }
         let codec = read_storage_codec(source, row).ok_or_else(|| invalid())?;
-        let canonical = runtime_abi::ScalarStorageCodec::from_scalar(definition.scalar_type)
-            .ok_or_else(|| invalid())?;
+        let canonical =
+            runtime_abi::ScalarStorageCodec::from_scalar(definition.scalar_type.as_checking())
+                .ok_or_else(|| invalid())?;
         if codec != canonical || matches!(codec.byte_size(), 3 | 5 | 6 | 7) {
             let address =
                 super::encoded_scalar::backing_address(builder, row, place, pointer, byte_offset)?;
@@ -2472,9 +2480,7 @@ pub(crate) mod primitive_locals {
         definition: legalized_operations::LegalizedValueDefinition,
         output: VirtualRegisterId,
     ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-        let scalar = builder
-            .closed_scalar(definition.scalar_type)
-            .ok_or_else(invalid)?;
+        let scalar = definition.scalar_type;
         if !matches!(scalar, semantic_vocabulary::ClosedScalarType::Integer(integer)
             if integer.sign() == IntegerSign::Signed && matches!(integer.bits(), 8 | 16 | 32))
         {
@@ -2933,7 +2939,7 @@ pub(crate) mod record {
                 } => {
                     let (_, register, _, scalar) =
                         builder.resolve(*value).ok_or_else(|| invalid())?;
-                    if Some(scalar) != expected_scalar {
+                    if Some(scalar.as_checking()) != expected_scalar {
                         return Err(invalid());
                     }
                     source.structural.as_ref().ok_or_else(invalid)?;
@@ -2955,8 +2961,9 @@ pub(crate) mod record {
                     }
                     let codec = scalar_field_codec(parent, &[], initializer.field, declarations);
                     if let Some(codec) = codec {
-                        let canonical = runtime_abi::ScalarStorageCodec::from_scalar(scalar)
-                            .ok_or_else(invalid)?;
+                        let canonical =
+                            runtime_abi::ScalarStorageCodec::from_scalar(scalar.as_checking())
+                                .ok_or_else(invalid)?;
                         if u32::from(codec.byte_size()) != field_shape.byte_size {
                             return Err(invalid());
                         }
@@ -2970,9 +2977,9 @@ pub(crate) mod record {
                                 destination,
                                 address,
                                 codec,
-                                abstract_operations::AbstractResult {
+                                native_vocabulary::values::AbstractResult {
                                     value: *value,
-                                    scalar_type: scalar,
+                                    scalar_type: scalar.as_checking(),
                                 },
                             )?;
                             continue;
@@ -3155,7 +3162,7 @@ pub(crate) mod reference {
         }
         if let Some(storage) = address.storage {
             let (_, offset, _, scalar) = builder.resolve(storage.byte_offset).ok_or(invalid())?;
-            if !matches!(scalar, semantic_vocabulary::ScalarType::Integer(integer) if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == Some(64))
+            if !matches!(scalar, semantic_vocabulary::ClosedScalarType::Integer(integer) if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == 64)
             {
                 return Err(invalid());
             }
@@ -3402,7 +3409,7 @@ pub(crate) mod ieee_float_classify {
             return Err(invalid());
         }
         let (_, input, _, scalar) = builder.resolve(*argument).ok_or_else(invalid)?;
-        if scalar != semantic_vocabulary::ScalarType::IeeeFloat(*format) {
+        if scalar != semantic_vocabulary::ClosedScalarType::IeeeFloat(*format) {
             return Err(invalid());
         }
         let packed = transport_register(builder, result.place, 0)?;
@@ -3484,7 +3491,7 @@ pub(crate) mod scalar_array {
             let (_, value, _, actual) = builder
                 .resolve(element)
                 .ok_or_else(|| SelectedInstructionError::custody())?;
-            if actual != scalar {
+            if actual.as_checking() != scalar {
                 return Err(SelectedInstructionError::custody());
             }
             let (element_pointer, displacement) = super::memory_pointer(
@@ -3802,7 +3809,7 @@ pub(crate) mod encoded_scalar {
         provenance, transport_register,
     };
     use crate::SelectedInstructionError;
-    use semantic_vocabulary::{PlaceId, ScalarType};
+    use semantic_vocabulary::PlaceId;
 
     pub(crate) fn backing_address(
         builder: &mut Builder<'_>,
@@ -3845,10 +3852,10 @@ pub(crate) mod encoded_scalar {
         let definition = row.result.ok_or(invalid())?;
         if !matches!(
             definition.scalar_type,
-            ScalarType::Callable(_)
-                | ScalarType::Integer(_)
-                | ScalarType::Boolean
-                | ScalarType::IeeeFloat(_)
+            semantic_vocabulary::ClosedScalarType::Callable(_)
+                | semantic_vocabulary::ClosedScalarType::Integer(_)
+                | semantic_vocabulary::ClosedScalarType::Boolean
+                | semantic_vocabulary::ClosedScalarType::IeeeFloat(_)
         ) {
             return Err(invalid());
         }
@@ -3879,16 +3886,16 @@ pub(crate) mod encoded_scalar {
         place: PlaceId,
         address: VirtualRegisterId,
         codec: VirtualRegisterId,
-        value: abstract_operations::AbstractResult,
+        value: native_vocabulary::values::AbstractResult,
     ) -> Result<(), SelectedInstructionError> {
         let (_, value_register, _, scalar) = builder.resolve(value.value).ok_or(invalid())?;
-        if scalar != value.scalar_type
+        if scalar.as_checking() != value.scalar_type
             || !matches!(
                 scalar,
-                ScalarType::Callable(_)
-                    | ScalarType::Integer(_)
-                    | ScalarType::Boolean
-                    | ScalarType::IeeeFloat(_)
+                semantic_vocabulary::ClosedScalarType::Callable(_)
+                    | semantic_vocabulary::ClosedScalarType::Integer(_)
+                    | semantic_vocabulary::ClosedScalarType::Boolean
+                    | semantic_vocabulary::ClosedScalarType::IeeeFloat(_)
             )
         {
             return Err(invalid());
@@ -3921,9 +3928,7 @@ pub(crate) mod fragmented_scalar {
     use crate::SelectedInstructionError;
     use legalized_operations::LegalizedRuntimeIndexOperand;
     use selected_instructions::{LocalStorageSlotId, SelectedMemoryAccessRole};
-    use semantic_vocabulary::{
-        AuthoredBitFragment, AuthoredBitFragments, IntegerValue, ScalarType, ValueId,
-    };
+    use semantic_vocabulary::{AuthoredBitFragment, AuthoredBitFragments, IntegerValue, ValueId};
 
     #[derive(Clone, Copy)]
     pub(crate) enum StorageAccess<'indices> {
@@ -4165,7 +4170,8 @@ pub(crate) mod fragmented_scalar {
         let definition = row.result.ok_or_else(invalid)?;
         if !matches!(
             definition.scalar_type,
-            ScalarType::Boolean | ScalarType::Integer(_)
+            semantic_vocabulary::ClosedScalarType::Boolean
+                | semantic_vocabulary::ClosedScalarType::Integer(_)
         ) {
             return Err(invalid());
         }
@@ -4188,9 +4194,7 @@ pub(crate) mod fragmented_scalar {
         )?;
         builder.emit(
             crate::selection::scalar_call_abi::integer_carrier_normalization(
-                builder
-                    .closed_scalar(definition.scalar_type)
-                    .ok_or_else(invalid)?,
+                definition.scalar_type,
             ),
             builder.constraints.keys.copy_i64,
             &[value, output],
@@ -4257,7 +4261,11 @@ pub(crate) mod fragmented_scalar {
         value: ValueId,
     ) -> Result<(), SelectedInstructionError> {
         let (_, value_register, _, scalar) = builder.resolve(value).ok_or_else(invalid)?;
-        if !matches!(scalar, ScalarType::Boolean | ScalarType::Integer(_)) {
+        if !matches!(
+            scalar,
+            semantic_vocabulary::ClosedScalarType::Boolean
+                | semantic_vocabulary::ClosedScalarType::Integer(_)
+        ) {
             return Err(invalid());
         }
         write_register(
@@ -4529,7 +4537,7 @@ pub(crate) mod runtime_address {
                 return Err(invalid());
             };
             let integer = builder.closed_integer(integer).ok_or_else(invalid)?;
-            if integer.bits() > 64 || index_type != index.operand.scalar_type {
+            if integer.bits() > 64 || index_type.as_checking() != index.operand.scalar_type {
                 return Err(invalid());
             }
             let index_register = match integer.bits() {
@@ -4893,10 +4901,10 @@ pub(crate) mod scalar_store {
             _ => return Err(invalid()),
         };
         let declared = match &destination {
-            abstract_operations::StructuralScalarStoreDestination::Parameter(parameter) => {
+            native_vocabulary::structural_stores::StructuralScalarStoreDestination::Parameter(parameter) => {
                 crate::selection::arrival_parameter_input::store_destination(source, parameter)
             }
-            abstract_operations::StructuralScalarStoreDestination::OwnedResult {
+            native_vocabulary::structural_stores::StructuralScalarStoreDestination::OwnedResult {
                 producer,
                 result,
             } => {
@@ -4905,7 +4913,7 @@ pub(crate) mod scalar_store {
                         source, *producer, result,
                     )
             }
-            abstract_operations::StructuralScalarStoreDestination::OwnedBlockParameter {
+            native_vocabulary::structural_stores::StructuralScalarStoreDestination::OwnedBlockParameter {
                 block,
                 parameter,
             } => crate::selection::owned_block_home_input::store_destination(
@@ -4955,7 +4963,7 @@ pub(crate) mod scalar_store {
         )?;
         let leaf_indices = &indices[leaf_index..];
         let (_, register, _, scalar) = builder.resolve(value.value).ok_or_else(|| invalid())?;
-        if scalar != value.scalar_type {
+        if scalar.as_checking() != value.scalar_type {
             return Err(invalid());
         }
         let address = super::runtime_address::scale(
@@ -4974,7 +4982,7 @@ pub(crate) mod scalar_store {
                 scalar_field_fragments(destination.structural_type(), path, *field, declarations)
         {
             if matches!(&destination,
-                    abstract_operations::StructuralScalarStoreDestination::Parameter(parameter)
+                    native_vocabulary::structural_stores::StructuralScalarStoreDestination::Parameter(parameter)
                         if parameter.access == terminal_psi::StructuralAccess::WriteOnlyBorrow)
                 || reference_destination
                     && crate::selection::reference_input::referent_projection(
@@ -5124,7 +5132,10 @@ pub(crate) mod subslice {
             builder.resolve(*start).ok_or_else(|| invalid())?;
         let (_, end_register, _, end_type) = builder.resolve(*end).ok_or_else(|| invalid())?;
         let (_, _, _, length_type) = builder.resolve(*length).ok_or_else(|| invalid())?;
-        if start_type != integer || end_type != integer || length_type != integer {
+        if start_type.as_checking() != integer
+            || end_type.as_checking() != integer
+            || length_type.as_checking() != integer
+        {
             return Err(invalid());
         }
         let parent = source

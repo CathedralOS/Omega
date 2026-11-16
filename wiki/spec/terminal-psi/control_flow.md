@@ -155,8 +155,10 @@ Rank substitution follows the actual selected scalar and structural successor
 arguments. A length observation belongs to its descriptor binding; rebinding
 the descriptor cannot reuse the previous observation as the new extent. A rank
 may also be one exact subtraction over parameters and integer constants, such as
-a climbing cursor's `MAX - index`; its arrival is the same subtraction over the
-edge's actual arguments. A rank's carrier is any fixed-width integer type: a
+a climbing cursor's `MAX - index`. A bounded-distance view uses unsigned
+saturating subtraction so the distance is zero when the cursor is at or past
+its limit. Each arrival uses the same operation over the edge's actual
+arguments. A rank's carrier is any fixed-width integer type: a
 signed carrier is a finite order too, and its sign enters the relation identity.
 
 One grouped control judgment covers each reconstructed component, with a shared

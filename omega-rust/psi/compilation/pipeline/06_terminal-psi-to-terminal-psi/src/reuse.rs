@@ -397,6 +397,19 @@ impl Transport<'_> {
                     })
                     .ok()?,
             ),
+            Proposition::FloatIntegerConversion(clause) => {
+                let mut mapped = clause.clone();
+                mapped.source = self.term(&clause.source)?;
+                mapped.result = self.term(&clause.result)?;
+                mapped.validate().ok()?;
+                Proposition::FloatIntegerConversion(mapped)
+            }
+            Proposition::IeeeFloatIntegerExact { source, target } => {
+                Proposition::IeeeFloatIntegerExact {
+                    source: self.term(source)?,
+                    target: *target,
+                }
+            }
             Proposition::Truth | Proposition::Falsehood => proposition.clone(),
             Proposition::Equal(left, right) => {
                 Proposition::Equal(self.term(left)?, self.term(right)?)
@@ -496,6 +509,15 @@ impl Transport<'_> {
             }
             ProofRule::IeeeFloatOrderChain(parts) => {
                 ProofRule::IeeeFloatOrderChain(children(parts)?)
+            }
+            ProofRule::FloatIntegerConversion { premise, computed } => {
+                ProofRule::FloatIntegerConversion {
+                    premise: child(premise)?,
+                    computed: match computed {
+                        Some(proof) => Some(child(proof)?),
+                        None => None,
+                    },
+                }
             }
             ProofRule::FloatMeaningNormalization(parts) => {
                 ProofRule::FloatMeaningNormalization(children(parts)?)
@@ -1167,6 +1189,10 @@ fn leaf_terms<'p>(proposition: &'p Proposition, out: &mut Vec<&'p ScalarTerm>) -
     match proposition {
         Proposition::Truth | Proposition::Falsehood => true,
         Proposition::FloatMeaningEqual(clause) => clause.sources().all(|source| term(source, out)),
+        Proposition::FloatIntegerConversion(clause) => {
+            term(&clause.source, out) && term(&clause.result, out)
+        }
+        Proposition::IeeeFloatIntegerExact { source, .. } => term(source, out),
         Proposition::Equal(left, right)
         | Proposition::LessThan(left, right)
         | Proposition::LessOrEqual(left, right) => term(left, out) && term(right, out),
@@ -2192,6 +2218,137 @@ mod meaning_unification_tests {
             !instance.unify(&tables, &subtract, &equation("divide")),
             "matching source values cannot replace the operation's full contract"
         );
+    }
+
+    #[test]
+    fn integer_conversion_reuse_keeps_both_proof_forms_and_graph_sources() {
+        use semantic_vocabulary::{
+            IeeeFloatComparisonKind, IeeeFloatFormat, IeeeFloatValue, IntegerSign, IntegerType,
+        };
+        let scalar = ScalarType::IeeeFloat(IeeeFloatFormat::Binary64);
+        let source = ScalarTerm::value(ValueId::new(1).unwrap(), scalar);
+        let target = IntegerType::new(IntegerSign::Signed, 32).unwrap();
+        let goal = Proposition::IeeeFloatIntegerExact {
+            source: source.clone(),
+            target,
+        };
+        let literal = ScalarTerm::IeeeFloatLiteral(IeeeFloatValue::Binary64(0x4045_0000_0000_0000));
+        let (left, right) = if source < literal {
+            (source.clone(), literal.clone())
+        } else {
+            (literal.clone(), source.clone())
+        };
+        let equation = Proposition::ScalarIeeeFloatComparison {
+            kind: IeeeFloatComparisonKind::Equal,
+            format: IeeeFloatFormat::Binary64,
+            left,
+            right,
+        };
+        let context =
+            PropositionContext::from_value_types([(ValueId::new(1).unwrap(), scalar)]).unwrap();
+        let proof = ProofNode {
+            conclusion: goal.clone(),
+            rule: ProofRule::FloatIntegerConversion {
+                premise: Box::new(ProofNode {
+                    conclusion: equation.clone(),
+                    rule: ProofRule::Assumption { index: 0 },
+                }),
+                computed: Some(Box::new(ProofNode {
+                    conclusion: proof_admission::float_integer_conversion_substitution(
+                        &context, &goal, &equation,
+                    )
+                    .unwrap(),
+                    rule: ProofRule::Primitive(
+                        terminal_psi::PrimitiveJudgment::ClosedFloatIntegerRelation,
+                    ),
+                })),
+            },
+        };
+        let transport = Transport {
+            scalar_type: &Some,
+            value: &|id, _| ValueId::new(id.get() + 10).map(Moved::Value),
+            assumption: &|index, _| Ok(Cited::Index(index + 1)),
+            axiom: &Ok,
+        };
+        let moved = transport.certificate(&proof).unwrap();
+        let ProofRule::FloatIntegerConversion { premise, computed } = &moved.rule else {
+            unreachable!()
+        };
+        assert!(computed.is_some());
+        let context =
+            PropositionContext::from_value_types([(ValueId::new(11).unwrap(), scalar)]).unwrap();
+        proof_admission::accept_certificate(
+            &context,
+            &moved.conclusion,
+            &[Proposition::Truth, premise.conclusion.clone()],
+            &[],
+            &moved,
+        )
+        .unwrap();
+        let precondition = semantic_vocabulary::float_integer_preconditions(
+            source.clone(),
+            numerics::integer_carrier::FixedInteger::signed(32),
+        )
+        .unwrap()
+        .remove(1);
+        let proof = ProofNode {
+            conclusion: precondition,
+            rule: ProofRule::FloatIntegerConversion {
+                premise: Box::new(ProofNode {
+                    conclusion: goal,
+                    rule: ProofRule::Assumption { index: 0 },
+                }),
+                computed: None,
+            },
+        };
+        let moved = transport.certificate(&proof).unwrap();
+        let ProofRule::FloatIntegerConversion { premise, computed } = &moved.rule else {
+            unreachable!()
+        };
+        assert!(computed.is_none());
+        proof_admission::accept_certificate(
+            &context,
+            &moved.conclusion,
+            &[Proposition::Truth, premise.conclusion.clone()],
+            &[],
+            &moved,
+        )
+        .unwrap();
+        let operation = FloatSemanticOperation::from_source_identity(
+            "FloatSemantics",
+            "to_i32",
+            &[Meaning],
+            numerics::float_semantics::FloatSemanticValueKind::Integer(
+                numerics::integer_carrier::FixedInteger::signed(32),
+            ),
+        )
+        .unwrap();
+        let graph = Proposition::FloatIntegerConversion(
+            semantic_vocabulary::FloatIntegerConversion::new(
+                source,
+                ScalarTerm::value(ValueId::new(2).unwrap(), ScalarType::Integer(target)),
+                operation.contract_identity(),
+            )
+            .unwrap(),
+        );
+        let mapped = transport.proposition(&graph).unwrap();
+        let Proposition::FloatIntegerConversion(mapped) = mapped else {
+            unreachable!()
+        };
+        assert_eq!(
+            mapped.source,
+            ScalarTerm::value(ValueId::new(11).unwrap(), scalar)
+        );
+        assert_eq!(
+            mapped.result,
+            ScalarTerm::value(ValueId::new(12).unwrap(), ScalarType::Integer(target))
+        );
+        assert_eq!(mapped.operation, operation.contract_identity());
+        let wrong = Transport {
+            scalar_type: &|_| Some(ScalarType::Boolean),
+            ..transport
+        };
+        assert!(wrong.certificate(&proof).is_err());
     }
 
     #[test]

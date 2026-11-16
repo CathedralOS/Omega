@@ -1,4 +1,7 @@
+module domain::geometry;
 use domain::model;
+use domain::model::Polygon;
+use domain::model::Partition;
 public machine absolute(value: f64) -> f64 {
     transition value < 0.0 { true -> (0.0 - value) false -> (value) }
 }

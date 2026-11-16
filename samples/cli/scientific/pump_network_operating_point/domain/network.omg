@@ -1,3 +1,4 @@
+module domain::network;
 // Synthetic model: pump head (a+b*Q-c*Q^2)/d, two parallel
 // linear valve branches r1*q1=r2*q2=H-static, q1+q2=Q.
 // Validated coefficients keep every intermediate below 2^40. Wrapping is

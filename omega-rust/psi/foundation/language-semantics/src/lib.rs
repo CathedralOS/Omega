@@ -1467,6 +1467,7 @@ mod machine_termination {
         pub namespace: &'static str,
         pub name: &'static str,
         pub parameter: &'static str,
+        pub subject_count: usize,
         pub result: &'static str,
     }
 
@@ -1503,17 +1504,20 @@ mod machine_termination {
         }
 
         pub fn catalog_declaration(self) -> Option<RankingViewDeclaration> {
-            match self {
-                Self::NAT_DESCENDING => Some(RankingViewDeclaration {
-                    view: self,
-                    source: RANKING_VIEW_CORE_SOURCE,
-                    namespace: "Nat",
-                    name: "Descending",
-                    parameter: "u64",
-                    result: "u64",
-                }),
-                _ => None,
-            }
+            let (name, subject_count) = match self {
+                Self::NAT_DESCENDING => ("Descending", 1),
+                Self::NAT_BOUNDED_DISTANCE => ("BoundedDistance", 2),
+                _ => return None,
+            };
+            Some(RankingViewDeclaration {
+                view: self,
+                source: RANKING_VIEW_CORE_SOURCE,
+                namespace: "Nat",
+                name,
+                parameter: "u64",
+                subject_count,
+                result: "u64",
+            })
         }
 
         pub fn from_catalog_declaration(

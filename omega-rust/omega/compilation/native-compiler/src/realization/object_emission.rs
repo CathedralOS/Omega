@@ -90,7 +90,7 @@ pub(crate) fn emit_realization_object(
                 }
             })
         });
-    if physical_entry.is_some_and(|entry| entry.adapter != target.target_operations().entry) {
+    if physical_entry.is_some_and(|entry| entry.adapter != target.execution_plan().plan().entry) {
         return Err(realization_error(
             "installed arrival stack",
             "physical adapter differs from the emitted root",

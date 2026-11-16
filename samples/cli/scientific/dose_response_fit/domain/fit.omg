@@ -1,6 +1,15 @@
+module domain::fit;
 use omega::language::core::F64::from_i32;
 use domain::model;
+use domain::model::Observations;
+use domain::model::Candidate;
+use domain::model::Profile;
+use domain::model::Fit;
 use domain::mathematics;
+use domain::mathematics::exponential;
+use domain::mathematics::logarithm;
+use domain::mathematics::clamp;
+use domain::mathematics::magnitude;
 
 // Variable projection solves the two bounded linear asymptotes exactly for
 // every nonlinear shape. Enumerating each box face also covers corners. Shape
@@ -562,7 +571,7 @@ machine control_bound(observations: &Observations, parameter: i32, value: f64) -
         transition { _ -> scan(observations, parameter, value, position + 1, sum + residual * residual) }
     }
 }
-machine bounds(observations: &mut Observations) {
+public machine bounds(observations: &mut Observations) {
     observations.lower_log_half = 1.0e30; observations.upper_log_half = 0.0;
     transition { _ -> scan(observations, 0) }
     machine scan(observations: &mut Observations, position: i32 in Wrapping) {
@@ -587,7 +596,7 @@ machine bounds(observations: &mut Observations) {
         observations.upper_log_half = observations.upper_log_half + 2.30258509299404568402;
     }
 }
-machine parameter(candidate: &Candidate, position: i32) -> f64 {
+public machine parameter(candidate: &Candidate, position: i32) -> f64 {
     transition position {
         0 -> candidate.low
         1 -> candidate.high

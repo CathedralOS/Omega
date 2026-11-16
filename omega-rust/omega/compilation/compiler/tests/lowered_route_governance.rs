@@ -9,6 +9,8 @@
 //! the refusal and the "no product route yet" case.
 #[path = "support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
+#[path = "support/unbuilt_frontier.rs"]
+mod unbuilt_frontier;
 
 use fixture_package_inputs::{
     FixtureProductCheck, check_fixture_keeping_typed_frontier, repo_root,
@@ -188,23 +190,169 @@ fn an_invalid_bound_entry_reports_the_routes_rejection() {
             "{messages:#?}"
         );
     }
+}
+
+/// A named predicate owes total arithmetic under its own formals even when no
+/// machine uses it. `value + 1u32` can overflow, so the checker refuses the
+/// declaration and places the refusal there. The positive twin differs only
+/// in `+%`, whose wrapping addition is total.
+#[test]
+fn a_named_predicate_is_formed_at_its_declaration() {
+    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
     let (messages, verdict) =
         rejected("tests/fixtures/fail/proofs/unused_partial_mathematical_predicate");
-    let RouteVerdict::FallBack(refusal) = verdict else {
-        panic!("unavailable operand formation must refuse the declaration: {verdict:?}");
+    let RouteVerdict::Rejected { violations, .. } = verdict else {
+        panic!("the partial predicate must be refused: {verdict:?}");
     };
-    assert_eq!(
-        refusal.reason,
-        terminal_check_tables::RefusalReason::Unsupported
-    );
-    assert_eq!(
-        refusal.detail,
-        "contract carrier arithmetic in a clause term"
-    );
+    let [violation] = violations.as_slice() else {
+        panic!("one declaration owes one refusal: {violations:?}");
+    };
     assert!(
-        messages
-            .iter()
-            .any(|message| message.contains(&refusal.detail)),
-        "{messages:#?}"
+        violation.statement.starts_with(
+            "named predicate `reflexive`: contract arithmetic is not proved total before its condition"
+        ),
+        "{violation:?}"
     );
+    let site = violation
+        .site
+        .expect("the refusal is placed at the declaration");
+    let main = repo_root()
+        .join("tests/fixtures/fail/proofs/unused_partial_mathematical_predicate/main.omg");
+    let source = std::fs::read_to_string(main).unwrap();
+    assert!(
+        source[site.span.start..].starts_with("reflexive("),
+        "{site:?} is not the `reflexive` declaration"
+    );
+    assert!(messages.contains(&violation.message()), "{messages:#?}");
+
+    let main =
+        repo_root().join("tests/fixtures/pass/proofs/wrapping_mathematical_predicate/main.omg");
+    let checked = std::thread::scope(|scope| {
+        compiler::checked::spawn_compile_worker(scope, || {
+            check_fixture_keeping_typed_frontier(&main, "linux_x86_64")
+        })
+        .expect("compiler worker")
+        .join()
+        .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
+    });
+    assert!(
+        matches!(checked, FixtureProductCheck::Accepted { .. }),
+        "the wrapping predicate is total and compiles"
+    );
+}
+
+#[test]
+fn named_predicate_terms_form_under_their_own_inputs() {
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let source = std::fs::read_to_string(
+        repo_root().join("tests/fixtures/pass/proofs/wrapping_mathematical_predicate/main.omg"),
+    )
+    .unwrap();
+    for (name, program, accepted, dependency) in [
+        ("unused-wrapping", source.clone(), true, false),
+        (
+            "called-wrapping",
+            source
+                .replace("value +% 1u32 == 1u32", "value +% 1u32 == 0u32")
+                .replace(
+                    "requires is_zero(0u32)",
+                    "requires reflexive(4294967295u32)",
+                ),
+            true,
+            false,
+        ),
+        // A safe actual argument cannot repair a declaration over arbitrary u32.
+        (
+            "called-exact",
+            source
+                .replace("+%", "+")
+                .replace("requires is_zero(0u32)", "requires reflexive(0u32)"),
+            false,
+            false,
+        ),
+        (
+            "nonzero-divisor",
+            source.replace("value +% 1u32", "value /% 1u32"),
+            true,
+            false,
+        ),
+        (
+            "possibly-zero-divisor",
+            source.replace("value +% 1u32", "1u32 /% value"),
+            false,
+            false,
+        ),
+        (
+            "dependency-wrapping",
+            source.replace("requires is_zero(0u32)", "requires reflexive(0u32)"),
+            true,
+            true,
+        ),
+        (
+            "dependency-exact",
+            source
+                .replace("+%", "+")
+                .replace("requires is_zero(0u32)", "requires reflexive(0u32)"),
+            false,
+            true,
+        ),
+    ] {
+        let frontier = unbuilt_frontier::staged_frontier(name, &program);
+        let entry = unbuilt_frontier::program_machine(&frontier.typed, "launch").unwrap();
+        // As in lowered_route_subjects, check the entry on behalf of another
+        // package: only declarations it reaches belong to this closure.
+        let subject = if dependency {
+            let another = semantic_vocabulary::PackageKeyIdentity::from_digest([91; 32]).unwrap();
+            assert_ne!(frontier.subject, Some(another));
+            Some(another)
+        } else {
+            frontier.subject
+        };
+        let verdicts = terminal_psi_to_terminal_psi::judge_compilation(
+            typed_trees_to_terminal_psi::prepare_compilation(
+                &frontier.typed,
+                Compilation {
+                    declaration_metadata: &[],
+                    entries: &[entry],
+                    subjects: &[subject],
+                    purpose: source::DependencyScope::Product,
+                    selected: &frontier.selected,
+                    calling: frontier
+                        .normalization
+                        .calling
+                        .borrow(&frontier.typed)
+                        .selection(),
+                    providers: frontier.provider_selections(),
+                    bindings: &frontier.bindings,
+                    supplies: &[],
+                },
+                terminal_codec::TerminalPublication::Invocation,
+            )
+            .program,
+        );
+        let [verdict] = verdicts.as_slice() else {
+            panic!("{name}: {verdicts:?}")
+        };
+        if accepted {
+            let Ok(RouteVerdict::Accepted(accepted)) = verdict else {
+                panic!("{name}: {verdict:?}")
+            };
+            assert_eq!(
+                accepted
+                    .elaboration
+                    .module
+                    .scalar_predicate_definitions
+                    .len(),
+                if dependency { 1 } else { 2 },
+                "{name}: each reached declaration has one authoritative definition"
+            );
+        } else {
+            let Ok(RouteVerdict::Rejected { violations, .. }) = verdict else {
+                panic!("{name}: {verdict:?}")
+            };
+            assert!(violations.iter().any(|violation| violation.statement.contains("named predicate `reflexive`: contract arithmetic is not proved total before its condition")), "{name}: {violations:?}");
+        }
+    }
 }

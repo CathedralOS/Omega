@@ -56,6 +56,12 @@ fn count(rows: &[Vec<String>], label: &str, outcome: &str) -> usize {
 fn source_verdicts(fixture: &str) -> Vec<terminal_psi_to_terminal_psi::RouteVerdict> {
     let _guard = lock_fixture_compilation();
     let frontier = unbuilt_frontier::fixture_frontier(fixture);
+    frontier_verdicts(&frontier)
+}
+
+fn frontier_verdicts(
+    frontier: &compiler::TypedFrontier,
+) -> Vec<terminal_psi_to_terminal_psi::RouteVerdict> {
     let subjects = [frontier.subject];
     let calling = frontier.normalization.calling.borrow(&frontier.typed);
     let prepared = typed_trees_to_terminal_psi::prepare_compilation(
@@ -77,6 +83,131 @@ fn source_verdicts(fixture: &str) -> Vec<terminal_psi_to_terminal_psi::RouteVerd
         .into_iter()
         .map(|verdict| verdict.expect("source reaches judgment, not a formation defect"))
         .collect()
+}
+
+#[test]
+fn named_structural_const_arguments_keep_their_closed_receiving_application() {
+    let _guard = lock_fixture_compilation();
+    let frontier =
+        unbuilt_frontier::fixture_frontier("tests/fixtures/pass/constants/receiving_application");
+    let typed = &frontier.typed;
+    let mut closed_arguments = 0usize;
+    let mut missing = Vec::new();
+    for (reference, node) in typed.type_reference_table.type_reference_rows() {
+        let typed_trees::types::TypeReferenceNode::Generic {
+            base_symbol,
+            arguments,
+            ..
+        } = node
+        else {
+            continue;
+        };
+        if typed.symbols.name(*base_symbol) != "Indexed" {
+            continue;
+        }
+        let arguments = typed
+            .type_reference_table
+            .type_reference_handles(*arguments);
+        if !arguments
+            .iter()
+            .all(|argument| typed_trees::canonical_const_argument_value(typed, *argument).is_some())
+        {
+            panic!(
+                "closed receiving application {reference:?} lost its canonical arguments: {arguments:?}"
+            );
+        }
+        closed_arguments += 1;
+        if typed.closed_data_definition(reference).is_none() {
+            missing.push((
+                reference,
+                typed.data_application_definition(reference).is_some(),
+            ));
+        }
+    }
+    assert!(closed_arguments > 0);
+    assert!(
+        missing.is_empty(),
+        "closed argument applications lost their views: {missing:?}"
+    );
+    let verdicts = frontier_verdicts(&frontier);
+    assert!(!verdicts.is_empty());
+    assert!(
+        verdicts.iter().all(|verdict| matches!(
+            verdict,
+            terminal_psi_to_terminal_psi::RouteVerdict::Accepted(_)
+        )),
+        "{}",
+        verdicts
+            .iter()
+            .filter(|verdict| !matches!(
+                verdict,
+                terminal_psi_to_terminal_psi::RouteVerdict::Accepted(_)
+            ))
+            .map(|verdict| format!("{verdict:?}"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+
+    let negative = repository("tests/fixtures/fail/constants/receiving_application/main.omg");
+    let Err(messages) = unbuilt_frontier::frontier(&negative, None, &[]) else {
+        panic!("a record constant must not enter an integer const parameter");
+    };
+    assert!(
+        messages.iter().any(
+            |message| message.contains("declared carrier differs from its receiving parameter")
+        ),
+        "{messages:?}"
+    );
+
+    // The unused index still distinguishes two applications. A different
+    // payload cannot satisfy the same exact type equation at the call.
+    let source = std::fs::read_to_string(repository(
+        "tests/fixtures/pass/constants/receiving_application/main.omg",
+    ))
+    .unwrap();
+    let source = source
+        .replace(
+            "data Sizes {}",
+            "data Sizes {}\nconst Sizes::OTHER: Index = Index { value: 2 };",
+        )
+        .replace(
+            "close<Indexed<Sizes::SIZE>>();",
+            "close<Indexed<Sizes::OTHER>>();",
+        );
+    let Err(messages) = unbuilt_frontier::staged("named_const_wrong_application", &source) else {
+        panic!("the wrong application must fail its requires type equation");
+    };
+    assert!(
+        messages.iter().any(|message| message
+            .contains("requires type equation has conflicting constructor constants")),
+        "{messages:?}"
+    );
+
+    let same = source.replace("value: 2", "value: 1");
+    let same = unbuilt_frontier::staged_frontier("named_const_same_value", &same);
+    assert!(frontier_verdicts(&same).iter().all(|verdict| matches!(
+        verdict,
+        terminal_psi_to_terminal_psi::RouteVerdict::Accepted(_)
+    )));
+
+    let boolean = std::fs::read_to_string(repository(
+        "tests/fixtures/pass/constants/receiving_application/main.omg",
+    ))
+    .unwrap()
+    .replace(
+        "const Sizes::SIZE: Index = Index { value: 1 };",
+        "const Sizes::SIZE: bool = true;",
+    )
+    .replace("const Selected: Index", "const Selected: bool");
+    let boolean = unbuilt_frontier::staged_frontier("named_const_boolean", &boolean);
+    let verdicts = frontier_verdicts(&boolean);
+    assert!(
+        verdicts.iter().all(|verdict| matches!(
+            verdict,
+            terminal_psi_to_terminal_psi::RouteVerdict::Accepted(_)
+        )),
+        "{verdicts:?}"
+    );
 }
 
 /// An implementation parameter: `advance<Selected satisfies Step>` is

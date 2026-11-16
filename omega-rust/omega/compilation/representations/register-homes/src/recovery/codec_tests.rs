@@ -4,15 +4,17 @@ Wire envelope, round-trip, rejection precedence, and structural catalog tests fo
 Verifies that `FixedViewCopyPlan` deterministic wire encoding (`OMGFCV\0\0` v107), authentication digests, stale-version rejection precedence, edge transport bindings, call-site owners, local and outgoing storage rosters, returned descriptor origins, and complete placement/lifecycle catalogs survive round-trip encoding and fail closed under tampering or truncation.
 */
 
-use abstract_operations::StructuralTypeCatalog;
 use access_plans::{AccessFields, BoundaryReach, validate_placement};
 use calling_conventions::{CallPlan, CallingPolicy, EntryControl, MachineRegister, RegisterSet};
 use layout_plans::{LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport};
 use legalized_operations::{LegalizedScalarCall, LegalizedStructuralContract, NativeCallOrigin};
+use native_vocabulary::provenance::{
+    EffectLink, PsiProvenance, ValueDefinitionSite, WorkSettlement,
+};
+use native_vocabulary::structural_type_catalog::StructuralTypeCatalog;
 use optimization_core::{
     AcceptedObligationFactIdentity, OptimizationWorkBudget, OptimizationWorkUsage,
 };
-use optimization_unit::{EffectLink, PsiProvenance, ValueDefinitionSite, WorkSettlement};
 use register_model::{
     RegisterClassId, RegisterConstraintFamily, RegisterConstraintKey, RegisterOperandAccess,
     RegisterViewId, TargetRegisterEnvironmentIdentity,
@@ -227,7 +229,7 @@ pub(super) fn successor_parameter_function() -> SelectedFunction {
             block: SelectedBlockId(1),
             source_target: BlockId::new(2).unwrap(),
             bindings: vec![selected_instructions::SelectedValueBinding {
-                semantic: abstract_operations::ValueBinding {
+                semantic: native_vocabulary::values::ValueBinding {
                     parameter: ValueId::new(3).unwrap(),
                     argument: ValueId::new(1).unwrap(),
                     scalar_type,
@@ -436,7 +438,7 @@ fn current_envelope_has_exact_header_and_deterministic_bytes() {
     let plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     let encoded = plan.encode().unwrap();
     assert_eq!(&encoded[..8], b"OMGFCV\0\0");
-    assert_eq!(&encoded[8..12], &107_u32.to_le_bytes());
+    assert_eq!(&encoded[8..12], &108_u32.to_le_bytes());
     assert_eq!(encoded, plan.encode().unwrap());
     assert_eq!(FixedViewCopyPlan::decode(&encoded).unwrap(), plan);
 }
@@ -525,11 +527,15 @@ fn empty_elimination_recovery_binds_its_edge_and_distinguishes_authored_crashes(
 #[test]
 fn envelope_rejects_non_current_formats() {
     let plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
-    for version in [0, VERSION - 1, VERSION + 1, u32::MAX] {
+    for version in [0, 104, VERSION - 1, VERSION + 1, u32::MAX] {
         let mut encoded = plan.encode().unwrap();
         patch_encoded(&mut encoded, 8, version.to_le_bytes());
         assert_eq!(
             FixedViewCopyPlan::decode(&encoded),
+            Err(FixedViewCopyDecodeError::UnsupportedVersion(version))
+        );
+        assert_eq!(
+            FixedViewCopyPlan::decode(&encoded[..12]),
             Err(FixedViewCopyDecodeError::UnsupportedVersion(version))
         );
     }
@@ -879,7 +885,7 @@ fn bindings_mut(plan: &mut FixedViewCopyPlan) -> &mut Vec<SelectedValueBinding> 
 fn current_artifact_and_identity_bind_transport_role_and_both_registers() {
     let mut original = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     bindings_mut(&mut original).push(SelectedValueBinding {
-        semantic: abstract_operations::ValueBinding {
+        semantic: native_vocabulary::values::ValueBinding {
             parameter: ValueId::new(40).unwrap(),
             argument: ValueId::new(41).unwrap(),
             scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
