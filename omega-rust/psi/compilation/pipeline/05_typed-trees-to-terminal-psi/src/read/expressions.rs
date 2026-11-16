@@ -459,7 +459,13 @@ impl<'t> Program<'t> {
                 let operand = |quoted: bool, hint: Option<ScalarType>| {
                     hint.filter(|_| !quoted).map(ValueType::plain)
                 };
-                let (left, right) = if self.wholly_anonymous(binary.left) {
+                // A shift's count has its own carrier. Neither an expected
+                // result nor the value operand can reland a typed count literal.
+                let shift = matches!(
+                    binary.operator,
+                    BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight
+                );
+                let (left, right) = if !shift && self.wholly_anonymous(binary.left) {
                     let right =
                         self.expression(id, slots, binary.right, operand(quoted.1, hint))?;
                     let partner = right.result.and_then(ValueType::scalar);
@@ -477,7 +483,7 @@ impl<'t> Program<'t> {
                         id,
                         slots,
                         binary.right,
-                        operand(quoted.1, hint.or(partner)),
+                        operand(quoted.1, (!shift).then_some(hint.or(partner)).flatten()),
                     )?;
                     (left, right)
                 };
@@ -712,13 +718,18 @@ impl<'t> Program<'t> {
         if access == Access::Read {
             return self.expression(id, slots, target, expected);
         }
+        let projection = if access == Access::Replace {
+            Access::Write
+        } else {
+            access
+        };
         let value = match self.node(id, target)? {
             ExpressionNode::Member(member) => {
                 let source = SourceOrigin::of(self.typed.expression_table.source_span(target));
-                self.member(id, slots, member, source, Access::Write)?
+                self.member(id, slots, member, source, projection)?
             }
             ExpressionNode::Indexed(indexed) => {
-                self.indexed(id, slots, indexed, target, expected, Access::Write)?
+                self.indexed(id, slots, indexed, target, expected, projection)?
             }
             _ => return self.expression(id, slots, target, expected),
         };

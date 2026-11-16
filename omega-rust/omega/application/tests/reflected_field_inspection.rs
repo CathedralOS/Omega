@@ -119,3 +119,12 @@ fn the_wire_program_round_trips_thirteen_bytes_and_every_field() {
         assert!(report.lines().any(|line| line == receipt), "{report}");
     }
 }
+
+#[test]
+fn runtime_visitors_preserve_the_contexts_borrowed_storage() {
+    let (success, report) = run_both("run/reflection/borrowed_context");
+    assert!(success, "{report}");
+    for receipt in ["native exit 0", "interp exit: 0"] {
+        assert!(report.lines().any(|line| line == receipt), "{report}");
+    }
+}

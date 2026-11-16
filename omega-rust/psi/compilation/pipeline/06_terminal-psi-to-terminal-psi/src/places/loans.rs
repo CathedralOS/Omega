@@ -1888,7 +1888,22 @@ impl Storage<'_> {
                     .ok_or_else(|| {
                         self.foreign(concerns, "successor borrow has no actual parent permission")
                     })?;
-                    if authority == parameter.access {
+                    let root = self
+                        .lowered
+                        .structural_place_type(argument.place)
+                        .ok_or_else(|| {
+                            self.foreign(
+                                concerns,
+                                "successor borrow has no original storage declaration",
+                            )
+                        })?;
+                    if authority == parameter.access
+                        && terminal_semantics::projection_stays_in_inline_storage(
+                            self.types.iter(),
+                            root,
+                            &argument.path,
+                        )
+                    {
                         continue;
                     }
                     let raw = self.argument(argument, concerns)?;

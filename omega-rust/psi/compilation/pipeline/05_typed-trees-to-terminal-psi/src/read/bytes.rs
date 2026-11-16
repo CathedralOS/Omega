@@ -661,38 +661,9 @@ impl Program<'_> {
                     access: Some(StructuralAccess::MutableBorrow),
                 }),
             ) => {
-                let physical = self
-                    .record_sources
-                    .get(wanted)
-                    .and_then(|source| source.application.as_ref())
-                    .ok_or_else(|| {
-                        refuse(
-                            machine,
-                            Construct::Machine,
-                            Unserved::Type("retained view without its source element"),
-                        )
-                    })?;
-                let owner = self
-                    .record_sources
-                    .get(wanted)
-                    .map(|source| source.region_owner)
-                    .ok_or_else(|| {
-                        refuse(
-                            machine,
-                            Construct::Machine,
-                            Unserved::Type("retained view without its source owner"),
-                        )
-                    })?;
-                let source = source_byte_view(self.typed, physical.reference, owner, machine)?
-                    .ok_or_else(|| {
-                        refuse(
-                            machine,
-                            Construct::Machine,
-                            Unserved::Type("retained byte view without its source type"),
-                        )
-                    })?;
-                let value_type = self.value_type(machine, source.element_type)?;
-                self.collection_element_storage(machine, source.element_type, value_type)?
+                let element = self.byte_view_element_type(machine, wanted)?;
+                let value_type = self.value_type(machine, element)?;
+                self.collection_element_storage(machine, element, value_type)?
                     .0
             }
             (
@@ -720,6 +691,28 @@ impl Program<'_> {
             },
             source,
         })
+    }
+
+    /// Storage rows erase regions and retain their first source occurrence.
+    /// Re-read that occurrence in its own declaration, never in a later user's
+    /// scope: a field's named lifetime belongs to its data declaration.
+    pub(super) fn byte_view_element_type(
+        &self,
+        machine: MachineId,
+        row: StructuralTypeId,
+    ) -> Checked<TypeReferenceHandle> {
+        let unavailable = |detail| refuse(machine, Construct::Machine, Unserved::Type(detail));
+        let source = self
+            .record_sources
+            .get(row)
+            .ok_or_else(|| unavailable("byte view without its source owner"))?;
+        let physical = source
+            .application
+            .as_ref()
+            .ok_or_else(|| unavailable("byte view without its source element"))?;
+        source_byte_view(self.typed, physical.reference, source.region_owner, machine)?
+            .map(|source| source.element_type)
+            .ok_or_else(|| unavailable("byte view without its retained source type"))
     }
 
     pub(super) fn view_type(

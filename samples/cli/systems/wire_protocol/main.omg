@@ -108,12 +108,26 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
     }
 
     machine check_fields(main: &mut Main, decoded: SensorPacketValue) {
+        // Check the documented wire format as well as round-trip agreement.
+        let bytes_ok: bool = main.buffer[0u64] == 0u8
+            && main.buffer[1u64] == 0u8
+            && main.buffer[2u64] == 3u8
+            && main.buffer[3u64] == 0u8
+            && main.buffer[4u64] == 172u8
+            && main.buffer[5u64] == 2u8
+            && main.buffer[6u64] == 1u8
+            && main.buffer[7u64] == 3u8
+            && main.buffer[8u64] == 172u8
+            && main.buffer[9u64] == 2u8
+            && main.buffer[10u64] == 3u8
+            && main.buffer[11u64] == 2u8
+            && main.buffer[12u64] == 127u8;
         let fields_ok: bool = decoded.header.room_id == 300
             && decoded.samples.length == 2
             && decoded.samples.items[0] == 150
             && decoded.samples.items[1] == 0 - 2
             && decoded.depth == 0 - 64;
-        transition fields_ok {
+        transition bytes_ok && fields_ok {
             true -> block good(main)
             false -> block bad_fields(main)
         }
@@ -134,7 +148,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
     }
 
     machine bad_fields(main: &mut Main) {
-        Console::write_line("FAIL: a decoded field did not match the original packet (exit 72)");
+        Console::write_line("FAIL: encoded bytes or decoded fields did not match the expected packet (exit 72)");
         Console::write_line("[press Enter to close]");
         _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(72);

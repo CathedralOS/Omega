@@ -134,9 +134,9 @@ impl Program<'_> {
             .then_some(element)
     }
 
-    /// The element of a closed fixed array whose element storage and
-    /// qualification are exactly the typed view's. `WholeCollection`
-    /// establishment preserves identical element types directly
+    /// The element of fixed storage or an existing readable view with the
+    /// identical element and qualification. Reborrowing a view preserves its
+    /// own extent and backing; `WholeCollection` keeps fixed-array types
     /// (byte_views.md, "Collection view establishment"); this reader admits
     /// no layout-equal substitute, so a different element row is refused.
     fn typed_array_element(
@@ -149,13 +149,22 @@ impl Program<'_> {
             return None;
         };
         let actual = self.records.get(actual)?;
-        let StorageShape::FixedArray {
-            element: stored,
-            qualification: stored_qualification,
-            length: ArrayExtent::Literal(_) | ArrayExtent::Parameter { .. },
-        } = actual.shape
-        else {
-            return None;
+        let (stored, stored_qualification) = match actual.shape {
+            StorageShape::FixedArray {
+                element,
+                qualification,
+                length: ArrayExtent::Literal(_) | ArrayExtent::Parameter { .. },
+            }
+            | StorageShape::ElementView {
+                element,
+                qualification,
+                access:
+                    Some(
+                        terminal_psi::StructuralAccess::SharedBorrow
+                        | terminal_psi::StructuralAccess::MutableBorrow,
+                    ),
+            } => (element, qualification),
+            _ => return None,
         };
         (actual.requires.is_empty() && stored == element && stored_qualification == qualification)
             .then_some(element)
@@ -322,21 +331,9 @@ impl Program<'_> {
                 if backing_type.qualification() != Qualification::NONE {
                     return Err(unavailable("a borrowed range retains qualified backing"));
                 }
-                let retained = self
-                    .record_sources
-                    .get(backing)
-                    .and_then(|source| source.application.as_ref())
-                    .map(|source| source.reference)
-                    .ok_or_else(|| unavailable("byte range without its retained element type"))?;
-                let declared = super::bytes::source_byte_view(
-                    self.typed,
-                    retained,
-                    self.lifetime_owner,
-                    machine,
-                )?
-                .ok_or_else(|| unavailable("byte range without its retained element type"))?;
-                let value = self.value_type(machine, declared.element_type)?;
-                self.storage_type(machine, declared.element_type, value)?
+                let element = self.byte_view_element_type(machine, backing)?;
+                let value = self.value_type(machine, element)?;
+                self.storage_type(machine, element, value)?
             }
             None => self
                 .byte_array_element(base.result)
@@ -375,10 +372,12 @@ impl Program<'_> {
         }
         let mut regions = self.storage_loan_regions(machine, slots, &base)?;
         if typed_element.is_some() {
-            // A typed view prefixes its backing loan's region to the regions
-            // its elements hold, which the array value carries (`sequence_type`).
+            // Reborrowing replaces the view's outer loan. Only the element
+            // regions survive from its existing descriptor.
+            let elements =
+                self.collection_element_regions(machine, backing, backing_type.regions())?;
             let mut tuple = self.region_tuple(regions).to_vec();
-            tuple.extend_from_slice(self.region_tuple(backing_type.regions()));
+            tuple.extend_from_slice(self.region_tuple(elements));
             regions = self.intern_regions(tuple);
         }
         // Lend the actual collection before evaluating endpoints. A mutable

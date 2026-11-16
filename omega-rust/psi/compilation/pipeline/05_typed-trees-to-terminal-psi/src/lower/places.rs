@@ -2804,6 +2804,8 @@ impl<'a> Lowering<'a> {
     ) -> Checked<Lent> {
         let lent_access =
             borrowed_access(access).ok_or_else(|| self.internal("a write-only loan"))?;
+        let (root, steps, exact) =
+            self.capture_view_element(root, steps, exact, lent_access, place.source)?;
         let value_type = place
             .result
             .ok_or_else(|| self.internal("a loan of a Unit value"))?;
@@ -4052,7 +4054,8 @@ impl<'a> Lowering<'a> {
         // Capturing visits the destination before the right-hand side and
         // retains each selector's exact SSA value in the existing Step roster.
         let (root, steps, place, expected) = continuing!(self.capture_place(destination));
-        let (root, steps, place) = self.capture_view_destination(root, steps, place, source)?;
+        let (root, steps, place) =
+            self.capture_view_element(root, steps, place, StructuralAccess::MutableBorrow, source)?;
         if steps.is_empty()
             && matches!(expected, ValueType::Record(_, _, _))
             && !self.borrowed_roots.contains(&root)
@@ -4162,15 +4165,16 @@ impl<'a> Lowering<'a> {
         }
     }
 
-    /// Capture the selected element before constructing a replacement. Its
-    /// borrowed block parameter names the backing element, not the descriptor
-    /// slot. Bounds are owed at that edge; later right-hand-side effects cannot
-    /// redirect the destination by rebinding the source view.
-    fn capture_view_destination(
+    /// Capture an indexed backing element before later operands execute. Its
+    /// borrowed block parameter retains the requested access, not a copy of the
+    /// descriptor slot. Bounds belong to that edge, so a later descriptor or
+    /// selector replacement cannot redirect the captured store or loan.
+    fn capture_view_element(
         &mut self,
         root: PlaceId,
         steps: Vec<Step>,
         exact: ExactPlaceId,
+        access: StructuralAccess,
         source: SourceOrigin,
     ) -> Checked<(PlaceId, Vec<Step>, ExactPlaceId)> {
         let Some((view, _, position)) = self.element_view_projection(root, &steps)? else {
@@ -4198,7 +4202,7 @@ impl<'a> Lowering<'a> {
                 position: 0,
                 structural_type: record,
                 multiplicity: StructuralMultiplicity::Unrestricted,
-                access: StructuralAccess::MutableBorrow,
+                access,
                 qualifications,
                 projected_qualifications,
                 additional_input_qualifications: Vec::new(),
@@ -4209,13 +4213,15 @@ impl<'a> Lowering<'a> {
             vec![StructuralArgument {
                 place: root,
                 path,
-                access: StructuralAccess::MutableBorrow,
+                access,
             }],
             source,
         )?;
         self.enter(block);
         self.borrowed_roots.push(captured);
-        self.exclusive_roots.push(captured);
+        if access == StructuralAccess::MutableBorrow {
+            self.exclusive_roots.push(captured);
+        }
         let suffix = steps[position + 1..].to_vec();
         for step in &suffix {
             exact = self.step(exact, *step)?;

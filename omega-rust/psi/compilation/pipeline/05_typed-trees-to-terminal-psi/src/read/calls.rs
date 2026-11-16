@@ -21,6 +21,7 @@ use typed_trees::references::StaticArgumentCall;
 use typed_trees::statement::TableCall;
 use typed_trees::static_applications::StaticMachineApplicationHandle;
 
+use super::authority::Access;
 use super::storage_path::{names_storage, root_slot};
 use super::{Program, Slot, symbol_kind};
 use crate::body::{Expression, ExpressionKind, ValueType};
@@ -3218,7 +3219,7 @@ impl<'t> Program<'t> {
                 )
             }
             _ => (
-                self.expression(
+                self.place(
                     id,
                     slots,
                     operand,
@@ -3226,6 +3227,11 @@ impl<'t> Program<'t> {
                         && formal.access == ReferenceAccess::Shared
                         && self.is_borrowed_view(expected))
                     .then_some(expected),
+                    if access == ReferenceAccess::Shared {
+                        Access::Borrow
+                    } else {
+                        Access::Write
+                    },
                 )?,
                 None,
             ),

@@ -180,6 +180,9 @@ fn mutable_view_inputs_can_be_retained_in_a_local_context() {
         machine byte(output: &mut [u8]) requires output.len > 0u64 {
             output[0u64] = 11u8;
         }
+        machine cells(fields: &mut [Cell]) requires fields.len > 0u64 {
+            fields[0u64].value = 22u32;
+        }
         machine touch_bytes(bytes: &mut [u8]) {}
         machine touch_fields(fields: &mut [Cell]) {}
         machine populate(bytes: &mut [u8], fields: &mut [Cell]) {
@@ -205,11 +208,20 @@ fn mutable_view_inputs_can_be_retained_in_a_local_context() {
             }
         }
     "#;
-    let positive = judge_build(source).unwrap();
-    let RouteVerdict::Accepted(accepted) = positive else {
-        panic!("{positive:?}")
-    };
-    assert_integer_result(*accepted, 1);
+    let ranged = source.replace("byte(context.bytes)", "byte(&mut context.bytes[..])");
+    let typed_ranged = ranged.replace(
+        "context.fields[0u64].value = 22u32;",
+        "cells(&mut context.fields[..]);",
+    );
+    assert_ne!(source, ranged);
+    assert_ne!(ranged, typed_ranged);
+    for program in [source, ranged.as_str(), typed_ranged.as_str()] {
+        let positive = judge_build(program).unwrap();
+        let RouteVerdict::Accepted(accepted) = positive else {
+            panic!("{positive:?}")
+        };
+        assert_integer_result(*accepted, 1);
+    }
     for competing in ["touch_bytes(bytes);", "touch_fields(fields);"] {
         let constructor = "let mut context: Context = Context { bytes: bytes, fields: fields };";
         let conflicting = source.replace(constructor, &format!("{constructor} {competing}"));
@@ -219,6 +231,63 @@ fn mutable_view_inputs_can_be_retained_in_a_local_context() {
             "{competing}: {negative:?}"
         );
     }
+}
+
+#[test]
+fn indexed_view_loans_capture_noncopy_elements_with_their_own_bounds() {
+    let source = r#"
+        data Cell { value: u32; }
+        machine get(value: &u32) -> u32 { value }
+        machine fetch(items: &[Cell]) -> u32 {
+            transition items.len > 0u64 { true -> selected(items) false -> 0u32 }
+            machine selected(items: &[Cell]) -> u32 requires items.len > 0u64 {
+                get(&items[0u64].value)
+            }
+        }
+        machine build_entry() -> u32 {
+            let items: [Cell; 1] = [Cell { value: 17u32 }];
+            fetch(&items[..])
+        }
+    "#;
+    let positive = judge_build(source).unwrap();
+    let RouteVerdict::Accepted(accepted) = positive else {
+        panic!("{positive:?}")
+    };
+    assert_integer_result(*accepted, 17);
+
+    let mutable = source
+        .replace(
+            "machine get(value: &u32) -> u32 { value }",
+            "machine get(value: &mut u32) -> u32 { value = 17u32; value }",
+        )
+        .replace("items: &[Cell]", "items: &mut [Cell]")
+        .replace("get(&items[", "get(&mut items[")
+        .replace(
+            "let items: [Cell; 1] = [Cell { value: 17u32 }]",
+            "let mut items: [Cell; 1] = [Cell { value: 3u32 }]",
+        )
+        .replace("fetch(&items[..])", "fetch(&mut items[..])");
+    let positive = judge_build(&mutable).unwrap();
+    let RouteVerdict::Accepted(accepted) = positive else {
+        panic!("{positive:?}")
+    };
+    assert_integer_result(*accepted, 17);
+
+    let outside = source.replace("items[0u64]", "items[1u64]");
+    let negative = judge_build(&outside).unwrap();
+    assert!(
+        matches!(negative, RouteVerdict::Rejected { ref unproved, .. }
+        if unproved.iter().any(|proof| proof.statement.contains("storage index bounds"))),
+        "{negative:?}"
+    );
+
+    let copied = source.replace("get(&items[0u64].value)", "items[0u64].value");
+    let negative = judge_build(&copied).unwrap();
+    assert!(
+        format!("{negative:?}")
+            .contains("copying a slice element requires a copyable element type"),
+        "{negative:?}"
+    );
 }
 
 #[test]

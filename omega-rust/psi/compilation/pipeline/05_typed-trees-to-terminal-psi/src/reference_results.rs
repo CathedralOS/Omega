@@ -286,7 +286,22 @@ fn publish_successor_loans(elaboration: &mut crate::Elaboration) -> Checked<Vec<
                         argument,
                     )
                     .ok_or_else(|| unavailable("successor loan has no actual source authority"))?;
-                    if authority == parameter.access {
+                    // Equal access only continues the same permission while
+                    // the projection remains in its storage. Selecting an
+                    // element behind a descriptor creates a child loan even
+                    // when both parent and child are shared (or mutable).
+                    let root = machine
+                        .structural_place_type(argument.place)
+                        .ok_or_else(|| {
+                            unavailable("successor loan has no original storage declaration")
+                        })?;
+                    if authority == parameter.access
+                        && terminal_semantics::projection_stays_in_inline_storage(
+                            elaboration.module.structural_types.iter(),
+                            root,
+                            &argument.path,
+                        )
+                    {
                         continue;
                     }
                     let lender = if authority == StructuralAccess::Owned {

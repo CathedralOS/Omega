@@ -531,7 +531,7 @@ fn specialize_application(
     // supplying scope. Authenticate that relation before copying; absent groups
     // still leave ordinary invocation lifetime inference to the call checker.
     program
-        .static_application_lifetimes_for_declaration(applied.application, callee)
+        .static_application_lifetimes_for_declaration(application, callee)
         .map_err(unserved)?;
     program
         .expression_table

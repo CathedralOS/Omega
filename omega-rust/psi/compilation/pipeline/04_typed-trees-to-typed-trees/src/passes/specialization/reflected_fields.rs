@@ -489,13 +489,36 @@ fn context_type(
                 },
             ),
     };
+    // The context is runtime storage in this caller, not a region-free
+    // static type operand. Typing can infer a context carrying the caller's
+    // loans; retain that exact type rather than sending it through the
+    // static argument reader, which correctly refuses such regions.
     let written = written
-        .map(|argument| named_type(program, argument))
+        .map(|argument| {
+            if argument.type_reference.is_valid() {
+                program
+                    .type_reference_table
+                    .contains_type_reference(argument.type_reference)
+                    .then_some(argument.type_reference)
+                    .ok_or(unserved("a field context lost its retained runtime type"))
+            } else {
+                named_type(program, argument)
+            }
+        })
         .transpose()?;
+    let identity = |reference| {
+        typed_trees::type_identity::descriptive_type_identity_in_region_scope(
+            program,
+            typed_trees::type_identity::TypeIdentityRequest::ordinary(reference),
+            state.symbol,
+            state.symbol,
+            &[],
+            &[],
+        )
+    };
     match (written, borrowed) {
         (Some(written), Some(borrowed))
-            if program.normalized_type_identity(written)
-                == program.normalized_type_identity(borrowed) =>
+            if identity(written).is_some_and(|written| Some(written) == identity(borrowed)) =>
         {
             Ok(written)
         }
