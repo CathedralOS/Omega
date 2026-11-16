@@ -264,7 +264,8 @@ fn target_audit_rejoins_compiled_foreign_operands() {
             build_dir: None,
             target_name: Some("macos_arm64".to_owned()),
         })
-        .with_requested_product(compiler::RequestedCompileProduct::NativeArtifact),
+        .with_requested_product(compiler::RequestedCompileProduct::NativeArtifact)
+        .with_retained_native_stage_inputs(true),
     )
     .and_then(compiler::CompileOutcomes::into_single_report)
     .unwrap_or_else(|errors| panic!("process-ID native production: {errors:?}"));
@@ -304,7 +305,8 @@ fn target_audit_checks_the_retained_indirect_result_register() {
         root.with_file_name("build"),
         cases.iter().map(|&(profile, _, _)| Some(profile)).collect(),
     )
-    .with_requested_product(compiler::RequestedCompileProduct::NativeArtifact);
+    .with_requested_product(compiler::RequestedCompileProduct::NativeArtifact)
+    .with_retained_native_stage_inputs(true);
     let outcomes =
         orchestration::compile_sources(&mut compiler::CompilationSession::default(), request)
             .unwrap_or_else(|errors| panic!("aggregate return matrix: {errors:?}"));
@@ -323,13 +325,8 @@ fn target_audit_checks_the_retained_indirect_result_register() {
             .expect("emitted native artifact")
             .object();
         let target = object
-            .retained_fragment_source()
-            .expect("object retains the optimized target producer")
-            .source()
-            .source()
-            .source()
-            .source()
-            .optimized_target();
+            .retained_target_operations()
+            .expect("an audit request retains the optimized target producer");
         let optimized = target.optimized();
         let verify = |plan| {
             verify_target_operation_plan_with_closed_module(

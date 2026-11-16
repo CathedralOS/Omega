@@ -5,6 +5,8 @@ evidence into a sealed `ObjectArtifact`, verifying that every abstract and
 target operation is accounted for in the final native instructions.
 */
 
+mod current_image_selections;
+
 mod attribution {
     use super::{Error, host};
     use crate::order::strictly_increasing;
@@ -2418,6 +2420,7 @@ pub(crate) mod code_descriptors {
     pub(super) fn validate(
         source: &object_file::StagedOptimizedRelocationFreeObjectContainer,
         artifact: &crate::ObjectArtifact,
+        selections: Option<&super::current_image_selections::CurrentImageSelections>,
     ) -> Result<(), Error> {
         let catalogs = super::source::code_catalogs(source);
         let Some(pool) = &artifact.code_descriptor_pool else {
@@ -2451,47 +2454,24 @@ pub(crate) mod code_descriptors {
                 "code descriptor inputs differ from admitted source",
             ));
         }
-        for address in &pool.addresses {
-            let function = super::source::abstract_function(source, address.machine)?;
-            if function
-                .operations()
-                .filter(|operation| match operation {
-                    abstract_operations::AbstractOperation::SelectImplementation {
-                        psi_operation,
-                        table,
-                        ..
-                    } => {
-                        *psi_operation == address.operation
-                            && address_source(address)
-                                == Some(CodeDescriptorSource::ImplementationTable(*table))
-                    }
-                    abstract_operations::AbstractOperation::SelectMachine {
-                        psi_operation,
-                        result,
-                        descriptor,
-                    } => {
-                        *psi_operation == address.operation
-                            && address_source(address)
-                                == Some(CodeDescriptorSource::Machine(*descriptor))
-                            && pool
-                                .catalogs
-                                .callables()
-                                .descriptor(*descriptor)
-                                .is_some_and(|selected| {
-                                    result.scalar_type
-                                        == semantic_vocabulary::ScalarType::Callable(
-                                            selected.contract,
-                                        )
-                                })
-                    }
-                    _ => false,
-                })
-                .count()
-                != 1
-            {
-                return Err(Error::Mismatch(
-                    "code descriptor address differs from its checked selection",
-                ));
+        if !pool.addresses.is_empty() {
+            let selections = selections.ok_or(Error::Mismatch(
+                "descriptor addresses have no current selection index",
+            ))?;
+            for address in &pool.addresses {
+                let result = match address.machine_descriptor() {
+                    Some(descriptor) => Some(semantic_vocabulary::ScalarType::Callable(
+                        pool.catalogs
+                            .callables()
+                            .descriptor(descriptor)
+                            .ok_or(Error::Mismatch(
+                                "code descriptor has no current callable contract",
+                            ))?
+                            .contract,
+                    )),
+                    None => None,
+                };
+                selections.require(address, result)?;
             }
         }
         let mut expected = ObjectPlan::with_capacity(artifact.target, 1, pool.descriptors.len());
@@ -2546,6 +2526,21 @@ pub(crate) mod code_descriptors {
         let mut expected = Vec::new();
         for namespace in crate::object::private_object_composition::namespaces(artifact) {
             let local = namespace.artifact;
+            let image_selections = if let Some(replay) = &local.fragment_replay {
+                let current = replay
+                    .0
+                    .source()
+                    .source()
+                    .source()
+                    .source()
+                    .physical_program();
+                super::current_image_selections::CurrentImageSelections::prepare_for(
+                    &replay.0.source().text_section().unresolved_image_addresses,
+                    current.functions.iter(),
+                )?
+            } else {
+                None
+            };
             let Some(pool) = &local.code_descriptor_pool else {
                 if !local.data_bytes.is_empty() && local.native_code_layout_pool.is_none() {
                     return Err(Error::Mismatch(
@@ -2553,14 +2548,17 @@ pub(crate) mod code_descriptors {
                     ));
                 }
                 expected.extend(super::native_code_layouts::image_data_records(
-                    &namespace, artifact, object,
+                    &namespace,
+                    artifact,
+                    object,
+                    image_selections.as_ref(),
                 )?);
                 continue;
             };
             let replay = local.fragment_replay.as_ref().ok_or(Error::Mismatch(
                 "code descriptor data requires admitted fragment source",
             ))?;
-            validate(&replay.0, local)?;
+            validate(&replay.0, local, image_selections.as_ref())?;
             for symbol in pool
                 .descriptors
                 .iter()
@@ -2589,7 +2587,10 @@ pub(crate) mod code_descriptors {
                 expected.push(record);
             }
             expected.extend(super::native_code_layouts::image_data_records(
-                &namespace, artifact, object,
+                &namespace,
+                artifact,
+                object,
+                image_selections.as_ref(),
             )?);
         }
         validate_data_relocation_roster(&expected, relocations)
@@ -3399,6 +3400,7 @@ pub(crate) mod native_code_layouts {
     pub(super) fn validate(
         source: &object_file::StagedOptimizedRelocationFreeObjectContainer,
         artifact: &crate::ObjectArtifact,
+        selections: Option<&super::current_image_selections::CurrentImageSelections>,
     ) -> Result<(), Error> {
         let addresses = source
             .source()
@@ -3431,13 +3433,13 @@ pub(crate) mod native_code_layouts {
                 "native metadata selection or prefix differs from admitted source",
             ));
         }
-        for address in &addresses {
-            let SelectedImageAddressReference::NativeCodeLayout { machine } = address.reference
-            else {
-                unreachable!()
-            };
-            let function = super::source::abstract_function(source, address.machine)?;
-            if function.operations().filter(|operation| matches!(operation, abstract_operations::AbstractOperation::EstablishNativeCodeLayout { psi_operation, machine: target, .. } if *psi_operation == address.operation && *target == machine)).count() != 1 { return Err(Error::Mismatch("native metadata address differs from its exact query")); }
+        if !addresses.is_empty() {
+            let selections = selections.ok_or(Error::Mismatch(
+                "native metadata has no current selection index",
+            ))?;
+            for address in &addresses {
+                selections.require(address, None)?;
+            }
         }
         let mut object = ObjectPlan::with_capacity(artifact.target, 1, pool.layouts.len());
         let mut data = artifact
@@ -3490,6 +3492,7 @@ pub(crate) mod native_code_layouts {
         namespace: &crate::object::private_object_composition::ObjectNamespace<'_>,
         root: &crate::ObjectArtifact,
         object: &ObjectPlan,
+        selections: Option<&super::current_image_selections::CurrentImageSelections>,
     ) -> Result<Vec<RelocationRecord>, Error> {
         let local = namespace.artifact;
         let Some(pool) = &local.native_code_layout_pool else {
@@ -3498,7 +3501,7 @@ pub(crate) mod native_code_layouts {
         let replay = local.fragment_replay.as_ref().ok_or(Error::Mismatch(
             "native metadata requires admitted final placement",
         ))?;
-        validate(&replay.0, local)?;
+        validate(&replay.0, local, selections)?;
         for symbol in pool
             .layouts
             .iter()
@@ -3535,7 +3538,6 @@ pub(crate) mod native_code_layouts {
 mod port_effects {
     use super::{Error, attribution, host, source, structural::placed_text_offset};
     use crate::ObjectPortEffect;
-    use abstract_operations::AbstractOperation;
     use machine_code::{PortEffectRecord, SemanticCodeSite};
     use object_file::StagedOptimizedRelocationFreeObjectContainer;
     use selected_instructions::{MachineAlternativeFamily, MachineAlternativeKey};
@@ -3545,56 +3547,258 @@ mod port_effects {
     ) -> Result<Vec<ObjectPortEffect>, Error> {
         let mut effects = Vec::new();
         for placed in &container.source().text_section().functions {
-            let function = source::abstract_function(container, placed.machine)?;
+            let function = source::current_function(container, placed.machine)?;
             let fragment = source::fragments(container)
                 .function(placed.machine)
                 .ok_or(Error::Mismatch(
                     "port event lost its current function fragment",
                 ))?;
-            for operation in function.operations() {
-                let AbstractOperation::PortWrite {
-                    psi_operation,
+            append_function_effects(
+                function.instructions(),
+                fragment,
+                source::publication_function(container, placed.machine)?,
+                placed.section_offset,
+                &mut effects,
+            )?;
+        }
+        Ok(effects)
+    }
+
+    fn append_function_effects<'input>(
+        instructions: impl IntoIterator<Item = &'input selected_instructions::SelectedInstruction>,
+        fragment: &machine_code::FunctionFragment,
+        publication: &target_vocabulary::NativeFunctionPublication,
+        section_offset: u64,
+        effects: &mut Vec<ObjectPortEffect>,
+    ) -> Result<(), Error> {
+        if fragment.machine != publication.machine {
+            return Err(Error::Mismatch("port event has another function owner"));
+        }
+        let mut spans: Vec<_> = fragment
+            .instructions()
+            .filter(|span| span.alternative.family == MachineAlternativeFamily::PortWrite)
+            .collect();
+        spans.sort_unstable_by_key(|span| span.instruction);
+        if spans
+            .windows(2)
+            .any(|rows| rows[0].instruction == rows[1].instruction)
+        {
+            return Err(Error::Mismatch("port event has two selected spans"));
+        }
+        let start = effects.len();
+        for instruction in instructions {
+            let selected_instructions::SelectedInstructionKind::PortWrite {
+                service,
+                port,
+                value,
+            } = instruction.kind
+            else {
+                continue;
+            };
+            let [psi_operation] = instruction.provenance.operations.as_slice() else {
+                return Err(Error::Mismatch("port event has no exact source occurrence"));
+            };
+            let index = spans
+                .binary_search_by_key(&instruction.id, |span| span.instruction)
+                .map_err(|_| Error::Mismatch("port event has no exact selected span"))?;
+            let span = spans[index];
+            if span.alternative
+                != (MachineAlternativeKey {
+                    family: MachineAlternativeFamily::PortWrite,
+                    variant: 0,
+                })
+                || span.provenance.operations.as_slice() != [*psi_operation]
+            {
+                return Err(Error::Mismatch(
+                    "port event differs from its current instruction",
+                ));
+            }
+            let code_offset = host(span.offset)?;
+            effects.push(ObjectPortEffect {
+                machine: publication.machine,
+                text_offset: placed_text_offset(section_offset, code_offset)?,
+                effect: PortEffectRecord {
+                    psi_operation: *psi_operation,
                     service,
                     port,
                     value,
-                } = operation
-                else {
-                    continue;
-                };
-                let mut matching = fragment.instructions().filter(|span| {
-                    span.alternative
-                        == MachineAlternativeKey {
-                            family: MachineAlternativeFamily::PortWrite,
-                            variant: 0,
-                        }
-                        && span.provenance.operations.as_slice() == [*psi_operation]
-                });
-                let span = matching
-                    .next()
-                    .ok_or(Error::Mismatch("port event has no exact selected span"))?;
-                if matching.next().is_some() {
-                    return Err(Error::Mismatch("port event has two selected spans"));
-                }
-                let code_offset = host(span.offset)?;
-                effects.push(ObjectPortEffect {
-                    machine: placed.machine,
-                    text_offset: placed_text_offset(placed.section_offset, code_offset)?,
-                    effect: PortEffectRecord {
-                        psi_operation: *psi_operation,
-                        service: *service,
-                        port: *port,
-                        value: *value,
-                        operation_ordinal: attribution::ordinal(
-                            source::publication_function(container, placed.machine)?,
-                            SemanticCodeSite::Operation(*psi_operation),
-                        )?,
-                        code_offset,
-                        byte_count: span.bytes.len(),
-                    },
-                });
+                    operation_ordinal: attribution::ordinal(
+                        publication,
+                        SemanticCodeSite::Operation(*psi_operation),
+                    )?,
+                    code_offset,
+                    byte_count: span.bytes.len(),
+                },
+            });
+        }
+        if effects.len() - start != spans.len() {
+            return Err(Error::Mismatch("port event has an unowned selected span"));
+        }
+        // Preserve authored order even when native block placement changes.
+        effects[start..].sort_unstable_by_key(|row| row.effect.operation_ordinal);
+        if effects[start..]
+            .windows(2)
+            .any(|rows| rows[0].effect.operation_ordinal == rows[1].effect.operation_ordinal)
+        {
+            return Err(Error::Mismatch("port event repeats its source occurrence"));
+        }
+        Ok(())
+    }
+
+    #[cfg(test)]
+    mod current_event_tests {
+        use super::*;
+        use machine_code::{
+            FunctionFragment, FunctionFragmentBlockSpan, FunctionFragmentControlProvenance,
+            FunctionFragmentInstructionSpan,
+        };
+        use selected_instructions::{
+            SelectedBlockId, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
+            SelectedInstructionProvenance,
+        };
+        use semantic_vocabulary::{MachineId, OperationId, ServiceId};
+
+        fn instruction(
+            id: u32,
+            operation: u64,
+            service: u64,
+            port: u16,
+            value: u8,
+        ) -> SelectedInstruction {
+            SelectedInstruction {
+                id: SelectedInstructionId(id),
+                kind: SelectedInstructionKind::PortWrite {
+                    service: ServiceId::new(service).unwrap(),
+                    port,
+                    value,
+                },
+                constraint: register_model::RegisterConstraintKey::instruction(0),
+                operands: Vec::new(),
+                implicit_uses: Vec::new(),
+                implicit_defs: Vec::new(),
+                clobbers: Vec::new(),
+                provenance: SelectedInstructionProvenance {
+                    operations: vec![OperationId::new(operation).unwrap()],
+                    ..Default::default()
+                },
             }
         }
-        Ok(effects)
+
+        fn span(instruction: &SelectedInstruction, offset: u64) -> FunctionFragmentInstructionSpan {
+            let physical = register_model::validate_physical_register_model(
+                isa_x86_64::x86_64_physical_register_model(),
+            )
+            .unwrap();
+            let alternative = MachineAlternativeKey {
+                family: MachineAlternativeFamily::PortWrite,
+                variant: 0,
+            };
+            let encoded = isa_x86_64::encode_x86_64_selected_form(
+                &physical,
+                instruction.kind,
+                alternative,
+                &[],
+            )
+            .unwrap();
+            FunctionFragmentInstructionSpan {
+                instruction: instruction.id,
+                alternative,
+                offset,
+                bytes: encoded.bytes().to_vec(),
+                branch: None,
+                internal_machine_fixup: None,
+                normalized_foreign_call_fixup: None,
+                image_address_fixup: None,
+                provenance: instruction.provenance.clone(),
+                control: FunctionFragmentControlProvenance::None,
+            }
+        }
+
+        #[test]
+        fn current_port_events_keep_service_authored_order_and_exact_native_owners() {
+            // Model only these current columns; the actual x86 encoder supplies
+            // span bytes. This does not execute privileged port instructions.
+            let later = instruction(0, 2, 12, 0x2f8, 0x42);
+            let earlier = instruction(1, 1, 11, 0x3f8, 0x41);
+            let first = span(&later, 0);
+            let offset = first.bytes.len() as u64;
+            let second = span(&earlier, offset);
+            let bytes = [first.bytes.as_slice(), second.bytes.as_slice()].concat();
+            let machine = MachineId::new(1).unwrap();
+            let fragment = FunctionFragment {
+                machine,
+                attachment: None,
+                provenance: Default::default(),
+                byte_count: bytes.len() as u64,
+                bytes,
+                blocks: vec![FunctionFragmentBlockSpan {
+                    block: SelectedBlockId(0),
+                    offset: 0,
+                    byte_count: offset + second.bytes.len() as u64,
+                    instructions: vec![first, second],
+                }],
+            };
+            let publication = target_vocabulary::NativeFunctionPublication {
+                machine,
+                operation_count: 2,
+                sites: vec![
+                    (
+                        target_vocabulary::publication::PsiProvenance::Operation(
+                            OperationId::new(1).unwrap(),
+                        ),
+                        0,
+                    ),
+                    (
+                        target_vocabulary::publication::PsiProvenance::Operation(
+                            OperationId::new(2).unwrap(),
+                        ),
+                        1,
+                    ),
+                ],
+                byte_literals: Vec::new(),
+                call_targets: Vec::new(),
+            };
+            let instructions = [later, earlier];
+            let run = |fragment: &_, publication: &_| {
+                let mut rows = Vec::new();
+                append_function_effects(&instructions, fragment, publication, 32, &mut rows)?;
+                Ok::<_, Error>(rows)
+            };
+            let rows = run(&fragment, &publication).unwrap();
+            assert_eq!(
+                rows.iter()
+                    .map(|row| (
+                        row.effect.psi_operation.get(),
+                        row.effect.service.get(),
+                        row.effect.port,
+                        row.effect.value,
+                        row.effect.operation_ordinal
+                    ))
+                    .collect::<Vec<_>>(),
+                [(1, 11, 0x3f8, 0x41, 0), (2, 12, 0x2f8, 0x42, 1)]
+            );
+            assert_eq!(rows[0].text_offset, 32 + offset as usize);
+            assert_eq!(rows[1].text_offset, 32);
+            let mut missing = fragment.clone();
+            missing.blocks[0].instructions.pop();
+            assert!(run(&missing, &publication).is_err());
+            let mut repeated = fragment.clone();
+            let duplicate = repeated.blocks[0].instructions[0].clone();
+            repeated.blocks[0].instructions.push(duplicate);
+            assert!(run(&repeated, &publication).is_err());
+            let mut foreign = fragment.clone();
+            foreign.blocks[0].instructions[0].provenance.operations[0] =
+                OperationId::new(3).unwrap();
+            assert!(run(&foreign, &publication).is_err());
+            let mut orphan = fragment.clone();
+            let mut extra = orphan.blocks[0].instructions[0].clone();
+            extra.instruction = SelectedInstructionId(9);
+            orphan.blocks[0].instructions.push(extra);
+            assert!(run(&orphan, &publication).is_err());
+            let mut unbound = publication;
+            unbound.sites.clear();
+            assert!(run(&fragment, &unbound).is_err());
+        }
     }
 }
 
@@ -3848,13 +4052,30 @@ mod production {
 
     pub struct FunctionFragmentObjectArtifactRequest {
         pub replay: Arc<StagedOptimizedRelocationFreeObjectContainer>,
+        /// Stage 02's output, present only when the compile requested an
+        /// explicit correspondence audit. Building the object never reads it.
+        pub original_target: Option<crate::RetainedTargetOperations>,
     }
 
     pub fn build_function_fragment_object_artifact(
         request: FunctionFragmentObjectArtifactRequest,
     ) -> Result<ObjectArtifact, Error> {
-        let FunctionFragmentObjectArtifactRequest { replay } = request;
+        let FunctionFragmentObjectArtifactRequest {
+            replay,
+            original_target,
+        } = request;
         let source = replay.as_ref();
+        if let Some(original) = &original_target {
+            let projection = &source.emission_facts().projection;
+            let optimized = original.target().optimized();
+            if optimized.projection() != projection.identity
+                || optimized.final_unit() != projection.final_unit
+            {
+                return Err(Error::Mismatch(
+                    "retained target operations belong to another optimized program",
+                ));
+            }
+        }
         let catalogs = source::code_catalogs(source);
         let callable_invocations = source::callable_invocations(source)?;
         let profile = super::source::profile(source);
@@ -4104,7 +4325,10 @@ mod production {
             physical_entry: None,
             retained_entry_storage,
             requires_graph_storage_replay,
-            fragment_replay: Some(super::replay::FragmentReplay(Arc::clone(&replay))),
+            fragment_replay: Some(super::replay::FragmentReplay(
+                Arc::clone(&replay),
+                original_target,
+            )),
             composition_source: None,
             semantic_source: None,
             psi: text.psi,
@@ -4138,20 +4362,43 @@ pub(crate) mod replay {
         verify_retained_target_operations,
     };
 
+    use abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations;
     use object_file::StagedOptimizedRelocationFreeObjectContainer;
 
+    /// Stage 02's output, kept beside an emitted object only when the compile
+    /// requested an explicit correspondence audit. Ordinary emission never
+    /// holds it; the audits that compare the object with what stage 02
+    /// lowered refuse without it.
     #[derive(Debug, Clone)]
-    pub(crate) struct FragmentReplay(pub(crate) Arc<StagedOptimizedRelocationFreeObjectContainer>);
+    pub struct RetainedTargetOperations(Arc<ValidatedOptimizedTargetOperations>);
+
+    impl RetainedTargetOperations {
+        pub fn new(target: Arc<ValidatedOptimizedTargetOperations>) -> Self {
+            Self(target)
+        }
+
+        pub fn target(&self) -> &ValidatedOptimizedTargetOperations {
+            &self.0
+        }
+    }
+
+    /// The emitted object's current producer chain, plus stage 02's output
+    /// when an audit asked for it.
+    #[derive(Debug, Clone)]
+    pub(crate) struct FragmentReplay(
+        pub(crate) Arc<StagedOptimizedRelocationFreeObjectContainer>,
+        pub(crate) Option<RetainedTargetOperations>,
+    );
 
     impl FragmentReplay {
         pub(crate) fn terminal_module(&self) -> &terminal_psi::TerminalModule {
-            self.0.lowering_facts().module()
+            self.0.emission_facts().lowering.module()
         }
 
         pub(crate) fn target_context(
             &self,
         ) -> Option<&terminal_installation::TerminalTargetContext> {
-            self.0.lowering_facts().target_context()
+            self.0.emission_facts().lowering.target_context()
         }
 
         pub(crate) fn selected_terminal_entry(
@@ -4161,16 +4408,9 @@ pub(crate) mod replay {
             native_target: target::NativeTarget,
         ) -> Result<Option<semantic_vocabulary::MachineId>, &'static str> {
             let identity = artifact.view().identity();
-            let input = self.0.lowering_facts();
-            let plan = self
-                .0
-                .source()
-                .source()
-                .source()
-                .source()
-                .optimized_target()
-                .optimized()
-                .plan();
+            let facts = self.0.emission_facts();
+            let input = &facts.lowering;
+            let plan = &facts.abstract_program;
             if plan.psi != identity
                 || input.module() != artifact.semantic_module()
                 || plan.entry != entry
@@ -4368,7 +4608,7 @@ pub(crate) mod replay {
             ));
         }
         if let Some(replay) = &artifact.fragment_replay {
-            super::validate_function_fragment_object_artifact(&replay.0, artifact)
+            super::validate_function_fragment_object_artifact(replay, artifact)
                 .map_err(|error| diagnostics::Diagnostic::error(error.to_string()))?;
         }
         Ok(())
@@ -9922,12 +10162,12 @@ mod source {
         }
     }
 
-    mod privileged_termination {
+    pub(super) mod privileged_termination {
         use crate::FunctionFragmentObjectArtifactError as Error;
         use provider_admission::AdmittedInstalledEntryExecution;
         use selected_instructions::{SelectedInstructionKind as Kind, SelectedTerminator};
 
-        pub(super) fn validate(
+        pub(in crate::function_fragments) fn validate(
             execution: Option<&AdmittedInstalledEntryExecution>,
             selected: &post_allocation_machine::PostAllocationMachineProgram,
         ) -> Result<(), Error> {
@@ -11151,7 +11391,7 @@ mod source {
                                         && graph.call_plan.result.as_ref().is_some_and(|placement|
                                             (placement.shape == calling_conventions::ValueShape::integer(0, 1)
                                                 && placement.locations.is_empty())
-                                            || (graph.call_plan.policy == calling_conventions::CallingPolicy::Aapcs64
+                                            || (graph.call_plan.policy.is_aapcs64()
                                                 && placement.shape.class == calling_conventions::ValueClass::Integer
                                                 && matches!(placement.locations.as_slice(),
                                                     [calling_conventions::ValueLocation::Indirect {
@@ -20622,19 +20862,29 @@ mod source {
         source.source().source().fragments()
     }
 
+    /// Borrow this function's instructions and contracts from the current form.
+    pub(super) fn current_function(
+        source: &StagedOptimizedRelocationFreeObjectContainer,
+        machine: MachineId,
+    ) -> Result<&post_allocation_machine::PhysicalFunction, Error> {
+        source
+            .source()
+            .source()
+            .source()
+            .source()
+            .physical_program()
+            .function(machine)
+            .ok_or(Error::Mismatch("current native form has no function"))
+    }
+
     /// The optimized program's function for `machine`, which must be unique.
     pub(super) fn abstract_function(
         source: &StagedOptimizedRelocationFreeObjectContainer,
         machine: MachineId,
     ) -> Result<&AbstractFunction, Error> {
         let mut functions = source
-            .source()
-            .source()
-            .source()
-            .source()
-            .optimized_target()
-            .optimized()
-            .plan()
+            .emission_facts()
+            .abstract_program
             .functions
             .iter()
             .filter(|function| function.machine == machine);
@@ -20647,7 +20897,7 @@ mod source {
     }
 
     /// Callable reach was evaluated during preparation against the exact optimized
-    /// program and invocation roots retained by this execution plan.
+    /// program and invocation roots; the driver carried the program entry's summary.
     pub(super) fn callable_invocations(
         source: &StagedOptimizedRelocationFreeObjectContainer,
     ) -> Result<&terminal_semantics::callable_values::ReachableCallableInvocations, Error> {
@@ -24856,7 +25106,7 @@ mod structural {
                             return Err(Error::Mismatch("completion provider custody"));
                         }
                     }
-                    crate::object::object_artifact::replay::boundary::completion_receipts::validate_completion_custody(row, &source.lowering_facts().module().identities)
+                    crate::object::object_artifact::replay::boundary::completion_receipts::validate_completion_custody(row, &source.emission_facts().lowering.module().identities)
                         .map_err(|_| Error::Mismatch("completion receipts"))?;
                 }
             }

@@ -693,12 +693,19 @@ fn check_publication(
         },
     )
     .expect("publish actual emitted object");
-    image_emission::verify_retained_target_operations(&published.object)
-        .expect("independent target audit accepts the emitted object's retained source");
+    let target_audit = image_emission::verify_retained_target_operations(&published.object);
     let audit = image_emission::verify_retained_fixed_frame(&published.object);
     if retain_native_stage_inputs {
+        target_audit.expect("independent target audit accepts the retained stage 02 output");
         audit.expect("explicitly retained originals admit the fixed-frame correspondence audit");
     } else {
+        let error = target_audit.expect_err("default publication retains no stage 02 output");
+        assert!(
+            error
+                .to_string()
+                .contains("requires retained target operations"),
+            "{error}"
+        );
         let error = audit.expect_err("default publication retains no original allocation graph");
         assert!(error.to_string().contains("ReplayUnavailable"), "{error}");
     }

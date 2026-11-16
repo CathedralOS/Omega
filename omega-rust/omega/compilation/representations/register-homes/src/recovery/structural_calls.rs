@@ -481,6 +481,7 @@ pub(super) fn decode_call_plan(
         3 => CallingPolicy::Aapcs64,
         4 => CallingPolicy::LinuxSyscallX86_64,
         5 => CallingPolicy::LinuxSyscallAarch64,
+        6 => CallingPolicy::DarwinAapcs64,
         tag => return Err(FixedViewCopyDecodeError::UnknownCallingPolicy(tag)),
     };
     let parameters = decode_list(cursor, decode_placement)?;

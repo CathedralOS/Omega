@@ -14,9 +14,10 @@ representatives across all 64 elements and self-verifies:
 
 On agreement it prints `PASS` and exits `0`.
 
-An intended-invalid control in `controls/find_out_of_range` invokes
+An intended-invalid control in the sibling `../invalid_disjoint_union_find` invokes
 `find` with an out-of-range element (`64`, violating `element < 64`) and is
-rejected at compile time.
+rejected at compile time. It lives beside this program rather than inside it,
+because every `.omg` file under a package root belongs to that package.
 
 After ordinary package review on macOS arm64:
 

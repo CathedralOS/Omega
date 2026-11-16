@@ -1058,8 +1058,22 @@ impl<'a> Storage<'a> {
         else {
             return Err(unresolved());
         };
-        let path = projection.captured_storage_path().ok_or_else(unresolved)?;
-        let mut resolved = self.stored_at(root, &path, concerns)?;
+        let mut resolved = match projection.captured_storage_path() {
+            Some(path) => self.stored_at(root, &path, concerns)?,
+            // A reference this machine received names storage it cannot see
+            // past, so its projection is indirect: `carrier.cell` of a
+            // borrowed `carrier`. The replay's unique location still names
+            // that referent exactly, by the path through the reference.
+            None => {
+                let unique = references
+                    .location(self.machine, (block, before), &location)
+                    .ok_or_else(unresolved)?;
+                Lineage {
+                    root: unique.root,
+                    segments: unique.path,
+                }
+            }
+        };
         resolved.segments.extend_from_slice(suffix);
         self.shape(&resolved, concerns)?;
         Ok(resolved)
@@ -2181,66 +2195,16 @@ impl<'a> Storage<'a> {
         path: &[StructuralPathSegment],
         concerns: Construct,
     ) -> Checked<Lineage> {
-        let mut segments = Vec::with_capacity(path.len());
-        if !path.is_empty() {
-            let root_type = self.root_type(root, concerns)?;
-            for (position, segment) in path.iter().enumerate() {
-                // A case step carries its identity; a field step is resolved
-                // by the lowered form against the prefix before it, which
-                // may end in the case whose payload holds the field.
-                match segment {
-                    StructuralPathSegment::Case(case) => {
-                        segments.push(Segment::Case(*case));
-                        continue;
-                    }
-                    StructuralPathSegment::FixedIndex(index) => {
-                        segments.push(Segment::FixedIndex(*index));
-                        continue;
-                    }
-                    StructuralPathSegment::RuntimeIndex { index, .. } => {
-                        segments.push(Segment::RuntimeIndex { selector: *index });
-                        continue;
-                    }
-                    StructuralPathSegment::Referent => {
-                        segments.push(Segment::Referent);
-                        continue;
-                    }
-                    StructuralPathSegment::RepresentationView {
-                        structural_type,
-                        stored_scalar,
-                    } => {
-                        // The view keeps the same backing and changes how
-                        // later fields are resolved. Retain it for the shared
-                        // shape and overlap judgments, rather than erasing it.
-                        segments.push(Segment::RepresentationView {
-                            structural_type: *structural_type,
-                            stored_scalar: *stored_scalar,
-                        });
-                        continue;
-                    }
-                    StructuralPathSegment::Field(_) => {}
-                    StructuralPathSegment::AllElements
-                    | StructuralPathSegment::FixedRange { .. } => {
-                        return Err(self.unsupported(
-                            concerns,
-                            "storage projection outside plain records and fixed array elements",
-                        ));
-                    }
-                }
-                let field = terminal_semantics::runtime_structural_field(
-                    self.types.iter(),
-                    root_type,
-                    &path[..=position],
-                )
-                .ok_or_else(|| {
-                    self.unsupported(
-                        concerns,
-                        "a storage path that is not a path of fields and cases",
-                    )
-                })?;
-                segments.push(Segment::Field(field.id));
-            }
-        }
+        let segments = if path.is_empty() {
+            Vec::new()
+        } else {
+            terminal_semantics::resolved_structural_path(
+                self.types.iter(),
+                self.root_type(root, concerns)?,
+                path,
+            )
+            .map_err(|detail| self.unsupported(concerns, detail))?
+        };
         let place = Lineage { root, segments };
         // Resolving the shape checks each case against the sum it is
         // applied to.
@@ -4132,6 +4096,75 @@ impl<'a> Storage<'a> {
             changes.push(StorageEffect::Storage(self.argument(value, concerns)?));
         }
         Ok(changes)
+    }
+
+    /// What a block's terminator reads and changes, judged against retained
+    /// loans as an operation's effects are. A dispatch or an empty-domain
+    /// observation reads its subject; an owned transfer on an edge or a
+    /// return relinquishes its storage; a borrowed argument is read, and an
+    /// exclusive one may also be changed by the callee. Cleanup actions are
+    /// judged on their own rosters.
+    fn terminator_effects(&self, block: &Block) -> Checked<(Vec<Lineage>, Vec<Lineage>)> {
+        let mut reads = Vec::new();
+        let mut changes = Vec::new();
+        let mut transfer = |argument: &StructuralArgument, concerns: Construct| -> Checked<()> {
+            let place = self.argument(argument, concerns)?;
+            match argument.access {
+                StructuralAccess::Owned => changes.push(place),
+                StructuralAccess::SharedBorrow => reads.push(place),
+                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow => {
+                    reads.push(place.clone());
+                    changes.push(place);
+                }
+            }
+            Ok(())
+        };
+        match &block.terminator {
+            Terminator::StructuralCase { source, path, .. } => {
+                reads.push(self.stored_at(*source, path, Construct::Block(block.id))?);
+            }
+            Terminator::EliminateEmpty { edge, source, path } => {
+                reads.push(self.stored_at(*source, path, Construct::Edge(*edge))?);
+            }
+            Terminator::ReturnStructural { edge, source, .. } => transfer(
+                &StructuralArgument::whole(*source, StructuralAccess::Owned),
+                Construct::Edge(*edge),
+            )?,
+            Terminator::Jump {
+                edge,
+                structural_arguments,
+                ..
+            }
+            | Terminator::InvokeNoNormal {
+                edge,
+                structural_arguments,
+                ..
+            }
+            | Terminator::ExternalCompletion {
+                edge,
+                structural_arguments,
+                ..
+            } => {
+                for argument in structural_arguments {
+                    transfer(argument, Construct::Edge(*edge))?;
+                }
+            }
+            Terminator::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => {
+                for successor in [when_true, when_false] {
+                    for argument in &successor.structural_arguments {
+                        transfer(argument, Construct::Edge(successor.edge))?;
+                    }
+                }
+            }
+            Terminator::Return { .. }
+            | Terminator::ReturnUnit { .. }
+            | Terminator::Crash { .. } => {}
+        }
+        Ok((reads, changes))
     }
 
     fn call_payload_arguments(&self, operation: &Operation, writes: bool) -> Checked<Vec<Lineage>> {

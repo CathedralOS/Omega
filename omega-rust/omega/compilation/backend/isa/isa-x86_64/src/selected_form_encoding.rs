@@ -8550,13 +8550,14 @@ pub(crate) mod port_write {
 
     pub(super) fn validate(
         physical: &ValidatedPhysicalRegisterModel,
-        port: u16,
-        value: u8,
+        kind: SelectedInstructionKind,
         alternative: MachineAlternativeKey,
         operands: &[RegisterViewId],
         bytes: &[u8],
     ) -> Result<ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError> {
-        let kind = SelectedInstructionKind::PortWrite { port, value };
+        let SelectedInstructionKind::PortWrite { port, value, .. } = kind else {
+            return Err(X86_64SelectedFormEncodingError::AlternativeMismatch);
+        };
         super::request_validation::validate_request(physical, kind, alternative, operands)?;
         if bytes != x86_64_encoding::encode_immediate_port_write(port, value) {
             return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
@@ -8582,7 +8583,11 @@ pub(crate) mod port_write {
                 variant: 0,
             };
             for (port, value) in [(0, 0), (0x3f8, 0x41), (u16::MAX, u8::MAX)] {
-                let kind = SelectedInstructionKind::PortWrite { port, value };
+                let kind = SelectedInstructionKind::PortWrite {
+                    service: semantic_vocabulary::ServiceId::new(1).unwrap(),
+                    port,
+                    value,
+                };
                 let encoded =
                     crate::encode_x86_64_selected_form(&physical, kind, alternative, &[]).unwrap();
                 assert_eq!(
@@ -8592,22 +8597,14 @@ pub(crate) mod port_write {
                 assert_eq!(encoded.footprint().encoded, effects());
                 crate::selected_form_encoding::assert_every_bit_flip_rejected(
                     encoded.bytes(),
-                    |changed| validate(&physical, port, value, alternative, &[], changed).is_err(),
+                    |changed| validate(&physical, kind, alternative, &[], changed).is_err(),
                 );
                 assert!(
-                    validate(
-                        &physical,
-                        port,
-                        value,
-                        alternative,
-                        &[],
-                        &encoded.bytes()[1..]
-                    )
-                    .is_err()
+                    validate(&physical, kind, alternative, &[], &encoded.bytes()[1..]).is_err()
                 );
                 let mut extended = encoded.bytes().to_vec();
                 extended.push(0);
-                assert!(validate(&physical, port, value, alternative, &[], &extended).is_err());
+                assert!(validate(&physical, kind, alternative, &[], &extended).is_err());
                 let register = physical.model().view_named("rax").unwrap().id;
                 assert!(
                     crate::encode_x86_64_selected_form(&physical, kind, alternative, &[register])
@@ -13849,7 +13846,7 @@ mod instruction_bytes {
             | Kind::FloatResultPolicy { .. } => {
                 return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
             }
-            Kind::PortWrite { port, value } => {
+            Kind::PortWrite { port, value, .. } => {
                 bytes.extend_from_slice(&x86_64_encoding::encode_immediate_port_write(port, value))
             }
             Kind::AtomicFence => bytes.extend_from_slice(&[0x0f, 0xae, 0xf0]),
@@ -23954,8 +23951,8 @@ pub fn validate_x86_64_selected_form_encoding(
     if let SelectedInstructionKind::RegisterAccess { operation } = kind {
         return register_access::validate(physical, operation, alternative, operands, bytes);
     }
-    if let SelectedInstructionKind::PortWrite { port, value } = kind {
-        return port_write::validate(physical, port, value, alternative, operands, bytes);
+    if let SelectedInstructionKind::PortWrite { .. } = kind {
+        return port_write::validate(physical, kind, alternative, operands, bytes);
     }
     if kind == SelectedInstructionKind::CopyBytes {
         return copy_bytes::validate(physical, alternative, operands, 0, bytes);
