@@ -1,5 +1,5 @@
 // Expected exit: 0
-// Trapping conversions return toward-zero integers only after their Trap guard is excluded.
+// These crashes-none helpers must exclude their conversion's Trap guard.
 use omega::language::core::I32;
 use omega::language::core::U32;
 use omega::language::core::I32::from_f32;
