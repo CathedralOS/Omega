@@ -1082,9 +1082,9 @@ impl Program<'_> {
         )
     }
 
-    /// `R { a: x, b: y }`: every field of `R` exactly once, operands kept in
-    /// authored order. `S::C { p: x }`, `S::C {}` and `S::C`: every payload
-    /// field of the case exactly once, the same way.
+    /// Read authored record or selected-case fields in their written order.
+    /// A final `..` supplies checked zero values for missing runtime fields;
+    /// without it the literal must already supply the complete field roster.
     pub(super) fn record_literal(
         &mut self,
         id: MachineId,

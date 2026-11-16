@@ -1166,7 +1166,7 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
         let expression = syntax_trees
             .expressions
             .insert(ExpressionNode::StructLiteral(TableStructLiteral {
-                zero_omitted_fields: zero_omitted_fields,
+                zero_omitted_fields,
                 application_type: Default::default(),
                 constructor_name,
                 fields,
