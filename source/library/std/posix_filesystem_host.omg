@@ -300,7 +300,7 @@ boundary trait PosixFilesystemTarget {
 // trace through each invocation back to the caller's buffer. Buffers cross
 // as slices; callers lend fixed local arrays.
 public machine posix_terminated_path(path: &[u8], out: &mut [u8]) -> bool {
-    posix_copy_path_from(path, out, 0);
+    posix_copy_path_from(path, out, 0, path.len);
     transition path.len < out.len {
         true -> (true)
         _ -> rejected(out)
@@ -312,12 +312,14 @@ public machine posix_terminated_path(path: &[u8], out: &mut [u8]) -> bool {
     }
 }
 
-machine posix_copy_path_from(path: &[u8], out: &mut [u8], index: u64)
-terminates by (index, path.len) -> Nat::BoundedDistance
+// `remaining` counts the steps left (the distance the cursor may still move);
+// the loop descends it, which is the ranking the checker reads.
+machine posix_copy_path_from(path: &[u8], out: &mut [u8], index: u64, remaining: u64)
+terminates by remaining
 {
     posix_put_path_byte(path, out, index);
-    transition index < path.len {
-        true -> posix_copy_path_from(path, out, index + 1)
+    transition index < path.len && remaining > 0 {
+        true -> posix_copy_path_from(path, out, index + 1, remaining - 1)
         _ -> done()
     }
 

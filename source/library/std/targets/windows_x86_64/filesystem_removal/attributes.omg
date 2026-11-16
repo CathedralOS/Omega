@@ -13,7 +13,7 @@ machine windows_removal_attributes(handle: i64 in WindowsPrivateNonalertFileOrAb
 requires (handle as -WindowsPrivateNonalertFileOrAbsent) != 0
 reaches FilesystemMetadataQuery {
     let file: i64 in WindowsDiskFileOrAbsent = block windows_classify_metadata_disk_file(
-        narrow_i64_to_u64_wrapping(handle as i64));
+        narrow_i64_to_u64_wrapping(handle as -WindowsPrivateNonalertFileOrAbsent));
     transition (file as -WindowsDiskFileOrAbsent) != 0 { true -> block query(file) false -> failed() }
     machine query(file: i64 in WindowsDiskFileOrAbsent) -> WindowsRemovalAttributes
     requires (file as -WindowsDiskFileOrAbsent) != 0 {

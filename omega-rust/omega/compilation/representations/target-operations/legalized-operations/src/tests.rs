@@ -149,6 +149,8 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
     let call = id::<OperationId>(1);
     let return_edge = id::<EdgeId>(1);
     LegalizedOperationPlan {
+        retained_integers: crate::RetainedIntegerTypes::Unsealed,
+        installation_operations: Vec::new(),
         psi: TerminalPsiIdentity {
             vocabulary_marker: VocabularyMarker::CURRENT,
             program_fingerprint: SemanticFingerprint::from_bytes([7; 32]),
@@ -193,7 +195,8 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
                                 relevance: BindingRelevance::Relevant,
                                 field_type: StructuralFieldType::Scalar(
                                     semantic_vocabulary::ScalarType::Integer(
-                                        IntegerType::address(64).expect("addr"),
+                                        semantic_vocabulary::IntegerType::address(64)
+                                            .expect("addr"),
                                     ),
                                 ),
                             },
@@ -206,7 +209,11 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
                                 relevance: BindingRelevance::Relevant,
                                 field_type: StructuralFieldType::Scalar(
                                     semantic_vocabulary::ScalarType::Integer(
-                                        IntegerType::new(IntegerSign::Unsigned, 64).expect("u64"),
+                                        semantic_vocabulary::IntegerType::new(
+                                            IntegerSign::Unsigned,
+                                            64,
+                                        )
+                                        .expect("u64"),
                                     ),
                                 ),
                             },
@@ -393,7 +400,8 @@ pub(super) fn scalar_call_unit_plan() -> LegalizedOperationPlan {
     let mut plan = call_aware_plan();
     plan.scalar_functions.clear();
     plan.target = NativeTarget::linux_x64();
-    let scalar_type = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+    let scalar_type =
+        semantic_vocabulary::ClosedIntegerType::new(IntegerSign::Unsigned, 64).unwrap();
     let shape = ValueShape::integer(8, 8);
     let call_plan = evaluate_call_plan(
         CallingPolicy::native_for_target(plan.target),
@@ -425,7 +433,7 @@ pub(super) fn scalar_call_unit_plan() -> LegalizedOperationPlan {
         operation: operations[index],
         result: Some(LegalizedValueDefinition {
             value: values[index],
-            scalar_type: ScalarType::Integer(scalar_type),
+            scalar_type: semantic_vocabulary::ClosedScalarType::Integer(scalar_type),
             definition_site: definition(index as u32),
         }),
         kind,

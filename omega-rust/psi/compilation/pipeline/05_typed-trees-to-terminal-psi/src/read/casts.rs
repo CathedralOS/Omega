@@ -337,10 +337,12 @@ impl Program<'_> {
         // A literal lands in the carrier of the type the cast gives it
         // (domains.md, "Literals and expected types": "An expected type
         // selects the carrier in which an anonymous literal lands"). A
-        // quoted literal's carrier is the view the cast qualifies.
+        // quoted literal's carrier is the view the cast qualifies, and an
+        // array literal's is the array: `[65u8, 66u8] as +Text` is a plain
+        // `[u8; 2]` given the domain.
         let landing = if self.wholly_anonymous(cast.value) {
             result.scalar().map(ValueType::plain)
-        } else if self.byte_literal_operand(cast.value) {
+        } else if self.byte_literal_operand(cast.value) || self.array_literal_operand(cast.value) {
             result.qualified(Qualification::NONE)
         } else {
             None
@@ -737,6 +739,14 @@ impl Program<'_> {
             && matches!(
                 self.typed.expression_table.expression(expression),
                 typed_trees::expression::ExpressionNode::String(_)
+            )
+    }
+
+    fn array_literal_operand(&self, expression: typed_trees::expression::ExpressionHandle) -> bool {
+        expression.is_valid()
+            && matches!(
+                self.typed.expression_table.expression(expression),
+                typed_trees::expression::ExpressionNode::ArrayLiteral(_)
             )
     }
 

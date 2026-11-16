@@ -6,79 +6,12 @@ receipts and obligation/runtime-index helpers.
 */
 
 pub(crate) mod model {
-    use legalized_operations::{LegalizedOperationPlan, LegalizedOperationPlanIdentity};
     use optimization_core::OptimizationValidatorIdentity;
 
     pub(crate) fn legalization_validator_identity() -> OptimizationValidatorIdentity {
         OptimizationValidatorIdentity::from_canonical_bytes(
             b"omega.terminal-target-legalization-independent-replay.v69",
         )
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub(crate) struct ValidatedLegalizedOperations {
-        pub(crate) plan: LegalizedOperationPlan,
-        pub(crate) receipt: LegalizationValidationReceipt,
-        pub(crate) installed_stack_requirements:
-            Vec<installation_evidence::InstalledInterruptStackRequirement>,
-        pub(crate) installed_interrupts: provider_admission::AdmittedInstalledInterruptCohort,
-        pub(crate) installed_entry_execution:
-            Option<provider_admission::AdmittedInstalledEntryExecution>,
-    }
-
-    impl ValidatedLegalizedOperations {
-        pub(crate) fn installed_entry_execution(
-            &self,
-        ) -> Option<&provider_admission::AdmittedInstalledEntryExecution> {
-            self.installed_entry_execution.as_ref()
-        }
-
-        pub(crate) fn installed_stack_requirements(
-            &self,
-        ) -> &[installation_evidence::InstalledInterruptStackRequirement] {
-            &self.installed_stack_requirements
-        }
-
-        pub(crate) fn installed_interrupts(
-            &self,
-        ) -> &provider_admission::AdmittedInstalledInterruptCohort {
-            &self.installed_interrupts
-        }
-        pub const fn plan(&self) -> &LegalizedOperationPlan {
-            &self.plan
-        }
-
-        pub const fn receipt(&self) -> LegalizationValidationReceipt {
-            self.receipt
-        }
-    }
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub(crate) struct LegalizationValidationReceipt {
-        pub(crate) identity: LegalizedOperationPlanIdentity,
-        pub(crate) validator: OptimizationValidatorIdentity,
-        pub(crate) optimization_unit: optimization_core::OptimizationUnitIdentity,
-        pub(crate) work_schedule: semantic_vocabulary::WorkScheduleIdentity,
-        pub(crate) target: target::NativeTarget,
-        pub(crate) function_count: usize,
-    }
-
-    impl LegalizationValidationReceipt {
-        pub const fn identity(self) -> LegalizedOperationPlanIdentity {
-            self.identity
-        }
-
-        pub const fn validator(self) -> OptimizationValidatorIdentity {
-            self.validator
-        }
-
-        pub const fn optimization_unit(self) -> optimization_core::OptimizationUnitIdentity {
-            self.optimization_unit
-        }
-
-        pub const fn work_schedule(self) -> semantic_vocabulary::WorkScheduleIdentity {
-            self.work_schedule
-        }
     }
 
     #[derive(Debug, Clone, PartialEq, Eq)]
@@ -99,6 +32,14 @@ pub(crate) mod model {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum LegalizationError {
+        /// The plan stage 02 published differs from the plan the validator
+        /// derived independently from the abstract program. `machine` names
+        /// the first function that differs; `None` means the plan's header,
+        /// its retained types or its seal.
+        PublishedPlanMismatch {
+            machine: Option<semantic_vocabulary::MachineId>,
+            part: &'static str,
+        },
         InstructionMetadata {
             machine: Option<semantic_vocabulary::MachineId>,
             operation: Option<semantic_vocabulary::OperationId>,
@@ -509,7 +450,6 @@ pub(crate) use crate::legalization_source as source;
 
 pub use model::LegalizationError;
 pub(crate) use model::legalization_validator_identity;
-pub(crate) use model::{LegalizationValidationReceipt, ValidatedLegalizedOperations};
 pub(crate) use obligations::{accepted_fact, facts, references_obligation};
 
 #[allow(unused_imports)]
@@ -524,6 +464,15 @@ pub(crate) use target_operations::TargetOperationPlan;
 #[allow(unused_imports)]
 pub(crate) use source::derive_source_function_rosters;
 
+/// The facts of the optimized program that preparation joins to target rows.
+#[derive(Debug, Clone, Copy)]
+pub struct PreparationEvidence<'input> {
+    pub optimization_unit: optimization_core::OptimizationUnitIdentity,
+    pub work_schedule: semantic_vocabulary::WorkScheduleIdentity,
+    pub accepted_obligation_facts: &'input [optimization_unit::AcceptedObligationFact],
+    pub ownership_frontier_facts: &'input [optimization_unit::OwnershipFrontierFact],
+}
+
 #[cfg(test)]
 pub(crate) fn legalize_target_operations(
     target: &TargetOperationPlan,
@@ -531,12 +480,10 @@ pub(crate) fn legalize_target_operations(
     unit: &optimization_unit::PsiOptimizationUnit,
     origins: target_operations::BoundaryOriginFacts<'_>,
     installed_interrupts: &provider_admission::AdmittedInstalledInterruptCohort,
-    installed_entry_execution: Option<&provider_admission::AdmittedInstalledEntryExecution>,
-    installed_stack_requirements: &[installation_evidence::InstalledInterruptStackRequirement],
-) -> Result<ValidatedLegalizedOperations, LegalizationError> {
-    legalize_retained_target_operations(
+) -> Result<legalized_operations::PreparedExecutionPlan, LegalizationError> {
+    prepare_execution_plan(
         target,
-        crate::TargetSelectionEvidence {
+        PreparationEvidence {
             optimization_unit: unit.identity,
             work_schedule: unit.work_schedule,
             accepted_obligation_facts: &unit.accepted_obligation_facts,
@@ -544,22 +491,40 @@ pub(crate) fn legalize_target_operations(
         },
         origins,
         installed_interrupts,
-        installed_entry_execution,
-        installed_stack_requirements,
+        legalized_operations::RetainedIntegerTypes::Unsealed,
     )
 }
 
-pub(crate) fn legalize_retained_target_operations(
+/// The interrupt installations still present after lowering, in the order
+/// the plan records them.
+fn surviving_installations(target: &TargetOperationPlan) -> Vec<semantic_vocabulary::OperationId> {
+    let mut operations: Vec<_> = target
+        .functions
+        .iter()
+        .flat_map(|function| function.graph.operations())
+        .filter_map(|operation| operation.installation_operation())
+        .collect();
+    operations.sort_unstable();
+    operations.dedup();
+    operations
+}
+
+/// Build the execution plan from the target operations stage 02 lowered.
+///
+/// Every target row keeps the identity and obligations of the operation it
+/// came from, so this reads the target program and the optimized program's
+/// facts; it never reads an earlier executable body. A fact or type the plan
+/// needs and cannot find refuses the program here, before selection starts.
+pub fn prepare_execution_plan(
     target: &TargetOperationPlan,
-    evidence: crate::TargetSelectionEvidence<'_>,
+    evidence: PreparationEvidence<'_>,
     origins: target_operations::BoundaryOriginFacts<'_>,
     installed_interrupts: &provider_admission::AdmittedInstalledInterruptCohort,
-    installed_entry_execution: Option<&provider_admission::AdmittedInstalledEntryExecution>,
-    installed_stack_requirements: &[installation_evidence::InstalledInterruptStackRequirement],
-) -> Result<ValidatedLegalizedOperations, LegalizationError> {
+    retained_integers: legalized_operations::RetainedIntegerTypes,
+) -> Result<legalized_operations::PreparedExecutionPlan, LegalizationError> {
     crate::installed_interrupts::authorize_target(target, origins.module, installed_interrupts)?;
     validate_boundary_origins(target, origins)?;
-    let rosters = source::derive_target_function_rosters(target, evidence)?;
+    let rosters = source::derive_target_function_rosters(target, evidence, &retained_integers)?;
     let plan = LegalizedOperationPlan {
         psi: target.psi,
         optimization_unit: evidence.optimization_unit,
@@ -568,40 +533,14 @@ pub(crate) fn legalize_retained_target_operations(
         profile: target.profile,
         entry: target.entry,
         scalar_functions: rosters.scalar_functions,
+        retained_integers,
+        installation_operations: surviving_installations(target),
     };
-    Ok(seal(
-        target,
+    Ok(legalized_operations::PreparedExecutionPlan::seal(
         plan,
-        installed_interrupts,
-        installed_entry_execution,
-        installed_stack_requirements,
+        legalization_validator_identity(),
     ))
 }
-
-pub(crate) fn seal(
-    target: &TargetOperationPlan,
-    plan: LegalizedOperationPlan,
-    installed_interrupts: &provider_admission::AdmittedInstalledInterruptCohort,
-    installed_entry_execution: Option<&provider_admission::AdmittedInstalledEntryExecution>,
-    installed_stack_requirements: &[installation_evidence::InstalledInterruptStackRequirement],
-) -> ValidatedLegalizedOperations {
-    let receipt = LegalizationValidationReceipt {
-        identity: legalized_operation_plan_identity(&plan),
-        validator: legalization_validator_identity(),
-        optimization_unit: plan.optimization_unit,
-        work_schedule: plan.work_schedule,
-        target: target.target,
-        function_count: plan.scalar_functions.len(),
-    };
-    ValidatedLegalizedOperations {
-        plan,
-        receipt,
-        installed_interrupts: installed_interrupts.clone(),
-        installed_entry_execution: installed_entry_execution.cloned(),
-        installed_stack_requirements: installed_stack_requirements.to_vec(),
-    }
-}
-pub(crate) use scalar_graph_input::exact_cast_has_native_carriers;
 
 pub fn verify_target_operation_plan(
     target: &TargetOperationPlan,
@@ -616,7 +555,7 @@ pub fn verify_target_operation_plan(
         unit,
         origins,
         installed_interrupts,
-        None,
+        crate::native_geometry::UNSEALED,
     )
 }
 
@@ -637,7 +576,7 @@ pub fn verify_target_operation_plan_with_closed_module(
         unit,
         origins,
         installed_interrupts,
-        Some(closed_types),
+        &closed_types,
     )
 }
 
@@ -647,7 +586,7 @@ fn verify_target_operation_plan_input(
     unit: &optimization_unit::PsiOptimizationUnit,
     origins: target_operations::BoundaryOriginFacts<'_>,
     installed_interrupts: &provider_admission::AdmittedInstalledInterruptCohort,
-    closed_types: Option<&terminal_codec::ClosedTypeCatalog>,
+    closed_types: &legalized_operations::RetainedIntegerTypes,
 ) -> Result<(), LegalizationError> {
     crate::installed_interrupts::validate_target(
         target,
@@ -659,12 +598,123 @@ fn verify_target_operation_plan_input(
     audit_target_operation_plan(target, abstract_plan, unit, closed_types)
 }
 
+/// Compare the target operations with a plan prepared from them here and
+/// now. Use this where no published plan exists: fixtures, and a retained
+/// private body that was never sealed.
 pub(crate) fn audit_target_operation_plan(
     target: &TargetOperationPlan,
     abstract_plan: &AbstractOperationPlan,
     unit: &optimization_unit::PsiOptimizationUnit,
-    closed_types: Option<&terminal_codec::ClosedTypeCatalog>,
+    closed_types: &legalized_operations::RetainedIntegerTypes,
 ) -> Result<(), LegalizationError> {
+    let expected = derive_expected_functions(target, abstract_plan, unit, closed_types)?;
+    let retained = source::derive_target_function_rosters(
+        target,
+        PreparationEvidence {
+            optimization_unit: unit.identity,
+            work_schedule: unit.work_schedule,
+            accepted_obligation_facts: &unit.accepted_obligation_facts,
+            ownership_frontier_facts: &unit.ownership_frontier_facts,
+        },
+        closed_types,
+    )?;
+    if expected.scalar_functions != retained.scalar_functions {
+        return Err(LegalizationError::custody());
+    }
+    Ok(())
+}
+
+/// Validate the execution plan stage 02 actually published.
+///
+/// The validator derives every function of the plan a second way, from the
+/// abstract program and the optimization unit, and requires the published
+/// plan to equal that derivation row for row: concrete types, placements and
+/// transports, the proof identity at each operation, edge and terminator, and
+/// each function's ownership-frontier facts. It also requires the plan's
+/// header and retained types to match its sources and the plan to still hash
+/// to the identity it was sealed under. Ordinary compilation never calls
+/// this; it runs on an explicit validator request and in tests.
+pub fn verify_execution_plan(
+    prepared: &legalized_operations::PreparedExecutionPlan,
+    target: &TargetOperationPlan,
+    abstract_plan: &AbstractOperationPlan,
+    unit: &optimization_unit::PsiOptimizationUnit,
+    origins: target_operations::BoundaryOriginFacts<'_>,
+    installed_interrupts: &provider_admission::AdmittedInstalledInterruptCohort,
+    closed_module: &terminal_codec::ClosedTerminalModule,
+) -> Result<(), LegalizationError> {
+    let mismatch = |machine, part| LegalizationError::PublishedPlanMismatch { machine, part };
+    let closed_types =
+        crate::native_geometry::retained_types(closed_module, target.psi, origins.module)
+            .ok_or_else(LegalizationError::custody)?;
+    let plan = prepared.plan();
+    if !prepared.is_intact() {
+        return Err(mismatch(None, "the plan no longer matches its seal"));
+    }
+    if prepared.receipt().validator() != legalization_validator_identity() {
+        return Err(mismatch(None, "the plan was sealed by another preparation"));
+    }
+    if plan.psi != target.psi
+        || plan.target != target.target
+        || plan.profile != target.profile
+        || plan.entry != target.entry
+        || plan.optimization_unit != unit.identity
+        || plan.work_schedule != unit.work_schedule
+    {
+        return Err(mismatch(None, "the plan header differs from its sources"));
+    }
+    if plan.installation_operations != surviving_installations(target) {
+        return Err(mismatch(
+            None,
+            "the surviving installations differ from the target's",
+        ));
+    }
+    if plan.retained_integers != closed_types {
+        return Err(mismatch(
+            None,
+            "the retained integer types differ from the module's",
+        ));
+    }
+    crate::installed_interrupts::validate_target(
+        target,
+        origins.module,
+        installed_interrupts,
+        abstract_plan,
+    )?;
+    validate_boundary_origins(target, origins)?;
+    let expected = derive_expected_functions(target, abstract_plan, unit, &closed_types)?;
+    if expected.scalar_functions.len() != plan.scalar_functions.len() {
+        return Err(mismatch(None, "the plan has a different set of functions"));
+    }
+    for (expected, published) in expected.scalar_functions.iter().zip(&plan.scalar_functions) {
+        if expected != published {
+            let part = if expected.machine != published.machine {
+                "the plan orders its functions differently"
+            } else if expected.ownership_frontier_facts != published.ownership_frontier_facts {
+                "ownership-frontier facts"
+            } else if expected.parameters != published.parameters
+                || expected.call_plan != published.call_plan
+                || expected.structural != published.structural
+            {
+                "the function contract"
+            } else {
+                "a block, instruction or terminator"
+            };
+            return Err(mismatch(Some(published.machine), part));
+        }
+    }
+    Ok(())
+}
+
+/// Check the target operations against their sources and derive, from the
+/// abstract program and the optimization unit alone, the functions a plan
+/// prepared from them must contain.
+fn derive_expected_functions(
+    target: &TargetOperationPlan,
+    abstract_plan: &AbstractOperationPlan,
+    unit: &optimization_unit::PsiOptimizationUnit,
+    closed_types: &legalized_operations::RetainedIntegerTypes,
+) -> Result<source::SourceFunctionRosters, LegalizationError> {
     let plan_geometry = crate::native_geometry::NativeGeometry::with_owned_sequence_bounds(
         &abstract_plan.structural_types,
         abstract_plan.structural_types.owned_sequence_bounds(),
@@ -711,20 +761,7 @@ pub(crate) fn audit_target_operation_plan(
         )
         .map_err(|error| error.attributed(function.machine, None))?;
     }
-    let expected = derive_source_function_rosters(target, abstract_plan, unit, closed_types)?;
-    let retained = source::derive_target_function_rosters(
-        target,
-        crate::TargetSelectionEvidence {
-            optimization_unit: unit.identity,
-            work_schedule: unit.work_schedule,
-            accepted_obligation_facts: &unit.accepted_obligation_facts,
-            ownership_frontier_facts: &unit.ownership_frontier_facts,
-        },
-    )?;
-    if expected.scalar_functions != retained.scalar_functions {
-        return Err(LegalizationError::custody());
-    }
-    Ok(())
+    derive_source_function_rosters(target, abstract_plan, unit, closed_types)
 }
 
 /// Independent source correspondence, never called by ordinary construction.

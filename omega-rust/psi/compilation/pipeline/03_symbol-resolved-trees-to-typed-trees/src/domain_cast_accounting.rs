@@ -430,6 +430,29 @@ fn operand_type(
         return Ok(reference);
     }
     let label = entry_label(program, &first_cast);
+    let destination = cast_destinations
+        .get(run[run.len() - 1].0.arena_index() as usize)
+        .copied()
+        .filter(|destination| destination.is_valid());
+    // A quoted or array literal received by a fixed array is that array's
+    // plain carrier: `"000" as +Utf8` into `[u8; 3] in Utf8` is the 3-byte
+    // array the literal spells, which the entries then give the domain
+    // (domains.md: "`[u8; N] in D` is the same exact `N`-byte fixed-array
+    // carrier as `[u8; N]`"). The literal is typed against that carrier as
+    // any literal stored into a `[u8; 3]` is.
+    if matches!(
+        program.expression_table.expression(operand),
+        ExpressionNode::String(_) | ExpressionNode::ArrayLiteral(_)
+    ) && let Some(destination) = destination
+    {
+        let plain = flatten(program, destination).0;
+        if matches!(
+            program.type_reference_table.type_reference(plain),
+            TypeReferenceNode::FixedArray { .. }
+        ) {
+            return Ok(plain);
+        }
+    }
     // A quoted literal is a shared view of its bytes in no domain
     // (domains.md, "Byte containers and encoding domains": "Quoted literals
     // supply raw bytes"). With a receiving view it is that view with the
@@ -442,10 +465,6 @@ fn operand_type(
         program.expression_table.expression(operand),
         ExpressionNode::String(_)
     ) {
-        let destination = cast_destinations
-            .get(run[run.len() - 1].0.arena_index() as usize)
-            .copied()
-            .filter(|destination| destination.is_valid());
         let Some(TypeReferenceNode::Reference {
             referee,
             access: language_core::ReferenceAccess::Shared,

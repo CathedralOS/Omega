@@ -19,7 +19,7 @@ requires index < 2 {
     onward(table, index)
 }
 machine main() crashes Trap {
-    let mut table: Table = Table { cells: [Cell { storage: [65u8, 0u8, 0u8, 0u8] }, Cell { storage: [66u8, 0u8, 0u8, 0u8] }] };
+    let mut table: Table = Table { cells: [Cell { storage: [65u8, 0u8, 0u8, 0u8] as +Ascii }, Cell { storage: [66u8, 0u8, 0u8, 0u8] as +Ascii }] };
     let first: u8 = observe(&mut table, 0);
     let second: u8 = observe(&mut table, 1);
     transition first == 65 && second == 66

@@ -3859,7 +3859,9 @@ pub(crate) mod runtime_spill {
                                 if argument != register {
                                     continue;
                                 }
-                                if payload.semantic.parameter.scalar_type != victim.scalar_type {
+                                if payload.semantic.parameter.scalar_type.as_checking()
+                                    != victim.scalar_type
+                                {
                                     return Err(RuntimeSpillError::UnsupportedUse);
                                 }
                                 if let VictimLineage::Structural { place, byte_offset } = lineage
@@ -4745,7 +4747,8 @@ pub(crate) mod runtime_spill {
                                 .bindings
                                 .iter()
                                 .any(|binding| binding.semantic.parameter == source_value)
-                            || payload.semantic.parameter.scalar_type != victim.scalar_type
+                            || payload.semantic.parameter.scalar_type.as_checking()
+                                != victim.scalar_type
                             || Some(payload.semantic.parameter.definition_site)
                                 != victim.definition_site
                         {
@@ -4785,18 +4788,20 @@ pub(crate) mod runtime_spill {
                             return Err(RuntimeSpillError::UnsupportedValue);
                         }
                         let (owner, load) = physical_definition(function, argument)?;
-                        let (byte_count, displacement) =
-                            match (payload.semantic.parameter.scalar_type, load.kind) {
-                                (
-                                    ScalarType::Integer(integer),
-                                    SelectedInstructionKind::Load32 { byte_offset },
-                                ) if integer.bits() == Some(32) => (4, byte_offset),
-                                (
-                                    ScalarType::Integer(integer),
-                                    SelectedInstructionKind::Load64 { byte_offset },
-                                ) if integer.bits() == Some(64) => (8, byte_offset),
-                                _ => return Err(RuntimeSpillError::UnsupportedValue),
-                            };
+                        let (byte_count, displacement) = match (
+                            payload.semantic.parameter.scalar_type.as_checking(),
+                            load.kind,
+                        ) {
+                            (
+                                ScalarType::Integer(integer),
+                                SelectedInstructionKind::Load32 { byte_offset },
+                            ) if integer.bits() == Some(32) => (4, byte_offset),
+                            (
+                                ScalarType::Integer(integer),
+                                SelectedInstructionKind::Load64 { byte_offset },
+                            ) if integer.bits() == Some(64) => (8, byte_offset),
+                            _ => return Err(RuntimeSpillError::UnsupportedValue),
+                        };
                         if owner != block_index
                             || load.id != instruction
                             || !case_payload_address::case_payload_address_corresponds(

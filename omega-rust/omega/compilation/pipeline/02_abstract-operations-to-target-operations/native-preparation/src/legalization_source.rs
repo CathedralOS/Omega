@@ -313,7 +313,7 @@ pub(crate) mod scalar_graph {
                     }
                     LegalizedScalarInstructionKind::IntegerExactCast {
                         operand: *operand,
-                        source_type: *source_type,
+                        source_type: unit.closed_integer(*source_type).ok_or(Error::custody())?,
                         obligation: *obligation,
                         accepted_fact,
                     }
@@ -665,6 +665,7 @@ pub(crate) mod scalar_graph {
             pub(crate) fn project_boolean_equal(
                 node: &optimization_unit::OptimizationNode,
                 optimized: &optimization_unit::PsiOptimizationFunction,
+                unit: &crate::native_geometry::NativeUnit<'_>,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
                 let (AbstractOperation::BooleanEqual { left, right, .. }
                 | abstract_operations::integer_equal_less_pair_pattern!(left, right, ..)
@@ -686,10 +687,12 @@ pub(crate) mod scalar_graph {
                         }
                         _ => return Err(Error::custody()),
                     };
-                    let operand_type =
-                        scalar_graph_input::value_type(optimized, *left).ok_or(Error::custody())?;
-                    let right_operand_type =
-                        scalar_graph_input::value_type(optimized, *right).ok_or(Error::custody())?;
+                    let operand_type = scalar_graph_input::value_type(optimized, *left)
+                        .and_then(|scalar| unit.closed_scalar(scalar))
+                        .ok_or(Error::custody())?;
+                    let right_operand_type = scalar_graph_input::value_type(optimized, *right)
+                        .and_then(|scalar| unit.closed_scalar(scalar))
+                        .ok_or(Error::custody())?;
                     LegalizedScalarInstructionKind::Compare {
                         predicate,
                         operand_type,
@@ -2315,7 +2318,9 @@ pub(crate) mod scalar_graph {
                                 .ok_or(Error::custody())?;
                         LegalizedScalarInstructionKind::AtomicAccess {
                             location: access.location,
-                            scalar_type: access.scalar_type,
+                            scalar_type: unit
+                                .closed_integer(access.scalar_type)
+                                .ok_or(Error::custody())?,
                             field_byte_offset: access.field_byte_offset,
                             event: access.event,
                             outcome: access.outcome,
@@ -2370,7 +2375,7 @@ pub(crate) mod scalar_graph {
                         ..
                     } => LegalizedScalarInstructionKind::ScalarRepresentationView {
                         operand: *operand,
-                        source_type: *source_type,
+                        source_type: unit.closed_scalar(*source_type).ok_or(Error::custody())?,
                     },
                     AbstractOperation::IeeeFloatCompare {
                         comparison,
@@ -2798,7 +2803,7 @@ pub(crate) mod scalar_graph {
                         ..
                     } => LegalizedScalarInstructionKind::IntegerWiden {
                         operand: *operand,
-                        source_type: *source_type,
+                        source_type: unit.closed_integer(*source_type).ok_or(Error::custody())?,
                     },
                     AbstractOperation::IntegerExactCast { .. } => {
                         scalar_instructions::project_integer_exact_cast(node, optimized, unit)?
@@ -2849,31 +2854,39 @@ pub(crate) mod scalar_graph {
                     AbstractOperation::BooleanEqual { .. }
                     | abstract_operations::integer_equal_less_pair_pattern!(..)
                     | AbstractOperation::IntegerLessOrEqual { .. } => {
-                        scalar_instructions::project_boolean_equal(node, optimized)?
+                        scalar_instructions::project_boolean_equal(node, optimized, unit)?
                     }
                     _ => return Err(Error::custody()),
                 }
             };
-            Ok(with_metadata(source, kind))
+            with_metadata(source, kind, unit.closed_types())
         }
 
         /// The instruction owns its already-retained execution and custody annotations.
         pub(crate) fn with_metadata(
             source: &target_operations::TargetInstructionSource,
             kind: LegalizedScalarInstructionKind,
-        ) -> LegalizedScalarInstruction {
-            LegalizedScalarInstruction {
+            types: &legalized_operations::RetainedIntegerTypes,
+        ) -> Result<LegalizedScalarInstruction, Error> {
+            Ok(LegalizedScalarInstruction {
                 operation: source.operation,
-                result: source.result.map(|result| LegalizedValueDefinition {
-                    value: result.value,
-                    scalar_type: result.scalar_type,
-                    definition_site: result.site,
-                }),
+                result: source
+                    .result
+                    .map(|result| {
+                        Ok::<_, Error>(LegalizedValueDefinition {
+                            value: result.value,
+                            scalar_type: types
+                                .scalar(result.scalar_type)
+                                .ok_or_else(Error::custody)?,
+                            definition_site: result.site,
+                        })
+                    })
+                    .transpose()?,
                 kind,
                 work: source.metadata.work.clone(),
                 effect: source.metadata.effect,
                 ownership: source.metadata.ownership.clone(),
-            }
+            })
         }
     }
     pub(crate) mod structural_case {
@@ -2983,7 +2996,9 @@ pub(crate) mod scalar_graph {
                         field_byte_offset: stored_payload.field_byte_offset,
                         parameter: LegalizedValueDefinition {
                             value: parameter.value,
-                            scalar_type: parameter.scalar_type,
+                            scalar_type: unit
+                                .closed_scalar(parameter.scalar_type)
+                                .ok_or(Error::custody())?,
                             definition_site: parameter.site,
                         },
                     });
@@ -3290,7 +3305,7 @@ pub(crate) mod scalar_graph {
                         edge: *psi_edge,
                         value: LegalizedScalarReturnValue::Value {
                             value: *value,
-                            scalar_type: *scalar_type,
+                            scalar_type: unit.closed_scalar(*scalar_type).ok_or(Error::custody())?,
                         },
                         work: node.work.clone(),
                         effect: node.effect,
@@ -3396,6 +3411,7 @@ pub(crate) mod scalar_graph {
     /// Parameter sites are ordinal in the retained function ABI, not body-derived.
     pub(crate) fn parameters(
         target: &target_operations::TargetFunction,
+        types: &legalized_operations::RetainedIntegerTypes,
     ) -> Result<Vec<LegalizedScalarParameter>, LegalizationError> {
         target
             .graph
@@ -3405,7 +3421,9 @@ pub(crate) mod scalar_graph {
             .map(|(position, parameter)| {
                 Ok(LegalizedScalarParameter {
                     value: parameter.value,
-                    scalar_type: parameter.scalar_type,
+                    scalar_type: types
+                        .scalar(parameter.scalar_type)
+                        .ok_or_else(Error::custody)?,
                     definition_site: optimization_unit::ValueDefinitionSite::FunctionParameter(
                         u32::try_from(position).map_err(|_| Error::custody())?,
                     ),
@@ -3424,7 +3442,7 @@ pub(crate) mod scalar_graph {
         current_operation: &mut Option<semantic_vocabulary::OperationId>,
     ) -> Result<LegalizedScalarFunction, LegalizationError> {
         let call_plan = target.graph.call_plan.clone();
-        let parameters = parameters(target)?;
+        let parameters = parameters(target, unit.closed_types())?;
         if optimized.blocks.len() != target.graph.blocks.len() {
             return Err(Error::custody());
         }
@@ -3463,10 +3481,12 @@ pub(crate) mod scalar_graph {
                 *current_operation = None;
                 let mut parameters = Vec::with_capacity(targeted.parameters.len());
                 for (position, parameter) in targeted.parameters.iter().enumerate() {
-                    parameters.push(optimization_unit::ValueDefinition {
+                    parameters.push(legalized_operations::LegalizedValueDefinition {
                         value: parameter.value,
-                        scalar_type: parameter.scalar_type,
-                        site: optimization_unit::ValueDefinitionSite::BlockParameter {
+                        scalar_type: unit
+                            .closed_scalar(parameter.scalar_type)
+                            .ok_or_else(Error::custody)?,
+                        definition_site: optimization_unit::ValueDefinitionSite::BlockParameter {
                             block: targeted.block,
                             position: u32::try_from(position).map_err(|_| Error::custody())?,
                         },
@@ -3486,6 +3506,7 @@ pub(crate) mod scalar_graph {
                             .map(|contract| contract.parameters.as_slice())
                             .unwrap_or(&[]),
                         &unit.accepted_obligation_facts,
+                        unit.closed_types(),
                     )?,
                 })
             })
@@ -3518,7 +3539,7 @@ pub(crate) fn derive_source_function_rosters(
     target: &TargetOperationPlan,
     abstract_plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
-    closed_types: Option<&terminal_codec::ClosedTypeCatalog>,
+    closed_types: &legalized_operations::RetainedIntegerTypes,
 ) -> Result<SourceFunctionRosters, LegalizationError> {
     let plan_geometry = crate::native_geometry::NativeGeometry::with_owned_sequence_bounds(
         &abstract_plan.structural_types,
@@ -3553,7 +3574,8 @@ pub(crate) use custody::validate_source_custody;
 /// Ordinary legalization consumes only target execution and immutable judgments.
 pub(crate) fn derive_target_function_rosters(
     target: &TargetOperationPlan,
-    evidence: crate::TargetSelectionEvidence<'_>,
+    evidence: crate::PreparationEvidence<'_>,
+    types: &legalized_operations::RetainedIntegerTypes,
 ) -> Result<SourceFunctionRosters, LegalizationError> {
     let geometries =
         crate::native_geometry::NativeGeometries::new(target.functions.iter().map(|function| {
@@ -3585,6 +3607,7 @@ pub(crate) fn derive_target_function_rosters(
                     scalar_graph::instruction::project(
                         function.machine,
                         evidence.accepted_obligation_facts,
+                        types,
                         target,
                         geometry,
                         row,
@@ -3602,10 +3625,12 @@ pub(crate) fn derive_target_function_rosters(
                 .iter()
                 .enumerate()
                 .map(|(position, parameter)| {
-                    Ok(optimization_unit::ValueDefinition {
+                    Ok(legalized_operations::LegalizedValueDefinition {
                         value: parameter.value,
-                        scalar_type: parameter.scalar_type,
-                        site: optimization_unit::ValueDefinitionSite::BlockParameter {
+                        scalar_type: types
+                            .scalar(parameter.scalar_type)
+                            .ok_or_else(LegalizationError::custody)?,
+                        definition_site: optimization_unit::ValueDefinitionSite::BlockParameter {
                             block: block.block,
                             position: u32::try_from(position)
                                 .map_err(|_| LegalizationError::custody())?,
@@ -3627,6 +3652,7 @@ pub(crate) fn derive_target_function_rosters(
                         .map(|contract| contract.parameters.as_slice())
                         .unwrap_or(&[]),
                     evidence.accepted_obligation_facts,
+                    types,
                 )?,
             });
         }
@@ -3636,7 +3662,7 @@ pub(crate) fn derive_target_function_rosters(
             nominal_cleanup_subject: function.nominal_cleanup_subject,
             provenance: function.provenance.clone(),
             call_plan: function.graph.call_plan.clone(),
-            parameters: scalar_graph::parameters(function)?,
+            parameters: scalar_graph::parameters(function, types)?,
             structural: crate::legalization::scalar_graph_input::structural_contract(function)?,
             entry_block: function.graph.entry,
             blocks,

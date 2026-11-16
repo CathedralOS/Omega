@@ -269,6 +269,18 @@ pub struct Elaboration {
     /// judged like any other and is never published. Empty outside
     /// `elaborate`, whose forms are not programs.
     pub undeclared: Vec<(MachineId, &'static str)>,
+    /// Diagnostic custody only. The module owns predicate bodies and formals;
+    /// these rows cannot add a definition or affect its arithmetic judgment.
+    pub predicate_sources: Vec<PredicateSource>,
+}
+
+/// The source of a retained predicate, ordered by its module declaration identity.
+#[derive(Debug, Clone)]
+pub struct PredicateSource {
+    pub declaration: terminal_psi::TerminalIdentityIndex,
+    pub name: String,
+    pub machine: MachineId,
+    pub source_span: Option<source::SourceSpan>,
 }
 
 /// One call through an implementation parameter in a machine stage 04

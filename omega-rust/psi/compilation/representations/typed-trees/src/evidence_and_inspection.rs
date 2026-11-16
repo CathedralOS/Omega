@@ -50,14 +50,43 @@ pub mod evidence {
             program: &TypedTrees,
             theory: &DomainDefinition,
         ) -> Option<(ExpressionHandle, ByteSequencePredicate)> {
+            byte_carrier_domain_predicate(program, theory, ByteCarrier::Slice)
+        }
+
+        /// The one primitive byte predicate of a domain declared on `[u8]` or
+        /// on a fixed `[u8; N]`, with the call that states it. A fixed array's
+        /// predicate is a clause over its bytes; a slice's is judged from the
+        /// bytes each store supplies.
+        pub fn byte_domain_predicate(
+            program: &TypedTrees,
+            theory: &DomainDefinition,
+        ) -> Option<(ExpressionHandle, ByteSequencePredicate)> {
+            byte_carrier_domain_predicate(program, theory, ByteCarrier::SliceOrFixedArray)
+        }
+
+        #[derive(Clone, Copy, PartialEq, Eq)]
+        enum ByteCarrier {
+            Slice,
+            SliceOrFixedArray,
+        }
+
+        fn byte_carrier_domain_predicate(
+            program: &TypedTrees,
+            theory: &DomainDefinition,
+            carrier: ByteCarrier,
+        ) -> Option<(ExpressionHandle, ByteSequencePredicate)> {
             let types = &program.type_reference_table;
             if !types.contains_type_reference(theory.target_type) {
                 return None;
             }
-            let TypeReferenceNode::Slice { element_type } =
-                types.type_reference(theory.target_type)
-            else {
-                return None;
+            let element_type = match types.type_reference(theory.target_type) {
+                TypeReferenceNode::Slice { element_type } => element_type,
+                TypeReferenceNode::FixedArray { element_type, .. }
+                    if carrier == ByteCarrier::SliceOrFixedArray =>
+                {
+                    element_type
+                }
+                _ => return None,
             };
             if !types.contains_type_reference(*element_type) {
                 return None;

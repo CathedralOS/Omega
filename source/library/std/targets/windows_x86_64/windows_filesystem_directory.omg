@@ -27,7 +27,7 @@ machine windows_directory_error(code: u32) -> i64 {
 machine windows_directory_open(path: &[u8] in Path) -> i64 in WindowsPrivateNonalertFileOrAbsent
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation {
     let handle: i64 = block windows_directory_acquire(path);
-    handle
+    handle as +WindowsPrivateNonalertFileOrAbsent
 }
 
 machine windows_directory_acquire(path: &[u8] in Path) -> i64
@@ -158,7 +158,7 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
         }
     }
     machine finish(handle: i64 in WindowsPrivateNonalertFileOrAbsent, result: i64) -> i64 {
-        let released: i32 = block windows_filesystem_native_close_handle(narrow_i64_to_u64_wrapping(handle as i64));
+        let released: i32 = block windows_filesystem_native_close_handle(narrow_i64_to_u64_wrapping(handle as -WindowsPrivateNonalertFileOrAbsent));
         transition result < 0 || released == 0 {
             true -> (result)
             false -> (windows_filesystem_native_failure_i64())
