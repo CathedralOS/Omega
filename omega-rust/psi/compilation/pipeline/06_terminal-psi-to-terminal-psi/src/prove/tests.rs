@@ -47,6 +47,60 @@ fn a_later_named_result_can_bound_the_same_expression_more_tightly() {
 }
 
 #[test]
+fn policy_translation_maps_bounds_only_with_the_required_headroom() {
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+    let scalar_type = ScalarType::Integer(integer);
+    let mut values = IdTable::default();
+    let [input, result] = [
+        ValueOrigin::MachineParameter { position: 0 },
+        ValueOrigin::Operation(OperationId::new(1).unwrap()),
+    ]
+    .map(|origin| {
+        let id = values.push(ValueRow {
+            scalar_type,
+            origin,
+            rigid: None,
+        });
+        ScalarTerm::value(id, scalar_type)
+    });
+    let literal = |n| ScalarTerm::integer(integer, IntegerValue::Unsigned(n)).unwrap();
+    let context =
+        PropositionContext::from_value_types(values.iter().map(|(id, row)| (id, row.scalar_type)))
+            .unwrap();
+    let add = ScalarTerm::wrapping_integer_add(integer, input.clone(), literal(2)).unwrap();
+    let subtract =
+        ScalarTerm::wrapping_integer_subtract(integer, input.clone(), literal(2)).unwrap();
+    for (expression, guard, dependent_bound, ordinary_bound) in [
+        (
+            add,
+            Proposition::LessOrEqual(input.clone(), literal(9)),
+            Proposition::LessOrEqual(literal(2), result.clone()),
+            Proposition::LessThan(result.clone(), literal(12)),
+        ),
+        (
+            subtract,
+            Proposition::LessOrEqual(literal(2), input.clone()),
+            Proposition::LessOrEqual(result.clone(), literal(253)),
+            Proposition::LessOrEqual(literal(0), result.clone()),
+        ),
+    ] {
+        let axioms = [Proposition::Equal(result.clone(), expression)];
+        let assumptions = [guard];
+        let mut prover = Prover::new(&context, &assumptions, &axioms, &values);
+        for goal in [&dependent_bound, &ordinary_bound] {
+            let proof = prover.prove(goal).unwrap();
+            proof_admission::accept_certificate(&context, goal, &assumptions, &axioms, &proof)
+                .unwrap();
+        }
+        assert!(
+            Prover::new(&context, &[], &axioms, &values)
+                .prove(&dependent_bound)
+                .is_err()
+        );
+    }
+}
+
+#[test]
 fn ieee_order_search_uses_only_connected_ordered_premises() {
     use semantic_vocabulary::{IeeeFloatComparisonKind as Kind, IeeeFloatFormat, IeeeFloatValue};
     let format = IeeeFloatFormat::Binary64;

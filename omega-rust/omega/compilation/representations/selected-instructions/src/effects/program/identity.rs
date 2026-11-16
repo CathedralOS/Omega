@@ -335,7 +335,7 @@ mod instruction {
     }
 }
 mod ownership {
-    use optimization_unit::OwnershipEvent;
+    use native_vocabulary::provenance::OwnershipEvent;
     use terminal_psi::{StructuralPathSegment, TerminalAffineCleanupAction};
 
     use super::values::encode_ids;
@@ -464,7 +464,7 @@ mod ownership {
 }
 mod provenance {
     use crate::SelectedInstructionProvenance;
-    use optimization_unit::PsiProvenance;
+    use native_vocabulary::provenance::PsiProvenance;
 
     use super::values::encode_ids;
     use crate::codec_bytes::encode_len;

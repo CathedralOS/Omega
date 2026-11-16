@@ -55,7 +55,7 @@ use abstract_operations::{
 use optimization_core::{
     AcceptedObligationFactIdentity, OptimizationIdentityBundle, OptimizationSelections,
     OptimizationUnitIdentity, OptimizationWorkBudget, OptimizedAbstractPlanProjectionIdentity,
-    OwnershipFrontierFactIdentity, ScalarConstantFactIdentity, ValueRangeFactIdentity,
+    ScalarConstantFactIdentity, ValueRangeFactIdentity,
 };
 use semantic_vocabulary::{
     BlockId, ClaimId, EdgeId, IntegerCarrier, IntegerType, IntegerValue, MachineId, ObligationId,
@@ -65,9 +65,8 @@ use semantic_vocabulary::{
 use terminal_psi::{
     BoundaryMachineDeclaration, ContentEntryClaim, EntryClaim, EvidenceContractLane,
     MachineContract, ProviderCandidateConformance, ServiceDeclaration, StructuralDomainDeclaration,
-    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
-    StructuralPlaceDeclaration, TerminalAffineCleanupAction, TerminalPsiIdentity,
-    TerminalRootServiceReach,
+    StructuralParameterDeclaration, StructuralPlaceDeclaration, TerminalAffineCleanupAction,
+    TerminalPsiIdentity, TerminalRootServiceReach,
 };
 
 pub(crate) use optimization_core::codec_bytes;
@@ -330,30 +329,7 @@ impl OptimizedAbstractProgram {
     }
 }
 
-pub(crate) fn encode_scalar_type<B>(
-    bytes: &mut B,
-    scalar_type: ScalarType,
-    push_u8: impl Fn(&mut B, u8),
-    encode_integer: impl FnOnce(&mut B, IntegerType),
-) {
-    match scalar_type {
-        ScalarType::Boolean => push_u8(bytes, 1),
-        ScalarType::Integer(integer) => {
-            push_u8(bytes, 2);
-            encode_integer(bytes, integer);
-        }
-        ScalarType::IeeeFloat(format) => {
-            push_u8(bytes, 3);
-            push_u8(
-                bytes,
-                match format {
-                    semantic_vocabulary::IeeeFloatFormat::Binary32 => 1,
-                    semantic_vocabulary::IeeeFloatFormat::Binary64 => 2,
-                },
-            );
-        }
-    }
-}
+pub(crate) use native_vocabulary::identity_encoding::encode_scalar_type;
 
 pub(crate) use optimization_core::cursor::TakeError;
 

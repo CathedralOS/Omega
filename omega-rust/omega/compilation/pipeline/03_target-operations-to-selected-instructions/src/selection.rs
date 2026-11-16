@@ -59,7 +59,7 @@ pub(crate) mod atomic_access {
                         .iter()
                         .find(|row| row.id == result.structural_type)
                         .and_then(|row| {
-                            target_operations::conventional_atomic_once_layout_closed(
+                            target_vocabulary::conventional_atomic_once_layout_closed(
                                 row,
                                 *scalar_type,
                                 custody,
@@ -75,7 +75,7 @@ pub(crate) mod atomic_access {
             &location.path,
         )?;
         let logical_type = cell.scalar_type();
-        if target_operations::operations::atomic_storage_integer_type_closed(
+        if target_vocabulary::atomic_storage_integer_type_closed(
             *event,
             source.closed_scalar(logical_type)?,
         )?
@@ -593,7 +593,7 @@ pub(crate) mod constraints {
         machine: semantic_vocabulary::MachineId,
         source_value: semantic_vocabulary::ValueId,
         parameter_index: usize,
-        register: target_operations::MachineRegister,
+        register: target_vocabulary::MachineRegister,
         inputs: &[SelectedFixedInputConstraint],
     ) -> Option<&SelectedFixedInputConstraint> {
         let mut matches = inputs.iter().filter(|input| {
@@ -962,7 +962,7 @@ pub(crate) mod field_bytes {
                                 projected_qualifications: Vec::new(),
                                 additional_input_qualifications: Vec::new(),
                             },
-                            target: target_operations::TargetStructuralParameter {
+                            target: target_vocabulary::TargetStructuralParameter {
                                 place,
                                 structural_type,
                                 multiplicity: StructuralMultiplicity::Unrestricted,
@@ -1048,13 +1048,13 @@ pub(crate) mod foreign_scalar_backings {
         }
         fn retain_call(&mut self, caller: usize, call: &'program LegalizedScalarCall) {
             match call.target {
-                target_operations::NativeCallTarget::Machine(callee) => {
+                target_vocabulary::NativeCallTarget::Machine(callee) => {
                     self.incoming
                         .entry(callee)
                         .or_default()
                         .push((caller, call));
                 }
-                target_operations::NativeCallTarget::Dynamic { .. } => {
+                target_vocabulary::NativeCallTarget::Dynamic { .. } => {
                     self.opaque_ingress.extend(
                         self.program
                             .scalar_functions

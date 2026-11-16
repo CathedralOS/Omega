@@ -5,6 +5,8 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+target-vocabulary = { path = "../../target-operations/target-vocabulary" }
+native-vocabulary = { path = "../../native-vocabulary" }
 arena = { path = "../../../../../psi/foundation/arena" }
 register-environment = { path = "../../../backend/register-environment" }
 isa-aarch64 = { path = "../../../backend/isa/isa-aarch64" }
@@ -16,8 +18,6 @@ selected-instructions = { path = ".." }
 target = { path = "../../../backend/target" }
 semantic-vocabulary = { path = "../../../../../psi/foundation/semantic-vocabulary" }
 terminal-psi = { path = "../../../../../psi/compilation/representations/terminal-psi" }
-optimization-unit = { path = "../../abstract-operations/optimization-unit" }
-target-operations = { path = "../../target-operations" }
 
 [dev-dependencies]
 calling-conventions = { path = "../../../backend/calling-conventions" }

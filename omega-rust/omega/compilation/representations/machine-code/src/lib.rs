@@ -35,7 +35,7 @@ use register_model::RegisterViewId;
 use selected_instructions::{MachineIdentityBytes, SelectedBlockId, SelectedInstructionId};
 use semantic_vocabulary::{BlockId, EdgeId, InvocationSite, MachineId, OperationId, PlaceId};
 use target::NativeTarget;
-use target_operations::CallSiteOwner;
+use target_vocabulary::CallSiteOwner;
 use terminal_psi::{
     StructuralPlaceDeclaration, StructuralTypeDeclaration, TerminalAffineCleanupAction,
 };
@@ -138,8 +138,8 @@ pub(crate) mod identity_encoding {
                 bytes.identity_bytes(&[4]);
                 bytes.identity_bytes(&operation.get().to_le_bytes());
                 bytes.identity_bytes(&[match role {
-                    target_operations::InstallationCallRole::Validate => 0,
-                    target_operations::InstallationCallRole::Work => 1,
+                    target_vocabulary::InstallationCallRole::Validate => 0,
+                    target_vocabulary::InstallationCallRole::Work => 1,
                 }]);
             }
             CallSiteOwner::CleanupAction {
@@ -351,7 +351,7 @@ pub mod ownership {
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct UnitAffineCleanupRecord {
         pub psi_edge: EdgeId,
-        pub structural_types: abstract_operations::StructuralTypeCatalog, // Verifier-owned type closure retained to reconstruct the exact residual partition.
+        pub structural_types: native_vocabulary::structural_type_catalog::StructuralTypeCatalog, // Verifier-owned type closure retained to reconstruct the exact residual partition.
         pub locals: Vec<(
             OperationId,
             StructuralPlaceDeclaration,
@@ -368,7 +368,7 @@ pub mod ownership {
         pub successor_operation_ordinal: usize,
         pub source_block: BlockId,
         pub target_block: BlockId,
-        pub bindings: Vec<abstract_operations::ValueBinding>,
+        pub bindings: Vec<native_vocabulary::values::ValueBinding>,
         pub cleanup: UnitAffineCleanupRecord, // Zero-byte cleanup boundary before the successor's first operation.
     }
 
@@ -391,7 +391,7 @@ pub mod ownership {
 pub mod provenance {
     use super::*;
 
-    pub type SemanticCodeSite = optimization_unit::PsiProvenance;
+    pub type SemanticCodeSite = native_vocabulary::provenance::PsiProvenance;
 
     pub fn semantic_code_site(site: InvocationSite) -> SemanticCodeSite {
         match site {

@@ -1,4 +1,4 @@
-//! Authenticate logical storage snapshots against invocation entry or an exact
+//! Authenticate logical storage snapshots at their owner's entry or an exact
 //! call's normal return. Names alone establish no value or type guarantee.
 
 use terminal_check_tables::values::ValueOrigin;
@@ -103,21 +103,43 @@ impl Storage<'_> {
         })
     }
 
-    pub(super) fn initial_contents_are_declared(&self, tables: &MachineTables) -> Checked<()> {
+    pub(super) fn initial_contents_are_declared(&mut self, tables: &MachineTables) -> Checked<()> {
         for (value, row) in tables.values.iter() {
             let ValueOrigin::StorageContent { place, after } = row.origin else {
                 continue;
             };
             let concerns = Construct::Value(value);
             let leaf = lineage(self.machine, &tables.places, place)?;
-            let supported = match after {
-                None => matches!(
-                    self.root_kind(leaf.root, concerns)?,
-                    StructuralPlaceKind::Parameter { .. }
-                ),
+            let (supported, block_entry) = match after {
+                None => match self.root_kind(leaf.root, concerns)? {
+                    StructuralPlaceKind::Parameter { .. } => (true, None),
+                    StructuralPlaceKind::BlockParameter { block, .. } => (
+                        terminal_psi::StructuralParameterDeclaration::find_by_place(
+                            &self.block(block)?.structural_parameters,
+                            leaf.root,
+                        )
+                        .is_some_and(|formal| {
+                            terminal_psi::structural_access_covers(
+                                formal.access,
+                                terminal_psi::StructuralAccess::SharedBorrow,
+                            )
+                        }) && leaf.segments.iter().all(|segment| {
+                            matches!(
+                                segment,
+                                Segment::Field(_)
+                                    | Segment::Case(_)
+                                    | Segment::FixedIndex(_)
+                                    | Segment::Referent
+                                    | Segment::Extent
+                            )
+                        }),
+                        Some(block),
+                    ),
+                    _ => (false, None),
+                },
                 Some(call) => {
                     self.call_content_boundary(call, &leaf, concerns)?;
-                    true
+                    (true, None)
                 }
             };
             if !supported
@@ -126,8 +148,92 @@ impl Storage<'_> {
                 return Err(self.foreign(concerns,
                     "an initial content value of storage that is no scalar leaf of a formal or declared call result"));
             }
+            if let Some(block) = block_entry {
+                // A borrowed formal has the same backing as its incoming
+                // loan. Use that backing for reads and overlapping writes.
+                let backed = self.backing(&leaf, block, 0, concerns)?;
+                self.observations[index(block.get())]
+                    .entry(backed)
+                    .or_default()
+                    .push(Observation {
+                        point: ProgramPoint::BlockEntry(block),
+                        position: 0,
+                        value,
+                    });
+            }
         }
         Ok(())
+    }
+
+    /// Identify snapshots that are rebound if a trace crosses their block's
+    /// entry. Invocation contents remain fixed across the whole invocation.
+    pub(super) fn observation_block(
+        &self,
+        tables: &MachineTables,
+        value: ValueId,
+        concerns: Construct,
+    ) -> Checked<Option<BlockId>> {
+        match tables.values.get(value).map(|row| row.origin) {
+            Some(ValueOrigin::Operation(operation))
+                if self
+                    .read_leaf(self.operation(operation, concerns)?)?
+                    .is_some() =>
+            {
+                let (owner, _) = self.graph.locate(ProgramPoint::AfterOperation(operation))?;
+                Ok(Some(owner))
+            }
+            Some(ValueOrigin::StorageContent { place, after: None }) => {
+                let leaf = lineage(self.machine, &tables.places, place)?;
+                match self.root_kind(leaf.root, concerns)? {
+                    StructuralPlaceKind::BlockParameter { block, .. } => Ok(Some(block)),
+                    _ => Ok(None),
+                }
+            }
+            _ => Ok(None),
+        }
+    }
+
+    /// A formal arrives as a valid value of its declared type: its caller
+    /// proved the type's `requires` clauses where it passed the value
+    /// (dependent_values.md: "no consumption sees the value outside its
+    /// required domain"). So the clauses of each data type a formal's
+    /// leaf lies in hold of what that leaf held at entry, stated on its
+    /// entry value as a read of it would state them (`Storage::premises`).
+    /// The body then knows them wherever that value goes: copied into the
+    /// result or passed to a call, not only where a scalar read of the
+    /// formal's field observes it. A write-only formal arrives holding
+    /// nothing its caller established, so its entry contents learn nothing.
+    pub(crate) fn entry_type_premises(&self, tables: &MachineTables) -> Checked<Vec<Proposition>> {
+        let entry = (self.graph.entry(), 0);
+        let mut premises = Vec::new();
+        for (value, row) in tables.values.iter() {
+            let ValueOrigin::StorageContent { place, after: None } = row.origin else {
+                continue;
+            };
+            let concerns = Construct::Value(value);
+            let leaf = lineage(self.machine, &tables.places, place)?;
+            let readable = terminal_psi::StructuralParameterDeclaration::find_by_place(
+                &self.lowered.structural_parameters,
+                leaf.root,
+            )
+            .is_some_and(|formal| {
+                terminal_psi::structural_access_covers(
+                    formal.access,
+                    terminal_psi::StructuralAccess::SharedBorrow,
+                )
+            });
+            if !readable {
+                continue;
+            }
+            premises.extend(self.premises(
+                tables,
+                &leaf,
+                (value, row.scalar_type),
+                entry,
+                concerns,
+            )?);
+        }
+        Ok(premises)
     }
 
     /// Type validity is a call guarantee even without an authored `ensures`.

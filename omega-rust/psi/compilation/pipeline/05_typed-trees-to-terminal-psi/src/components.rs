@@ -12,7 +12,9 @@ loop (`lower`: one head block per member, a jump for each call between
 members) when every call between its members stands in terminal position,
 where the call's result completes the caller. Source nesting plays no part:
 `wiki/spec/terminal-psi/control_flow.md`, "Source nesting does not bound the
-component or justify any edge."
+component or justify any edge." The lowered graph checks its invocation's
+published guarantees at every normal return. A jump within the component
+supplies no callee guarantee.
 
 Everything else about a cycle that the loops lane has not yet served is
 refused here by name, as `Unsupported`, before anything is lowered
@@ -157,9 +159,6 @@ pub(crate) fn components(
                 return unserved(Unserved::Machine(
                     "value of a type parameter on a call cycle",
                 ));
-            }
-            if !signature.ensures.is_empty() {
-                return unserved(Unserved::Contract("ensures on a call cycle"));
             }
             if let CrashCeiling::Authored(routes) = &signature.crashes
                 && routes.iter().any(|bucket| {

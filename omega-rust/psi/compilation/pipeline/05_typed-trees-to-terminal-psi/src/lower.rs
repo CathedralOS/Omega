@@ -1118,6 +1118,14 @@ impl<'a> Lowering<'a> {
             });
         }
         self.slots = entered_bindings;
+        // The invocation forwards these values into its first head without
+        // a source-level read. Name their scalar leaves just as an ordinary
+        // call capture does, so inferred head requirements can observe the
+        // exact invocation input. These names supply no predicates.
+        for formal in &formals.records {
+            let actual = self.exact_root(formal.place)?;
+            self.name_contents(actual, ValueType::record(formal.structural_type))?;
+        }
         let entered: Vec<ValueId> = formals.scalars.iter().map(|formal| formal.id).collect();
         let structural = formals
             .records

@@ -1177,9 +1177,11 @@ fn binary_expression(
 /// a builtin comparison relates the exact integer values of its operands,
 /// whatever their widths or signedness. Widening the narrower operand to a
 /// fixed carrier that holds every value of both keeps each value exactly, so
-/// comparing there is that relation. Operands that carry a domain or policy,
-/// and pairs no fixed carrier holds (`u128` with a signed partner), are left
-/// unchanged for selection to judge.
+/// comparing there is that relation. The common carrier is at most 64 bits:
+/// native code has no widening into `i128`, so a pair that needs one (`u64`
+/// with a signed partner) stays refused rather than passing the checker and
+/// failing in native lowering. Operands that carry a domain or policy are
+/// left unchanged for selection to judge.
 fn comparison_operands(
     operator: BinaryOperator,
     left: Expression,
@@ -1213,7 +1215,7 @@ fn comparison_operands(
     } else if right_type.can_widen_to(left_type) {
         Some(left_type)
     } else {
-        [16, 32, 64, 128]
+        [16, 32, 64]
             .into_iter()
             .filter_map(|bits| IntegerType::new(IntegerSign::Signed, bits).ok())
             .find(|carrier| left_type.can_widen_to(*carrier) && right_type.can_widen_to(*carrier))
@@ -1855,7 +1857,8 @@ mod tests {
 
     /// A comparison relates exact values across widths and signedness; the
     /// narrower operand widens to a carrier holding both. Arithmetic still
-    /// needs one carrier, and a pair no fixed carrier holds stays refused.
+    /// needs one carrier, and a pair with no common carrier of at most 64 bits
+    /// stays refused.
     #[test]
     fn a_comparison_widens_operands_of_different_integer_carriers() {
         let integer = |sign, bits| {
@@ -1890,6 +1893,11 @@ mod tests {
                 neither
             )
             .unwrap_err(),
+            "typing operand types"
+        );
+        // `u64` against `i32` would need `i128`, which native code cannot widen to.
+        assert_eq!(
+            typed(BinaryOperator::Less, u64_, i32_, neither).unwrap_err(),
             "typing operand types"
         );
     }

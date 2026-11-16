@@ -51,6 +51,8 @@ use semantic_vocabulary::{
     PropositionContext, ScalarTerm, ScalarType, ValueId,
 };
 
+#[path = "prove/float_integer.rs"]
+mod float_integer;
 #[path = "prove/float_meaning.rs"]
 mod float_meaning;
 #[path = "prove/ieee_float_order.rs"]
@@ -107,12 +109,16 @@ fn covered(
     }
     match goal {
         Proposition::Truth | Proposition::Falsehood => true,
-        Proposition::ScalarIeeeFloatComparison { .. } | Proposition::FloatMeaningEqual(_) => true,
+        Proposition::ScalarIeeeFloatComparison { .. }
+        | Proposition::FloatMeaningEqual(_)
+        | Proposition::FloatIntegerConversion(_)
+        | Proposition::IeeeFloatIntegerExact { .. } => true,
         Proposition::Conjunction(parts) | Proposition::Disjunction(parts) => {
             parts.iter().all(|part| covered(part, fixed, width))
         }
         // The premise is only assumed; the conclusion is what is proved.
         Proposition::Implication { conclusion, .. } => covered(conclusion, fixed, width),
+        Proposition::Equal(left, right) if byte_predicate_goal(left, right) => true,
         Proposition::LessOrEqual(left, right)
         | Proposition::LessThan(left, right)
         | Proposition::Equal(left, right) => {
@@ -168,6 +174,19 @@ fn covered(
         }
         _ => false,
     }
+}
+
+fn byte_predicate_goal(left: &ScalarTerm, right: &ScalarTerm) -> bool {
+    matches!(
+        (left, right),
+        (
+            ScalarTerm::ByteSequencePredicate { .. },
+            ScalarTerm::Boolean(true)
+        ) | (
+            ScalarTerm::Boolean(true),
+            ScalarTerm::ByteSequencePredicate { .. }
+        )
+    )
 }
 
 /// `covered` with no value fixed: the goal's form as written.
@@ -295,6 +314,7 @@ pub(crate) struct Prover<'a> {
     axioms: &'a [Proposition],
     values: &'a dyn ProofValues,
     facts: Vec<Fact>,
+    float_integer_equalities: float_integer::Equalities,
     /// Checked definitions for transport: Boolean values, literals, exact
     /// initial-content aliases, and semantic integer expressions retaining
     /// their selected arithmetic meaning, each citing its prepared fact.
@@ -443,6 +463,7 @@ impl<'a> Prover<'a> {
             arrival_equations,
             arrival_definitions,
         } = crate::known::Known::new(context, assumptions, axioms, values);
+        let float_integer_equalities = float_integer::Equalities::new(&facts);
         let transport = crate::known::TransportInputs::new(equations.len());
         Self {
             context,
@@ -450,6 +471,7 @@ impl<'a> Prover<'a> {
             axioms,
             values,
             facts,
+            float_integer_equalities,
             equations,
             definitions,
             arrival_equations,
@@ -598,7 +620,17 @@ impl<'a> Prover<'a> {
     }
 
     fn closed(&self, proposition: Proposition) -> Option<ProofNode> {
-        let judgment = if matches!(proposition, Proposition::ScalarIeeeFloatComparison { .. })
+        let integer_conversion = |proposition: &Proposition| {
+            matches!(
+                proposition,
+                Proposition::FloatIntegerConversion(_) | Proposition::IeeeFloatIntegerExact { .. }
+            )
+        };
+        let judgment = if integer_conversion(&proposition)
+            || matches!(&proposition, Proposition::Implication { premise, conclusion } if **conclusion == Proposition::Falsehood && integer_conversion(premise))
+        {
+            PrimitiveJudgment::ClosedFloatIntegerRelation
+        } else if matches!(proposition, Proposition::ScalarIeeeFloatComparison { .. })
             || matches!(&proposition, Proposition::Implication { premise, conclusion }
                 if **conclusion == Proposition::Falsehood && matches!(**premise, Proposition::ScalarIeeeFloatComparison { .. }))
         {
@@ -732,7 +764,7 @@ impl<'a> Prover<'a> {
                     // machine publishes no route for its cause. It holds
                     // only where what is known is contradictory.
                     | Proposition::Falsehood
-            )
+            ) && !covered(goal, &|_| false, &|_| false)
         {
             return direct;
         }
@@ -1134,6 +1166,11 @@ impl<'a> Prover<'a> {
                 if let Some(proof) = self.closed(goal.clone()) {
                     return Ok(proof);
                 }
+                if byte_predicate_goal(left, right)
+                    && let Some(proof) = self.by_byte_implication(goal)
+                {
+                    return Ok(proof);
+                }
                 if !matches!(left.scalar_type(), ScalarType::Integer(_)) {
                     return Err("equality of non-integers is proved only by a hypothesis");
                 }
@@ -1177,15 +1214,56 @@ impl<'a> Prover<'a> {
             | Proposition::StructuralCaseMembership { .. }
             | Proposition::ContentConservation(_) => Err("goal form outside this prover"),
             Proposition::FloatMeaningEqual(_) => self.float_meaning(goal),
+            Proposition::IeeeFloatIntegerExact { .. } => self
+                .closed(goal.clone())
+                .or_else(|| self.float_integer_conversion(goal))
+                .ok_or("the live float facts do not establish an exact integer cast"),
+            Proposition::FloatIntegerConversion(_) => self
+                .closed(goal.clone())
+                .ok_or("the integer conversion result relation is not established"),
             Proposition::ScalarIeeeFloatComparison { .. } => self
                 .closed(goal.clone())
                 .or_else(|| self.ieee_float_order(goal))
-                .ok_or("the IEEE order premises do not establish this comparison"),
+                .or_else(|| self.float_integer_conversion(goal))
+                .ok_or("the IEEE premises do not establish this comparison"),
             Proposition::Implication {
                 premise,
                 conclusion,
             } => self.implication(premise, conclusion, goal),
         }
+    }
+
+    fn by_byte_implication(&mut self, goal: &Proposition) -> Option<ProofNode> {
+        for index in 0..self.facts.len() {
+            let Proposition::Implication {
+                premise,
+                conclusion,
+            } = &self.facts[index].proposition
+            else {
+                continue;
+            };
+            if !conclusion.same_commutative_predicate(goal) {
+                continue;
+            }
+            let premise = premise.clone();
+            let conclusion = conclusion.as_ref().clone();
+            let Ok(premise) = self.prove(&premise) else {
+                continue;
+            };
+            let result = node(
+                conclusion,
+                ProofRule::ImplicationElimination {
+                    implication: Box::new(self.facts[index].proof(&self.facts)),
+                    premise: Box::new(premise),
+                },
+            );
+            return if result.conclusion == *goal {
+                Some(result)
+            } else {
+                flip(result).ok()
+            };
+        }
+        None
     }
 
     /// `left <= right` or `left < right` from the left side's upper bound and

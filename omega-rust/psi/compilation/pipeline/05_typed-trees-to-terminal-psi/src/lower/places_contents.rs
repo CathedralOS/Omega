@@ -77,6 +77,19 @@ impl ClauseBindings for Named {
         })
     }
 
+    fn byte_predicate(
+        &mut self,
+        predicate: semantic_vocabulary::ByteSequencePredicate,
+        root: PlaceId,
+        selected: &[CanonicalStructuralPathSegment],
+    ) -> Result<ScalarTerm, Self::Error> {
+        Ok(ScalarTerm::byte_sequence_predicate(
+            predicate,
+            root,
+            selected.to_vec(),
+        ))
+    }
+
     fn case(
         &mut self,
         _: PlaceId,
@@ -134,6 +147,7 @@ impl Lowering<'_> {
                 .ok_or_else(|| self.internal("a storage observation identity overflow"))?;
             let mut at = leaf;
             let mut calls = Vec::<OperationId>::new();
+            let mut block_observation = true;
             let root = loop {
                 let row = self
                     .tables
@@ -155,13 +169,42 @@ impl Lowering<'_> {
                 }
                 match row.origin {
                     PlaceOrigin::Root(root) => break root,
-                    PlaceOrigin::Projection { parent, .. } => at = parent,
+                    PlaceOrigin::Projection { parent, segment } => {
+                        block_observation &= matches!(
+                            segment,
+                            Segment::Field(_)
+                                | Segment::Case(_)
+                                | Segment::FixedIndex(_)
+                                | Segment::Referent
+                                | Segment::Extent
+                        );
+                        at = parent;
+                    }
                 }
             };
-            if matches!(
-                self.roots.get(root).map(|(kind, _)| kind),
-                Some(StructuralPlaceKind::Parameter { .. })
-            ) {
+            // Inference discovers a helper's condition after lowering. Every
+            // demanded, readable field therefore needs its entry name, even
+            // when no authored header clause named it. Runtime selectors do
+            // not have a binding at that entry and cannot name a snapshot.
+            let named_entry = match self.roots.get(root).map(|(kind, _)| kind) {
+                Some(StructuralPlaceKind::Parameter { .. }) => true,
+                Some(StructuralPlaceKind::BlockParameter { block, position })
+                    if block_observation =>
+                {
+                    let formal = self
+                        .blocks
+                        .get(*block)
+                        .and_then(|body| body.structural_parameters.get(*position as usize))
+                        .filter(|formal| formal.place == root)
+                        .ok_or_else(|| self.internal("a block content has no structural formal"))?;
+                    terminal_psi::structural_access_covers(
+                        formal.access,
+                        terminal_psi::StructuralAccess::SharedBorrow,
+                    )
+                }
+                _ => false,
+            };
+            if named_entry {
                 self.value(
                     scalar_type,
                     ValueOrigin::StorageContent {

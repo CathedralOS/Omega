@@ -15,6 +15,7 @@ use terminal_check_tables::{Checked, Construct};
 use typed_trees::closed_numeric;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
+use typed_trees::types::TypeReferenceHandle;
 
 use super::authority::Access;
 use super::places::Member;
@@ -418,6 +419,30 @@ impl Program<'_> {
             let right = self.term(id, scope, binary.right, expected)?;
             (left, right)
         };
+        // Core policy comparisons have the same exact declared signatures
+        // as executable comparisons. Plain cross-carrier comparisons keep
+        // their separately specified mathematical-value relation below.
+        let policy_qualified = |value_type| {
+            matches!(value_type,
+            ValueType::Scalar(_, qualification) if qualification.policy.is_some())
+        };
+        if policy_qualified(left_type) || policy_qualified(right_type) {
+            super::expressions::binary_selection(
+                id,
+                comparison,
+                Some(left_type),
+                Some(right_type),
+                (
+                    self.wholly_anonymous(binary.left),
+                    self.wholly_anonymous(binary.right),
+                ),
+                None,
+                (
+                    SourceOrigin::of(typed.expression_table.source_span(binary.left)),
+                    SourceOrigin::of(typed.expression_table.source_span(binary.right)),
+                ),
+            )?;
+        }
         let left_type = self.clause_operand_type(id, left_type)?;
         let right_type = self.clause_operand_type(id, right_type)?;
         // Integers of different types compare by their exact values ("The
@@ -1741,7 +1766,7 @@ impl Program<'_> {
     /// The alternatives of a finite type family, each as the type its one
     /// type parameter is fixed to: the machine `symbol` has exactly one type
     /// parameter and one `requires` clause that is a disjunction of type
-    /// equations between that parameter and a builtin scalar type, `requires
+    /// equations between that parameter and a closed scalar or record type, `requires
     /// T == u32 || T == u64`. generics.md, "Static type equality": "Checking
     /// the body once per listed alternative, each with `T` fixed to that
     /// type, satisfies this rule for a finite family; the list is closed".
@@ -1751,7 +1776,7 @@ impl Program<'_> {
         &self,
         id: MachineId,
         symbol: SymbolHandle,
-    ) -> Checked<Vec<Vec<ValueType>>> {
+    ) -> Checked<Vec<Vec<TypeReferenceHandle>>> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Machine(what)));
         let (machine, _) = self.declaration(id, symbol)?;
         let [parameter] = self.typed.machine_type_parameters(machine) else {
@@ -1764,39 +1789,40 @@ impl Program<'_> {
         }
         let table = &self.typed.expression_table;
         let types = &self.typed.type_reference_table;
-        let named =
+        let operand =
             |handle: ExpressionHandle| match handle.is_valid().then(|| table.expression(handle)) {
-                Some(ExpressionNode::TypeExpression(reference)) if reference.is_valid() => {
-                    match types.type_reference(*reference) {
-                        typed_trees::types::TypeReferenceNode::Named { symbol, .. }
-                            if symbol.is_valid() =>
-                        {
-                            Some(*symbol)
-                        }
-                        _ => None,
-                    }
+                Some(ExpressionNode::TypeExpression(reference))
+                    if types.contains_type_reference(*reference) =>
+                {
+                    Some(*reference)
                 }
                 _ => None,
             };
         // One alternative per disjunct `T == X`, either way round, with `X`
-        // a builtin scalar type.
-        let alternative = |disjunct: ExpressionHandle| -> Option<ScalarType> {
+        // a closed scalar or record type. Keep its source reference here;
+        // a record identity belongs to the reader that materializes it.
+        let alternative = |disjunct: ExpressionHandle| -> Option<TypeReferenceHandle> {
             let ExpressionNode::Binary(binary) = table.expression(disjunct) else {
                 return None;
             };
             if binary.operator != BinaryOperator::Equal {
                 return None;
             }
-            let (left, right) = (named(binary.left)?, named(binary.right)?);
-            let other = match (left == parameter.symbol, right == parameter.symbol) {
+            let (left, right) = (operand(binary.left)?, operand(binary.right)?);
+            let binder = |reference| matches!(types.type_reference(reference), typed_trees::types::TypeReferenceNode::Named {symbol, ..} if *symbol == parameter.symbol);
+            let other = match (binder(left), binder(right)) {
                 (true, false) => right,
                 (false, true) => left,
                 _ => return None,
             };
-            let atom = self.typed.symbols.builtin_type_atom(other)?;
-            super::types::atom_type(atom, id).ok()
+            if self.scalar_type(id, other).is_ok() {
+                return Some(other);
+            }
+            let data = self.typed.closed_data_definition(other)?;
+            super::source_records::source_application(self.typed, data, other, id).ok()?;
+            Some(other)
         };
-        let mut found: Option<Vec<Vec<ValueType>>> = None;
+        let mut found: Option<Vec<Vec<TypeReferenceHandle>>> = None;
         let contracts = super::span(
             &self.typed.signature_contracts,
             machine.contracts,
@@ -1811,7 +1837,7 @@ impl Program<'_> {
                 let expression = self.fact(id, fact)?;
                 let mut disjuncts = Vec::new();
                 self.disjuncts(expression, &mut disjuncts);
-                let listed: Option<Vec<ScalarType>> = disjuncts
+                let listed: Option<Vec<TypeReferenceHandle>> = disjuncts
                     .iter()
                     .map(|disjunct| disjunct.is_valid().then(|| alternative(*disjunct))?)
                     .collect();
@@ -1821,11 +1847,14 @@ impl Program<'_> {
                 if found.is_some() {
                     return unserved("finite family listed by two clauses");
                 }
-                let mut alternatives: Vec<Vec<ValueType>> = Vec::new();
-                for scalar_type in listed {
-                    let alternative = vec![ValueType::Scalar(scalar_type, Qualification::NONE)];
-                    if !alternatives.contains(&alternative) {
-                        alternatives.push(alternative);
+                let mut alternatives: Vec<Vec<TypeReferenceHandle>> = Vec::new();
+                for reference in listed {
+                    let identity = self.typed.normalized_type_identity(reference);
+                    if !alternatives
+                        .iter()
+                        .any(|known| self.typed.normalized_type_identity(known[0]) == identity)
+                    {
+                        alternatives.push(vec![reference]);
                     }
                 }
                 found = Some(alternatives);

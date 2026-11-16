@@ -13,8 +13,9 @@ use super::structural_types::{
 };
 use super::{encode_ids, encode_len, encode_option, encode_work};
 use crate::{LegalizedBoundarySettlement, NativeCallOrigin};
-use abstract_operations::CompletionClaimSource;
-use optimization_unit::{EffectLink, OwnershipEvent};
+use native_vocabulary::completion_claims::CompletionClaimSource;
+use native_vocabulary::provenance::EffectLink;
+use native_vocabulary::provenance::OwnershipEvent;
 use semantic_vocabulary::{
     ContentAlgebra, ContentAlgebraKind, ContentPlaceSegment, ContentPlaceVersion,
 };
@@ -47,14 +48,14 @@ pub(super) fn encode_boundary_settlement(
 
 pub fn encode_external_execution(
     bytes: &mut Vec<u8>,
-    execution: target_operations::ExternalExecutionBinding,
+    execution: target_vocabulary::ExternalExecutionBinding,
 ) {
     match execution {
-        target_operations::ExternalExecutionBinding::Provider(provider) => {
+        target_vocabulary::ExternalExecutionBinding::Provider(provider) => {
             bytes.push(0);
             encode_provider_execution(bytes, provider);
         }
-        target_operations::ExternalExecutionBinding::NativeBinding(native) => {
+        target_vocabulary::ExternalExecutionBinding::NativeBinding(native) => {
             bytes.push(1);
             bytes.extend_from_slice(&native.receipt());
             bytes.extend_from_slice(&native.contract());
@@ -65,7 +66,7 @@ pub fn encode_external_execution(
 
 pub fn encode_provider_execution(
     bytes: &mut Vec<u8>,
-    execution: target_operations::ProviderExecutionBinding,
+    execution: target_vocabulary::ProviderExecutionBinding,
 ) {
     bytes.extend_from_slice(
         &execution

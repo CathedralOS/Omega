@@ -31,10 +31,10 @@ dominates the join. Authored invariant scope follows control_flow.md.
   the first's predicate is the one alternative that produced it, and that
   is what the second join can still say.
 
-What a formal's storage held at entry is in the scope beside the formals: it
-is one value for the whole invocation, and a read no store reaches is defined
-as it, so a guard over a formal's fields crosses a join as a guard over the
-formals does.
+An exact storage snapshot has the same scope as the formal that owns it.
+A block formal's snapshot is rebound at every entry. A read with no
+overlapping store sees that snapshot, so a guard over a field crosses the
+same join as a guard over the formal itself.
 
 A part that still names a value outside the scope is left out, which only
 weakens the disjunct. Each arrival's obligation is then that predicate under
@@ -52,7 +52,7 @@ Nothing here reads a name or text: values are compared by identity.
 use proof_admission::{check_value_equality_denotation, check_value_equality_substitution};
 use semantic_vocabulary::{
     BlockId, EdgeId, MachineId, ObligationId, Proposition, PropositionContext, ScalarTerm,
-    ScalarType, ValueId,
+    ScalarType, StructuralPlaceKind, ValueId,
 };
 use terminal_check_tables::edges::Destination;
 use terminal_check_tables::obligations::ObligationKind;
@@ -216,7 +216,13 @@ fn available_value(
     {
         Some((ValueOrigin::MachineParameter { .. }, _)) => true,
         Some((ValueOrigin::StorageContent { place, after: None }, _)) => {
-            crate::places::input_content(lowered, tables, place)
+            match crate::places::content_root_kind(lowered, tables, place) {
+                Some(StructuralPlaceKind::Parameter { .. }) => true,
+                Some(StructuralPlaceKind::BlockParameter { block: owner, .. }) => {
+                    owner == block || dominates(ProgramPoint::BlockEntry(owner))
+                }
+                _ => false,
+            }
         }
         Some((ValueOrigin::BlockParameter { block: owner, .. }, _)) => {
             owner == block || dominates(ProgramPoint::BlockEntry(owner))
@@ -473,7 +479,8 @@ fn describe(
         matches!(term, ScalarTerm::Value { id, .. }
         if matches!(
             tables.values.get(*id).map(|row| row.origin),
-            Some(ValueOrigin::StorageContent { place, after: None }) if crate::places::input_content(lowered, tables, place)
+            Some(ValueOrigin::StorageContent { after: None, .. })
+                if available_value(lowered, tables, dominating_bindings, join.id, *id)
         ))
     };
     let mut equations: Vec<&Proposition> = available

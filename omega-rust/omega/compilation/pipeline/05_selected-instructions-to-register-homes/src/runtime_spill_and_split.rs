@@ -10,8 +10,8 @@ pub(crate) use crate::rewrites::*;
 
 pub(crate) mod runtime_rematerialization {
     pub(crate) mod admission {
+        use native_vocabulary::provenance::ValueDefinitionSite;
         use optimization_core::OptimizationWorkBudget;
-        use optimization_unit::ValueDefinitionSite;
         use register_environment::ValidatedTargetRegisterEnvironment;
         use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
         use selected_instructions::{
@@ -3489,7 +3489,7 @@ pub(crate) mod runtime_spill {
         span_policy: RuntimeSpillSpanPolicy,
         budget: optimization_core::OptimizationWorkBudget,
     ) -> Result<RuntimeSpillDerivation<'source>, RuntimeSpillError> {
-        use optimization_unit::ValueDefinitionSite;
+        use native_vocabulary::provenance::ValueDefinitionSite;
         use register_model::RegisterOperandAccess;
         use selected_instructions::{
             LocalStorageSlotId, SelectedBlockOrigin, SelectedCasePayloadTransport,
@@ -4887,8 +4887,8 @@ pub(crate) mod runtime_spill {
 
 pub(crate) mod runtime_split {
     pub(crate) mod admission {
+        use native_vocabulary::provenance::ValueDefinitionSite;
         use optimization_core::OptimizationWorkBudget;
-        use optimization_unit::ValueDefinitionSite;
         use register_environment::ValidatedTargetRegisterEnvironment;
         use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
         use selected_instructions::{

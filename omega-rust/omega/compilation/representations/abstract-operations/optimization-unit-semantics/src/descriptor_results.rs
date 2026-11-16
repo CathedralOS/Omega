@@ -1535,7 +1535,7 @@ fn adapt(
                     operation,
                 )
                 .into_iter()
-                .map(DescriptorLocation::whole)
+                .map(|place| (Some(DescriptorLocation::whole(place)), None))
                 .collect(),
                 ..Default::default()
             };
@@ -1700,7 +1700,7 @@ fn adapt(
                 }
                 O::ReleaseReference { source, path, .. } => {
                     let source = location(*source, path, None)?;
-                    step.inputs = vec![source.clone()];
+                    step.inputs = vec![(Some(source.clone()), None)];
                     step.definitions.push(source);
                 }
                 O::ByteSequenceLength { source, .. } | O::ElementViewLength { source, .. } => {
@@ -1711,7 +1711,7 @@ fn adapt(
                         &source.path,
                         None,
                     )?;
-                    step.inputs = vec![query.observation()];
+                    step.inputs = vec![(Some(query.observation()), None)];
                 }
                 O::EstablishByteSequenceLiteral { place, .. } => {
                     graph.payload_producers.insert(position, place.id);
@@ -1840,7 +1840,7 @@ fn adapt(
                         None,
                     )?;
                     let source = query.observation();
-                    step.inputs = vec![source.clone()];
+                    step.inputs = vec![(Some(source.clone()), None)];
                     let destination = DescriptorLocation::whole(result.place);
                     step.derivations.push((source.clone(), destination.clone()));
                     graph
@@ -1880,7 +1880,7 @@ fn adapt(
                         ),
                     };
                     if let Some(source) = source {
-                        step.inputs = vec![source.clone()];
+                        step.inputs = vec![(Some(source.clone()), None)];
                         step.derivations.push((source, destination.clone()));
                     } else {
                         step.may_escape = true;
@@ -1897,7 +1897,7 @@ fn adapt(
                 }
                 abstract_operations::byte_len_or_field_read_pattern!(source, path, field, ..) => {
                     if let Some(source) = location(*source, path, Some(*field)) {
-                        step.inputs = vec![source];
+                        step.inputs = vec![(Some(source), None)];
                     } else {
                         step.may_escape = true;
                     }
@@ -1932,7 +1932,7 @@ fn adapt(
                     );
                     if let Some(source) = location(source.place(), path, *field) {
                         let destination = DescriptorLocation::whole(result.place);
-                        step.inputs = vec![source.clone()];
+                        step.inputs = vec![(Some(source.clone()), None)];
                         step.definitions.push(source.clone());
                         step.derivations.push((source, destination));
                     } else {
@@ -2451,10 +2451,13 @@ fn adapt(
                 } => {
                     step.inputs.clear();
                     for argument in structural_arguments {
-                        step.inputs.push(
-                            location(argument.place, &argument.path, None)
-                                .unwrap_or_else(|| DescriptorLocation::whole(argument.place)),
-                        );
+                        step.inputs.push((
+                            Some(
+                                location(argument.place, &argument.path, None)
+                                    .unwrap_or_else(|| DescriptorLocation::whole(argument.place)),
+                            ),
+                            None,
+                        ));
                     }
                     step.may_escape = true;
                 }
@@ -2621,7 +2624,13 @@ fn adapt(
                     {
                         return None;
                     }
-                    step.inputs.extend(call.arguments.iter().flatten().cloned());
+                    step.inputs.extend(
+                        call.arguments
+                            .iter()
+                            .flatten()
+                            .cloned()
+                            .map(|input| (Some(input), None)),
+                    );
                     kernel::insert_invocation(&mut graph.calls, position, call)?;
                 }
             }
@@ -2631,11 +2640,12 @@ fn adapt(
                         parameter.access,
                         terminal_psi::exclusive_borrow_pair_pattern!()
                     ) {
-                        step.inputs.extend(slot_kind.slots(
-                            types,
-                            parameter.place,
-                            parameter.structural_type,
-                        )?);
+                        step.inputs.extend(
+                            slot_kind
+                                .slots(types, parameter.place, parameter.structural_type)?
+                                .into_iter()
+                                .map(|input| (Some(input), None)),
+                        );
                     }
                 }
             }
@@ -2759,7 +2769,7 @@ fn adapt(
                                 ),
                             )
                         };
-                        step.inputs.push(source.observation());
+                        step.inputs.push((Some(source.observation()), None));
                         if parameter.access == StructuralAccess::Owned
                             && parameter.multiplicity
                                 != terminal_psi::StructuralMultiplicity::Unrestricted

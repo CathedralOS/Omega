@@ -478,7 +478,7 @@ pub(crate) mod atomic_outcome {
             })
             .ok_or_else(invalid)?;
         let integer = source.closed_integer(integer).ok_or_else(invalid)?;
-        if target_operations::conventional_atomic_once_layout_closed(declaration, integer, custody)
+        if target_vocabulary::conventional_atomic_once_layout_closed(declaration, integer, custody)
             .as_ref()
             != Some(layout)
         {
@@ -2748,7 +2748,7 @@ pub(crate) mod indirect_results {
         placement: &calling_conventions::ValuePlacement,
         builder: &mut Builder<'_>,
         cleanup_calls: &[(
-            target_operations::CallSiteOwner,
+            target_vocabulary::CallSiteOwner,
             legalized_operations::LegalizedScalarCall,
         )],
         environment: &register_environment::ValidatedTargetRegisterEnvironment,
@@ -3383,7 +3383,7 @@ pub(crate) mod ieee_float_classify {
     };
     use crate::SelectedInstructionError;
     use selected_instructions::{IeeeFloatArithmeticForm, LocalStorageSlotId, MachineSemanticKind};
-    use target_operations::IeeeFloatArithmeticOperation;
+    use target_vocabulary::IeeeFloatArithmeticOperation;
 
     pub(crate) fn establish(
         source: &crate::native_geometry::NativeFunction<'_>,
@@ -3406,7 +3406,7 @@ pub(crate) mod ieee_float_classify {
                 .ok_or_else(invalid)?;
         if !result.is_unrestricted_plain()
             || !result.qualification_establishments.is_empty()
-            || target_operations::conventional_float_class_layout(declaration).as_ref()
+            || target_vocabulary::conventional_float_class_layout(declaration).as_ref()
                 != Some(layout)
         {
             return Err(invalid());
@@ -4461,7 +4461,7 @@ pub(crate) mod runtime_address {
         }
     }
 
-    impl PreparedPointerChase for target_operations::TargetCasePointerSlot {
+    impl PreparedPointerChase for target_vocabulary::TargetCasePointerSlot {
         fn byte_offset(&self) -> u32 {
             self.byte_offset
         }

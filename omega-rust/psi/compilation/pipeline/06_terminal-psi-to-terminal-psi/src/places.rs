@@ -237,8 +237,8 @@ fn asked_root(asked: Asked<'_>) -> PlaceId {
     asked.place().root
 }
 
-/// Logical values indexed by exact place at entry and by (call, place) on
-/// return. The producer lists snapshots in (place, boundary) order, so
+/// Logical values indexed by exact place at its owner's entry and by
+/// (call, place) on return. The producer lists snapshots in (place, boundary) order, so
 /// duplicate or exchanged identities cannot change which leaf a clause names.
 struct Contents {
     entry: Vec<Option<ValueId>>,
@@ -294,15 +294,13 @@ fn initial_contents(
     Ok(contents)
 }
 
-/// Only invocation formals have invocation-wide initial contents. A call
-/// result's fresh contents cannot become a block predicate's entry premise.
-/// An unavailable owner remains outside scope; storage validation independently
-/// refuses malformed owner tables.
-pub(crate) fn input_content(
+/// The declaration says which entry binds the snapshot. Joins apply that
+/// entry's scope; storage validation independently checks the owner and leaf.
+pub(crate) fn content_root_kind(
     lowered: &TerminalMachine,
     tables: &MachineTables,
     place: ExactPlaceId,
-) -> bool {
+) -> Option<StructuralPlaceKind> {
     lineage(lowered.id, &tables.places, place)
         .ok()
         .and_then(|source| {
@@ -311,7 +309,7 @@ pub(crate) fn input_content(
                 .get(index(source.root.get()))
                 .filter(|root| root.id == source.root)
         })
-        .is_some_and(|root| matches!(root.kind, StructuralPlaceKind::Parameter { .. }))
+        .map(|root| root.kind)
 }
 
 /// What one scalar leaf holds on every path to a point.
@@ -373,9 +371,9 @@ impl Reached {
     }
 }
 
-/// A read supplies a value snapshot without writing or restoring storage.
+/// A read or block entry observes a value without writing or restoring it.
 struct Observation {
-    operation: OperationId,
+    point: ProgramPoint,
     position: usize,
     value: ValueId,
 }
@@ -452,6 +450,7 @@ struct Reaching {
     keys: BTreeMap<(BlockId, usize, Lineage, QueryKind), usize>,
     equations: Vec<ReachingEquation>,
     initialization_only: bool,
+    observe_block_entries: bool,
     remaining: usize,
     crossed_entries: Vec<bool>,
     used: Option<ProgramPoint>,
@@ -792,6 +791,8 @@ impl<'a> Storage<'a> {
             references,
             domains,
         };
+        // Entry observations occupy position zero. Install them before the
+        // operation loop appends reads in position order for binary search.
         storage.initial_contents_are_declared(tables)?;
         storage.log = storage.stores(value_types)?;
         storage.cleanup_writes =
@@ -843,7 +844,7 @@ impl<'a> Storage<'a> {
                     .entry(leaf)
                     .or_default()
                     .push(Observation {
-                        operation: operation.id,
+                        point: ProgramPoint::AfterOperation(operation.id),
                         position: before + 1,
                         value,
                     });
@@ -2768,16 +2769,10 @@ impl<'a> Storage<'a> {
             // Entry crossings discovered anywhere in the query retire reads
             // from an earlier iteration, even if we saw the read first.
             if let Reached::Value(value) = equation.direct
-                && let Some(ValueOrigin::Operation(operation)) =
-                    tables.values.get(value).map(|row| row.origin)
-                && self
-                    .read_leaf(self.operation(operation, concerns)?)?
-                    .is_some()
+                && let Some(owner) = self.observation_block(tables, value, concerns)?
+                && trace.crossed_entries[index(owner.get())]
             {
-                let (owner, _) = self.graph.locate(ProgramPoint::AfterOperation(operation))?;
-                if trace.crossed_entries[index(owner.get())] {
-                    equation.direct = Reached::Unknown;
-                }
+                equation.direct = Reached::Unknown;
             }
         }
         Ok(match trace.solve(source).within(depth) {
@@ -2878,10 +2873,12 @@ impl<'a> Storage<'a> {
                     let end =
                         observations.partition_point(|observation| observation.position <= up_to);
                     if let Some(observation) = end.checked_sub(1).map(|last| &observations[last])
+                        && (budget.observe_block_entries
+                            || !matches!(observation.point, ProgramPoint::BlockEntry(_)))
                         && last.is_none_or(|(_, row)| row.position < observation.position)
                         && !budget.crossed_entries[index(block.get())]
                         && self.graph.dominates(
-                            ProgramPoint::AfterOperation(observation.operation),
+                            observation.point,
                             budget.used.ok_or_else(|| {
                                 self.foreign(concerns, "a storage trace has no use point")
                             })?,
@@ -3071,6 +3068,7 @@ impl<'a> Storage<'a> {
             keys: BTreeMap::new(),
             equations: Vec::new(),
             initialization_only: false,
+            observe_block_entries: true,
             remaining: self.reaching_budget,
             crossed_entries: vec![false; self.graph.block_count()],
             used: None,
@@ -3133,7 +3131,7 @@ impl<'a> Storage<'a> {
             concerns,
         )?;
         if let Reached::Extent(producer) = reached {
-            return self.extent_equation(operation, producer, &budget);
+            return self.extent_equation(tables, operation, producer, &budget);
         }
         let Reached::Value(held) = reached else {
             return Ok(None);
@@ -3230,7 +3228,12 @@ impl<'a> Storage<'a> {
         // contents retain their original path. With no single name, the
         // trace retains only the part of the current path established on
         // every arrival, inside the value supplied by another machine.
-        let mut budget = self.budget();
+        let mut budget = Reaching {
+            // A block snapshot gives the current value a name. Independently
+            // follow its actual back to an established data type boundary.
+            observe_block_entries: false,
+            ..self.budget()
+        };
         let arrived = match self.reaching(
             tables,
             Asked::Contents(leaf),
@@ -4062,6 +4065,19 @@ impl<'a> Storage<'a> {
                         Vec::new(),
                     ));
                 }
+                StructuralPlaceKind::BlockParameter { .. }
+                    if self
+                        .declaration(self.root_type(place, concerns).map_err(refused)?, concerns)
+                        .map_err(refused)?
+                        .shape
+                        .is_shared_readable_byte_view() =>
+                {
+                    return Ok(ScalarTerm::byte_sequence_predicate(
+                        predicate,
+                        place,
+                        Vec::new(),
+                    ));
+                }
                 StructuralPlaceKind::OperationResult { producer, .. } => {
                     match &self.operation(producer, concerns).map_err(refused)?.kind {
                         OperationKind::MoveStructuralValue { source } if source.path.is_empty() => {
@@ -4069,6 +4085,33 @@ impl<'a> Storage<'a> {
                         }
                         OperationKind::StructuralLeafCopy { source, path } if path.is_empty() => {
                             place = *source;
+                        }
+                        OperationKind::ByteSequenceSubslice { .. }
+                            if self
+                                .declaration(
+                                    self.root_type(place, concerns).map_err(refused)?,
+                                    concerns,
+                                )
+                                .map_err(refused)?
+                                .shape
+                                .is_shared_readable_byte_view() =>
+                        {
+                            let mut required = terminal_psi::ByteSequencePredicateSet::EMPTY;
+                            required.insert(predicate);
+                            if terminal_semantics::byte_sequence_source_predicates(
+                                self.module,
+                                self.lowered,
+                                place,
+                            )
+                            .is_some_and(|known| known.implies(required))
+                            {
+                                return Ok(ScalarTerm::Boolean(true));
+                            }
+                            return Ok(ScalarTerm::byte_sequence_predicate(
+                                predicate,
+                                place,
+                                Vec::new(),
+                            ));
                         }
                         _ => {
                             return Err(crate::Unbound::Unsupported(
@@ -4087,6 +4130,61 @@ impl<'a> Storage<'a> {
         Err(crate::Unbound::Unsupported(
             "a byte predicate of a view copied in a cycle",
         ))
+    }
+
+    /// A shared subslice inherits predicates that hold for every window of
+    /// its source. Name the actual producer's result and keep the source
+    /// condition in the proof so each loop arrival must establish it.
+    pub(crate) fn subslice_predicate_premises(
+        &self,
+        operation: &Operation,
+    ) -> Checked<Vec<Proposition>> {
+        use semantic_vocabulary::ByteSequencePredicate;
+
+        let OperationKind::ByteSequenceSubslice { source, .. } = &operation.kind else {
+            return Ok(Vec::new());
+        };
+        let concerns = Construct::Operation(operation.id);
+        let result = operation
+            .result
+            .structural()
+            .ok_or_else(|| self.foreign(concerns, "a byte subslice has no structural result"))?;
+        if !self
+            .declaration(result.structural_type, concerns)?
+            .shape
+            .is_shared_readable_byte_view()
+        {
+            return Ok(Vec::new());
+        }
+        let source = self.argument(source, concerns)?;
+        let mut known = Vec::new();
+        for predicate in ByteSequencePredicate::ALL {
+            if !predicate.is_subslice_preserving() {
+                continue;
+            }
+            let term = match self.byte_source(predicate, &source, concerns) {
+                Ok(term) => term,
+                Err(crate::Unbound::Refused(refusal)) => return Err(refusal),
+                Err(_) => continue,
+            };
+            for inherited in ByteSequencePredicate::ALL {
+                if predicate.implies(inherited) {
+                    let destination =
+                        ScalarTerm::byte_sequence_predicate(inherited, result.place, Vec::new());
+                    known.push(Proposition::Implication {
+                        premise: Box::new(Proposition::Equal(
+                            term.clone(),
+                            ScalarTerm::Boolean(true),
+                        )),
+                        conclusion: Box::new(Proposition::Equal(
+                            destination,
+                            ScalarTerm::Boolean(true),
+                        )),
+                    });
+                }
+            }
+        }
+        Ok(known)
     }
 
     /// The octets of the literal whose home is `place`, when `place` is a
@@ -5130,9 +5228,6 @@ impl CallObservations<'_, '_> {
             return None;
         }
         let row = self.call.tables.values.get(value)?;
-        let ValueOrigin::StorageContent { place, .. } = row.origin else {
-            return None;
-        };
         if row.scalar_type != scalar_type {
             return None;
         }
@@ -5142,7 +5237,24 @@ impl CallObservations<'_, '_> {
             .get_mut(value)?;
         let projection = *slot.get_or_insert_with(|| {
             let call = self.call;
-            let recorded = lineage(call.storage.machine, &call.tables.places, place).ok()?;
+            let recorded = match row.origin {
+                ValueOrigin::StorageContent { place, .. } => {
+                    lineage(call.storage.machine, &call.tables.places, place).ok()?
+                }
+                ValueOrigin::Operation(operation) => {
+                    let operation = call.storage.operation(operation, call.concerns).ok()?;
+                    let leaf = call.storage.read_leaf(operation).ok()??;
+                    let (block, after) = call
+                        .storage
+                        .graph
+                        .locate(ProgramPoint::AfterOperation(operation.id))
+                        .ok()?;
+                    call.storage
+                        .backing(&leaf, block, after.checked_sub(1)?, call.concerns)
+                        .ok()?
+                }
+                _ => return None,
+            };
             let (formal, path) = formal_observation_path(&self.readable, &recorded)?;
             let root = call.callee_formals[formal].place;
             let held = call
@@ -5279,6 +5391,12 @@ pub(crate) struct AtJoin<'s, 'a> {
     renaming: &'s [(ValueId, ValueId)],
 }
 
+impl<'a> AtJoin<'_, 'a> {
+    pub(crate) fn observations(&self) -> CallObservations<'_, 'a> {
+        self.inputs.observations()
+    }
+}
+
 impl crate::Bindings for AtJoin<'_, '_> {
     type Error = crate::Unbound;
 
@@ -5307,6 +5425,31 @@ impl crate::Bindings for AtJoin<'_, '_> {
             return Err(crate::Unbound::Unsupported(
                 "join argument has another scalar carrier",
             ));
+        }
+        if let ValueOrigin::StorageContent { place, after: None } = actual.origin {
+            let observed = lineage(
+                self.inputs.storage.machine,
+                &self.inputs.tables.places,
+                place,
+            )
+            .map_err(crate::Unbound::Refused)?;
+            if let Some(formal) = terminal_psi::StructuralParameterDeclaration::find_by_place(
+                self.inputs.callee_formals,
+                observed.root,
+            ) {
+                // Each incoming edge proves the destination predicate about
+                // its own actual. It may not use the destination's snapshot
+                // as if that binding already existed on the edge.
+                let mut leaf = self.inputs.readable_actual(formal)?.clone();
+                if let Some((Segment::Extent, parent)) = observed.segments.split_last()
+                    && let ScalarType::Integer(integer) = scalar_type
+                {
+                    leaf.segments.extend_from_slice(parent);
+                    return self.inputs.held_at(&leaf).extent_of(&leaf, integer);
+                }
+                leaf.segments.extend_from_slice(&observed.segments);
+                return self.inputs.held_at(&leaf).observation(&leaf, scalar_type);
+            }
         }
         Ok(ScalarTerm::value(value, scalar_type))
     }
@@ -5489,7 +5632,7 @@ impl Held<'_, '_> {
                     ProgramPoint::AfterOperation(block.operations[previous].id)
                 });
             return storage
-                .extent_contents(producer, point, scalar_type, &budget)
+                .extent_contents(self.tables, producer, point, scalar_type, &budget)
                 .map_err(crate::Unbound::Refused)?
                 .ok_or(crate::Unbound::Unproved(
                     "the descriptor's extent has no current endpoint correspondence",
@@ -6181,6 +6324,7 @@ machine entry() {
                 .unwrap();
             let extent = storage
                 .extent_contents(
+                    tables,
                     producer,
                     point,
                     operation.result.scalar_ref().unwrap().scalar_type,

@@ -198,3 +198,51 @@ fn an_invariant_row_that_misses_an_arrival_refuses_the_machine() {
     let refusal = discharge(&mut elaboration).unwrap_err();
     assert_eq!(refusal.reason, RefusalReason::ForeignIdentity);
 }
+
+#[test]
+fn a_cycle_checks_the_entered_guarantee_at_each_members_return() {
+    // Both machines take a turn at returning. Only the entered machine
+    // promises the bound, which has to hold even when its partner returns.
+    let program = |other_result| {
+        let step = |next, result| {
+            vec![
+                guarded(positive(0), call(next, vec![less_one()])),
+                returns(unsigned(result)),
+            ]
+        };
+        vec![
+            Machine {
+                ensures: vec![at_most(2, 7)],
+                ..machine(vec![u32_type()], step(2, 7))
+            },
+            machine(vec![u32_type()], step(1, other_result)),
+        ]
+    };
+    let (elaboration, result) = run(program(6));
+    let returns = verdicts(&elaboration, &result, 1, guarantee);
+    assert_eq!(returns.len(), 2);
+    for (obligation, verdict) in returns {
+        assert_kernel_accepted(&elaboration, 1, obligation, certificate(verdict));
+    }
+    let [(_, Ok(Discharged::EveryExit(exits)))] = verdicts(&elaboration, &result, 1, published)[..]
+    else {
+        panic!("the two returns establish the published guarantee");
+    };
+    assert_eq!(exits.len(), 2);
+    assert!(
+        elaboration
+            .tables
+            .machines
+            .get(id(1))
+            .unwrap()
+            .invocations
+            .is_empty()
+    );
+
+    let unproved = rejected(program(8));
+    let [refusal] = unproved.as_slice() else {
+        panic!("only the partner's return is unproved: {unproved:?}");
+    };
+    assert!(guarantee(&refusal.kind));
+    assert_eq!(refusal.cause, UnprovedCause::NoDerivation);
+}

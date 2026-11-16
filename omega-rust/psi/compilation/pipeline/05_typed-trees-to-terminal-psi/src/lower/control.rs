@@ -993,35 +993,6 @@ impl Lowering<'_> {
         Ok(())
     }
 
-    /// Join two already evaluated values of the same scalar type. Neither
-    /// arm re-evaluates an operand or changes local storage.
-    pub(super) fn choose_scalar(
-        &mut self,
-        condition: ValueId,
-        when_true: ValueId,
-        when_false: ValueId,
-        scalar_type: ScalarType,
-        source: SourceOrigin,
-    ) -> Checked<ValueId> {
-        let join = self.block(source);
-        let value = self.value(
-            scalar_type,
-            ValueOrigin::BlockParameter {
-                block: join,
-                position: 0,
-            },
-        );
-        self.parameter(join, value, scalar_type)?;
-        self.branch(
-            condition,
-            (join, vec![when_true]),
-            (join, vec![when_false]),
-            source,
-        )?;
-        self.enter(join);
-        Ok(value)
-    }
-
     /// A chain of one connective shares its result join. Each short-circuit
     /// edge passes the deciding operand, so the continuing edge retains its
     /// guard facts until the next operand is evaluated.

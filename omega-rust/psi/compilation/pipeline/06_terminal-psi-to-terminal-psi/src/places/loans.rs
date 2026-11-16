@@ -847,6 +847,18 @@ impl Storage<'_> {
             return Err(self.unsupported(concerns, "a write-only persistent loan"));
         }
         let raw = self.argument(source, concerns)?;
+        let resource = if reference_referent.is_none()
+            && match self.shape(&raw, concerns)? {
+                super::Shape::View => true,
+                super::Shape::Typed(ty) => {
+                    terminal_semantics::descriptor_results::is_descriptor(self.types.iter(), ty)
+                }
+                _ => false,
+            } {
+            BorrowedResource::ViewPayload
+        } else {
+            BorrowedResource::Storage
+        };
         if let Some((referent, storage)) = reference_referent {
             let expected = self.declaration(referent, concerns)?;
             let compatible = if let Some(storage) = storage {
@@ -941,13 +953,8 @@ impl Storage<'_> {
         let captured = self.interned(tables, &raw, concerns)?.ok_or_else(|| {
             self.foreign(concerns, "reference formation has no captured place row")
         })?;
-        let (expected_lender, parent, from, permitted) = self.source_lender(
-            &raw,
-            &source.path,
-            access,
-            BorrowedResource::Storage,
-            concerns,
-        )?;
+        let (expected_lender, parent, from, permitted) =
+            self.source_lender(&raw, &source.path, access, resource, concerns)?;
         let (obligation, row) = tables
             .obligations
             .iter()
@@ -996,7 +1003,7 @@ impl Storage<'_> {
             invocation: None,
             position: 0,
             access,
-            lineage: LoanRegion::Storage(self.backing(&raw, at.0, at.1 as usize, concerns)?),
+            lineage: self.borrow_backing(&raw, resource, at, concerns)?,
             parent,
             lender,
             from,

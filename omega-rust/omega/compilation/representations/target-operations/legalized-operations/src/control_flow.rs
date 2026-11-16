@@ -39,7 +39,7 @@ pub use scalar_graph::{
     LegalizedValueDefinition,
 };
 
-use optimization_unit::WorkSettlement;
+use native_vocabulary::provenance::WorkSettlement;
 use semantic_vocabulary::{
     BlockId, EdgeId, IntegerCarrier, IntegerSign, IntegerType, StructuralCaseId, StructuralFieldId,
 };
@@ -266,7 +266,7 @@ pub struct LegalizedStructuralCaseSuccessor {
     pub payloads: Vec<LegalizedStructuralCasePayload>,
     pub structural_bindings: Vec<LegalizedStructuralBinding>,
     pub cleanup_actions: Vec<terminal_psi::TerminalAffineCleanupAction>,
-    pub cleanup_calls: Vec<(target_operations::CallSiteOwner, LegalizedScalarCall)>,
+    pub cleanup_calls: Vec<(target_vocabulary::CallSiteOwner, LegalizedScalarCall)>,
     pub work: Vec<WorkSettlement>,
 }
 

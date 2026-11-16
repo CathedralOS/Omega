@@ -72,6 +72,8 @@ pub enum AcceptedProofRule {
     IeeeFloatOrderChain,
     /// Congruence and exact widening reversal of float meanings; provisional.
     FloatMeaningNormalization,
+    /// Checked finite-nonzero IEEE transport for exact conversion; provisional.
+    FloatIntegerConversion,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2590,6 +2592,12 @@ mod traversal {
             | ProofRule::SemanticAxiom { .. }
             | ProofRule::Assumption { .. }
             | ProofRule::IntegerCorrelatedForbiddenRoots { .. } => {}
+            ProofRule::FloatIntegerConversion { premise, computed } => {
+                if let Some(computed) = computed {
+                    pending.push(Action::Enter(computed));
+                }
+                pending.push(Action::Enter(premise));
+            }
             ProofRule::IeeeFloatOrderChain(children)
             | ProofRule::FloatMeaningNormalization(children) => {
                 pending.push(Action::Children(children));
@@ -2773,6 +2781,19 @@ fn check_node_locally(
         machine_parameter_values,
     };
     match &proof.rule {
+        ProofRule::FloatIntegerConversion { premise, computed } => {
+            crate::check_float_integer_conversion(
+                context,
+                &proof.conclusion,
+                &premise.conclusion,
+                computed.as_ref().map(|proof| &proof.conclusion),
+            )
+            .map_err(|error| ProofError::FloatIntegerConversion(Box::new(error)))?;
+            acceptance
+                .rules
+                .insert(AcceptedProofRule::FloatIntegerConversion);
+            Ok(())
+        }
         ProofRule::FloatMeaningNormalization(premises) => {
             crate::check_float_meaning_normalization(
                 &proof.conclusion,
@@ -2889,6 +2910,7 @@ pub enum ProofError {
     IntegerOrderConclusionMismatch,
     IeeeFloatOrderMismatch(&'static str),
     FloatMeaningNormalization(Box<crate::FloatMeaningNormalizationError>),
+    FloatIntegerConversion(Box<crate::FloatIntegerError>),
     UnknownIntegerOrderEndpoint(usize),
     IntegerOrderUnchangedEndpointMismatch,
     IntegerOrderSubstitutionMismatch,

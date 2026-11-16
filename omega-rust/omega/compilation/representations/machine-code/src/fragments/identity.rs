@@ -20,11 +20,11 @@ use super::{
     FunctionFragmentNormalizedForeignCallFixup, FunctionFragmentNormalizedForeignCallFixupKind,
     FunctionFragmentNormalizedForeignCallFixupState, FunctionFragmentSuccessorProvenance,
 };
+use native_vocabulary::provenance::{PsiProvenance, WorkSettlement};
 use optimization_core::FunctionFragmentEmissionIdentity;
-use optimization_unit::{PsiProvenance, WorkSettlement};
 use selected_instructions::SelectedInstructionProvenance;
 use semantic_vocabulary::{IntegerCarrier, IntegerSign, ScalarType};
-use target_operations::TerminalPsiProvenance;
+use target_vocabulary::TerminalPsiProvenance;
 
 const FRAGMENT_SCHEMA: &[u8] = b"omega.terminal.function-fragment-emission.v25";
 
@@ -382,7 +382,7 @@ mod width_tests {
             psi_edge: None,
             block: selected_instructions::SelectedBlockId(2),
             source_target: BlockId::new(3).unwrap(),
-            bindings: vec![abstract_operations::ValueBinding {
+            bindings: vec![native_vocabulary::values::ValueBinding {
                 parameter: ValueId::new(4).unwrap(),
                 argument: ValueId::new(5).unwrap(),
                 scalar_type: ScalarType::Integer(integer),

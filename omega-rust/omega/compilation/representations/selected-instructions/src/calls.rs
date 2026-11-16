@@ -22,7 +22,7 @@ pub mod constraints {
         RegisterConstraintFamily, RegisterInstructionConstraint, RegisterOperandAccess,
         RegisterOperandConstraint, RegisterView, RegisterViewId, ValidatedPhysicalRegisterModel,
     };
-    use target_operations::NormalizedForeignCallMechanism;
+    use target_vocabulary::NormalizedForeignCallMechanism;
 
     use crate::{
         SelectedFunction, SelectedInstruction, SelectedInstructionKind,
@@ -282,7 +282,8 @@ pub mod constraints {
 }
 pub mod normalized_foreign {
     use crate::SelectedInstructionId;
-    use optimization_unit::{EffectLink, OwnershipEvent};
+    use native_vocabulary::provenance::EffectLink;
+    use native_vocabulary::provenance::OwnershipEvent;
     use semantic_vocabulary::InvocationSite;
 
     #[derive(Debug, Clone, PartialEq, Eq)]
@@ -303,7 +304,7 @@ pub mod normalized_foreign {
         };
         use calling_conventions::ValueLocation::Indirect;
         use register_model::RegisterOperandAccess;
-        use target_operations::TargetBoundaryResult::Unit;
+        use target_vocabulary::TargetBoundaryResult::Unit;
 
         pub struct ReturnTransport {
             pub call_position: usize,
@@ -377,7 +378,7 @@ pub mod normalized_foreign {
                     return None;
                 }
                 vec![output.virtual_register]
-            } else if let target_operations::TargetBoundaryResult::Structural(home) =
+            } else if let target_vocabulary::TargetBoundaryResult::Structural(home) =
                 &record.call.result
             {
                 use calling_conventions::ValueLocation;
@@ -851,7 +852,7 @@ pub mod normalized_foreign {
                 SelectedNormalizedForeignCall,
             ) {
                 use semantic_vocabulary::{BlockId, BoundaryMachineId, EdgeId};
-                use target_operations::{
+                use target_vocabulary::{
                     NativeBindingExecution, NormalizedForeignCallBinding,
                     NormalizedForeignCallMechanism, TargetBoundaryResult,
                 };
@@ -884,7 +885,7 @@ pub mod normalized_foreign {
                     call: legalized_operations::LegalizedNormalizedForeignCall {
                         boundary,
                         provider_execution:
-                            target_operations::ExternalExecutionBinding::NativeBinding(
+                            target_vocabulary::ExternalExecutionBinding::NativeBinding(
                                 NativeBindingExecution::from_commitments([1; 32], [2; 32], [3; 32])
                                     .unwrap(),
                             ),
@@ -903,7 +904,7 @@ pub mod normalized_foreign {
                         result: TargetBoundaryResult::Unit,
                         callbacks: Vec::new(),
                     },
-                    effect: optimization_unit::EffectLink {
+                    effect: native_vocabulary::provenance::EffectLink {
                         input: 1,
                         output: 2,
                     },
@@ -1008,12 +1009,12 @@ pub mod normalized_foreign {
             fn syscall_return_needs_no_user_space_control_envelope() {
                 let (function, mut block, mut record) = hosted_return();
                 record.call.binding.mechanism =
-                    target_operations::NormalizedForeignCallMechanism::SystemCall(
-                        target_operations::NormalizedSystemCallBinding {
+                    target_vocabulary::NormalizedForeignCallMechanism::SystemCall(
+                        target_vocabulary::NormalizedSystemCallBinding {
                             target: target::TargetProfile::LinuxX64,
                             number: 39,
                             requirement_identity: "Foreign::leaf".to_owned(),
-                            execution: target_operations::NormalizedForeignExecution::NativeBinding(
+                            execution: target_vocabulary::NormalizedForeignExecution::NativeBinding(
                                 [1; 32],
                             ),
                         },
@@ -1180,7 +1181,8 @@ pub mod ordinary {
     use crate::{SelectedBlockId, SelectedInstructionId};
     use legalized_operations::encode_hosted_read_byte_identity;
     use legalized_operations::identity::encode_boundary_execution_identity;
-    use optimization_unit::{EffectLink, OwnershipEvent};
+    use native_vocabulary::provenance::EffectLink;
+    use native_vocabulary::provenance::OwnershipEvent;
     use semantic_vocabulary::InvocationSite::ExternalCompletion;
     use semantic_vocabulary::{BlockId, EdgeId, InvocationSite, OperationId, PlaceId};
 
@@ -1386,7 +1388,7 @@ pub mod ordinary {
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct SelectedCallContract {
         pub instruction: SelectedInstructionId,
-        pub owner: target_operations::CallSiteOwner,
+        pub owner: target_vocabulary::CallSiteOwner,
         pub call: legalized_operations::LegalizedScalarCall,
         pub effect: EffectLink,
         pub ownership: Vec<OwnershipEvent>,
@@ -1526,7 +1528,7 @@ pub mod ordinary {
         },
         HostedExitProcessI32 {
             edge: semantic_vocabulary::EdgeId,
-            execution: target_operations::BoundaryExecutionBinding,
+            execution: target_vocabulary::BoundaryExecutionBinding,
             boundary: semantic_vocabulary::BoundaryMachineId,
             source: semantic_vocabulary::ValueId,
         },

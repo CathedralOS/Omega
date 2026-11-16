@@ -287,10 +287,15 @@ impl Program<'_> {
         let Some(backing_type @ ValueType::Record(backing, _, _)) = base.result else {
             return Err(unavailable("array view without a plain closed u8 array"));
         };
-        if typed_element.is_none() && self.is_readable_byte_view(machine, backing)? {
-            if requested != StructuralAccess::SharedBorrow {
-                return Err(unavailable("byte range with a mutable borrow"));
-            }
+        let byte_view = typed_element.is_none() && self.is_readable_byte_view(machine, backing)?;
+        // A shared descriptor can snapshot its unrestricted value. A child
+        // of an exclusive descriptor instead keeps a persistent payload loan,
+        // including when that child only observes the bytes.
+        if byte_view
+            && requested == StructuralAccess::SharedBorrow
+            && self.observes_only(machine, base.result)?
+            && self.data_type(machine, backing)?.copyable
+        {
             self.authorized(machine, backing_type, Access::Read)?;
             return self
                 .byte_subslice(machine, slots, base, range, borrow.target, source)
@@ -303,12 +308,27 @@ impl Program<'_> {
         // correspondence"). A writable window also needs to keep its
         // exclusive descriptor live through the subslice.
         let partial = range.start.is_valid() || range.end.is_valid() || range.end_inclusive;
-        if partial && requested != StructuralAccess::SharedBorrow {
-            return Err(unavailable(
-                "mutable partial array views need a live mutable subslice descriptor",
-            ));
-        }
         let element = match typed_element {
+            None if byte_view => {
+                if backing_type.qualification() != Qualification::NONE {
+                    return Err(unavailable("a borrowed range retains qualified backing"));
+                }
+                let retained = self
+                    .record_sources
+                    .get(backing)
+                    .and_then(|source| source.application.as_ref())
+                    .map(|source| source.reference)
+                    .ok_or_else(|| unavailable("byte range without its retained element type"))?;
+                let declared = super::bytes::source_byte_view(
+                    self.typed,
+                    retained,
+                    self.lifetime_owner,
+                    machine,
+                )?
+                .ok_or_else(|| unavailable("byte range without its retained element type"))?;
+                let value = self.value_type(machine, declared.element_type)?;
+                self.storage_type(machine, declared.element_type, value)?
+            }
             None => self
                 .byte_array_element(base.result)
                 .ok_or_else(|| unavailable("array view without a plain closed u8 array"))?,
@@ -322,7 +342,8 @@ impl Program<'_> {
         let crossed = self.reference_place_access(machine, slots, &base, borrow.access)?;
         let slot = super::storage_path::root_slot(machine, &base, &self.captures)?
             .ok_or_else(|| unavailable("array view without an existing backing place"))?;
-        if !crossed
+        if !byte_view
+            && !crossed
             && borrow.access == ReferenceAccess::Mutable
             && (slots[slot].borrowed == Some(ReferenceAccess::Shared)
                 || slots[slot].borrowed.is_none() && !slots[slot].assignable)
@@ -351,8 +372,9 @@ impl Program<'_> {
             tuple.extend_from_slice(self.region_tuple(backing_type.regions()));
             regions = self.intern_regions(tuple);
         }
-        // The source array and its own type stay on the operand. The result
-        // is a descriptor with the actual backing's lifetime, not the context's.
+        // Lend the actual collection before evaluating endpoints. A mutable
+        // descriptor must reborrow its payload, not move out of its caller's
+        // storage and leave a restoration debt there.
         let whole = Expression {
             call_context: None,
             kind: ExpressionKind::ArrayView {

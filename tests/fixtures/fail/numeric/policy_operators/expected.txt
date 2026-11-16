@@ -1,0 +1,1 @@
+exact arithmetic in machine `main` state `entry` local `exact` may overflow `u32`: the shift count is not provably below the operand width or the shifted value is not provably in range.

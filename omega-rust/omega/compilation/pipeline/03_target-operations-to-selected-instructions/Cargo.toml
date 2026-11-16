@@ -9,6 +9,7 @@ name = "target_operations_to_selected_instructions"
 path = "src/lib.rs"
 
 [dependencies]
+target-vocabulary = { path = "../../representations/target-operations/target-vocabulary" }
 native-vocabulary = { path = "../../representations/native-vocabulary" }
 installation-evidence = { path = "../../backend/runtime/installation-evidence" }
 provider-admission = { path = "../../realization/provider-admission" }
@@ -21,7 +22,6 @@ target = { path = "../../backend/target" }
 register-environment = { path = "../../backend/register-environment" }
 legalized-operations = { path = "../../representations/target-operations/legalized-operations" }
 selected-instructions = { path = "../../representations/selected-instructions" }
-target-operations = { path = "../../representations/target-operations" }
 semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
 layout-plans = { path = "../../../../psi/foundation/layout-plans" }
 access-plans = { path = "../../../../psi/foundation/access-plans" }

@@ -7,15 +7,15 @@
 // claim-completion-only boundary settlement alongside its admitted provider execution, work
 // settlements, effect link, and ownership events.
 
-use abstract_operations::CompletionClaimSource;
-use optimization_unit::EffectLink;
-use optimization_unit::OwnershipEvent;
-use optimization_unit::WorkSettlement;
+use native_vocabulary::completion_claims::CompletionClaimSource;
+use native_vocabulary::provenance::EffectLink;
+use native_vocabulary::provenance::OwnershipEvent;
+use native_vocabulary::provenance::WorkSettlement;
 use semantic_vocabulary::BoundaryMachineId;
 use semantic_vocabulary::OperationId;
 use semantic_vocabulary::ServiceId;
-use target_operations::ClaimCompletionOnlyRealization;
-use target_operations::ProviderExecutionBinding;
+use target_vocabulary::ClaimCompletionOnlyRealization;
+use target_vocabulary::ProviderExecutionBinding;
 use terminal_psi::CompletionReceipt;
 use terminal_psi::EntryClaim;
 use terminal_psi::StructuralArgument;
@@ -25,7 +25,7 @@ use terminal_psi::StructuralPlaceDeclaration;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LegalizedStructuralContract {
     pub result: Option<terminal_psi::StructuralResultDeclaration>,
-    pub structural_types: abstract_operations::StructuralTypeCatalog,
+    pub structural_types: native_vocabulary::structural_type_catalog::StructuralTypeCatalog,
     pub parameters: Vec<LegalizedCallUnitParameter>,
     pub structural_places: Vec<StructuralPlaceDeclaration>,
     pub entry_claims: Vec<EntryClaim>,
@@ -68,10 +68,10 @@ pub struct LegalizedBoundarySettlement {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LegalizedCallUnitParameter {
     pub semantic: StructuralParameterDeclaration,
-    pub target: target_operations::TargetStructuralParameter,
+    pub target: target_vocabulary::TargetStructuralParameter,
 }
 
-pub use target_operations::NativeCallOrigin;
+pub use target_vocabulary::NativeCallOrigin;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LegalizedCallSourceError {

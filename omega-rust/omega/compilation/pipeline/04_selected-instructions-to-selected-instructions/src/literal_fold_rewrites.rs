@@ -1289,7 +1289,7 @@ pub(crate) mod selected_lowering {
                         && !literal.provenance.work.is_empty()
                         && literal.provenance.work.iter().all(|work| {
                             work.site
-                                == optimization_unit::PsiProvenance::Operation(
+                                == native_vocabulary::provenance::PsiProvenance::Operation(
                                     literal.provenance.operations[0],
                                 )
                         })

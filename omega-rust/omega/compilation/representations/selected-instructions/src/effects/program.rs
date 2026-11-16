@@ -115,8 +115,9 @@ mod tests {
         SelectedBlockId, SelectedInstructionId, SelectedInstructionKind,
         SelectedInstructionPlanIdentity, SelectedInstructionProvenance,
     };
+    use native_vocabulary::provenance::PsiProvenance;
+    use native_vocabulary::provenance::WorkSettlement;
     use optimization_core::OptimizationUnitIdentity;
-    use optimization_unit::{PsiProvenance, WorkSettlement};
     use register_model::{
         RegisterConstraintCatalogIdentity, RegisterConstraintFamily, RegisterConstraintKey,
         RegisterUnitId, TargetRegisterEnvironmentIdentity,

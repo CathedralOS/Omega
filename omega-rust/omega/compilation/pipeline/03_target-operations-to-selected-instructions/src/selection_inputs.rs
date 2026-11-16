@@ -640,12 +640,12 @@ pub(crate) mod aggregate_result_input {
     }
 
     fn argument_transport_requires_home(
-        argument: &target_operations::TargetStructuralArgument,
+        argument: &target_vocabulary::TargetStructuralArgument,
     ) -> bool {
         if argument.access != StructuralAccess::Owned {
             return true;
         }
-        let target_operations::TargetStructuralArgumentSource::Placement(source) = &argument.source
+        let target_vocabulary::TargetStructuralArgumentSource::Placement(source) = &argument.source
         else {
             return false;
         };
@@ -701,7 +701,7 @@ pub(crate) mod aggregate_result_input {
         match &instruction.kind {
             LegalizedScalarInstructionKind::Call(call) => call_result(source, call),
             LegalizedScalarInstructionKind::NormalizedForeignCall(call) => {
-                let target_operations::TargetBoundaryResult::Structural(home) = &call.result else {
+                let target_vocabulary::TargetBoundaryResult::Structural(home) = &call.result else {
                     return None;
                 };
                 let (producer, result) = home.operation_result()?;
@@ -1779,7 +1779,7 @@ pub(crate) mod byte_owner_input {
         function: &crate::native_geometry::NativeFunction<'_>,
         site: semantic_vocabulary::InvocationSite,
         semantic: &terminal_psi::StructuralArgument,
-        target: &target_operations::TargetStructuralArgument,
+        target: &target_vocabulary::TargetStructuralArgument,
         indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
     ) -> Option<(u32, u64)> {
         crate::selection::scalar_call_abi::input_site::use_cut(function, site)?;
@@ -1821,11 +1821,11 @@ pub(crate) mod byte_owner_input {
         function: &crate::native_geometry::NativeFunction<'_>,
         site: semantic_vocabulary::InvocationSite,
         semantic: &terminal_psi::StructuralArgument,
-        target: &target_operations::TargetStructuralArgument,
+        target: &target_vocabulary::TargetStructuralArgument,
     ) -> Option<terminal_psi::StructuralParameterDeclaration> {
         let signature = function.structural.as_ref()?;
         match &target.source {
-            target_operations::TargetStructuralArgumentSource::Placement(placement) => {
+            target_vocabulary::TargetStructuralArgumentSource::Placement(placement) => {
                 let mut matching = signature
                     .parameters
                     .iter()
@@ -1843,7 +1843,7 @@ pub(crate) mod byte_owner_input {
                 }
                 Some(parameter.semantic.clone())
             }
-            target_operations::TargetStructuralArgumentSource::BlockParameter { block, place } => {
+            target_vocabulary::TargetStructuralArgumentSource::BlockParameter { block, place } => {
                 if *place != semantic.place || *block == function.entry_block {
                     return None;
                 }
@@ -1874,7 +1874,7 @@ pub(crate) mod byte_owner_input {
                 }
                 Some(parameter.clone())
             }
-            target_operations::TargetStructuralArgumentSource::StructuralHome { psi_operation } => {
+            target_vocabulary::TargetStructuralArgumentSource::StructuralHome { psi_operation } => {
                 let (producer, result) =
                     crate::selection::aggregate_result_input::home(function, semantic.place)?;
                 if producer != *psi_operation
@@ -1897,11 +1897,11 @@ pub(crate) mod byte_owner_input {
                     additional_input_qualifications: result.additional_input_qualifications.clone(),
                 })
             }
-            target_operations::TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
+            target_vocabulary::TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
                 ..
             }
-            | target_operations::TargetStructuralArgumentSource::EstablishedByteView { .. }
-            | target_operations::TargetStructuralArgumentSource::EstablishedElementView {
+            | target_vocabulary::TargetStructuralArgumentSource::EstablishedByteView { .. }
+            | target_vocabulary::TargetStructuralArgumentSource::EstablishedElementView {
                 ..
             } => None,
         }
@@ -1918,7 +1918,7 @@ pub(crate) mod established_view_input {
         LegalizedScalarArgument, LegalizedScalarInstructionKind, LegalizedScalarTerminator,
     };
     use semantic_vocabulary::{OperationId, PlaceId, StructuralPlaceKind};
-    use target_operations::{TargetStructuralArgument, TargetStructuralArgumentSource};
+    use target_vocabulary::{TargetStructuralArgument, TargetStructuralArgumentSource};
     use terminal_psi::StructuralTypeShape;
 
     pub(crate) mod access {
@@ -4252,21 +4252,21 @@ pub(crate) mod reference_input {
     pub(crate) fn borrowed_argument(
         function: &crate::native_geometry::NativeFunction<'_>,
         argument: &terminal_psi::StructuralArgument,
-        target: &target_operations::TargetStructuralArgument,
+        target: &target_vocabulary::TargetStructuralArgument,
         indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
     ) -> Option<BorrowedReferenceAddress> {
         let root = root_type(function, argument.place)?;
         let signature = function.structural.as_ref()?;
         let declarations = function.geometry();
         match &target.source {
-            target_operations::TargetStructuralArgumentSource::StructuralHome { psi_operation } => {
+            target_vocabulary::TargetStructuralArgumentSource::StructuralHome { psi_operation } => {
                 let (producer, result) =
                     crate::selection::aggregate_result_input::home(function, argument.place)?;
                 if producer != *psi_operation || result.structural_type != root {
                     return None;
                 }
             }
-            target_operations::TargetStructuralArgumentSource::Placement(placement) => {
+            target_vocabulary::TargetStructuralArgumentSource::Placement(placement) => {
                 let parameter = signature
                     .parameters
                     .iter()
@@ -4278,7 +4278,7 @@ pub(crate) mod reference_input {
                     return None;
                 }
             }
-            target_operations::TargetStructuralArgumentSource::BlockParameter { block, place } => {
+            target_vocabulary::TargetStructuralArgumentSource::BlockParameter { block, place } => {
                 let (owner, parameter) =
                     crate::selection::aggregate_result_input::block_home(function, argument.place)?;
                 if owner != *block || *place != argument.place || parameter.structural_type != root

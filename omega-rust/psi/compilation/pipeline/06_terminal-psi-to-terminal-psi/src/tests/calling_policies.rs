@@ -199,6 +199,37 @@ fn a_bound_every_alternative_establishes_crosses_the_join() {
     );
 }
 
+/// A literal index is judged like any other: the last slot needs no proof,
+/// and one past the end is refused by the checker as an unproved bound that
+/// names the index, for a read and for a store alike. Lowering used to
+/// refuse the out-of-range literal as an unsupported construct.
+#[test]
+fn a_literal_index_past_the_extent_is_an_unproved_bound() {
+    let literal = |body: &str| {
+        verdict(
+            &format!(
+                r#"
+data Table [copy] {{ cells: [u32; 256]; count: u64; }}
+machine pick(mut table: Table) -> u32 {{
+    {body}
+}}
+"#
+            ),
+            &["pick"],
+        )
+    };
+    assert_eq!(literal("table.cells[255]"), "accepted");
+    assert_eq!(literal("table.cells[255] = 1;\n    0"), "accepted");
+    for body in ["table.cells[256]", "table.cells[256] = 1;\n    0"] {
+        let refused = literal(body);
+        assert!(refused.starts_with(UNSAFE_INDEX), "{body}: {refused}");
+        assert!(
+            refused.contains("cannot prove index `256` is within length 256"),
+            "{body}: {refused}"
+        );
+    }
+}
+
 /// A table cell read at a field of `key`, declared as `formal`.
 fn keyed_index(formal: &str, body: &str) -> String {
     verdict(

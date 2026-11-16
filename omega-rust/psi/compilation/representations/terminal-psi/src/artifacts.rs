@@ -341,7 +341,7 @@ pub(crate) mod proof_kernel {
             }
 
             pub const fn get(self) -> u16 {
-                7
+                8
             }
         }
 
@@ -389,6 +389,7 @@ pub(crate) mod proof_kernel {
             ClosedIntegerRelation,
             IntegerCarrierBound,
             ClosedIeeeFloatRelation,
+            ClosedFloatIntegerRelation,
         }
 
         #[derive(Debug, Clone, PartialEq, Eq)]
@@ -399,6 +400,13 @@ pub(crate) mod proof_kernel {
 
         #[derive(Debug, Clone, PartialEq, Eq)]
         pub enum ProofRule {
+            /// A checked exactness premise entails the converter's entry
+            /// conditions. Alternatively, finite nonzero IEEE equality
+            /// transports a separately checked computed goal.
+            FloatIntegerConversion {
+                premise: Box<ProofNode>,
+                computed: Option<Box<ProofNode>>,
+            },
             ValueEqualityTransport {
                 premise: Box<ProofNode>,
                 equalities: Vec<ProofNode>,
