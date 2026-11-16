@@ -236,9 +236,7 @@ impl FunctionFragmentReplayInputs {
         self.realization.machine()
     }
 
-    pub(crate) fn layout_optimization(
-        &self,
-    ) -> &resolved_layout_to_resolved_layout::ResolvedLayoutOptimization {
+    pub(crate) fn layout_optimization(&self) -> &crate::OptimizedFunctionLayout {
         self.realization.layout_optimization()
     }
 
@@ -277,16 +275,7 @@ impl FunctionFragmentReplayInputs {
             .shared_selected_plan()
     }
 
-    pub fn target_input_owner(
-        &self,
-    ) -> &Arc<abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations> {
-        self.realization.target_input()
-    }
-
-    pub fn encoding(
-        &self,
-    ) -> &post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding
-    {
+    pub fn encoding(&self) -> &crate::EncodedFunction {
         self.realization.encoding()
     }
 }
@@ -305,7 +294,12 @@ struct CurrentFunctionFragmentInput {
 }
 
 impl CurrentFunctionFragmentInput {
-    fn retain(replay: &FunctionFragmentReplayInputs) -> Self {
+    fn retain(
+        replay: &FunctionFragmentReplayInputs,
+        target_input: Arc<
+            abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations,
+        >,
+    ) -> Self {
         let machine = replay.machine().clone();
         let homes = replay.register_homes().clone();
         Self {
@@ -325,7 +319,7 @@ impl CurrentFunctionFragmentInput {
             exit: replay.exit_contract().clone(),
             manifest: replay.function_relative_manifest().clone(),
             post_allocation_manifest: replay.post_allocation_manifest().clone(),
-            target_input: Arc::clone(replay.target_input_owner()),
+            target_input,
         }
     }
 
@@ -357,7 +351,6 @@ impl CurrentFunctionFragmentInput {
             || &self.exit != replay.exit_contract()
             || &self.manifest != replay.function_relative_manifest()
             || &self.post_allocation_manifest != replay.post_allocation_manifest()
-            || !Arc::ptr_eq(&self.target_input, replay.target_input_owner())
         {
             return Err(FunctionFragmentEmissionError::RootMismatch);
         }
@@ -373,15 +366,6 @@ fn matches_shared_plan<Plan: Eq>(current: &Arc<Plan>, replay: &Plan) -> bool {
 pub struct StagedOptimizedFunctionFragmentEmissionSource {
     current: CurrentFunctionFragmentInput, // Current program and admission facts.
     replay: FunctionFragmentReplayInputs, // Retained producer-stage objects for independent replay.
-}
-
-impl From<FunctionFragmentReplayInputs> for StagedOptimizedFunctionFragmentEmissionSource {
-    fn from(replay: FunctionFragmentReplayInputs) -> Self {
-        Self {
-            current: CurrentFunctionFragmentInput::retain(&replay),
-            replay,
-        }
-    }
 }
 
 impl StagedOptimizedFunctionFragmentEmissionSource {
@@ -472,11 +456,33 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
     }
 }
 
-impl From<StagedFixedFrameFunctionRelativeRealization>
-    for StagedOptimizedFunctionFragmentEmissionSource
-{
-    fn from(realization: StagedFixedFrameFunctionRelativeRealization) -> Self {
-        FunctionFragmentReplayInputs::from(realization).into()
+impl StagedOptimizedFunctionFragmentEmissionSource {
+    /// Join the function-relative realization with stage 02's output, which
+    /// object emission reads for lowering facts and installations. The
+    /// realization was built for the pre-physical manifest stage 02 published,
+    /// or the two are refused here.
+    pub fn new(
+        realization: StagedFixedFrameFunctionRelativeRealization,
+        target_input: Arc<
+            abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations,
+        >,
+    ) -> Result<Self, FunctionFragmentEmissionError> {
+        let replay = FunctionFragmentReplayInputs::from(realization);
+        let source = Self {
+            current: CurrentFunctionFragmentInput::retain(&replay, target_input),
+            replay,
+        };
+        source.validate_target_input()?;
+        Ok(source)
+    }
+
+    fn validate_target_input(&self) -> Result<(), FunctionFragmentEmissionError> {
+        if self.post_allocation_manifest().record().pre_physical
+            != self.pre_physical_manifest().identity
+        {
+            return Err(FunctionFragmentEmissionError::RootMismatch);
+        }
+        Ok(())
     }
 }
 
@@ -486,6 +492,7 @@ fn validate_source(
     validate_fixed_frame_function_relative_realization(source.replay().fixed_frame())
         .map_err(FunctionFragmentEmissionError::Source)?;
     source.validate_current()?;
+    source.validate_target_input()?;
     let expected_allocation_recovery = source
         .optimized_target()
         .optimized()

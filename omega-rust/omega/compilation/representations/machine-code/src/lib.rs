@@ -410,6 +410,7 @@ pub mod encoding;
 pub mod fragments;
 pub mod functions;
 pub mod layout;
+mod machine_forms;
 pub mod storage;
 
 #[doc(hidden)]
@@ -478,6 +479,9 @@ pub use layout::{
     ResolvedSelectedBlockLayout, ResolvedSelectedFormLayoutIdentity, ResolvedSelectedFormRow,
     ResolvedSelectedFunctionLayout, SelectedFunctionLayoutPolicy, X86BranchRelaxationIdentity,
     resolved_machine_layout_identity,
+};
+pub use machine_forms::{
+    EncodedMachineSource, FramedMachineProgram, FramedMachineSource, ResolvedLayoutSource,
 };
 pub use ownership::*;
 pub use provenance::*;

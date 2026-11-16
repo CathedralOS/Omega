@@ -716,6 +716,113 @@ pub fn plan_validator_call_violations(root: &Path) -> Vec<String> {
     violations
 }
 
+/// Entry points that read one input form. Each stage after register
+/// allocation's frame step keeps the form it was computed from in its output,
+/// so the next stage and final assembly reach earlier products through that
+/// one form (omega-rust/pipeline.md, "Representation-to-representation
+/// pipeline"). Each row is a file, the function it defines and how many
+/// parameters it may take; parameters past the first are configuration.
+const SINGLE_FORM_ENTRIES: &[(&str, &str, usize)] = &[
+    (
+        "omega-rust/omega/compilation/pipeline/07_post-allocation-machine-to-selected-form-encoding/src/lib.rs",
+        "stage_optimized_layout_independent_selected_form_encoding",
+        1,
+    ),
+    (
+        "omega-rust/omega/compilation/pipeline/07_post-allocation-machine-to-selected-form-encoding/src/lib.rs",
+        "validate_optimized_layout_independent_selected_form_encoding",
+        1,
+    ),
+    (
+        "omega-rust/omega/compilation/pipeline/08_selected-form-encoding-to-resolved-layout/src/lib.rs",
+        "stage_optimized_resolved_selected_form_layout",
+        1,
+    ),
+    (
+        "omega-rust/omega/compilation/pipeline/08_selected-form-encoding-to-resolved-layout/src/lib.rs",
+        "validate_optimized_resolved_selected_form_layout",
+        1,
+    ),
+    (
+        "omega-rust/omega/compilation/pipeline/09_resolved-layout-to-resolved-layout/src/lib.rs",
+        "execute_resolved_layout_optimization",
+        3,
+    ),
+    (
+        "omega-rust/omega/compilation/backend/machine-emission/src/function_realization.rs",
+        "assemble_fixed_frame_realization",
+        1,
+    ),
+];
+
+/// The parameters of `pub fn <name>` in `text`, split at top-level commas,
+/// or `None` when the function is not defined there.
+fn public_function_parameters(text: &str, name: &str) -> Option<Vec<String>> {
+    let needle = format!("pub fn {name}");
+    let rest = text.match_indices(&needle).find_map(|(index, _)| {
+        let rest = &text[index + needle.len()..];
+        rest.starts_with(['<', '(']).then_some(rest)
+    })?;
+    // Skip a generic parameter list, which may itself contain parentheses.
+    let mut depth = 0usize;
+    let mut open = None;
+    for (index, character) in rest.char_indices() {
+        match character {
+            '<' => depth += 1,
+            '>' => depth = depth.saturating_sub(1),
+            '(' if depth == 0 => {
+                open = Some(index);
+                break;
+            }
+            _ => {}
+        }
+    }
+    let body = &rest[open? + 1..];
+    let mut parameters = Vec::new();
+    let mut current = String::new();
+    let mut nesting = 0usize;
+    for character in body.chars() {
+        match character {
+            '(' | '<' | '[' | '{' => nesting += 1,
+            ')' if nesting == 0 => break,
+            ')' | '>' | ']' | '}' => nesting = nesting.saturating_sub(1),
+            ',' if nesting == 0 => {
+                parameters.push(std::mem::take(&mut current));
+                continue;
+            }
+            _ => {}
+        }
+        current.push(character);
+    }
+    parameters.push(current);
+    Some(
+        parameters
+            .into_iter()
+            .map(|parameter| parameter.trim().to_owned())
+            .filter(|parameter| !parameter.is_empty())
+            .collect(),
+    )
+}
+
+pub fn single_form_entry_violations(root: &Path) -> Vec<String> {
+    let mut violations = Vec::new();
+    for &(file, name, allowed) in SINGLE_FORM_ENTRIES {
+        let Ok(text) = fs::read_to_string(root.join(file)) else {
+            violations.push(format!("{file}: missing; it should define `{name}`"));
+            continue;
+        };
+        match public_function_parameters(&text, name) {
+            None => violations.push(format!("{file}: `pub fn {name}` is not defined here")),
+            Some(parameters) if parameters.len() != allowed => violations.push(format!(
+                "{file}: `{name}` takes {} parameters, not {allowed}; carry what it needs in its input form",
+                parameters.len()
+            )),
+            Some(_) => {}
+        }
+    }
+    violations
+}
+
 pub fn representation_spelling_violations(root: &Path) -> Vec<String> {
     let mut violations = Vec::new();
     for owner in [PSI, OMEGA] {
@@ -778,6 +885,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
     let check_all = || -> Result<Vec<String>, String> {
         let mut violations = representation_spelling_violations(&root);
         violations.extend(plan_validator_call_violations(&root));
+        violations.extend(single_form_entry_violations(&root));
         violations.extend(transitive_forbidden_violations(
             &metadata,
             SELECTION_REPRESENTATIONS,
@@ -988,6 +1096,22 @@ mod tests {
             transitive_exact_violations(&metadata(working), &[form], working, "no").unwrap(),
             vec!["machine-code -> target-operations: no".to_owned()]
         );
+    }
+
+    #[test]
+    fn single_form_entries_count_parameters_at_the_top_level() {
+        let text = "pub fn stage<Source: Into<(u8, u8)>>(\n    source: Source,\n) -> Result<(), ()> {}\n\
+                    pub fn joined(a: &[u8], b: Map<K, (V, W)>, c: impl Fn(u8, u8),) {}";
+        assert_eq!(
+            public_function_parameters(text, "stage"),
+            Some(vec!["source: Source".to_owned()])
+        );
+        assert_eq!(
+            public_function_parameters(text, "joined").map(|parameters| parameters.len()),
+            Some(3)
+        );
+        assert_eq!(public_function_parameters(text, "absent"), None);
+        assert_eq!(public_function_parameters(text, "stag"), None);
     }
 
     #[test]
