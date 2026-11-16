@@ -18,7 +18,7 @@ within its body.
 
 use semantic_vocabulary::{
     BlockId, CanonicalStructuralPathSegment, EdgeId, IdTable, InvocationSite, MachineId, PlaceId,
-    Proposition, ScalarTerm, ScalarType, StructuralCaseId, ValueId,
+    Proposition, PropositionContext, ScalarTerm, ScalarType, StructuralCaseId, ValueId,
 };
 use std::collections::VecDeque;
 use terminal_check_tables::edges::Callee;
@@ -29,10 +29,11 @@ use terminal_check_tables::{
     Checked, Construct, InvocationId, MachineTables, ProgramPoint, RefusalReason,
 };
 use terminal_psi::{OperationKind, TerminalMachine, Terminator};
+use terminal_semantics::substitution::clauses::substitute_clause_with_computation_names;
 
 use crate::{
     Bindings, Unbound, graph::Graph, joins, prepare_with_inhabitation, refusal, scalar_actuals,
-    substitute, terminal_machine,
+    terminal_machine,
 };
 
 /// Ordinary callers precede helpers. A recursive component's internal calls
@@ -222,6 +223,7 @@ fn describe_calls(
             .collect::<Vec<_>>();
         let predicate = describe(
             &known,
+            &prepared.context,
             &crossing,
             &mut InputBindings {
                 actuals,
@@ -267,6 +269,7 @@ fn describe_calls(
         )?;
         let predicate = describe(
             &known,
+            &prepared.context,
             &crossing,
             &mut InputBindings {
                 actuals: &actuals,
@@ -717,47 +720,32 @@ pub(crate) fn known_at(
 /// boundary. A fact over a value without a name there can only be forgotten.
 pub(crate) fn describe(
     known: &crate::known::Known,
+    context: &PropositionContext,
     crossing: &[(ScalarTerm, ValueId)],
     bindings: &mut dyn Bindings<Error = Unbound>,
 ) -> Proposition {
-    let definitions: Vec<_> = known
-        .definitions
-        .values()
-        .flatten()
-        .filter_map(
-            |&index| match &known.facts[known.equations[index]].proposition {
-                Proposition::Equal(ScalarTerm::Value { id, .. }, definition) => {
-                    Some((*id, definition))
-                }
-                _ => None,
-            },
-        )
-        .collect();
     let mut parts = Vec::new();
+    let mut computation_names = Vec::new();
+    let mut transport = crate::known::TransportInputs::new(known.equations.len());
     for (name, here) in crossing {
-        let definition = joins::unfold(
-            &ScalarTerm::value(*here, name.scalar_type()),
-            &definitions,
-            0,
-        );
-        let equality = Proposition::Equal(
-            name.clone(),
-            match crate::bound(&definition, &mut *bindings) {
-                Ok(term) => term,
-                Err(_) => continue,
-            },
-        );
-        if !matches!(&equality, Proposition::Equal(left, right) if left == right) {
-            parts.push(equality);
+        let definition = known.expand_value(context, *here, name.scalar_type(), &mut transport);
+        if let Ok(term) = crate::bound(&definition, &mut *bindings)
+            && *name != term
+        {
+            parts.push(Proposition::Equal(name.clone(), term));
+        }
+        if definition.scalar_type() == name.scalar_type() && !definition.operands().is_empty() {
+            computation_names.push((definition, name.clone()));
         }
     }
+    computation_names.sort_unstable();
+    computation_names.dedup_by(|right, left| right.0 == left.0);
     for fact in known.facts.iter().filter(|fact| fact.axiom.is_none()) {
-        let proposition = &fact.proposition;
-        // The shared closure retains both the original and normalized facts.
-        // Projection can weaken the former; the latter still carries every
-        // relation established before crossing the input boundary.
-        parts.push(joins::project(proposition, &mut |atom| {
-            substitute(atom, &mut *bindings).ok()
+        // A normalized fact may already name the exact computation passed
+        // across the boundary. Give that computation its receiving name
+        // before resolving operands the receiver cannot see.
+        parts.push(joins::project(&fact.proposition, &mut |atom| {
+            substitute_clause_with_computation_names(atom, &mut *bindings, &computation_names).ok()
         }));
     }
     joins::connective(parts, true)
