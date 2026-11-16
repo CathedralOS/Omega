@@ -788,6 +788,75 @@ machine entry() -> u32 crashes none {
     ));
 }
 
+// The requirement name and static tuple are equal, but its runtime signature
+// selects a different overload. That declaration identity must survive too.
+#[test]
+fn overloaded_boundary_calling_templates_keep_one_signature() {
+    let source = typed(
+        r#"
+boundary trait Pair {
+    machine take<const Limit: u64>(value: u32) -> u32
+    reaches none requires value <= Limit crashes none;
+    machine take<const Limit: u64>(value: i32) -> i32
+    reaches none requires value <= Limit crashes none;
+}
+machine entry() -> u32 crashes none {
+    let first: u32 = Pair::take<4>(3u32);
+    let second: i32 = Pair::take<4>(3i32);
+    first
+}
+"#,
+    );
+    let prepared = typed_trees_to_typed_trees::prepare_typed_trees(
+        source,
+        &typed_trees_to_typed_trees::PreparationRequest::settled(),
+    )
+    .unwrap()
+    .0;
+    let elaboration = read_applied_boundary(&prepared).unwrap();
+    let module = &elaboration.module;
+    let [first, second] = module.boundary_machines.as_slice() else {
+        panic!("the same name selects two exact signatures");
+    };
+    let a = first.declaration.as_ref().unwrap();
+    let b = second.declaration.as_ref().unwrap();
+    let abi_a = module.calling_abi_identity(first.id).unwrap();
+    let abi_b = module.calling_abi_identity(second.id).unwrap();
+    assert_eq!(abi_a.declaring_application, abi_b.declaring_application);
+    assert_eq!(abi_a.operands, abi_b.operands);
+    assert_ne!(a.source.semantic_declaration, b.source.semantic_declaration);
+    for (declaration, other, abi) in [(a, b, &abi_a), (b, a, &abi_b)] {
+        assert!(
+            declaration
+                .matches_calling_abi(&module.identities, abi)
+                .unwrap()
+        );
+        let mut changed = declaration.clone();
+        changed.source.semantic_declaration = other.source.semantic_declaration;
+        changed
+            .source
+            .specialization
+            .as_mut()
+            .unwrap()
+            .template_semantic_declaration = other
+            .source
+            .specialization
+            .as_ref()
+            .unwrap()
+            .template_semantic_declaration;
+        assert!(
+            !changed
+                .matches_calling_abi(&module.identities, abi)
+                .unwrap(),
+            "a different overload's semantic template cannot authenticate this callable and ABI"
+        );
+    }
+    let RouteVerdict::Accepted(accepted) = judge(Ok(elaboration)).unwrap() else {
+        panic!("both original calls meet their own limit");
+    };
+    accepted.publish_invocation().unwrap();
+}
+
 /// A boundary requirement with a value parameter, `take<const Count: u64>`,
 /// whose contract compares an `i32` formal with that `u64` parameter. Typed
 /// preparation closes it once per application, so `take<4>` has an array
