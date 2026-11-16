@@ -87,6 +87,19 @@ impl ClauseBindings for Named {
         })
     }
 
+    fn byte_predicate(
+        &mut self,
+        predicate: semantic_vocabulary::ByteSequencePredicate,
+        root: PlaceId,
+        selected: &[CanonicalStructuralPathSegment],
+    ) -> Result<ScalarTerm, Self::Error> {
+        Ok(ScalarTerm::byte_sequence_predicate(
+            predicate,
+            root,
+            selected.to_vec(),
+        ))
+    }
+
     fn case(
         &mut self,
         _: PlaceId,
