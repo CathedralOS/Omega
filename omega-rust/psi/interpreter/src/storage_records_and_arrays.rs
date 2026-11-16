@@ -405,6 +405,12 @@ pub(crate) mod record {
             {
                 let invalid = || TerminalInterpretError::ClaimTransferMismatch;
                 let types = self.structural_types();
+                let claim_types = terminal_semantics::owned_structure::ClaimTypes::new(
+                    types.values(),
+                )
+                .map_err(|reason| {
+                    TerminalInterpretError::VerifiedOperationContractInvalid { reason }
+                })?;
                 let nominal_root = match result.claims.as_slice() {
                     [binding]
                         if origin == ResultClaimOrigin::Construction
@@ -417,7 +423,7 @@ pub(crate) mod record {
                                     declaration.owns_linear_claim
                                     && declaration.multiplicity == StructuralMultiplicity::Linear
                                     && terminal_semantics::owned_structure::intrinsic_claim_root_by(
-                                        |identity| types.get(&identity),
+                                        &claim_types,
                                         declaration.id,
                                     ) == Ok(true)
                                     && matches!(

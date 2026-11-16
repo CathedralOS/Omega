@@ -2,7 +2,7 @@
 
 Root accepted PR #3764 and its unfinished Run/Vec outcome on 2026-11-16. Work continues in `worker-2`. The draft is unvalidated; do not merge it. No TASKS acceptance is closed.
 
-Checkpoint `767bce2fcf48894e3da7a53a4d82f1342f2e5ba5` integrates fixed main `d3deb345653b9812607155ff4b51e17db35ca520`, resolves four conflicts, and adds an unrun control removing a linear type's claim flag and matching rows while preserving its program and declared multiplicity. The validator remains unchanged.
+The worktree retains fixed base `d3deb345653b9812607155ff4b51e17db35ca520`. The checker now derives mandatory claims from declared multiplicity and owned fields, rather than trusting the supplied claim flag. Both saved-artifact validation and direct source checking use that rule. Claim scratch storage follows the actual declarations, so a large sparse type ID does not determine allocation size.
 
 ## Original outcome
 
@@ -30,15 +30,16 @@ An independent fsynced snapshot and manifest remain at `/workspace/shared/generi
 - The migration checkpoint at `6f9475e3b2fad0049dbadb4354db47a7f793d057`: a 40-crate all-target Clippy keep-going run found five mechanical test-target errors. Their focused five-crate retry passed after repairs; the other 35 results are source-equivalent historical evidence. This is not a fresh all-40 pass on this checkpoint.
 - The combined WIP source, before this subset was extracted: terminal-semantics, terminal-wire and language-core all-target Clippy passed with an unchanged source snapshot. The semantic test executable SHA256 was `0a663498a4327cfc99d1278a1d32956f91d8c9d91008dcda114d29d58c648fb5`; three exact transfer controls and one borrowed-successor claim control passed. These are historical WIP-source results, not a build of this draft checkpoint.
 - Two of three independent Run-authentication tests passed on that combined WIP. The third panicked because a mutation still expected Type(P) after the const policy-value migration. The fixture was corrected and preserved on the WIP branch, but not rerun. That receiver remains unwired in this PR's subset.
-- This extracted checkpoint has not been compiled or executed. The real Source05/Source06 sibling-call integration tests and five tamper cases are authored but unrun. No current rules/admission, full compiler, Product, populated Run, generic Vec, or native/Psi pass is claimed.
+- Fresh local patch `6018d15b30c8367ec1b5cc1468ca8413ab20170b1da36a326507a4d37c989ddf` over `9e7b729ccfb9965c05205e8f472dfc1c116f53e3`: the ordinary sibling-call test and its five tamper cases pass; removing the linear-leaf flag and every dependent claim row now rejects. Both tests passed in 0.020 seconds after a two-minute optimized build. The next semantics test target stopped at three accesses to the replaced private map in an existing test; those accesses are repaired, with the remaining checks pending. Inputs and output are retained in `/tmp/omega-3764-erasure-bounded.{json,patch,log}`.
+- The unchanged original Run positive and missing-cut twin both stop before custody checking because a transparent address predicate is read without its ordinary address interpretation. The twin therefore does not yet prove rejection of the missing bound. The address reader repair is underway. No populated Run, generic Vec, or native/Psi pass is claimed.
 
 ## Required next actions before a merge
 
-1. Challenge erased obligations: clear a linear Token's `owns_linear_claim` flag and all dependent claim rows, retaining multiplicity Linear. Receiving must reject the lost debt. The current intrinsic-root validator checks true flags only; mandatory linear-leaf ownership needs independent validation if this control is accepted. This control has not run.
+1. Finish the nearby ownership checks: sparse type IDs, complete linear-field obligations, and interpreter constructor bindings. Run the authored native/Psi sibling-value program and its duplicate-transfer reject twin. The two source checker controls above do not replace executable evidence.
 2. Ensure the general claim publisher does not accidentally admit populated Run while its hidden T custody and loans are absent. The original executable-linear-data guard is removed by this draft; preserve or add the exact Run floor until real retained-cell obligations exist. The original Run program's present refusal must be measured again, not inferred from an obsolete guard.
-3. Build the extracted source, run the actual Source05 sibling publication test and Source06 ordinary-call positive plus five tamper cases, then the neighboring native ownership controls and an actual supported native/Psi customer. Review all omitted/foreign/active-case claims and exact current paths. Only then consider normal admission and a merge.
+3. Check the affected native ownership path and resolve remaining findings. Run scoped lint and normal admission before merging. Keep historical results distinct from checks on the submitted source.
 4. Continue the full allocation acceptance from its actual next failure using the preserved WIP as material, not as trusted implementation. No new language-design question is implied by these engineering gaps.
 
 ## Continuation state
 
-Root owns continuation under claim `18e89b4f6d3691480000000018e98a76`. Previous workers and builds stopped. First local checks: sibling-call transfers, deletion of all claim metadata, and the unchanged Run positive/missing-cut pair. Builds share one executor.
+Root owns continuation under claim `18e89b4f6d3691480000000018e98a76`. The original contributors stopped; the takeover team shares one local build executor. Work on the address-predicate failure continues alongside the remaining ownership checks. Neither a checkpoint nor this note closes Run/Vec acceptance.

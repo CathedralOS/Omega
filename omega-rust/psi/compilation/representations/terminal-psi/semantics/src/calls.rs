@@ -3851,7 +3851,7 @@ pub fn const_array_argument_matches(
         if !identical
             && (actual.declaration_identity != expected.declaration_identity
                 || actual.owns_linear_claim != expected.owns_linear_claim
-                || actual.copyable != expected.copyable
+                || actual.multiplicity != expected.multiplicity
                 || actual.no_code_affine_cleanup != expected.no_code_affine_cleanup
                 || actual.descriptor_cleanup != expected.descriptor_cleanup
                 || actual.nominal_cleanup.is_some()

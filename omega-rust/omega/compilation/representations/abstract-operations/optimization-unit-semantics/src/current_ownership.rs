@@ -2487,6 +2487,9 @@ mod block_parameters {
             machine: function.machine,
             block,
         };
+        let claim_types =
+            terminal_semantics::owned_structure::ClaimTypes::new(types.values().copied())
+                .map_err(|_| invalid())?;
         let mut transferred = Vec::new();
         let mut copied_references = Vec::new();
         for (binding, parameter) in bindings.iter().zip(&target.structural_parameters) {
@@ -2534,6 +2537,7 @@ mod block_parameters {
                 transferred.extend(consume_projected_source(
                     function,
                     types,
+                    &claim_types,
                     block,
                     frontier,
                     binding,
@@ -2679,6 +2683,7 @@ mod block_parameters {
     fn consume_projected_source(
         function: &PsiOptimizationFunction,
         types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+        claim_types: &terminal_semantics::owned_structure::ClaimTypes<'_>,
         block: BlockId,
         frontier: &mut CurrentOwnership,
         binding: &AbstractStructuralBinding,
@@ -2733,7 +2738,7 @@ mod block_parameters {
         // wrapper transfers its real descendant frontier, authenticated against
         // the selected declaration and this edge's established payload case.
         terminal_semantics::owned_structure::validate_owned_claim_frontier(
-            &|identity| types.get(&identity).copied(),
+            claim_types,
             parameter.structural_type,
             &argument.path,
             transferred.iter().map(|(_, claim)| {
@@ -2981,9 +2986,12 @@ mod block_parameters {
                 selected: &dyn Fn(PlaceId, &[StructuralPathSegment], StructuralCaseId) -> bool,
             ) -> Result<Vec<(ClaimId, LiveClaim)>, OptimizationUnitValidationError> {
                 let types = self.types.iter().map(|row| (row.id, row)).collect();
+                let claim_types =
+                    terminal_semantics::owned_structure::ClaimTypes::new(&self.types).unwrap();
                 consume_projected_source(
                     &self.function,
                     &types,
+                    &claim_types,
                     id(1),
                     &mut self.frontier,
                     &self.binding,
@@ -3451,6 +3459,15 @@ mod cleanup {
             actions,
             membership,
         )?;
+        let claim_types = terminal_semantics::owned_structure::ClaimTypes::new(
+            structural_types.values().copied(),
+        )
+        .map_err(
+            |_| OptimizationUnitValidationError::CurrentCleanupMismatch {
+                machine: function.machine,
+                block,
+            },
+        )?;
         remaining.owned_places.retain(|place, multiplicity| {
             *multiplicity != StructuralMultiplicity::Linear
                 || remaining.partial_custody_paths.contains_key(place)
@@ -3460,7 +3477,7 @@ mod cleanup {
                     .any(|claim| claim.input == Some(*place))
                 || place_structural_type(function, *place).is_none_or(|root| {
                     terminal_semantics::owned_structure::validate_owned_claim_frontier(
-                        &|identity| structural_types.get(&identity).copied(),
+                        &claim_types,
                         root,
                         &[],
                         std::iter::empty(),
@@ -8155,6 +8172,13 @@ mod replay {
         Vec<terminal_semantics::descriptor_results::DescriptorCompatibilityRequirement>,
         OptimizationUnitValidationError,
     > {
+        let claim_types =
+            terminal_semantics::owned_structure::ClaimTypes::new(&unit.structural_types).map_err(
+                |_| OptimizationUnitValidationError::CurrentCleanupMismatch {
+                    machine: function.machine,
+                    block: function.entry,
+                },
+            )?;
         let identities = &unit.identities;
         let dynamic_dispatch = &unit.dynamic_dispatch;
         let psi = unit.psi;
@@ -8211,6 +8235,7 @@ mod replay {
                 let value_use = super::value_custody::ValueUse {
                     function,
                     types: &unit.structural_types,
+                    claim_types: &claim_types,
                     block: block_id,
                     node: node_index,
                     admitted_case: &admitted_case,
@@ -9199,7 +9224,7 @@ mod replay {
                             ),
                         )?;
                         terminal_semantics::owned_structure::validate_complete_claim_frontier(
-                            |identity| structural_types.get(&identity).copied(),
+                            &claim_types,
                             root.structural_type,
                             &[],
                             frontier.claims.values().filter_map(|claim| {
@@ -10033,6 +10058,7 @@ mod value_custody {
     pub(super) struct ValueUse<'a> {
         pub function: &'a PsiOptimizationFunction,
         pub types: &'a [StructuralTypeDeclaration],
+        pub claim_types: &'a terminal_semantics::owned_structure::ClaimTypes<'a>,
         pub block: BlockId,
         pub node: u32,
         pub admitted_case: &'a dyn Fn(PlaceId, &[StructuralPathSegment], StructuralCaseId) -> bool,
@@ -10331,7 +10357,7 @@ mod value_custody {
                 );
             }
             terminal_semantics::owned_structure::validate_owned_claim_frontier(
-                &|identity| self.types.declaration(identity),
+                self.claim_types,
                 selected,
                 path,
                 claims.map(|claim| claim.path.clone()),
@@ -11017,9 +11043,12 @@ mod value_custody {
                     join_owned_frontier(&function, &types, &mut first, &second),
                     Some(false)
                 );
+                let claim_types =
+                    terminal_semantics::owned_structure::ClaimTypes::new(&types).unwrap();
                 let use_value = ValueUse {
                     function: &function,
                     types: &types,
+                    claim_types: &claim_types,
                     block: id(1),
                     node: 0,
                     admitted_case: &|_, _, _| false,
@@ -11144,9 +11173,11 @@ mod value_custody {
         #[test]
         fn a_receiving_region_needs_full_vacancy_and_an_allocated_home() {
             let (function, types, destination) = context();
+            let claim_types = terminal_semantics::owned_structure::ClaimTypes::new(&types).unwrap();
             let use_value = ValueUse {
                 function: &function,
                 types: &types,
+                claim_types: &claim_types,
                 block: id(1),
                 node: 0,
                 admitted_case: &|_, _, _| false,
@@ -11191,9 +11222,11 @@ mod value_custody {
         #[test]
         fn installing_a_subtree_preserves_other_holes_and_rejoins_its_home() {
             let (function, types, destination) = context();
+            let claim_types = terminal_semantics::owned_structure::ClaimTypes::new(&types).unwrap();
             let use_value = ValueUse {
                 function: &function,
                 types: &types,
+                claim_types: &claim_types,
                 block: id(1),
                 node: 0,
                 admitted_case: &|_, _, _| false,

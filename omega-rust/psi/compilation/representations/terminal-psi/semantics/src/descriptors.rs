@@ -11437,7 +11437,7 @@ pub mod descriptor_results {
                         referent: scalar,
                         access: StructuralAccess::MutableBorrow,
                     };
-                    module.structural_types[1].copyable = false;
+                    module.structural_types[1].multiplicity = StructuralMultiplicity::Affine;
                     let actual = PlaceId::new(1).unwrap();
                     let formal = PlaceId::new(7).unwrap();
                     let mut caller = module.machines.remove(0);

@@ -2,7 +2,7 @@
 //! record namespace. This pass parses no body and grants no value, lifetime,
 //! access, initialization, disposal or claim authority.
 
-use semantic_vocabulary::{MachineId, StructuralTypeId};
+use semantic_vocabulary::MachineId;
 use terminal_check_tables::Checked;
 use terminal_psi::{CallingAbiStorage, CallingRuntimeFormal, CallingSignatureTelescope};
 use typed_trees::types::TypeReferenceNode;

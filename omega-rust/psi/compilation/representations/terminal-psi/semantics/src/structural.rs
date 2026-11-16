@@ -982,14 +982,14 @@ pub mod owned_structure {
 
         use super::child_types;
         use crate::exactly_one::exactly_one;
-        use semantic_vocabulary::{IdSet, StructuralCaseId, StructuralTypeId};
+        use semantic_vocabulary::{StructuralCaseId, StructuralTypeId};
         use std::collections::BTreeSet;
         use terminal_psi::{
             StructuralPathSegment as Path, StructuralTypeDeclaration, StructuralTypeShape,
         };
 
         pub fn validate_complete_claim_frontier<'a>(
-            declaration: impl Fn(StructuralTypeId) -> Option<&'a StructuralTypeDeclaration>,
+            possible: &ClaimTypes<'_>,
             root: StructuralTypeId,
             region: &[Path],
             claims: impl IntoIterator<Item = &'a [Path]>,
@@ -1004,73 +1004,223 @@ pub mod owned_structure {
                     return Err("complete value repeats a live claim path");
                 }
             }
-            let mut possible = ClaimTypes::default();
-            let consumed = visit(
-                &declaration,
-                root,
-                &mut Vec::new(),
-                region,
-                &held,
-                selected,
-                &mut possible,
-            )?;
+            let consumed = visit(possible, root, &mut Vec::new(), region, &held, selected)?;
             if consumed != held.len() {
                 return Err("complete value has a claim outside its declared frontier");
             }
             Ok(())
         }
 
-        #[derive(Default)]
-        pub(crate) struct ClaimTypes {
-            known: IdSet<StructuralTypeId>,
-            with_claims: IdSet<StructuralTypeId>,
-            active: IdSet<StructuralTypeId>,
+        #[derive(Clone, Copy)]
+        enum ClaimState {
+            Unknown,
+            Active,
+            Absent,
+            Present,
         }
 
-        pub(crate) fn contains_claim<'a>(
-            declaration: &impl Fn(StructuralTypeId) -> Option<&'a StructuralTypeDeclaration>,
+        /// Claim-search scratch belongs to the declared type roster, not to
+        /// the numeric range of its identities. Reuse it for queries over the
+        /// same immutable declarations.
+        pub struct ClaimTypes<'types> {
+            declarations: Vec<&'types StructuralTypeDeclaration>,
+            states: Vec<ClaimState>,
+        }
+
+        impl<'types> ClaimTypes<'types> {
+            pub fn new(
+                declarations: impl IntoIterator<Item = &'types StructuralTypeDeclaration>,
+            ) -> Result<Self, &'static str> {
+                let mut declarations = declarations.into_iter().collect::<Vec<_>>();
+                declarations.sort_unstable_by_key(|row| row.id);
+                if declarations.windows(2).any(|rows| rows[0].id == rows[1].id) {
+                    return Err("claim type roster repeats a declaration identity");
+                }
+                let mut prepared = Self {
+                    states: vec![ClaimState::Unknown; declarations.len()],
+                    declarations,
+                };
+                for slot in 0..prepared.declarations.len() {
+                    let identity = prepared.declarations[slot].id;
+                    compute_claim(identity, &mut prepared)?;
+                }
+                Ok(prepared)
+            }
+
+            pub(super) fn declaration(
+                &self,
+                identity: StructuralTypeId,
+            ) -> Option<&'types StructuralTypeDeclaration> {
+                self.declarations
+                    .binary_search_by_key(&identity, |row| row.id)
+                    .ok()
+                    .map(|slot| self.declarations[slot])
+            }
+        }
+
+        fn compute_claim(
             current: StructuralTypeId,
-            possible: &mut ClaimTypes,
+            possible: &mut ClaimTypes<'_>,
         ) -> Result<bool, &'static str> {
-            let row = declaration(current).ok_or("complete value type is absent")?;
+            let slot = possible
+                .declarations
+                .binary_search_by_key(&current, |row| row.id)
+                .map_err(|_| "complete value type is absent")?;
+            let row = possible.declarations[slot];
             if row.owns_linear_claim {
                 return Ok(true);
             }
-            if possible.known.contains(current) {
-                return Ok(possible.with_claims.contains(current));
+            match possible.states[slot] {
+                ClaimState::Present => return Ok(true),
+                ClaimState::Absent => return Ok(false),
+                ClaimState::Active => return Err("complete value has a cyclic by-value type"),
+                ClaimState::Unknown => {}
             }
-            if !possible.active.insert(current) {
-                return Err("complete value has a cyclic by-value type");
-            }
+            possible.states[slot] = ClaimState::Active;
             let mut found = false;
             for child in child_types(row) {
-                found |= contains_claim(declaration, child, possible)?;
+                match compute_claim(child, possible) {
+                    Ok(child_found) => found |= child_found,
+                    Err(error) => {
+                        possible.states[slot] = ClaimState::Unknown;
+                        return Err(error);
+                    }
+                }
             }
-            possible.active.remove(current);
-            possible.known.insert(current);
-            if found {
-                possible.with_claims.insert(current);
-            }
+            possible.states[slot] = if found {
+                ClaimState::Present
+            } else {
+                ClaimState::Absent
+            };
             Ok(found)
         }
 
-        fn visit<'a>(
-            declaration: &impl Fn(StructuralTypeId) -> Option<&'a StructuralTypeDeclaration>,
+        pub(crate) fn contains_claim(
+            current: StructuralTypeId,
+            possible: &ClaimTypes<'_>,
+        ) -> Result<bool, &'static str> {
+            let slot = possible
+                .declarations
+                .binary_search_by_key(&current, |row| row.id)
+                .map_err(|_| "complete value type is absent")?;
+            Ok(possible.declarations[slot].owns_linear_claim
+                || matches!(possible.states[slot], ClaimState::Present))
+        }
+
+        #[cfg(test)]
+        mod tests {
+            use super::*;
+            use terminal_psi::{
+                BindingRelevance, StructuralFieldType, StructuralMultiplicity,
+                StructuralRecordStorage, TerminalIdentityIndex,
+            };
+
+            fn empty(identity: u64) -> StructuralTypeDeclaration {
+                StructuralTypeDeclaration {
+                    declaration_identity: Default::default(),
+                    id: StructuralTypeId::new(identity).unwrap(),
+                    identity: TerminalIdentityIndex(1),
+                    owns_linear_claim: false,
+                    multiplicity: StructuralMultiplicity::Affine,
+                    no_code_affine_cleanup: true,
+                    descriptor_cleanup: true,
+                    nominal_cleanup: None,
+                    quotient_carrier: None,
+                    scalar_restriction: None,
+                    requires: Vec::new(),
+                    shape: StructuralTypeShape::Record {
+                        storage: StructuralRecordStorage::Packed,
+                        fields: Vec::new(),
+                    },
+                }
+            }
+
+            #[test]
+            fn claim_scratch_follows_declared_rows_with_sparse_identities() {
+                let child = empty(u64::MAX - 1);
+                let mut root = empty(7);
+                root.multiplicity = StructuralMultiplicity::Linear;
+                root.owns_linear_claim = true;
+                let field = terminal_psi::StructuralFieldDeclaration {
+                    declaration_identity: Default::default(),
+                    id: semantic_vocabulary::StructuralFieldId::new(1).unwrap(),
+                    identity: TerminalIdentityIndex(2),
+                    relevance: BindingRelevance::Relevant,
+                    storage: None,
+                    field_type: StructuralFieldType::Structural(child.id),
+                    inline_carrier: None,
+                };
+                let StructuralTypeShape::Record { fields, .. } = &mut root.shape else {
+                    unreachable!()
+                };
+                fields.push(field);
+                // Unsorted, widely separated IDs still get exactly two slots.
+                let mut declarations = [child, root];
+                let types = ClaimTypes::new(&declarations).unwrap();
+                assert_eq!(types.states.len(), 2);
+                assert!(!contains_claim(declarations[0].id, &types).unwrap());
+                assert!(contains_claim(declarations[1].id, &types).unwrap());
+                super::super::validate_intrinsic_claim_roots(&declarations).unwrap();
+                assert_eq!(
+                    super::super::intrinsic_claim_root_by(&types, declarations[1].id),
+                    Ok(true)
+                );
+                let paths = super::super::claim_catalogue(&types, declarations[1].id, 1).unwrap();
+                assert_eq!(paths, BTreeSet::from([Vec::new()]));
+                validate_complete_claim_frontier(
+                    &types,
+                    declarations[1].id,
+                    &[],
+                    paths.iter().map(Vec::as_slice),
+                    &|_, _| false,
+                )
+                .unwrap();
+                assert!(
+                    validate_complete_claim_frontier(
+                        &types,
+                        declarations[1].id,
+                        &[],
+                        std::iter::empty(),
+                        &|_, _| false,
+                    )
+                    .is_err()
+                );
+                assert!(ClaimTypes::new([&declarations[0], &declarations[0]]).is_err());
+                // Clearing the nominal root or forging a claim on the affine
+                // child cannot evade the declaration checks.
+                declarations[1].owns_linear_claim = false;
+                assert!(super::super::validate_intrinsic_claim_roots(&declarations).is_err());
+                declarations[0].owns_linear_claim = true;
+                assert!(super::super::validate_intrinsic_claim_roots(&declarations).is_err());
+                // A referenced type must be present in this exact roster.
+                assert!(ClaimTypes::new([&declarations[1]]).is_err());
+                let self_id = declarations[1].id;
+                let StructuralTypeShape::Record { fields, .. } = &mut declarations[1].shape else {
+                    unreachable!()
+                };
+                fields[0].field_type = StructuralFieldType::Structural(self_id);
+                assert!(ClaimTypes::new([&declarations[1]]).is_err());
+            }
+        }
+
+        fn visit(
+            possible: &ClaimTypes<'_>,
             current: StructuralTypeId,
             path: &mut Vec<Path>,
             region: &[Path],
             held: &BTreeSet<&[Path]>,
             selected: &dyn Fn(&[Path], StructuralCaseId) -> bool,
-            possible: &mut ClaimTypes,
         ) -> Result<usize, &'static str> {
-            let row = declaration(current).ok_or("complete value type is absent")?;
+            let row = possible
+                .declaration(current)
+                .ok_or("complete value type is absent")?;
             if row.owns_linear_claim {
                 return held
                     .contains(path.as_slice())
                     .then_some(1)
                     .ok_or("complete value is missing its declaration-owned claim");
             }
-            if !contains_claim(declaration, current, possible)? {
+            if !contains_claim(current, possible)? {
                 return Ok(0);
             }
             if let Some((step, tail)) = region.split_first() {
@@ -1096,9 +1246,7 @@ pub mod owned_structure {
                         .ok_or("complete value region has no exact payload field")?;
                         path.extend([step.clone(), Path::Field(*field)]);
                         let count = match member.field_type.as_structural() {
-                            Some(child) => {
-                                visit(declaration, child, path, rest, held, selected, possible)
-                            }
+                            Some(child) => visit(possible, child, path, rest, held, selected),
                             None if rest.is_empty() => Ok(0),
                             None => Err("complete value region projects through a scalar"),
                         }?;
@@ -1113,8 +1261,7 @@ pub mod owned_structure {
                             return Err("complete value region has no exact array element");
                         }
                         path.push(step.clone());
-                        let count =
-                            visit(declaration, *element, path, tail, held, selected, possible)?;
+                        let count = visit(possible, *element, path, tail, held, selected)?;
                         path.pop();
                         return Ok(count);
                     }
@@ -1129,7 +1276,7 @@ pub mod owned_structure {
                 .ok_or("complete value region has no exact field")?;
                 path.push(step.clone());
                 let count = match member.field_type.as_structural() {
-                    Some(child) => visit(declaration, child, path, tail, held, selected, possible),
+                    Some(child) => visit(possible, child, path, tail, held, selected),
                     None if tail.is_empty() => Ok(0),
                     None => Err("complete value region projects through a scalar"),
                 }?;
@@ -1145,18 +1292,18 @@ pub mod owned_structure {
                 for index in 0..length {
                     *path.last_mut().expect("array path has its current index") =
                         Path::FixedIndex(index);
-                    count += visit(declaration, *element, path, &[], held, selected, possible)?;
+                    count += visit(possible, *element, path, &[], held, selected)?;
                 }
                 path.pop();
                 return Ok(count);
             }
-            let mut fields = |fields: &[terminal_psi::StructuralFieldDeclaration],
-                              path: &mut Vec<Path>| {
+            let fields = |fields: &[terminal_psi::StructuralFieldDeclaration],
+                          path: &mut Vec<Path>| {
                 let mut count = 0;
                 for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
                     if let Some(child) = field.field_type.as_structural() {
                         path.push(Path::Field(field.identity));
-                        count += visit(declaration, child, path, &[], held, selected, possible)?;
+                        count += visit(possible, child, path, &[], held, selected)?;
                         path.pop();
                     }
                 }
@@ -1179,34 +1326,48 @@ pub mod owned_structure {
             }
         }
     }
-    pub use complete_claims::validate_complete_claim_frontier;
+    pub use complete_claims::{ClaimTypes, validate_complete_claim_frontier};
 
-    /// An intrinsic claim accounts for this logical root, never a replacement
-    /// for claims carried by its owned components (including inactive cases).
-    pub fn intrinsic_claim_root_by<'types>(
-        declaration: impl Fn(StructuralTypeId) -> Option<&'types StructuralTypeDeclaration>,
-        root: StructuralTypeId,
-    ) -> Result<bool, &'static str> {
-        intrinsic_claim_root(
-            &declaration,
-            root,
-            &mut complete_claims::ClaimTypes::default(),
-        )
+    /// A nominal linear value owes its own claim when no owned component
+    /// already carries that obligation. Arrays and references do not create
+    /// an extra nominal obligation from their container shape.
+    pub fn intrinsic_claim_required(
+        multiplicity: terminal_psi::StructuralMultiplicity,
+        shape: &StructuralTypeShape,
+        contains_owned_claim: bool,
+    ) -> bool {
+        multiplicity == terminal_psi::StructuralMultiplicity::Linear
+            && !contains_owned_claim
+            && matches!(
+                shape,
+                StructuralTypeShape::Record { .. }
+                    | StructuralTypeShape::Sum { .. }
+                    | StructuralTypeShape::Mixed { .. }
+                    | StructuralTypeShape::Opaque
+            )
     }
 
-    fn intrinsic_claim_root<'types>(
-        declaration: &impl Fn(StructuralTypeId) -> Option<&'types StructuralTypeDeclaration>,
+    /// Derive the root obligation from the declaration and owned components,
+    /// including fields in every case, independently of the root's claim flag.
+    pub fn intrinsic_claim_root_by(
+        possible: &ClaimTypes<'_>,
         root: StructuralTypeId,
-        possible: &mut complete_claims::ClaimTypes,
     ) -> Result<bool, &'static str> {
-        let row = declaration(root).ok_or("intrinsic claim type is absent")?;
-        if !row.owns_linear_claim
-            || row.multiplicity != terminal_psi::StructuralMultiplicity::Linear
-        {
+        intrinsic_claim_root(possible, root)
+    }
+
+    fn intrinsic_claim_root(
+        possible: &ClaimTypes<'_>,
+        root: StructuralTypeId,
+    ) -> Result<bool, &'static str> {
+        let row = possible
+            .declaration(root)
+            .ok_or("intrinsic claim type is absent")?;
+        if !intrinsic_claim_required(row.multiplicity, &row.shape, false) {
             return Ok(false);
         }
         for child in child_types(row) {
-            if complete_claims::contains_claim(declaration, child, possible)? {
+            if complete_claims::contains_claim(child, possible)? {
                 return Ok(false);
             }
         }
@@ -1216,16 +1377,15 @@ pub mod owned_structure {
     pub fn validate_intrinsic_claim_roots(
         types: &[StructuralTypeDeclaration],
     ) -> Result<(), &'static str> {
-        let declaration = |id| {
-            types
-                .binary_search_by_key(&id, |row| row.id)
-                .ok()
-                .map(|index| &types[index])
-        };
-        let mut possible = complete_claims::ClaimTypes::default();
-        for row in types.iter().filter(|row| row.owns_linear_claim) {
-            if !intrinsic_claim_root(&declaration, row.id, &mut possible)? {
-                return Err("intrinsic root claim cannot replace owned component claims");
+        let possible = ClaimTypes::new(types)?;
+        for row in types {
+            let required = intrinsic_claim_root(&possible, row.id)?;
+            if required != row.owns_linear_claim {
+                return Err(if required {
+                    "linear nominal leaf is missing its intrinsic ownership claim"
+                } else {
+                    "intrinsic root claim disagrees with the declared storage obligations"
+                });
             }
         }
         Ok(())
@@ -1233,19 +1393,20 @@ pub mod owned_structure {
 
     /// The exact typed catalogue used by both publication and receiving. Its
     /// limit bounds the output roster, not a second interpretation of claims.
-    pub fn claim_catalogue<'types>(
-        declaration: impl Fn(StructuralTypeId) -> Option<&'types StructuralTypeDeclaration>,
+    pub fn claim_catalogue(
+        possible: &ClaimTypes<'_>,
         root: StructuralTypeId,
         maximum: usize,
     ) -> Result<BTreeSet<Vec<StructuralPathSegment>>, &'static str> {
-        let mut possible = complete_claims::ClaimTypes::default();
         let mut pending = vec![(root, Vec::new())];
         let mut paths = BTreeSet::new();
         while let Some((current, path)) = pending.pop() {
-            if !complete_claims::contains_claim(&declaration, current, &mut possible)? {
+            if !complete_claims::contains_claim(current, possible)? {
                 continue;
             }
-            let row = declaration(current).ok_or("claim catalogue type is absent")?;
+            let row = possible
+                .declaration(current)
+                .ok_or("claim catalogue type is absent")?;
             if row.owns_linear_claim {
                 if paths.len() == maximum || !paths.insert(path) {
                     return Err("claim catalogue omits or repeats an intrinsic leaf");
@@ -1490,8 +1651,8 @@ pub mod owned_structure {
         Some(false)
     }
 
-    pub fn validate_owned_claim_frontier<'types>(
-        declaration: &impl Fn(StructuralTypeId) -> Option<&'types StructuralTypeDeclaration>,
+    pub fn validate_owned_claim_frontier(
+        possible: &ClaimTypes<'_>,
         selected_type: StructuralTypeId,
         path: &[StructuralPathSegment],
         accounted: impl IntoIterator<Item = Vec<StructuralPathSegment>>,
@@ -1520,7 +1681,6 @@ pub mod owned_structure {
             },
         }
         let mut pending = vec![Pending::Value(path.to_vec(), selected_type)];
-        let mut possible = complete_claims::ClaimTypes::default();
         while let Some(occurrence) = pending.pop() {
             let (path, current) = match occurrence {
                 Pending::Value(path, current) => (path, current),
@@ -1544,14 +1704,16 @@ pub mod owned_structure {
                     continue;
                 }
             };
-            let current_type = declaration(current).ok_or("owned value type is absent")?;
+            let current_type = possible
+                .declaration(current)
+                .ok_or("owned value type is absent")?;
             if current_type.owns_linear_claim {
                 if !remaining.remove(&path) {
                     return Err("owned value has no exact live nominal claim");
                 }
                 continue;
             }
-            if !complete_claims::contains_claim(declaration, current, &mut possible)? {
+            if !complete_claims::contains_claim(current, possible)? {
                 continue;
             }
             if let StructuralTypeShape::FixedArray { element, length } = &current_type.shape {
@@ -1590,8 +1752,7 @@ pub mod owned_structure {
                         .filter(|field| !field.relevance.is_erased())
                         .filter_map(|field| field.field_type.as_structural())
                     {
-                        payload_required |=
-                            complete_claims::contains_claim(declaration, child, &mut possible)?;
+                        payload_required |= complete_claims::contains_claim(child, possible)?;
                     }
                     if payload_required {
                         let mut admitted = false;
@@ -1637,8 +1798,8 @@ pub mod owned_structure {
         case_payload_required: bool,
     ) -> Option<Vec<(Vec<StructuralPathSegment>, StructuralTypeId)>> {
         let mut children = Vec::new();
-        let mut fields = |fields: &[terminal_psi::StructuralFieldDeclaration],
-                          prefix: &[StructuralPathSegment]| {
+        let fields = |fields: &[terminal_psi::StructuralFieldDeclaration],
+                      prefix: &[StructuralPathSegment]| {
             for field in fields
                 .iter()
                 .rev()
@@ -4176,12 +4337,6 @@ pub(crate) mod structural_claims {
         if declarations.windows(2).any(|rows| rows[0].id == rows[1].id) {
             return Err(ResultClaimCatalogError::NonStaticOwnedPath);
         }
-        let declaration = |id| {
-            declarations
-                .binary_search_by_key(&id, |row| row.id)
-                .ok()
-                .map(|index| declarations[index])
-        };
         crate::canonical_static_projection(declarations.iter().copied(), root, &[])
             .ok_or(ResultClaimCatalogError::NonStaticOwnedPath)?;
         for binding in catalogue {
@@ -4197,7 +4352,9 @@ pub(crate) mod structural_claims {
         }
         // This is the guarded type catalogue, not evidence of a selected live
         // case. Every returning edge still proves its own active membership.
-        let expected = super::owned_structure::claim_catalogue(declaration, root, catalogue.len())
+        let claim_types = super::owned_structure::ClaimTypes::new(declarations.iter().copied())
+            .map_err(|_| ResultClaimCatalogError::TypedFrontierMismatch)?;
+        let expected = super::owned_structure::claim_catalogue(&claim_types, root, catalogue.len())
             .map_err(|_| ResultClaimCatalogError::TypedFrontierMismatch)?;
         if expected.len() != catalogue.len()
             || catalogue

@@ -511,7 +511,7 @@ mod tests {
             id: flag,
             identity: flag_identity,
             owns_linear_claim: false,
-            copyable: true,
+            multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
             no_code_affine_cleanup: false,
             descriptor_cleanup: false,
             nominal_cleanup: None,

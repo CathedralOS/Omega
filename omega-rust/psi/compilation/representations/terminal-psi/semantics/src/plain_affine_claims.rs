@@ -55,7 +55,7 @@ impl ClaimsState {
             live_count: 0,
         })
     }
-    fn live(&self) -> impl Iterator<Item = &ClaimLocation> {
+    pub(super) fn live(&self) -> impl Iterator<Item = &ClaimLocation> {
         self.claims.iter().flatten()
     }
     fn at(&self, place: PlaceId) -> impl Iterator<Item = &ClaimLocation> {
@@ -291,9 +291,12 @@ struct TypeClaims {
     structural_type: StructuralTypeId,
     paths: Option<Vec<Vec<Path>>>,
 }
-struct Catalogues(Vec<TypeClaims>);
-impl Catalogues {
-    fn new(types: &[StructuralTypeDeclaration]) -> Result<Self, Error> {
+struct Catalogues<'types> {
+    rows: Vec<TypeClaims>,
+    types: crate::owned_structure::ClaimTypes<'types>,
+}
+impl<'types> Catalogues<'types> {
+    fn new(types: &'types [StructuralTypeDeclaration]) -> Result<Self, Error> {
         let mut rows = types
             .iter()
             .map(|row| TypeClaims {
@@ -310,28 +313,23 @@ impl Catalogues {
                 "claim catalogue repeats a structural type",
             ));
         }
-        Ok(Self(rows))
+        Ok(Self {
+            rows,
+            types: crate::owned_structure::ClaimTypes::new(types).map_err(Error::malformed)?,
+        })
     }
-    fn paths(
-        &mut self,
-        types: &[StructuralTypeDeclaration],
-        root: StructuralTypeId,
-    ) -> Result<&[Vec<Path>], Error> {
+    fn paths(&mut self, root: StructuralTypeId) -> Result<&[Vec<Path>], Error> {
         let position = self
-            .0
+            .rows
             .binary_search_by_key(&root, |row| row.structural_type)
             .map_err(|_| Error::malformed("claim catalogue names an absent structural type"))?;
-        let paths = &mut self.0[position].paths;
+        let paths = &mut self.rows[position].paths;
         if paths.is_none() {
             *paths = Some(
-                crate::owned_structure::claim_catalogue(
-                    |id| terminal_psi::find_structural_type(types, id),
-                    root,
-                    usize::MAX,
-                )
-                .map_err(Error::malformed)?
-                .into_iter()
-                .collect(),
+                crate::owned_structure::claim_catalogue(&self.types, root, usize::MAX)
+                    .map_err(Error::malformed)?
+                    .into_iter()
+                    .collect(),
             );
         }
         Ok(paths.as_deref().expect("queried claim catalogue retained"))
@@ -370,13 +368,17 @@ pub fn publish_contract_claims(
     types: &[StructuralTypeDeclaration],
 ) -> Result<(), Error> {
     let mut cache = Catalogues::new(types)?;
+    publish_claims(contract, &mut cache)
+}
+
+fn publish_claims(contract: &mut MachineContract, cache: &mut Catalogues<'_>) -> Result<(), Error> {
     let mut next = 1;
     let mut entries = Vec::new();
     for formal in &contract.structural_parameters {
         if formal.access != StructuralAccess::Owned {
             continue;
         }
-        for path in cache.paths(types, formal.structural_type)? {
+        for path in cache.paths(formal.structural_type)? {
             entries.push(EntryClaim {
                 claim: fresh(&mut next)?,
                 input: formal.place,
@@ -389,23 +391,23 @@ pub fn publish_contract_claims(
     Ok(())
 }
 
-pub(super) struct Flow {
+pub(super) struct Flow<'types> {
     mode: Mode,
-    catalogues: Catalogues,
+    catalogues: Catalogues<'types>,
     fresh_results: Vec<OperationClaims>,
     pub plan: ClaimsPlan,
 }
-impl Flow {
+impl<'types> Flow<'types> {
     pub fn new(
         machine: &TerminalMachine,
-        types: &[StructuralTypeDeclaration],
+        types: &'types [StructuralTypeDeclaration],
         mode: Mode,
     ) -> Result<(Self, ClaimsState), Error> {
         let mut contract = machine.contract.clone();
-        if mode == Mode::Publish {
-            publish_contract_claims(&mut contract, types)?;
-        }
         let mut cache = Catalogues::new(types)?;
+        if mode == Mode::Publish {
+            publish_claims(&mut contract, &mut cache)?;
+        }
         let mut assigned = BTreeSet::new();
         let mut next = 1;
         let mut check_id = |id: ClaimId| -> Result<(), Error> {
@@ -431,7 +433,7 @@ impl Flow {
                 })
                 .collect::<Vec<_>>();
             let expected = if formal.access == StructuralAccess::Owned {
-                cache.paths(types, formal.structural_type)?
+                cache.paths(formal.structural_type)?
             } else {
                 &[]
             };
@@ -452,7 +454,7 @@ impl Flow {
         for block in &machine.blocks {
             for formal in &block.structural_parameters {
                 let expected = if formal.access == StructuralAccess::Owned {
-                    cache.paths(types, formal.structural_type)?
+                    cache.paths(formal.structural_type)?
                 } else {
                     &[]
                 };
@@ -498,7 +500,7 @@ impl Flow {
             let Some(result) = operation.result.as_structural() else {
                 continue;
             };
-            let expected = cache.paths(types, result.structural_type)?;
+            let expected = cache.paths(result.structural_type)?;
             let rows = if mode == Mode::Publish {
                 expected
                     .iter()
@@ -846,10 +848,7 @@ impl Flow {
                 }
                 Op::EstablishZeroedStructural { .. } => {
                     if let Some(result) = operation.result.as_structural()
-                        && !self
-                            .catalogues
-                            .paths(types, result.structural_type)?
-                            .is_empty()
+                        && !self.catalogues.paths(result.structural_type)?.is_empty()
                     {
                         return Err(Error::unsupported(
                             "implicit zero-filled storage establishes no linear claim",
@@ -1116,34 +1115,19 @@ impl Flow {
             }
         }
     }
-    pub fn finish(
-        self,
-        machine: &TerminalMachine,
-        types: &[StructuralTypeDeclaration],
-    ) -> Result<ClaimsPlan, Error> {
-        self.verify_catalogues(machine, types)?;
+    pub fn finish(mut self, machine: &TerminalMachine) -> Result<ClaimsPlan, Error> {
+        self.verify_catalogues(machine)?;
         Ok(self.plan)
     }
-    fn verify_catalogues(
-        &self,
-        machine: &TerminalMachine,
-        types: &[StructuralTypeDeclaration],
-    ) -> Result<(), Error> {
+    fn verify_catalogues(&mut self, machine: &TerminalMachine) -> Result<(), Error> {
         if let Some(result) = machine.result.structural() {
-            let paths = crate::owned_structure::claim_catalogue(
-                |id| terminal_psi::find_structural_type(types, id),
-                result.structural_type,
-                usize::MAX,
-            )
-            .map_err(Error::malformed)?
-            .into_iter()
-            .collect::<Vec<_>>();
+            let paths = self.catalogues.paths(result.structural_type)?;
             let returns = self
                 .plan
                 .returned_claims
                 .iter()
                 .filter_map(|row| row.bindings.as_deref());
-            if !crate::result_claim_paths_match_returns(&paths, returns) {
+            if !crate::result_claim_paths_match_returns(paths, returns) {
                 return Err(Error::malformed(
                     "normal result claim paths differ from the guarded declared result type",
                 ));

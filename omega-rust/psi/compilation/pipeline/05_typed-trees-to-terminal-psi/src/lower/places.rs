@@ -385,14 +385,11 @@ pub(crate) fn declare<'a, 'b>(
         // Transparent compositions keep each member claim. A declared linear
         // leaf may establish its own logical obligation; generated arrays and
         // borrowed descriptors never manufacture one from their shape.
-        let owns_linear_claim = record.multiplicity == StructuralMultiplicity::Linear
-            && !contains_claim
-            && matches!(
-                shape,
-                StructuralTypeShape::Record { .. }
-                    | StructuralTypeShape::Sum { .. }
-                    | StructuralTypeShape::Opaque
-            );
+        let owns_linear_claim = terminal_semantics::owned_structure::intrinsic_claim_required(
+            record.multiplicity,
+            &shape,
+            contains_claim,
+        );
         potential_claims.push(owns_linear_claim || contains_claim);
         let nominal_cleanup =
             record
@@ -4723,8 +4720,11 @@ mod tests {
             .iter()
             .map(|field| vec![StructuralPathSegment::Field(field.identity)])
             .collect::<Vec<_>>();
+        let claim_types =
+            terminal_semantics::owned_structure::ClaimTypes::new(&declared.structural_types)
+                .unwrap();
         terminal_semantics::owned_structure::validate_complete_claim_frontier(
-            lookup,
+            &claim_types,
             pair,
             &[],
             claims.iter().map(Vec::as_slice),
@@ -4733,7 +4733,7 @@ mod tests {
         .unwrap();
         assert!(
             terminal_semantics::owned_structure::validate_complete_claim_frontier(
-                lookup,
+                &claim_types,
                 pair,
                 &[],
                 claims[..1].iter().map(Vec::as_slice),
@@ -4742,7 +4742,7 @@ mod tests {
             .is_err()
         );
         terminal_semantics::owned_structure::validate_complete_claim_frontier(
-            lookup,
+            &claim_types,
             conditional,
             &[],
             std::iter::empty::<&[StructuralPathSegment]>(),
@@ -4755,7 +4755,7 @@ mod tests {
             StructuralPathSegment::Field(cases[1].fields[0].identity),
         ];
         terminal_semantics::owned_structure::validate_complete_claim_frontier(
-            lookup,
+            &claim_types,
             conditional,
             &[],
             [active.as_slice()],
@@ -4764,7 +4764,7 @@ mod tests {
         .unwrap();
         assert!(
             terminal_semantics::owned_structure::validate_complete_claim_frontier(
-                lookup,
+                &claim_types,
                 conditional,
                 &[],
                 [active.as_slice()],

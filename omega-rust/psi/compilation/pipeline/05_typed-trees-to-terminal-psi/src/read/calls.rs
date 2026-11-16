@@ -3090,8 +3090,7 @@ impl<'t> Program<'t> {
                 return false;
             };
             if aq != eq
-                || actual.copyable != expected.copyable
-                || actual.owns_linear_claim != expected.owns_linear_claim
+                || actual.multiplicity != expected.multiplicity
                 || !actual.requires.is_empty()
                 || !expected.requires.is_empty()
                 || actual.cleanup.is_some()

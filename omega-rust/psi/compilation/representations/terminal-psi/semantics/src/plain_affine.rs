@@ -422,7 +422,7 @@ struct Analysis<'a> {
     position: Option<crate::descriptor_lifetimes::DescriptorPosition>,
     reference_candidates: Option<&'a crate::reference_ends::Candidates>,
     reference_ends: Vec<ReferenceEnd>,
-    claim_flow: Option<claims::Flow>,
+    claim_flow: Option<claims::Flow<'a>>,
 }
 
 /// The inline array whose established contents a retained runtime selector
@@ -1598,7 +1598,7 @@ fn analyze(
         reference_ends: analysis.reference_ends,
         claims: analysis
             .claim_flow
-            .map(|flow| flow.finish(machine, types))
+            .map(|flow| flow.finish(machine))
             .transpose()?,
     })
 }
@@ -3825,11 +3825,11 @@ mod tests {
         let mut types = transfer_only_types(false);
         types[2].multiplicity = terminal_psi::StructuralMultiplicity::Linear;
         types[2].owns_linear_claim = true;
-        let lookup = |id| types.iter().find(|row| row.id == id);
+        let claim_types = crate::owned_structure::ClaimTypes::new(&types).unwrap();
         let siblings = [field_argument(3).path, field_argument(4).path];
         crate::owned_structure::validate_intrinsic_claim_roots(&types).unwrap();
         crate::owned_structure::validate_complete_claim_frontier(
-            lookup,
+            &claim_types,
             id(2),
             &[],
             siblings.iter().map(Vec::as_slice),
@@ -3877,7 +3877,7 @@ mod tests {
         );
         assert!(
             crate::owned_structure::validate_complete_claim_frontier(
-                lookup,
+                &claim_types,
                 id(2),
                 &[],
                 [siblings[0].as_slice()],
@@ -3902,7 +3902,7 @@ mod tests {
                 },
             ],
         };
-        let lookup = |id| types.iter().find(|row| row.id == id);
+        let claim_types = crate::owned_structure::ClaimTypes::new(&types).unwrap();
         let active = vec![StructuralPathSegment::Case(id(1)), siblings[0][0].clone()];
         let guarded = [terminal_psi::StructuralResultClaimBinding {
             claim: id(1),
@@ -3920,7 +3920,7 @@ mod tests {
             Err(crate::ResultClaimCatalogError::TypedFrontierMismatch)
         );
         crate::owned_structure::validate_complete_claim_frontier(
-            lookup,
+            &claim_types,
             id(2),
             &[],
             [active.as_slice()],
@@ -3928,7 +3928,7 @@ mod tests {
         )
         .unwrap();
         crate::owned_structure::validate_complete_claim_frontier(
-            lookup,
+            &claim_types,
             id(2),
             &[],
             std::iter::empty(),
@@ -3937,7 +3937,7 @@ mod tests {
         .unwrap();
         assert!(
             crate::owned_structure::validate_complete_claim_frontier(
-                lookup,
+                &claim_types,
                 id(2),
                 &[],
                 [active.as_slice()],
@@ -4275,12 +4275,12 @@ mod tests {
             claims::Flow::new(&machine, &types, claims::Mode::Publish).unwrap();
         flow.successor(&mut state, &machine, id(2), &[argument])
             .unwrap();
-        assert_eq!(state.0.len(), 1);
-        let destination = state.0.values().next().unwrap();
+        assert_eq!(state.live().count(), 1);
+        let destination = state.live().next().unwrap();
         assert_eq!(destination.place, id(2));
         assert_ne!(
             destination.identity,
-            original.0.values().next().unwrap().identity
+            original.live().next().unwrap().identity
         );
     }
 
