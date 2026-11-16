@@ -114,6 +114,23 @@ pub(crate) mod analysis {
     }
 
     impl StorageQueries {
+        fn get(
+            &self,
+            machine: MachineId,
+            position: DescriptorPosition,
+            location: &DescriptorLocation,
+        ) -> Option<&Option<StorageResolution>> {
+            let machine = self
+                .machines
+                .binary_search_by_key(&machine, |row| row.identity)
+                .ok()?;
+            let positions = &self.machines[machine].positions;
+            let position = positions
+                .binary_search_by_key(&position, |(position, _)| *position)
+                .ok()?;
+            positions[position].1.get(location)
+        }
+
         fn at(
             &mut self,
             machine: &DescriptorMachine,
@@ -483,6 +500,7 @@ pub(crate) mod analysis {
                 identity,
                 position,
                 location,
+                true,
             )? {
                 StorageResolution::Unique(location) => Some(location),
                 StorageResolution::Alternatives => None,
@@ -495,12 +513,12 @@ pub(crate) mod analysis {
             identity: MachineId,
             position: DescriptorPosition,
             location: &DescriptorLocation,
+            retain: bool,
         ) -> Option<StorageResolution> {
             let machine = replay.machine(identity)?;
             let states = replay.snapshots.get(&identity)?.as_ref()?;
             let state = states.get(&position)?;
-            let values = queries.at(machine, position);
-            if let Some(result) = values.as_ref().and_then(|values| values.get(location)) {
+            if let Some(result) = queries.get(identity, position, location) {
                 return result.clone();
             }
             let depth = DescriptorReadDepth::at(machine, state, None);
@@ -508,8 +526,9 @@ pub(crate) mod analysis {
             // A completed caller snapshot can still consult a callee whose
             // result account has not been prepared. Its answer can change
             // later without changing the caller snapshot.
-            if !depth.unprepared_summary.get()
-                && let Some(values) = values
+            if retain
+                && !depth.unprepared_summary.get()
+                && let Some(values) = queries.at(machine, position)
             {
                 values.insert(location.clone(), result.clone());
             }
@@ -1124,7 +1143,12 @@ pub(crate) mod analysis {
                 let replay = &self.replay;
                 let queries = &mut self.storage_queries;
                 let mut canonical = |location: &DescriptorLocation| {
-                    match Self::prepared_storage(replay, queries, identity, *position, location) {
+                    // Flow visits whole slot inventories. Retain only queries
+                    // demanded by individual consumers, rather than keeping
+                    // every bulk scan's cut/location combination alive.
+                    match Self::prepared_storage(
+                        replay, queries, identity, *position, location, false,
+                    ) {
                         Some(StorageResolution::Unique(location)) => Ok(location),
                         // Exact flow can refuse a use without discarding its site or
                         // treating one of several possible backings as established.
