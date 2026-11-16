@@ -3291,6 +3291,51 @@ pub(crate) mod record_field {
         terminal_psi::live_field(projected_fields(types, root, parent)?, *identity)
     }
 
+    /// An operation's storage path as the place table names it: each field
+    /// step by its declared identity, resolved against the prefix before it
+    /// (which may end in the case whose payload holds the field), and every
+    /// other step as it is. The lowered form and the checker both intern a
+    /// place from an operation's path through this one reading.
+    pub fn resolved_structural_path<'types>(
+        types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+        root: StructuralTypeId,
+        path: &[StructuralPathSegment],
+    ) -> Result<Vec<terminal_psi::ResolvedStructuralPathSegment>, &'static str> {
+        use terminal_psi::ResolvedStructuralPathSegment as Segment;
+        let mut segments = Vec::with_capacity(path.len());
+        for (position, segment) in path.iter().enumerate() {
+            segments.push(match segment {
+                StructuralPathSegment::Case(case) => Segment::Case(*case),
+                StructuralPathSegment::FixedIndex(index) => Segment::FixedIndex(*index),
+                StructuralPathSegment::RuntimeIndex { index, .. } => {
+                    Segment::RuntimeIndex { selector: *index }
+                }
+                StructuralPathSegment::Referent => Segment::Referent,
+                // The view keeps the same backing and changes how later
+                // fields are resolved. Retain it for the shared shape and
+                // overlap judgments, rather than erasing it.
+                StructuralPathSegment::RepresentationView {
+                    structural_type,
+                    stored_scalar,
+                } => Segment::RepresentationView {
+                    structural_type: *structural_type,
+                    stored_scalar: *stored_scalar,
+                },
+                StructuralPathSegment::Field(_) => Segment::Field(
+                    runtime_structural_field(types.clone(), root, &path[..=position])
+                        .ok_or("a storage path that is not a path of fields and cases")?
+                        .id,
+                ),
+                StructuralPathSegment::AllElements | StructuralPathSegment::FixedRange { .. } => {
+                    return Err(
+                        "storage projection outside plain records and fixed array elements",
+                    );
+                }
+            });
+        }
+        Ok(segments)
+    }
+
     fn projected_fields<'types>(
         types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
         root: StructuralTypeId,
