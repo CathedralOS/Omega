@@ -490,7 +490,7 @@ fn requirement_owner(
     typed: &TypedTrees,
     symbol: SymbolHandle,
 ) -> Result<(SymbolHandle, SymbolHandle), String> {
-    let (owner, requirement) = typed
+    let (owner, _) = typed
         .trait_machine_signature(symbol)
         .filter(|(owner, requirement)| owner.is_boundary && requirement.symbol == symbol)
         .ok_or("native binding requirement lost its exact boundary declaration")?;
