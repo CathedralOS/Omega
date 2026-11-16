@@ -662,6 +662,40 @@ fn a_typed_const_record_keeps_its_value_binding_and_exact_named_call() {
     );
 
     prepare(&mut program).expect("typed record preparation");
+    for machine in program.machines() {
+        if program
+            .machine_instantiation(machine.symbol)
+            .unwrap()
+            .is_none()
+        {
+            continue;
+        }
+        for call in calls(&program, machine.symbol) {
+            if !program
+                .expression_table
+                .static_machine_application_is_valid(call.authored_machine_application)
+            {
+                continue;
+            }
+            if let Some(parameter) = program
+                .expression_table
+                .static_machine_application(call.authored_machine_application)
+                .source_record_receiver
+            {
+                assert_eq!(
+                    parameter, selected,
+                    "copied calls keep the original Const binder"
+                );
+                assert!(
+                    program
+                        .static_record_source_receiver(call.authored_machine_application)
+                        .unwrap()
+                        .is_some()
+                );
+            }
+        }
+    }
+
     assert!(
         program.deferred_refusal(main).is_none(),
         "{:?}",
@@ -723,6 +757,14 @@ fn a_typed_const_record_keeps_its_value_binding_and_exact_named_call() {
     let [member] = calls(&program, generated)[..] else {
         panic!("one member call");
     };
+    assert_eq!(
+        program
+            .expression_table
+            .static_machine_application(member.authored_machine_application)
+            .source_record_receiver,
+        Some(selected),
+        "the closed named call retains its originating Const receiver"
+    );
     assert!(member.static_requirement_dispatch.is_none());
     assert_eq!(member.target_symbol, requirement);
     let receiver = program

@@ -2460,6 +2460,13 @@ fn visit_static_machine_bindings_inner(
     }
     retained.static_application(application);
     let source = program.static_machine_application(application);
+    if let Ok(Some((binder, owner))) = program.static_record_source_receiver(application) {
+        // Only the authenticated retained application can re-enter its original scope.
+        // Source capture reports malformed receiver metadata through static_application.
+        retained.enter_lexical_scope(owner);
+        retained.declaration_description_dependency(binder);
+        retained.leave_lexical_scope();
+    }
     visit_static_machine_bindings_inner(
         program,
         retained,

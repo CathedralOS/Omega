@@ -2577,6 +2577,209 @@ pub mod trait_definition {
             }
 
             impl TypedTrees {
+                /// A const record retains its declared schema and original lexical binder.
+                /// Naming a requirement supplies no record-construction or refinement proof.
+                pub fn static_record_parameter_schema(
+                    &self,
+                    owner: SymbolHandle,
+                    binder: SymbolHandle,
+                ) -> Result<Option<AppliedTraitScope<'_>>, String> {
+                    if !binder.is_valid() || !self.symbols.symbols().nodes().is_valid(binder) {
+                        return Ok(None);
+                    }
+                    if self.symbols.get(binder).kind != symbols::SymbolKind::TypeParameter {
+                        return Ok(None);
+                    }
+                    if !owner.is_valid() || !self.symbols.symbols().nodes().is_valid(owner) {
+                        return Err("static record caller has no current lexical owner".into());
+                    }
+                    let declared_owner = self.symbols.get(binder).parent;
+                    if !declared_owner.is_valid()
+                        || !self.symbols.symbols().nodes().is_valid(declared_owner)
+                    {
+                        return Err("static record binder has no current declaration owner".into());
+                    }
+                    let declared = self.declaration_type_parameters(declared_owner);
+                    let mut candidates = declared
+                        .iter()
+                        .filter(|parameter| parameter.symbol == binder);
+                    let Some(parameter) = candidates.next() else {
+                        return Ok(None);
+                    };
+                    if candidates.next().is_some() {
+                        return Err("static record binder has repeated declaring rows".into());
+                    }
+                    let crate::data::TypeParameterKind::Const { type_reference } = parameter.kind
+                    else {
+                        return Ok(None);
+                    };
+                    let Some(schema) = self.static_record_schema(type_reference, declared_owner)
+                    else {
+                        return Ok(None);
+                    };
+                    let visible = self.declaration_type_parameters(owner);
+                    let mut occurrences = visible.iter().filter(|entry| entry.symbol == binder);
+                    if occurrences.next() != Some(parameter) || occurrences.next().is_some() {
+                        return Err(
+                            "static record binder is outside its exact retained telescope".into(),
+                        );
+                    }
+                    let mut lexical = owner;
+                    let mut visited = Vec::new();
+                    while lexical != declared_owner {
+                        if !lexical.is_valid()
+                            || !self.symbols.symbols().nodes().is_valid(lexical)
+                            || visited.contains(&lexical)
+                        {
+                            return Err(
+                                "static record binder has no actual lexical inheritance path"
+                                    .into(),
+                            );
+                        }
+                        visited.push(lexical);
+                        lexical = self.symbols.get(lexical).parent;
+                    }
+                    Ok(Some(schema))
+                }
+
+                pub fn static_record_bound_requirement<'program>(
+                    &'program self,
+                    owner: SymbolHandle,
+                    binder: SymbolHandle,
+                    target: SymbolHandle,
+                ) -> Result<Option<GenericBoundRequirement<'program>>, String> {
+                    let Some(root) = self.static_record_parameter_schema(owner, binder)? else {
+                        return Ok(None);
+                    };
+                    if !target.is_valid() || !self.symbols.symbols().nodes().is_valid(target) {
+                        return Err("static record call lost its selected requirement".into());
+                    }
+                    let prepared = self.closed_requirement_application(target);
+                    let mut selected: Option<GenericBoundRequirement<'program>> = None;
+                    root.try_visit(self, &mut |scope: &AppliedTraitScope<'_>| -> Result<(), &'static str> {
+                        for signature in self.trait_machine_signatures(scope.declaration) {
+                            let matches = prepared.as_ref().map_or(signature.symbol == target, |closed| {
+                                closed.template == signature.symbol
+                                    && self.requirement_application_matches_scope(target, scope)
+                            });
+                            if !matches { continue; }
+                            let signature = if let Some(closed) = &prepared {
+                                closed.signature
+                            } else if let Some(applied) = self.applied_callable_signature(scope, signature.symbol) {
+                                applied
+                            } else if scope.keeps_declared_signatures(self) {
+                                signature
+                            } else {
+                                return Err("static record requirement has no prepared applied signature");
+                            };
+                            if let Some(known) = &selected {
+                                if known.signature.symbol != signature.symbol
+                                    || !known.application.same_application(self, scope) {
+                                    return Err("static record call has competing complete requirement applications");
+                                }
+                            } else {
+                                selected = Some(GenericBoundRequirement { signature, application: scope.clone() });
+                            }
+                        }
+                        Ok(())
+                    }).map_err(str::to_owned)?;
+                    selected.map(Some).ok_or_else(|| {
+                        "static record call selects a requirement outside its declared schema"
+                            .into()
+                    })
+                }
+
+                /// Authenticate copied receiver metadata before a visitor enters its source scope.
+                pub fn static_record_source_receiver(
+                    &self,
+                    application: crate::static_applications::StaticMachineApplicationHandle,
+                ) -> Result<Option<(SymbolHandle, SymbolHandle)>, String> {
+                    if !self
+                        .expression_table
+                        .static_machine_application_is_valid(application)
+                    {
+                        return Err("static record receiver has a stale source application".into());
+                    }
+                    let source = self.static_machine_application(application);
+                    let Some(binder) = source.source_record_receiver else {
+                        return Ok(None);
+                    };
+                    if !binder.is_valid()
+                        || !self.symbols.symbols().nodes().is_valid(binder)
+                        || !source.lexical_owner.is_valid()
+                        || !self
+                            .symbols
+                            .symbols()
+                            .nodes()
+                            .is_valid(source.lexical_owner)
+                    {
+                        return Err(
+                            "static record receiver lost its current binder or caller".into()
+                        );
+                    }
+                    let owner = self
+                        .machine_by_own_or_state_symbol(source.lexical_owner)
+                        .map(|machine| machine.symbol)
+                        .ok_or("static record receiver caller has no actual machine")?;
+                    let frames = self.enclosing_invocation_frames(owner)?;
+                    for frame in frames {
+                        let mut matches = frame
+                            .bindings
+                            .iter()
+                            .filter(|binding| binding.parameter == binder);
+                        let Some(binding) = matches.next() else {
+                            continue;
+                        };
+                        if matches.next().is_some() {
+                            return Err(
+                                "static record receiver has repeated retained bindings".into()
+                            );
+                        }
+                        let crate::static_applications::StaticMachineBindingValue::Const(reference) =
+                            binding.value
+                        else {
+                            return Err(
+                                "static record receiver has another retained binder kind".into()
+                            );
+                        };
+                        let declared = self
+                            .static_record_bound_requirement(
+                                frame.declaration,
+                                binder,
+                                source.registration_operation,
+                            )?
+                            .ok_or("static record receiver has no exact declared requirement")?;
+                        let root = self
+                            .static_record_parameter_schema(frame.declaration, binder)?
+                            .ok_or("static record receiver has no exact declared schema")?;
+                        if !self.type_reference_table.contains_type_reference(reference)
+                            || !self
+                                .symbols
+                                .symbols()
+                                .nodes()
+                                .is_valid(frame.argument_owner)
+                        {
+                            return Err(
+                                "static record receiver has stale actual operand custody".into()
+                            );
+                        }
+                        let operand = self.static_operand_from_type_reference(reference)?;
+                        let actual = self
+                            .conformance_by_symbol(operand.symbol)
+                            .and_then(|value| AppliedTraitScope::from_conformance(self, value))
+                            .ok_or("static record receiver has no exact supplying record schema")?;
+                        if !root.same_application(self, &actual)
+                            || !declared.application.declaration.symbol.is_valid()
+                        {
+                            return Err(
+                                "static record receiver has a different supplying schema".into()
+                            );
+                        }
+                        return Ok(Some((binder, self.symbols.get(binder).parent)));
+                    }
+                    Err("static record receiver has no exact retained supplying application".into())
+                }
+
                 pub fn evidence_requirement_declaration(
                     &self,
                     target: SymbolHandle,

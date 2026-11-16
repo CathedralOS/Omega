@@ -2540,7 +2540,7 @@ fn copied_record_receivers(
     expression_count: usize,
     statements: HandleSpan<StatementNode>,
     operands: &[Operand],
-) -> Vec<(Site, SymbolHandle, TypeReferenceHandle)> {
+) -> Vec<(Site, SymbolHandle, SymbolHandle, TypeReferenceHandle)> {
     let mut records = operands
         .iter()
         .filter_map(|operand| {
@@ -2560,7 +2560,13 @@ fn copied_record_receivers(
                 symbol_order(*parameter)
             })
             .ok()
-            .map(|position| (records[position].1, records[position].2))
+            .map(|position| {
+                (
+                    records[position].0,
+                    records[position].1,
+                    records[position].2,
+                )
+            })
     };
     let mut receivers = program
         .expression_table
@@ -2571,7 +2577,9 @@ fn copied_record_receivers(
                 .expression_table
                 .name_path_node(call.receiver)
                 .and_then(|path| selected_record(path.symbol))
-                .map(|(selected, reference)| (Site::Expression(handle), selected, reference)),
+                .map(|(binder, selected, reference)| {
+                    (Site::Expression(handle), binder, selected, reference)
+                }),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -2582,8 +2590,9 @@ fn copied_record_receivers(
             .as_call()
             .filter(|call| call.receiver_root_symbol == call.receiver_symbol)
             .and_then(|call| {
-                selected_record(call.receiver_symbol)
-                    .map(|(selected, reference)| (Site::Statement(handle), selected, reference))
+                selected_record(call.receiver_symbol).map(|(binder, selected, reference)| {
+                    (Site::Statement(handle), binder, selected, reference)
+                })
             });
         if let Some(record) = record {
             receivers.push(record);
@@ -2594,9 +2603,9 @@ fn copied_record_receivers(
 
 fn substitute_record_receivers(
     program: &mut TypedTrees,
-    receivers: &[(Site, SymbolHandle, TypeReferenceHandle)],
+    receivers: &[(Site, SymbolHandle, SymbolHandle, TypeReferenceHandle)],
 ) -> Served<()> {
-    for &(site, selected, reference) in receivers {
+    for &(site, binder, selected, reference) in receivers {
         let call = site.call(program).ok_or(Stop::Defect(
             "a copied static record call changed its statement or expression kind",
         ))?;
@@ -2604,6 +2613,27 @@ fn substitute_record_receivers(
             StaticArgumentCall::Expression(_, call) => call.target_symbol,
             StaticArgumentCall::Statement(call) => call.target_symbol,
         };
+        program
+            .static_record_bound_requirement(program.symbols.get(binder).parent, binder, target)
+            .map_err(Stop::Rejected)?
+            .ok_or(unserved("record receiver lost its declared schema"))?;
+        let application = call.application();
+        if !program
+            .expression_table
+            .static_machine_application_is_valid(application)
+        {
+            return Err(Stop::Defect("record receiver lost its source application"));
+        }
+        let source = program
+            .expression_table
+            .static_machine_application_mut(application);
+        if source
+            .source_record_receiver
+            .is_some_and(|known| known != binder)
+        {
+            return Err(Stop::Defect("record call changed its original receiver"));
+        }
+        source.source_record_receiver = Some(binder);
         program
             .named_conformance_member(selected, target)
             .map_err(|reason| Stop::Unserved(Some(reason)))?

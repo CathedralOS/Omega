@@ -3932,6 +3932,7 @@ pub mod inspection {
             pub struct StaticApplicationSnapshot {
                 pub handle: (u32, u32),
                 pub callable_contract_source: Option<(u32, u32)>,
+                pub source_record_receiver: Option<String>,
                 pub registration_operation: String,
                 pub lexical_owner: String,
                 pub target: String,
@@ -4041,6 +4042,9 @@ pub mod inspection {
                             .callable_contract_source
                             .is_valid()
                             .then(|| coordinate(application.callable_contract_source)),
+                        source_record_receiver: application
+                            .source_record_receiver
+                            .map(|binder| program.symbols.display_path(binder, "::")),
                         registration_operation: program
                             .symbols
                             .display_path(application.registration_operation, "::"),

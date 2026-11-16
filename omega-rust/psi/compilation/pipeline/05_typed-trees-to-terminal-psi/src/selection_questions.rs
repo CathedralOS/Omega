@@ -679,6 +679,14 @@ impl Extend<SymbolHandle> for Capture<'_> {
 }
 
 impl TypedReferences for Capture<'_> {
+    fn static_application(
+        &mut self,
+        application: typed_trees::static_applications::StaticMachineApplicationHandle,
+    ) {
+        if let Err(reason) = self.typed.static_record_source_receiver(application) {
+            self.fail(format!("invalid retained const-record receiver: {reason}"));
+        }
+    }
     fn declaration(&mut self, symbol: SymbolHandle) -> bool {
         if !self.admitted.contains(symbol) {
             return false;
