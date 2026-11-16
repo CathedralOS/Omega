@@ -12,15 +12,14 @@ use omega::language::core::narrow_u64_to_i32_exact;
 use omega::language::core::narrow_i32_to_u64_exact;
 use omega::language::core::narrow_i64_to_u64_wrapping;
 
-windows_x86_64 machine WindowsFilesystemNativeProvider::directory_nth(path: &[u8] in Path, ordinal: u64) -> WindowsDirectoryEntryResult
-satisfies WindowsFilesystemHost::directory_nth
+machine windows_filesystem_native_directory_nth(path: &[u8] in Path, ordinal: u64) -> WindowsDirectoryEntryResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery {
     let handle: i64 in WindowsPrivateNonalertFileOrAbsent = block windows_directory_open(path);
     transition (handle as -WindowsPrivateNonalertFileOrAbsent) != 0 { true -> block query(handle, ordinal) false -> (windows_directory_entry_error()) }
     machine query(handle: i64 in WindowsPrivateNonalertFileOrAbsent, ordinal: u64) -> WindowsDirectoryEntryResult
     requires (handle as -WindowsPrivateNonalertFileOrAbsent) != 0 {
         let result: WindowsDirectoryEntryResult = block windows_directory_select(handle, ordinal);
-        let released: i32 = block WindowsFilesystemNativeProvider::close_handle(narrow_i64_to_u64_wrapping(handle as i64));
+        let released: i32 = block windows_filesystem_native_close_handle(narrow_i64_to_u64_wrapping(handle as i64));
         transition released == 0 { true -> (result) false -> failed_close(result) }
     }
     machine failed_close(result: WindowsDirectoryEntryResult) -> WindowsDirectoryEntryResult {
@@ -39,7 +38,7 @@ machine windows_directory_entry_error() -> WindowsDirectoryEntryResult {
     }
 }
 
-windows_x86_64 machine windows_directory_select(handle: i64 in WindowsPrivateNonalertFileOrAbsent, ordinal: u64) -> WindowsDirectoryEntryResult
+machine windows_directory_select(handle: i64 in WindowsPrivateNonalertFileOrAbsent, ordinal: u64) -> WindowsDirectoryEntryResult
 requires (handle as -WindowsPrivateNonalertFileOrAbsent) != 0
 reaches DirectoryEnumeration + FilesystemMetadataQuery {
     let mut output: WindowsNativeDirectoryEntryInfo;
@@ -72,7 +71,7 @@ reaches DirectoryEnumeration + FilesystemMetadataQuery {
     }
 }
 
-windows_x86_64 machine windows_directory_next_entry(handle: i64 in WindowsPrivateNonalertFileOrAbsent,
+machine windows_directory_next_entry(handle: i64 in WindowsPrivateNonalertFileOrAbsent,
     output: &mut WindowsNativeDirectoryEntryInfo, restart: u8) -> WindowsDirectoryStep
 requires (handle as -WindowsPrivateNonalertFileOrAbsent) != 0 && restart <= 1
 reaches DirectoryEnumeration + FilesystemMetadataQuery {
@@ -119,7 +118,7 @@ machine windows_directory_entry_dot(output: &WindowsNativeDirectoryEntryInfo, le
     }
 }
 
-windows_x86_64 machine windows_directory_encode_entry(source: &WindowsNativeDirectoryEntryInfo, characters: u64) -> WindowsDirectoryEntryResult {
+machine windows_directory_encode_entry(source: &WindowsNativeDirectoryEntryInfo, characters: u64) -> WindowsDirectoryEntryResult {
     transition characters > 0 && characters <= 4096 {
         true -> encode(source, characters)
         false -> (WindowsDirectoryEntryResult::Error { code: 31 })

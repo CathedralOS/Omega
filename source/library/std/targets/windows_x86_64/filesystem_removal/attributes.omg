@@ -9,7 +9,7 @@ data WindowsRemovalAttributes {
     case Value(attributes: u32);
 }
 
-windows_x86_64 machine windows_removal_attributes(handle: i64 in WindowsPrivateNonalertFileOrAbsent) -> WindowsRemovalAttributes
+machine windows_removal_attributes(handle: i64 in WindowsPrivateNonalertFileOrAbsent) -> WindowsRemovalAttributes
 requires (handle as -WindowsPrivateNonalertFileOrAbsent) != 0
 reaches FilesystemMetadataQuery {
     let file: i64 in WindowsDiskFileOrAbsent = block windows_classify_metadata_disk_file(
