@@ -7728,14 +7728,20 @@ mod elaboration {
             operands: &mut walk::ChildEvidence<'_>,
         ) -> Result<TermHandle, BoundedDenotationError> {
             match &proof.rule {
+                // Provisional float rules: the core has no IEEE model to
+                // derive them from, so each checked row denotes an instance
+                // of its statement, as `IntegerPowerOfTwoOrder` does. The
+                // judgment's assumption closure then names that instance.
                 ProofRule::IntegerFloatExact => {
                     crate::check_integer_float_exact(self.context, &proof.conclusion).map_err(
                         |error| certificate!(ProofError::FloatIntegerConversion(Box::new(error))),
                     )?;
-                    self.rules.insert(AcceptedProofRule::IntegerFloatExact);
-                    Err(BoundedDenotationError::Unsupported(
-                        "integer to float exact representability",
-                    ))
+                    self.rule_instance(
+                        AcceptedProofRule::IntegerFloatExact,
+                        Vec::new(),
+                        Vec::new(),
+                        &proof.conclusion,
+                    )
                 }
                 ProofRule::FloatIntegerConversion { premise, computed } => {
                     crate::check_float_integer_conversion(
@@ -7747,13 +7753,18 @@ mod elaboration {
                     .map_err(|error| {
                         certificate!(ProofError::FloatIntegerConversion(Box::new(error)))
                     })?;
-                    let _ = operands.take(premise);
+                    let mut premises = vec![premise.conclusion.clone()];
+                    let mut evidence = vec![operands.take(premise)];
                     if let Some(computed) = computed {
-                        let _ = operands.take(computed);
+                        premises.push(computed.conclusion.clone());
+                        evidence.push(operands.take(computed));
                     }
-                    Err(BoundedDenotationError::Unsupported(
-                        "float integer conversion in the mathematical core",
-                    ))
+                    self.rule_instance(
+                        AcceptedProofRule::FloatIntegerConversion,
+                        premises,
+                        evidence,
+                        &proof.conclusion,
+                    )
                 }
                 ProofRule::FloatMeaningNormalization(premises) => {
                     crate::check_float_meaning_normalization(
@@ -7763,12 +7774,13 @@ mod elaboration {
                     .map_err(|error| {
                         certificate!(ProofError::FloatMeaningNormalization(Box::new(error)))
                     })?;
-                    for premise in premises {
-                        let _ = operands.take(premise);
-                    }
-                    Err(BoundedDenotationError::Unsupported(
-                        "float meaning normalization in the mathematical core",
-                    ))
+                    let evidence = premises.iter().map(|premise| operands.take(premise)).collect();
+                    self.rule_instance(
+                        AcceptedProofRule::FloatMeaningNormalization,
+                        premises.iter().map(|premise| premise.conclusion.clone()).collect(),
+                        evidence,
+                        &proof.conclusion,
+                    )
                 }
                 ProofRule::IeeeFloatOrderChain(premises) => {
                     crate::ieee_float_rules::check_chain(
@@ -7776,12 +7788,13 @@ mod elaboration {
                         premises.iter().map(|premise| &premise.conclusion),
                     )
                     .map_err(|error| certificate!(error))?;
-                    for premise in premises {
-                        let _ = operands.take(premise);
-                    }
-                    Err(BoundedDenotationError::Unsupported(
-                        "IEEE ordered relations in the mathematical core",
-                    ))
+                    let evidence = premises.iter().map(|premise| operands.take(premise)).collect();
+                    self.rule_instance(
+                        AcceptedProofRule::IeeeFloatOrderChain,
+                        premises.iter().map(|premise| premise.conclusion.clone()).collect(),
+                        evidence,
+                        &proof.conclusion,
+                    )
                 }
                 ProofRule::Primitive(judgment) => {
                     decide_primitive(self.context, &proof.conclusion, *judgment)
@@ -8109,6 +8122,21 @@ mod elaboration {
                     let evidence = operands.take(relation);
                     order_discreteness::check(&relation.conclusion, &proof.conclusion)
                         .map_err(BoundedDenotationError::Certificate)?;
+                    // Only `a <= b ⊢ a < b + 1` with a literal endpoint derives
+                    // from the fixed adjacency laws. The strict-to-nonstrict
+                    // and open `a < b ⊢ a + 1 <= b` forms denote an instance
+                    // of the checked statement instead of skipping the core.
+                    if !matches!(
+                        (&relation.conclusion, &proof.conclusion),
+                        (Proposition::LessOrEqual(..), Proposition::LessThan(..))
+                    ) {
+                        return self.rule_instance(
+                            AcceptedProofRule::IntegerOrderDiscreteness,
+                            vec![relation.conclusion.clone()],
+                            vec![evidence],
+                            &proof.conclusion,
+                        );
+                    }
                     self.rules
                         .insert(AcceptedProofRule::IntegerOrderDiscreteness);
                     self.denotation.discreteness_evidence(
