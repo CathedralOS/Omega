@@ -75,6 +75,27 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### The Omega 04 replay validator reruns the optimizer instead of checking it
+- Category: A verdict with nothing behind it
+- Where: [validator](omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/selected_optimization.rs#L95), [fold replay](omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/literal_fold_rewrites.rs#L655), [pre-allocation replay](omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites.rs#L1934), [spec text](wiki/spec/build/command_line.md#L169)
+- Saw: `SelectedOptimizationReplay::validate`, run as `SelectedInstructionRewriteReplay`, calls `validate_selected_lowering_optimization_custody` and `validate_pre_allocation_optimization_custody`. Those rebuild each step with the producer's own `build_step` and `run_passes` and compare the results. The comments and the new `command_line.md` paragraph call this independent. [Independent validation](wiki/spec/build/optimizations.md#atomic-candidates-and-independent-validation) says "A matcher or producer cannot attest to itself by serving as its own validator", and [pipeline.md](omega-rust/pipeline.md#portable-materialization-and-consumer-ownership) lets a checker share small predicates "but not the decision procedure that produces that output".
+- Cost: `--every-validator` reports it as passed, but a rewrite bug that is deterministic passes it every time. Check each rewrite's preconditions and result with code that does not call the rewrite, or report the validator as a determinism check and fix the spec paragraph.
+- Reported: 2026-11-16, Claude Code, while checking #3833 against the spec
+
+### An optional Omega 04 rewrite shrinks the registers allocation may use
+- Category: Knowledge crossing a boundary
+- Where: [Omega 04 legality](omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/selected_optimization.rs#L210), [allocation input](omega-rust/omega/compilation/representations/selected-instructions/analyses/src/lib.rs#L652)
+- Saw: When a SelectedLowering or PreAllocation rule runs, Omega 04 builds legality under `FramelessLeafCallerSavedViews` and hands that analysis to Omega 05, which allocates on it. With no rewrite selected, `SelectedAllocationInput::into_legality` builds legality under `AllEnvironmentAllocatableViews`. So selecting an optional profitability rewrite restricts the whole program to caller-saved registers. This predates #3833, which kept it. [pipeline.md](omega-rust/pipeline.md#crate-placement-rule) says optimization history "must not select a different downstream representation", and [exact selection](wiki/spec/build/optimizations.md#exact-selection) treats allocation as mandatory "whether or not optional profitability rewrites are selected".
+- Cost: The same program allocates under different constraints, and may be refused, depending on an unrelated optimization choice. Let the rewrite run on its own analysis and have Omega 05 build legality under the availability allocation needs, whatever ran before.
+- Reported: 2026-11-16, Claude Code, while checking #3833 against the spec
+
+### Allocation admission re-checks choices Omega 05 just made
+- Category: Re-deriving
+- Where: [admission](omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/output.rs#L250)
+- Saw: On every compile, `validate_recovery_selection` checks that the recovery rule that ran equals the selection `stage_register_allocation` picked it from, and `capture_publication_facts` checks the manifest Omega 05 built against the record it built it from. [Verification placement](omega-rust/pipeline.md#verification-placement) says a default compile does not revalidate output the same compile just produced.
+- Cost: The checks are cheap, but they cannot fail unless the same function is wrong twice, and they add error variants every reader must handle. Move them into the allocation validator or a test.
+- Reported: 2026-11-16, Claude Code, while checking #3833 against the spec
+
 ### Three more portable filesystem calls mean different things on Windows and POSIX
 - Category: One idea, several implementations
 - Where: [Windows timestamp range](source/library/std/targets/windows_x86_64/filesystem/metadata.omg#L110), [Windows directory name limit](source/library/std/targets/windows_x86_64/windows_filesystem_directory_entry.omg#L140), [Windows transfer limit](source/library/std/targets/windows_x86_64/windows_filesystem_transfer.omg#L78), [pilot diff](https://github.com/CathedralOS/Omega/tree/work/pilot-library-cross-target)
