@@ -113,7 +113,7 @@ pub(crate) fn project(
     block: &TargetControlBlock,
     parameters: &[terminal_psi::StructuralParameterDeclaration],
     facts: &[AcceptedObligationFact],
-    types: &legalized_operations::RetainedIntegerTypes,
+    types: &crate::native_geometry::ModuleTypes,
 ) -> Result<LegalizedScalarTerminator, LegalizationError> {
     let metadata = &block.terminator_metadata;
     let returned = |edge, value| {

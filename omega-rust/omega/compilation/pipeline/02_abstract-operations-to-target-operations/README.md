@@ -13,7 +13,10 @@ registers or frame offsets.
 the target operations to what this stage already holds: the optimized
 program's accepted obligation and ownership-frontier facts, the admitted
 boundary origins and interrupt installations, and the integer types the
-sealed module retains. The result is a sealed
+sealed module retains. Preparation closes every scalar type it writes into
+the plan against those module types, including the leaf scalars of
+structural declarations it reads, so the plan carries only closed types. The
+result is a sealed
 [`PreparedExecutionPlan`](../../representations/target-operations/legalized-operations/src/lib.rs):
 
 | The plan carries | Where |
@@ -23,7 +26,11 @@ sealed module retains. The result is a sealed
 | The identity of each accepted proof | The operation, edge or terminator it licenses |
 | Ownership-frontier facts | Each function |
 | Interrupt installations that survived lowering | A plan-level list |
-| Which integer types the sealed module retains | A plan-level record, used to close the leaf scalars structural declarations still state in the checking form |
+
+Instruction selection reads a scalar's closed type from the value, parameter
+or operation it types. Where it checks a structural declaration's leaf
+scalar, it compares the declaration with that closed type or with a fixed
+type; it never asks which integer types exist.
 
 A fact, type or installation the plan needs and cannot find refuses the
 program here, as `LoweringError::Preparation`. Instruction selection then
@@ -35,8 +42,8 @@ still read by image emission's evidence checks and by the validator below.
 [`verify_execution_plan`](native-preparation/src/legalization.rs) is the
 stage's validator. It derives the plan's functions a second way, from the
 abstract program and the optimization unit, and requires the published plan
-to equal that derivation, to match its sources' header and retained types,
-and to still hash to its seal. It runs on `omega --validator
+to equal that derivation, to match its sources' header, to state only closed
+types the module retains, and to still hash to its seal. It runs on `omega --validator
 TargetOperationCorrespondence` and in tests, never in an ordinary compile.
 
 [Omega 00](../00_terminal-psi-to-abstract-operations/src/native_execution_scope.rs)

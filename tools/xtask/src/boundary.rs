@@ -659,7 +659,6 @@ fn line_has_retired_string_representation_spelling(line: &str) -> bool {
 /// The entry points of stage 02's validator.
 const PLAN_VALIDATOR_ENTRIES: &[&str] = &[
     "verify_execution_plan(",
-    "verify_target_operation_plan(",
     "verify_target_operation_plan_with_closed_module(",
 ];
 /// The crate that defines the validator, and the one production caller: the

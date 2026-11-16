@@ -486,7 +486,7 @@ pub(crate) mod optimized {
             ))
         };
         let unit = optimized.unit();
-        let retained = native_preparation::retained_types(
+        let types = native_preparation::accepted_types(
             lowering_facts.closed_module(),
             program.psi,
             lowering_facts.module(),
@@ -502,7 +502,7 @@ pub(crate) mod optimized {
             },
             boundary_origins(lowering_facts),
             lowering_facts.installed_interrupts(),
-            retained,
+            &types,
         )
         .map_err(|error| LoweringError::Preparation(Box::new(error)))
     }

@@ -39,12 +39,6 @@ impl ClosedTypeCatalog {
             ))
     }
 
-    /// Every closed integer type this module retains, for a consumer that
-    /// must carry the membership forward without the module itself.
-    pub fn retained_integers(&self) -> impl Iterator<Item = ClosedIntegerType> + '_ {
-        self.integers.values().copied()
-    }
-
     pub fn scalar(&self, scalar: ScalarType) -> Result<ClosedScalarType, CodecError> {
         Ok(match scalar {
             ScalarType::Boolean => ClosedScalarType::Boolean,
