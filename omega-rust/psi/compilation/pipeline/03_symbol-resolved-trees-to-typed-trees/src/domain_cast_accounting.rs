@@ -953,7 +953,9 @@ fn account_run(
             CastEntryKind::Keep | CastEntryKind::Remove => {
                 cast.target_type = after;
                 cast.result_type = after;
-                cast.domain = ArithmeticDomain::Exact;
+                // Keep the written policy as the entry's identity. The
+                // settled result type already records whether it survives;
+                // source capture still distinguishes it from a named domain.
             }
         }
     }

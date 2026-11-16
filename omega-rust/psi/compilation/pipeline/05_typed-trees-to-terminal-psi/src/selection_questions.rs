@@ -1449,21 +1449,34 @@ mod tests {
             cast_form::{CastEntry, CastEntryKind, CastForm},
         };
         use numerics::arithmetic::ArithmeticDomain;
-        let policy_entry = CastForm::Entry(CastEntry {
-            kind: CastEntryKind::Add,
-            first: true,
-            after_carrier: false,
-        });
-        for (form, policy) in [
+        let mut cases = vec![
             (CastForm::Value, ArithmeticDomain::Exact),
             (
                 CastForm::Recast(ReferenceAccess::Shared),
                 ArithmeticDomain::Exact,
             ),
-            (policy_entry, ArithmeticDomain::Wrapping),
-            (policy_entry, ArithmeticDomain::Saturating),
-            (policy_entry, ArithmeticDomain::Trapping),
+        ];
+        for kind in [
+            CastEntryKind::Add,
+            CastEntryKind::Keep,
+            CastEntryKind::Remove,
         ] {
+            for policy in [
+                ArithmeticDomain::Wrapping,
+                ArithmeticDomain::Saturating,
+                ArithmeticDomain::Trapping,
+            ] {
+                cases.push((
+                    CastForm::Entry(CastEntry {
+                        kind,
+                        first: true,
+                        after_carrier: false,
+                    }),
+                    policy,
+                ));
+            }
+        }
+        for (form, policy) in cases {
             let (mut typed, owner, target, expression) = cast_source(form);
             let ExpressionNode::Cast(cast) = typed.expression_table.expression_mut(expression)
             else {
