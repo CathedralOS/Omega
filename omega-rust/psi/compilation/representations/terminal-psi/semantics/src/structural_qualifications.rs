@@ -1591,7 +1591,7 @@ mod operation_permissions {
 
     // A request names existing storage history. These are invocation-local
     // work items, not retained grants or a second access representation.
-    #[derive(Clone, PartialEq, Eq)]
+    #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
     struct Subject {
         machine: MachineId,
         position: DescriptorPosition,
@@ -1602,12 +1602,11 @@ mod operation_permissions {
         StructuralEstablishmentRoute,
     );
 
-    type RouteAnswer = (Subject, bool, bool, Option<Judged<bool>>);
     struct RuleJudgment<'a> {
         target: &'a Subject,
         allowed: &'a [Caller],
         denied: &'static str,
-        answers: Vec<RouteAnswer>,
+        answers: std::collections::BTreeMap<(Subject, bool, bool), Option<Judged<bool>>>,
     }
 
     struct Permissions<'a> {
@@ -1632,9 +1631,9 @@ mod operation_permissions {
         }
         fn descriptor(&self, identity: MachineId) -> Judged<&DescriptorMachine> {
             self.graph
-                .iter()
-                .find(|row| row.id == identity)
-                .ok_or_else(|| failure(identity, "memory access has no storage history"))
+                .binary_search_by_key(&identity, |row| row.id)
+                .map(|index| &self.graph[index])
+                .map_err(|_| failure(identity, "memory access has no storage history"))
         }
         fn requirements(
             &self,
@@ -1869,15 +1868,8 @@ mod operation_permissions {
                     return Err(error);
                 }
             }
-            if let Some((_, _, _, result)) =
-                rule.answers
-                    .iter()
-                    .find(|(previous, prior_grant, prior_encounter, _)| {
-                        *previous == subject
-                            && *prior_grant == granted
-                            && *prior_encounter == encountered
-                    })
-            {
+            let key = (subject.clone(), granted, encountered);
+            if let Some(result) = rule.answers.get(&key) {
                 return result.clone().unwrap_or_else(|| {
                     Err(failure(
                         subject.machine,
@@ -1885,9 +1877,7 @@ mod operation_permissions {
                     ))
                 });
             }
-            let index = rule.answers.len();
-            rule.answers
-                .push((subject.clone(), granted, encountered, None));
+            rule.answers.insert(key.clone(), None);
             let result = (|| {
                 let callers = self.callers(&subject)?;
                 let entry = self.is_entry(&subject)? || callers.is_empty();
@@ -1900,7 +1890,7 @@ mod operation_permissions {
                 }
                 Ok(found)
             })();
-            rule.answers[index].3 = Some(result.clone());
+            rule.answers.insert(key, Some(result.clone()));
             result
         }
         fn rules(
@@ -1950,7 +1940,7 @@ mod operation_permissions {
                             target: subject,
                             allowed,
                             denied,
-                            answers: Vec::new(),
+                            answers: std::collections::BTreeMap::new(),
                         };
                         let reached = self.route(original.clone(), false, false, &mut judgment)?;
                         if !reached {
@@ -1975,9 +1965,9 @@ mod operation_permissions {
             // alternative intersection nor a bare formal can erase them.
             self.rules(&original, &original, operation, requirements)?;
             let mut pending = vec![original.clone()];
-            let mut visited = Vec::new();
+            let mut visited = std::collections::BTreeSet::new();
             while let Some(subject) = pending.pop() {
-                if visited.contains(&subject) {
+                if !visited.insert(subject.clone()) {
                     continue;
                 }
                 let query = self.query(subject.machine, &subject.source)?;
@@ -1985,7 +1975,6 @@ mod operation_permissions {
                 self.requirements(subject.machine, &query, &mut requirements)?;
                 self.rules(&original, &subject, operation, requirements)?;
                 pending.extend(self.callers(&subject)?);
-                visited.push(subject);
             }
             Ok(())
         }
@@ -2048,14 +2037,13 @@ mod operation_permissions {
                     }
                 };
                 self.subject(
-                    Subject {
-                        machine,
-                        position,
-                        source,
-                    },
-                    operation,
-                    requirements.clone(),
-                )?;
+                    Subject { machine, position, source }, operation, requirements.clone(),
+                ).inspect_err(|error| {
+                    let original = self.module.machine(machine)
+                        .and_then(|body| body.blocks.iter().find(|block| block.id == position.0))
+                        .and_then(|block| block.operations.get(position.1 as usize));
+                    eprintln!("[permission failure] machine={machine:?} position={position:?} input={input} access={operation:?} query={query:?} instruction={:?} reason={}", original.map(|row| &row.kind), error.detail);
+                })?;
             }
             Ok(())
         }
@@ -2086,13 +2074,14 @@ mod operation_permissions {
         if matches!(module.entry, Some(TargetMachineCallable::Boundary(_))) {
             return malformed(None, "memory access needs its checked public entry caller");
         }
-        let graph = terminal_borrowed_storage_graph_from(module, roots.iter().copied(), &[])
+        let mut graph = terminal_borrowed_storage_graph_from(module, roots.iter().copied(), &[])
             .map_err(|error| StructuralQualificationError {
                 machine: Some(error.machine()),
                 detail: error
                     .detail()
                     .unwrap_or("memory access storage history cannot be reconstructed"),
             })?;
+        graph.sort_by_key(|row| row.id);
         let mut incoming = Vec::new();
         for caller in &graph {
             for (position, call) in caller.known_invocations() {
