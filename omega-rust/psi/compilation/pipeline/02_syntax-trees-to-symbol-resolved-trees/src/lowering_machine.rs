@@ -834,7 +834,7 @@ mod token_bindings {
 
     /*
         Resolve a token's domain home with the membership pool. A signature-free
-        unique hit does not return before module-local preference. The same
+        unique hit does not return before the exposure scan. The same
         symbol reached by lookup and by the exposure scan is one home. Two
         different symbols stay unresolved even when they print the same.
     */
@@ -932,11 +932,13 @@ mod token_bindings {
 
     /*
         A signature-free lookup can see one exact `Quantity` and stop. The
-        membership lookup still scans the module and prefers the local leaf
-        `Widget::Quantity`. Token homes have to take that local domain.
+        membership lookup still scans the module and also reaches the local leaf
+        `Widget::Quantity`. Two visible domains compete, and neither the local
+        module nor the signature-free hit wins, so the token home stays
+        unresolved (`wiki/spec/language/modules.md#resolution`).
     */
     #[test]
-    fn signature_free_unique_domain_does_not_skip_module_local_preference() {
+    fn signature_free_unique_domain_does_not_hide_a_competing_local_domain() {
         use std::path::PathBuf;
         use std::sync::Arc;
 
@@ -977,9 +979,10 @@ mod token_bindings {
         let selected = domain_named(&program, &DiagnosticName::from_str("Quantity", reference));
         assert_eq!(
             selected.map(|symbol| program.symbols.display_path(symbol, "::")),
-            Some(program.symbols.display_path(module_local, "::")),
-            "signature-free hit was {}",
+            None,
+            "competing {} and {} must not select a home",
             program.symbols.display_path(signature_free, "::"),
+            program.symbols.display_path(module_local, "::"),
         );
     }
 
