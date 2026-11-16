@@ -1904,9 +1904,42 @@ pub(crate) mod quotient {
             assume(arena, 2, &statement)
         }
 
+        /// Effectivity is consistent only for a propositional equivalence
+        /// relation (wiki/spec/proofs/quotients.md#set-quotient-foundation), so
+        /// the law takes those proofs as explicit hypotheses. Without them, the
+        /// constant relation `λ_ _. Id Two zero one` would let
+        /// `effective(x, x, refl)` prove `Id Two zero one`. The quotient type
+        /// itself stays indexed only by `A` and `R`, as the spec requires.
         fn effective_declaration(arena: &mut TermArena) -> Declaration {
             let statement = pi_description(pis(
                 [
+                    (
+                        "propositional",
+                        pis(
+                            [
+                                ("a", v("A")),
+                                ("b", v("A")),
+                                ("r", related(v("a"), v("b"))),
+                                ("s", related(v("a"), v("b"))),
+                            ],
+                            id(related(v("a"), v("b")), v("r"), v("s")),
+                        ),
+                    ),
+                    ("reflexive", pi("a", v("A"), related(v("a"), v("a")))),
+                    ("symmetric", related_pis("_", related(v("b"), v("a")))),
+                    (
+                        "transitive",
+                        pis(
+                            [
+                                ("a", v("A")),
+                                ("b", v("A")),
+                                ("c", v("A")),
+                                ("_", related(v("a"), v("b"))),
+                                ("_", related(v("b"), v("c"))),
+                            ],
+                            related(v("a"), v("c")),
+                        ),
+                    ),
                     ("a", v("A")),
                     ("b", v("A")),
                     (
@@ -2885,6 +2918,20 @@ pub(crate) mod quotient {
         pi("_", quotient_of(), ty(2))
     }
 
+    /// Proofs that a quotient's relation `R` is a mere proposition at every
+    /// pair and an equivalence relation, in the order `effective` binds them.
+    #[derive(Clone, Copy, Debug)]
+    pub struct EquivalenceProofs {
+        /// `(a b : A) → (r s : R a b) → Id (R a b) r s`
+        pub propositional: TermHandle,
+        /// `(a : A) → R a a`
+        pub reflexive: TermHandle,
+        /// `(a b : A) → R a b → R b a`
+        pub symmetric: TermHandle,
+        /// `(a b c : A) → R a b → R b c → R a c`
+        pub transitive: TermHandle,
+    }
+
     #[derive(Clone, Debug)]
     pub struct QuotientFamily {
         pub levels: [Level; 2],
@@ -2944,14 +2991,36 @@ pub(crate) mod quotient {
             self.spine(arena, QUOTIENT_SOUND, Vec::new(), &[left, right, evidence])
         }
 
+        /// Effectivity cites the relation's equivalence and proposition proofs
+        /// before the two representatives and their projection identity.
         pub fn effective(
             &self,
             arena: &mut TermArena,
+            relation_laws: &EquivalenceProofs,
             left: TermHandle,
             right: TermHandle,
             proof: TermHandle,
         ) -> TermHandle {
-            self.spine(arena, QUOTIENT_EFFECTIVE, Vec::new(), &[left, right, proof])
+            let EquivalenceProofs {
+                propositional,
+                reflexive,
+                symmetric,
+                transitive,
+            } = *relation_laws;
+            self.spine(
+                arena,
+                QUOTIENT_EFFECTIVE,
+                Vec::new(),
+                &[
+                    propositional,
+                    reflexive,
+                    symmetric,
+                    transitive,
+                    left,
+                    right,
+                    proof,
+                ],
+            )
         }
 
         pub fn transport(
@@ -4750,10 +4819,10 @@ pub use indexed::{
     indexed_correctness, indexed_scheme,
 };
 pub use quotient::{
-    QUOTIENT, QUOTIENT_BETA, QUOTIENT_BOX_PROP, QUOTIENT_COVERAGE, QUOTIENT_EFFECTIVE,
-    QUOTIENT_ELIM, QUOTIENT_ID_CANCEL, QUOTIENT_ID_SYM, QUOTIENT_ID_TRANS, QUOTIENT_IND_PROP,
-    QUOTIENT_IS_SET, QUOTIENT_LIFT, QUOTIENT_LIFT_PRECONDITION, QUOTIENT_PROJECT,
-    QUOTIENT_PROP_IS_SET, QUOTIENT_SET, QUOTIENT_SOUND, QUOTIENT_TRANSPORT,
+    EquivalenceProofs, QUOTIENT, QUOTIENT_BETA, QUOTIENT_BOX_PROP, QUOTIENT_COVERAGE,
+    QUOTIENT_EFFECTIVE, QUOTIENT_ELIM, QUOTIENT_ID_CANCEL, QUOTIENT_ID_SYM, QUOTIENT_ID_TRANS,
+    QUOTIENT_IND_PROP, QUOTIENT_IS_SET, QUOTIENT_LIFT, QUOTIENT_LIFT_PRECONDITION,
+    QUOTIENT_PROJECT, QUOTIENT_PROP_IS_SET, QUOTIENT_SET, QUOTIENT_SOUND, QUOTIENT_TRANSPORT,
     QUOTIENT_TRANSPORT_CONST, QUOTIENT_UNIQUE, QuotientFamily, quotient_scheme,
 };
 pub use signature::{
@@ -6704,9 +6773,10 @@ mod tests {
             use std::collections::BTreeSet;
 
             use crate::mathematical_core::tests::{
-                box_elim, box_intro, boxed, default_budget, id, lambda, quotient_signature, sigma,
-                squash, squash_elim, squash_intro, two, two_identity, two_quotient,
-                two_quotient_over, variable,
+                apply, box_elim, box_intro, boxed, constant, default_budget,
+                equivalence_hypotheses, equivalence_proofs, id, lambda, quotient_signature, refl,
+                sigma, squash, squash_elim, squash_intro, two, two_identity, two_one, two_quotient,
+                two_quotient_over, two_zero, variable,
             };
             use crate::mathematical_core::{
                 Context, CoreError, Level, MathematicalCertificate, QUOTIENT, QUOTIENT_BETA,
@@ -6745,13 +6815,20 @@ mod tests {
                     let ty = family.quotient(&mut arena);
                     id(&mut arena, ty, left, right)
                 };
+                let [propositional, reflexive, symmetric, transitive] =
+                    equivalence_hypotheses(&mut arena, &family);
                 let context = Context::empty()
                     .with_signature(signature)
+                    .extend(propositional)
+                    .extend(reflexive)
+                    .extend(symmetric)
+                    .extend(transitive)
                     .extend(two(&mut arena))
                     .extend(two(&mut arena))
                     .extend(identity_ab)
                     .extend(squashed_evidence)
                     .extend(projection_identity);
+                let laws = equivalence_proofs(&mut arena, 5);
 
                 let congruence = {
                     let a = variable(&mut arena, 4);
@@ -6780,7 +6857,7 @@ mod tests {
                     let a = variable(&mut arena, 4);
                     let b = variable(&mut arena, 3);
                     let p = variable(&mut arena, 0);
-                    family.effective(&mut arena, a, b, p)
+                    family.effective(&mut arena, &laws, a, b, p)
                 };
                 let ambient_squashed_identity = {
                     let body = two_identity(&mut arena, 4, 3);
@@ -6816,7 +6893,7 @@ mod tests {
                         let a = variable(&mut arena, 4);
                         let b = variable(&mut arena, 3);
                         let p = variable(&mut arena, 0);
-                        family.effective(&mut arena, a, b, p)
+                        family.effective(&mut arena, &laws, a, b, p)
                     };
                     box_elim(&mut arena, motive, body, scrutinee)
                 };
@@ -6887,10 +6964,11 @@ mod tests {
                         id(&mut arena, ty, left, right)
                     };
                     let term = {
+                        let laws = equivalence_proofs(&mut arena, 3);
                         let a = variable(&mut arena, 2);
                         let b = variable(&mut arena, 1);
                         let p = variable(&mut arena, 0);
-                        family.effective(&mut arena, a, b, p)
+                        family.effective(&mut arena, &laws, a, b, p)
                     };
                     let expected = {
                         let body = two_identity(&mut arena, 2, 1);
@@ -6900,7 +6978,15 @@ mod tests {
                     MathematicalCertificate {
                         signature: quotient_scheme(&mut arena),
                         level_arity: 0,
-                        context: vec![two(&mut arena), two(&mut arena), projection_identity],
+                        context: vec![
+                            propositional,
+                            reflexive,
+                            symmetric,
+                            transitive,
+                            two(&mut arena),
+                            two(&mut arena),
+                            projection_identity,
+                        ],
                         term,
                         expected,
                     }
@@ -6915,6 +7001,86 @@ mod tests {
                     closure, expected_closure,
                     "the squashed effectivity judgment commits to exactly the interface it cites"
                 );
+            }
+
+            /// A relation that is not an equivalence must not reach `Id Two zero one`
+            /// through effectivity. With `R := λ_ _. Id Two zero one`, the bare
+            /// `effective(x, x, refl)` the kernel once admitted is refused, and the
+            /// same conclusion checks only under a context that assumes `R` is an
+            /// equivalence, so the certificate commits to that unprovable premise.
+            #[test]
+            fn effectivity_requires_the_relation_to_be_a_propositional_equivalence() {
+                let mut arena = TermArena::new();
+                let mut budget = default_budget();
+                let family = two_quotient_over(&mut arena, |arena| {
+                    let carrier = two(arena);
+                    let zero = two_zero(arena);
+                    let one = two_one(arena);
+                    id(arena, carrier, zero, one)
+                });
+                let absurd = {
+                    let carrier = two(&mut arena);
+                    let zero = two_zero(&mut arena);
+                    let one = two_one(&mut arena);
+                    id(&mut arena, carrier, zero, one)
+                };
+                let self_identity = |arena: &mut TermArena, x: u32| {
+                    let element = variable(arena, x);
+                    let projected = family.project(arena, element);
+                    let ty = family.quotient(arena);
+                    refl(arena, ty, projected)
+                };
+
+                let unhypothesized = {
+                    let x = variable(&mut arena, 0);
+                    let p = self_identity(&mut arena, 0);
+                    let effective = constant(
+                        &mut arena,
+                        QUOTIENT_EFFECTIVE,
+                        vec![Level::Constant(0), Level::Constant(0)],
+                    );
+                    let unchecked = [family.carrier, family.relation, x, x, p]
+                        .into_iter()
+                        .fold(effective, |function, argument| {
+                            apply(&mut arena, function, argument)
+                        });
+                    MathematicalCertificate {
+                        signature: quotient_scheme(&mut arena),
+                        level_arity: 0,
+                        context: vec![two(&mut arena)],
+                        term: unchecked,
+                        expected: absurd,
+                    }
+                };
+                let error =
+                    verify_mathematical_certificate(&mut arena, &unhypothesized, &mut budget)
+                        .unwrap_err();
+                assert!(
+                    matches!(error, CoreError::ArgumentTypeMismatch { .. }),
+                    "effectivity without equivalence proofs proves nothing: {error:?}"
+                );
+
+                let [propositional, reflexive, symmetric, transitive] =
+                    equivalence_hypotheses(&mut arena, &family);
+                let hypothesized = {
+                    let laws = equivalence_proofs(&mut arena, 1);
+                    let x = variable(&mut arena, 0);
+                    let p = self_identity(&mut arena, 0);
+                    MathematicalCertificate {
+                        signature: quotient_scheme(&mut arena),
+                        level_arity: 0,
+                        context: vec![
+                            propositional,
+                            reflexive,
+                            symmetric,
+                            transitive,
+                            two(&mut arena),
+                        ],
+                        term: family.effective(&mut arena, &laws, x, x, p),
+                        expected: absurd,
+                    }
+                };
+                verify_mathematical_certificate(&mut arena, &hypothesized, &mut budget).unwrap();
             }
 
             #[test]
@@ -9119,8 +9285,8 @@ mod tests {
     }
 
     use crate::mathematical_core::{
-        Budget, Context, DEFAULT_CONVERSION_STEPS, Declaration, IndexedFamily, Level,
-        QUOTIENT_IS_SET, QuotientFamily, Signature, Sort, Term, TermArena, TermHandle,
+        Budget, Context, DEFAULT_CONVERSION_STEPS, Declaration, EquivalenceProofs, IndexedFamily,
+        Level, QUOTIENT_IS_SET, QuotientFamily, Signature, Sort, Term, TermArena, TermHandle,
         check_signature, indexed_scheme, quotient_scheme,
     };
 
@@ -9605,6 +9771,67 @@ mod tests {
 
     fn two_quotient(arena: &mut TermArena) -> QuotientFamily {
         two_quotient_over(arena, |arena| two_identity(arena, 1, 0))
+    }
+
+    /// The four hypothesis types `effective` requires of `family`'s relation,
+    /// in binding order: propositional, reflexive, symmetric, transitive.
+    /// Each is closed, so a test can place them anywhere in a context.
+    fn equivalence_hypotheses(arena: &mut TermArena, family: &QuotientFamily) -> [TermHandle; 4] {
+        let carrier = family.carrier;
+        let relation = family.relation;
+        let related = |arena: &mut TermArena, left: u32, right: u32| {
+            let left = variable(arena, left);
+            let right = variable(arena, right);
+            let partial = apply(arena, relation, left);
+            apply(arena, partial, right)
+        };
+        let propositional = {
+            let ty = related(arena, 3, 2);
+            let r = variable(arena, 1);
+            let s = variable(arena, 0);
+            let mut body = id(arena, ty, r, s);
+            for domain in [related(arena, 2, 1), related(arena, 1, 0), carrier, carrier] {
+                body = pi(arena, domain, body);
+            }
+            body
+        };
+        let reflexive = {
+            let body = related(arena, 0, 0);
+            pi(arena, carrier, body)
+        };
+        let symmetric = {
+            let mut body = related(arena, 1, 2);
+            for domain in [related(arena, 1, 0), carrier, carrier] {
+                body = pi(arena, domain, body);
+            }
+            body
+        };
+        let transitive = {
+            let mut body = related(arena, 4, 2);
+            for domain in [
+                related(arena, 2, 1),
+                related(arena, 2, 1),
+                carrier,
+                carrier,
+                carrier,
+            ] {
+                body = pi(arena, domain, body);
+            }
+            body
+        };
+        [propositional, reflexive, symmetric, transitive]
+    }
+
+    /// References to the hypotheses from `equivalence_hypotheses` when they
+    /// sit at the start of a context and `transitive` is de Bruijn index
+    /// `transitive_index` from the term being checked.
+    fn equivalence_proofs(arena: &mut TermArena, transitive_index: u32) -> EquivalenceProofs {
+        EquivalenceProofs {
+            propositional: variable(arena, transitive_index + 3),
+            reflexive: variable(arena, transitive_index + 2),
+            symmetric: variable(arena, transitive_index + 1),
+            transitive: variable(arena, transitive_index),
+        }
     }
 
     fn quotient_signature(arena: &mut TermArena) -> Signature {
