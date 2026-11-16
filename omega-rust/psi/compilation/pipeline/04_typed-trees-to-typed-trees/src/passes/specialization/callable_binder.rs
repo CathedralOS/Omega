@@ -152,7 +152,20 @@ pub(super) fn satisfies_binder(
         .collect::<Vec<_>>();
     if contracts.iter().any(|contract| {
         contract.kind == SignatureContractKind::Requires
-            && (required_parameters.is_empty() || !admits_types_only(program, contract))
+            && (!admits_types_only(program, contract)
+                || required_parameters.is_empty()
+                    && !program
+                        .proof_facts
+                        .span_or_empty(contract.facts)
+                        .iter()
+                        .all(|fact| {
+                            let typed_trees::domain::ProofFact::Expression(expression) = fact
+                            else {
+                                return false;
+                            };
+                            program.applied_static_type_predicate_value(*expression, &substitutions)
+                                == Some(true)
+                        }))
     }) {
         return Err(refuse(
             "it declares a precondition on its inputs that the binder does not publish, so a caller of the binder could not establish it",

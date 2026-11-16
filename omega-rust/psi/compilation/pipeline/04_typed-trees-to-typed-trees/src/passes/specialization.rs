@@ -156,6 +156,7 @@ pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
 }
 
 /// Why one application was left as typing wrote it.
+#[derive(Debug)]
 enum Stop {
     /// A request this pass does not serve yet; nothing was changed for it.
     Unserved(Option<&'static str>),
@@ -462,8 +463,61 @@ fn serve(program: &mut TypedTrees, site: Site, generated: &mut GeneratedMachines
             ));
         }
     }
+    match specialize_application(
+        program,
+        callee,
+        &parameters,
+        applied.application,
+        &mut arguments,
+        generated,
+    )? {
+        Some((machine, state)) => site.enter(program, if names_state { state } else { machine }),
+        None => match site {
+            Site::Expression(handle) => {
+                if let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle)
+                {
+                    call.machine_arguments = arguments.into_boxed_slice();
+                }
+            }
+            Site::Statement(handle) => {
+                if let StatementNode::Call(call) = program.statement_table.statement_mut(handle) {
+                    call.machine_arguments = arguments.into_boxed_slice();
+                }
+            }
+        },
+    }
+    Ok(())
+}
+
+/// Named callback applications and ordinary calls close through the same
+/// binding, contract and executable-entry receipts. No runtime environment is
+/// introduced when a callback supplies its own static arguments.
+fn specialize_application(
+    program: &mut TypedTrees,
+    callee: SymbolHandle,
+    parameters: &[(SymbolHandle, TypeParameterKind)],
+    application: StaticMachineApplicationHandle,
+    arguments: &mut [StaticMachineArgument],
+    generated: &mut GeneratedMachines,
+) -> Served<Option<(SymbolHandle, SymbolHandle)>> {
+    let mut open_callback = false;
+    for ((_, kind), argument) in parameters.iter().zip(arguments.iter_mut()) {
+        if matches!(kind, TypeParameterKind::Machine { .. })
+            && argument.application.is_some()
+            && !close_machine_argument(program, application, argument, generated)?
+        {
+            open_callback = true;
+            break;
+        }
+    }
+    program
+        .expression_table
+        .set_static_machine_application_arguments(application, arguments);
+    if open_callback {
+        return Ok(None);
+    }
     let mut operands = Vec::with_capacity(parameters.len());
-    for ((parameter, kind), argument) in parameters.iter().zip(&arguments) {
+    for ((parameter, kind), argument) in parameters.iter().zip(arguments.iter()) {
         operands.push(Operand::read(program, *parameter, kind, argument).map_err(
             |stop| match stop {
                 Stop::Unserved(None) => {
@@ -475,14 +529,14 @@ fn serve(program: &mut TypedTrees, site: Site, generated: &mut GeneratedMachines
     }
     program
         .expression_table
-        .static_machine_application_mut(applied.application)
+        .static_machine_application_mut(application)
         .binding_declaration = callee;
-    bind(program, applied.application, &operands);
+    bind(program, application, &operands);
     // An argument that names a parameter of the enclosing generic machine
     // leaves the application open: it is closed in each machine generated
     // from that one, where the parameter is replaced.
     if operands.iter().any(|operand| operand.is_open(program)) {
-        return Ok(());
+        return Ok(None);
     }
     let key = operands
         .iter()
@@ -491,14 +545,13 @@ fn serve(program: &mut TypedTrees, site: Site, generated: &mut GeneratedMachines
     let entry = match generated.search(callee, &key) {
         Ok(row) => &generated.rows[row],
         Err(slot) => {
-            let made = generate(program, callee, applied.application, &operands).map_err(
-                |stop| match stop {
+            let made =
+                generate(program, callee, application, &operands).map_err(|stop| match stop {
                     Stop::Unserved(None) => unserved(
                         "the declaration copier could not retain the complete static context",
                     ),
                     other => other,
-                },
-            )?;
+                })?;
             if made.template != callee || made.arguments != key {
                 return Err(Stop::Defect(
                     "a generated machine changed the application it was generated for",
@@ -507,13 +560,109 @@ fn serve(program: &mut TypedTrees, site: Site, generated: &mut GeneratedMachines
             generated.insert(slot, made)
         }
     };
-    let target = if names_state {
-        entry.state
-    } else {
-        entry.machine
+    Ok(Some((entry.machine, entry.state)))
+}
+
+fn close_machine_argument(
+    program: &mut TypedTrees,
+    supplying: StaticMachineApplicationHandle,
+    argument: &mut StaticMachineArgument,
+    generated: &mut GeneratedMachines,
+) -> Served<bool> {
+    let Some(selected) = argument.application.as_ref() else {
+        return Ok(true);
     };
-    site.enter(program, target);
-    Ok(())
+    if selected.member.is_valid()
+        || !selected.lifetime_arguments.is_empty()
+        || argument.evidence_projection.is_some()
+        || argument.const_literal.is_some()
+        || (argument.type_reference.is_valid()
+            && !matches!(program.type_reference_table.type_reference(argument.type_reference),
+                TypeReferenceNode::Named { symbol, .. } if *symbol == argument.symbol))
+    {
+        return Err(unserved(
+            "a static callback application needs an exact named machine and its static arguments",
+        ));
+    }
+    let Some((callee, names_state)) = entered_machine(program, argument.symbol) else {
+        return Err(unserved(
+            "a static callback application has no declared machine",
+        ));
+    };
+    let machine = program.machine_by_symbol(callee).ok_or(unserved(
+        "a static callback application has no body-bearing declaration",
+    ))?;
+    if !machine.lifetime_parameters.is_empty() {
+        return Err(unserved(
+            "an applied callback needs its exact own lifetime application",
+        ));
+    }
+    let parameters = program
+        .machine_callable_parameters(machine)
+        .into_iter()
+        .map(|parameter| (parameter.symbol, parameter.kind))
+        .collect::<Vec<_>>();
+    let selected_name = machine.name.clone();
+    let mut arguments = selected.arguments.to_vec();
+    if parameters.len() != arguments.len() {
+        arguments = remaining_arguments(program, callee, &arguments)?;
+    }
+    if parameters.len() != arguments.len() {
+        return Err(unserved(
+            "a static callback needs one argument for each declared binder",
+        ));
+    }
+    if arguments
+        .iter()
+        .any(|argument| !typed_trees::domain::static_argument_is_closed(program, argument))
+    {
+        return Ok(false);
+    }
+    if parameters.is_empty() {
+        if program
+            .executable_application_template(callee)
+            .map_err(Stop::Defect)?
+            .is_none()
+        {
+            return Err(unserved(
+                "a static callback application binds no declared parameter",
+            ));
+        }
+        argument.type_reference = TypeReferenceHandle::invalid();
+        argument.application = None;
+        return Ok(true);
+    }
+    let owner = program
+        .expression_table
+        .static_machine_application(supplying)
+        .lexical_owner;
+    let target = argument.path.last().cloned().unwrap_or(selected_name);
+    let application = program.expression_table.retain_static_machine_application(
+        argument.symbol,
+        target,
+        &arguments,
+    );
+    program
+        .expression_table
+        .static_machine_application_mut(application)
+        .lexical_owner = owner;
+    let Some((machine, state)) = specialize_application(
+        program,
+        callee,
+        &parameters,
+        application,
+        &mut arguments,
+        generated,
+    )?
+    else {
+        return Ok(false);
+    };
+    // Its receipt now retains the complete application. The operand selects
+    // that exact executable entry and keeps the original authored occurrence.
+    argument.symbol = if names_state { state } else { machine };
+    argument.type_reference = TypeReferenceHandle::invalid();
+    argument.application = None;
+    Ok(true)
 }
 
 /// A copied nested declaration has already received its enclosing arguments.
@@ -1507,10 +1656,6 @@ fn copied_parts(
             StatementNode::Call(call) => {
                 call.installed_interrupt_operation.is_none()
                     && call.reflected_field_origin.is_none()
-                    && call
-                        .machine_arguments
-                        .iter()
-                        .all(|argument| only_a_name(program, argument))
             }
             StatementNode::LocalData(local) => local.reflected_query_origin.is_none(),
             StatementNode::Assignment(_)
@@ -1550,14 +1695,6 @@ fn copied_parts(
                         && call.quotient_operation.is_none()
                         && call.private_layout_operation.is_none()
                         && call.installed_interrupt_operation.is_none()
-                        // A Build selection is copied as written
-                        // (`substitute_arguments`), whatever its operands
-                        // apply.
-                        && (call.build_selection.is_valid()
-                            || call
-                                .machine_arguments
-                                .iter()
-                                .all(|argument| only_a_name(program, argument)))
                 }
                 ExpressionNode::Cast(cast) => cast.semantic_domain_arguments.is_empty(),
                 _ => true,

@@ -3575,73 +3575,7 @@ pub(crate) mod payloads {
                             crate::references::StaticArgumentCall::Expression(handle, &call)
                                 .applications()
                         {
-                            let lifetimes = program
-                                .static_machine_application_lifetimes(application)
-                                .iter()
-                                .map(
-                                    |binding| static_applications::StaticMachineLifetimeBinding {
-                                        parameter: binding.parameter.clone(),
-                                        argument: self.lifetime(&binding.argument),
-                                    },
-                                )
-                                .collect::<Vec<_>>();
-                            let declaration = program
-                                .static_machine_application(application)
-                                .lifetime_binding_declaration;
-                            program
-                                .expression_table
-                                .set_static_machine_application_lifetimes(
-                                    application,
-                                    declaration,
-                                    &lifetimes,
-                                );
-                            let mut arguments = program
-                                .static_machine_application_arguments(application)
-                                .to_vec();
-                            self.static_arguments(program, &mut arguments)?;
-                            program
-                                .expression_table
-                                .static_machine_application_arguments_mut(application)
-                                .clone_from_slice(&arguments);
-                            let mut selected = program
-                                .expression_table
-                                .static_machine_application_selected_machines(application)
-                                .to_vec();
-                            self.static_arguments(program, &mut selected)?;
-                            program
-                                .expression_table
-                                .static_machine_application_selected_machines_mut(application)
-                                .clone_from_slice(&selected);
-                            let mut bindings = program
-                                .static_machine_application_bindings(application)
-                                .to_vec();
-                            for binding in &mut bindings {
-                                match &mut binding.value {
-                                static_applications::StaticMachineBindingValue::Type(reference)
-                                | static_applications::StaticMachineBindingValue::Const(
-                                    reference,
-                                ) => *reference = self.type_reference(program, *reference)?,
-                                static_applications::StaticMachineBindingValue::RuntimeValue {
-                                    type_reference,
-                                    ..
-                                } => {
-                                    *type_reference =
-                                        self.type_reference(program, *type_reference)?
-                                }
-                                static_applications::StaticMachineBindingValue::Machine(
-                                    argument,
-                                )
-                                | static_applications::StaticMachineBindingValue::Conformance(
-                                    argument,
-                                ) => {
-                                    self.static_arguments(program, std::slice::from_mut(argument))?
-                                }
-                            }
-                            }
-                            program
-                                .expression_table
-                                .static_machine_application_bindings_mut(application)
-                                .clone_from_slice(&bindings);
+                            self.static_application(program, application)?;
                         }
                         if let Some(target) = call_target {
                             self.apply_call_target(program, &mut call, target)?;
@@ -3667,6 +3601,71 @@ pub(crate) mod payloads {
                     *program.expression_table.expression_mut(handle) = applied;
                 }
             }
+            Ok(())
+        }
+
+        /// Copied statements and expressions retain the same complete invocation.
+        pub(crate) fn static_application(
+            &mut self,
+            program: &mut TypedTrees,
+            application: crate::static_applications::StaticMachineApplicationHandle,
+        ) -> Result<(), &'static str> {
+            let lifetimes = program
+                .static_machine_application_lifetimes(application)
+                .iter()
+                .map(
+                    |binding| static_applications::StaticMachineLifetimeBinding {
+                        parameter: binding.parameter.clone(),
+                        argument: self.lifetime(&binding.argument),
+                    },
+                )
+                .collect::<Vec<_>>();
+            let declaration = program
+                .static_machine_application(application)
+                .lifetime_binding_declaration;
+            program
+                .expression_table
+                .set_static_machine_application_lifetimes(application, declaration, &lifetimes);
+            let mut arguments = program
+                .static_machine_application_arguments(application)
+                .to_vec();
+            self.static_arguments(program, &mut arguments)?;
+            program
+                .expression_table
+                .static_machine_application_arguments_mut(application)
+                .clone_from_slice(&arguments);
+            let mut selected = program
+                .expression_table
+                .static_machine_application_selected_machines(application)
+                .to_vec();
+            self.static_arguments(program, &mut selected)?;
+            program
+                .expression_table
+                .static_machine_application_selected_machines_mut(application)
+                .clone_from_slice(&selected);
+            let mut bindings = program
+                .static_machine_application_bindings(application)
+                .to_vec();
+            for binding in &mut bindings {
+                match &mut binding.value {
+                    static_applications::StaticMachineBindingValue::Type(reference)
+                    | static_applications::StaticMachineBindingValue::Const(reference) => {
+                        *reference = self.type_reference(program, *reference)?
+                    }
+                    static_applications::StaticMachineBindingValue::RuntimeValue {
+                        type_reference,
+                        ..
+                    } => *type_reference = self.type_reference(program, *type_reference)?,
+                    static_applications::StaticMachineBindingValue::Machine(argument)
+                    | static_applications::StaticMachineBindingValue::Conformance(argument) => {
+                        self.static_arguments(program, std::slice::from_mut(argument))?
+                    }
+                }
+            }
+            program
+                .expression_table
+                .static_machine_application_bindings_mut(application)
+                .clone_from_slice(&bindings);
             Ok(())
         }
 
@@ -8137,15 +8136,24 @@ impl TypedTrees {
                 self.state_parameters.get_mut(parameter).type_reference = applied;
             }
             for handle in state.statement_nodes.handles() {
-                let Some(local) = self.statement_table.statement(handle).as_local_data() else {
-                    continue;
-                };
-                let original = local.type_reference;
-                let applied = application.type_reference(self, original)?;
-                if let crate::statement::StatementNode::LocalData(local) =
-                    self.statement_table.statement_mut(handle)
-                {
-                    local.type_reference = applied;
+                match self.statement_table.statement(handle).clone() {
+                    crate::statement::StatementNode::LocalData(mut local) => {
+                        local.type_reference =
+                            application.type_reference(self, local.type_reference)?;
+                        *self.statement_table.statement_mut(handle) =
+                            crate::statement::StatementNode::LocalData(local);
+                    }
+                    crate::statement::StatementNode::Call(mut call) => {
+                        application.static_arguments(self, &mut call.machine_arguments)?;
+                        for invocation in
+                            crate::references::StaticArgumentCall::Statement(&call).applications()
+                        {
+                            application.static_application(self, invocation)?;
+                        }
+                        *self.statement_table.statement_mut(handle) =
+                            crate::statement::StatementNode::Call(call);
+                    }
+                    _ => {}
                 }
             }
             let call_targets = application.expression_call_targets(self, &rows)?;
