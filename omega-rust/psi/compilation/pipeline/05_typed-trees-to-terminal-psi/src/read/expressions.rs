@@ -542,11 +542,22 @@ impl<'t> Program<'t> {
                 } else {
                     let left = self.expression(id, slots, binary.left, operand(quoted.0, hint))?;
                     let partner = left.result.and_then(ValueType::scalar);
+                    // A wholly anonymous count (`x << 8`) has no carrier of
+                    // its own, so it lands in the shifted value's carrier
+                    // (numeric_values.md, "Policy operators": "At least one
+                    // operand must already be integer-typed and the other
+                    // lands to that carrier"). The count obligation is still
+                    // judged on the landed value; a typed count keeps its type.
+                    let count = if self.wholly_anonymous(binary.right) {
+                        partner
+                    } else {
+                        None
+                    };
                     let right = self.expression(
                         id,
                         slots,
                         binary.right,
-                        operand(quoted.1, (!shift).then_some(hint.or(partner)).flatten()),
+                        operand(quoted.1, if shift { count } else { hint.or(partner) }),
                     )?;
                     (left, right)
                 };
