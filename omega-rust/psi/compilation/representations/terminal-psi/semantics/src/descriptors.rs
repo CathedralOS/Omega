@@ -12498,7 +12498,7 @@ pub mod descriptor_results {
                 );
                 let result = replay
                     .summary(caller, 0)
-                    .and_then(|summary| summary.result)
+                    .and_then(|summary| summary.result.into_slots())
                     .unwrap();
                 assert_eq!(result.len(), 1);
                 let [
@@ -12714,7 +12714,7 @@ pub mod descriptor_results {
                 assert!(
                     replay
                         .summary(reader_id, 0)
-                        .and_then(|summary| summary.result)
+                        .and_then(|summary| summary.result.into_slots())
                         .is_some(),
                     "the helper can carry a view borrowed from its caller"
                 );
@@ -12818,7 +12818,7 @@ pub mod descriptor_results {
                 );
                 let result = replay
                     .summary(caller, 0)
-                    .and_then(|summary| summary.result)
+                    .and_then(|summary| summary.result.into_slots())
                     .unwrap();
                 let mut lengths = result[0]
                     .origins
