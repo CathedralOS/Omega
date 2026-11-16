@@ -4311,6 +4311,38 @@ mod declaration_invocations {
             {
                 return Ok(None);
             }
+            self.bodyless_machine_signature_for(machine, target)
+                .map(Some)
+        }
+
+        /// Read the complete actual machine header without granting call
+        /// eligibility. Boundary lookup and sealed intrinsic lookup establish
+        /// their own permitted supply roles before using this shared header.
+        pub fn bodyless_machine_signature(
+            &self,
+            target: SymbolHandle,
+        ) -> Result<Option<(SymbolHandle, StateSignature)>, &'static str> {
+            if !self.symbols.symbols().nodes().is_valid(target) {
+                return Err("bodyless call target has no live declaration");
+            }
+            let Some(machine) = self
+                .machine_by_symbol(target)
+                .or_else(|| self.machine_holding_state(target))
+            else {
+                return Ok(None);
+            };
+            if !machine.has_bodyless_signature() {
+                return Ok(None);
+            }
+            self.bodyless_machine_signature_for(machine, target)
+                .map(Some)
+        }
+
+        fn bodyless_machine_signature_for(
+            &self,
+            machine: &crate::machine::Machine,
+            target: SymbolHandle,
+        ) -> Result<(SymbolHandle, StateSignature), &'static str> {
             let states = self
                 .machine_states
                 .span(machine.states)
@@ -4337,7 +4369,7 @@ mod declaration_invocations {
             {
                 return Err("bodyless declaration has a stale parameter or contract roster");
             }
-            Ok(Some((
+            Ok((
                 machine.symbol,
                 StateSignature {
                     // The machine authored the contracts and effect rows;
@@ -4370,7 +4402,7 @@ mod declaration_invocations {
                     declares_no_crash_route: machine.declares_no_crash_route,
                     ..Default::default()
                 },
-            )))
+            ))
         }
     }
 }

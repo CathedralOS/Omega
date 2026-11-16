@@ -1513,9 +1513,10 @@ fn selections(program: &TypedTrees, operands: &[Operand]) -> Served<Vec<Selectio
     Ok(selected)
 }
 
-/// A type retained by typing is used with its complete applied data view.
-/// Region-bearing applications remain refused until specialization retains
-/// their supplying scope. A plain authored name still admits a builtin type,
+/// A retained type parameter stays open until its enclosing call is specialized;
+/// it must not be mistaken for a closed data application. Other retained types
+/// use their complete applied data view. Region-bearing applications remain
+/// refused until specialization retains their supplying scope. A plain authored name still admits a builtin type,
 /// an open type parameter, or data with no parameters of its own.
 fn named_type(
     program: &mut TypedTrees,
@@ -1536,11 +1537,18 @@ fn named_type(
                 program.type_reference_table.type_reference(reference),
                 TypeReferenceNode::ConstExpression(_)
             )
-            && program
+            && (matches!(
+                program.type_reference_table.type_reference(reference),
+                TypeReferenceNode::Named { symbol, .. }
+                    if *symbol == argument.symbol
+                        && program.data_type_parameter_by_symbol(*symbol).is_some_and(
+                            |parameter| parameter.kind == TypeParameterKind::Type
+                        )
+            ) || program
                 .prepare_data_application_view(reference)
                 .map_err(|_| {
                     unserved("a static type operand has no closed data application view")
-                })?
+                })?)
         {
             return Ok(reference);
         }

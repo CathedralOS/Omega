@@ -908,7 +908,10 @@ impl<'a> Prover<'a> {
     }
 
     fn contradiction(&mut self, goal: &Proposition) -> Option<ProofNode> {
-        if let Some(absurd) = self.refute_closed_relation(goal) {
+        if let Some(absurd) = self
+            .refute_closed_relation(goal)
+            .or_else(|| self.refute_ieee_relations(goal))
+        {
             return Some(absurd);
         }
         let mut orders: Vec<ProofNode> = self

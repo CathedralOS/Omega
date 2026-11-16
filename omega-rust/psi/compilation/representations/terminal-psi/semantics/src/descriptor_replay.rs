@@ -13,7 +13,7 @@ mod location_map;
 use location_map::LocationMap;
 
 pub(crate) mod analysis {
-    use super::engine::{DescriptorReadDepth, Origin, StorageResolution};
+    use super::engine::{DescriptorReadDepth, EffectObservations, Origin, StorageResolution};
     use super::*;
     use crate::descriptors::descriptor_lifetimes::descriptor_location;
     use crate::descriptors::descriptor_lifetimes::descriptor_location_type;
@@ -64,13 +64,13 @@ pub(crate) mod analysis {
                     .replay
                     .cached_invocation_summary(call)
                     .ok_or("callee descriptor summary could not be reconstructed")?;
-                if !summary.unknown_results.is_empty() {
+                if !summary.result.unknown().is_empty() {
                     return Err("callee descriptor result has no established origin");
                 }
                 let mut origins = BTreeSet::new();
                 for slot in summary
                     .result
-                    .as_ref()
+                    .slots()
                     .ok_or("callee has no normal descriptor result summary")?
                 {
                     for origin in &slot.origins {
@@ -283,7 +283,7 @@ pub(crate) mod analysis {
                 .replay
                 .snapshots
                 .get(&identity)
-                .and_then(Option::as_ref)
+                .and_then(|cached| cached.ready())
                 .map(|prepared| &prepared.before);
             machine
                 .flow
@@ -324,7 +324,7 @@ pub(crate) mod analysis {
                 .replay
                 .snapshots
                 .get(&identity)
-                .and_then(Option::as_ref)
+                .and_then(|cached| cached.ready())
                 .map(|prepared| &prepared.before)
                 .and_then(|states| states.get(&position))
             else {
@@ -360,7 +360,7 @@ pub(crate) mod analysis {
                 .replay
                 .snapshots
                 .get(&identity)
-                .and_then(Option::as_ref)
+                .and_then(|cached| cached.ready())
                 .map(|prepared| &prepared.before)
                 .and_then(|states| states.get(&position))
             else {
@@ -384,7 +384,7 @@ pub(crate) mod analysis {
                 .replay
                 .snapshots
                 .get(&identity)
-                .and_then(Option::as_ref)
+                .and_then(|cached| cached.ready())
                 .map(|prepared| &prepared.before)
                 .and_then(|states| states.get(&position))
             else {
@@ -555,7 +555,7 @@ pub(crate) mod analysis {
             retain: bool,
         ) -> Option<StorageResolution> {
             let machine = replay.machine(identity)?;
-            let states = &replay.snapshots.get(&identity)?.as_ref()?.before;
+            let states = &replay.snapshots.get(&identity)?.ready()?.before;
             let state = states.get(&position)?;
             if let Some(result) = queries.get(identity, position, location) {
                 return result.clone();
@@ -582,7 +582,7 @@ pub(crate) mod analysis {
         ) -> Option<Vec<DescriptorLocation>> {
             self.replay.prepare_states(identity)?;
             let machine = self.replay.machine(identity)?;
-            let states = &self.replay.snapshots.get(&identity)?.as_ref()?.before;
+            let states = &self.replay.snapshots.get(&identity)?.ready()?.before;
             self.replay
                 .storage_origins(machine, states.get(&position)?, location)
         }
@@ -690,7 +690,7 @@ pub(crate) mod analysis {
         ) -> Option<Vec<DescriptorPayloadTarget>> {
             self.replay.prepare_states(identity)?;
             let machine = self.replay.machine(identity)?;
-            let states = &self.replay.snapshots.get(&identity)?.as_ref()?.before;
+            let states = &self.replay.snapshots.get(&identity)?.ready()?.before;
             self.replay
                 .contents_targets(machine, states.get(&position)?, query)
                 .map(|targets| targets.into_iter().collect())
@@ -704,7 +704,7 @@ pub(crate) mod analysis {
         ) -> Option<Vec<DescriptorPayloadTarget>> {
             self.replay.prepare_states(identity)?;
             let machine = self.replay.machine(identity)?;
-            let states = &self.replay.snapshots.get(&identity)?.as_ref()?.arrivals;
+            let states = &self.replay.snapshots.get(&identity)?.ready()?.arrivals;
             self.replay
                 .contents_targets(machine, states.get(&position)?, query)
                 .map(|targets| targets.into_iter().collect())
@@ -731,7 +731,7 @@ pub(crate) mod analysis {
         ) -> Option<Vec<DescriptorSourceOrigin>> {
             self.replay.prepare_states(identity)?;
             let machine = self.replay.machine(identity)?;
-            let states = &self.replay.snapshots.get(&identity)?.as_ref()?.before;
+            let states = &self.replay.snapshots.get(&identity)?.ready()?.before;
             self.replay.symbolic(
                 machine,
                 self.replay
@@ -763,7 +763,7 @@ pub(crate) mod analysis {
                 .replay
                 .snapshots
                 .get(&identity)
-                .and_then(Option::as_ref)
+                .and_then(|cached| cached.ready())
                 .map(|prepared| &prepared.before)
                 .ok_or_else(|| format!("{}: descriptor snapshots are absent", context()))?;
             let state = states
@@ -869,7 +869,7 @@ pub(crate) mod analysis {
                 .replay
                 .snapshots
                 .get(&identity)?
-                .as_ref()?
+                .ready()?
                 .before
                 .get(&position)?;
             self.replay.symbolic(
@@ -1019,7 +1019,7 @@ pub(crate) mod analysis {
             self.replay.storage_projection(machine, &actual)
         }
         pub fn result_slots(&mut self, identity: MachineId) -> Option<Vec<DescriptorResultSlot>> {
-            self.replay.summary(identity, 0)?.result
+            self.replay.summary(identity, 0)?.result.into_slots()
         }
 
         /// A helper can update referenced storage while leaving its descriptor
@@ -1091,7 +1091,7 @@ pub(crate) mod analysis {
                 .replay
                 .snapshots
                 .get(&callee)
-                .and_then(Option::as_ref)
+                .and_then(|cached| cached.ready())
                 .map(|prepared| &prepared.normal_exits)
                 .ok_or("descriptor preservation snapshots disappeared")?;
             // A loop can replace the descriptor before revisiting the entry block.
@@ -1124,7 +1124,10 @@ pub(crate) mod analysis {
             identity: MachineId,
         ) -> Option<Vec<DescriptorStoredEffect>> {
             let summary = self.replay.summary(identity, 0)?;
-            (!summary.invalidates_contents).then_some(summary.effects)
+            if summary.invalidates_contents {
+                return None;
+            }
+            summary.effects.into_observed()
         }
         pub fn call_stored_effects(
             &mut self,
@@ -1183,7 +1186,7 @@ pub(crate) mod analysis {
                 return None;
             }
             let mut replacements = BTreeMap::new();
-            for effect in &summary.effects {
+            for effect in summary.effects.observed()? {
                 let destination =
                     self.replay
                         .actual_contents(machine, call, effect.parameter, &effect.steps)?;
@@ -1231,13 +1234,7 @@ pub(crate) mod analysis {
             position: DescriptorPosition,
             owner: DescriptorInvocationOwner,
         ) -> Result<DescriptorFlowStep, DescriptorGraphError> {
-            self.replay.prepare_states(identity).ok_or(
-                DescriptorGraphError::IncompleteMachine {
-                    machine: identity,
-                    position: Some(position),
-                    detail: None,
-                },
-            )?;
+            self.replay.prepare_states_checked(identity)?;
             let machine = self
                 .replay
                 .machine(identity)
@@ -1301,9 +1298,7 @@ pub(crate) mod analysis {
                 position,
                 detail: None,
             };
-            self.replay
-                .prepare_states(identity)
-                .ok_or_else(|| incomplete(None))?;
+            self.replay.prepare_states_checked(identity)?;
             let machine = self
                 .replay
                 .machine(identity)
@@ -1312,7 +1307,7 @@ pub(crate) mod analysis {
                 .replay
                 .snapshots
                 .get(&identity)
-                .and_then(Option::as_ref)
+                .and_then(|cached| cached.ready())
                 .map(|prepared| &prepared.before)
                 .ok_or_else(|| incomplete(None))?;
             let mut flow = machine.flow.clone();
@@ -1527,7 +1522,45 @@ pub(crate) mod analysis {
                 .ok_or_else(incomplete_step)?;
             step.may_escape |= summary.invalidates_contents;
             let mut outputs = Vec::new();
-            for effect in &summary.effects {
+            if let EffectObservations::Unobserved(writes) = &summary.effects {
+                let unknown = self
+                    .replay
+                    .unobserved_effect_replacements(
+                        machine,
+                        before,
+                        call,
+                        writes,
+                        &DescriptorReadDepth::at(machine, before, None),
+                        |_| {},
+                    )
+                    .ok_or_else(incomplete_step)?;
+                if !unknown.is_empty() {
+                    step.may_escape = true;
+                    for (argument, contents) in call.arguments.iter().zip(&call.argument_contents) {
+                        let input = match argument {
+                            Some(source) => canonical(source)?,
+                            None => contents.as_ref().ok_or_else(incomplete_step)?.observation(),
+                        };
+                        step.inputs.push((Some(input), None));
+                    }
+                }
+                for target in unknown.keys() {
+                    match target {
+                        DescriptorPayloadTarget::Storage {
+                            location,
+                            completed: None,
+                        } => step.definitions.push(canonical(location)?),
+                        DescriptorPayloadTarget::Incoming(query) => {
+                            step.inputs.push((Some(query.observation()), None));
+                            step.may_escape = true;
+                        }
+                        DescriptorPayloadTarget::Storage {
+                            completed: Some(_), ..
+                        } => return Err(incomplete_step()),
+                    }
+                }
+            }
+            for effect in summary.effects.observed().into_iter().flatten() {
                 // The callee returns with this storage holding what it
                 // held on entry: nothing was written, so no descriptor
                 // is defined, copied or handed anywhere here. Reading it
@@ -1620,7 +1653,16 @@ pub(crate) mod analysis {
                     .place_types
                     .get(&result.root)
                     .ok_or_else(incomplete_step)?;
-                for slot in summary.result.as_ref().ok_or_else(incomplete_step)? {
+                let slots: &[DescriptorResultSlot] = if summary.result.is_unobserved() {
+                    &[]
+                } else {
+                    summary
+                        .result
+                        .slots()
+                        .ok_or_else(incomplete_step)?
+                        .as_slice()
+                };
+                for slot in slots {
                     slot.visit(result_type, &mut Vec::new(), &mut |path, _, slot| {
                         let mut destination = result.clone();
                         destination.path.extend_from_slice(path);
@@ -1633,7 +1675,18 @@ pub(crate) mod analysis {
                 // passed in stays live for as long as that slot is used.
                 // lifetimes.md, "Carried-loan transport": an unresolved
                 // selection "conservatively retains all possible sources".
-                for path in &summary.unknown_results {
+                let unknown = if summary.result.is_unobserved() {
+                    self.replay
+                        .slot_kind
+                        .owned_slots(self.replay.types, result.root, result_type)
+                        .ok_or_else(incomplete_step)?
+                        .into_iter()
+                        .map(|slot| slot.path)
+                        .collect::<Vec<_>>()
+                } else {
+                    summary.result.unknown().to_vec()
+                };
+                for path in &unknown {
                     let mut destination = result.clone();
                     destination.path.extend_from_slice(path);
                     let destination = canonical(&destination)?;
@@ -2854,6 +2907,12 @@ pub(crate) mod case_flow {
         })
     }
 
+    pub(crate) fn retire_location(state: &mut State, written: &DescriptorLocation) {
+        let cases = Arc::make_mut(&mut state.cases);
+        cases.facts.retain(|subject, _| !written.contains(subject));
+        cases.copies.retain(|subject| !written.contains(subject));
+    }
+
     pub(crate) fn retire_query(
         replay: &Replay<'_>,
         machine: &DescriptorMachine,
@@ -3005,7 +3064,7 @@ pub(crate) mod contents_queries {
                 }
                 return None;
             };
-            let slots = summary.result.as_ref()?;
+            let slots = summary.result.slots()?;
             let slot = DescriptorResultSlot::matching(slots, suffix)?;
             Some((position, slot.origins_at(suffix)?))
         }
@@ -3135,7 +3194,7 @@ pub(crate) mod contents_queries {
             let history = match depth.history {
                 Some((context, history)) if std::ptr::eq(context, machine) => history,
                 Some(_) => return None,
-                None => self.snapshots.get(&owner)?.as_ref()?.before.as_ref(),
+                None => self.snapshots.get(&owner)?.ready()?.before.as_ref(),
             };
             history.get(&position)
         }
@@ -4214,27 +4273,75 @@ pub(crate) mod contents_queries {
     }
 }
 pub(crate) mod dispatch {
-    use super::engine::Summary;
+    use super::engine::{EffectObservations, Summary, UnobservedWrite};
     use super::*;
 
     pub(crate) fn join(mut joined: Summary, summaries: &[Summary]) -> Summary {
         joined.invalidates_contents |= summaries.iter().any(|summary| summary.invalidates_contents);
-        for path in summaries
-            .iter()
-            .flat_map(|summary| &summary.unknown_results)
-        {
-            if !joined.unknown_results.contains(path) {
-                joined.unknown_results.push(path.clone());
+        if let super::engine::ResultObservations::Observed { unknown, .. } = &mut joined.result {
+            for path in summaries
+                .iter()
+                .flat_map(|summary| summary.result.unknown())
+            {
+                if !unknown.contains(path) {
+                    unknown.push(path.clone());
+                }
             }
         }
+        let has_unobserved = std::iter::once(&joined)
+            .chain(summaries)
+            .any(|summary| matches!(summary.effects, EffectObservations::Unobserved(_)));
+        if has_unobserved {
+            let mut writes = Some(Vec::new());
+            for summary in std::iter::once(&joined).chain(summaries) {
+                match &summary.effects {
+                    EffectObservations::Unobserved(None) => {
+                        writes = None;
+                        break;
+                    }
+                    EffectObservations::Unobserved(Some(unknown)) => {
+                        for write in unknown {
+                            let writes = writes
+                                .as_mut()
+                                .expect("a preceding unavailable ceiling exits the join");
+                            if !writes.contains(write) {
+                                writes.push(write.clone());
+                            }
+                        }
+                    }
+                    EffectObservations::Observed(effects) => {
+                        for effect in effects {
+                            let write = UnobservedWrite {
+                                parameter: effect.parameter,
+                                steps: effect.steps.clone(),
+                            };
+                            let writes = writes
+                                .as_mut()
+                                .expect("a preceding unavailable ceiling exits the join");
+                            if !writes.contains(&write) {
+                                writes.push(write);
+                            }
+                        }
+                    }
+                }
+            }
+            joined.effects = EffectObservations::Unobserved(writes);
+            return joined;
+        }
+        let EffectObservations::Observed(effects) = &mut joined.effects else {
+            unreachable!()
+        };
         for summary in summaries {
-            for effect in &summary.effects {
-                if !joined
-                    .effects
+            for effect in summary
+                .effects
+                .observed()
+                .expect("unobserved effects joined above")
+            {
+                if !effects
                     .iter()
                     .any(|prior| prior.parameter == effect.parameter && prior.steps == effect.steps)
                 {
-                    joined.effects.push(DescriptorStoredEffect {
+                    effects.push(DescriptorStoredEffect {
                         parameter: effect.parameter,
                         steps: effect.steps.clone(),
                         origins: Vec::new(),
@@ -4242,21 +4349,26 @@ pub(crate) mod dispatch {
                 }
             }
         }
-        for effect in &mut joined.effects {
+        for effect in effects {
             for summary in summaries {
-                if let Some(source) = summary.effects.iter().find(|source| {
-                    source.parameter == effect.parameter && source.steps == effect.steps
-                }) {
-                    for origin in &source.origins {
-                        effect.origins.push(origin.clone());
-                    }
+                if let Some(source) = summary
+                    .effects
+                    .observed()
+                    .expect("unobserved effects joined above")
+                    .iter()
+                    .find(|source| {
+                        source.parameter == effect.parameter && source.steps == effect.steps
+                    })
+                {
+                    effect.origins.extend(source.origins.iter().cloned());
                 } else {
-                    let incoming = DescriptorStoredOrigin::IncomingContents {
-                        position: effect.parameter,
-                        steps: effect.steps.clone(),
-                        projection: Projection::new(&[]),
-                    };
-                    effect.origins.push(incoming);
+                    effect
+                        .origins
+                        .push(DescriptorStoredOrigin::IncomingContents {
+                            position: effect.parameter,
+                            steps: effect.steps.clone(),
+                            projection: Projection::new(&[]),
+                        });
                 }
             }
         }
@@ -4314,7 +4426,7 @@ pub(crate) mod engine {
     }
 
     impl StorageFrame {
-        fn unknown() -> Self {
+        pub(crate) fn unknown() -> Self {
             Self {
                 writes: Some(Arc::new(None)),
                 accesses: Some(Arc::new(None)),
@@ -4323,20 +4435,77 @@ pub(crate) mod engine {
     }
 
     #[derive(Clone)]
+    pub(crate) enum ResultObservations {
+        Observed {
+            slots: Option<Vec<DescriptorResultSlot>>,
+            /// These paths have no established spatial origin. Their flow
+            /// conservatively retains every possible actual input loan;
+            /// retaining a loan does not establish one input as the backing.
+            unknown: Vec<Vec<DescriptorPathSegment>>,
+        },
+        /// Complete body replay observed no normal exit. This does not change
+        /// the source-visible outcome or remove the caller's continuation.
+        NoNormalBodyObservation,
+    }
+
+    impl ResultObservations {
+        pub(crate) fn slots(&self) -> Option<&Vec<DescriptorResultSlot>> {
+            match self {
+                Self::Observed { slots, .. } => slots.as_ref(),
+                Self::NoNormalBodyObservation => None,
+            }
+        }
+        pub(crate) fn into_slots(self) -> Option<Vec<DescriptorResultSlot>> {
+            match self {
+                Self::Observed { slots, .. } => slots,
+                Self::NoNormalBodyObservation => None,
+            }
+        }
+        pub(crate) fn unknown(&self) -> &[Vec<DescriptorPathSegment>] {
+            match self {
+                Self::Observed { unknown, .. } => unknown,
+                Self::NoNormalBodyObservation => &[],
+            }
+        }
+        pub(crate) fn is_unobserved(&self) -> bool {
+            matches!(self, Self::NoNormalBodyObservation)
+        }
+    }
+
+    #[derive(Clone, PartialEq, Eq)]
+    pub(crate) struct UnobservedWrite {
+        pub(crate) parameter: usize,
+        pub(crate) steps: Vec<DescriptorContentsStep>,
+    }
+
+    #[derive(Clone)]
+    pub(crate) enum EffectObservations {
+        Observed(Vec<DescriptorStoredEffect>),
+        /// None is an unplaceable writable ceiling, never an empty write set.
+        Unobserved(Option<Vec<UnobservedWrite>>),
+    }
+
+    impl EffectObservations {
+        pub(crate) fn observed(&self) -> Option<&Vec<DescriptorStoredEffect>> {
+            match self {
+                Self::Observed(effects) => Some(effects),
+                Self::Unobserved(_) => None,
+            }
+        }
+        pub(crate) fn into_observed(self) -> Option<Vec<DescriptorStoredEffect>> {
+            match self {
+                Self::Observed(effects) => Some(effects),
+                Self::Unobserved(_) => None,
+            }
+        }
+    }
+
+    #[derive(Clone)]
     pub(crate) struct Summary {
-        pub(crate) result: Option<Vec<DescriptorResultSlot>>,
-        /// The result slots whose origin this body does not establish: it
-        /// returns a view a boundary handed it, and no declaration says what
-        /// backs that view. Such a slot has no row in `result`, so a consumer
-        /// that needs its origins finds none. The flow of a caller treats it
-        /// as possibly backed by anything the call was given.
-        pub(crate) unknown_results: Vec<Vec<DescriptorPathSegment>>,
+        pub(crate) result: ResultObservations,
         pub(crate) result_cases: super::case_flow::ResultCases,
-        pub(crate) effects: Vec<DescriptorStoredEffect>,
+        pub(crate) effects: EffectObservations,
         pub(crate) invalidates_contents: bool,
-        /// Calls share the body's prepared memory effects. Writes invalidate
-        /// facts; original accesses retain the operation and its call path.
-        /// Each component can remain unknown independently.
         pub(crate) storage_frame: StorageFrame,
     }
 
@@ -4348,10 +4517,12 @@ pub(crate) mod engine {
                 effects,
                 invalidates_contents,
             } => Some(Summary {
-                result: Some(results.clone()),
-                unknown_results: Vec::new(),
+                result: ResultObservations::Observed {
+                    slots: Some(results.clone()),
+                    unknown: Vec::new(),
+                },
                 result_cases: Default::default(),
-                effects: effects.clone(),
+                effects: EffectObservations::Observed(effects.clone()),
                 invalidates_contents: *invalidates_contents,
                 storage_frame: StorageFrame::unknown(),
             }),
@@ -4360,10 +4531,12 @@ pub(crate) mod engine {
                 invalidates_contents,
                 ..
             } => Some(Summary {
-                result: Some(results.clone()),
-                unknown_results: Vec::new(),
+                result: ResultObservations::Observed {
+                    slots: Some(results.clone()),
+                    unknown: Vec::new(),
+                },
                 result_cases: Default::default(),
-                effects: Vec::new(),
+                effects: EffectObservations::Observed(Vec::new()),
                 invalidates_contents: *invalidates_contents,
                 storage_frame: StorageFrame::unknown(),
             }),
@@ -4380,12 +4553,27 @@ pub(crate) mod engine {
         pub(crate) normal_exits: States,
     }
 
+    pub(crate) enum PreparedStateCache {
+        Preparing,
+        Ready(PreparedStates),
+        Failed(DescriptorGraphError),
+    }
+
+    impl PreparedStateCache {
+        pub(crate) fn ready(&self) -> Option<&PreparedStates> {
+            match self {
+                Self::Ready(states) => Some(states),
+                Self::Preparing | Self::Failed(_) => None,
+            }
+        }
+    }
+
     pub(crate) struct Replay<'a> {
         pub(crate) types: &'a [StructuralTypeDeclaration],
         pub(crate) slot_kind: DescriptorSlotKind,
         pub(crate) machines: &'a [DescriptorMachine],
         pub(crate) summaries: BTreeMap<MachineId, Option<Summary>>,
-        pub(crate) snapshots: BTreeMap<MachineId, Option<PreparedStates>>,
+        pub(crate) snapshots: BTreeMap<MachineId, PreparedStateCache>,
     }
     #[derive(Default)]
     pub(crate) struct DescriptorReadDepth<'state> {
@@ -4523,7 +4711,7 @@ pub(crate) mod engine {
             let states = self
                 .snapshots
                 .get(&identity)
-                .and_then(Option::as_ref)
+                .and_then(|cached| cached.ready())
                 .map(|prepared| &prepared.before)
                 .ok_or("storage write has no prepared flow")?;
             let Some(before) = states.get(&position) else {
@@ -4717,7 +4905,7 @@ pub(crate) mod engine {
             let positions: Vec<_> = self
                 .snapshots
                 .get(&identity)
-                .and_then(Option::as_ref)
+                .and_then(|cached| cached.ready())
                 .ok_or("storage frame has no prepared flow")?
                 .before
                 .keys()
@@ -4780,7 +4968,7 @@ pub(crate) mod engine {
             let positions: Vec<_> = self
                 .snapshots
                 .get(&identity)
-                .and_then(Option::as_ref)
+                .and_then(|cached| cached.ready())
                 .map(|prepared| &prepared.before)
                 .ok_or("write frame has no prepared storage flow")?
                 .keys()
@@ -5863,6 +6051,31 @@ pub(crate) mod engine {
             }
             Some(after)
         }
+        pub(crate) fn unobserved_effect_replacements(
+            &self,
+            machine: &DescriptorMachine,
+            before: &State,
+            call: &DescriptorInvocation,
+            writes: &Option<Vec<UnobservedWrite>>,
+            reads: &DescriptorReadDepth<'_>,
+            mut retire: impl FnMut(&DescriptorContentsQuery),
+        ) -> Option<BTreeMap<DescriptorPayloadTarget, Value>> {
+            let mut replacements = BTreeMap::new();
+            for write in writes.as_ref()? {
+                let query = self.actual_contents(machine, call, write.parameter, &write.steps)?;
+                retire(&query);
+                self.contents_replacements_with_depth(
+                    machine,
+                    before,
+                    &query,
+                    None,
+                    &mut replacements,
+                    reads,
+                )?;
+            }
+            Some(replacements)
+        }
+
         #[allow(clippy::too_many_arguments)]
         fn apply_invocation(
             &mut self,
@@ -5879,9 +6092,60 @@ pub(crate) mod engine {
             if summary.invalidates_contents {
                 after.cases = Arc::default();
             }
-            let mut replacements = BTreeMap::new();
+            if let Some(result) = &call.result
+                && summary.result.is_unobserved()
+            {
+                // Ordinary observed calls keep canonical definition/contract
+                // handling. This account has no normal observation to refill
+                // the retired result, including when a loop reuses its home.
+                let ty = *machine.place_types.get(&result.root)?;
+                self.slot_kind.owned_slots(self.types, result.root, ty)?;
+                after
+                    .slots_mut()
+                    .retain(|stored, _| !result.contains(stored));
+                after.slots_mut().insert(result.clone(), None);
+                after
+                    .contents_mut()
+                    .retain(|query, _| !result.contains(&query.observation()));
+                super::case_flow::retire_location(after, result);
+            }
+            let mut replacements = match &summary.effects {
+                EffectObservations::Observed(_) => BTreeMap::new(),
+                EffectObservations::Unobserved(writes) => {
+                    let unknown = self.unobserved_effect_replacements(
+                        machine,
+                        before,
+                        call,
+                        writes,
+                        reads,
+                        |query| {
+                            super::case_flow::retire_query(
+                                self,
+                                machine,
+                                before,
+                                after,
+                                query,
+                                case_storage,
+                                reads,
+                            );
+                        },
+                    )?;
+                    if unknown.keys().any(|target| {
+                        matches!(
+                            target,
+                            DescriptorPayloadTarget::Storage {
+                                completed: Some(_),
+                                ..
+                            }
+                        )
+                    }) {
+                        return None;
+                    }
+                    unknown
+                }
+            };
             let mut destinations = Vec::new();
-            for effect in &summary.effects {
+            for effect in summary.effects.observed().into_iter().flatten() {
                 if !effect.origins.is_empty()
                     && effect
                         .origins
@@ -5968,7 +6232,13 @@ pub(crate) mod engine {
             }
             if let Some(result) = &call.result {
                 let result_type = *machine.place_types.get(&result.root)?;
-                for slot in summary.result.as_ref()? {
+                let empty = Vec::new();
+                let slots = if summary.result.is_unobserved() {
+                    &empty
+                } else {
+                    summary.result.slots()?
+                };
+                for slot in slots {
                     slot.visit(
                         result_type,
                         &mut Vec::new(),
@@ -6013,7 +6283,16 @@ pub(crate) mod engine {
                     )
                     .ok()?;
                 }
-                for path in &summary.unknown_results {
+                let unknown = if summary.result.is_unobserved() {
+                    self.slot_kind
+                        .owned_slots(self.types, result.root, result_type)?
+                        .into_iter()
+                        .map(|slot| slot.path)
+                        .collect::<Vec<_>>()
+                } else {
+                    summary.result.unknown().to_vec()
+                };
+                for path in &unknown {
                     let mut destination = result.clone();
                     destination.path.extend_from_slice(path);
                     replacements.insert(DescriptorPayloadTarget::current(destination), None);
@@ -6093,16 +6372,13 @@ pub(crate) mod engine {
             self.machine(machine)?.invocation(position, owner)?;
             match owner {
                 DescriptorInvocationOwner::Operation(_)
-                | DescriptorInvocationOwner::InvokeNoNormal(_) => self
-                    .snapshots
-                    .get(&machine)?
-                    .as_ref()?
-                    .before
-                    .get(&position),
+                | DescriptorInvocationOwner::InvokeNoNormal(_) => {
+                    self.snapshots.get(&machine)?.ready()?.before.get(&position)
+                }
                 DescriptorInvocationOwner::Cleanup { .. } => self
                     .snapshots
                     .get(&machine)?
-                    .as_ref()?
+                    .ready()?
                     .invocations
                     .get(&(position, owner)),
             }
@@ -6110,13 +6386,45 @@ pub(crate) mod engine {
 
         pub(crate) fn states(&mut self, identity: MachineId, depth: usize) -> Option<Arc<States>> {
             if let Some(cached) = self.snapshots.get(&identity) {
-                return cached.as_ref().map(|prepared| prepared.before.clone());
+                return cached.ready().map(|prepared| prepared.before.clone());
             }
-            self.snapshots.insert(identity, None);
+            self.snapshots
+                .insert(identity, PreparedStateCache::Preparing);
+            let incomplete = |position, detail| DescriptorGraphError::IncompleteMachine {
+                machine: identity,
+                position,
+                detail: Some(detail),
+            };
+            let mut failure =
+                incomplete(None, "descriptor state preparation reached its depth bound");
+            let prepared = self.prepare_state_rows(identity, depth, &mut failure);
+            if prepared.is_none() {
+                self.snapshots
+                    .insert(identity, PreparedStateCache::Failed(failure));
+            }
+            prepared
+        }
+
+        fn prepare_state_rows(
+            &mut self,
+            identity: MachineId,
+            depth: usize,
+            failure: &mut DescriptorGraphError,
+        ) -> Option<Arc<States>> {
+            let incomplete = |position, detail| DescriptorGraphError::IncompleteMachine {
+                machine: identity,
+                position,
+                detail: Some(detail),
+            };
             if depth >= 128 {
                 return None;
             }
+            *failure = DescriptorGraphError::MissingOrAmbiguousMachine(identity);
             let machine = self.machine(identity)?;
+            *failure = incomplete(
+                None,
+                "descriptor case graph or invocation owners are incomplete",
+            );
             super::case_flow::validate_graph(self, machine)?;
             let normal_exit_positions = machine
                 .normal_exits
@@ -6124,6 +6432,10 @@ pub(crate) mod engine {
                 .copied()
                 .collect::<BTreeSet<_>>();
             for (position, calls) in &machine.calls {
+                *failure = incomplete(
+                    Some(*position),
+                    "descriptor invocation order or cleanup edge is incomplete",
+                );
                 let Some(calls) = calls else {
                     continue;
                 };
@@ -6164,6 +6476,10 @@ pub(crate) mod engine {
                     }
                 }
             }
+            *failure = incomplete(
+                Some(machine.entry),
+                "descriptor entry or initial slot inventory is incomplete",
+            );
             let case_storage = super::case_flow::Storage::new(self, machine);
             if !machine.flow.contains_key(&machine.entry) {
                 return None;
@@ -6175,14 +6491,26 @@ pub(crate) mod engine {
             let mut pending = vec![machine.entry];
             let mut visits = 0usize;
             while let Some(position) = pending.pop() {
+                *failure = incomplete(
+                    Some(position),
+                    "descriptor state replay did not stabilize within its bound",
+                );
                 visits += 1;
                 if visits > machine.flow.len().saturating_mul(4096).max(4096) {
                     return None;
                 }
+                *failure = incomplete(
+                    Some(position),
+                    "descriptor flow point has no exact incoming state",
+                );
                 let before = states.get(&position)?.clone();
                 let step = machine.flow.get(&position)?;
                 let after = {
                     let reads = DescriptorReadDepth::at(machine, &before, Some(&states));
+                    *failure = incomplete(
+                        Some(position),
+                        "descriptor storage transfer cannot be reconstructed",
+                    );
                     let mut after = self.transfer(
                         machine,
                         &before,
@@ -6207,6 +6535,10 @@ pub(crate) mod engine {
                     {
                         after.cases = Arc::default();
                     }
+                    *failure = incomplete(
+                        Some(position),
+                        "descriptor case establishment has no exact storage subject",
+                    );
                     if let Some(constructors) = machine.case_constructors.get(&position) {
                         for constructor in constructors {
                             super::case_flow::establish(self, machine, &mut after, constructor)?;
@@ -6222,6 +6554,10 @@ pub(crate) mod engine {
                             &reads,
                         );
                     }
+                    *failure = incomplete(
+                        Some(position),
+                        "descriptor origination has no exact completion coordinate",
+                    );
                     if let Some(origins) = machine.originations.get(&position) {
                         let completed =
                             Some((machine.id, (position.0, position.1.checked_add(1)?)));
@@ -6249,7 +6585,11 @@ pub(crate) mod engine {
                     if let Some(call) = machine.direct_call(position)
                         && call.argument_contents.iter().all(Option::is_some)
                     {
-                        self.apply_invocation(
+                        *failure = incomplete(
+                            Some(position),
+                            "descriptor invocation state cannot be reconstructed",
+                        );
+                        let applied = self.apply_invocation(
                             machine,
                             &before,
                             &mut after,
@@ -6257,7 +6597,11 @@ pub(crate) mod engine {
                             depth,
                             &case_storage,
                             &reads,
-                        )?;
+                        );
+                        if applied.is_none() {
+                            *failure = self.failed_invocation_preparation(call).unwrap_or(*failure);
+                            return None;
+                        }
                     }
                     after
                 };
@@ -6268,6 +6612,10 @@ pub(crate) mod engine {
                 }) {
                     arrivals.insert(position, after.clone());
                 }
+                *failure = incomplete(
+                    Some(position),
+                    "descriptor case successors differ from actual control flow",
+                );
                 if machine
                     .case_successors
                     .get(&position)
@@ -6290,6 +6638,10 @@ pub(crate) mod engine {
                     if calls.len() > 1 {
                         return None;
                     }
+                    *failure = incomplete(
+                        Some(position),
+                        "descriptor normal-exit cleanup state cannot be reconstructed",
+                    );
                     let completed = self.apply_cleanup_calls(
                         machine,
                         position,
@@ -6303,9 +6655,17 @@ pub(crate) mod engine {
                     normal_exits.insert(position, completed);
                 }
                 for (ordinal, edge) in step.successors.iter().enumerate() {
+                    *failure = incomplete(
+                        Some(position),
+                        "descriptor successor has no actual target flow point",
+                    );
                     if !machine.flow.contains_key(&edge.target) {
                         return None;
                     }
+                    *failure = incomplete(
+                        Some(position),
+                        "descriptor case selection cannot be reconstructed",
+                    );
                     let mut selected = after.clone();
                     if let Some((predicate, truth)) = machine
                         .case_successors
@@ -6321,6 +6681,10 @@ pub(crate) mod engine {
                     {
                         continue;
                     }
+                    *failure = incomplete(
+                        Some(position),
+                        "descriptor successor cleanup state cannot be reconstructed",
+                    );
                     let completed = self.apply_cleanup_calls(
                         machine,
                         position,
@@ -6331,6 +6695,10 @@ pub(crate) mod engine {
                         &case_storage,
                         &mut invocation_states,
                     )?;
+                    *failure = incomplete(
+                        Some(position),
+                        "descriptor successor binding cannot be reconstructed",
+                    );
                     let carried = {
                         let reads = DescriptorReadDepth::at(machine, &selected, Some(&states));
                         self.transfer_edge(
@@ -6358,7 +6726,7 @@ pub(crate) mod engine {
             let states = Arc::new(states);
             self.snapshots.insert(
                 identity,
-                Some(PreparedStates {
+                PreparedStateCache::Ready(PreparedStates {
                     before: states.clone(),
                     arrivals,
                     invocations: invocation_states,
@@ -6367,11 +6735,51 @@ pub(crate) mod engine {
             );
             Some(states)
         }
+
         pub(crate) fn prepare_states(&mut self, identity: MachineId) -> Option<()> {
+            self.prepare_states_checked(identity).ok()
+        }
+
+        pub(crate) fn prepare_states_checked(
+            &mut self,
+            identity: MachineId,
+        ) -> Result<(), DescriptorGraphError> {
             if !self.snapshots.contains_key(&identity) {
-                self.states(identity, 0)?;
+                let _ = self.states(identity, 0);
             }
-            self.snapshots.get(&identity)?.as_ref().map(|_| ())
+            match self.snapshots.get(&identity) {
+                Some(PreparedStateCache::Ready(_)) => Ok(()),
+                Some(PreparedStateCache::Failed(error)) => Err(*error),
+                Some(PreparedStateCache::Preparing) => {
+                    Err(DescriptorGraphError::IncompleteMachine {
+                        machine: identity,
+                        position: None,
+                        detail: Some("descriptor state preparation is recursively in progress"),
+                    })
+                }
+                None => Err(DescriptorGraphError::MissingOrAmbiguousMachine(identity)),
+            }
+        }
+
+        fn failed_invocation_preparation(
+            &self,
+            call: &DescriptorInvocation,
+        ) -> Option<DescriptorGraphError> {
+            let failed = |identity| match self.snapshots.get(&identity) {
+                Some(PreparedStateCache::Failed(error)) => Some(*error),
+                _ => None,
+            };
+            match &call.target {
+                DescriptorInvocationTarget::Machine(identity) => failed(*identity),
+                DescriptorInvocationTarget::Public {
+                    effects_machine: Some(identity),
+                    ..
+                } => failed(*identity),
+                DescriptorInvocationTarget::Public { realizations, .. } => {
+                    realizations.iter().find_map(|identity| failed(*identity))
+                }
+                DescriptorInvocationTarget::Provider { .. } => None,
+            }
         }
         pub(crate) fn invocation_summary(
             &mut self,
@@ -6922,7 +7330,62 @@ pub(crate) mod engine {
             }
             self.summaries.insert(identity, None);
             let states = self.states(identity, depth)?;
-            let completed = &self.snapshots.get(&identity)?.as_ref()?.normal_exits;
+            let completed = &self.snapshots.get(&identity)?.ready()?.normal_exits;
+            if completed.is_empty() {
+                let mut writable = Some(Vec::new());
+                for row in &machine.places {
+                    let DescriptorDefinition::Parameter {
+                        position,
+                        structural_type,
+                        access,
+                    } = row.definition
+                    else {
+                        continue;
+                    };
+                    let Some(slots) = self.slot_kind.writable_slots(
+                        self.types,
+                        row.place,
+                        structural_type,
+                        access,
+                    ) else {
+                        writable = None;
+                        break;
+                    };
+                    if slots.is_empty()
+                        && self.slot_kind.may_write_indirect_contents(
+                            self.types,
+                            structural_type,
+                            &StructuralArgument {
+                                place: row.place,
+                                path: Vec::new(),
+                                access,
+                            },
+                        )
+                    {
+                        writable = None;
+                        break;
+                    }
+                    for slot in slots {
+                        writable.as_mut()?.push(UnobservedWrite {
+                            parameter: position,
+                            steps: slot
+                                .path
+                                .into_iter()
+                                .map(DescriptorContentsStep::Address)
+                                .collect(),
+                        });
+                    }
+                }
+                let summary = Summary {
+                    result: ResultObservations::NoNormalBodyObservation,
+                    result_cases: Default::default(),
+                    effects: EffectObservations::Unobserved(writable),
+                    invalidates_contents: states.values().any(|state| state.contents_invalidated),
+                    storage_frame: StorageFrame::default(),
+                };
+                self.summaries.insert(identity, Some(summary.clone()));
+                return Some(summary);
+            }
             let mut result_cases: Option<super::case_flow::ResultCases> = None;
             let mut unknown_results: Vec<Vec<DescriptorPathSegment>> = Vec::new();
             let result = if let Some(returns) = &machine.returns {
@@ -7109,10 +7572,12 @@ pub(crate) mod engine {
                     .is_some_and(|state| state.contents_invalidated)
             });
             let summary = Summary {
-                result,
-                unknown_results,
+                result: ResultObservations::Observed {
+                    slots: result,
+                    unknown: unknown_results,
+                },
                 result_cases: result_cases.unwrap_or_default(),
-                effects,
+                effects: EffectObservations::Observed(effects),
                 invalidates_contents,
                 storage_frame: StorageFrame::default(),
             };
@@ -7533,7 +7998,7 @@ pub(crate) mod engine {
                 }
                 flow.insert(position, step);
             }
-            let mut graph = vec![DescriptorMachine {
+            let machine = |id| DescriptorMachine {
                 id,
                 returns: None,
                 places: vec![
@@ -7571,7 +8036,7 @@ pub(crate) mod engine {
                     (holder.root, rows),
                 ]),
                 entry: positions[0],
-                flow,
+                flow: flow.clone(),
                 case_constructors: BTreeMap::new(),
                 case_successors: BTreeMap::new(),
                 originations: BTreeMap::new(),
@@ -7592,7 +8057,8 @@ pub(crate) mod engine {
                 storage_derivations: BTreeSet::new(),
                 calls: BTreeMap::new(),
                 normal_exits: vec![positions[2]],
-            }];
+            };
+            let mut graph = vec![machine(id)];
             let mut replay = Replay::with_slot_kind(&types, &graph, DescriptorSlotKind::References);
             let completed = replay.states(id, 0).unwrap();
             assert_eq!(completed.keys().copied().collect::<Vec<_>>(), positions);
@@ -7604,7 +8070,7 @@ pub(crate) mod engine {
             assert_eq!(completed[&positions[1]].slots.get(&parameter), Some(&None));
             assert!(Arc::ptr_eq(
                 &completed,
-                &replay.snapshots[&id].as_ref().unwrap().before
+                &replay.snapshots[&id].ready().unwrap().before
             ));
             assert!(Arc::ptr_eq(&completed, &replay.states(id, 0).unwrap()));
             assert!(Arc::ptr_eq(&completed, &replay.states(id, 128).unwrap()));
@@ -7756,8 +8222,14 @@ pub(crate) mod engine {
             let mut limited =
                 Replay::with_slot_kind(&types, &graph, DescriptorSlotKind::References);
             assert!(limited.states(id, 128).is_none());
-            assert!(limited.snapshots.get(&id).is_some_and(Option::is_none));
+            let limited_error = limited.prepare_states_checked(id).unwrap_err();
+            assert_eq!(limited_error.machine(), id);
+            assert_eq!(
+                limited_error.detail(),
+                Some("descriptor state preparation reached its depth bound")
+            );
             assert!(limited.states(id, 0).is_none());
+            assert_eq!(limited.prepare_states_checked(id), Err(limited_error));
             drop(limited);
             graph[0]
                 .flow
@@ -7765,7 +8237,12 @@ pub(crate) mod engine {
             let mut unavailable =
                 Replay::with_slot_kind(&types, &graph, DescriptorSlotKind::References);
             assert!(unavailable.states(id, 0).is_none());
-            assert!(unavailable.snapshots.get(&id).is_some_and(Option::is_none));
+            let graph_error = unavailable.prepare_states_checked(id).unwrap_err();
+            assert_eq!(graph_error.machine(), id);
+            assert_eq!(
+                graph_error.detail(),
+                Some("descriptor case graph or invocation owners are incomplete")
+            );
             // The same IDs in another graph have their own preparation and
             // cannot borrow a successful query from the earlier analysis.
             let mut analysis = DescriptorAnalysis::with_reference_slots(&types, &graph);
@@ -7775,6 +8252,68 @@ pub(crate) mod engine {
             assert_eq!(
                 completed[&positions[0]].slots.get(&parameter),
                 Some(&original)
+            );
+            drop(analysis);
+            drop(unavailable);
+            graph[0].flow.remove(&(block, 99));
+            graph[0].returns = Some(vec![(positions[2], replacement_parameter.clone())]);
+            let caller = MachineId::new(2).unwrap();
+            let mut outer = machine(caller);
+            let sources = vec![
+                parameter.clone(),
+                replacement_parameter.clone(),
+                holder.clone(),
+            ];
+            let argument_contents = sources
+                .iter()
+                .map(|argument| Some(DescriptorContentsQuery::from_location(argument)))
+                .collect();
+            outer.calls.insert(
+                positions[0],
+                Some(vec![DescriptorInvocation {
+                    scalar_arguments: Vec::new(),
+                    owner: DescriptorInvocationOwner::Operation(
+                        semantic_vocabulary::OperationId::new(1).unwrap(),
+                    ),
+                    target: DescriptorInvocationTarget::Machine(id),
+                    arguments: sources.into_iter().map(Some).collect(),
+                    argument_contents,
+                    result: None,
+                }]),
+            );
+            graph.push(outer);
+            let mut complete = DescriptorAnalysis::with_reference_slots(&types, &graph);
+            assert!(complete.flow(caller).is_ok());
+            drop(complete);
+
+            graph[0]
+                .flow
+                .get_mut(&positions[0])
+                .unwrap()
+                .consumed
+                .push(replacement_parameter.clone());
+            let inner_error = DescriptorGraphError::IncompleteMachine {
+                machine: id,
+                position: Some(positions[0]),
+                detail: Some("descriptor storage transfer cannot be reconstructed"),
+            };
+            let mut nested = DescriptorAnalysis::with_reference_slots(&types, &graph);
+            // Returning a reference requires the callee's complete summary.
+            // Its consumed parameter now lacks the retirement definition;
+            // preserve that inner failure when the outer call asks again.
+            assert_eq!(nested.flow(caller).err().unwrap(), inner_error);
+            assert_eq!(nested.flow(caller).err().unwrap(), inner_error);
+            let mut preparing =
+                Replay::with_slot_kind(&types, &graph, DescriptorSlotKind::References);
+            preparing
+                .snapshots
+                .insert(caller, PreparedStateCache::Preparing);
+            assert!(preparing.states(caller, 0).is_none());
+            let error = preparing.prepare_states_checked(caller).unwrap_err();
+            assert_eq!(error.machine(), caller);
+            assert_eq!(
+                error.detail(),
+                Some("descriptor state preparation is recursively in progress")
             );
         }
 
@@ -8030,6 +8569,236 @@ pub(crate) mod engine {
                 storage_derivations,
                 calls: BTreeMap::new(),
                 normal_exits: vec![entry],
+            }
+        }
+
+        #[test]
+        fn absent_normal_body_observations_preserve_continuations_and_forget_results() {
+            use crate::descriptors::descriptor_lifetimes::{
+                DescriptorFlowEdge, DescriptorFlowStep,
+            };
+            use semantic_vocabulary::{BlockId, OperationId, StructuralCaseId};
+            use terminal_psi::{StructuralCaseDeclaration, TerminalIdentityIndex};
+            let caller = MachineId::new(1).unwrap();
+            let callee = MachineId::new(2).unwrap();
+            let block = BlockId::new(1).unwrap();
+            let at = |index| (block, index);
+            let input = location(1);
+            let result = location(2);
+            let scalar = scalar_type(1);
+            let reference = reference_type(2, scalar.id, StructuralAccess::SharedBorrow);
+            let tagged = StructuralTypeDeclaration {
+                shape: StructuralTypeShape::Sum {
+                    cases: vec![StructuralCaseDeclaration {
+                        declaration_identity: Default::default(),
+                        id: StructuralCaseId::new(1).unwrap(),
+                        identity: TerminalIdentityIndex(3),
+                        fields: Vec::new(),
+                    }],
+                },
+                ..scalar_type(3)
+            };
+            let types = vec![scalar, reference, tagged];
+            // First the captured scalar-only tagged result; then a result
+            // place reused across invocations and a mutable stored reference.
+            for result_type in [types[2].id, types[1].id] {
+                let mutable_slot = result_type == types[1].id;
+                let mut body_places = vec![DescriptorPlace {
+                    producer: None,
+                    place: result.root,
+                    definition: DescriptorDefinition::Local,
+                }];
+                let mut body_types = BTreeMap::from([(result.root, result_type)]);
+                if mutable_slot {
+                    body_places.insert(
+                        0,
+                        DescriptorPlace {
+                            producer: None,
+                            place: input.root,
+                            definition: DescriptorDefinition::Parameter {
+                                position: 0,
+                                access: StructuralAccess::MutableBorrow,
+                                structural_type: types[1].id,
+                            },
+                        },
+                    );
+                    body_types.insert(input.root, types[1].id);
+                }
+                let mut body = bare_machine(callee, body_places, body_types, BTreeSet::new());
+                body.returns = Some(Vec::new());
+                body.normal_exits.clear();
+                body.flow.insert(at(0), DescriptorFlowStep::default());
+                let mut outer = bare_machine(
+                    caller,
+                    vec![
+                        DescriptorPlace {
+                            producer: None,
+                            place: input.root,
+                            definition: DescriptorDefinition::Parameter {
+                                position: 0,
+                                access: StructuralAccess::Owned,
+                                structural_type: types[1].id,
+                            },
+                        },
+                        DescriptorPlace {
+                            producer: Some(at(0)),
+                            place: result.root,
+                            definition: DescriptorDefinition::Local,
+                        },
+                    ],
+                    BTreeMap::from([(input.root, types[1].id), (result.root, result_type)]),
+                    BTreeSet::new(),
+                );
+                let edge = |target| DescriptorFlowEdge {
+                    effects: Vec::new(),
+                    edge: None,
+                    definitions: Vec::new(),
+                    target,
+                    parameters: Vec::new(),
+                    bindings: Vec::new(),
+                };
+                outer.flow = BTreeMap::from([
+                    (
+                        at(0),
+                        DescriptorFlowStep {
+                            definitions: vec![result.clone()],
+                            derivations: if mutable_slot {
+                                vec![(input.clone(), result.clone())]
+                            } else {
+                                Vec::new()
+                            },
+                            successors: vec![edge(at(1))],
+                            ..Default::default()
+                        },
+                    ),
+                    (
+                        at(1),
+                        DescriptorFlowStep {
+                            definitions: vec![result.clone()],
+                            successors: vec![edge(at(2))],
+                            ..Default::default()
+                        },
+                    ),
+                    (at(2), DescriptorFlowStep::default()),
+                ]);
+                let exit = if mutable_slot {
+                    outer.flow.get_mut(&at(2)).unwrap().successors = vec![edge(at(1)), edge(at(3))];
+                    outer.flow.insert(at(3), DescriptorFlowStep::default());
+                    at(3)
+                } else {
+                    at(2)
+                };
+                outer.normal_exits = vec![exit];
+                outer.returns = Some(vec![(exit, result.clone())]);
+                let actuals = if mutable_slot {
+                    vec![Some(input.clone())]
+                } else {
+                    Vec::new()
+                };
+                let contents = if mutable_slot {
+                    vec![Some(DescriptorContentsQuery::from_location(&input))]
+                } else {
+                    Vec::new()
+                };
+                outer
+                    .insert_call(
+                        at(1),
+                        DescriptorInvocation {
+                            scalar_arguments: Vec::new(),
+                            owner: DescriptorInvocationOwner::Operation(
+                                OperationId::new(1).unwrap(),
+                            ),
+                            target: DescriptorInvocationTarget::Machine(callee),
+                            arguments: actuals.clone(),
+                            argument_contents: contents.clone(),
+                            result: Some(result.clone()),
+                        },
+                    )
+                    .unwrap();
+                let mut graph = vec![outer, body];
+                let mut replay =
+                    Replay::with_slot_kind(&types, &graph, DescriptorSlotKind::References);
+                let states = replay.states(caller, 0).unwrap();
+                assert!(
+                    states.contains_key(&at(2)),
+                    "the interface-visible continuation remains"
+                );
+                assert_eq!(states[&at(2)].slots.get(&result), Some(&None));
+                if mutable_slot {
+                    assert!(states[&at(0)].slots.get(&input).unwrap().is_some());
+                    assert_eq!(states[&at(2)].slots.get(&input), Some(&None));
+                    assert_eq!(states[&exit].slots.get(&result), Some(&None));
+                }
+                assert!(replay.summary(callee, 0).unwrap().result.is_unobserved());
+                let mut public = DescriptorInvocation {
+                    scalar_arguments: Vec::new(),
+                    owner: DescriptorInvocationOwner::Operation(OperationId::new(1).unwrap()),
+                    target: DescriptorInvocationTarget::Public {
+                        effects_machine: Some(callee),
+                        realizations: Vec::new(),
+                        extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
+                        results: if mutable_slot {
+                            vec![DescriptorResultSlot {
+                                path: Vec::new(),
+                                origins: vec![DescriptorStoredOrigin::IncomingSlot {
+                                    position: 0,
+                                    path: Vec::new(),
+                                }],
+                            }]
+                        } else {
+                            Vec::new()
+                        },
+                        invalidates_contents: false,
+                    },
+                    arguments: actuals,
+                    argument_contents: contents,
+                    result: Some(result.clone()),
+                };
+                let public_summary = replay.invocation_summary(&public, 0).unwrap();
+                assert_eq!(
+                    public_summary.result.slots().unwrap().len(),
+                    usize::from(mutable_slot)
+                );
+                assert!(!public_summary.result.is_unobserved());
+                assert!(matches!(
+                    public_summary.effects,
+                    EffectObservations::Unobserved(_)
+                ));
+                let DescriptorInvocationTarget::Public {
+                    effects_machine,
+                    realizations,
+                    ..
+                } = &mut public.target
+                else {
+                    unreachable!()
+                };
+                *effects_machine = None;
+                *realizations = vec![callee];
+                let joined = replay.invocation_summary(&public, 0).unwrap();
+                assert_eq!(
+                    joined.result.slots().unwrap().len(),
+                    usize::from(mutable_slot)
+                );
+                assert!(!joined.result.is_unobserved());
+                assert!(matches!(joined.effects, EffectObservations::Unobserved(_)));
+                if mutable_slot {
+                    assert!(
+                        matches!(&joined.result.slots().unwrap()[0].origins[0], DescriptorStoredOrigin::IncomingSlot { position: 0, path } if path.is_empty())
+                    );
+                }
+                drop(replay);
+                let mut analysis = DescriptorAnalysis::with_reference_slots(&types, &graph);
+                assert!(analysis.flow(caller).is_ok());
+                assert!(analysis.result_slots(callee).is_none());
+                assert!(analysis.stored_effects(callee).is_none());
+                drop(analysis);
+                // A purported normal return without a registered result
+                // carrier is unavailable analysis, not absent observations.
+                graph[1].normal_exits = vec![at(0)];
+                graph[1].returns = Some(vec![(at(0), location(99))]);
+                let mut rejected =
+                    Replay::with_slot_kind(&types, &graph, DescriptorSlotKind::References);
+                assert!(rejected.summary(callee, 0).is_none());
             }
         }
 
@@ -8321,7 +9090,7 @@ pub(crate) mod engine {
             );
             let summary = replay.summary(callee_id, 0).unwrap();
             assert!(matches!(
-                summary.result.as_deref(),
+                summary.result.slots().map(Vec::as_slice),
                 Some([slot]) if matches!(slot.origins.as_slice(),
                     [DescriptorStoredOrigin::Empty])
             ));
@@ -8603,7 +9372,7 @@ pub(crate) mod engine {
                 .snapshots
                 .get(&identity)
                 .unwrap()
-                .as_ref()
+                .ready()
                 .unwrap()
                 .before;
             assert_eq!(value(entries.get(&left).unwrap(), 3), expected(2));
@@ -8613,7 +9382,7 @@ pub(crate) mod engine {
                 .snapshots
                 .get(&identity)
                 .unwrap()
-                .as_ref()
+                .ready()
                 .unwrap()
                 .normal_exits;
             assert_eq!(value(completed.get(&right).unwrap(), 1), expected(2));
@@ -9330,7 +10099,7 @@ pub(crate) mod provider {
     }
 }
 pub(crate) mod summary_interface {
-    use super::engine::{Replay, StorageFrame, Summary};
+    use super::engine::{EffectObservations, Replay, ResultObservations, StorageFrame, Summary};
     use super::*;
 
     impl Replay<'_> {
@@ -9401,10 +10170,12 @@ pub(crate) mod summary_interface {
                 }
             }
             Some(Summary {
-                result: None,
-                unknown_results: Vec::new(),
+                result: ResultObservations::Observed {
+                    slots: None,
+                    unknown: Vec::new(),
+                },
                 result_cases: Default::default(),
-                effects: Vec::new(),
+                effects: EffectObservations::Observed(Vec::new()),
                 invalidates_contents,
                 storage_frame: StorageFrame::default(),
             })
@@ -9650,7 +10421,8 @@ pub(crate) fn result_origins(
     let machine = replay.machine(identity)?;
     replay
         .summary(identity, 0)?
-        .result?
+        .result
+        .into_slots()?
         .into_iter()
         .find(|slot| slot.path.is_empty())?
         .origins

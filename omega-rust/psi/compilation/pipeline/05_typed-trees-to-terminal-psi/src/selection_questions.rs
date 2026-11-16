@@ -323,7 +323,10 @@ impl Capture<'_> {
                     self.typed.expression_table.expression(expression)
             {
                 reason.push_str(&format!(
-                    "; name head {:?}, target {:?}, result owner {:?}, members {:?}, static application {:?}",
+                    "; name {:?} in {:?}; head {:?}, target {:?}, result owner {:?}, members {:?}, static application {:?}",
+                    self.typed.expression_table.display_name(expression),
+                    self.typed.symbols.symbols().nodes().is_valid(self.owner)
+                        .then(|| self.typed.symbols.display_path(self.owner, "::")),
                     path.head_symbol,
                     path.symbol,
                     path.reserved_result_of,

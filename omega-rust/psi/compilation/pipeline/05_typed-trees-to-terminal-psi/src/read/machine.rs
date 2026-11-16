@@ -2133,7 +2133,7 @@ impl<'t> Program<'t> {
                 "numeric primitive differs from its canonical scalar signature",
             ));
         }
-        Ok(Signature {
+        let signature = Signature {
             operational: crate::body::OperationalCeilings {
                 suspension: Some(false),
                 blocking: Some(false),
@@ -2168,7 +2168,9 @@ impl<'t> Program<'t> {
             invokes: crate::Ceiling::Authored(Vec::new()),
             termination: Termination::Promised,
             ranking: None,
-        })
+        };
+        self.numeric_contract_sources(id, &requirement, &signature)?;
+        Ok(signature)
     }
 
     /// Read the types, logical clauses and ceilings of a requirement.
