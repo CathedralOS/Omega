@@ -3,7 +3,7 @@
 use super::*;
 use crate::typing_queries::{declared_callable_value_type, declared_place_type};
 use std::sync::Arc;
-use typed_trees::statement::StatementNode;
+use typed_trees::statement::{StatementNode, TransitionTargetNode};
 
 fn source(text: &str) -> (symbol_resolved_trees::SymbolResolvedTrees, TypedTrees) {
     let mut sources = source::SourceMap::default();
@@ -71,11 +71,16 @@ fn policy_entries_keep_the_written_domain_and_independent_result_type() {
     for (name, policy, kind) in expected {
         let owner = typed.machine_by_symbol(machine(&typed, &name)).unwrap();
         let state = typed.machine_states(owner).first().unwrap();
-        let StatementNode::Expression(expression) = typed
+        let StatementNode::Transition(transition) = typed
             .statement_table
             .statement(state.statement_nodes.start())
         else {
-            panic!("one authored cast expression");
+            panic!("one authored return transition");
+        };
+        let TransitionTargetNode::Value(expression) =
+            typed.statement_table.transition_target(transition.target)
+        else {
+            panic!("the transition returns the authored cast");
         };
         let ExpressionNode::Cast(cast) = typed.expression_table.expression(*expression) else {
             panic!("the authored entry survives accounting");
