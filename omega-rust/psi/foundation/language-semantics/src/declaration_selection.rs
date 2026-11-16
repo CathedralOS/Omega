@@ -1506,44 +1506,282 @@ impl AuthoredDeclarationSelection {
     }
 }
 
-#[derive(Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+#[derive(Clone, Default)]
 pub struct AuthoredDeclarationSelections {
-    rows: Vec<AuthoredDeclarationSelection>,
+    rows: SelectionRows,
     by_span: SpanIndex,
+}
+
+// The rows determine the complete span index, and decoding verifies its
+// coverage. Compare logical rows, not the batches used to look them up.
+impl PartialEq for AuthoredDeclarationSelections {
+    fn eq(&self, other: &Self) -> bool {
+        self.rows == other.rows
+    }
+}
+
+impl Eq for AuthoredDeclarationSelections {}
+
+impl compiler_storage::Record for AuthoredDeclarationSelections {
+    fn write(
+        &self,
+        output: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        output.record(|output| {
+            self.rows.write(output)?;
+            self.by_span.write(output)
+        })
+    }
+
+    fn read<Context>(
+        input: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        input.record(|input| {
+            let rows = SelectionRows::read(input)?;
+            let by_span = SpanIndex::read(input)?;
+            if rows
+                .iter()
+                .enumerate()
+                .any(|(position, row)| row.occurrence_id.0 != position as u64)
+            {
+                return Err(input.error("selection occurrence does not match its row ordinal"));
+            }
+            let mut indexed = 0usize;
+            for map in by_span.maps() {
+                for (span, positions) in map {
+                    if positions.is_empty()
+                        || positions.windows(2).any(|pair| pair[0] >= pair[1])
+                        || positions.iter().any(|position| {
+                            rows.get(*position as usize)
+                                .is_none_or(|row| row.source_span != *span)
+                        })
+                    {
+                        return Err(input.error("selection span index does not match its rows"));
+                    }
+                    indexed = indexed
+                        .checked_add(positions.len())
+                        .ok_or_else(|| input.error("selection span index length overflow"))?;
+                }
+            }
+            if indexed != rows.len() {
+                return Err(input.error("selection span index omits rows"));
+            }
+            Ok(Self { rows, by_span })
+        })
+    }
+}
+
+// Occurrence ordinals stay dense and independent of record allocation. An
+// empty table has no invented selection sentinel; its first row supplies the
+// arena's private dummy, which never enters the logical rows or record codec.
+#[derive(Clone, Default)]
+struct SelectionRows(Option<arena::RootedArena<AuthoredDeclarationSelection>>);
+
+impl SelectionRows {
+    fn view(&self) -> arena::RootRows<'_, AuthoredDeclarationSelection> {
+        self.0.as_ref().map_or_else(Default::default, |rows| {
+            rows.span_or_empty(arena::HandleSpan::from_parts(
+                arena::Handle::from_parts(1, 1),
+                rows.len() as u32,
+            ))
+        })
+    }
+
+    fn len(&self) -> usize {
+        self.0.as_ref().map_or(0, arena::RootedArena::len)
+    }
+
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    fn get(&self, position: usize) -> Option<&AuthoredDeclarationSelection> {
+        self.view().get(position)
+    }
+
+    fn get_mut(&mut self, position: usize) -> Option<&mut AuthoredDeclarationSelection> {
+        let slot = u32::try_from(position).ok()?.checked_add(1)?;
+        let rows = self.0.as_mut()?;
+        let handle = arena::Handle::from_parts(slot, 1);
+        rows.is_valid(handle).then(|| rows.get_mut(handle))
+    }
+
+    fn iter(&self) -> arena::RootRowsIter<'_, AuthoredDeclarationSelection> {
+        self.view().iter()
+    }
+
+    fn reserve(&mut self, additional: usize) {
+        if let Some(rows) = &mut self.0 {
+            rows.reserve(additional);
+        }
+    }
+
+    fn push(&mut self, row: AuthoredDeclarationSelection) {
+        let rows = self.0.get_or_insert_with(|| {
+            arena::Arena::from_storage(row, Vec::new(), None, 1, true)
+                .expect("empty selection storage has valid geometry")
+                .into()
+        });
+        rows.append(row);
+    }
+}
+
+impl PartialEq for SelectionRows {
+    fn eq(&self, other: &Self) -> bool {
+        self.view() == other.view()
+    }
+}
+
+impl Eq for SelectionRows {}
+
+impl std::ops::Index<usize> for SelectionRows {
+    type Output = AuthoredDeclarationSelection;
+
+    fn index(&self, position: usize) -> &Self::Output {
+        self.view().at(position)
+    }
+}
+
+impl compiler_storage::Record for SelectionRows {
+    fn write(
+        &self,
+        output: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        output.record(|output| {
+            output.sequence(self.len())?;
+            for row in self.iter() {
+                row.write(output)?;
+            }
+            Ok(())
+        })
+    }
+
+    fn read<Context>(
+        input: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        let rows = Vec::<AuthoredDeclarationSelection>::read(input)?;
+        let Some(&dummy) = rows.first() else {
+            return Ok(Self::default());
+        };
+        let metadata =
+            arena::RootedArena::<AuthoredDeclarationSelection>::decoded_record_metadata_bytes(
+                rows.len(),
+            )
+            .ok_or_else(|| input.error("selection row metadata allocation overflow"))?;
+        input.allocate(metadata)?;
+        let rows = arena::Arena::from_storage(dummy, rows, None, 1, true)
+            .map_err(|reason| input.error(reason))?;
+        Ok(Self(Some(rows.into())))
+    }
 }
 
 impl std::fmt::Debug for AuthoredDeclarationSelections {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter
             .debug_struct("AuthoredDeclarationSelections")
-            .field("rows", &self.rows)
+            .field("rows", &self.rows.view())
             .finish()
     }
 }
 
-#[derive(Clone, Default, compiler_storage::Record)]
-struct SpanIndex(std::collections::HashMap<SourceSpan, Vec<u32>>);
+type SpanPositions = std::collections::HashMap<SourceSpan, Vec<u32>>;
 
-impl PartialEq for SpanIndex {
-    fn eq(&self, _: &Self) -> bool {
-        true
-    }
+// A continuation freezes the existing span index and appends to its own map.
+// Queries visit these immutable batches in insertion order, so repeated source
+// coordinates keep both their original ambiguity and their first-match order.
+#[derive(Clone, Default)]
+struct SpanIndex {
+    retained: Vec<std::sync::Arc<SpanPositions>>,
+    output: Option<std::sync::Arc<SpanPositions>>,
 }
 
-impl Eq for SpanIndex {}
-
 impl SpanIndex {
-    fn of(rows: &[AuthoredDeclarationSelection]) -> Self {
-        let mut index = Self::default();
-        for (position, row) in rows.iter().enumerate() {
-            index.add(row.source_span, position);
-        }
-        index
+    fn maps(&self) -> impl Iterator<Item = &SpanPositions> {
+        self.retained
+            .iter()
+            .chain(self.output.iter())
+            .map(std::sync::Arc::as_ref)
+    }
+
+    fn positions(&self, source_span: SourceSpan) -> impl Iterator<Item = u32> + '_ {
+        self.maps()
+            .filter_map(move |map| map.get(&source_span))
+            .flat_map(|positions| positions.iter().copied())
     }
 
     fn add(&mut self, source_span: SourceSpan, position: usize) {
         let position = u32::try_from(position).expect("selection ledger position overflow");
-        self.0.entry(source_span).or_default().push(position);
+        if self
+            .output
+            .as_ref()
+            .is_some_and(|map| std::sync::Arc::strong_count(map) != 1)
+        {
+            let shared = self.output.take().expect("shared selection index output");
+            if !shared.is_empty() {
+                self.retained.push(shared);
+            }
+        }
+        let output = self
+            .output
+            .get_or_insert_with(|| std::sync::Arc::new(SpanPositions::new()));
+        std::sync::Arc::get_mut(output)
+            .expect("selection index output is private")
+            .entry(source_span)
+            .or_default()
+            .push(position);
+    }
+}
+
+impl compiler_storage::Record for SpanIndex {
+    fn write(
+        &self,
+        output: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        output.record(|output| {
+            let keys = self
+                .maps()
+                .flat_map(|map| map.keys().copied())
+                .collect::<std::collections::HashSet<_>>();
+            let mut encoded = Vec::with_capacity(keys.len());
+            for key in keys {
+                let mut scratch = output.scratch();
+                key.write(&mut scratch)?;
+                encoded.push((scratch.finish(), key));
+            }
+            encoded.sort_by(|left, right| left.0.cmp(&right.0));
+            output.sequence(encoded.len())?;
+            for (_, key) in encoded {
+                key.write(output)?;
+                output.record(|output| {
+                    output.sequence(self.positions(key).count())?;
+                    for position in self.positions(key) {
+                        position.write(output)?;
+                    }
+                    Ok(())
+                })?;
+            }
+            Ok(())
+        })
+    }
+
+    fn read<Context>(
+        input: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        input.record(|input| {
+            let map = SpanPositions::read(input)?;
+            if map.is_empty() {
+                return Ok(Self::default());
+            }
+            let bytes = compiler_storage::shared_allocation_bytes(std::alloc::Layout::new::<
+                SpanPositions,
+            >())
+            .ok_or_else(|| input.error("selection index allocation overflow"))?;
+            input.allocate(bytes)?;
+            Ok(Self {
+                retained: Vec::new(),
+                output: Some(std::sync::Arc::new(map)),
+            })
+        })
     }
 }
 
@@ -1562,10 +1800,21 @@ impl AuthoredDeclarationSelections {
         if destination_base.rows.len() < source_frontier {
             return Err(AuthoredDeclarationSelectionSuffixRebaseError::DestinationPrefixTooShort);
         }
+        if destination_base
+            .rows
+            .len()
+            .checked_add(self.rows.len() - source_frontier)
+            .is_none_or(|length| length > u32::MAX as usize)
+        {
+            return Err(AuthoredDeclarationSelectionSuffixRebaseError::OccurrenceCapacityExceeded);
+        }
 
-        for (source, destination) in self.rows[..source_frontier]
+        for (source, destination) in self
+            .rows
+            .view()
+            .slice(0..source_frontier)
             .iter()
-            .zip(&destination_base.rows[..source_frontier])
+            .zip(destination_base.rows.view().slice(0..source_frontier))
         {
             if source.occurrence_id != destination.occurrence_id
                 || source.source_span != destination.source_span
@@ -1606,18 +1855,26 @@ impl AuthoredDeclarationSelections {
             source_end,
             destination_frontier,
         };
-        let mut rows = destination_base.rows.clone();
-        rows.reserve(self.rows.len() - source_frontier_index);
-        for source in &self.rows[source_frontier_index..] {
+        let mut destination = destination_base.clone();
+        destination
+            .rows
+            .reserve(self.rows.len() - source_frontier_index);
+        for source in self
+            .rows
+            .view()
+            .slice(source_frontier_index..self.rows.len())
+        {
             let occurrence_id = rebase
                 .rebase_extension(source.occurrence_id)
                 .ok_or(AuthoredDeclarationSelectionSuffixRebaseError::OccurrenceCapacityExceeded)?;
             let mut rebased = *source;
             rebased.occurrence_id = occurrence_id;
-            rows.push(rebased);
+            destination
+                .by_span
+                .add(rebased.source_span, destination.rows.len());
+            destination.rows.push(rebased);
         }
-        let by_span = SpanIndex::of(&rows);
-        Ok((Self { rows, by_span }, rebase))
+        Ok((destination, rebase))
     }
 
     pub fn record_resolved(
@@ -1695,12 +1952,12 @@ impl AuthoredDeclarationSelections {
     ) -> Result<AuthoredDeclarationSelectionOccurrenceId, AuthoredDeclarationSelectionCoordinateError>
     {
         use AuthoredDeclarationSelectionCoordinateError as Error;
-        let positions = self.by_span.0.get(&source_span).ok_or(Error::Missing)?;
+        let positions = self.by_span.positions(source_span);
         let mut selected = None;
         let mut ambiguous = false;
         let mut partitioned = false;
         for position in positions {
-            let row = &self.rows[*position as usize];
+            let row = &self.rows[position as usize];
             if row.exposure != exposure || row.kind != kind {
                 continue;
             }
@@ -1726,10 +1983,8 @@ impl AuthoredDeclarationSelections {
         selected_symbol: SymbolHandle,
     ) -> Option<AuthoredDeclarationSelectionOccurrenceId> {
         self.by_span
-            .0
-            .get(&source_span)?
-            .iter()
-            .map(|position| &self.rows[*position as usize])
+            .positions(source_span)
+            .map(|position| &self.rows[position as usize])
             .find(|selection| {
                 selection.exposure == exposure
                     && selection.kind == kind
@@ -1756,8 +2011,8 @@ impl AuthoredDeclarationSelections {
         self.rows.iter()
     }
 
-    pub fn as_slice(&self) -> &[AuthoredDeclarationSelection] {
-        &self.rows
+    pub fn rows(&self) -> arena::RootRows<'_, AuthoredDeclarationSelection> {
+        self.rows.view()
     }
 
     pub fn len(&self) -> usize {
@@ -1771,7 +2026,7 @@ impl AuthoredDeclarationSelections {
     ) -> Result<(), AuthoredDeclarationSelectionFinalizationError> {
         let row = usize::try_from(occurrence.0)
             .ok()
-            .and_then(|index| self.rows.get_mut(index))
+            .and_then(|index| self.rows.get(index))
             .filter(|row| row.occurrence_id == occurrence)
             .ok_or(AuthoredDeclarationSelectionFinalizationError::UnknownOccurrence)?;
         if !matches!(
@@ -1786,7 +2041,12 @@ impl AuthoredDeclarationSelections {
                 AuthoredDeclarationSelectionFinalizationError::StaticArgumentPositionMismatch,
             );
         }
-        row.top_level_static_argument_position = Some(position);
+        if row.top_level_static_argument_position != Some(position) {
+            self.rows
+                .get_mut(occurrence.0 as usize)
+                .expect("validated selection occurrence")
+                .top_level_static_argument_position = Some(position);
+        }
         Ok(())
     }
 
@@ -1806,7 +2066,7 @@ impl AuthoredDeclarationSelections {
             .map_err(|_| AuthoredDeclarationSelectionFinalizationError::UnknownOccurrence)?;
         let row = self
             .rows
-            .get_mut(index)
+            .get(index)
             .filter(|row| row.occurrence_id == occurrence_id)
             .ok_or(AuthoredDeclarationSelectionFinalizationError::UnknownOccurrence)?;
         match row.target {
@@ -1818,7 +2078,10 @@ impl AuthoredDeclarationSelections {
                 Err(AuthoredDeclarationSelectionFinalizationError::LateBindingMismatch)
             }
             AuthoredDeclarationSelectionTarget::LateBound(_) => {
-                row.target = AuthoredDeclarationSelectionTarget::Resolved(selected);
+                self.rows
+                    .get_mut(index)
+                    .expect("validated selection occurrence")
+                    .target = AuthoredDeclarationSelectionTarget::Resolved(selected);
                 Ok(())
             }
         }
@@ -1834,7 +2097,7 @@ impl AuthoredDeclarationSelections {
             .map_err(|_| AuthoredDeclarationSelectionFinalizationError::UnknownOccurrence)?;
         let row = self
             .rows
-            .get_mut(index)
+            .get(index)
             .filter(|row| row.occurrence_id == occurrence_id)
             .ok_or(AuthoredDeclarationSelectionFinalizationError::UnknownOccurrence)?;
         match row.target {
@@ -1846,7 +2109,10 @@ impl AuthoredDeclarationSelections {
                 Err(AuthoredDeclarationSelectionFinalizationError::LateBindingMismatch)
             }
             AuthoredDeclarationSelectionTarget::LateBound(_) => {
-                row.target = AuthoredDeclarationSelectionTarget::Intrinsic(intrinsic);
+                self.rows
+                    .get_mut(index)
+                    .expect("validated selection occurrence")
+                    .target = AuthoredDeclarationSelectionTarget::Intrinsic(intrinsic);
                 Ok(())
             }
         }
@@ -1866,6 +2132,9 @@ impl AuthoredDeclarationSelections {
         &self,
     ) -> Result<AuthoredDeclarationSelectionOccurrenceId, AuthoredDeclarationSelectionRecordError>
     {
+        if self.rows.len() >= u32::MAX as usize {
+            return Err(AuthoredDeclarationSelectionRecordError::OccurrenceCapacityExceeded);
+        }
         let ordinal = u64::try_from(self.rows.len())
             .map_err(|_| AuthoredDeclarationSelectionRecordError::OccurrenceCapacityExceeded)?;
         Ok(AuthoredDeclarationSelectionOccurrenceId(ordinal))
@@ -1874,7 +2143,7 @@ impl AuthoredDeclarationSelections {
 
 impl<'ledger> IntoIterator for &'ledger AuthoredDeclarationSelections {
     type Item = &'ledger AuthoredDeclarationSelection;
-    type IntoIter = std::slice::Iter<'ledger, AuthoredDeclarationSelection>;
+    type IntoIter = arena::RootRowsIter<'ledger, AuthoredDeclarationSelection>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.rows.iter()
@@ -2004,6 +2273,226 @@ mod tests {
     }
 
     #[test]
+    fn retained_selection_rows_and_span_indexes_keep_fork_writes_private() {
+        use super::{
+            AuthoredDeclarationSelectionCoordinateError as CoordinateError,
+            AuthoredDeclarationSelectionTarget as Target,
+        };
+        let mut original = AuthoredDeclarationSelections::default();
+        let first = original
+            .record_resolved(
+                source_span(2, 6),
+                AuthoredDeclarationSelectionExposure::PrivateImplementation,
+                AuthoredDeclarationSelectionKind::MemberAccess,
+                SymbolHandle::from_arena_index(3),
+            )
+            .unwrap();
+        let late = original
+            .record_late_bound(
+                source_span(8, 9),
+                AuthoredDeclarationSelectionExposure::PrivateImplementation,
+                AuthoredDeclarationSelectionKind::Call,
+                AuthoredDeclarationSelectionLateBinding::CheckedCall,
+            )
+            .unwrap();
+        let mut fork = original.clone();
+        assert!(std::ptr::eq(
+            original.get(first).unwrap(),
+            fork.get(first).unwrap()
+        ));
+        assert!(std::sync::Arc::ptr_eq(
+            original.by_span.output.as_ref().unwrap(),
+            fork.by_span.output.as_ref().unwrap()
+        ));
+        fork.finalize_late_bound(
+            late,
+            AuthoredDeclarationSelectionLateBinding::CheckedCall,
+            SymbolHandle::from_arena_index(7),
+        )
+        .unwrap();
+        assert!(matches!(
+            original.get(late).unwrap().target(),
+            Target::LateBound(_)
+        ));
+        assert!(matches!(
+            fork.get(late).unwrap().target(),
+            Target::Resolved(_)
+        ));
+        assert!(std::ptr::eq(
+            original.get(first).unwrap(),
+            fork.get(first).unwrap()
+        ));
+        assert!(!std::ptr::eq(
+            original.get(late).unwrap(),
+            fork.get(late).unwrap()
+        ));
+
+        let appended = fork
+            .record_resolved(
+                source_span(2, 6),
+                AuthoredDeclarationSelectionExposure::PrivateImplementation,
+                AuthoredDeclarationSelectionKind::MemberAccess,
+                SymbolHandle::from_arena_index(9),
+            )
+            .unwrap();
+        assert_eq!(appended.ordinal(), 2);
+        assert!(std::sync::Arc::ptr_eq(
+            original.by_span.output.as_ref().unwrap(),
+            &fork.by_span.retained[0]
+        ));
+        assert_eq!(
+            original.source_coordinate_occurrence(
+                source_span(2, 6),
+                AuthoredDeclarationSelectionExposure::PrivateImplementation,
+                AuthoredDeclarationSelectionKind::MemberAccess
+            ),
+            Ok(first)
+        );
+        assert_eq!(
+            fork.source_coordinate_occurrence(
+                source_span(2, 6),
+                AuthoredDeclarationSelectionExposure::PrivateImplementation,
+                AuthoredDeclarationSelectionKind::MemberAccess
+            ),
+            Err(CoordinateError::Ambiguous)
+        );
+        assert_eq!(
+            fork.resolved_occurrence(
+                source_span(2, 6),
+                AuthoredDeclarationSelectionExposure::PrivateImplementation,
+                AuthoredDeclarationSelectionKind::MemberAccess,
+                SymbolHandle::from_arena_index(9)
+            ),
+            Some(appended)
+        );
+        assert_eq!(
+            original.resolved_occurrence(
+                source_span(2, 6),
+                AuthoredDeclarationSelectionExposure::PrivateImplementation,
+                AuthoredDeclarationSelectionKind::MemberAccess,
+                SymbolHandle::from_arena_index(9)
+            ),
+            None
+        );
+        let original_tail = original
+            .record_resolved(
+                source_span(10, 12),
+                AuthoredDeclarationSelectionExposure::PrivateImplementation,
+                AuthoredDeclarationSelectionKind::MemberAccess,
+                SymbolHandle::from_arena_index(11),
+            )
+            .unwrap();
+        assert_eq!(
+            original_tail, appended,
+            "forks reuse the same independent tail ordinal"
+        );
+        assert_ne!(original.get(original_tail), fork.get(appended));
+        fork.record_resolved_in_partition(
+            source_span(2, 6),
+            AuthoredDeclarationSelectionExposure::PrivateImplementation,
+            AuthoredDeclarationSelectionKind::MemberAccess,
+            Some(CompilerDerivedSelectionPartition::from_compiler_ordinal(1)),
+            SymbolHandle::from_arena_index(12),
+        )
+        .unwrap();
+        assert_eq!(
+            fork.source_coordinate_occurrence(
+                source_span(2, 6),
+                AuthoredDeclarationSelectionExposure::PrivateImplementation,
+                AuthoredDeclarationSelectionKind::MemberAccess
+            ),
+            Err(CoordinateError::CompilerCopyRequiresOwner)
+        );
+    }
+
+    #[test]
+    fn shared_selection_batches_keep_legacy_record_bytes_and_refuse_bad_indexes() {
+        #[derive(compiler_storage::Record)]
+        struct LegacyIndex(super::SpanPositions);
+        #[derive(compiler_storage::Record)]
+        struct LegacySelections {
+            rows: Vec<super::AuthoredDeclarationSelection>,
+            by_span: LegacyIndex,
+        }
+        let limits = compiler_storage::RecordLimits::default();
+        let mut original = AuthoredDeclarationSelections::default();
+        record_fixture(&mut original);
+        let mut fork = original.clone();
+        fork.record_resolved(
+            source_span(2, 6),
+            AuthoredDeclarationSelectionExposure::PrivateImplementation,
+            AuthoredDeclarationSelectionKind::MemberAccess,
+            SymbolHandle::from_arena_index(5),
+        )
+        .unwrap();
+        fork.finalize_intrinsic(
+            AuthoredDeclarationSelectionOccurrenceId(1),
+            AuthoredDeclarationSelectionLateBinding::CheckedCall,
+            AuthoredDeclarationSelectionIntrinsic::CollectionLength,
+        )
+        .unwrap();
+        let mut map = super::SpanPositions::new();
+        for row in fork.iter() {
+            map.entry(row.source_span())
+                .or_default()
+                .push(row.occurrence_id().ordinal() as u32);
+        }
+        let mut legacy = LegacySelections {
+            rows: fork.iter().copied().collect(),
+            by_span: LegacyIndex(map),
+        };
+        let bytes = compiler_storage::encode(&legacy, limits).unwrap();
+        assert_eq!(compiler_storage::encode(&fork, limits).unwrap(), bytes);
+        let decoded: AuthoredDeclarationSelections =
+            compiler_storage::decode(&bytes, limits).unwrap();
+        assert_eq!(decoded, fork);
+        assert_eq!(compiler_storage::encode(&decoded, limits).unwrap(), bytes);
+        let legacy_decoded: LegacySelections = compiler_storage::decode(&bytes, limits).unwrap();
+        assert_eq!(legacy_decoded.rows, legacy.rows);
+
+        let row_bytes =
+            legacy.rows.len() * std::mem::size_of::<super::AuthoredDeclarationSelection>();
+        let metadata = arena::RootedArena::<super::AuthoredDeclarationSelection>::decoded_record_metadata_bytes(legacy.rows.len()).unwrap();
+        let error = compiler_storage::decode::<AuthoredDeclarationSelections>(
+            &bytes,
+            compiler_storage::RecordLimits {
+                allocation: row_bytes + metadata - 1,
+                ..limits
+            },
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("allocation limit"));
+        assert!(
+            compiler_storage::decode::<AuthoredDeclarationSelections>(
+                &bytes,
+                compiler_storage::RecordLimits { depth: 1, ..limits }
+            )
+            .is_err()
+        );
+        legacy
+            .by_span
+            .0
+            .get_mut(&source_span(2, 6))
+            .unwrap()
+            .push(0);
+        let bad_index = compiler_storage::encode(&legacy, limits).unwrap();
+        assert!(
+            compiler_storage::decode::<AuthoredDeclarationSelections>(&bad_index, limits)
+                .unwrap_err()
+                .to_string()
+                .contains("span index")
+        );
+        legacy.by_span.0.clear();
+        let missing_index = compiler_storage::encode(&legacy, limits).unwrap();
+        assert!(
+            compiler_storage::decode::<AuthoredDeclarationSelections>(&missing_index, limits)
+                .unwrap_err()
+                .to_string()
+                .contains("omits rows")
+        );
+    }
+
+    #[test]
     fn occurrence_identities_are_unique_and_deterministic() {
         let mut first_run = AuthoredDeclarationSelections::default();
         let mut second_run = AuthoredDeclarationSelections::default();
@@ -2024,8 +2513,8 @@ mod tests {
         assert_ne!(first_ids[0], first_ids[1]);
         assert_eq!(first_ids[0].ordinal(), 0);
         assert_eq!(first_ids[1].ordinal(), 1);
-        assert_eq!(first_run.get(first_ids[0]), first_run.as_slice().first());
-        assert_eq!(first_run.get(first_ids[1]), first_run.as_slice().get(1));
+        assert_eq!(first_run.get(first_ids[0]), first_run.rows().first());
+        assert_eq!(first_run.get(first_ids[1]), first_run.rows().get(1));
     }
 
     #[test]
@@ -2069,11 +2558,11 @@ mod tests {
             .expect("compatible retained prefix");
 
         assert_eq!(
-            &joined.as_slice()[..destination.len()],
-            destination.as_slice()
+            joined.rows().slice(0..destination.len()),
+            destination.rows()
         );
         assert_eq!(joined.len(), 3);
-        assert_eq!(joined.as_slice()[2].occurrence_id().ordinal(), 2);
+        assert_eq!(joined.rows()[2].occurrence_id().ordinal(), 2);
         assert_eq!(
             rebase.rebase_extension(extension).map(|id| id.ordinal()),
             Some(2)
