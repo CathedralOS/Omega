@@ -36,7 +36,7 @@ and trusted admissions require their own soundness justification.
 
 | Rule | Foundation | Note |
 | ---- | ---------- | ---- |
-| `Primitive` | Constructive-decidable | `PrimitiveJudgment` re-decides Truth, reflexive equality, closed integer relations and carrier bounds over closed data (`kernel.rs`). |
+| `Primitive` | Constructive-decidable | `PrimitiveJudgment` re-decides Truth, reflexive equality, integer relations and carrier bounds (`kernel.rs`). `ClosedIntegerRelation` evaluates closed relations, and also accepts an open fixed-integer or mathematical relation whose two sides differ by a constant after ring normalization, such as `x < x + 1`, and a fixed-integer equality whose sides agree modulo `2^width` after normalizing wrapping arithmetic. It reads exact add, subtract, multiply and shift-left and total widening as their mathematical results: under [total arithmetic](contracts.md#total-arithmetic) such a term exists only after its representability is discharged, so `x < x +! 1` over `u8` holds wherever `x +! 1` can be formed. `IntegerCarrierBound` is listed in [integer certificates](../terminal-psi/integer_certificates.md#elementary-certificate-rules). The mathematical core derives a closed relation and records an open one as an assumed decision of this judgment rather than deriving it. |
 | `SemanticAxiom` | Trusted admission | Cites one verifier-reconstructed axiom proposition; recorded on the acceptance (`propositional_rules.rs`). |
 | `Assumption` | Constructive | Cites a scoped premise; ambient and discharged-local rosters are tracked by `traversal.rs`. |
 | `ConjunctionIntroduction`, `ConjunctionElimination` | Constructive | Standard ∧-I/∧-E over the checked conjunct children. |
@@ -46,7 +46,7 @@ and trusted admissions require their own soundness justification.
 | `PredicateDenotation` | Constructive-decidable | Definitional conversion through the bounded predicate denotation; both sides are re-denoted and must land on one goal. |
 | `ValueEqualityTransport` | Constructive | Substitution along independently proved value equations — the J-rule shape; ambient premises unchanged. |
 | `IntegerOrderWeakening` | Constructive | `a = b` or `a < b` entails `a ≤ b` — definitional weakening. |
-| `IntegerOrderDiscreteness` | Constructive-decidable | `x ≤ c` to `x < c + 1` by literal adjacency; sound because the fixed-integer order is discrete and decidable. |
+| `IntegerOrderDiscreteness` | Constructive-decidable | `x ≤ c` to `x < c + 1` by literal adjacency (outward), `x < c` to `x ≤ c − 1` by literal adjacency (inward), and open `a < b` to mathematical `a + 1 ≤ b`; sound because the integer order is discrete and decidable. The mathematical core derives only the outward form; it refuses the inward and open forms. |
 | `IntegerSubtractOrder` | Constructive-decidable | `r = a − b ∧ 0 < b ⊢ r < a` over exact fixed integers. |
 | `IntegerAddOrder` | Constructive-decidable | `r = a + b ∧ 0 < b ⊢ a < r` over exact fixed integers. |
 | `IntegerSubtractAntitone` | Constructive-decidable | `p = m − x ∧ q = m − y ∧ y < x ⊢ p < q` over exact fixed integers with one minuend. With unsigned saturating subtraction, ordered minuends and oppositely ordered subtrahends give nonstrict order. Strict order requires one strict operand comparison and a positive larger difference. |
