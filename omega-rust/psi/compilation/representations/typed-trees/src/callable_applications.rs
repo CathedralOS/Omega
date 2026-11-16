@@ -1759,14 +1759,34 @@ pub(crate) mod machine_instances {
     impl TypedTrees {
         pub fn static_machine_binding_position(
             &self,
-            mut owner: SymbolHandle,
+            owner: SymbolHandle,
             binder: SymbolHandle,
             target: SymbolHandle,
         ) -> Result<Option<u32>, &'static str> {
-            if !binder.is_valid() || self.retained_static_machine_contract(binder).is_none() {
+            self.static_machine_binding(owner, binder, target)
+                .map(|binding| binding.map(|(position, _)| position))
+        }
+
+        /// Return the selected operand with its binder position. Its authored
+        /// selection supplies visibility even after a library forwards it.
+        pub fn static_machine_binding(
+            &self,
+            mut owner: SymbolHandle,
+            binder: SymbolHandle,
+            target: SymbolHandle,
+        ) -> Result<Option<(u32, &crate::expression::StaticMachineArgument)>, &'static str>
+        {
+            let valid = |symbol| self.symbols.symbols().nodes().is_valid(symbol);
+            if !valid(binder)
+                || !valid(target)
+                || self.retained_static_machine_contract(binder).is_none()
+            {
                 return Ok(None);
             }
             let entry = |symbol| {
+                if !valid(symbol) {
+                    return None;
+                }
                 if self.symbols.get(symbol).kind == symbols::SymbolKind::Machine {
                     self.machine_by_symbol(symbol)
                         .and_then(|machine| self.machine_states(machine).first())
@@ -1811,7 +1831,8 @@ pub(crate) mod machine_instances {
                         })
                         .map(u32::try_from)
                         .transpose()
-                        .map_err(|_| "static call has too many application binders");
+                        .map_err(|_| "static call has too many application binders")
+                        .map(|position| position.map(|position| (position, argument)));
                 }
                 owner = instance.template;
             }

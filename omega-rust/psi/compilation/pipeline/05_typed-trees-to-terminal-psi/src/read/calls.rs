@@ -7,6 +7,7 @@ with its arguments.
 use crate::body::Qualification;
 use language_core::ReferenceAccess;
 use language_semantics::declaration_selection::{
+    AuthoredDeclarationSelection, AuthoredDeclarationSelectionExposure,
     AuthoredDeclarationSelectionOccurrenceId, ResolvedAuthoredCallBinding,
 };
 use semantic_vocabulary::MachineId;
@@ -36,6 +37,15 @@ struct StaticInvocation<'a> {
     binding: Option<ResolvedAuthoredCallBinding>,
     unsupported: bool,
     runtime_receiver: bool,
+}
+
+/// The binder receipt authenticates the target; the retained occurrence
+/// authenticates where its author was allowed to select it.
+#[derive(Debug, Clone, Copy)]
+pub(super) struct StaticMachineTarget {
+    position: u32,
+    target: SymbolHandle,
+    occurrence: AuthoredDeclarationSelectionOccurrenceId,
 }
 
 impl<'t> Program<'t> {
@@ -223,6 +233,15 @@ impl<'t> Program<'t> {
         }
         if !application.is_valid() {
             return Ok(());
+        }
+        // Equal applications may share one generated body. Each caller still
+        // owes visibility for its own selections, including a cached instance.
+        for argument in self
+            .typed
+            .expression_table
+            .static_machine_application_arguments(application)
+        {
+            self.static_argument_selections(id, argument)?;
         }
         let application = self
             .typed
@@ -681,7 +700,7 @@ impl<'t> Program<'t> {
         id: MachineId,
         target: SymbolHandle,
         binder: SymbolHandle,
-    ) -> Checked<(SymbolHandle, Option<u32>)> {
+    ) -> Checked<(SymbolHandle, Option<StaticMachineTarget>)> {
         if !binder.is_valid() {
             return Ok((target, None));
         }
@@ -690,21 +709,119 @@ impl<'t> Program<'t> {
             .symbols
             .get(id)
             .ok_or_else(|| unserved("static call has no owner"))?;
-        let position = self
+        let (position, argument) = self
             .typed
-            .static_machine_binding_position(*owner, binder, target)
+            .static_machine_binding(*owner, binder, target)
             .map_err(unserved)?
             .ok_or_else(|| unserved("static call target is not selected by its binder"))?;
-        Ok((binder, Some(position)))
+        let occurrence = self.static_argument_selection(id, argument)?;
+        Ok((
+            binder,
+            Some(StaticMachineTarget {
+                position,
+                target,
+                occurrence,
+            }),
+        ))
+    }
+
+    fn static_argument_selections(
+        &self,
+        id: MachineId,
+        argument: &StaticMachineArgument,
+    ) -> Checked<()> {
+        if self
+            .typed
+            .symbols
+            .symbols()
+            .nodes()
+            .is_valid(argument.symbol)
+            && matches!(
+                self.typed.symbols.get(argument.symbol).kind,
+                SymbolKind::Machine | SymbolKind::State
+            )
+        {
+            self.static_argument_selection(id, argument)?;
+        }
+        if let Some(application) = &argument.application {
+            for argument in &application.arguments {
+                self.static_argument_selections(id, argument)?;
+            }
+            if application.member.is_valid() {
+                let member = self
+                    .typed
+                    .expression_table
+                    .static_member(application.member)
+                    .ok_or_else(|| {
+                        refuse(
+                            id,
+                            Construct::Machine,
+                            Unserved::Call("static argument lost its selected member"),
+                        )
+                    })?;
+                self.static_argument_selections(id, member)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn static_argument_selection(
+        &self,
+        id: MachineId,
+        argument: &StaticMachineArgument,
+    ) -> Checked<AuthoredDeclarationSelectionOccurrenceId> {
+        let unserved = |what| refuse(id, Construct::Machine, Unserved::Call(what));
+        let selection = argument
+            .authored_selection
+            .and_then(|occurrence| self.typed.authored_declaration_selections().get(occurrence))
+            .ok_or_else(|| unserved("static call argument lost its authored selection"))?;
+        if selection.kind() != language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::StaticArgument
+            || selection.target().as_resolved().is_none_or(|selected| {
+                let selected = selected.selected_symbol();
+                !self.typed.symbols.symbols().nodes().is_valid(selected)
+                    || (selected != argument.symbol
+                        && !self.instantiates_callable(argument.symbol, selected)
+                        && self.entered_machine(selected) != self.entered_machine(argument.symbol))
+            })
+        {
+            return Err(unserved("static call argument changed its authored selection"));
+        }
+        let selection_source = selection.source_span();
+        let file = self
+            .typed
+            .symbols
+            .source_file(selection_source)
+            .ok_or_else(|| unserved("static call selection has no source file"))?;
+        if selection_source.span.start >= selection_source.span.end
+            || file
+                .source
+                .get(selection_source.span.start..selection_source.span.end)
+                .is_none()
+        {
+            return Err(unserved(
+                "static call selection has no authored source coordinate",
+            ));
+        }
+        let target = if self
+            .typed
+            .trait_machine_signature(argument.symbol)
+            .is_some()
+        {
+            argument.symbol
+        } else {
+            self.call_target_symbol(id, argument.symbol)?
+        };
+        self.visible_to_from(id, target, Some(*selection))?;
+        Ok(selection.occurrence_id())
     }
 
     pub(super) fn retain_static_reach(
         &self,
         id: MachineId,
         mut call: Expression,
-        binding: Option<u32>,
+        binding: Option<StaticMachineTarget>,
     ) -> Checked<Expression> {
-        if let Some(position) = binding {
+        if let Some(binding) = binding {
             let ExpressionKind::Call {
                 callee: semantic_vocabulary::TargetMachineCallable::Machine(_),
                 static_reach_binding,
@@ -717,7 +834,7 @@ impl<'t> Program<'t> {
                     Unserved::Call("static callback did not retain its exact machine invocation"),
                 ));
             };
-            *static_reach_binding = Some(position);
+            *static_reach_binding = Some(binding.position);
         }
         Ok(call)
     }
@@ -841,13 +958,14 @@ impl<'t> Program<'t> {
                 (arguments, SourceOrigin::of(call.source_span), None),
             )
         } else {
-            self.call(
+            self.call_selected(
                 id,
                 slots,
                 call.target_symbol,
                 arguments,
                 SourceOrigin::of(call.source_span),
                 None,
+                static_reach_binding,
             )
         }?;
         self.retain_static_reach(id, read, static_reach_binding)
@@ -996,7 +1114,15 @@ impl<'t> Program<'t> {
                 (arguments, source, expected),
             )?
         } else {
-            self.call(id, slots, call.target_symbol, arguments, source, expected)?
+            self.call_selected(
+                id,
+                slots,
+                call.target_symbol,
+                arguments,
+                source,
+                expected,
+                static_reach_binding,
+            )?
         };
         if call.build_selection.is_valid() {
             self.designate(id, call.build_selection, &mut read)?;
@@ -2103,6 +2229,50 @@ impl<'t> Program<'t> {
         source: SourceOrigin,
         expected: Option<crate::body::ValueType>,
     ) -> Checked<Expression> {
+        self.call_from(id, slots, target, arguments, source, expected, None)
+    }
+
+    pub(super) fn call_selected(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        target: SymbolHandle,
+        arguments: &[ExpressionHandle],
+        source: SourceOrigin,
+        expected: Option<crate::body::ValueType>,
+        selection: Option<StaticMachineTarget>,
+    ) -> Checked<Expression> {
+        match selection {
+            None => self.call(id, slots, target, arguments, source, expected),
+            Some(selection) => self.call_from(
+                id,
+                slots,
+                target,
+                arguments,
+                source,
+                expected,
+                Some(selection),
+            ),
+        }
+    }
+
+    fn call_from(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        target: SymbolHandle,
+        arguments: &[ExpressionHandle],
+        source: SourceOrigin,
+        expected: Option<crate::body::ValueType>,
+        selection: Option<StaticMachineTarget>,
+    ) -> Checked<Expression> {
+        if selection.is_some_and(|selection| selection.target != target) {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Call("static call changed its selected target"),
+            ));
+        }
         if !target.is_valid() {
             return Err(refuse(
                 id,
@@ -2124,7 +2294,23 @@ impl<'t> Program<'t> {
             );
             (machine, boundary)
         };
-        self.visible_to(id, target)?;
+        match selection {
+            Some(selection) => {
+                let occurrence = self
+                    .typed
+                    .authored_declaration_selections()
+                    .get(selection.occurrence)
+                    .ok_or_else(|| {
+                        refuse(
+                            id,
+                            Construct::Machine,
+                            Unserved::Call("static call argument lost its authored selection"),
+                        )
+                    })?;
+                self.visible_to_from(id, target, Some(*occurrence))?;
+            }
+            None => self.visible_to(id, target)?,
+        }
         if let Some(fence) = self.atomic_fence(id, slots, target, arguments, source)? {
             return Ok(fence);
         }
@@ -2229,6 +2415,15 @@ impl<'t> Program<'t> {
     /// "Visibility" makes independently nameable machines private unless
     /// public, regardless of their qualifier or argument types.
     pub(super) fn visible_to(&self, id: MachineId, callee: SymbolHandle) -> Checked<()> {
+        self.visible_to_from(id, callee, None)
+    }
+
+    fn visible_to_from(
+        &self,
+        id: MachineId,
+        callee: SymbolHandle,
+        selection: Option<AuthoredDeclarationSelection>,
+    ) -> Checked<()> {
         // A machine stage 04 generated is called as its authored template,
         // whose visibility it has.
         let declared = crate::template_of(self.typed, callee).unwrap_or(callee);
@@ -2253,7 +2448,7 @@ impl<'t> Program<'t> {
                     Unserved::Call("target has no callable declaration"),
                 )
             })?;
-        self.visible_declaration_to(id, callee, is_public)
+        self.visible_declaration_from(id, callee, is_public, selection)
     }
 
     /// Visibility follows the selected public declaration. A named map may
@@ -2265,9 +2460,24 @@ impl<'t> Program<'t> {
         callee: SymbolHandle,
         is_public: bool,
     ) -> Checked<()> {
+        self.visible_declaration_from(id, callee, is_public, None)
+    }
+
+    fn visible_declaration_from(
+        &self,
+        id: MachineId,
+        callee: SymbolHandle,
+        is_public: bool,
+        selection: Option<AuthoredDeclarationSelection>,
+    ) -> Checked<()> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
         if is_public {
             return Ok(());
+        }
+        if selection.is_some_and(|selection| {
+            selection.exposure() == AuthoredDeclarationSelectionExposure::PublicInterface
+        }) {
+            return unserved("private machine in a public interface");
         }
         let symbols = &self.typed.symbols;
         // A machine stage 04 generated belongs where its declaration does.
@@ -2280,7 +2490,12 @@ impl<'t> Program<'t> {
                 .and_then(|span| symbols.source_file(span))
                 .map(|file| (file.origin, file.package_identity))
         };
-        let caller = self.symbols.get(id).copied().and_then(package);
+        let caller = match selection {
+            Some(selection) => symbols
+                .source_file(selection.source_span())
+                .map(|file| (file.origin, file.package_identity)),
+            None => self.symbols.get(id).copied().and_then(package),
+        };
         match (caller, package(callee)) {
             (Some(caller), Some(callee)) if caller == callee => Ok(()),
             (Some(_), Some(_)) => unserved("private machine of another package"),

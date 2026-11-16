@@ -202,6 +202,7 @@ pub(crate) mod statement {
                     lowerer.type_reference_exposure,
                     call.target_symbol,
                     ordinary_arguments,
+                    &call.authored_static_argument_selections,
                 )?,
                 arguments,
                 evidence_arguments: call

@@ -4820,6 +4820,11 @@ pub mod expression {
 
     #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
     pub struct StaticMachineArgument {
+        /// Forwarding keeps the author's exact declaration selection, including
+        /// its compiler-copy owner, after names lose their source coordinates.
+        pub authored_selection: Option<
+            language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId,
+        >,
         pub type_reference: crate::types::TypeReferenceHandle,
         pub path: Box<[Identifier]>,
         pub application: Option<Box<StaticSymbolApplication>>,
