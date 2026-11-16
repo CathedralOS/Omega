@@ -27,14 +27,16 @@ fn verdict(build: &str) -> String {
             accepted.publish_invocation().unwrap();
             "accepted".to_owned()
         }
-        Ok(RouteVerdict::Rejected {
-            violations,
-            unestablished,
-            ..
-        }) => match (&violations[..], &unestablished[..]) {
+        Ok(
+            ref rejected @ RouteVerdict::Rejected {
+                ref violations,
+                ref unestablished,
+                ..
+            },
+        ) => match (&violations[..], &unestablished[..]) {
             ([], [one]) => one.detail.to_owned(),
             ([one], []) => one.statement.to_owned(),
-            _ => panic!("{violations:?} {unestablished:?}"),
+            _ => panic!("{rejected:?}"),
         },
         other => panic!("{other:?}"),
     }
