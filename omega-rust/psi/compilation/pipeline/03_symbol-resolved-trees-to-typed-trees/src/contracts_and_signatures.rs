@@ -240,18 +240,19 @@ pub(crate) mod contracts {
             use typed_trees::deferred_refusals::DeferredRequest;
             use typed_trees::{TypedTrees, domain::ProofFact};
 
-            /// Records each membership fact whose domain resolution left
-            /// late-bound on the declarations that hold it. Typing does not
-            /// bind that selection yet, and it sees the program with every
-            /// bundled library, so a fact in a declaration nobody demands
-            /// must not stop the program: the declaration is refused where a
-            /// reader demands it. A fact's owners are those of the value it
-            /// constrains; one no declaration owns has no reader to raise it
-            /// and refuses here.
+            /// Select a pending membership's exact declared carrier family.
+            /// Missing types and ambiguous families stay deferred on their
+            /// real declaration owners; selecting a domain proves no membership.
             pub(crate) fn normalize(
+                source: &symbol_resolved_trees::SymbolResolvedTrees,
                 program: &mut TypedTrees,
                 owners: &typed_trees::references::ProgramOperandOwners,
             ) -> Result<(), Diagnostic> {
+                use language_semantics::declaration_selection::{
+                    AuthoredDeclarationSelectionKind as Kind,
+                    AuthoredDeclarationSelectionLateBinding as Binding,
+                    AuthoredDeclarationSelectionTarget as Target,
+                };
                 let unselected = program
                     .proof_facts
                     .iter()
@@ -260,7 +261,7 @@ pub(crate) mod contracts {
                             if !membership.domain_symbol.is_valid()
                                 && membership.authored_domain_selection.is_some() =>
                         {
-                            Some((handle, membership.value))
+                            Some((handle, membership.clone()))
                         }
                         _ => None,
                     })
@@ -269,24 +270,126 @@ pub(crate) mod contracts {
                     return Ok(());
                 }
                 let mut rows = Vec::new();
-                for (handle, value) in unselected {
+                let mut updates = Vec::new();
+                let mut types = crate::typing_queries::DeclaredExpressionTypes::default();
+                for (handle, membership) in unselected {
+                    let value = membership.value;
                     let source_span = program
                         .proof_fact_source_span(handle)
                         .or_else(|| program.expression_table.try_source_span(value))
                         .unwrap_or_default();
-                    let before = rows.len();
-                    rows.extend(
-                        owners
-                            .expression_owners(value)
-                            .filter(|owner| owner.is_valid())
-                            .map(|owner| (owner, source_span)),
-                    );
-                    if rows.len() == before {
+                    let holders = owners
+                        .expression_owners(value)
+                        .filter(|owner| owner.is_valid())
+                        .collect::<Vec<_>>();
+                    if holders.is_empty() {
                         return Err(crate::unavailable_judgment(
                             "contract membership carrier selection",
                         )
                         .with_source_span(source_span));
                     }
+                    let mut carrier = None;
+                    let mut missing = false;
+                    for owner in &holders {
+                        let found = types.get(program, *owner, value).and_then(|reference| {
+                            super::membership_carrier_type(program, reference)
+                        });
+                        let Some(found) = found else {
+                            missing = true;
+                            continue;
+                        };
+                        if carrier.is_some_and(|earlier| {
+                            program.package_qualified_type_identity(earlier)
+                                != program.package_qualified_type_identity(found)
+                        }) {
+                            return Err(Diagnostic::error(
+                                "domain membership has conflicting declared carrier contexts",
+                            )
+                            .with_source_span(source_span));
+                        }
+                        carrier = Some(found);
+                    }
+                    if !missing && let Some(carrier) = carrier {
+                        let occurrence = membership.authored_domain_selection.ok_or_else(|| {
+                            crate::unavailable_judgment("contract membership custody")
+                        })?;
+                        let selection = program
+                            .authored_declaration_selections()
+                            .get(occurrence)
+                            .ok_or_else(|| {
+                            crate::unavailable_judgment("contract membership custody")
+                        })?;
+                        let authored_span = selection.source_span();
+                        if selection.kind() != Kind::DomainMembership
+                            || authored_span.span.start >= authored_span.span.end
+                            || !matches!(
+                                selection.target(),
+                                Target::LateBound(Binding::CheckedDomainMembership)
+                                    | Target::Resolved(_)
+                            )
+                        {
+                            return Err(crate::unavailable_judgment(
+                                "contract membership domain custody",
+                            )
+                            .with_source_span(source_span));
+                        }
+                        let name = program
+                            .domain_path_members(membership.domain)
+                            .iter()
+                            .map(|part| part.as_str())
+                            .collect::<Vec<_>>()
+                            .join("::");
+                        let arguments = program
+                            .type_reference_table
+                            .type_reference_handles(membership.domain_arguments);
+                        let matches =
+                            crate::type_reference::domain_constraints::select_domain_candidates(
+                                source,
+                                program,
+                                carrier,
+                                &name,
+                                Some(authored_span),
+                                symbols::SymbolHandle::invalid(),
+                                arguments,
+                            );
+                        if let [domain] = matches.as_slice() {
+                            super::check_membership_argument_count(
+                                program,
+                                domain,
+                                arguments.len(),
+                            )
+                            .map_err(|error| error.with_source_span(source_span))?;
+                            updates.push((handle, occurrence, domain.symbol));
+                            continue;
+                        }
+                    }
+                    rows.extend(holders.into_iter().map(|owner| (owner, source_span)));
+                }
+                let mut selections = program.authored_declaration_selections().clone();
+                for (_, occurrence, domain) in &updates {
+                    if let Some(resolved) = selections
+                        .get(*occurrence)
+                        .and_then(|selection| selection.target().as_resolved().copied())
+                    {
+                        if resolved.selected_symbol() != *domain {
+                            return Err(Diagnostic::error(
+                                "copied contract membership changes its authored domain declaration",
+                            ));
+                        }
+                    } else {
+                        selections.finalize_late_bound(*occurrence, Binding::CheckedDomainMembership, *domain)
+                            .map_err(|error| Diagnostic::error(format!(
+                                "failed to finalize contract membership domain custody: {error:?}",
+                            )))?;
+                    }
+                }
+                program.retain_authored_declaration_selections(selections);
+                for (handle, _, domain) in updates {
+                    let ProofFact::Membership(membership) = program.proof_facts.get_mut(handle)
+                    else {
+                        return Err(Diagnostic::error("domain membership changed its fact kind"));
+                    };
+                    membership.domain_symbol = domain;
                 }
                 for (owner, source_span) in rows {
                     program.record_deferred_refusal(
@@ -376,10 +479,193 @@ pub(crate) mod contracts {
                 }
 
                 #[test]
+                fn pending_reference_memberships_select_the_exact_referent_carrier() {
+                    let program = crate::qualified_operator_home_tests::checked(&[(
+                        "memberships.omg",
+                        r#"
+                            domain [u8; 4]::Ascii;
+                            domain [u8; 16]::Ascii;
+                            machine short(value: &[u8; 4]) ensures value in Ascii {}
+                            machine long(value: &mut [u8; 16]) ensures value in Ascii {}
+                        "#,
+                    )])
+                    .expect("reference membership retains its actual carrier family");
+                    let mut seen = Vec::new();
+                    for (_, fact) in program.proof_facts.iter() {
+                        let ProofFact::Membership(membership) = fact else {
+                            continue;
+                        };
+                        let occurrence = membership
+                            .authored_domain_selection
+                            .expect("written membership retains declaration custody");
+                        let selection = program
+                            .authored_declaration_selections()
+                            .get(occurrence)
+                            .expect("retained occurrence");
+                        assert_eq!(
+                            selection.target().as_resolved().unwrap().selected_symbol(),
+                            membership.domain_symbol
+                        );
+                        assert!(membership.semantic_domain.is_valid());
+                        let domain = program
+                            .domain_definition_for_instance(
+                                membership.domain_symbol,
+                                membership.semantic_domain,
+                            )
+                            .expect("the complete selected domain application");
+                        let typed_trees::types::TypeReferenceNode::FixedArray { length, .. } =
+                            program
+                                .type_reference_table
+                                .type_reference(domain.target_type)
+                        else {
+                            panic!("the selected carrier is the actual fixed array")
+                        };
+                        let typed_trees::types::FixedArrayLength::Literal(length) = length else {
+                            panic!("the complete capacity is retained")
+                        };
+                        seen.push(*length);
+                    }
+                    seen.sort_unstable();
+                    assert_eq!(seen, [4, 16]);
+                }
+
+                #[test]
+                fn indexed_membership_selection_preserves_the_authored_arguments() {
+                    let program = crate::qualified_operator_home_tests::checked(&[(
+                        "indexed-membership.omg",
+                        r#"
+                            domain<Index> i64::Tagged<Index>;
+                            machine retains(value: &i64) ensures value in Tagged<u32> {}
+                        "#,
+                    )])
+                    .expect("the indexed membership retains its complete application");
+                    let memberships = program
+                        .proof_facts
+                        .iter()
+                        .filter_map(|(_, fact)| {
+                            let ProofFact::Membership(membership) = fact else {
+                                return None;
+                            };
+                            Some(membership)
+                        })
+                        .collect::<Vec<_>>();
+                    let [membership] = memberships.as_slice() else {
+                        panic!("one membership")
+                    };
+                    let arguments = program
+                        .type_reference_table
+                        .type_reference_handles(membership.domain_arguments);
+                    assert_eq!(arguments.len(), 1);
+                    assert_eq!(
+                        program.domain_arguments_for_instance(
+                            membership.domain_symbol,
+                            membership.semantic_domain
+                        ),
+                        Some(arguments)
+                    );
+                    let typed_trees::types::TypeReferenceNode::Named { symbol, .. } =
+                        program.type_reference_table.type_reference(arguments[0])
+                    else {
+                        panic!("the actual index type is retained")
+                    };
+                    assert_eq!(
+                        program.symbols.builtin_type_atom(*symbol),
+                        Some(symbols::BuiltinTypeAtom::U32)
+                    );
+                }
+
+                #[test]
+                fn a_membership_with_another_capacity_stays_unselected() {
+                    let program = crate::qualified_operator_home_tests::checked(&[(
+                        "mismatched-membership.omg",
+                        r#"
+                            domain [u8; 4]::Ascii;
+                            domain [u8; 16]::Ascii;
+                            machine wrong(value: &[u8; 32]) ensures value in Ascii {}
+                        "#,
+                    )])
+                    .expect("unserved carrier selection stays on its actual declaration");
+                    let wrong = program
+                        .machines()
+                        .iter()
+                        .find(|machine| machine.name.as_str() == "wrong")
+                        .unwrap();
+                    assert_eq!(
+                        program
+                            .deferred_refusal(wrong.symbol)
+                            .map(|row| row.request),
+                        Some(DeferredRequest::ContractMembershipSelection)
+                    );
+                    for (_, fact) in program.proof_facts.iter() {
+                        let ProofFact::Membership(membership) = fact else {
+                            continue;
+                        };
+                        assert!(!membership.domain_symbol.is_valid());
+                        assert!(!membership.semantic_domain.is_valid());
+                    }
+                }
+
+                #[test]
+                fn copied_membership_cannot_change_its_authored_domain() {
+                    let text = r#"
+                        domain u32::First;
+                        domain u32::Second;
+                        machine keep(value: &u32) ensures value in First {}
+                    "#;
+                    let mut sources = source::SourceMap::default();
+                    let id = sources
+                        .add("membership-custody.omg".into(), text.to_owned())
+                        .source_id;
+                    let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
+                    let syntax =
+                        tokens_to_syntax_trees::parse_syntax_trees_with_id(id, &tokens).unwrap();
+                    let mut request =
+                        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax);
+                    request.sources = Some(std::sync::Arc::new(sources));
+                    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(request).unwrap();
+                    let mut program = crate::lower_symbol_resolved_trees(&resolved).unwrap();
+                    let handle = program
+                        .proof_facts
+                        .iter()
+                        .find_map(|(handle, fact)| {
+                            matches!(fact, ProofFact::Membership(_)).then_some(handle)
+                        })
+                        .unwrap();
+                    let second = program
+                        .domain_path_members
+                        .insert_many([Identifier::generated("Second")]);
+                    let ProofFact::Membership(membership) = program.proof_facts.get_mut(handle)
+                    else {
+                        panic!("one authored membership")
+                    };
+                    membership.domain = second;
+                    membership.domain_symbol = symbols::SymbolHandle::invalid();
+                    membership.semantic_domain = language_semantics::SemanticDomainId::NULL;
+                    let owners = typed_trees::references::collect_program_operand_owners(&program);
+                    let error = normalize(&resolved, &mut program, &owners).unwrap_err();
+                    assert!(
+                        error
+                            .message
+                            .contains("changes its authored domain declaration"),
+                        "{}",
+                        error.message
+                    );
+                    let ProofFact::Membership(membership) = program.proof_facts.get(handle) else {
+                        panic!("membership retained")
+                    };
+                    assert!(!membership.domain_symbol.is_valid());
+                }
+
+                #[test]
                 fn an_unselected_membership_refuses_only_the_declaration_holding_it() {
                     let (mut program, [holder, bystander]) = unselected_membership(true);
                     let owners = typed_trees::references::collect_program_operand_owners(&program);
-                    normalize(&mut program, &owners).unwrap();
+                    normalize(
+                        &symbol_resolved_trees::SymbolResolvedTrees::default(),
+                        &mut program,
+                        &owners,
+                    )
+                    .unwrap();
                     assert_eq!(
                         program.deferred_refusal(holder).map(|row| row.request),
                         Some(DeferredRequest::ContractMembershipSelection)
@@ -391,7 +677,12 @@ pub(crate) mod contracts {
                 fn an_unselected_membership_no_declaration_holds_still_refuses() {
                     let (mut program, [holder, bystander]) = unselected_membership(false);
                     let owners = typed_trees::references::collect_program_operand_owners(&program);
-                    let error = normalize(&mut program, &owners).unwrap_err();
+                    let error = normalize(
+                        &symbol_resolved_trees::SymbolResolvedTrees::default(),
+                        &mut program,
+                        &owners,
+                    )
+                    .unwrap_err();
                     assert!(
                         error
                             .message
@@ -566,6 +857,30 @@ pub(crate) mod contracts {
             Ok(())
         }
 
+        /// Membership on a reference names the domains of its referent.
+        /// Keep the complete nominal carrier; neither field layout nor a
+        /// receiving domain may replace the actual operand's declared type.
+        fn membership_carrier_type(
+            program: &typed::TypedTrees,
+            reference: typed::types::TypeReferenceHandle,
+        ) -> Option<typed::types::TypeReferenceHandle> {
+            let types = &program.type_reference_table;
+            if !types.contains_type_reference(reference) {
+                return None;
+            }
+            let carrier = types.unconstrained_type_reference(reference);
+            let carrier = match types.type_reference(carrier) {
+                typed::types::TypeReferenceNode::Reference { referee, .. } => {
+                    if !types.contains_type_reference(*referee) {
+                        return None;
+                    }
+                    types.unconstrained_type_reference(*referee)
+                }
+                _ => carrier,
+            };
+            types.contains_type_reference(carrier).then_some(carrier)
+        }
+
         pub(crate) fn has_pending_memberships(program: &typed::TypedTrees) -> bool {
             program.proof_facts.iter().any(|(_, fact)| {
                 let Some(membership) = fact.as_membership() else {
@@ -631,13 +946,13 @@ pub(crate) mod contracts {
                     .expression_owners(membership.value)
                     .collect::<Vec<_>>();
                 for owner in &holders {
-                    let Some(found) = types.get(program, *owner, membership.value) else {
+                    let Some(found) = types
+                        .get(program, *owner, membership.value)
+                        .and_then(|reference| membership_carrier_type(program, reference))
+                    else {
                         missing = true;
                         continue;
                     };
-                    let found = program
-                        .type_reference_table
-                        .unconstrained_type_reference(found);
                     if carrier.is_some_and(|earlier| {
                         program.package_qualified_type_identity(earlier)
                             != program.package_qualified_type_identity(found)

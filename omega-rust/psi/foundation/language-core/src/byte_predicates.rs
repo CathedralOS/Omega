@@ -18,16 +18,6 @@ impl ByteSequencePredicate {
         Self::NonEmpty,
     ];
 
-    pub fn from_name(name: &str) -> Option<Self> {
-        match name {
-            "valid_utf8" => Some(Self::ValidUtf8),
-            "no_nul" => Some(Self::NoNul),
-            "ascii_only" => Some(Self::AsciiOnly),
-            "non_empty" => Some(Self::NonEmpty),
-            _ => None,
-        }
-    }
-
     pub fn holds_for(self, bytes: &[u8]) -> bool {
         match self {
             Self::ValidUtf8 => std::str::from_utf8(bytes).is_ok(),
