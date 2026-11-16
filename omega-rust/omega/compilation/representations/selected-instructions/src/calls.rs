@@ -297,10 +297,11 @@ pub mod normalized_foreign {
 
     pub mod return_transport {
         use crate::FrameStorageSlotId::Local;
+        #[cfg(test)]
+        use crate::SelectedFunction;
         use crate::{
-            LocalStorageSlotId, SelectedBlock, SelectedFunction, SelectedInstruction,
-            SelectedInstructionKind, SelectedNormalizedForeignCall, VirtualRegisterId,
-            VirtualRegisterOrigin,
+            LocalStorageSlotId, SelectedBlock, SelectedInstruction, SelectedInstructionKind,
+            SelectedNormalizedForeignCall, VirtualRegisterId, VirtualRegisterOrigin,
         };
         use calling_conventions::ValueLocation::Indirect;
         use register_model::RegisterOperandAccess;
@@ -314,7 +315,7 @@ pub mod normalized_foreign {
         }
 
         pub fn resolve(
-            function: &SelectedFunction,
+            function: &crate::SelectedFunctionContracts,
             block: &SelectedBlock,
             record: &SelectedNormalizedForeignCall,
         ) -> Option<ReturnTransport> {
@@ -500,7 +501,7 @@ pub mod normalized_foreign {
         }
 
         fn validate_indirect_destination(
-            function: &SelectedFunction,
+            function: &crate::SelectedFunctionContracts,
             block: &SelectedBlock,
             record: &SelectedNormalizedForeignCall,
             call_position: usize,
@@ -562,7 +563,7 @@ pub mod normalized_foreign {
         }
 
         fn result_buffer_address(
-            function: &SelectedFunction,
+            function: &crate::SelectedFunctionContracts,
             instruction: &SelectedInstruction,
             operation: semantic_vocabulary::OperationId,
             source_value: semantic_vocabulary::ValueId,
@@ -590,7 +591,7 @@ pub mod normalized_foreign {
         }
 
         fn follow_copies(
-            function: &SelectedFunction,
+            function: &crate::SelectedFunctionContracts,
             instructions: &[SelectedInstruction],
             cursor: &mut usize,
             result_registers: &mut [VirtualRegisterId],
@@ -619,7 +620,7 @@ pub mod normalized_foreign {
         }
 
         fn copy_result(
-            function: &SelectedFunction,
+            function: &crate::SelectedFunctionContracts,
             instruction: &SelectedInstruction,
             source: VirtualRegisterId,
         ) -> Option<VirtualRegisterId> {
@@ -686,7 +687,7 @@ pub mod normalized_foreign {
         }
 
         pub fn save_position(
-            function: &SelectedFunction,
+            function: &crate::SelectedFunctionContracts,
             block: &SelectedBlock,
             record: &SelectedNormalizedForeignCall,
             call_position: usize,
@@ -725,7 +726,7 @@ pub mod normalized_foreign {
         }
 
         fn private_transport(
-            function: &SelectedFunction,
+            function: &crate::SelectedFunctionContracts,
             block: &SelectedBlock,
             position: usize,
             instruction: &SelectedInstruction,
@@ -944,23 +945,25 @@ pub mod normalized_foreign {
                     },
                 };
                 let function = SelectedFunction {
-                    machine: MachineId::new(1).unwrap(),
-                    attachment: None,
-                    provenance: Default::default(),
-                    structural: None,
-                    local_storage_slots: vec![crate::SelectedLocalStorageSlot {
-                        id: slot,
-                        byte_size: 8,
-                        alignment: 8,
-                    }],
-                    outgoing_arguments: Vec::new(),
-                    calls: Vec::new(),
-                    normalized_foreign_calls: vec![record.clone()],
-                    memory_accesses: Vec::new(),
-                    boundary_settlements: Vec::new(),
+                    contracts: std::sync::Arc::new(crate::SelectedFunctionContracts {
+                        machine: MachineId::new(1).unwrap(),
+                        attachment: None,
+                        provenance: Default::default(),
+                        structural: None,
+                        local_storage_slots: vec![crate::SelectedLocalStorageSlot {
+                            id: slot,
+                            byte_size: 8,
+                            alignment: 8,
+                        }],
+                        outgoing_arguments: Vec::new(),
+                        calls: Vec::new(),
+                        normalized_foreign_calls: vec![record.clone()],
+                        memory_accesses: Vec::new(),
+                        boundary_settlements: Vec::new(),
+                        virtual_registers: Vec::new(),
+                    }),
                     entry_block: block.id,
                     blocks: vec![block.clone()].into(),
-                    virtual_registers: Vec::new(),
                 };
                 (function, block, record)
             }
@@ -1072,31 +1075,33 @@ pub mod normalized_foreign {
                 let source_value = ValueId::new(19).unwrap();
                 let register = VirtualRegisterId(0);
                 let mut function = SelectedFunction {
-                    machine: MachineId::new(1).unwrap(),
-                    attachment: None,
-                    provenance: Default::default(),
-                    structural: None,
-                    local_storage_slots: Vec::new(),
-                    outgoing_arguments: Vec::new(),
-                    calls: Vec::new(),
-                    normalized_foreign_calls: Vec::new(),
-                    memory_accesses: Vec::new(),
-                    boundary_settlements: Vec::new(),
+                    contracts: std::sync::Arc::new(crate::SelectedFunctionContracts {
+                        machine: MachineId::new(1).unwrap(),
+                        attachment: None,
+                        provenance: Default::default(),
+                        structural: None,
+                        local_storage_slots: Vec::new(),
+                        outgoing_arguments: Vec::new(),
+                        calls: Vec::new(),
+                        normalized_foreign_calls: Vec::new(),
+                        memory_accesses: Vec::new(),
+                        boundary_settlements: Vec::new(),
+                        virtual_registers: vec![VirtualRegister {
+                            id: register,
+                            scalar_type: ScalarType::Integer(
+                                IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                            ),
+                            class: RegisterClassId(0),
+                            origin: VirtualRegisterOrigin::ScalarAbiAddress {
+                                instruction: SelectedInstructionId(3),
+                                source_value,
+                            },
+                            definition_site: None,
+                            entry_fixed_view: None,
+                        }],
+                    }),
                     entry_block: SelectedBlockId(0),
                     blocks: (Vec::new()).into(),
-                    virtual_registers: vec![VirtualRegister {
-                        id: register,
-                        scalar_type: ScalarType::Integer(
-                            IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
-                        ),
-                        class: RegisterClassId(0),
-                        origin: VirtualRegisterOrigin::ScalarAbiAddress {
-                            instruction: SelectedInstructionId(3),
-                            source_value,
-                        },
-                        definition_site: None,
-                        entry_fixed_view: None,
-                    }],
                 };
                 let address = SelectedInstruction {
                     id: SelectedInstructionId(3),

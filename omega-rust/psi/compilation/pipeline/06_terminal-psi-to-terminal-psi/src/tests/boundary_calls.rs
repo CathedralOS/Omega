@@ -119,6 +119,37 @@ fn source_boundary_calls_keep_their_actual_input_obligations() {
 }
 
 #[test]
+fn source_boundary_calls_retain_independent_input_lifetime_binders() {
+    let source = r#"
+boundary trait Write {
+    machine write<'left, 'right>(left: &'left mut i64, right: &'right mut i64)
+    reaches none crashes none;
+}
+machine entry() {
+    let mut left: i64 = 17;
+    let mut right: i64 = 23;
+    Write::write(&mut left, &mut right);
+}
+"#;
+    let elaboration = invocation(typed(source)).unwrap();
+    let [boundary] = elaboration.module.boundary_machines.as_slice() else {
+        panic!("one requirement is called");
+    };
+    let declaration = boundary.declaration.as_ref().unwrap();
+    let [left, right] = declaration.source.parameter_types.as_slice() else {
+        panic!("the public signature carries both borrowed parameters");
+    };
+    assert_ne!(left, right, "each input keeps its own lifetime");
+    assert!(declaration.method_arguments.is_empty());
+    assert!(declaration.source.specialization.is_none());
+    let verdict = judge(Ok(elaboration)).unwrap();
+    let RouteVerdict::Accepted(accepted) = verdict else {
+        panic!("independent mutable inputs must be accepted, got {verdict:?}");
+    };
+    accepted.publish_invocation().unwrap();
+}
+
+#[test]
 fn source_boundary_contract_alternatives_keep_each_actual_argument() {
     for actual in [34603008, 36700160] {
         let source = boundary_source("reaches none", actual).replace(

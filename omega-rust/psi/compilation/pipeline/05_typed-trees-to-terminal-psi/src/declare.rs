@@ -1342,7 +1342,6 @@ pub(crate) fn boundary(
     if !owner.type_parameters.is_empty()
         || !owner.lifetime_parameters.is_empty()
         || !requirement.type_parameters.is_empty()
-        || !requirement.lifetime_parameters.is_empty()
     {
         return Err(Diagnostic::error(
             "boundary declaration needs its complete applied telescope",
@@ -1591,17 +1590,9 @@ pub(crate) fn trait_requirement(
         .state_parameters
         .span(requirement.parameters)
         .ok_or("boundary requirement lost its complete parameter span")?;
-    let type_text = |reference| {
-        typed
-            .type_identity_text(typed.package_qualified_type_identity(reference))
-            .filter(|text| !text.is_empty())
-            .ok_or("boundary signature type has no exact identity")
-    };
-    let parameter_types = formals
-        .iter()
-        .map(|formal| type_text(formal.type_reference))
-        .collect::<Result<Vec<_>, _>>()?;
-    let result_type = type_text(requirement.return_type)?;
+    let (parameter_types, result_type, _) = typed
+        .requirement_definition_types(owner, requirement)
+        .ok_or("boundary requirement has no complete declared signature identity")?;
     let callable = typed.trait_requirement_callable_identity_text(owner, requirement);
     if callable.is_empty() {
         return Err("boundary requirement has no canonical callable identity");

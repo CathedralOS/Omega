@@ -165,6 +165,14 @@ macro_rules! ids {
 }
 
 fn encode_static_header(bytes: &mut Vec<u8>, function: &SelectedFunction) {
+    encode_function_header(bytes, &function.contracts, function.entry_block);
+}
+
+fn encode_function_header(
+    bytes: &mut Vec<u8>,
+    function: &crate::SelectedFunctionContracts,
+    entry_block: crate::SelectedBlockId,
+) {
     bytes.extend_from_slice(b"omega.terminal-selected-instruction-function.v3\0");
     push_encoded(bytes, function.machine.get().to_le_bytes());
     optimization_core::encode_option_u64(
@@ -174,13 +182,22 @@ fn encode_static_header(bytes: &mut Vec<u8>, function: &SelectedFunction) {
     ids!(bytes => function.provenance.operations);
     ids!(bytes => function.provenance.edges);
     contracts::encode_static(bytes, function);
-    push_encoded(bytes, function.entry_block.0.to_le_bytes());
+    push_encoded(bytes, entry_block.0.to_le_bytes());
 }
 
 fn encode_registers_and_trailer(
     bytes: &mut Vec<u8>,
     registers: &[crate::VirtualRegister],
     function: &SelectedFunction,
+) {
+    encode_function_trailer(bytes, registers, &function.contracts, &function.blocks);
+}
+
+fn encode_function_trailer(
+    bytes: &mut Vec<u8>,
+    registers: &[crate::VirtualRegister],
+    function: &crate::SelectedFunctionContracts,
+    blocks: &crate::SelectedBlocks,
 ) {
     for register in registers {
         bytes.push(1);
@@ -189,10 +206,23 @@ fn encode_registers_and_trailer(
     bytes.push(0);
     crate::codec_bytes::encode_len(bytes, function.virtual_registers.len());
     contracts::encode_dynamic(bytes, function);
-    crate::codec_bytes::encode_len(bytes, function.blocks.len());
-    for digest in function.blocks.identity_digests() {
+    crate::codec_bytes::encode_len(bytes, blocks.len());
+    for digest in blocks.identity_digests() {
         bytes.extend_from_slice(&digest);
     }
+}
+
+/// Binds the exact immutable function chunks a physical form retains, using
+/// the same canonical protocol as selected-function publication.
+pub fn selected_function_chunks_identity(
+    contracts: &crate::SelectedFunctionContracts,
+    entry_block: crate::SelectedBlockId,
+    blocks: &crate::SelectedBlocks,
+) -> [u8; 32] {
+    let mut bytes = Vec::new();
+    encode_function_header(&mut bytes, contracts, entry_block);
+    encode_function_trailer(&mut bytes, &contracts.virtual_registers, contracts, blocks);
+    crate::digest_encoder::content_identity(&bytes)
 }
 
 pub(crate) fn selected_function_digest_with_prefix(
@@ -721,7 +751,6 @@ fn encode_u16s(bytes: &mut Vec<u8>, values: impl ExactSizeIterator<Item = u16>) 
 }
 
 mod contracts {
-    use crate::SelectedFunction;
     use crate::codec_bytes::encode_len;
     use crate::{OutgoingArgumentSlotId, SelectedMemoryAccessRole};
 
@@ -761,7 +790,7 @@ mod contracts {
         crate::codec_bytes::push_encoded(bytes, row.alignment.to_le_bytes());
     }
 
-    pub(super) fn encode_static(bytes: &mut Vec<u8>, function: &SelectedFunction) {
+    pub(super) fn encode_static(bytes: &mut Vec<u8>, function: &crate::SelectedFunctionContracts) {
         match &function.structural {
             Some(contract) => {
                 bytes.push(1);
@@ -984,7 +1013,7 @@ mod contracts {
         }
     }
 
-    pub(super) fn encode_dynamic(bytes: &mut Vec<u8>, function: &SelectedFunction) {
+    pub(super) fn encode_dynamic(bytes: &mut Vec<u8>, function: &crate::SelectedFunctionContracts) {
         encode_len(bytes, function.local_storage_slots.len());
         for row in &function.local_storage_slots {
             encode_local_storage_slot(bytes, row);
@@ -992,7 +1021,10 @@ mod contracts {
         encode_boundary_settlements(bytes, function);
     }
 
-    pub(super) fn encode_boundary_settlements(bytes: &mut Vec<u8>, function: &SelectedFunction) {
+    pub(super) fn encode_boundary_settlements(
+        bytes: &mut Vec<u8>,
+        function: &crate::SelectedFunctionContracts,
+    ) {
         encode_len(bytes, function.boundary_settlements.len());
         for row in &function.boundary_settlements {
             crate::codec_bytes::push_encoded(bytes, row.block.0.to_le_bytes());
@@ -1439,18 +1471,20 @@ mod function_digest_tests {
 
     fn function(machine: u64) -> SelectedFunction {
         SelectedFunction {
-            machine: MachineId::new(machine).unwrap(),
-            attachment: None,
-            provenance: Default::default(),
-            structural: None,
-            local_storage_slots: Vec::new(),
-            outgoing_arguments: Vec::new(),
-            calls: Vec::new(),
-            normalized_foreign_calls: Vec::new(),
-            memory_accesses: Vec::new(),
-            boundary_settlements: Vec::new(),
+            contracts: std::sync::Arc::new(crate::SelectedFunctionContracts {
+                machine: MachineId::new(machine).unwrap(),
+                attachment: None,
+                provenance: Default::default(),
+                structural: None,
+                local_storage_slots: Vec::new(),
+                outgoing_arguments: Vec::new(),
+                calls: Vec::new(),
+                normalized_foreign_calls: Vec::new(),
+                memory_accesses: Vec::new(),
+                boundary_settlements: Vec::new(),
+                virtual_registers: Vec::new(),
+            }),
             entry_block: SelectedBlockId(0),
-            virtual_registers: Vec::new(),
             blocks: (Vec::new()).into(),
         }
     }
@@ -1472,6 +1506,95 @@ mod function_digest_tests {
         let mut function = function(2);
         function.entry_block = SelectedBlockId(block);
         function
+    }
+
+    #[test]
+    fn shared_function_chunks_keep_the_pre_split_canonical_identity() {
+        let function = function(1);
+        // Measured from the unchanged fixture at aeedfbe7b9227, before contracts
+        // moved into shared storage. Storage ownership must not change bytes.
+        let expected = "640e588b5b7fb1c09f6e7f53de328ad3e4aac85de0d11ce22ca32bc62c931bb9";
+        assert_eq!(
+            crate::digest_encoder::hex(&super::selected_function_digest(&function)),
+            expected
+        );
+        assert_eq!(
+            crate::digest_encoder::hex(&super::selected_function_chunks_identity(
+                &function.contracts,
+                function.entry_block,
+                &function.blocks
+            )),
+            expected
+        );
+    }
+
+    #[test]
+    fn shared_chunks_match_nonempty_register_contract_and_block_encoding() {
+        let mut populated = function(1);
+        populated.virtual_registers.push(crate::VirtualRegister {
+            id: crate::VirtualRegisterId(0),
+            scalar_type: semantic_vocabulary::ScalarType::Integer(
+                semantic_vocabulary::IntegerType::new(
+                    semantic_vocabulary::IntegerSign::Unsigned,
+                    64,
+                )
+                .unwrap(),
+            ),
+            class: register_model::RegisterClassId(0),
+            origin: crate::VirtualRegisterOrigin::EntryParameter {
+                source_value: semantic_vocabulary::ValueId::new(1).unwrap(),
+                parameter_index: 0,
+            },
+            definition_site: None,
+            entry_fixed_view: None,
+        });
+        populated
+            .local_storage_slots
+            .push(crate::SelectedLocalStorageSlot {
+                id: crate::LocalStorageSlotId::Spill {
+                    register: crate::VirtualRegisterId(0),
+                },
+                byte_size: 8,
+                alignment: 8,
+            });
+        populated.blocks = vec![block(0)].into();
+        let expected = super::selected_function_digest(&populated);
+        assert_ne!(expected, super::selected_function_digest(&function(1)));
+        assert_eq!(
+            super::selected_function_chunks_identity(
+                &populated.contracts,
+                populated.entry_block,
+                &populated.blocks,
+            ),
+            expected,
+        );
+    }
+
+    #[test]
+    fn control_edits_share_contracts_but_contract_edits_detach_them() {
+        let original = function(1);
+        let identity = super::selected_function_digest(&original);
+        let mut changed = original.clone();
+        assert!(std::sync::Arc::ptr_eq(
+            &original.contracts,
+            &changed.contracts
+        ));
+        changed.entry_block = SelectedBlockId(7);
+        assert!(std::sync::Arc::ptr_eq(
+            &original.contracts,
+            &changed.contracts
+        ));
+        changed
+            .provenance
+            .operations
+            .push(semantic_vocabulary::OperationId::new(27).unwrap());
+        assert!(!std::sync::Arc::ptr_eq(
+            &original.contracts,
+            &changed.contracts
+        ));
+        assert!(original.provenance.operations.is_empty());
+        assert_eq!(super::selected_function_digest(&original), identity);
+        assert_ne!(super::selected_function_digest(&changed), identity);
     }
 
     #[test]

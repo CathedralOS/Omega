@@ -866,9 +866,14 @@ pub(super) fn encode(
                     bytes.push(*byte_size);
                     encode_runtime_indices(bytes, indices);
                 }
-                LegalizedScalarInstructionKind::HostedWriteByteI32 { boundary, source } => {
+                LegalizedScalarInstructionKind::HostedWriteByteI32 {
+                    boundary,
+                    execution,
+                    source,
+                } => {
                     bytes.push(11);
                     crate::codec_bytes::push_encoded(bytes, boundary.get().to_le_bytes());
+                    super::calling::encode_boundary_execution_identity(bytes, *execution);
                     crate::codec_bytes::push_encoded(bytes, source.get().to_le_bytes());
                 }
                 LegalizedScalarInstructionKind::StructuralScalarFieldStore {

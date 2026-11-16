@@ -208,12 +208,14 @@ pub(crate) mod scalar_graph {
                         optimized.machine,
                         operation,
                     )? {
-                        target_operations::BoundaryRealization::HostedWriteByteI32(_) => {
-                            LegalizedScalarInstructionKind::HostedWriteByteI32 {
-                                boundary: *boundary,
-                                source: *source,
-                            }
-                        }
+                        (
+                            execution,
+                            target_operations::BoundaryRealization::HostedWriteByteI32(_),
+                        ) => LegalizedScalarInstructionKind::HostedWriteByteI32 {
+                            boundary: *boundary,
+                            execution,
+                            source: *source,
+                        },
                         _ => return Err(Error::custody()),
                     }
                 };
@@ -2741,7 +2743,7 @@ pub(crate) mod scalar_graph {
                             optimized.machine,
                             operation
                         )?,
-                        target_operations::BoundaryRealization::HostedReadByte(_)
+                        (_, target_operations::BoundaryRealization::HostedReadByte(_))
                     ) =>
                     {
                         LegalizedScalarInstructionKind::HostedReadByte {

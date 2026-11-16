@@ -311,7 +311,9 @@ pub(crate) mod callable_identity {
             Ok((bytes, kinds))
         }
 
-        fn requirement_definition_types(
+        /// Normalize a requirement's parameter and result types in one
+        /// signature so every occurrence keeps its declared lifetime.
+        pub fn requirement_definition_types(
             &self,
             owner: &TraitDefinition,
             requirement: &StateSignature,

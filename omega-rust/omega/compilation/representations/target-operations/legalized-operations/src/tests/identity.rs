@@ -890,3 +890,58 @@ fn decomposition_identity_binds_exact_subject_and_keeps_no_result_or_scalar_use(
         assert_identity_drift(identity, &changed);
     }
 }
+
+/// Borrowed-storage layouts and each function's calling contract reach the
+/// plan's identity, so neither can be swapped after the plan is sealed.
+#[test]
+fn borrowed_storage_and_function_abis_bind_identity() {
+    use semantic_vocabulary::CanonicalStructuralPathSegment;
+    let plan = scalar_call_unit_plan();
+    let original = legalized_operation_plan_identity(&plan);
+    let byte = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
+    let layout = |offset: u32| {
+        runtime_abi::NativeBorrowedStorageLayout::new(
+            id(601),
+            8,
+            8,
+            [(
+                vec![CanonicalStructuralPathSegment::Field(id(602))],
+                Vec::new(),
+                offset,
+                byte,
+                byte,
+            )],
+            [],
+            [(Vec::new(), Vec::new(), 1, 7)],
+        )
+    };
+    let mut borrowed = plan.clone();
+    borrowed.borrowed_storage_layouts.push(layout(0));
+    let borrowed_identity = legalized_operation_plan_identity(&borrowed);
+    assert_ne!(borrowed_identity, original);
+    let mut moved = plan.clone();
+    moved.borrowed_storage_layouts.push(layout(1));
+    assert_identity_drift(borrowed_identity, &moved);
+
+    let function = &plan.scalar_functions[0];
+    let abi = crate::LegalizedFunctionAbi {
+        machine: function.machine,
+        call_plan: function.call_plan.clone(),
+        scalar_parameters: Vec::new(),
+        structural_parameters: Vec::new(),
+        scalar: None,
+        mixed_structural_scalar: None,
+    };
+    let mut described = plan.clone();
+    described.function_abis.push(abi.clone());
+    let described_identity = legalized_operation_plan_identity(&described);
+    assert_ne!(described_identity, original);
+    assert_eq!(described.function_abi(function.machine), Some(&abi));
+    let mut scalar = described.clone();
+    scalar.function_abis[0].scalar = Some(target_vocabulary::ScalarFunctionAbi {
+        call_plan: function.call_plan.clone(),
+        parameters: Vec::new(),
+        result: None,
+    });
+    assert_identity_drift(described_identity, &scalar);
+}

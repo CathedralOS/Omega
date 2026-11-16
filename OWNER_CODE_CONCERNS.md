@@ -75,12 +75,12 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-### Unused place-access summaries discard referent effects
-- Category: zombie machinery
-- Where: [call propagation](omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/semantic_analyses.rs#L1289), [analysis registration](omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/analyses.rs#L87)
-- Saw: On `e17077ce417`, known-call propagation reduces each parameter read/write path to the actual argument prefix, dropping `Referent`. An owned local carrier can therefore classify a callee's write through its contained reference as internal and omit it. Repository reference inspection found no production rule requesting or consuming this analysis; its incomplete flag has no readers. The active descriptor solver used by cleanup does retain those effects.
-- Cost: The private catalog advertises incomplete access summaries that cannot support preservation claims. Retire the unused analysis or derive its results from the existing owner-aware descriptor effect solver; appending recursive call paths would introduce an unbounded path fixed point.
-- Reported: 2026-11-15, Codex, while reviewing ordinary owned cleanup call composition.
+### Target validation rejects an executable provider call with two mutable inputs
+- Category: verifying costs more than writing
+- Where: [selected boundary correspondence](omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/native-preparation/src/legalization_scalar_graph.rs#L2407)
+- Saw: A Build-selected provider writes 41 and 43 through two distinct `&mut i64` inputs. On macOS arm64, the caller checks both values and exits 0 in native execution and Psi at `b0780cf0613`. The same source with `TargetOperationCorrespondence` reports `SourceCustodyMismatch` for machine 1, operation 5. The reproduction uses elided lifetimes.
+- Cost: Independent target validation refuses this provider call. Identify the disagreement between the selected requirement and call record, and verify a valid pair of loans and a mismatched provider record.
+- Reported: 2026-11-16, Codex, while qualifying named boundary input lifetimes.
 
 ### Selected-body activation copies retained side records
 - Category: re-deriving
@@ -103,9 +103,9 @@ framework or a list of unimplemented features.
 - Cost: A change to a legalized-operations record changes the selected and allocated forms without passing through stage 03. Move the embedded records to the form that owns them, and let stage 06's output keep its allocation so the frame step reads one form.
 - Reported: 2026-11-16, Claude Code, while removing unused dependencies from stages 04 to 09.
 
-### Image emission still reads the target operations stage 02 keeps as a working form
-- Category: knowledge crossing a boundary
-- Where: [object evidence](omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments.rs), [stage 02 output](omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/lib.rs)
-- Saw: Stage 02 now publishes one execution plan, and the entry, profile, entry calling plan and surviving installations are read from it. `function_fragments.rs` still reads `target_operations()` for evidence checks alongside the abstract program (reference backing geometry, activation residence, access-reference checks), and borrowed-storage layouts still come from `TargetOperationPlan` because `NativeBorrowedStorageLayout` has no identity encoding to seal into the plan.
-- Cost: Stage 02 has to keep exposing two complete graphs. Give borrowed-storage layouts a canonical encoding and move them into the plan, port the evidence checks to plan rows, then stop exposing `target_operations()` outside the stage and its validator.
-- Reported: 2026-11-16, Claude Code, while moving the readers of stage 02's output onto the execution plan.
+### Image emission's replay validators share a file with object production
+- Category: verification placement
+- Where: [function fragments](omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments.rs), [working-program access](omega-rust/omega/compilation/backend/images/image-emission/src/retained_working_program.rs)
+- Saw: Ordinary emission now builds the object from the prepared plan, and only the replay validators read stage 02's working program, through `retained_working_program.rs`. Those validators (`source::admit`, `establish_geometry` and the object replay) still live in the same 26,000-line file as `build_function_fragment_object_artifact`, so `check-boundary` can keep the stage 02 accessor inside that one helper file but cannot tell a production caller of the helper from a validator caller.
+- Cost: A production path could start reading the working program again without any check failing. Move the replay validators into their own module or crate so the boundary rule can name them.
+- Reported: 2026-11-16, Claude Code, while moving image emission off stage 02's working program.

@@ -50,9 +50,8 @@ public boundary trait AppKit {
 // The Objective-C runtime seam (libobjc). Human method names stay here;
 // the exact native symbol locators belong to the SDK Build.
 public boundary trait ObjectiveC {
-    machine get_class<const Count: u64>(name: &[u8; Count]) -> u64
-    requires Count > 0
-    requires name[Count - 1] == 0
+    machine get_class(name: &[u8; 256]) -> u64
+    requires name[255] == 0
     reaches
         NativeCodeExecution + WindowManagement + SurfacePresentation +
         WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
@@ -61,9 +60,8 @@ public boundary trait ObjectiveC {
         DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
         ProcessOutput + ProcessExit
     crashes none;
-    machine register_selector<const Count: u64>(name: &[u8; Count]) -> u64
-    requires Count > 0
-    requires name[Count - 1] == 0
+    machine register_selector(name: &[u8; 256]) -> u64
+    requires name[255] == 0
     reaches none
     crashes none;
     machine send(recv: u64, sel: u64) -> u64
@@ -172,6 +170,36 @@ public boundary trait CoreGraphics {
     crashes none;
 }
 
+// Objective-C reads a class or selector name up to its NUL. Each name is
+// copied into a terminated 256-byte buffer, the one extent the leaves accept,
+// so a leaf never reads past storage it was lent. A name that does not fit
+// looks up nothing and gives 0, which Objective-C uses for "no such name".
+machine macos_objc_class(name: &[u8]) -> u64
+reaches
+    NativeCodeExecution + WindowManagement + SurfacePresentation +
+    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+    ClockObservation + ExecutionDelay + FilesystemContentRead +
+    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+    ProcessOutput + ProcessExit
+invokes ObjectiveC
+{
+    let mut terminated: [u8; 256];
+    let fits: bool = posix_terminated_path(name, &mut terminated[..]);
+    terminated[255] = 0;
+    transition fits { true -> ObjectiveC::get_class(&terminated) _ -> (0) }
+}
+
+machine macos_objc_selector(name: &[u8]) -> u64
+reaches none
+invokes ObjectiveC
+{
+    let mut terminated: [u8; 256];
+    let fits: bool = posix_terminated_path(name, &mut terminated[..]);
+    terminated[255] = 0;
+    transition fits { true -> ObjectiveC::register_selector(&terminated) _ -> (0) }
+}
+
 // Affine owned handle set. Close consumes it; loans do not transfer ownership.
 public data Window {
     window: u64;
@@ -214,99 +242,99 @@ invokes CoreGraphics
     rw = rw - 16.0;
     rh = rh - 39.0;
     let cbuf1: [u8; 14] = "NSApplication\0";
-    let mut cls: u64 = ObjectiveC::get_class(&cbuf1);
+    let mut cls: u64 = macos_objc_class(&cbuf1[..]);
     let cbuf2: [u8; 18] = "sharedApplication\0";
-    let mut sel: u64 = ObjectiveC::register_selector(&cbuf2);
+    let mut sel: u64 = macos_objc_selector(&cbuf2[..]);
     let app: u64 = ObjectiveC::send(cls, sel);
     let cbuf3: [u8; 21] = "setActivationPolicy:\0";
-    sel = ObjectiveC::register_selector(&cbuf3);
+    sel = macos_objc_selector(&cbuf3[..]);
     let mut rc: u64 = ObjectiveC::send_scalar(app, sel, 0);
     let cbuf4: [u8; 9] = "NSWindow\0";
-    cls = ObjectiveC::get_class(&cbuf4);
+    cls = macos_objc_class(&cbuf4[..]);
     let cbuf5: [u8; 6] = "alloc\0";
-    sel = ObjectiveC::register_selector(&cbuf5);
+    sel = macos_objc_selector(&cbuf5[..]);
     let mut tmp: u64 = ObjectiveC::send(cls, sel);
     let cbuf6: [u8; 45] = "initWithContentRect:styleMask:backing:defer:\0";
-    sel = ObjectiveC::register_selector(&cbuf6);
+    sel = macos_objc_selector(&cbuf6[..]);
     let window: u64 = ObjectiveC::send_rect(tmp, sel, rx, ry, rw, rh, 15, 2, 0);
     // Closing hides the window; the explicit owner releases it exactly once.
     let release_on_close_name: [u8; 23] = "setReleasedWhenClosed:\0";
-    sel = ObjectiveC::register_selector(&release_on_close_name);
+    sel = macos_objc_selector(&release_on_close_name[..]);
     rc = ObjectiveC::send_scalar(window, sel, 0);
     let cbuf7: [u8; 12] = "NSImageView\0";
-    cls = ObjectiveC::get_class(&cbuf7);
+    cls = macos_objc_class(&cbuf7[..]);
     let cbuf8: [u8; 6] = "alloc\0";
-    sel = ObjectiveC::register_selector(&cbuf8);
+    sel = macos_objc_selector(&cbuf8[..]);
     tmp = ObjectiveC::send(cls, sel);
     let cbuf9: [u8; 15] = "initWithFrame:\0";
-    sel = ObjectiveC::register_selector(&cbuf9);
+    sel = macos_objc_selector(&cbuf9[..]);
     let view: u64 = ObjectiveC::send_rect(tmp, sel, rx, ry, rw, rh, 0, 0, 0);
     let cbuf10: [u8; 17] = "setImageScaling:\0";
-    sel = ObjectiveC::register_selector(&cbuf10);
+    sel = macos_objc_selector(&cbuf10[..]);
     rc = ObjectiveC::send_scalar(view, sel, 1);
     let cbuf11: [u8; 16] = "setContentView:\0";
-    sel = ObjectiveC::register_selector(&cbuf11);
+    sel = macos_objc_selector(&cbuf11[..]);
     rc = ObjectiveC::send_scalar(window, sel, view);
     let cbuf12: [u8; 8] = "release\0";
-    let relsel: u64 = ObjectiveC::register_selector(&cbuf12);
+    let relsel: u64 = macos_objc_selector(&cbuf12[..]);
     let cbuf13: [u8; 9] = "NSString\0";
-    cls = ObjectiveC::get_class(&cbuf13);
+    cls = macos_objc_class(&cbuf13[..]);
     let cbuf14: [u8; 6] = "alloc\0";
-    sel = ObjectiveC::register_selector(&cbuf14);
+    sel = macos_objc_selector(&cbuf14[..]);
     tmp = ObjectiveC::send(cls, sel);
     let cbuf15: [u8; 20] = "initWithUTF8String:\0";
-    sel = ObjectiveC::register_selector(&cbuf15);
+    sel = macos_objc_selector(&cbuf15[..]);
     tmp = ObjectiveC::send_byte_string<Count>(tmp, sel, title);
     let cbuf16: [u8; 10] = "setTitle:\0";
-    sel = ObjectiveC::register_selector(&cbuf16);
+    sel = macos_objc_selector(&cbuf16[..]);
     rc = ObjectiveC::send_scalar(window, sel, tmp);
     rc = ObjectiveC::send(tmp, relsel);
     let cbuf17: [u8; 7] = "center\0";
-    sel = ObjectiveC::register_selector(&cbuf17);
+    sel = macos_objc_selector(&cbuf17[..]);
     rc = ObjectiveC::send(window, sel);
     let cbuf18: [u8; 22] = "makeKeyAndOrderFront:\0";
-    sel = ObjectiveC::register_selector(&cbuf18);
+    sel = macos_objc_selector(&cbuf18[..]);
     rc = ObjectiveC::send_scalar(window, sel, 0);
     let cbuf19: [u8; 27] = "activateIgnoringOtherApps:\0";
-    sel = ObjectiveC::register_selector(&cbuf19);
+    sel = macos_objc_selector(&cbuf19[..]);
     rc = ObjectiveC::send_scalar(app, sel, 1);
     let finish_name: [u8; 16] = "finishLaunching\0";
-    let finish_selector: u64 = ObjectiveC::register_selector(&finish_name);
+    let finish_selector: u64 = macos_objc_selector(&finish_name[..]);
     rc = ObjectiveC::send(app, finish_selector);
     let stop_name: [u8; 6] = "stop:\0";
-    let stop_selector: u64 = ObjectiveC::register_selector(&stop_name);
+    let stop_selector: u64 = macos_objc_selector(&stop_name[..]);
     let schedule_name: [u8; 39] = "performSelector:withObject:afterDelay:\0";
-    let schedule_selector: u64 = ObjectiveC::register_selector(&schedule_name);
+    let schedule_selector: u64 = macos_objc_selector(&schedule_name[..]);
     ObjectiveC::send_delayed(app, schedule_selector, stop_selector, 0, 0.001);
     let run_name: [u8; 4] = "run\0";
-    let run_selector: u64 = ObjectiveC::register_selector(&run_name);
+    let run_selector: u64 = macos_objc_selector(&run_name[..]);
     rc = ObjectiveC::send(app, run_selector);
     let space: u64 = CoreGraphics::color_space_rgb();
     // Pump scratch, once: the distantPast date, the run-loop-mode NSString, the
     // nextEvent/sendEvent:/isVisible/keyWindow selectors, and the event mask.
     let cbuf20: [u8; 7] = "NSDate\0";
-    cls = ObjectiveC::get_class(&cbuf20);
+    cls = macos_objc_class(&cbuf20[..]);
     let cbuf21: [u8; 12] = "distantPast\0";
-    sel = ObjectiveC::register_selector(&cbuf21);
+    sel = macos_objc_selector(&cbuf21[..]);
     let date: u64 = ObjectiveC::send(cls, sel);
     let cbuf22: [u8; 9] = "NSString\0";
-    cls = ObjectiveC::get_class(&cbuf22);
+    cls = macos_objc_class(&cbuf22[..]);
     let cbuf23: [u8; 6] = "alloc\0";
-    sel = ObjectiveC::register_selector(&cbuf23);
+    sel = macos_objc_selector(&cbuf23[..]);
     tmp = ObjectiveC::send(cls, sel);
     let cbuf24: [u8; 20] = "initWithUTF8String:\0";
-    sel = ObjectiveC::register_selector(&cbuf24);
+    sel = macos_objc_selector(&cbuf24[..]);
     let cbuf25: [u8; 22] = "kCFRunLoopDefaultMode\0";
     let mode: u64 = ObjectiveC::send_string(tmp, sel, &cbuf25);
     let cbuf26: [u8; 48] = "nextEventMatchingMask:untilDate:inMode:dequeue:\0";
-    let psel: u64 = ObjectiveC::register_selector(&cbuf26);
+    let psel: u64 = macos_objc_selector(&cbuf26[..]);
     let mask: u64 = 0xFFFF_FFFF;
     let cbuf27: [u8; 11] = "sendEvent:\0";
-    let dsel: u64 = ObjectiveC::register_selector(&cbuf27);
+    let dsel: u64 = macos_objc_selector(&cbuf27[..]);
     let cbuf28: [u8; 10] = "isVisible\0";
-    let vsel: u64 = ObjectiveC::register_selector(&cbuf28);
+    let vsel: u64 = macos_objc_selector(&cbuf28[..]);
     let cbuf29: [u8; 10] = "keyWindow\0";
-    let ksel: u64 = ObjectiveC::register_selector(&cbuf29);
+    let ksel: u64 = macos_objc_selector(&cbuf29[..]);
     // Open the pool carried between explicit event-pump calls.
     let pool: u64 = ObjectiveC::pool_push();
     Window {
@@ -338,7 +366,7 @@ invokes ObjectiveC
 invokes CoreGraphics
 {
     let close_name: [u8; 6] = "close\0";
-    let close_selector: u64 = ObjectiveC::register_selector(&close_name);
+    let close_selector: u64 = macos_objc_selector(&close_name[..]);
     let mut ignored: u64 = ObjectiveC::send(window.window, close_selector);
     ignored = ObjectiveC::send(window.window, window.relsel);
     ignored = ObjectiveC::send(window.view, window.relsel);
@@ -454,12 +482,12 @@ invokes ObjectiveC invokes MacosImageData invokes MacosImageObjects
         let fbwf: f64 = F64::from_u32(source_width);
         let fbhf: f64 = F64::from_u32(source_height);
         let cbuf30: [u8; 8] = "NSImage\0";
-        let cls: u64 = ObjectiveC::get_class(&cbuf30);
+        let cls: u64 = macos_objc_class(&cbuf30[..]);
         let cbuf31: [u8; 6] = "alloc\0";
-        let mut sel: u64 = ObjectiveC::register_selector(&cbuf31);
+        let mut sel: u64 = macos_objc_selector(&cbuf31[..]);
         let tmp: u64 = ObjectiveC::send(cls, sel);
         let cbuf32: [u8; 22] = "initWithCGImage:size:\0";
-        sel = ObjectiveC::register_selector(&cbuf32);
+        sel = macos_objc_selector(&cbuf32[..]);
         let nsimg: u64 = ObjectiveC::send_image_size(tmp, sel, cgimg, fbwf, fbhf);
         transition nsimg != 0 {
             true -> display(window_state, source_height, cgimg, nsimg)
@@ -480,7 +508,7 @@ invokes ObjectiveC invokes MacosImageData invokes MacosImageObjects
     invokes ObjectiveC invokes MacosImageObjects
     {
         let cbuf33: [u8; 10] = "setImage:\0";
-        let sel: u64 = ObjectiveC::register_selector(&cbuf33);
+        let sel: u64 = macos_objc_selector(&cbuf33[..]);
         let rc: u64 = ObjectiveC::send_scalar(window_state.view, sel, nsimg);
         // NSImage owns its image backing and setImage: retains the NSImage.
         // Drop our native image and NSImage references; no pixel loan survives.
