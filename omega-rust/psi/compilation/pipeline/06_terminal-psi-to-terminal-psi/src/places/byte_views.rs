@@ -74,6 +74,95 @@ impl<'a> Storage<'a> {
         Ok(stable.then_some(Proposition::Equal(result, subject)))
     }
 
+    /// A byte read instantiates only elementwise consequences of its source
+    /// predicate. UTF-8 alone supplies no bound of 127 on an individual byte.
+    pub(super) fn byte_read_predicate_premises(
+        &self,
+        operation: &Operation,
+    ) -> Checked<Vec<Proposition>> {
+        use semantic_vocabulary::{ByteSequencePredicate, IntegerSign, IntegerType, IntegerValue};
+        let source = match &operation.kind {
+            OperationKind::ByteSequenceRead { source, .. } => {
+                StructuralArgument::whole(*source, StructuralAccess::SharedBorrow)
+            }
+            OperationKind::StructuralByteSequenceFieldRead {
+                source,
+                path,
+                field,
+                ..
+            } => {
+                let mut path = path.clone();
+                let root = self.root_type(*source, Construct::Operation(operation.id))?;
+                let declaration = terminal_semantics::projected_field_declaration(
+                    self.types.iter(),
+                    root,
+                    &path,
+                    *field,
+                )
+                .ok_or_else(|| {
+                    self.foreign(
+                        Construct::Operation(operation.id),
+                        "a byte read names no declared field",
+                    )
+                })?;
+                path.push(StructuralPathSegment::Field(declaration.identity));
+                StructuralArgument {
+                    place: *source,
+                    path,
+                    access: StructuralAccess::SharedBorrow,
+                }
+            }
+            _ => return Ok(Vec::new()),
+        };
+        let concerns = Construct::Operation(operation.id);
+        let byte = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 is valid");
+        let result = operation
+            .result
+            .scalar_ref()
+            .ok_or_else(|| self.foreign(concerns, "a byte read has no scalar result"))?;
+        if result.scalar_type != ScalarType::Integer(byte) {
+            return Err(self.foreign(concerns, "a byte read has another result carrier"));
+        }
+        let actual = self.argument(&source, concerns)?;
+        let mut premises = Vec::new();
+        for (predicate, bound, lower) in [
+            (ByteSequencePredicate::AsciiOnly, 127u8, false),
+            (ByteSequencePredicate::NoNul, 1u8, true),
+        ] {
+            let condition = match self.byte_source(predicate, &actual, concerns) {
+                Ok(term) => term,
+                Err(crate::Unbound::Refused(refused)) => return Err(refused),
+                Err(_) => {
+                    let mut required = terminal_psi::ByteSequencePredicateSet::EMPTY;
+                    required.insert(predicate);
+                    if !terminal_semantics::byte_sequence_argument_predicates(
+                        self.module,
+                        self.lowered,
+                        &source,
+                    )
+                    .is_some_and(|known| known.implies(required))
+                    {
+                        continue;
+                    }
+                    ScalarTerm::Boolean(true)
+                }
+            };
+            let read = ScalarTerm::value(result.id, result.scalar_type);
+            let limit = ScalarTerm::integer(byte, IntegerValue::Unsigned(u128::from(bound)))
+                .expect("a byte bound is representable");
+            let consequence = if lower {
+                Proposition::LessOrEqual(limit, read)
+            } else {
+                Proposition::LessOrEqual(read, limit)
+            };
+            premises.push(Proposition::Implication {
+                premise: Box::new(Proposition::Equal(condition, ScalarTerm::Boolean(true))),
+                conclusion: Box::new(consequence),
+            });
+        }
+        Ok(premises)
+    }
+
     fn descriptor_access(
         &self,
         root: PlaceId,

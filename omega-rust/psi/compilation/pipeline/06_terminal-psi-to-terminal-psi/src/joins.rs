@@ -914,14 +914,15 @@ pub(crate) fn arrival_goal<'a>(
         );
         refused
     };
-    let stated = crate::substitute(predicate, &mut bindings).map_err(explain)?;
+    let stated = crate::sufficient_goal(predicate, &mut bindings).map_err(explain)?;
     // The original contract remains an arrival goal after its header's
     // storage observations have been stated over exact logical values.
     let original = invariants
         .iter()
         .find(|row| row.machine == id && row.header == target);
     if let Some(original) = original {
-        let original = crate::substitute(&original.predicate, &mut bindings).map_err(explain)?;
+        let original =
+            crate::sufficient_goal(&original.predicate, &mut bindings).map_err(explain)?;
         Ok(connective(vec![stated, original], true))
     } else {
         Ok(stated)

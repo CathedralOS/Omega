@@ -327,6 +327,8 @@ pub(crate) struct Prover<'a> {
     axioms: &'a [Proposition],
     values: &'a dyn ProofValues,
     facts: Vec<Fact>,
+    /// Actual implication facts, prepared once for goal-directed elimination.
+    implications: Vec<usize>,
     float_integer_equalities: float_integer::Equalities,
     /// Checked definitions for transport: Boolean values, literals, exact
     /// initial-content aliases, and semantic integer expressions retaining
@@ -565,6 +567,13 @@ impl<'a> Prover<'a> {
             arrival_equations,
             arrival_definitions,
         } = crate::known::Known::new(context, assumptions, axioms, values);
+        let implications = facts
+            .iter()
+            .enumerate()
+            .filter_map(|(index, fact)| {
+                matches!(fact.proposition, Proposition::Implication { .. }).then_some(index)
+            })
+            .collect();
         let float_integer_equalities = float_integer::Equalities::new(&facts);
         let transport = crate::known::TransportInputs::new(equations.len());
         let bounds = definitions.map(|_, _| [Slot::Unknown, Slot::Unknown]);
@@ -575,6 +584,7 @@ impl<'a> Prover<'a> {
             axioms,
             values,
             facts,
+            implications,
             float_integer_equalities,
             equations,
             definitions,
@@ -1252,6 +1262,9 @@ impl<'a> Prover<'a> {
         if structural.is_ok() {
             return structural;
         }
+        if let Some(proof) = self.by_implication(goal) {
+            return Ok(proof);
+        }
         self.by_transport(goal)
             .ok_or(structural.err().unwrap_or("no proof"))
     }
@@ -1324,11 +1337,6 @@ impl<'a> Prover<'a> {
                     return Ok(flipped);
                 }
                 if let Some(proof) = self.closed(goal.clone()) {
-                    return Ok(proof);
-                }
-                if byte_predicate_goal(left, right)
-                    && let Some(proof) = self.by_byte_implication(goal)
-                {
                     return Ok(proof);
                 }
                 if !matches!(left.scalar_type(), ScalarType::Integer(_)) {
@@ -1418,8 +1426,9 @@ impl<'a> Prover<'a> {
         }
     }
 
-    fn by_byte_implication(&mut self, goal: &Proposition) -> Option<ProofNode> {
-        for index in 0..self.facts.len() {
+    fn by_implication(&mut self, goal: &Proposition) -> Option<ProofNode> {
+        for position in 0..self.implications.len() {
+            let index = self.implications[position];
             let Proposition::Implication {
                 premise,
                 conclusion,
@@ -1442,11 +1451,12 @@ impl<'a> Prover<'a> {
                     premise: Box::new(premise),
                 },
             );
-            return if result.conclusion == *goal {
-                Some(result)
-            } else {
-                flip(result).ok()
-            };
+            if result.conclusion == *goal {
+                return Some(result);
+            }
+            if let Ok(flipped) = flip(result) {
+                return Some(flipped);
+            }
         }
         None
     }

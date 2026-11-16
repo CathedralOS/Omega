@@ -658,3 +658,44 @@ fn bounded_concat_keeps_its_original_room_a1_execution_oracle() {
     );
     execute_observed(accepted);
 }
+
+#[test]
+fn an_indexed_store_proves_both_prior_and_replacement_byte_contents() {
+    let positive = r#"
+use omega::language::core::byte_observation;
+domain [u8; 2]::Ascii requires byte_observation::ascii_only(&self[..]);
+machine put(bytes: &mut [u8; 2] in Ascii, index: u64, value: u8)
+requires index < 2, value <= 127u8
+{ bytes[index] = value; }
+machine main() crashes Trap {
+    let mut bytes: [u8; 2] in Ascii = [65u8, 90u8] as +Ascii;
+    put(&mut bytes, 1, 66u8);
+    transition bytes[0] == 65u8 && bytes[1] == 66u8 {
+        true -> {} false -> bad()
+    }
+    machine bad() crashes Trap { crash Trap; }
+}
+"#;
+    let mut checked = observed_program(positive);
+    let accepted = match checked.remove(0) {
+        Ok(crate::RouteVerdict::Accepted(accepted)) => accepted,
+        other => panic!("an indexed store must preserve the proved byte bound: {other:?}"),
+    };
+    execute_observed(accepted);
+    for negative in [
+        positive.replace("index < 2, value <= 127u8", "index < 2"),
+        positive.replace(
+            "{ bytes[index] = value; }",
+            "{ bytes[0] = 255u8; bytes[index] = value; }",
+        ),
+    ] {
+        let verdicts = observed_program(&negative);
+        assert!(verdicts.iter().any(|verdict| matches!(verdict,
+            Ok(crate::RouteVerdict::Rejected { formations, violations, unproved, unestablished, conflicts, exceeded })
+                if formations.is_empty() && violations.is_empty() && unestablished.is_empty()
+                    && conflicts.is_empty() && exceeded.is_empty()
+                    && unproved.iter().any(|failure| matches!(failure.kind,
+                        terminal_check_tables::obligations::ObligationKind::DataDomain { .. }))
+        )), "a missing replacement bound or invalid prior cell must not restore the array: {verdicts:?}");
+    }
+}

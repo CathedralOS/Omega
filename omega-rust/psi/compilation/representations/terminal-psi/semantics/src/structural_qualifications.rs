@@ -359,6 +359,17 @@ impl<'a> DefaultRequirements<'a> {
         Ok(result)
     }
 
+    /// The complete declared defaults at one actual storage occurrence.
+    /// These select obligations; callers must still check that the occurrence
+    /// is initialized and outside every outstanding restoration window.
+    pub fn storage(
+        &self,
+        root: PlaceId,
+        path: &[StructuralPathSegment],
+    ) -> Judged<Vec<DefaultRequirement>> {
+        self.at(root, path, self.carrier(root, path)?)
+    }
+
     /// Every clause used for snapshot demand, including nested type defaults.
     /// This inventory supplies no assumptions about those contents.
     pub fn declared(&self) -> Judged<Vec<DefaultRequirement>> {

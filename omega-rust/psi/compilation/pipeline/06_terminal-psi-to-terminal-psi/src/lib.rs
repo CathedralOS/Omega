@@ -1616,6 +1616,7 @@ impl Unbound {
 
 pub(crate) use terminal_semantics::substitution::clauses::{
     ClauseBindings as Bindings, substitute_clause as substitute, substitute_clause_term as bound,
+    substitute_sufficient_clause as sufficient_goal,
 };
 
 impl From<&'static str> for Unbound {
@@ -1695,6 +1696,18 @@ impl Bindings for ErasedTerms<'_> {
         Ok(supplied.clone())
     }
 
+    fn value_alternatives(
+        &mut self,
+        id: ValueId,
+        scalar_type: ScalarType,
+    ) -> Result<Vec<ScalarTerm>, Unbound> {
+        if self.terms.iter().any(|(formal, _)| *formal == id) {
+            self.value(id, scalar_type).map(|value| vec![value])
+        } else {
+            self.runtime.value_alternatives(id, scalar_type)
+        }
+    }
+
     fn field(
         &mut self,
         version: semantic_vocabulary::ContentPlaceVersion,
@@ -1703,6 +1716,17 @@ impl Bindings for ErasedTerms<'_> {
         scalar_type: ScalarType,
     ) -> Result<ScalarTerm, Unbound> {
         self.runtime.field(version, root, path, scalar_type)
+    }
+
+    fn field_alternatives(
+        &mut self,
+        version: semantic_vocabulary::ContentPlaceVersion,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+        scalar_type: ScalarType,
+    ) -> Result<Vec<ScalarTerm>, Unbound> {
+        self.runtime
+            .field_alternatives(version, root, path, scalar_type)
     }
 
     fn extent(
@@ -1929,7 +1953,7 @@ fn stated_goal<'a>(
             // record formal is what that field of the record actual holds
             // when the call is made.
             let over_actuals = |runtime: &mut dyn Bindings<Error = Unbound>| {
-                substitute(
+                sufficient_goal(
                     clause,
                     &mut ErasedTerms {
                         terms: &erased,
@@ -1977,7 +2001,7 @@ fn stated_goal<'a>(
                         "machine has no such ensures clause",
                     )
                 })?;
-            substitute(
+            sufficient_goal(
                 &clause.proposition,
                 &mut storage.at_return(references, tables, exit, concerns)?,
             )

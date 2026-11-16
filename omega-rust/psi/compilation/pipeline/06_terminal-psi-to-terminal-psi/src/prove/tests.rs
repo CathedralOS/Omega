@@ -759,3 +759,56 @@ fn compound_constant_offsets_tighten_literal_and_chained_bounds_without_poisonin
     )
     .unwrap();
 }
+
+#[test]
+fn numeric_conclusions_use_checked_implications_and_keep_their_premises() {
+    let byte = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+    let mut values = IdTable::default();
+    let condition = values.push(ValueRow {
+        scalar_type: ScalarType::Boolean,
+        origin: ValueOrigin::MachineParameter { position: 0 },
+        rigid: None,
+    });
+    let read = values.push(ValueRow {
+        scalar_type: ScalarType::Integer(byte),
+        origin: ValueOrigin::MachineParameter { position: 1 },
+        rigid: None,
+    });
+    let context =
+        PropositionContext::from_value_types(values.iter().map(|(id, row)| (id, row.scalar_type)))
+            .unwrap();
+    let premise = Proposition::Equal(
+        ScalarTerm::value(condition, ScalarType::Boolean),
+        ScalarTerm::Boolean(true),
+    );
+    let goal = Proposition::LessOrEqual(
+        ScalarTerm::value(read, ScalarType::Integer(byte)),
+        ScalarTerm::integer(byte, IntegerValue::Unsigned(127)).unwrap(),
+    );
+    let implication = Proposition::Implication {
+        premise: Box::new(premise.clone()),
+        conclusion: Box::new(goal.clone()),
+    };
+    let assumptions = [premise.clone(), implication.clone()];
+    let mut activity = ProofSearchActivity::default();
+    let proof = Prover::new(&context, &assumptions, &[], &values, &mut activity)
+        .prove(&goal)
+        .unwrap();
+    let accepted =
+        proof_admission::accept_certificate(&context, &goal, &assumptions, &[], &proof).unwrap();
+    assert_eq!(accepted.assumptions.len(), 2);
+    for missing in [
+        vec![premise],
+        vec![implication],
+        vec![Proposition::Implication {
+            premise: Box::new(goal.clone()),
+            conclusion: Box::new(goal.clone()),
+        }],
+    ] {
+        assert!(
+            Prover::new(&context, &missing, &[], &values, &mut activity)
+                .prove(&goal)
+                .is_err()
+        );
+    }
+}

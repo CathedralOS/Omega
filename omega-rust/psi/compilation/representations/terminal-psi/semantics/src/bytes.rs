@@ -3,6 +3,8 @@ Semantic judgments for byte-sequence carriers, byte-view operations, and little-
 byte-window reads and stores.
 */
 
+mod fixed_arrays;
+
 pub(crate) mod operation_bounds {
     use crate::{OperationSemanticError, OperationSemanticTag, ValueTypes};
     use semantic_vocabulary::{
@@ -597,6 +599,10 @@ pub(crate) mod byte_sequence_predicates {
         if source.access == StructuralAccess::WriteOnlyBorrow {
             return None;
         }
+        if let Some(predicates) = super::fixed_arrays::argument_predicates(module, machine, source)
+        {
+            return Some(predicates);
+        }
         if source.path.is_empty() {
             return byte_sequence_source_predicates(module, machine, source.place);
         }
@@ -1051,6 +1057,23 @@ pub(crate) mod byte_sequence_predicates {
                     if result.place != source || result.structural_type != structural_type {
                         return None;
                     }
+                    if let OperationKind::EstablishElementView {
+                        source: backing,
+                        region: terminal_psi::ElementViewRegion::WholeCollection,
+                        ..
+                    } = &operation.kind
+                        && backing.access == StructuralAccess::SharedBorrow
+                        && result.multiplicity == StructuralMultiplicity::Unrestricted
+                        && result.qualifications.is_empty()
+                        && result.projected_qualifications.is_empty()
+                        && result.qualification_establishments.is_empty()
+                        && result.claims.is_empty()
+                        && module
+                            .structural_type(structural_type)
+                            .is_some_and(|row| row.shape.is_shared_readable_byte_view())
+                    {
+                        return super::fixed_arrays::argument_predicates(module, machine, backing);
+                    }
                     if let OperationKind::ByteSequenceSubslice {
                         source: backing, ..
                     } = &operation.kind
@@ -1067,20 +1090,14 @@ pub(crate) mod byte_sequence_predicates {
                         {
                             return None;
                         }
-                        let predicates = if backing.path.is_empty() {
+                        let predicates = if let Some(predicates) =
+                            super::fixed_arrays::argument_predicates(module, machine, backing)
+                        {
+                            predicates
+                        } else if backing.path.is_empty() {
                             source_predicates(module, machine, backing.place, work, memo)?
                         } else {
-                            let (root, access) = byte_field_root(module, machine, backing.place)?;
-                            if access == StructuralAccess::WriteOnlyBorrow
-                                || backing.access == StructuralAccess::WriteOnlyBorrow
-                            {
-                                return None;
-                            }
-                            shared_byte_field_copy_predicates(
-                                module.structural_types.iter(),
-                                root,
-                                &backing.path,
-                            )?
+                            byte_sequence_argument_predicates(module, machine, backing)?
                         };
                         return Some(if byte_subslice_is_whole(machine, operation) {
                             predicates
