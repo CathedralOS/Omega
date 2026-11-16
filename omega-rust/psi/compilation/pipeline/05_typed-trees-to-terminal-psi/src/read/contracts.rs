@@ -655,6 +655,23 @@ impl Program<'_> {
                 "byte predicate requires a byte view or fixed u8 array",
             ));
         }
+        // The clause formed this explicit whole range using the actual
+        // carrier. Retain its ordinary operator choice under the declaration
+        // that authored the clause, even though the canonical atom needs no
+        // runtime descriptor or loan of a logical subject.
+        if let ExpressionNode::Borrow(borrow) = self.typed.expression_table.expression(argument)
+            && let ExpressionNode::Indexed(indexed) =
+                self.typed.expression_table.expression(borrow.target)
+            && matches!(
+                self.typed.expression_table.expression(indexed.index),
+                ExpressionNode::Range(_)
+            )
+        {
+            let target = borrow.target;
+            let [collection, count] = self.collection_index_operand_types(id, row);
+            let owner = self.contract_operator_owner(id, scope)?;
+            self.complete_builtin_operator(id, owner, target, &[collection, count, count])?;
+        }
         Ok((root, path, value_type))
     }
 
@@ -1656,7 +1673,7 @@ impl Program<'_> {
     /// Terminal Psi gives a field of storage: the root and the dense field
     /// and case identities down to the field.
     fn field_term(
-        &self,
+        &mut self,
         id: MachineId,
         scope: &ClauseScope<'_>,
         expression: ExpressionHandle,
@@ -1700,7 +1717,7 @@ impl Program<'_> {
     /// Every step is resolved from a symbol; a name or member the typed
     /// trees hold only as a spelling is refused.
     pub(super) fn projected(
-        &self,
+        &mut self,
         id: MachineId,
         scope: &ClauseScope<'_>,
         expression: ExpressionHandle,
@@ -1844,6 +1861,9 @@ impl Program<'_> {
                 // and cases. Storage substitution must follow this exact leaf.
                 path.push(CanonicalStructuralPathSegment::FixedIndex(position));
                 let value_type = self.storage_value_type(id, element, qualification)?;
+                let operands = self.collection_index_operand_types(id, array.record());
+                let owner = self.contract_operator_owner(id, scope)?;
+                self.complete_builtin_operator(id, owner, expression, &operands)?;
                 return Ok(Some((root, path, value_type)));
             }
             ExpressionNode::TypeExpression(_)

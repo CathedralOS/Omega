@@ -703,6 +703,7 @@ impl Program<'_> {
                 ));
             }
             let scope = ClauseScope {
+                owner: predicate.owner,
                 result: ResultTerm::Absent("result in a domain predicate"),
                 subject: Some(DataSubject {
                     value_type: plain,

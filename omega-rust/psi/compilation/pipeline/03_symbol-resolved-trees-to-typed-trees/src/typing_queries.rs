@@ -1205,16 +1205,11 @@ pub(crate) fn defer_unbound_calls(
 /// acquired a primitive byte meaning. The ledger is output of that formation,
 /// never the reason an unresolved call is treated as a primitive.
 fn complete_byte_domain_selection(
-    program: &mut TypedTrees,
+    program: &TypedTrees,
     expression: ExpressionHandle,
     predicate: typed_trees::byte_predicates::ByteSequencePredicate,
 ) -> Result<(), Diagnostic> {
-    use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic as Intrinsic;
-    use typed_trees::{
-        AuthoredDeclarationSelectionKind as Kind,
-        AuthoredDeclarationSelectionLateBinding as Binding,
-        AuthoredDeclarationSelectionTarget as Target,
-    };
+    use typed_trees::AuthoredDeclarationSelectionKind as Kind;
     let span = program.expression_table.source_span(expression);
     let fail = |reason: &str| {
         Diagnostic::error(format!(
@@ -1248,26 +1243,20 @@ fn complete_byte_domain_selection(
     if call.authored_call_selection != occurrence {
         return Err(fail("does not retain its own attached Call occurrence"));
     }
-    // A generated clause without an authored call has no occurrence to mint.
-    let Some(occurrence) = occurrence else {
-        return Ok(());
+    // The primitive meaning belongs to the authenticated declaration, not an
+    // unbound spelling. The ordinary resolved Call row remains its custody;
+    // rewriting it to a synthetic intrinsic would erase the actual selection.
+    let Some((actual, _)) = typed_trees::byte_predicates::byte_predicate_call(program, expression)
+    else {
+        return Err(fail("changes its selected primitive or declaration"));
     };
-    let row = program
-        .authored_declaration_selections()
-        .get(occurrence)
-        .ok_or_else(|| fail("lost its own authored occurrence"))?;
-    let expected = Intrinsic::ByteSequencePredicate(predicate);
-    match row.target() {
-        Target::Intrinsic(actual) if actual == expected => Ok(()),
-        Target::LateBound(Binding::CheckedCall) => program
-            .finalize_authored_intrinsic_selection(occurrence, Binding::CheckedCall, expected)
-            .map_err(|error| {
-                fail(&format!(
-                    "could not complete its primitive selection: {error:?}"
-                ))
-            }),
-        _ => Err(fail("changes its selected primitive or declaration")),
+    if actual != predicate {
+        return Err(fail("changes its selected primitive or declaration"));
     }
+    // byte_predicate_call checked this exact occurrence's Resolved declaration
+    // against the sealed Core schema. Unknown or late-bound rows cannot acquire
+    // primitive meaning here; ordinary selection must complete them first.
+    Ok(())
 }
 
 /// A call typing left without a declared target, written `Sum::Case(..)`:
@@ -2032,17 +2021,52 @@ mod tests {
     fn primitive_byte_domain_calls_keep_their_exact_builtin_meaning() {
         use typed_trees::byte_predicates::{ByteSequencePredicate, primitive_byte_slice_domain};
         use typed_trees::domain::ProofFact;
-        use typed_trees::expression::{StaticMachineArgument, TableCallExpression};
+        use typed_trees::expression::TableCallExpression;
 
-        fn typed(source: &str) -> TypedTrees {
-            let tokens = source_files_to_tokens::Lexer::new(source)
-                .tokenize()
-                .unwrap();
-            let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-            let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-                syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax),
-            )
-            .unwrap();
+        fn typed(text: &str, core: bool) -> TypedTrees {
+            let mut sources = source::SourceMap::default();
+            let source = sources
+                .add_with_metadata(
+                    "package/main.omg".into(),
+                    text.to_owned(),
+                    "package".into(),
+                    None,
+                    source::SourceOrigin::User,
+                )
+                .source_id;
+            let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
+            let mut syntax =
+                tokens_to_syntax_trees::parse_syntax_trees_with_id(source, &tokens).unwrap();
+            let mut bindings = Vec::new();
+            if core {
+                let text = include_str!(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/../../../../../source/library/core/byte_observation.omg"
+                ));
+                let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                    .join("../../../../../source/library/core");
+                let declaration = sources
+                    .add_with_metadata(
+                        root.join("byte_observation.omg"),
+                        text.to_owned(),
+                        root,
+                        None,
+                        source::SourceOrigin::Toolchain,
+                    )
+                    .source_id;
+                let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
+                tokens_to_syntax_trees::parse(&mut syntax, declaration, &tokens).unwrap();
+                bindings.push(symbols::SourceScopedTopLevelBinding::logical_module_import(
+                    source,
+                    declaration,
+                    "omega::language::core::byte_observation",
+                    3,
+                ));
+            }
+            let mut request = syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax);
+            request.sources = Some(std::sync::Arc::new(sources));
+            request.top_level_bindings = bindings;
+            let resolved = syntax_trees_to_symbol_resolved_trees::resolve(request).unwrap();
             crate::lower_symbol_resolved_trees(&resolved).unwrap()
         }
 
@@ -2052,80 +2076,65 @@ mod tests {
         ) -> &mut TableCallExpression {
             let ExpressionNode::Call(call) = program.expression_table.expression_mut(expression)
             else {
-                panic!("the domain retains its actual predicate call")
+                panic!("the domain retains its actual call")
             };
             call
         }
 
-        fn references(program: &TypedTrees, expression: ExpressionHandle) -> Vec<SymbolHandle> {
-            #[derive(Default)]
-            struct References(Vec<SymbolHandle>);
-            impl Extend<SymbolHandle> for References {
-                fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, symbols: T) {
-                    self.0.extend(symbols);
-                }
-            }
-            impl typed_trees::references::TypedReferences for References {}
-            let mut references = References::default();
-            typed_trees::references::visit_expression(program, &mut references, expression);
-            references.0
-        }
-
         let program = typed(
-            "public domain [u8]::Path requires no_nul(self);\ndomain [u8]::Ascii requires ascii_only(self);",
+            "use omega::language::core::byte_observation;\npublic domain [u8]::Path requires byte_observation::no_nul(&self[..]);\ndomain [u8]::Ascii requires byte_observation::ascii_only(&self[..]);",
+            true,
         );
         let domain = &program.domain_definitions()[0];
         let symbol = domain.symbol;
-        let target_type = domain.target_type;
         let Some([ProofFact::Expression(expression)]) =
             program.proof_facts.span_or_empty(domain.facts).as_array()
         else {
-            panic!("the domain retains one authored clause")
+            panic!("one authored predicate")
         };
         let expression = *expression;
-        let (_, argument) = typed_trees::byte_predicates::byte_predicate_call(&program, expression)
-            .expect("the primitive retains its exact subject");
         assert_eq!(
             primitive_byte_slice_domain(&program, symbol),
             Some(ByteSequencePredicate::NoNul)
         );
-        assert!(deferred(&program).unwrap().is_empty());
-        assert!(
-            !references(&program, expression).contains(&SymbolHandle::invalid()),
-            "the exact completed primitive has no absent declaration dependency"
-        );
-
-        let original = program.expression_table.call_node(expression).unwrap();
+        let original = program
+            .expression_table
+            .call_node(expression)
+            .unwrap()
+            .clone();
         let occurrence = original
             .authored_call_selection
-            .expect("the source call keeps its own occurrence");
-        assert!(
-            program
-                .expression_table
-                .authored_selection_occurrences(expression)
-                .any(|attached| attached == occurrence)
-        );
+            .expect("actual authored Call");
+        let selected = program
+            .authored_declaration_selections()
+            .get(occurrence)
+            .unwrap()
+            .target();
+        assert!(matches!(
+            selected,
+            typed_trees::AuthoredDeclarationSelectionTarget::Resolved(_)
+        ));
+        assert!(deferred(&program).unwrap().is_empty());
+        let completed = program.clone();
+        complete_byte_domain_selection(&completed, expression, ByteSequencePredicate::NoNul)
+            .unwrap();
         assert_eq!(
-            program
+            completed
                 .authored_declaration_selections()
                 .get(occurrence)
                 .unwrap()
                 .target(),
-            typed_trees::AuthoredDeclarationSelectionTarget::Intrinsic(
-                language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic::ByteSequencePredicate(
-                    ByteSequencePredicate::NoNul
-                )
-            )
+            selected,
+            "a genuine declaration keeps its ordinary resolved custody"
         );
-
-        let mut missing = program.clone();
-        call_mut(&mut missing, expression).authored_call_selection = None;
-        assert!(references(&missing, expression).contains(&SymbolHandle::invalid()));
         assert!(
-            deferred(&missing)
-                .unwrap_err()
-                .message
-                .contains("own attached Call occurrence")
+            complete_byte_domain_selection(
+                &completed,
+                expression,
+                ByteSequencePredicate::AsciiOnly
+            )
+            .is_err(),
+            "the authenticated no-nul observation cannot become ASCII"
         );
 
         let other_domain = &program.domain_definitions()[1];
@@ -2134,38 +2143,32 @@ mod tests {
             .span_or_empty(other_domain.facts)
             .as_array()
         else {
-            panic!("the sibling domain retains its own authored clause")
+            panic!("one sibling predicate")
         };
         let other = program
             .expression_table
             .call_node(*other_expression)
-            .unwrap()
-            .authored_call_selection
-            .expect("the sibling call retains its actual source occurrence");
-        assert_ne!(other, occurrence);
-        let mut wrong_occurrence = program.clone();
-        call_mut(&mut wrong_occurrence, expression).authored_call_selection = Some(other);
-        assert!(references(&wrong_occurrence, expression).contains(&SymbolHandle::invalid()));
+            .unwrap();
+        let mut wrong = program.clone();
+        call_mut(&mut wrong, expression).target_symbol = other.target_symbol;
+        assert_eq!(primitive_byte_slice_domain(&wrong, symbol), None);
         assert!(
-            deferred(&wrong_occurrence)
-                .unwrap_err()
-                .message
-                .contains("own attached Call occurrence")
+            complete_byte_domain_selection(&wrong, expression, ByteSequencePredicate::NoNul)
+                .is_err()
         );
-
-        let mut changed_primitive = program.clone();
-        call_mut(&mut changed_primitive, expression).target =
-            typed_trees::name::Identifier::generated("ascii_only");
-        assert!(references(&changed_primitive, expression).contains(&SymbolHandle::invalid()));
-        assert!(
-            deferred(&changed_primitive)
-                .unwrap_err()
-                .message
-                .contains("changes its selected primitive or declaration")
-        );
+        for attached in [None, other.authored_call_selection] {
+            let mut wrong = program.clone();
+            call_mut(&mut wrong, expression).authored_call_selection = attached;
+            assert!(
+                complete_byte_domain_selection(&wrong, expression, ByteSequencePredicate::NoNul)
+                    .unwrap_err()
+                    .message
+                    .contains("own attached Call occurrence")
+            );
+        }
 
         for (index, generation) in [(0, 1), (1, 0)] {
-            for malformed_call in [
+            for malformed in [
                 TableCallExpression {
                     target_symbol: SymbolHandle::from_parts(index, generation),
                     ..original.clone()
@@ -2195,124 +2198,103 @@ mod tests {
                     ..original.clone()
                 },
             ] {
-                let mut malformed = program.clone();
-                let target = malformed_call.target_symbol;
-                *call_mut(&mut malformed, expression) = malformed_call;
+                let mut wrong = program.clone();
+                *call_mut(&mut wrong, expression) = malformed;
                 assert_eq!(
-                    primitive_byte_slice_domain(&malformed, symbol),
+                    primitive_byte_slice_domain(&wrong, symbol),
                     None,
-                    "a malformed optional handle is present metadata, not exact absence"
+                    "present malformed metadata is not exact absence"
                 );
-                if target != SymbolHandle::invalid() {
-                    assert!(references(&malformed, expression).contains(&target));
-                }
+                assert!(
+                    complete_byte_domain_selection(
+                        &wrong,
+                        expression,
+                        ByteSequencePredicate::NoNul
+                    )
+                    .is_err()
+                );
             }
         }
-
         let mut computed = program.clone();
         let callee = computed
             .expression_table
             .insert(ExpressionNode::Boolean(true));
-        for callee in [
-            callee,
-            ExpressionHandle::from_parts(callee.arena_index(), callee.generation() + 1),
-            ExpressionHandle::from_parts(0, 1),
-            ExpressionHandle::invalid(),
-        ] {
-            call_mut(&mut computed, expression).runtime_call =
-                Some(typed_trees::callable_values::RuntimeCallBinding {
-                    callee,
-                    contract: Default::default(),
-                });
-            assert_eq!(
-                primitive_byte_slice_domain(&computed, symbol),
-                None,
-                "a retained computed call cannot acquire a primitive meaning from target text"
-            );
-        }
+        call_mut(&mut computed, expression).runtime_call =
+            Some(typed_trees::callable_values::RuntimeCallBinding {
+                callee,
+                contract: Default::default(),
+            });
+        assert_eq!(primitive_byte_slice_domain(&computed, symbol), None);
+        assert!(
+            complete_byte_domain_selection(&computed, expression, ByteSequencePredicate::NoNul)
+                .is_err()
+        );
 
         let mut malformed = program.clone();
         call_mut(&mut malformed, expression).arguments = Default::default();
         assert_eq!(primitive_byte_slice_domain(&malformed, symbol), None);
-        assert_eq!(
-            deferred(&malformed).unwrap(),
-            vec![(symbol, DeferredRequest::UndeclaredCallName)]
-        );
-
-        let mut applied = program.clone();
-        call_mut(&mut applied, expression).machine_arguments = Box::new([StaticMachineArgument {
-            type_reference: target_type,
-            ..Default::default()
-        }]);
-        assert_eq!(primitive_byte_slice_domain(&applied, symbol), None);
-        assert_eq!(
-            deferred(&applied).unwrap(),
-            vec![(symbol, DeferredRequest::UndeclaredCallName)]
-        );
-
-        let mut stale = program.clone();
-        call_mut(&mut stale, expression).target_symbol =
-            SymbolHandle::from_parts(symbol.arena_index(), symbol.generation() + 1);
         assert!(
-            references(&stale, expression).contains(&SymbolHandle::from_parts(
-                symbol.arena_index(),
-                symbol.generation() + 1
-            ))
+            complete_byte_domain_selection(&malformed, expression, ByteSequencePredicate::NoNul)
+                .is_err()
         );
-        assert_eq!(primitive_byte_slice_domain(&stale, symbol), None);
-        assert_eq!(
-            deferred(&stale).unwrap(),
-            vec![(symbol, DeferredRequest::UncallableCallTarget)]
-        );
-        call_mut(&mut stale, expression).target_symbol = SymbolHandle::invalid();
-        let stale_argument =
-            ExpressionHandle::from_parts(argument.arena_index(), argument.generation() + 1);
-        let arguments = stale
-            .expression_table
-            .insert_expression_handles([stale_argument]);
-        call_mut(&mut stale, expression).arguments = arguments;
-        assert_eq!(primitive_byte_slice_domain(&stale, symbol), None);
-
-        let wrong_carrier = typed("domain [u16]::Words requires no_nul(self);");
-        let wrong_domain = wrong_carrier.domain_definitions()[0].symbol;
-        assert_eq!(
-            primitive_byte_slice_domain(&wrong_carrier, wrong_domain),
-            None
-        );
-        assert_eq!(
-            deferred(&wrong_carrier).unwrap(),
-            vec![(wrong_domain, DeferredRequest::UndeclaredCallName)]
-        );
-
-        let mut write_only = program.clone();
-        let slice = write_only.type_reference_table.insert(
+        let mut malformed = program.clone();
+        call_mut(&mut malformed, expression).machine_arguments =
+            Box::new([typed_trees::expression::StaticMachineArgument {
+                type_reference: domain.target_type,
+                ..Default::default()
+            }]);
+        assert_eq!(primitive_byte_slice_domain(&malformed, symbol), None);
+        let mut malformed = program.clone();
+        let (_, argument) =
+            typed_trees::byte_predicates::byte_predicate_call(&program, expression).unwrap();
+        let arguments =
+            malformed
+                .expression_table
+                .insert_expression_handles([ExpressionHandle::from_parts(
+                    argument.arena_index(),
+                    argument.generation() + 1,
+                )]);
+        call_mut(&mut malformed, expression).arguments = arguments;
+        assert_eq!(primitive_byte_slice_domain(&malformed, symbol), None);
+        let mut wrong_carrier = program.clone();
+        let slice = wrong_carrier.type_reference_table.insert(
             program
                 .type_reference_table
-                .type_reference(target_type)
+                .type_reference(domain.target_type)
                 .clone(),
         );
-        write_only.type_reference_table.substitute_node(
-            target_type,
+        wrong_carrier.type_reference_table.substitute_node(
+            domain.target_type,
             TypeReferenceNode::Reference {
                 referee: slice,
                 access: language_core::ReferenceAccess::WriteOnly,
                 lifetime: None,
             },
         );
-        assert_eq!(primitive_byte_slice_domain(&write_only, symbol), None);
+        assert_eq!(primitive_byte_slice_domain(&wrong_carrier, symbol), None);
 
-        let shadowed = typed(
-            "machine no_nul(value: &[u8]) -> bool { true }\npublic domain [u8]::Path requires no_nul(self);",
-        );
-        let shadowed_domain = shadowed.domain_definitions()[0].symbol;
+        let bare = typed("domain [u8]::Path requires no_nul(self);", false);
+        let bare_domain = bare.domain_definitions()[0].symbol;
         assert_eq!(
-            primitive_byte_slice_domain(&shadowed, shadowed_domain),
-            None
+            primitive_byte_slice_domain(&bare, bare_domain),
+            None,
+            "an undeclared spelling has no primitive privilege"
         );
-        assert!(
-            deferred(&shadowed).unwrap().is_empty(),
-            "the resolved machine keeps the ordinary declared-call route"
+        assert_eq!(
+            deferred(&bare).unwrap(),
+            vec![(bare_domain, DeferredRequest::UndeclaredCallName)]
         );
+        let ordinary = typed(
+            "machine no_nul(value: &[u8]) -> bool { true }\ndomain [u8]::Path requires no_nul(&self[..]);",
+            false,
+        );
+        let ordinary_domain = ordinary.domain_definitions()[0].symbol;
+        assert_eq!(
+            primitive_byte_slice_domain(&ordinary, ordinary_domain),
+            None,
+            "a same-spelled ordinary body does not become a Core observation"
+        );
+        assert!(deferred(&ordinary).unwrap().is_empty());
     }
 
     fn call(
