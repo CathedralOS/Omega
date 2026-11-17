@@ -16,12 +16,35 @@ pub(super) fn judged_typed_result(
     typed: &typed_trees::TypedTrees,
     select_first: bool,
 ) -> Result<RouteVerdict, crate::CompilationRefusal> {
+    whole_subject_result(judged_parts(typed, select_first))
+}
+
+/// A subject passes only if its closure, generic forms and witnesses all pass.
+/// Keep the first failure in judgment order. Only an entirely accepted batch
+/// returns the original closure, whose tables callers may inspect.
+pub(super) fn whole_subject_result(
+    mut verdicts: Vec<Result<RouteVerdict, crate::CompilationRefusal>>,
+) -> Result<RouteVerdict, crate::CompilationRefusal> {
+    assert!(
+        !verdicts.is_empty(),
+        "a subject must have a closure judgment"
+    );
+    let first_failure = verdicts
+        .iter()
+        .position(|verdict| !matches!(verdict, Ok(RouteVerdict::Accepted(_))));
+    verdicts.remove(first_failure.unwrap_or(0))
+}
+
+fn judged_parts(
+    typed: &typed_trees::TypedTrees,
+    select_first: bool,
+) -> Vec<Result<RouteVerdict, crate::CompilationRefusal>> {
     let selected = if select_first {
         vec![typed.machines()[0].symbol]
     } else {
         Vec::new()
     };
-    let mut verdicts = crate::judge_compilation(
+    crate::judge_compilation(
         typed_trees_to_terminal_psi::prepare_compilation(
             typed,
             typed_trees_to_terminal_psi::Compilation {
@@ -39,17 +62,68 @@ pub(super) fn judged_typed_result(
             terminal_codec::TerminalPublication::Invocation,
         )
         .program,
-    );
-    // The first verdict is the closure's. Any other is a further refusal of
-    // the same reading, never an acceptance.
+    )
+}
+
+#[test]
+fn whole_subject_acceptance_requires_every_generic_check_form() {
+    let typed = typed("machine identity<T>(value: T) -> T { move value }\n");
+    let parts = judged_parts(&typed, false);
     assert!(
-        verdicts
+        parts.len() > 1,
+        "the generic form must be judged: {parts:?}"
+    );
+    assert!(
+        parts
+            .iter()
+            .all(|part| matches!(part, Ok(RouteVerdict::Accepted(_)))),
+        "{parts:?}"
+    );
+    let result = judged_typed(&typed, false);
+    let RouteVerdict::Accepted(closure) = result else {
+        panic!("{result:?}");
+    };
+    assert!(closure.elaboration.module.machines.is_empty());
+}
+
+#[test]
+fn a_later_generic_guarantee_rejection_prevents_whole_subject_acceptance() {
+    let source = "machine unchanged<T>(value: u32) -> u32 \
+                  ensures result == value crashes none { value }\n";
+    let accepted = judged(source, false);
+    assert!(
+        matches!(accepted, RouteVerdict::Accepted(_)),
+        "{accepted:?}"
+    );
+
+    let typed = typed(&source.replace("result == value", "result != value"));
+    let parts = judged_parts(&typed, false);
+    assert!(
+        matches!(parts.first(), Some(Ok(RouteVerdict::Accepted(_)))),
+        "{parts:?}"
+    );
+    assert!(
+        parts
             .iter()
             .skip(1)
-            .all(|verdict| !matches!(verdict, Ok(RouteVerdict::Accepted(_)))),
-        "{verdicts:?}"
+            .any(|part| matches!(part, Ok(RouteVerdict::Rejected { unproved, .. })
+                if unproved.iter().any(|row| matches!(row.kind, ObligationKind::NormalGuarantee { clause: 0, .. })
+                    && row.cause == UnprovedCause::NoDerivation))),
+        "the generic body must owe its false guarantee: {parts:?}"
     );
-    verdicts.remove(0)
+    let result = judged_typed_result(&typed, false);
+    assert!(
+        matches!(result, Ok(RouteVerdict::Rejected { ref unproved, .. })
+            if unproved.iter().any(|row| matches!(row.kind, ObligationKind::NormalGuarantee { clause: 0, .. })
+                && row.cause == UnprovedCause::NoDerivation)),
+        "the accepted closure must not hide the generic-body rejection: {result:?}"
+    );
+}
+
+#[test]
+#[should_panic(expected = "a subject must have a closure judgment")]
+fn a_subject_with_no_judgments_cannot_be_accepted() {
+    let _ = whole_subject_result(Vec::new());
 }
 
 #[test]
