@@ -20,7 +20,7 @@ use crate::{
 };
 use language_core::inline_assembly::AsmGlobalDescriptorTableOperation;
 use language_core::static_interrupts::StaticInterruptOperation;
-use semantic_vocabulary::{BoundaryMachineId, IdSet, MachineId, ServiceId};
+use semantic_vocabulary::{BoundaryMachineId, IdSet, MachineId, OperationId, ServiceId};
 use terminal_psi::{
     OperationKind, OperationResult, RegisterOperation, StructuralAccess, TerminalModule,
 };
@@ -32,15 +32,15 @@ pub(super) fn prepare(
     installation: Option<&terminal_installation::AdmittedProviderSelections>,
     entries: &[AdmittedInstalledInterruptEntry],
     helpers: &[crate::AdmittedInstalledInterruptHelper],
-    operations: &[(semantic_vocabulary::OperationId, &terminal_psi::Operation)],
+    operations: &[(super::OperationSite, &terminal_psi::Operation)],
 ) -> Result<Vec<AdmittedInstalledInterruptScope>, String> {
     let mut scopes = Vec::new();
     let module = input.module();
     let mut ordered_entries: Vec<_> = entries.iter().collect();
-    ordered_entries.sort_unstable_by_key(|entry| entry.operation);
+    ordered_entries.sort_unstable_by_key(|entry| (entry.machine, entry.operation));
     let mut helper_roots = helpers
         .iter()
-        .map(|helper| helper.installation())
+        .map(|helper| (helper.installation_machine, helper.installation()))
         .collect::<Vec<_>>();
     helper_roots.sort_unstable();
     helper_roots.dedup();
@@ -73,8 +73,15 @@ pub(super) fn prepare(
     let assumed_calls = program_calls.as_ref().unwrap_or(&calls);
     let mut reached = input
         .plan()
-        .operations()
-        .filter_map(|operation| operation.psi_operation())
+        .functions
+        .iter()
+        .flat_map(|function| {
+            function.operations().filter_map(move |operation| {
+                operation
+                    .psi_operation()
+                    .map(|operation| (function.machine, operation))
+            })
+        })
         .collect::<Vec<_>>();
     reached.sort_unstable();
     reached.dedup();
@@ -106,16 +113,18 @@ pub(super) fn prepare(
                 .map(|closure| (entry, closure))
         })
         .collect::<Result<Vec<_>, _>>()?;
+    let assumed_installations = assumed_installation_sites(module, &assumed_entries);
     for registration in &module.installed_interrupt_registrations {
-        let first =
-            ordered_entries.partition_point(|entry| entry.operation < registration.operation);
-        let last =
-            ordered_entries.partition_point(|entry| entry.operation <= registration.operation);
-        if first == last && helper_roots.binary_search(&registration.operation).is_err() {
+        let installation = (registration.machine, registration.operation);
+        let first = ordered_entries
+            .partition_point(|entry| (entry.machine, entry.operation) < installation);
+        let last = ordered_entries
+            .partition_point(|entry| (entry.machine, entry.operation) <= installation);
+        if first == last && helper_roots.binary_search(&installation).is_err() {
             continue;
         }
         let operation = operations
-            .binary_search_by_key(&registration.operation, |(id, _)| *id)
+            .binary_search_by_key(&installation, |(id, _)| *id)
             .ok()
             .map(|position| operations[position].1)
             .ok_or("installation has no unique canonical operation")?;
@@ -201,9 +210,12 @@ pub(super) fn prepare(
                 "installation changed its exclusive table/GDT or shared TSS/context loans".into(),
             );
         }
-        let validator = super::arrival_helpers::selected_body(module, operation.id, 1)?;
-        let work = super::arrival_helpers::selected_body(module, operation.id, 2)?;
-        let completion = super::arrival_helpers::selected_body(module, operation.id, 3)?;
+        let validator =
+            super::arrival_helpers::selected_body(module, registration.machine, operation.id, 1)?;
+        let work =
+            super::arrival_helpers::selected_body(module, registration.machine, operation.id, 2)?;
+        let completion =
+            super::arrival_helpers::selected_body(module, registration.machine, operation.id, 3)?;
         let acknowledgement_application = super::arrival_helpers::acknowledgement_entry(
             module,
             registration,
@@ -275,21 +287,27 @@ pub(super) fn prepare(
         if gates.windows(2).any(|pair| pair[0] == pair[1]) {
             return Err("installed callbacks overlap one hardware gate".into());
         }
-        if anchor.is_none()
-            && input
-                .plan()
-                .operations()
-                .any(|row| row.psi_operation() == Some(operation.id))
-        {
+        if anchor.is_none() && reached.binary_search(&installation).is_ok() {
             return Err("executing installation has no designated timer gate".into());
         }
         fatal_entries.sort_unstable_by_key(|entry| entry.application);
-        let installation_assumptions: Vec<_> = request
+        let mut installation_assumptions = Vec::new();
+        for assumption in request
             .installation_assumptions
             .iter()
             .filter(|row| row.installation() == operation.id)
-            .cloned()
-            .collect();
+        {
+            let Some(Some(owner)) =
+                assumed_installations.get(&(assumption.entry(), assumption.installation()))
+            else {
+                return Err(
+                    "installation assumption entry has no unique matching installation".into(),
+                );
+            };
+            if *owner == installation {
+                installation_assumptions.push(assumption.clone());
+            }
+        }
         let mut bootstrap = None;
         let mut delivery = None;
         for assumption in &installation_assumptions {
@@ -304,24 +322,11 @@ pub(super) fn prepare(
             if occupied {
                 return Err("installation repeats one kind of platform assumption".into());
             }
-            let index = assumed_entries
-                .binary_search_by_key(&assumption.entry(), |row| row.0)
-                .map_err(|_| "installation assumption lost its exact entry closure")?;
-            if !assumed_entries[index]
-                .1
-                .machines
-                .iter()
-                .any(|machine| machine.operations().any(|row| row.id == operation.id))
-            {
-                return Err(
-                    "installation assumption entry does not reach this installation".into(),
-                );
-            }
         }
         if matches!((bootstrap, delivery), (Some(left), Some(right)) if left.entry != right.entry) {
             return Err("installation conditions name different physical entries".into());
         }
-        if reached.binary_search(&operation.id).is_ok() {
+        if reached.binary_search(&installation).is_ok() {
             if bootstrap.is_none() {
                 return Err("installation requires an explicit bootstrap environment assumption through publication".into());
             }
@@ -331,6 +336,7 @@ pub(super) fn prepare(
         }
         scopes.push(AdmittedInstalledInterruptScope {
             facts: std::sync::Arc::new(bound_installations::BoundInterruptInstallation {
+                machine: registration.machine,
                 service: registration.service,
                 operation: operation.id,
                 boundary: *boundary,
@@ -348,6 +354,53 @@ pub(super) fn prepare(
         });
     }
     Ok(scopes)
+}
+
+// The public assumption names an entry and a machine-local operation.
+// Resolve that pair only when the selected entry closure contains one exact
+// checked installation. Two owners with the same local number are ambiguous.
+fn assumed_installation_sites(
+    module: &TerminalModule,
+    assumed_entries: &[(MachineId, terminal_installation::SynchronousCallClosure<'_>)],
+) -> std::collections::BTreeMap<(MachineId, OperationId), Option<super::OperationSite>> {
+    let registration_sites: std::collections::BTreeMap<_, _> = module
+        .installed_interrupt_registrations
+        .iter()
+        .map(|registration| {
+            (
+                (registration.machine, registration.operation),
+                registration.installer,
+            )
+        })
+        .collect();
+    let mut assumed_installations: std::collections::BTreeMap<
+        (MachineId, OperationId),
+        Option<super::OperationSite>,
+    > = std::collections::BTreeMap::new();
+    for (entry, closure) in assumed_entries {
+        for machine in &closure.machines {
+            for operation in machine.operations() {
+                let site = (machine.id, operation.id);
+                let Some(installer) = registration_sites.get(&site) else {
+                    continue;
+                };
+                if !matches!(&operation.kind, OperationKind::BoundaryCall { boundary, .. }
+                    if boundary == installer)
+                {
+                    continue;
+                }
+                assumed_installations
+                    .entry((*entry, operation.id))
+                    .and_modify(|current| {
+                        if *current != Some(site) {
+                            *current = None;
+                        }
+                    })
+                    .or_insert(Some(site));
+            }
+        }
+    }
+    assumed_installations
 }
 
 fn require_helper_input(
@@ -588,4 +641,157 @@ fn changes_configuration(operation: RegisterOperation) -> bool {
             | RegisterOperation::SystemWrite(_)
             | RegisterOperation::ModelSpecificWrite
     )
+}
+
+#[cfg(test)]
+mod assumption_owner_tests {
+    use super::assumed_installation_sites;
+    use semantic_vocabulary::{
+        BlockId, BoundaryMachineId, ContractId, EdgeId, MachineId, OperationId, ServiceId,
+    };
+    use terminal_installation::SynchronousCallClosure;
+    use terminal_psi::{
+        Block, MachineContract, NominalDeclarationIdentity, Operation, OperationKind,
+        OperationResult, RegisterTargetApplicability, TerminalIdentityIndex,
+        TerminalInstalledInterruptRegistration, TerminalMachine, TerminalModule, Terminator,
+    };
+
+    fn machine(identity: u64, boundary: BoundaryMachineId) -> TerminalMachine {
+        let block_id = BlockId::new(1).unwrap();
+        let mut block = Block::plain(
+            block_id,
+            Vec::new(),
+            Terminator::ReturnUnit {
+                edge: EdgeId::new(1).unwrap(),
+                cleanup_actions: Vec::new(),
+            },
+        );
+        block.operations.push(Operation::unsuspended(
+            OperationId::new(1).unwrap(),
+            OperationResult::Unit,
+            OperationKind::BoundaryCall {
+                boundary,
+                arguments: Vec::new(),
+                structural_arguments: Vec::new(),
+                completion_receipts: Vec::new(),
+                requirement_obligations: Vec::new(),
+            },
+        ));
+        TerminalMachine {
+            id: MachineId::new(identity).unwrap(),
+            assembly_target_requirement: RegisterTargetApplicability::Any,
+            attachment: None,
+            ranked_scc: None,
+            structural_places: Vec::new(),
+            call_formations: Vec::new(),
+            block_entry_claims: Vec::new(),
+            loan_completions: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: block_id,
+            blocks: vec![block],
+            contract: MachineContract::empty(ContractId::new(identity).unwrap()),
+        }
+    }
+
+    // Only exact operation resolution is under test. Portable record admission
+    // and selected call-graph construction have their own validation boundaries.
+    fn registration(
+        machine: &TerminalMachine,
+        installer: BoundaryMachineId,
+    ) -> TerminalInstalledInterruptRegistration {
+        let nominal = NominalDeclarationIdentity::new(TerminalIdentityIndex(1));
+        TerminalInstalledInterruptRegistration {
+            machine: machine.id,
+            operation: OperationId::new(1).unwrap(),
+            installer,
+            service: ServiceId::new(1).unwrap(),
+            registrar_boundary: installer,
+            registrar: nominal.clone(),
+            registrar_owner: nominal.clone(),
+            registrar_application: String::new(),
+            registrar_declaring_application: String::new(),
+            registrar_arguments: Vec::new(),
+            registrar_lifetimes: Vec::new(),
+            registrar_requirement: String::new(),
+            slot_declaration: nominal,
+            slot_commitment: [0; 32],
+            slot_encoding: Vec::new(),
+            callbacks: Vec::new(),
+        }
+    }
+
+    fn closure(machines: Vec<&TerminalMachine>) -> SynchronousCallClosure<'_> {
+        SynchronousCallClosure {
+            machines,
+            boundaries: Default::default(),
+        }
+    }
+
+    #[test]
+    fn assumption_entries_distinguish_installation_owners_and_refuse_ambiguity() {
+        let first_boundary = BoundaryMachineId::new(1).unwrap();
+        let second_boundary = BoundaryMachineId::new(2).unwrap();
+        let first = machine(1, first_boundary);
+        let second = machine(2, second_boundary);
+        let mut module = TerminalModule::declarations();
+        module.installed_interrupt_registrations = vec![
+            registration(&first, first_boundary),
+            registration(&second, second_boundary),
+        ];
+        let first_entry = MachineId::new(10).unwrap();
+        let second_entry = MachineId::new(11).unwrap();
+        let ambiguous_entry = MachineId::new(12).unwrap();
+        let operation = OperationId::new(1).unwrap();
+        let entries = [
+            (first_entry, closure(vec![&first])),
+            (second_entry, closure(vec![&second])),
+            // A later occurrence of the first site cannot erase the ambiguity.
+            (ambiguous_entry, closure(vec![&first, &second, &first])),
+        ];
+        let sites = assumed_installation_sites(&module, &entries);
+        assert_eq!(
+            sites,
+            std::collections::BTreeMap::from([
+                ((first_entry, operation), Some((first.id, operation))),
+                ((second_entry, operation), Some((second.id, operation))),
+                ((ambiguous_entry, operation), None),
+            ]),
+            "an assumption's entry selects an exact owner rather than sharing its local operation number",
+        );
+    }
+
+    #[test]
+    fn unregistered_or_wrong_boundary_sites_cannot_supply_assumption_authority() {
+        let installer = BoundaryMachineId::new(1).unwrap();
+        let another_installer = BoundaryMachineId::new(2).unwrap();
+        let checked = machine(1, installer);
+        let unregistered = machine(2, installer);
+        let wrong_boundary = machine(3, installer);
+        let mut module = TerminalModule::declarations();
+        module.installed_interrupt_registrations = vec![
+            registration(&checked, installer),
+            registration(&wrong_boundary, another_installer),
+        ];
+        let no_installation = MachineId::new(10).unwrap();
+        let one_installation = MachineId::new(11).unwrap();
+        let entries = [
+            (
+                no_installation,
+                closure(vec![&unregistered, &wrong_boundary]),
+            ),
+            (
+                one_installation,
+                closure(vec![&checked, &unregistered, &wrong_boundary]),
+            ),
+        ];
+        assert_eq!(
+            assumed_installation_sites(&module, &entries),
+            std::collections::BTreeMap::from([(
+                (one_installation, OperationId::new(1).unwrap()),
+                Some((checked.id, OperationId::new(1).unwrap())),
+            )]),
+            "an unrelated same-numbered call neither supplies an installation nor makes a checked site ambiguous",
+        );
+    }
 }

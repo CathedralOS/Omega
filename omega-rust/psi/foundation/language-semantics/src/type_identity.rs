@@ -475,10 +475,10 @@ mod grammar {
         Error, Result, TypeIdentityPackageOwnerVisitor, framing::Reader, index, scoped, unadmitted,
     };
 
-    pub(super) fn compound<T>(
-        reader: &mut Reader<'_>,
+    pub(super) fn compound<'text, T>(
+        reader: &mut Reader<'text>,
         visitor: &mut dyn TypeIdentityPackageOwnerVisitor,
-        children: impl FnOnce(&mut Reader<'_>, &mut dyn TypeIdentityPackageOwnerVisitor) -> Result<T>,
+        children: impl FnOnce(&mut Reader<'text>, &mut dyn TypeIdentityPackageOwnerVisitor) -> Result<T>,
     ) -> Result<T> {
         scoped(visitor, |visitor| {
             reader.expect(b'(')?;
@@ -710,7 +710,7 @@ mod grammar {
         visitor.static_name(&name)
     }
 
-    fn semantic_name(
+    pub(super) fn semantic_name(
         name: &str,
         visitor: &mut dyn TypeIdentityPackageOwnerVisitor,
         callable_regions: bool,
@@ -748,13 +748,21 @@ mod grammar {
         })
     }
 
+    pub(super) fn nominal_coordinates<'text>(
+        reader: &mut Reader<'text>,
+        visitor: &mut dyn TypeIdentityPackageOwnerVisitor,
+    ) -> Result<(OwnerForm, Option<[u8; 32]>, std::borrow::Cow<'text, str>)> {
+        let (owner, digest) = owner(reader, visitor)?;
+        reader.expect(b',')?;
+        let path = reader.atom(Label::Path, visitor)?;
+        Ok((owner, digest, path))
+    }
+
     fn nominal(
         reader: &mut Reader<'_>,
         visitor: &mut dyn TypeIdentityPackageOwnerVisitor,
     ) -> Result {
-        let (owner, digest) = owner(reader, visitor)?;
-        reader.expect(b',')?;
-        let path = reader.atom(Label::Path, visitor)?;
+        let (owner, digest, path) = nominal_coordinates(reader, visitor)?;
         visitor.nominal_declaration(owner, digest, &path)
     }
 
@@ -1573,6 +1581,253 @@ pub fn package_declaration_identity(
         let _ = write!(owner, "{byte:02x}");
     }
     format!("package:{owner}::{path}")
+}
+
+/// A closed declaration and its physical ABI retain the same complete static
+/// application in different existing identities. Match their template, owner
+/// and ordered operands without treating the template alone as the closed call.
+pub fn closed_requirement_matches_calling_abi(
+    declaration: &str,
+    template: &str,
+    nominal_template: &str,
+    callable: &str,
+    abi: &semantic_vocabulary::CallingAbiIdentity,
+) -> Result<bool, TypeIdentityVisitError> {
+    use encoding::CoordinateTag;
+    use semantic_vocabulary::CallingOperandKind;
+    use vocabulary::Label;
+
+    abi.validate().map_err(|_| Error::MalformedIdentity)?;
+    if template.is_empty() {
+        return Err(Error::MalformedIdentity);
+    }
+    let mut syntax = DeclarationIdentitySyntax { depth: 0 };
+    let mut reader = framing::Reader::new(declaration);
+    reader.callable_regions = true;
+    reader.expect_tag(CoordinateTag::ClosedRequirement)?;
+    let matched = grammar::compound(&mut reader, &mut syntax, |reader, syntax| {
+        let actual_template = reader.atom(CoordinateTag::Template, syntax)?;
+        reader.expect(b',')?;
+        let owner = reader.atom(CoordinateTag::TraitApplication, syntax)?;
+        let mut owner_reader = framing::Reader::new(&owner);
+        owner_reader.callable_regions = true;
+        trait_application(&mut owner_reader, syntax)?;
+        owner_reader.finish()?;
+        reader.expect(b',')?;
+        reader.expect_tag(CoordinateTag::LocalArguments)?;
+        let operands_match = grammar::compound(reader, syntax, |reader, syntax| {
+            let mut ordinal = 0_usize;
+            let mut matched = true;
+            while !reader.next(b')') {
+                if ordinal != 0 {
+                    reader.expect(b',')?;
+                }
+                reader.expect_tag(CoordinateTag::Parameter)?;
+                let matches = grammar::compound(reader, syntax, |reader, syntax| {
+                    let kind = reader.atom(Label::Kind, syntax)?;
+                    reader.expect(b',')?;
+                    let start = reader.position();
+                    index::static_argument(reader, syntax)?;
+                    let identity = reader.consumed_since(start);
+                    Ok(abi.operands.get(ordinal).is_some_and(|operand| {
+                        let expected_kind = match operand.kind {
+                            CallingOperandKind::Type => "type",
+                            CallingOperandKind::Const => "const",
+                            CallingOperandKind::Value => "value",
+                            CallingOperandKind::Machine => "machine",
+                            CallingOperandKind::Implementation => "conformance",
+                            CallingOperandKind::Proposition => "proposition",
+                        };
+                        usize::try_from(operand.ordinal).ok() == Some(ordinal)
+                            && kind == expected_kind
+                            && identity == operand.identity
+                    }))
+                })?;
+                matched &= matches;
+                ordinal = ordinal.checked_add(1).ok_or(Error::ResourceLimitExceeded)?;
+            }
+            Ok(matched && ordinal == abi.operands.len())
+        })?;
+        Ok(actual_template == template && owner == abi.declaring_application && operands_match)
+    })?;
+    reader.finish()?;
+    Ok(matched && closed_callable_matches(callable, template, nominal_template, abi, &mut syntax)?)
+}
+
+/// Compare the retained closed callable with the same original method and
+/// ordered ABI arguments during inert package review. Declaration custody
+/// remains with the caller; malformed or unsupported identities refuse.
+pub fn closed_callable_matches_calling_abi(
+    callable: &str,
+    semantic_template: &str,
+    nominal_template: &str,
+    abi: &semantic_vocabulary::CallingAbiIdentity,
+) -> Result<bool, TypeIdentityVisitError> {
+    abi.validate().map_err(|_| Error::MalformedIdentity)?;
+    closed_callable_matches(
+        callable,
+        semantic_template,
+        nominal_template,
+        abi,
+        &mut DeclarationIdentitySyntax { depth: 0 },
+    )
+}
+
+fn trait_application(
+    reader: &mut framing::Reader<'_>,
+    syntax: &mut dyn TypeIdentityPackageOwnerVisitor,
+) -> Result {
+    use encoding::CoordinateTag;
+    reader.expect_tag(CoordinateTag::TraitApplication)?;
+    grammar::compound(reader, syntax, |reader, syntax| {
+        grammar::name_atom(reader, CoordinateTag::Declaration, syntax)?;
+        for tag in [CoordinateTag::Arguments, CoordinateTag::Lifetimes] {
+            reader.expect(b',')?;
+            reader.expect_tag(tag)?;
+            grammar::compound(reader, syntax, |reader, syntax| {
+                let mut first = true;
+                while !reader.next(b')') {
+                    if !first {
+                        reader.expect(b',')?;
+                    }
+                    first = false;
+                    index::static_argument(reader, syntax)?;
+                }
+                Ok(())
+            })?;
+        }
+        Ok(())
+    })
+}
+
+fn callable_coordinates<'a>(
+    callable: &'a str,
+    syntax: &mut dyn TypeIdentityPackageOwnerVisitor,
+) -> Result<(std::borrow::Cow<'a, str>, std::borrow::Cow<'a, str>)> {
+    use encoding::CoordinateTag;
+    let mut reader = framing::Reader::new(callable);
+    reader.callable_regions = true;
+    reader.expect_tag(CoordinateTag::NamedCallable)?;
+    let coordinates = grammar::compound(&mut reader, syntax, |reader, syntax| {
+        let path = reader.atom(CoordinateTag::Path, syntax)?;
+        grammar::semantic_name(&path, syntax, true)?;
+        reader.expect(b',')?;
+        let parameters = reader.atom(CoordinateTag::Parameters, syntax)?;
+        reader.expect(b',')?;
+        reader.opaque(CoordinateTag::ResultDispatch, syntax)?;
+        Ok((path, parameters))
+    })?;
+    reader.finish()?;
+    Ok(coordinates)
+}
+
+fn closed_callable_matches(
+    callable: &str,
+    semantic_template: &str,
+    nominal_template: &str,
+    abi: &semantic_vocabulary::CallingAbiIdentity,
+    syntax: &mut dyn TypeIdentityPackageOwnerVisitor,
+) -> Result<bool> {
+    use encoding::CoordinateTag;
+    let (path, parameters) = callable_coordinates(callable, syntax)?;
+    let (template_path, _) = callable_coordinates(&abi.requirement_identity, syntax)?;
+    if template_path != nominal_template {
+        return Ok(false);
+    }
+    let mut nominal = framing::Reader::new(nominal_template);
+    nominal.expect_tag(vocabulary::NameForm::Nominal)?;
+    let (owner, digest, declared_path) =
+        grammar::compound(&mut nominal, syntax, grammar::nominal_coordinates)?;
+    nominal.finish()?;
+    let package = match (owner, digest) {
+        (vocabulary::OwnerForm::Package, Some(digest)) => {
+            semantic_vocabulary::PackageKeyIdentity::from_digest(digest)
+                .ok_or(Error::MalformedIdentity)?
+        }
+        // The semantic name alone does not carry the exact source revision
+        // of a toolchain declaration. Do not guess an owner correspondence.
+        _ => return Err(Error::UnsupportedEmbeddedName),
+    };
+    let declared_path =
+        encoding::callable_declaration_path(&declared_path, &abi.requirement_identity);
+    if package_declaration_identity(package, &declared_path) != semantic_template {
+        return Ok(false);
+    }
+    let mut reader = framing::Reader::new(&parameters);
+    reader.callable_regions = true;
+    reader.expect_tag(CoordinateTag::ClosedRequirement)?;
+    let matches = grammar::compound(&mut reader, syntax, |reader, syntax| {
+        let template = reader.atom(CoordinateTag::Template, syntax)?;
+        reader.expect(b',')?;
+        let owner = reader.atom(CoordinateTag::TraitApplication, syntax)?;
+        reader.expect(b',')?;
+        reader.expect_tag(CoordinateTag::LocalArguments)?;
+        let operands_match = grammar::compound(reader, syntax, |reader, syntax| {
+            let mut ordinal = 0_usize;
+            let mut matched = true;
+            while !reader.next(b')') {
+                if ordinal != 0 {
+                    reader.expect(b',')?;
+                }
+                let start = reader.position();
+                index::static_argument(reader, syntax)?;
+                let identity = reader.consumed_since(start);
+                matched &= abi.operands.get(ordinal).is_some_and(|operand| {
+                    usize::try_from(operand.ordinal).ok() == Some(ordinal)
+                        && identity == operand.identity
+                });
+                ordinal = ordinal.checked_add(1).ok_or(Error::ResourceLimitExceeded)?;
+            }
+            Ok(matched && ordinal == abi.operands.len())
+        })?;
+        reader.expect(b',')?;
+        // The existing declaration and calling geometry owners check runtime
+        // parameter types. Retain their complete framed payload here.
+        reader.opaque(CoordinateTag::Parameters, syntax)?;
+        Ok(path == template_path
+            && template == abi.requirement_identity
+            && owner == abi.declaring_application
+            && operands_match)
+    })?;
+    reader.finish()?;
+    Ok(matches)
+}
+
+// This query validates framing, not package authority. Bound recursive identity
+// syntax while leaving declaration custody with the caller's existing owner.
+struct DeclarationIdentitySyntax {
+    depth: usize,
+}
+
+impl TypeIdentityPackageOwnerVisitor for DeclarationIdentitySyntax {
+    fn enter(&mut self) -> Result {
+        self.depth = self
+            .depth
+            .checked_add(1)
+            .ok_or(Error::ResourceLimitExceeded)?;
+        if self.depth > 128 {
+            return Err(Error::ResourceLimitExceeded);
+        }
+        Ok(())
+    }
+    fn leave(&mut self) {
+        self.depth -= 1;
+    }
+    fn reserve(&mut self, _: usize) -> Result {
+        Ok(())
+    }
+    fn package_owner(&mut self, _: [u8; 32]) -> Result {
+        Ok(())
+    }
+    fn embedded_name(&mut self, name: &str) -> Result {
+        if name.is_empty() {
+            return Err(Error::MalformedIdentity);
+        }
+        Ok(())
+    }
+    fn descriptive_toolchain_owner(&mut self) -> Result {
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

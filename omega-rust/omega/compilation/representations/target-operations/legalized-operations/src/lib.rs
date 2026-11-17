@@ -63,7 +63,10 @@ pub struct LegalizedOperationPlan {
     /// These are what the driver must resolve (callback bodies, handler
     /// stacks) and bind before selection; the plan says which, the bound
     /// authority says with what.
-    pub installation_operations: Vec<semantic_vocabulary::OperationId>,
+    pub installation_operations: Vec<(
+        semantic_vocabulary::MachineId,
+        semantic_vocabulary::OperationId,
+    )>,
     /// Each function's target calling contract, sorted by machine and unique.
     pub function_abis: std::sync::Arc<[LegalizedFunctionAbi]>,
     /// Native storage geometry of borrowed boundary inputs and owned roots

@@ -9453,10 +9453,9 @@ mod source {
                     continue;
                 };
                 let scope = unique(
-                    cohort
-                        .scopes()
-                        .iter()
-                        .filter(|row| row.operation() == *psi_operation),
+                    cohort.scopes().iter().filter(|row| {
+                        row.machine() == targeted.machine && row.operation() == *psi_operation
+                    }),
                     "installation has no unique admitted Scope",
                 )?;
                 if scope.boundary() != *boundary || scope.arguments() != arguments {
@@ -9471,7 +9470,9 @@ mod source {
                 let mut entries: Vec<_> = cohort
                     .entries()
                     .iter()
-                    .filter(|row| row.operation == *psi_operation)
+                    .filter(|row| {
+                        row.machine == targeted.machine && row.operation == *psi_operation
+                    })
                     .collect();
                 entries.sort_unstable_by_key(|entry| entry.placement.application_index);
                 if entries.len() != scope.fatal_entries().len() + 1
@@ -9488,7 +9489,8 @@ mod source {
                 for (ordinal, entry) in entries.iter().enumerate() {
                     let requirement = unique(
                         requirements.iter().filter(|row| {
-                            row.operation == *psi_operation
+                            row.installation_machine == targeted.machine
+                                && row.operation == *psi_operation
                                 && row.placement_index == entry.placement_index
                         }),
                         "installation lost its exact measured stack requirement",
@@ -9511,7 +9513,8 @@ mod source {
                             &callback.body,
                             &module.identities,
                         )
-                    }) || callback.registrar != *psi_operation
+                    }) || callback.registrar_machine != targeted.machine
+                        || callback.registrar != *psi_operation
                         || callback.body.contract != entry.placement.contract_commitment
                         || !callback.entry_admitted
                         || entry.placement.boundary_entry_plan.call.entry_control
@@ -10326,6 +10329,7 @@ mod source {
         }
 
         pub(super) fn retained(
+            machine: semantic_vocabulary::MachineId,
             operation: &abstract_operations::AbstractOperation,
             helpers: &provider_admission::installed_interrupt_helpers::PreparedInstalledInterruptHelpers,
             replay: &PreparedHelperReplay<'_>,
@@ -10367,7 +10371,7 @@ mod source {
                 return Ok(false);
             };
             helpers
-                .verify(*psi_operation, *kind)
+                .verify((machine, *psi_operation), *kind)
                 .map_err(super::Error::Mismatch)?;
             if !root_accesses(replay, *psi_operation, *kind, token.place) {
                 return Err(super::Error::Mismatch(
@@ -12255,7 +12259,7 @@ mod source {
                     let mut required: Vec<_> = requirements
                         .iter()
                         .filter(|row| row.arrival.is_some())
-                        .map(|row| row.operation)
+                        .map(|row| (row.installation_machine, row.operation))
                         .collect();
                     required.sort_unstable();
                     required.dedup();
@@ -12270,7 +12274,7 @@ mod source {
                                         psi_operation,
                                         arguments,
                                         ..
-                                    } if required.binary_search(psi_operation).is_ok() => {
+                                    } if required.binary_search(&(function.machine, *psi_operation)).is_ok() => {
                                         Some((function.machine, *psi_operation, arguments))
                                     }
                                     _ => None,
@@ -12278,8 +12282,10 @@ mod source {
                             })
                         })
                         .collect();
-                    let mut actual: Vec<_> =
-                        calls.iter().map(|(_, operation, _)| *operation).collect();
+                    let mut actual: Vec<_> = calls
+                        .iter()
+                        .map(|(machine, operation, _)| (*machine, *operation))
+                        .collect();
                     actual.sort_unstable();
                     if actual != required {
                         return Err(super::super::super::Error::Mismatch(

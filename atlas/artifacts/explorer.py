@@ -38,12 +38,12 @@ def models(revision, graph):
         edge("accepted", "source", "terminal", "lower & check", "M450 118 H520", 485, 68, "checked"),
         edge("requirements", "terminal", "settle", "requirements", "M700 118 H770", 735, 68),
         edge("bindings", "build", "settle", "target & provider bindings", "M110 80 V22 H860 V80", 485, 16),
-        edge("closure", "settle", "source", "new requirements → prepare reached bodies", "M820 156 V204 H360 V156", 590, 194),
+        edge("closure", "settle", "settle", "reach changes → prepare policy inputs again", "M820 156 V204 H940 V156", 780, 194),
     ]
     shared_steps = [
         step("Begin with a Build request", "Source choices, target and provider bindings enter through Build. This map follows selected handoffs in the Rust reference producer.", "build", "request", "bindings"),
         step("Prepare and check the program", "Psi source stages prepare the portable program. The lowered-form checker establishes acceptance; publication retains its code and evidence.", "terminal", "request", "accepted"),
-        step("Close the provider choices", "Reached requirements meet Build's bindings. A selected provider can expose more requirements, so source preparation and settlement can repeat until choices stabilize. The loop is conditional, not one measured iteration.", "settle", "requirements", "bindings", "closure"),
+        step("Close the provider choices", "Reached requirements meet Build's bindings. A selected provider can expose more requirements, so settlement repeats policy-input preparation from retained accepted code until bindings stabilize. It does not restart source compilation. The loop is conditional, not one measured iteration.", "settle", "requirements", "bindings", "closure"),
     ]
     native_nodes = common + [
         node("early", "Root: Omega 00–02", "native", 770, 280, "omega", "Omega 00 admits selected plans and creates abstract operations; 01 optimizes and 02 lowers for the target. The root then pauses before 03 while required handler objects are compiled.", pipeline),

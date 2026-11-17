@@ -963,7 +963,9 @@ pub(crate) mod installed_stack {
                     return Err(Error::Mismatch("arrival entry has no measured body"));
                 };
                 if matching.next().is_some()
+                    || row.installation_machine != scope.machine()
                     || row.operation != scope.operation()
+                    || entry.machine != scope.machine()
                     || entry.operation != scope.operation()
                     || row.psi != entry.entry().psi()
                     || row.target != entry.entry().target()
@@ -1183,16 +1185,17 @@ pub(crate) mod installed_stack {
                     .helpers()
                     .iter()
                     .filter(|helper| {
-                        helper.installation() == execution.scope().operation()
+                        helper.installation_machine() == execution.scope().machine()
+                            && helper.installation() == execution.scope().operation()
                             && helper.callback_application()
                                 == execution.entry().placement.application_index
                     })
                     .collect();
-                helpers.sort_unstable_by_key(|helper| helper.operation());
-                if helpers
-                    .windows(2)
-                    .any(|pair| pair[0].operation() == pair[1].operation())
-                {
+                helpers.sort_unstable_by_key(|helper| (helper.machine(), helper.operation()));
+                if helpers.windows(2).any(|pair| {
+                    (pair[0].machine(), pair[0].operation())
+                        == (pair[1].machine(), pair[1].operation())
+                }) {
                     return Err(Error::Mismatch(
                         "installed RAM helper identity is duplicated",
                     ));
@@ -1220,11 +1223,10 @@ pub(crate) mod installed_stack {
                                 ));
                             }
                             O::BoundaryCall { psi_operation, .. } => {
-                                if let Ok(index) = helpers
-                                    .binary_search_by_key(psi_operation, |helper| {
-                                        helper.operation()
-                                    })
-                                {
+                                if let Ok(index) = helpers.binary_search_by_key(
+                                    &(body.machine, *psi_operation),
+                                    |helper| (helper.machine(), helper.operation()),
+                                ) {
                                     match helpers[index].kind() {
                                         language_core::static_interrupts::StaticInterruptOperation::Context
                                         | language_core::static_interrupts::StaticInterruptOperation::BeginCompletion
@@ -1498,6 +1500,7 @@ pub(crate) mod installed_stack {
 
     pub fn installed_interrupt_stack_requirement(
         private: &PrivateFunctionObject,
+        installation_machine: semantic_vocabulary::MachineId,
         operation: semantic_vocabulary::OperationId,
     ) -> Result<InstalledInterruptStackRequirement, Error> {
         let placement_index =
@@ -1529,6 +1532,7 @@ pub(crate) mod installed_stack {
             super::stack_demand::derive_body_stack_demand(&private.body, private.body.entry())
                 .map_err(Error::PrivateFunctions)?;
         let requirement = InstalledInterruptStackRequirement {
+            installation_machine,
             arrival: None,
             fault_exclusion: faults::derive(&private.body)?,
             psi: private.body.psi(),
@@ -1593,14 +1597,18 @@ pub(crate) mod installed_stack {
                     ))?;
                 actual_requirements.push(installed_interrupt_stack_requirement(
                     private,
+                    expected.installation_machine,
                     expected.operation,
                 )?);
             }
             for scope in authority.installed_interrupts().scopes() {
-                let first =
-                    actual_requirements.partition_point(|row| row.operation < scope.operation());
-                let last =
-                    actual_requirements.partition_point(|row| row.operation <= scope.operation());
+                let first = actual_requirements.partition_point(|row| {
+                    (row.installation_machine, row.operation) < (scope.machine(), scope.operation())
+                });
+                let last = actual_requirements.partition_point(|row| {
+                    (row.installation_machine, row.operation)
+                        <= (scope.machine(), scope.operation())
+                });
                 if first == last {
                     continue;
                 }
@@ -1608,7 +1616,9 @@ pub(crate) mod installed_stack {
                     .installed_interrupts()
                     .entries()
                     .iter()
-                    .filter(|entry| entry.operation == scope.operation())
+                    .filter(|entry| {
+                        entry.machine == scope.machine() && entry.operation == scope.operation()
+                    })
                     .collect();
                 let proposed_root = authority.installed_stack_requirements()[first]
                     .arrival

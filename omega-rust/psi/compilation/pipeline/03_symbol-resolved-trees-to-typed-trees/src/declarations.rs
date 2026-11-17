@@ -156,7 +156,9 @@ pub(crate) mod data {
             .then_some(lowerer.type_reference_exposure)
             .flatten();
         lowerer.with_type_reference_exposure(exposure, |lowerer| {
-            lower_data_definition_contents(lowerer, data_definition)
+            lowerer.with_source_owner(data_definition.symbol, |lowerer| {
+                lower_data_definition_contents(lowerer, data_definition)
+            })
         })
     }
 

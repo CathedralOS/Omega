@@ -263,7 +263,10 @@ pub fn native_calling_applications(
             .as_ref()
             .map_err(|reason| failure(reason.clone()))?;
         let key = abi.identity(&module.identities).map_err(failure)?;
-        if key.requirement_identity != requirement {
+        if !declaration
+            .matches_calling_abi(&module.identities, &key)
+            .map_err(failure)?
+        {
             return Err(failure(format!(
                 "native boundary `{name}` has another declaration's calling ABI"
             )));

@@ -3,9 +3,11 @@
 Any model can make an atlas page with this kit, whether that is GPT, Codex or
 Claude, without special tools. A page is one static HTML file in
 `atlas/pages/` that links `../design/tokens.css`, draws its figures as
-inline SVG, and opens in any browser. The architecture overview progressively enhances
-its static SVG to a Canvas2D workspace with the same model and a DOM text
-outline. This file holds the rules; `tokens.css`,
+inline SVG, and opens in any browser. The architecture overview follows the
+original map: outlined Psi representations, filled native forms, a green checker
+verdict and dashed red extra paths. It shows return paths and late code generation. Selecting a
+box opens its cited stage records. Its optional full graph enhances a static SVG
+to Canvas2D with the same model and a DOM text outline. This file holds the rules; `tokens.css`,
 `tokens.json` and `fonts/` hold the values; `page-template.html` is a page to
 copy.
 

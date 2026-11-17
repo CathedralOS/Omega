@@ -60,12 +60,14 @@ pub(crate) mod interrupt_installation {
             ));
         };
         let installations = builder.installations;
-        let scope = installations.installation(row.operation).map_err(failure)?;
+        let scope = installations
+            .installation((source.machine, row.operation))
+            .map_err(failure)?;
         if &scope.arguments != arguments {
             return Err(failure("installation has conflicting admitted operands"));
         }
         let entries = installations
-            .installation_entries(row.operation)
+            .installation_entries((source.machine, row.operation))
             .collect::<Vec<_>>();
         let anchor = scope
             .context_anchor
@@ -126,7 +128,7 @@ pub(crate) mod interrupt_installation {
         let mut guards: Vec<GuardEntry<'_>> = Vec::with_capacity(entries.len());
         for entry in entries {
             let requirement = installations
-                .stack_requirement(row.operation, entry.placement_index)
+                .stack_requirement((source.machine, row.operation), entry.placement_index)
                 .ok_or_else(|| failure("arrival body has no measured stack requirement"))?;
             if requirement.psi != installations.psi {
                 return Err(failure(
@@ -1477,7 +1479,9 @@ pub(crate) mod interrupt_installation_guards {
             return Err(failure("installation guards received no admitted entries"));
         }
         for entry in entries {
-            if entry.entry.operation != row.operation
+            if entry.entry.machine != source.machine
+                || entry.entry.operation != row.operation
+                || entry.requirement.installation_machine != source.machine
                 || entry.requirement.operation != row.operation
                 || entry.requirement.placement_index != entry.entry.placement_index
                 || entry.requirement.psi != entry.entry.callback.psi
@@ -1815,7 +1819,7 @@ pub(crate) mod static_interrupts {
         }
         builder
             .installations
-            .require(row.operation, *operation)
+            .require((source.machine, row.operation), *operation)
             .map_err(SelectedInstructionError::custody_because)?;
         source.structural.as_ref().ok_or_else(failure)?;
         let declarations = source.geometry();

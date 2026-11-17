@@ -443,14 +443,14 @@ mod interrupt_installation {
     }
 
     pub(crate) fn scope(
-        operation: OperationId,
+        operation: (semantic_vocabulary::MachineId, OperationId),
         cohort: Option<&AdmittedInstalledInterruptCohort>,
     ) -> Result<&provider_admission::AdmittedInstalledInterruptScope, &'static str> {
         let mut scopes = cohort
             .ok_or("installation has no admitted scope cohort")?
             .scopes()
             .iter()
-            .filter(|scope| scope.operation() == operation);
+            .filter(|scope| (scope.machine(), scope.operation()) == operation);
         match (scopes.next(), scopes.next()) {
             (Some(scope), None) => Ok(scope),
             _ => Err("installation has no unique admitted scope"),
@@ -2827,7 +2827,10 @@ pub(crate) fn lower(
     settlements: &BTreeMap<BoundaryMachineId, BoundarySettlementBinding>,
     selected_calls: &crate::selected_boundary_calls::SelectedCallsByCall,
     scalar_abis: &BTreeMap<MachineId, ScalarFunctionAbi>,
-    native_callbacks: &BTreeMap<OperationId, Vec<target_operations::TargetNativeCallbackArgument>>,
+    native_callbacks: &BTreeMap<
+        (semantic_vocabulary::MachineId, OperationId),
+        Vec<target_operations::TargetNativeCallbackArgument>,
+    >,
     installed_interrupts: Option<&provider_admission::AdmittedInstalledInterruptCohort>,
 ) -> Result<TargetFunction, LoweringError> {
     if function.blocks.is_empty() {

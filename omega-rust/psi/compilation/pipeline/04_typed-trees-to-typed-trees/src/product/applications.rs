@@ -30,6 +30,7 @@ use language_semantics::declaration_selection::product_operands::{
     ProductStaticOperand, ProductStaticOperandGraph,
 };
 use language_semantics::declaration_selection::{ProductDeclarationOperand, ProductOperandRole};
+use std::borrow::Cow;
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::TypedTrees;
 use typed_trees::data::TypeParameterKind;
@@ -46,12 +47,16 @@ pub(super) enum Stop {
     /// before any call of the helper.
     Open,
     /// A form this producer does not serve yet.
-    Unserved(&'static str),
+    Unserved(Cow<'static, str>),
     /// The application is wrong as written.
     Rejected(String),
 }
 
 type Formed<T> = Result<T, Stop>;
+
+fn unserved(reason: impl Into<Cow<'static, str>>) -> Stop {
+    Stop::Unserved(reason.into())
+}
 
 pub(super) enum OperandSource<'program> {
     Authored(&'program typed_trees::product_operand::ProductSourceLookups<'program>),
@@ -89,7 +94,7 @@ impl Lower<'_> {
     fn deeper(&mut self) -> Formed<()> {
         self.nodes += 1;
         if self.nodes > NODES {
-            return Err(Stop::Unserved("a static argument too large to be authored"));
+            return Err(unserved("a static argument too large to be authored"));
         }
         Ok(())
     }
@@ -100,7 +105,7 @@ impl Lower<'_> {
         if let Some(atom) = name.builtin_type {
             return symbols
                 .builtin_atom_symbol(atom)
-                .ok_or(Stop::Unserved("a builtin type this program does not hold"));
+                .ok_or(unserved("a builtin type this program does not hold"));
         }
         let Some(declaration) = name.declaration else {
             // A Build names Product declarations it cannot see while it is
@@ -109,11 +114,11 @@ impl Lower<'_> {
             // declaration visible from where the name is written. A retained
             // operand has no such position; every name of it is anchored.
             if !self.helper.is_valid() && self.environment.is_none() {
-                return Err(Stop::Unserved(
+                return Err(unserved(
                     "a static argument name with no declaration anchor",
                 ));
             }
-            return self.source.ok_or(Stop::Unserved("a retained operand has no authored lookup scope"))?.declarations.resolve(
+            return self.source.ok_or(unserved("a retained operand has no authored lookup scope"))?.declarations.resolve(
                 &name.text,
                 name.source_span,
                 ProductOperandRole::Data,
@@ -135,10 +140,10 @@ impl Lower<'_> {
             .filter(|symbol| symbols.symbol_provenance_source_span(*symbol) == Some(declaration));
         match (found.next(), found.next()) {
             (Some(symbol), None) => Ok(symbol),
-            (None, _) => Err(Stop::Unserved(
+            (None, _) => Err(unserved(
                 "a static argument naming something other than a builtin type or data",
             )),
-            (Some(_), Some(_)) => Err(Stop::Unserved(
+            (Some(_), Some(_)) => Err(unserved(
                 "a static argument whose declaration anchor is ambiguous",
             )),
         }
@@ -187,7 +192,7 @@ impl Lower<'_> {
                 .symbol_provenance_source_span(binder.symbol)
                 .map(|declaration| symbols.rejoin_product_occurrence(declaration))),
             (None, _) => Ok(None),
-            (Some(_), Some(_)) => Err(Stop::Unserved(
+            (Some(_), Some(_)) => Err(unserved(
                 "a static argument naming two binders of its helper",
             )),
         }
@@ -210,7 +215,7 @@ impl Lower<'_> {
             .map(|(_, binding)| binding)
             .filter(|binding| symbols.rejoin_product_occurrence(binding.parameter) == parameter);
         let (Some(binding), None) = (bound.next(), bound.next()) else {
-            return Err(Stop::Unserved(
+            return Err(unserved(
                 "a helper parameter its selection gives no single value",
             ));
         };
@@ -229,13 +234,11 @@ impl Lower<'_> {
     fn argument(&mut self, handle: Handle<ProductStaticOperand>) -> Formed<Closed> {
         self.deeper()?;
         if !self.graph.operands.is_valid(handle) {
-            return Err(Stop::Unserved(
-                "a static argument its request does not hold",
-            ));
+            return Err(unserved("a static argument its request does not hold"));
         }
         let operand = self.graph.operands.get(handle).clone();
         if operand.projection.is_some() {
-            return Err(Stop::Unserved("a projected static argument"));
+            return Err(unserved("a projected static argument"));
         }
         if let Some(literal) = operand.integer {
             return Ok(Closed::Integer(literal));
@@ -245,7 +248,7 @@ impl Lower<'_> {
         }
         let names = self.graph.names.span_or_empty(operand.path).to_vec();
         let [name] = names.as_slice() else {
-            return Err(Stop::Unserved("a qualified static argument"));
+            return Err(unserved("a qualified static argument"));
         };
         if !operand.application.is_valid() {
             // `true` and `false` are keywords, so neither is a binder.
@@ -265,7 +268,7 @@ impl Lower<'_> {
         // Applied data written as a path, `Holder<u64>`.
         let application = self.graph.applications.get(operand.application).clone();
         if application.member.is_valid() || !application.lifetimes.is_empty() {
-            return Err(Stop::Unserved(
+            return Err(unserved(
                 "a static argument applied at lifetimes or naming a member",
             ));
         }
@@ -326,7 +329,7 @@ impl Lower<'_> {
                     .type_reference_table
                     .insert(TypeReferenceNode::ConstExpression(value)))
             }
-            Closed::Boolean(_) => Err(Stop::Unserved(
+            Closed::Boolean(_) => Err(unserved(
                 "a Boolean argument of applied data in a provider choice",
             )),
         }
@@ -335,7 +338,7 @@ impl Lower<'_> {
     fn ty(&mut self, handle: Handle<ProductOperandType>) -> Formed<TypeReferenceHandle> {
         self.deeper()?;
         if !self.graph.types.is_valid(handle) {
-            return Err(Stop::Unserved("a static type its request does not hold"));
+            return Err(unserved("a static type its request does not hold"));
         }
         match self.graph.types.get(handle).clone() {
             ProductOperandType::Unit => Ok(self
@@ -359,7 +362,7 @@ impl Lower<'_> {
                 arguments,
             } => {
                 if !lifetimes.is_empty() {
-                    return Err(Stop::Unserved("a static type applied at lifetimes"));
+                    return Err(unserved("a static type applied at lifetimes"));
                 }
                 let name = self.graph.names.get(name).clone();
                 let symbol = self.symbol(&name)?;
@@ -375,17 +378,17 @@ impl Lower<'_> {
                     ProductArrayLength::Parameter(name) => {
                         let name = self.graph.names.get(name).clone();
                         let Some(Closed::Integer(literal)) = self.supplied(&name)? else {
-                            return Err(Stop::Unserved(
+                            return Err(unserved(
                                 "an array extent that is not a literal or a helper's value",
                             ));
                         };
                         literal
                             .value_u64()
                             .and_then(|length| usize::try_from(length).ok())
-                            .ok_or(Stop::Unserved("an array extent outside the host's range"))?
+                            .ok_or(unserved("an array extent outside the host's range"))?
                     }
                     ProductArrayLength::Expression(_) | ProductArrayLength::Call(_) => {
-                        return Err(Stop::Unserved("a computed array extent"));
+                        return Err(unserved("a computed array extent"));
                     }
                 };
                 let element_type = self.ty(element)?;
@@ -403,7 +406,7 @@ impl Lower<'_> {
             | ProductOperandType::Slice(_)
             | ProductOperandType::Constrained { .. }
             | ProductOperandType::Dynamic { .. }
-            | ProductOperandType::Invalid => Err(Stop::Unserved(
+            | ProductOperandType::Invalid => Err(unserved(
                 "a static type that is not a builtin type, data or a fixed array of those",
             )),
         }
@@ -430,7 +433,7 @@ fn bound(
             let landed_type = program
                 .primitive_type_reference(*type_reference)
                 .and_then(PrimitiveType::landed_landing_fixed)
-                .ok_or(Stop::Unserved(
+                .ok_or(unserved(
                     "a value parameter that is not a fixed-width integer or a Boolean",
                 ))?;
             let landing = numerics::literals::IntegerLanding {
@@ -476,7 +479,7 @@ fn bound(
             | TypeParameterKind::Implementation
             | TypeParameterKind::Proposition { .. },
             _,
-        ) => Err(Stop::Unserved(
+        ) => Err(unserved(
             "a slot or provider with a runtime-value, machine, implementation or proposition parameter",
         )),
     }
@@ -508,31 +511,33 @@ pub(super) fn form(
     };
     if !matches!(
         role,
-        ProductOperandRole::BoundarySubject | ProductOperandRole::Provider
+        ProductOperandRole::BoundarySubject
+            | ProductOperandRole::Provider
+            | ProductOperandRole::Requirement
     ) {
-        return Err(Stop::Unserved(
-            "an applied operand that is not a slot or a provider",
+        return Err(unserved(
+            "an applied operand that is not a slot, provider or requirement",
         ));
     }
     if let Some(existing) = program.prepared_product_operand(operand, environment, author, role) {
         return Ok(Some(existing));
     }
     if !graph.operands.is_valid(graph.root) {
-        return Err(Stop::Unserved("an applied operand with no root"));
+        return Err(unserved("an applied operand with no root"));
     }
     let root = graph.operands.get(graph.root).clone();
     if !graph.applications.is_valid(root.application) {
-        return Err(Stop::Unserved("an applied operand with no argument list"));
+        return Err(unserved("an applied operand with no argument list"));
     }
     let application = graph.applications.get(root.application).clone();
     if application.member.is_valid() || !application.lifetimes.is_empty() {
-        return Err(Stop::Unserved(
+        return Err(unserved(
             "a slot or provider applied at lifetimes or naming a member",
         ));
     }
     let declaration = match retained {
         Some(declaration) => Some(declaration),
-        None => source.ok_or(Stop::Unserved("an authored operand has no declaration lookup scope"))?.declarations.resolve(
+        None => source.ok_or(unserved("an authored operand has no declaration lookup scope"))?.declarations.resolve(
             &operand.path,
             operand.source_span,
             role,
@@ -545,6 +550,16 @@ pub(super) fn form(
         ))
     })?;
     let (declaration_parameters, lifetimes) = match role {
+        ProductOperandRole::Requirement => program
+            .trait_machine_signature(declaration)
+            .filter(|(owner, requirement)| owner.is_boundary && requirement.symbol == declaration)
+            .ok_or(unserved("an applied requirement with no exact boundary declaration"))
+            .and_then(|(owner, requirement)| {
+                if !owner.type_parameters.is_empty() || !owner.lifetime_parameters.is_empty() {
+                    return Err(unserved("a requirement without its complete declaring trait application"));
+                }
+                Ok((requirement.type_parameters, requirement.lifetime_parameters.len()))
+            })?,
         ProductOperandRole::BoundarySubject => program
             .trait_definition_by_symbol(declaration)
             .map(|definition| {
@@ -553,9 +568,7 @@ pub(super) fn form(
                     definition.lifetime_parameters.len(),
                 )
             })
-            .ok_or(Stop::Unserved(
-                "an applied slot that is not a boundary trait",
-            ))?,
+            .ok_or(unserved("an applied slot that is not a boundary trait"))?,
         _ => program
             .conformance_by_symbol(declaration)
             .map(|definition| {
@@ -572,7 +585,7 @@ pub(super) fn form(
             })?,
     };
     if lifetimes != 0 {
-        return Err(Stop::Unserved(
+        return Err(unserved(
             "an applied slot or provider with lifetime parameters",
         ));
     }
@@ -619,69 +632,95 @@ pub(super) fn form(
         })),
         ..StaticMachineArgument::default()
     };
-    let unformed = |_| Stop::Unserved("an application whose arguments have no type form");
-    let references = closed
-        .iter()
-        .map(|argument| program.static_operand_type_reference_in_scope(argument, author))
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(unformed)?;
-    let incomplete = Stop::Unserved("an application with no complete trait scope");
-    let scope = match role {
-        ProductOperandRole::BoundarySubject => {
-            let definition =
-                program
+    let scope = if role == ProductOperandRole::Requirement {
+        let (owner, _) = program
+            .trait_machine_signature(declaration)
+            .ok_or(unserved("an applied requirement lost its declaring trait"))?;
+        AppliedTraitScope::abstract_scope(owner).environment()
+    } else {
+        let unformed = |_| unserved("an application whose arguments have no type form");
+        let references = closed
+            .iter()
+            .map(|argument| program.static_operand_type_reference_in_scope(argument, author))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(unformed)?;
+        let incomplete = unserved("an application with no complete trait scope");
+        match role {
+            ProductOperandRole::BoundarySubject => {
+                let definition = program
                     .trait_definition_by_symbol(declaration)
-                    .ok_or(Stop::Unserved(
-                        "an applied slot that is not a boundary trait",
-                    ))?;
-            AppliedTraitScope::new(
-                program,
-                definition,
-                TraitApplicationArguments {
-                    lexical_owner: author,
-                    enclosing_data_applications: &[],
-                    arguments: &references,
-                    lifetimes: &[],
-                },
-            )
-            .map(|scope| scope.environment())
+                    .ok_or(unserved("an applied slot that is not a boundary trait"))?;
+                AppliedTraitScope::new(
+                    program,
+                    definition,
+                    TraitApplicationArguments {
+                        lexical_owner: author,
+                        enclosing_data_applications: &[],
+                        arguments: &references,
+                        lifetimes: &[],
+                    },
+                )
+                .map(|scope| scope.environment())
+            }
+            _ => {
+                let definition = program
+                    .conformance_by_symbol(declaration)
+                    .ok_or(unserved("an applied provider with no declaration"))?;
+                AppliedTraitScope::from_conformance_application(
+                    program,
+                    definition,
+                    TraitApplicationArguments {
+                        lexical_owner: author,
+                        enclosing_data_applications: &[],
+                        arguments: &references,
+                        lifetimes: &[],
+                    },
+                )
+                .map(|scope| scope.environment())
+            }
         }
-        _ => {
-            let definition = program
-                .conformance_by_symbol(declaration)
-                .ok_or(Stop::Unserved("an applied provider with no declaration"))?;
-            AppliedTraitScope::from_conformance_application(
-                program,
-                definition,
-                TraitApplicationArguments {
-                    lexical_owner: author,
-                    enclosing_data_applications: &[],
-                    arguments: &references,
-                    lifetimes: &[],
-                },
-            )
-            .map(|scope| scope.environment())
-        }
-    }
-    .ok_or(incomplete)?;
-    let scope = scope.retain(program).map_err(Stop::Unserved)?;
+        .ok_or(incomplete)?
+    };
+    let scope = scope.retain(program).map_err(unserved)?;
     let supplying = program.expression_table.retain_static_machine_application(
         declaration,
         Identifier::generated(&operand.path),
-        std::slice::from_ref(&whole),
+        if role == ProductOperandRole::Requirement {
+            &closed
+        } else {
+            std::slice::from_ref(&whole)
+        },
     );
     let retained = program
         .expression_table
         .static_machine_application_mut(supplying);
     retained.binding_declaration = declaration;
     retained.lexical_owner = author;
+    let selected = if role == ProductOperandRole::Requirement {
+        use crate::passes::specialization::{
+            Stop as RequirementStop, prepare_requirement_application,
+        };
+        prepare_requirement_application(program, declaration, supplying, &closed)
+            .map_err(|stop| match stop {
+                RequirementStop::Unserved(reason) => Stop::Unserved(reason),
+                RequirementStop::Rejected(reason) => Stop::Rejected(reason),
+                RequirementStop::Defect(reason) => {
+                    Stop::Rejected(format!("Product requirement preparation defect: {reason}"))
+                }
+            })?
+            .ok_or(unserved(
+                "a requirement application with no canonical closed header",
+            ))?
+    } else {
+        declaration
+    };
     Ok(Some(program.retain_product_operand_application(
         ProductOperandApplication {
             operand: operand.clone(),
             environment: environment.cloned().map(std::sync::Arc::new),
             owner: author,
             role: Some(role),
-            declaration,
+            declaration: selected,
             declaration_parameters,
             declaration_lifetime_count: 0,
             demand,

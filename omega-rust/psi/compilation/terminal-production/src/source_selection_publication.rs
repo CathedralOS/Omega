@@ -2034,6 +2034,365 @@ machine entry() -> u64 crashes none {
         .unwrap()
     }
 
+    fn closed_requirement_formed_in_build(
+        calls_build: bool,
+    ) -> (
+        typed_trees::FrozenTypedTrees,
+        typed_trees::static_applications::StaticMachineApplicationHandle,
+    ) {
+        use language_semantics::declaration_selection::{
+            ProductDeclarationOperand,
+            product_operands::{
+                ProductStaticApplication, ProductStaticOperand, ProductStaticOperandGraph,
+            },
+        };
+        const BUILD: &str = "public machine build() { let four: u64 = 4; }";
+        let product = format!(
+            r#"
+boundary trait Probe {{
+    machine take<const Limit: u64>(value: u32) -> u32
+    reaches none requires value <= Limit crashes none;
+}}
+machine entry() -> u32 crashes none {{
+    {}
+    let first: u32 = Probe::take<4>(3);
+    let second: u32 = Probe::take<8>(7);
+    first
+}}
+"#,
+            if calls_build { "build();" } else { "" }
+        );
+        let package = semantic_vocabulary::PackageKeyIdentity::from_digest([0xc4; 32]).unwrap();
+        let mut sources = source::SourceMap::default();
+        let mut syntax = None;
+        let mut build_source = None;
+        for (path, text, scope) in [
+            ("scope/build.omg", BUILD, source::DependencyScope::Build),
+            (
+                "scope/main.omg",
+                product.as_str(),
+                source::DependencyScope::Product,
+            ),
+        ] {
+            let id = sources
+                .add_checked_instance(
+                    path.into(),
+                    text,
+                    "scope".into(),
+                    Some(package),
+                    source::SourceOrigin::User,
+                    source::SourceResolutionStratum::Base,
+                    scope,
+                )
+                .source_id;
+            if scope == source::DependencyScope::Build {
+                build_source = Some(id);
+            }
+            let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
+            match &mut syntax {
+                None => {
+                    syntax = Some(
+                        tokens_to_syntax_trees::parse_syntax_trees_with_id(id, &tokens).unwrap(),
+                    )
+                }
+                Some(syntax) => {
+                    tokens_to_syntax_trees::parse(syntax, id, &tokens).unwrap();
+                }
+            }
+        }
+        let mut request =
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax.unwrap());
+        request.sources = Some(Arc::new(sources));
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(request).unwrap();
+        let mut program =
+            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+        let author = program.realized_machine_named("build").unwrap().symbol;
+        let (literal, span) = program
+            .expression_table
+            .iter_expressions()
+            .find_map(|(expression, node)| {
+                let typed_trees::expression::ExpressionNode::Integer(value) = node else {
+                    return None;
+                };
+                let span = program.expression_table.source_span(expression);
+                (Some(span.source_id) == build_source && value.value_u64() == Some(4))
+                    .then(|| (value.clone(), span))
+            })
+            .unwrap();
+        let mut graph = ProductStaticOperandGraph::default();
+        let value = graph.operands.insert(ProductStaticOperand {
+            integer: Some(literal),
+            ..Default::default()
+        });
+        let arguments = graph.static_arguments.insert_many([value]);
+        let application = graph.applications.insert(ProductStaticApplication {
+            arguments,
+            ..Default::default()
+        });
+        graph.root = graph.operands.insert(ProductStaticOperand {
+            application,
+            ..Default::default()
+        });
+        let operand = ProductDeclarationOperand {
+            path: "Probe::take".into(),
+            source_span: span,
+            application: Some(Arc::new(graph)),
+        };
+        let input = program.clone();
+        let lookups = typed_trees::product_operand::ProductSourceLookups::new(&input);
+        let prepared = typed_trees_to_typed_trees::prepare_product_requirement_operand(
+            &mut program,
+            &lookups,
+            &operand,
+            author,
+            None,
+        )
+        .unwrap();
+        let application = program
+            .closed_requirement_application(prepared.closed_requirement.unwrap())
+            .unwrap()
+            .application;
+        assert_eq!(
+            program
+                .expression_table
+                .static_machine_application(application)
+                .lexical_owner,
+            author
+        );
+        let (program, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+            program,
+            &typed_trees_to_typed_trees::PreparationRequest::settled(),
+        )
+        .unwrap();
+        (program, application)
+    }
+
+    fn accept_formation_program(
+        program: typed_trees::FrozenTypedTrees,
+    ) -> Result<AcceptedTerminalSource, Vec<Diagnostic>> {
+        let entry = program.realized_machine_named("entry").unwrap().symbol;
+        let package = program.symbols.symbol_package_identity(entry).unwrap();
+        AcceptedTerminalSource::judge(
+            Arc::new(program),
+            typed_trees_to_terminal_psi::Compilation {
+                declaration_metadata: &[],
+                entries: &[entry],
+                subjects: &[Some(package)],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                calling: None,
+                providers: None,
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Invocation,
+        )
+    }
+
+    #[test]
+    fn static_formation_scope_is_metadata_not_a_product_selection() {
+        let (program, _) = closed_requirement_formed_in_build(false);
+        let source = accept_formation_program(program).unwrap();
+        let prepared = prepare(&source, source.module(), None).unwrap();
+        terminal_installation::selection_questions::admit_selection_questions(
+            source.module(),
+            &prepared.questions,
+            &terminal_installation::selection_questions::SelectionAuthorities {
+                build: None,
+                product: None,
+            },
+        )
+        .unwrap();
+        let (build, _) = prepared
+            .questions
+            .declarations
+            .iter()
+            .find(|(_, row)| row.name == "build" && row.purpose == SelectionPurpose::Build)
+            .expect("formation source stays in the captured inventory");
+        assert!(
+            !prepared
+                .questions
+                .questions
+                .iter()
+                .any(
+                    |(_, question)| question.purpose == SelectionPurpose::Product
+                        && question.selected == SelectionReference::Declaration(build)
+                )
+        );
+
+        // A written call still owes visibility before it reaches admission.
+        let (program, _) = closed_requirement_formed_in_build(true);
+        let sources = program.symbols.source_map().unwrap();
+        let errors = accept_formation_program(program).err().unwrap();
+        assert_eq!(errors.len(), 1, "{errors:?}");
+        let refused = &errors[0];
+        assert!(
+            refused
+                .message
+                .contains("this call has no visible declaration in its source scope"),
+            "{refused:?}"
+        );
+        assert_eq!(sources.text_at(refused.source_span.unwrap()), "build");
+
+        for owner in [
+            SymbolHandle::invalid(),
+            SymbolHandle::from_parts(u32::MAX, 1),
+        ] {
+            let (program, application) = closed_requirement_formed_in_build(false);
+            let mut program = program.into_inner();
+            program
+                .expression_table
+                .static_machine_application_mut(application)
+                .lexical_owner = owner;
+            let refusal = accept_formation_program(program.into()).err().unwrap();
+            assert!(
+                format!("{refusal:?}")
+                    .contains("closed requirement call lost its supplying declaration"),
+                "{refusal:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn generated_cleanup_calls_keep_the_carriers_actual_selection() {
+        let source = accepted_source(
+            r#"
+data First dropped by end_first { value: u64; }
+data Second dropped by end_second { value: u64; }
+machine end_first(owned: First) { let { value as _ } = move owned; }
+machine end_second(owned: Second) { let { value as _ } = move owned; }
+machine entry() {
+    let first: First = First { value: 7u64 };
+    let second: Second = Second { value: 7u64 };
+}
+"#,
+            &[],
+        );
+        let module = source.module();
+        let prepared = prepare(&source, module, None).expect("cleanup choices must publish");
+        terminal_installation::selection_questions::validate_selection_questions(
+            module,
+            &prepared.questions,
+        )
+        .expect("each generated call must retain its carrier author's exact selection");
+        let calls = prepared
+            .questions
+            .joins
+            .iter()
+            .enumerate()
+            .filter_map(|(position, join)| match join {
+                SelectionJoin::Invocation {
+                    question,
+                    original_caller,
+                    site: CallableInvocationSite::CleanupAction { .. },
+                    target,
+                    ..
+                } => Some((position, *question, *original_caller, *target)),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let [first, second] = calls.as_slice() else {
+            panic!("two exact cleanup calls: {calls:?}")
+        };
+        assert_ne!(first.1, second.1);
+        assert_ne!(first.2, second.2);
+        assert_ne!(first.3, second.3);
+
+        let mut wrong_author = prepared.questions.clone();
+        wrong_author
+            .questions
+            .get_mut(first.1)
+            .unwrap()
+            .occurrence
+            .lexical_owner = second.2;
+        let SelectionJoin::Invocation {
+            original_caller, ..
+        } = &mut wrong_author.joins[first.0]
+        else {
+            unreachable!()
+        };
+        *original_caller = second.2;
+
+        let mut wrong_target = prepared.questions.clone();
+        let SelectionJoin::Invocation { target, .. } = &mut wrong_target.joins[first.0] else {
+            unreachable!()
+        };
+        *target = second.3;
+
+        let mut wrong_application = prepared.questions.clone();
+        let structures = wrong_application
+            .joins
+            .iter()
+            .enumerate()
+            .filter_map(|(position, join)| match join {
+                SelectionJoin::Structure {
+                    declaration,
+                    storage_identity,
+                    ..
+                } if *declaration == first.2 || *declaration == second.2 => {
+                    Some((position, *declaration, storage_identity.clone()))
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(structures.len(), 2, "two carrier applications");
+        let (first_structure, _, _) = structures
+            .iter()
+            .find(|(_, declaration, _)| *declaration == first.2)
+            .unwrap();
+        let (_, _, second_identity) = structures
+            .iter()
+            .find(|(_, declaration, _)| *declaration == second.2)
+            .unwrap();
+        let SelectionJoin::Structure {
+            storage_identity, ..
+        } = &mut wrong_application.joins[*first_structure]
+        else {
+            unreachable!()
+        };
+        *storage_identity = second_identity.clone();
+
+        // Collect every verdict before asserting, so a failure reports all
+        // mismatched ownership and target relationships in one test run.
+        let cases = [
+            (
+                "carrier author",
+                wrong_author,
+                "cleanup selection differs from its exact carrier application or author",
+            ),
+            (
+                "selected target",
+                wrong_target,
+                "invocation selection differs from its actual emitted target",
+            ),
+            (
+                "carrier application",
+                wrong_application,
+                "source selection structure differs from its applied storage identity",
+            ),
+        ];
+        let observations = cases
+            .into_iter()
+            .map(|(name, packet, expected)| {
+                (
+                    name,
+                    expected,
+                    terminal_installation::selection_questions::validate_selection_questions(
+                        module, &packet,
+                    ),
+                )
+            })
+            .collect::<Vec<_>>();
+        assert!(
+            observations.iter().all(|(_, expected, result)| {
+                result
+                    .as_ref()
+                    .is_err_and(|reason| reason.contains(expected))
+            }),
+            "{observations:?}"
+        );
+    }
+
     #[test]
     fn generated_cleanup_calls_keep_the_carriers_actual_selection() {
         let source = accepted_source(

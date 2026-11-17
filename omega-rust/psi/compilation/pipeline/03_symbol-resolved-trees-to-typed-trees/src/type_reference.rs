@@ -3498,12 +3498,40 @@ pub(crate) fn lower_type_reference_into_table(
     lowerer: &mut Lowerer,
     type_reference: &resolved::types::TypeReference,
 ) -> Result<typed::types::TypeReferenceHandle, Diagnostic> {
-    lower_type_reference_into_trees_with_exposure(
+    let first = lowerer
+        .typed_trees
+        .type_reference_table
+        .type_reference_count();
+    let reference = lower_type_reference_into_trees_with_exposure(
         lowerer.source_trees,
         &mut lowerer.typed_trees,
         type_reference,
         lowerer.type_reference_exposure,
-    )
+    )?;
+    retain_new_type_owners(lowerer, first)?;
+    Ok(reference)
+}
+
+/// A declared type keeps its lexical owner when another reader later uses it.
+/// Supplied arguments already retain their own owners and must keep them.
+fn retain_new_type_owners(lowerer: &mut Lowerer, first: usize) -> Result<(), Diagnostic> {
+    if !lowerer.source_owner.is_valid() {
+        return Ok(());
+    }
+    let references = lowerer
+        .typed_trees
+        .type_reference_table
+        .type_reference_rows_from(first)
+        .map(|(reference, _)| reference)
+        .collect::<Vec<_>>();
+    for reference in references {
+        lowerer
+            .typed_trees
+            .type_reference_table
+            .retain_operand_lifetime_owner(reference, lowerer.source_owner)
+            .map_err(Diagnostic::error)?;
+    }
+    Ok(())
 }
 
 pub(crate) fn lower_return_type(
@@ -3534,12 +3562,18 @@ pub(crate) fn lower_type_reference_handle_from_table(
     lowerer: &mut Lowerer,
     type_reference: resolved::types::TypeReferenceHandle,
 ) -> Result<typed::types::TypeReferenceHandle, Diagnostic> {
-    lower_type_reference_handle_from_table_with_context(
+    let first = lowerer
+        .typed_trees
+        .type_reference_table
+        .type_reference_count();
+    let reference = lower_type_reference_handle_from_table_with_context(
         lowerer.source_trees,
         &mut lowerer.typed_trees,
         type_reference,
         Some(AuthoredDeclarationSelectionExposure::PrivateImplementation),
-    )
+    )?;
+    retain_new_type_owners(lowerer, first)?;
+    Ok(reference)
 }
 
 pub(crate) fn retain_type_reference_recipe_selection(

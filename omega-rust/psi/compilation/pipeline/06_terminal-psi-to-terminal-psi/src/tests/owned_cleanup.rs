@@ -272,6 +272,9 @@ fn undecomposed_recursive_or_abnormal_consumers_never_gain_a_disposition() {
 #[test]
 fn complete_patterns_end_linear_wrappers_without_forgetting_components() {
     let accepted = [
+        include_str!(
+            "../../../../../../../tests/fixtures/run/ownership/consuming_record_pattern_cleanup/main.omg"
+        ),
         "data Zero [linear] {} machine consume(value: Zero) { let {} = move value; }",
         "data Ticket [linear] { number: u64; } machine consume(value: Ticket) -> u64 { let { number } = move value; number }",
         "data Zero [linear] {} data Pair [linear] { left: Zero; right: Zero; } machine consume(value: Pair) { let { left, right } = move value; let {} = move left; let {} = move right; }",
@@ -284,6 +287,12 @@ fn complete_patterns_end_linear_wrappers_without_forgetting_components() {
         );
     }
     let refused = [
+        (
+            include_str!(
+                "../../../../../../../tests/fixtures/fail/ownership/consuming_record_pattern_reuse/main.omg"
+            ),
+            "decomposition source is not a complete live value",
+        ),
         (
             "data Zero [linear] {} machine consume(value: Zero) { let {} = move value; let {} = move value; }",
             "decomposition source is not a complete live value",

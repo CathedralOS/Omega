@@ -126,39 +126,48 @@ pub(crate) mod native_admission {
         {
             (Vec::new(), Vec::new())
         } else {
-            let plan_boundary_call_ops: BTreeSet<semantic_vocabulary::OperationId> = input
+            let plan_boundary_call_ops: BTreeSet<_> = input
                 .plan()
-                .operations()
-                .filter_map(|operation| match operation {
-                    abstract_operations::AbstractOperation::BoundaryCall {
-                        psi_operation, ..
-                    } => Some(*psi_operation),
-                    _ => None,
+                .functions
+                .iter()
+                .flat_map(|function| {
+                    function
+                        .operations()
+                        .filter_map(move |operation| match operation {
+                            abstract_operations::AbstractOperation::BoundaryCall {
+                                psi_operation,
+                                ..
+                            } => Some((function.machine, *psi_operation)),
+                            _ => None,
+                        })
                 })
                 .collect();
-            let module_boundary_call_ops: BTreeSet<semantic_vocabulary::OperationId> = input
+            let module_boundary_call_ops: BTreeSet<_> = input
                 .context()
                 .module()
                 .machines
                 .iter()
-                .flat_map(|machine| machine.operations())
-                .filter_map(|operation| {
-                    matches!(
-                        operation.kind,
-                        terminal_psi::OperationKind::BoundaryCall { .. }
-                    )
-                    .then_some(operation.id)
+                .flat_map(|machine| {
+                    machine.operations().filter_map(move |operation| {
+                        matches!(
+                            operation.kind,
+                            terminal_psi::OperationKind::BoundaryCall { .. }
+                        )
+                        .then_some((machine.id, operation.id))
+                    })
                 })
                 .collect();
-            let in_scope = |operation| {
-                plan_boundary_call_ops.contains(&operation)
-                    || !module_boundary_call_ops.contains(&operation)
+            let in_scope = |machine, operation| {
+                plan_boundary_call_ops.contains(&(machine, operation))
+                    || !module_boundary_call_ops.contains(&(machine, operation))
             };
             let native_callbacks = request
                 .providers
                 .native_callbacks
                 .iter()
-                .filter(|callback| in_scope(callback.terminal_operation))
+                .filter(|callback| {
+                    in_scope(callback.registrar_machine, callback.terminal_operation)
+                })
                 .cloned()
                 .collect::<Vec<_>>();
             let mut callback_occurrences = vec![None; request.providers.callback_occurrences.len()];
@@ -181,7 +190,7 @@ pub(crate) mod native_admission {
                 .installed_interrupts
                 .iter()
                 .filter(|entry| {
-                    in_scope(entry.operation)
+                    in_scope(entry.machine, entry.operation)
                         || callback_occurrences
                             .get(entry.placement_index)
                             .copied()

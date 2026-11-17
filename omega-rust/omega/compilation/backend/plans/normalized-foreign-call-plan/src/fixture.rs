@@ -378,6 +378,8 @@ pub fn callback_fixture<Destination>(
         });
         record.call.callbacks.push(TargetNativeCallbackArgument {
             registrar_invokes_callback: true,
+            // This is an isolated call-record fixture, with an explicit synthetic owner.
+            registrar_machine: semantic_vocabulary::MachineId::new(1).unwrap(),
             terminal_operation: record
                 .invocation_site
                 .operation()

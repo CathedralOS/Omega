@@ -15,7 +15,7 @@
   label();
   const wide = matchMedia('(min-width: 980px)');
   const pageList = document.getElementById('page-list');
-  const fitNavigation = () => { pageList.open = wide.matches; };
+  const fitNavigation = () => { pageList.open = wide.matches && !document.body.classList.contains('overview-page'); };
   wide.addEventListener('change', fitNavigation);
   fitNavigation();
   const showDiagramHints = () => document.querySelectorAll('.diagram').forEach(figure => {

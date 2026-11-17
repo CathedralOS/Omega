@@ -11,6 +11,12 @@ pub struct PackagePolicyNativeBinding {
     pub(crate) binding: PackagePolicyProviderBinding,
 }
 impl PackagePolicyNativeBinding {
+    /// The complete closed callable selected by Build, when the binding has
+    /// static arguments. Its original method remains in the calling ABI key.
+    pub fn application(&self) -> Option<&str> {
+        self.application.as_deref()
+    }
+
     pub fn method(&self) -> &PackagePolicyServiceMethod {
         &self.method
     }
@@ -50,9 +56,6 @@ impl PackagePolicyNativeBinding {
         package: semantic_vocabulary::PackageKeyIdentity,
         target: target::TargetProfile,
     ) -> Result<(), &'static str> {
-        if self.application.is_some() {
-            return Err("native inventory has an unsupported applied requirement");
-        }
         let producer = self
             .producer()
             .ok_or("native inventory has no evaluated Build producer")?;
@@ -64,6 +67,22 @@ impl PackagePolicyNativeBinding {
         let [calling] = self.method.calling.as_slice() else {
             return Err("native inventory has no unique pinned calling application");
         };
+        match &self.application {
+            Some(application)
+                if !self
+                    .method
+                    .requirement
+                    .matches_closed_calling_application(application, &calling.abi)? =>
+            {
+                return Err(
+                    "native inventory application differs from its complete calling identity",
+                );
+            }
+            None if !calling.abi.operands.is_empty() => {
+                return Err("native inventory lost its closed calling application");
+            }
+            _ => {}
+        }
         if calling.abi.requirement_identity == calling.requirement.path {
             return Err("native inventory has no complete declaration ABI key");
         }
