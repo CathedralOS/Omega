@@ -97,36 +97,70 @@ fn published_question(
     Ok(row)
 }
 
-fn actual_calls(
-    module: &TerminalModule,
-) -> Result<Vec<((MachineId, CallableInvocationSite), SelectionCallTarget)>, String> {
+struct ActualCall<'module> {
+    target: SelectionCallTarget,
+    cleanup: Option<&'module terminal_psi::OwnedCleanupInvocation>,
+}
+
+type CallCoordinate = (MachineId, CallableInvocationSite);
+type CarrierSource<'module> = (
+    (
+        semantic_vocabulary::StructuralTypeId,
+        SelectionDeclarationId,
+    ),
+    &'module terminal_psi::StructuralTypeDeclaration,
+);
+
+fn actual_calls(module: &TerminalModule) -> Result<Vec<(CallCoordinate, ActualCall<'_>)>, String> {
     let mut calls = Vec::new();
     for machine in &module.machines {
         for call in machine.module_invocations() {
+            // The roster below retains each cleanup's subject as well as its
+            // callable coordinate. Do not also register it as an ordinary call.
+            if matches!(
+                call.site,
+                semantic_vocabulary::InvocationSite::Cleanup { .. }
+            ) {
+                continue;
+            }
             calls.push((
                 (machine.id, CallableInvocationSite::Invocation(call.site)),
-                SelectionCallTarget::Declared(TargetMachineCallable::Machine(call.inputs.callee)),
+                ActualCall {
+                    target: SelectionCallTarget::Declared(TargetMachineCallable::Machine(
+                        call.inputs.callee,
+                    )),
+                    cleanup: None,
+                },
             ));
         }
         for call in machine.callable_invocations() {
             calls.push((
                 (machine.id, CallableInvocationSite::Invocation(call.site)),
-                SelectionCallTarget::Selected {
-                    contract: call.inputs.contract,
-                    selector: call.inputs.callee,
+                ActualCall {
+                    target: SelectionCallTarget::Selected {
+                        contract: call.inputs.contract,
+                        selector: call.inputs.callee,
+                    },
+                    cleanup: None,
                 },
             ));
         }
         for call in machine.boundary_invocations() {
             calls.push((
                 (machine.id, CallableInvocationSite::Invocation(call.site)),
-                SelectionCallTarget::Declared(TargetMachineCallable::Boundary(call.boundary)),
+                ActualCall {
+                    target: SelectionCallTarget::Declared(TargetMachineCallable::Boundary(
+                        call.boundary,
+                    )),
+                    cleanup: None,
+                },
             ));
         }
         for block in &machine.blocks {
             for (edge, actions) in block.terminator.cleanup_rosters() {
                 for (ordinal, action) in actions.iter().enumerate() {
-                    if let Some(target) = action.invoked_machine() {
+                    if let terminal_psi::TerminalAffineCleanupAction::InvokeOwned(cleanup) = action
+                    {
                         calls.push((
                             (
                                 machine.id,
@@ -137,7 +171,12 @@ fn actual_calls(
                                     )?,
                                 },
                             ),
-                            SelectionCallTarget::Declared(TargetMachineCallable::Machine(target)),
+                            ActualCall {
+                                target: SelectionCallTarget::Declared(
+                                    TargetMachineCallable::Machine(cleanup.cleanup_machine),
+                                ),
+                                cleanup: Some(cleanup),
+                            },
                         ));
                     }
                 }
@@ -198,6 +237,38 @@ fn origin(
     origin_heads(rows, machine, source)
         .first()
         .map(|(_, head)| *head)
+}
+
+fn cleanup_author(
+    module: &TerminalModule,
+    packet: &SelectionQuestions,
+    call: &ActualCall<'_>,
+    structures: &[CarrierSource<'_>],
+    question: &SelectionQuestion,
+) -> Result<(), String> {
+    let cleanup = call
+        .cleanup
+        .ok_or("cleanup selection names no actual consuming action")?;
+    let author = question.occurrence.lexical_owner;
+    let owner = declaration(packet, author)?;
+    let carrier = lookup(structures, (cleanup.structural_type, author))
+        .ok_or("cleanup selection differs from its exact carrier application or author")?;
+    let selected = carrier
+        .nominal_cleanup
+        .as_ref()
+        .ok_or("cleanup selection carrier has no selected consumer")?;
+    if !matches!(
+        question.occurrence.node,
+        SelectionNode::AuthoredSelection { .. }
+    ) || module.identities.text(carrier.declaration_identity) != Some(owner.identity.as_str())
+        || selected.cleanup_machine != cleanup.cleanup_machine
+        || selected.declaration.identity() != carrier.identity
+    {
+        return Err(
+            "cleanup selection differs from its exact carrier application or author".into(),
+        );
+    }
+    Ok(())
 }
 
 /// The caller must supply the private source-issued companion, not decoded data
@@ -310,6 +381,7 @@ pub fn validate_selection_questions(
     let calls = actual_calls(module)?;
     let mut origins = Vec::new();
     let mut boundary_origins = Vec::new();
+    let mut structures = Vec::new();
     let mut constructed = Vec::new();
     for machine in &module.machines {
         for operation in machine.operations() {
@@ -374,10 +446,13 @@ pub fn validate_selection_questions(
                             .into(),
                     );
                 }
+                structures.push(((*structural_type, *source), row));
             }
             _ => (),
         }
     }
+    structures.sort_unstable_by_key(|(key, _)| *key);
+    structures.dedup_by_key(|(key, _)| *key);
     origins.sort_unstable();
     // A declaration starts at one head of an emitted machine, with one
     // exception. When calls that cycle among nested machines are folded into
@@ -444,12 +519,26 @@ pub fn validate_selection_questions(
                 target,
             } => {
                 let row = published_question(packet, *id)?;
-                if row.occurrence.lexical_owner != *original_caller
-                    || origin(&origins, *machine, *original_caller).is_none()
-                {
-                    return Err("invocation selection lost its original lexical caller".into());
+                let actual = lookup(&calls, (*machine, *site))
+                    .ok_or("invocation selection names no actual emitted call")?;
+                match *site {
+                    CallableInvocationSite::CleanupAction { .. } => {
+                        if row.occurrence.lexical_owner != *original_caller {
+                            return Err("cleanup selection differs from its exact carrier application or author".into());
+                        }
+                        cleanup_author(module, packet, actual, &structures, row)?;
+                    }
+                    CallableInvocationSite::Invocation(_) => {
+                        if row.occurrence.lexical_owner != *original_caller
+                            || origin(&origins, *machine, *original_caller).is_none()
+                        {
+                            return Err(
+                                "invocation selection lost its original lexical caller".into()
+                            );
+                        }
+                    }
                 }
-                if lookup(&calls, (*machine, *site)) != Some(target) {
+                if actual.target != *target {
                     return Err(
                         "invocation selection differs from its actual emitted target".into(),
                     );
@@ -584,8 +673,11 @@ pub fn validate_selection_questions(
     if folded_edges.windows(2).any(|rows| rows[0] == rows[1]) {
         return Err("folded selection repeats an emitted head edge".into());
     }
-    if covered_calls.contains(&false) {
-        return Err("published invocation lacks its exact source selection question".into());
+    if let Some(position) = covered_calls.iter().position(|covered| !covered) {
+        return Err(format!(
+            "published invocation {:?} lacks its exact source selection question",
+            calls[position].0,
+        ));
     }
     if covered_values.contains(&false) {
         return Err(
@@ -601,8 +693,8 @@ pub fn validate_selection_questions(
             let site = CallableInvocationSite::Invocation(
                 semantic_vocabulary::InvocationSite::Operation(designation.site.operation),
             );
-            if lookup(&calls, (designation.site.machine, site))
-                != Some(&SelectionCallTarget::Declared(
+            if lookup(&calls, (designation.site.machine, site)).map(|call| call.target)
+                != Some(SelectionCallTarget::Declared(
                     TargetMachineCallable::Boundary(designation.site.boundary),
                 ))
             {

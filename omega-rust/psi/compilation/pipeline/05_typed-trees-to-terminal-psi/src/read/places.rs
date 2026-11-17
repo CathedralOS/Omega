@@ -42,6 +42,7 @@ use crate::{SourceOrigin, Unserved, refuse};
 pub(super) struct RecordSource {
     pub(super) declaration: SymbolHandle,
     pub(super) application: Option<typed_trees::SourceTypeApplication>,
+    pub(super) cleanup: Option<typed_trees::domain::CleanupSelection>,
     /// The declaration whose lifetime binders a byte view's region is one
     /// of, when the typed trees retained no owner for that occurrence: the
     /// data declaration the view is a field of. Invalid everywhere else.
@@ -423,6 +424,7 @@ impl Program<'_> {
         });
         self.record_sources.push(RecordSource {
             declaration: symbol,
+            cleanup: data.cleanup_selection,
             application: application.clone(),
             region_owner: SymbolHandle::invalid(),
             fields: field_symbols,

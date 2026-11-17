@@ -28,21 +28,41 @@ pub(crate) mod complete_values {
                 .map_err(
                     |reason| TerminalInterpretError::VerifiedOperationContractInvalid { reason },
                 )?;
+            // A complete pattern leaves each component in the same storage.
+            // Check the live component covering this projection; its ended
+            // wrapper no longer supplies a whole-value claim.
+            let component = self
+                .live_affine_frontier
+                .iter()
+                .find(|entry| entry.place == place && region.starts_with(&entry.path));
+            let prefix = component
+                .filter(|entry| {
+                    !self.live_claims.values().any(|claim| {
+                        claim.place == Some(place)
+                            && entry.path.starts_with(&claim.path)
+                            && entry.path != claim.path
+                    })
+                })
+                .map_or(&[][..], |entry| entry.path.as_slice());
+            let selected = super::resolve_structural_path_type(&types, structural_type, prefix)?;
             terminal_semantics::owned_structure::validate_complete_claim_frontier(
                 &claim_types,
-                structural_type,
-                region,
+                selected,
+                &region[prefix.len()..],
                 self.live_claims.values().filter_map(|claim| {
                     (claim.place == Some(place)
                         && claim.multiplicity == Some(StructuralMultiplicity::Linear))
-                    .then_some(claim.path.as_slice())
+                    .then(|| claim.path.strip_prefix(prefix))
+                    .flatten()
                 }),
                 &|path, case| {
+                    let mut original = prefix.to_vec();
+                    original.extend_from_slice(path);
                     crate::boundary::structural_inputs::case_membership::stored_case_at_projection(
                         &types,
                         root,
                         self.structural_cases.as_map(),
-                        path,
+                        &original,
                     ) == Some(case)
                 },
             )

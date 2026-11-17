@@ -106,12 +106,20 @@ pub(crate) mod source_review {
         /// parameter, read as a declaration of the program, is the whole
         /// identity of its record. A generic record always has one.
         pub application: Option<SourceTypeApplication>,
+        /// The authored cleanup choice belongs to this exact type application.
+        pub cleanup: Option<SourceRecordCleanup>,
         pub storage_identity: String,
         pub schema: SymbolHandle,
         pub policy: SymbolHandle,
         pub layout: Option<SourceLayoutPlanCoordinate>,
         pub fields: Vec<SourceFieldCorrespondence>,
         pub realizations: Vec<SourceLayoutRealizationCoordinate>,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+    pub struct SourceRecordCleanup {
+        pub selection: crate::domain::CleanupSelection,
+        pub target: semantic_vocabulary::MachineId,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
@@ -135,7 +143,7 @@ pub(crate) mod source_review {
 }
 pub use source_review::{
     SourceCallCorrespondence, SourceFieldCorrespondence, SourceLayoutPlanCoordinate,
-    SourceLayoutRealizationCoordinate, SourceNode, SourceRecordCorrespondence,
+    SourceLayoutRealizationCoordinate, SourceNode, SourceRecordCleanup, SourceRecordCorrespondence,
     SourceServiceCorrespondence, SourceTypeApplication,
 };
 macro_rules! typed_tree_table {
