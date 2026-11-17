@@ -946,6 +946,7 @@ pub mod normalized_foreign {
                 };
                 let function = SelectedFunction {
                     contracts: std::sync::Arc::new(crate::SelectedFunctionContracts {
+                        structural_block_parameters: Vec::new(),
                         machine: MachineId::new(1).unwrap(),
                         attachment: None,
                         provenance: Default::default(),
@@ -1076,6 +1077,7 @@ pub mod normalized_foreign {
                 let register = VirtualRegisterId(0);
                 let mut function = SelectedFunction {
                     contracts: std::sync::Arc::new(crate::SelectedFunctionContracts {
+                        structural_block_parameters: Vec::new(),
                         machine: MachineId::new(1).unwrap(),
                         attachment: None,
                         provenance: Default::default(),

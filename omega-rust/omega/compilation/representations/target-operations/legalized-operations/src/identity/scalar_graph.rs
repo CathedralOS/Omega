@@ -76,7 +76,7 @@ pub(super) fn encode(
     for block in &function.blocks {
         crate::codec_bytes::push_encoded(bytes, block.id.get().to_le_bytes());
         encode_len(bytes, block.structural_parameters.len());
-        for parameter in &block.structural_parameters {
+        for parameter in block.structural_parameters.iter() {
             super::structural_types::encode_structural_parameter(bytes, parameter);
         }
         encode_len(bytes, block.parameters.len());

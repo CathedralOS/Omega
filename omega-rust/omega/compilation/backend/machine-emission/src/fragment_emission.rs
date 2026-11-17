@@ -1732,6 +1732,7 @@ mod tests {
         (
             SelectedFunction {
                 contracts: std::sync::Arc::new(selected_instructions::SelectedFunctionContracts {
+                    structural_block_parameters: Vec::new(),
                     machine,
                     attachment: None,
                     provenance: Default::default(),

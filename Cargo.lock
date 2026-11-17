@@ -744,6 +744,7 @@ dependencies = [
  "machine-code",
  "machine-emission",
  "native-preparation",
+ "native-vocabulary",
  "object-file",
  "optimization-core",
  "optimization-unit",

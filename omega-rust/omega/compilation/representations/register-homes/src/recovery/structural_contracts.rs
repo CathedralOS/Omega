@@ -156,6 +156,10 @@ pub(super) fn encode_contracts(
             encode_signature(bytes, value)?;
         }
     }
+    selected_instructions::plan_identity::encode_structural_block_parameters(
+        bytes,
+        &function.structural_block_parameters,
+    );
     length(bytes, function.local_storage_slots.len());
     for slot in &function.local_storage_slots {
         slot.id.encode_identity(bytes);
@@ -199,6 +203,7 @@ pub(super) fn decode_contracts(
         decode_signature,
         FixedViewCopyDecodeError::UnknownOption,
     )?;
+    function.structural_block_parameters = decode_block_parameters(cursor)?;
     function.local_storage_slots = decode_list::<_, FixedViewCopyDecodeError>(cursor, |cursor| {
         Ok(selected_instructions::SelectedLocalStorageSlot {
             id: decode_local_slot(cursor)?,
@@ -346,6 +351,66 @@ pub(super) fn decode_contracts(
             });
     }
     Ok(())
+}
+
+fn decode_block_parameters(
+    cursor: &mut Cursor<'_>,
+) -> Result<Vec<selected_instructions::SelectedStructuralBlockParameters>, FixedViewCopyDecodeError>
+{
+    // A nonempty family needs a block ID, a count and at least one 46-byte
+    // declaration. Check wire space before reserving either roster.
+    let count = cursor.length()?;
+    if count > cursor.remaining() / 62 {
+        return Err(FixedViewCopyDecodeError::InvalidStructuralBlockParameters);
+    }
+    let mut families: Vec<selected_instructions::SelectedStructuralBlockParameters> =
+        Vec::with_capacity(count);
+    for _ in 0..count {
+        let block = decode_id(cursor, BlockId::new)?;
+        if families
+            .last()
+            .is_some_and(|(previous, _)| *previous >= block)
+        {
+            return Err(FixedViewCopyDecodeError::InvalidStructuralBlockParameters);
+        }
+        let count = cursor.length()?;
+        if count == 0 || count > cursor.remaining() / 46 {
+            return Err(FixedViewCopyDecodeError::InvalidStructuralBlockParameters);
+        }
+        let mut parameters = Vec::with_capacity(count);
+        for _ in 0..count {
+            parameters.push(super::structural_declarations::decode_semantic_parameter(
+                cursor, true,
+            )?);
+        }
+        families.push((block, parameters.into()));
+    }
+    Ok(families)
+}
+
+#[cfg(test)]
+mod block_parameter_tests {
+    use super::*;
+
+    #[test]
+    fn counts_must_fit_nonempty_declaration_wire_space() {
+        let oversized = u64::MAX.to_le_bytes();
+        assert!(decode_block_parameters(&mut Cursor::new(&oversized)).is_err());
+        let mut encoded = Vec::new();
+        length(&mut encoded, 1);
+        push_encoded(&mut encoded, 1_u64.to_le_bytes());
+        push_encoded(&mut encoded, u64::MAX.to_le_bytes());
+        encoded.extend_from_slice(&[0; 46]);
+        assert!(matches!(
+            decode_block_parameters(&mut Cursor::new(&encoded)),
+            Err(FixedViewCopyDecodeError::InvalidStructuralBlockParameters)
+        ));
+        encoded[16..24].copy_from_slice(&0_u64.to_le_bytes());
+        assert!(matches!(
+            decode_block_parameters(&mut Cursor::new(&encoded)),
+            Err(FixedViewCopyDecodeError::InvalidStructuralBlockParameters)
+        ));
+    }
 }
 
 pub(super) fn encode_boundary_settlement(
@@ -1200,6 +1265,7 @@ mod local_slot_tests {
     fn byte_span_contract_roundtrip_retains_length_obligation_and_accepted_fact() {
         let empty = || SelectedFunction {
             contracts: std::sync::Arc::new(selected_instructions::SelectedFunctionContracts {
+                structural_block_parameters: Vec::new(),
                 machine: semantic_vocabulary::MachineId::new(1).unwrap(),
                 attachment: None,
                 provenance: Default::default(),

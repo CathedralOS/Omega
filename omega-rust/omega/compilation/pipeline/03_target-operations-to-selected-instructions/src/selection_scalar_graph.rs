@@ -7679,6 +7679,24 @@ pub(crate) fn select_function(
             attachment: source.attachment,
             provenance: source.provenance.clone(),
             structural: source.structural.clone(),
+            structural_block_parameters: {
+                let mut rows: Vec<_> = source
+                    .blocks
+                    .iter()
+                    .filter(|block| !block.structural_parameters.is_empty())
+                    .map(|block| {
+                        (
+                            block.id,
+                            std::sync::Arc::clone(&block.structural_parameters),
+                        )
+                    })
+                    .collect();
+                rows.sort_by_key(|(block, _)| *block);
+                if rows.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+                    return Err(invalid());
+                }
+                rows
+            },
             outgoing_arguments: builder.transport.slots,
             local_storage_slots: builder.transport.local_slots,
             calls: builder.transport.calls,

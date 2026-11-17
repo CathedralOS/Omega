@@ -193,7 +193,7 @@ fn collect_field_leaves(
     Ok(())
 }
 
-fn classify_scalar_leaves(
+pub(crate) fn classify_scalar_leaves(
     leaves: &[(u32, u32, bool)],
     referent: ValueShape,
     policy: CallingPolicy,

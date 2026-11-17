@@ -75,6 +75,34 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### macOS arm64 packs a record stack argument at its natural alignment instead of a whole 8-byte slot
+- Category: A verdict with nothing behind it
+- Where: [Darwin stack packing](omega-rust/omega/compilation/backend/calling-conventions/src/plans/call_plan_evaluation.rs#L767), [ValueShape](omega-rust/omega/compilation/backend/calling-conventions/src/plans/vocabulary.rs#L144), [clang cross-check](omega-rust/omega/compilation/backend/calling-conventions/src/tests/clang_crosscheck.rs)
+- Saw: `DarwinAapcs64` packs every stack argument at its natural alignment, records included. AAPCS64 B.5 rounds a Composite Type's size up to a multiple of 8 and C.14 rounds the stack address up to "the larger of 8 or the Natural Alignment of the argument's type"; Apple's packing covers the scalars its document shows, and clang keeps B.5 and C.14 for non-HFA records on Apple targets. So after eight register arguments, `{i16,i8}` goes at sp+2 under Omega and at sp+8 under clang, and every later stack argument shifts. The clang cross-check finds 24 of its 1,440 macOS signatures with this cause. `ValueShape` gives a small record and a scalar of the same size the same `Integer` class, so the evaluator cannot tell them apart; the fix needs the shape to say it is a record.
+- Cost: Default-ABI imports and callbacks on macOS arm64 that pass a small non-float record on the stack exchange wrong values. Delete the `DarwinRecordStackSlot` entry in `KNOWN_MISMATCHES` with the fix.
+- Reported: 2026-11-16, Claude Code, while turning the ABI pilot into a maintained clang cross-check
+
+### The Omega 04 replay validator reruns the optimizer instead of checking it
+- Category: A verdict with nothing behind it
+- Where: [validator](omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/selected_optimization.rs#L95), [fold replay](omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/literal_fold_rewrites.rs#L655), [pre-allocation replay](omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites.rs#L1934), [spec text](wiki/spec/build/command_line.md#L169)
+- Saw: `SelectedOptimizationReplay::validate`, run as `SelectedInstructionRewriteReplay`, calls `validate_selected_lowering_optimization_custody` and `validate_pre_allocation_optimization_custody`. Those rebuild each step with the producer's own `build_step` and `run_passes` and compare the results. The comments and the new `command_line.md` paragraph call this independent. [Independent validation](wiki/spec/build/optimizations.md#atomic-candidates-and-independent-validation) says "A matcher or producer cannot attest to itself by serving as its own validator", and [pipeline.md](omega-rust/pipeline.md#portable-materialization-and-consumer-ownership) lets a checker share small predicates "but not the decision procedure that produces that output".
+- Cost: `--every-validator` reports it as passed, but a rewrite bug that is deterministic passes it every time. Check each rewrite's preconditions and result with code that does not call the rewrite, or report the validator as a determinism check and fix the spec paragraph.
+- Reported: 2026-11-16, Claude Code, while checking #3833 against the spec
+
+### An optional Omega 04 rewrite shrinks the registers allocation may use
+- Category: Knowledge crossing a boundary
+- Where: [Omega 04 legality](omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/selected_optimization.rs#L210), [allocation input](omega-rust/omega/compilation/representations/selected-instructions/analyses/src/lib.rs#L652)
+- Saw: When a SelectedLowering or PreAllocation rule runs, Omega 04 builds legality under `FramelessLeafCallerSavedViews` and hands that analysis to Omega 05, which allocates on it. With no rewrite selected, `SelectedAllocationInput::into_legality` builds legality under `AllEnvironmentAllocatableViews`. So selecting an optional profitability rewrite restricts the whole program to caller-saved registers. This predates #3833, which kept it. [pipeline.md](omega-rust/pipeline.md#crate-placement-rule) says optimization history "must not select a different downstream representation", and [exact selection](wiki/spec/build/optimizations.md#exact-selection) treats allocation as mandatory "whether or not optional profitability rewrites are selected".
+- Cost: The same program allocates under different constraints, and may be refused, depending on an unrelated optimization choice. Let the rewrite run on its own analysis and have Omega 05 build legality under the availability allocation needs, whatever ran before.
+- Reported: 2026-11-16, Claude Code, while checking #3833 against the spec
+
+### Allocation admission re-checks choices Omega 05 just made
+- Category: Re-deriving
+- Where: [admission](omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/output.rs#L250)
+- Saw: On every compile, `validate_recovery_selection` checks that the recovery rule that ran equals the selection `stage_register_allocation` picked it from, and `capture_publication_facts` checks the manifest Omega 05 built against the record it built it from. [Verification placement](omega-rust/pipeline.md#verification-placement) says a default compile does not revalidate output the same compile just produced.
+- Cost: The checks are cheap, but they cannot fail unless the same function is wrong twice, and they add error variants every reader must handle. Move them into the allocation validator or a test.
+- Reported: 2026-11-16, Claude Code, while checking #3833 against the spec
+
 ### Three more portable filesystem calls mean different things on Windows and POSIX
 - Category: One idea, several implementations
 - Where: [Windows timestamp range](source/library/std/targets/windows_x86_64/filesystem/metadata.omg#L110), [Windows directory name limit](source/library/std/targets/windows_x86_64/windows_filesystem_directory_entry.omg#L140), [Windows transfer limit](source/library/std/targets/windows_x86_64/windows_filesystem_transfer.omg#L78), [pilot diff](https://github.com/CathedralOS/Omega/tree/work/pilot-library-cross-target)
@@ -85,6 +113,13 @@ framework or a list of unimplemented features.
   - `mbx xtask check-portable-services` tracks these as `known` rows in `tools/ratchets/portable_services.txt`; delete them with this entry.
 - Cost: The same portable call fails on one target and succeeds on another. Either state each limit in the portable contract and apply it on every target, or lift it on Windows (larger name buffer, split transfers).
 - Reported: 2026-11-16, Claude Code, while piloting a cross-target library diff
+
+### Each provider row rehashes every toolchain source
+- Category: Verifying costs more than writing
+- Where: [provider publication](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/static_contracts.rs#L303), [shared program inputs](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/lib.rs#L84)
+- Saw: On `d0906b179f95`, `StaticContracts::publish` rebuilds the complete source-identity list inside each provider row, again for each generic form and witness reading the same immutable program. A one-second sample of the unchanged Console test caught 27 of 58 compiler-thread observations in that operation. The test took 519.245s; the sample does not establish its share of total time. Evidence remains in claim `18e85a23de177c780000000018e83683`, under `post-effect-policies-landed/original58-test.sample.txt`.
+- Cost: Hashing repeats with the source bytes, provider rows and check forms. Let the existing `SharedProgram` retain the exact list once and lend it to publication; preserve missing-identity refusals and source authentication. Count derivations and time the unchanged Console run before claiming a speedup. The separate boundary-declaration projection still needs its own equivalence check.
+- Reported: 2026-11-16, Codex, while carrying the original Console and stored-machine programs through checking and execution
 
 ### A qualified collection gets builtin `[..]` indexing without a declared operator
 - Category: A verdict with nothing behind it
@@ -121,13 +156,6 @@ framework or a list of unimplemented features.
 - Saw: [applications and specialization](wiki/spec/language/generics.md) says "Every application validates the complete argument tuple, including kinds, ranges, and constraints of unused parameters", and [property declarations](wiki/spec/language/ownership.md) says every use of `T` receives the property fixed by the declaration and application. `Operand::read` binds a type argument through `named_type` without reading `TypeParameter::bounds`, `generate` checks only callable binders, and the checker re-checks the generated copy as a closed machine. So `machine keep<T [copy]>(x: T) -> T { x }` called as `keep<Token>(t)` with a non-`[copy]` `Token` is accepted. Three other application paths refuse any non-default bound as unjudged; machine specialization is the one that skips it.
 - Cost: A `[copy]` bound in a generic API is not enforced at its callers. Compare the argument's multiplicity and carry with the binder's bounds in `Operand::read`, and refuse bounds it cannot judge, as the other paths do.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/generics.md
-
-### Domain lookup silently prefers the same-module or same-package domain over visible competitors
-- Category: One idea, several implementations
-- Where: [Psi 02 prefer_module_local_domain](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/symbols.rs#L1805), [Psi 02 operator homes](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/selection.rs#L2826), [Psi 02 preparation](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation.rs#L649), [Psi 03 prefer_local_domain](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/type_reference.rs#L459), [pinning test](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/selection_domain_exposure_tests.rs#L209)
-- Saw: [resolution](wiki/spec/language/modules.md) says distinct visible declarations competing for the same carrier-qualified domain "reject. Neither carrier ownership nor import order selects a winner", and [visibility and foreign declarations](wiki/spec/language/domains.md) repeats it. Psi 02's `prefer_module_local_domain` (used by membership, type constraints, operator homes and preparation) keeps only the referencing module's candidates whenever any exist, and Psi 03's `prefer_local_domain` keeps the module's, then the package's. In `module one; use two; machine probe(value: u64 in Mark)` with `public domain u64::Mark` in both `one` and `two`, the test `domain_exposure_operator_home_preserves_ambiguity_and_local_precedence` asserts that `one`'s domain is selected; the spec requires a refusal.
-- Cost: Adding a domain to a module silently changes what an imported domain spelling means in its sibling files, with different predicates and authority. Delete both local tiers, refuse two visible candidates naming both owners, and flip the test.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/language/modules.md
 
 ### A shared byte view of an array gives its elements different addresses in the Psi interpreter
 - Category: Re-deriving

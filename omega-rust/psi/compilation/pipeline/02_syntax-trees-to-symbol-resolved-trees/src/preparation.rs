@@ -646,14 +646,7 @@ pub(crate) mod declaration_selection {
                 }
                 pool.push((symbol, definition));
             }
-            let preferred = crate::symbols::prefer_module_local_domain(
-                &self.symbols,
-                pool.iter().map(|(symbol, _)| *symbol).collect(),
-                reference,
-            );
-            pool.into_iter()
-                .filter(|(symbol, _)| preferred.contains(symbol))
-                .collect()
+            pool
         }
 
         /*

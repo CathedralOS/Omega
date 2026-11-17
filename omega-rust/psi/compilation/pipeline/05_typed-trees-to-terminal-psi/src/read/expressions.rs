@@ -696,7 +696,15 @@ impl<'t> Program<'t> {
             }
             ExpressionNode::UndeterminedNaN(_) => return unserved("undetermined NaN"),
             ExpressionNode::Indexed(indexed) => {
-                return self.indexed(id, slots, indexed, handle, expected, Access::Read);
+                return self.indexed(
+                    id,
+                    slots,
+                    indexed,
+                    handle,
+                    expected,
+                    Access::Read,
+                    super::arrays::ElementRead::Whole,
+                );
             }
             ExpressionNode::Member(member) => {
                 let value = self.member(id, slots, member, source, Access::Read)?;
@@ -810,9 +818,15 @@ impl<'t> Program<'t> {
                 let source = SourceOrigin::of(self.typed.expression_table.source_span(target));
                 self.member(id, slots, member, source, projection)?
             }
-            ExpressionNode::Indexed(indexed) => {
-                self.indexed(id, slots, indexed, target, expected, projection)?
-            }
+            ExpressionNode::Indexed(indexed) => self.indexed(
+                id,
+                slots,
+                indexed,
+                target,
+                expected,
+                projection,
+                super::arrays::ElementRead::Whole,
+            )?,
             _ => return self.expression(id, slots, target, expected),
         };
         self.complete_formed_operator(id, target, &value)?;
