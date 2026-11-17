@@ -83,6 +83,14 @@ callback to a generic library machine.
 
 ## Assembly has no extra privileges
 
+A helper that disables interrupts on the current CPU reaches `InterruptControl`,
+even if its caller contains no assembly. If a dependency adds a page-table
+switch to that helper, package review also shows `MachineControl`. Accepting
+the dependency lets your project use that code. Running it on real hardware
+requires the privilege supplied by its execution environment. You can
+cross-compile firmware on Linux or test the mask change on a modeled CPU.
+See [hardware service reach](../spec/build/permissions.md#privileged-services).
+
 - **Authority.** A machine containing `wrmsr` still needs the authority to
   write that register, exactly as if it had called a wrapper.
 - **Memory.** A memory operand needs the same bounds, alignment and access

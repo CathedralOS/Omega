@@ -108,11 +108,11 @@ framework or a list of unimplemented features.
 - Cost: Each fresh native image pays for the recheck. Remove it from ordinary emission and decouple artifact identity and publication receipts from the recheck's digests. Keep the constraints needed to emit valid bytes and the receiver's installation checks. Retain focused regression tests with an independent expectation, such as the ELF load-segment alignment test.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/machine_state_evidence.md
 
-### `Build.freestanding` is one untargeted mutable flag that two spec pages forbid and a third relies on
-- Category: The documents disagree
-- Where: [Build declaration](omega-rust/omega/packages/build-declarations/src/prelude.rs#L269), [settings field](omega-rust/omega/packages/package-compilation/src/build_execution/build_value/configuration.rs#L22), [assembly authority](omega-rust/omega/compilation/compiler/src/checked/checking/source_checking.rs#L243), [configuration.md](wiki/spec/build/configuration.md#L53), [uefi_entry.md](wiki/spec/build/uefi_entry.md#L3), [permissions.md](wiki/spec/build/permissions.md#L233)
-- Saw: configuration.md says the hosted/freestanding environment belongs to the target profile, "not duplicated mutable Build flags", and that grants are rows keyed by target; uefi_entry.md calls freestanding "an immutable selected target/provider property". permissions.md instead names "the evaluated `Build.freestanding` selection" as machine-owner admission, and the code follows it: source checking turns the single untargeted bool into `AsmAuthorityAdmission::MACHINE_OWNER` for the whole program. With `--target uefi_x86_64 --target linux_x86_64`, machine-control assembly is admitted for the hosted Linux realization too.
-- Cost: Agents following different pages delete or extend the field. Settle the page, then make the grant a per-target row or rewrite configuration.md and uefi_entry.md.
+### A build-wide flag admits machine control for every output
+- Category: A verdict with nothing behind it
+- Where: [source admission](omega-rust/omega/compilation/compiler/src/checked/checking/source_checking.rs), [instruction reach](omega-rust/psi/foundation/symbols/src/builtin.rs), [mask helper](source/library/core/interrupt.omg), [terminal classification](omega-rust/omega/compilation/realization/provider-admission/src/terminal_authority_policy/classification.rs), [settled rule](wiki/spec/build/permissions.md#freestanding-machine-owner-authority)
+- Saw: Source checking derives machine ownership from `Build.freestanding` for all bound targets. The interrupt-mask intrinsics, core helper and physical classifier still report `MachineControl`.
+- Cost: Firmware selection can admit machine control in a hosted sibling, and a mask-only package already appears to have broad machine reach. Retire the field, check each selected output's provider authority, and carry `InterruptControl` through direct instructions, helpers, package review and physical classification. Exercise a mixed firmware/hosted build and a package update that adds a page-table write.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/configuration.md
 
 ### Changing storage analysis rebuilds the native compiler
