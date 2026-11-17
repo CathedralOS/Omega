@@ -254,6 +254,8 @@ button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: de
 .overview-node.accepted rect { stroke: var(--ink); stroke-width: 3; }
 .overview-node text { fill: var(--ink); font: 400 17px var(--font-serif); }
 .overview-node .overview-box-title { font: 500 20px var(--font-serif); }
+.overview-node .overview-step-note { font:400 13px var(--font-reading); fill:var(--ink-muted); }
+.proposed-scene .overview-node.check rect { stroke:var(--checked); stroke-width:3; }
 .overview-node.native text { fill: var(--ground); }
 .overview-node:hover rect,.overview-node:focus rect { stroke: var(--ink-muted); stroke-width: 3; }
 .overview-edge path { fill: none; stroke: var(--ink-muted); stroke-width: 1.8; }
@@ -403,7 +405,7 @@ main h2,main h3 { scroll-margin-top:100px; }
       <h1>Open questions</h1>
       <p class="lede">Design choices that still need a ruling; recommendations remain proposals.</p>
       <details class="source-details"><summary>Source snapshot and evidence</summary>
-      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/215e249c24c4f412e15637afd070d4b11a194b09/atlas"><code>215e249c24c4</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/215e249c24c4f412e15637afd070d4b11a194b09/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/215e249c24c4f412e15637afd070d4b11a194b09/atlas/questions.md">Page source</a></span></div>
+      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/48aefc0fd45859b8484e1bfc8489f7dcef806914/atlas"><code>48aefc0fd458</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/48aefc0fd45859b8484e1bfc8489f7dcef806914/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/48aefc0fd45859b8484e1bfc8489f7dcef806914/atlas/questions.md">Page source</a></span></div>
       <p class="publication">The compiler snapshot identifies the code reviewed here. The atlas content revision identifies these explanations and their evidence files; it does not claim a new compiler run. An uncommitted draft is a local preview of edited sources.</p></details>
 
     </header>
@@ -437,7 +439,7 @@ runtime dependency rule explicitly with these consumers. Placing a compiler
 coordinator or source lookup behind a generic host interface is not allowed.</p>
 <p><strong>Planning obligation:</strong> classify the <code>bounded-process</code>, <code>platform-custody</code> and
 filesystem-authority exports by real consumer and operation. The
-<a href="https://github.com/CathedralOS/Omega/blob/215e249c24c4f412e15637afd070d4b11a194b09/atlas/evidence/data/graph.json">graph</a> proves shared declarations, not runtime calls.
+<a href="https://github.com/CathedralOS/Omega/blob/48aefc0fd45859b8484e1bfc8489f7dcef806914/atlas/evidence/data/graph.json">graph</a> proves shared declarations, not runtime calls.
 The exact packages/names follow that classification; they are not already
 ratified by the owner.</p>
 <h2 id="q-b-which-buildsource-information-may-cross-the-boundary">Q-B. Which Build/source information may cross the boundary?</h2>
@@ -563,7 +565,7 @@ been completed.</p></main>
 <li><a href="questions.html">Open questions</a></li>
 <li><a href="rulings.html">Owner rulings</a></li>
 <li><a href="pipeline-map.html">Original pipeline map</a></li>
-</ul></section></nav><div class="footer-meta"><a href="../index.html">Ω / Atlas overview</a><a href="https://github.com/CathedralOS/Omega/blob/215e249c24c4f412e15637afd070d4b11a194b09/atlas/README.md">Rebuild and evidence rules</a><span>Observed code, owner decisions and proposed repairs are labeled separately.</span></div></div></footer>
+</ul></section></nav><div class="footer-meta"><a href="../index.html">Ω / Atlas overview</a><a href="https://github.com/CathedralOS/Omega/blob/48aefc0fd45859b8484e1bfc8489f7dcef806914/atlas/README.md">Rebuild and evidence rules</a><span>Observed code, owner decisions and proposed repairs are labeled separately.</span></div></div></footer>
 
   <script>(() => {
   const root = document.documentElement;

@@ -4,8 +4,9 @@ These are design contracts, not observed implementation boundaries. Compiler
 work stays inside its stage; runtime execution consumes completed products.
 """
 from .overview import validate
+from .proposed_operations import unfold
 
-PLAN_REVISION = '1a60d4c6e94600f0d9616c2305567427be72a4db'
+PLAN_REVISION = 'd6ea87967106d47eb007b4780c7df2974de8fe37'
 PLAN_PATH = 'atlas/plans/foundation-and-backend.md'
 
 
@@ -62,18 +63,15 @@ def proposed_model():
                               group=group,description=detail,page='foundation-backend-plan',
                               anchor='3-recommended-destination-and-stage-contracts',source=source,
                               gate=gate if role=='owner' else '',number=number if role=='owner' else None,width=220,height=60))
+    nodes,phases=unfold(nodes,PLAN_REVISION)
     spine=[n['id'] for n in nodes]
     by_id={n['id']:n for n in nodes}
     edges=[dict(id=f'proposed-{a}-{b}',start=a,end=b,label='',kind='data',main=True,source=by_id[b]['source'])
            for a,b in zip(spine,spine[1:])]
     model=dict(nodes=nodes,edges=edges,spine=spine,view='proposed',status='unverified',plan_revision=PLAN_REVISION,
                badge=f'Proposed 00–10 · plan {PLAN_REVISION[:12]}',
-               intro='Proposed · unverified. Follow stages 00–10. Each arrow carries the next complete input; select a box for its contract.',
-               phaseGaps={'source-settlement':32,'native-planning':32,'encoding':32,'publish':32},
-               phases=[['inputs-group','admission','admitted',['Inputs','00']],
-                       ['source-group','source-settlement','portable',['Source','01–02']],
-                       ['native-group','native-planning','bound-program',['Native planning','03–05']],
-                       ['encoding-group','encoding','image',['Code and images','06–09']],
-                       ['product-group','publish','published',['Publication','10']]],placements=[])
+               intro='Proposed · unfolded. Stage frames show ownership; decimal labels show the operations inside. Source and native worklists may repeat operations. Exact scheduling remains unverified.',
+               phaseGaps={n['id']:32 for n in nodes if n['role']=='owner'},
+               phases=phases,placements=[])
     validate(model)
     return model

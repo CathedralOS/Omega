@@ -290,7 +290,11 @@ def render_scene(model):
             parts.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}"/>')
             lines=textwrap.wrap(n['title'],21 if model.get('view')=='proposed' else 23,break_long_words=False,break_on_hyphens=False)
             for i,line in enumerate(lines):
-                parts.append(f'<text class="overview-box-title" x="{x+w/2}" y="{y+h/2+7-(len(lines)-1)*14+28*i-(11 if n["id"]=="compiler" else 0)}" text-anchor="middle">{esc(line)}</text>')
+                title_y=y+27+28*i if n.get('notes') else y+h/2+7-(len(lines)-1)*14+28*i-(11 if n['id']=='compiler' else 0)
+                parts.append(f'<text class="overview-box-title" x="{x+w/2}" y="{title_y}" text-anchor="middle">{esc(line)}</text>')
+            note_lines=[line for note in n.get('notes',[]) for line in textwrap.wrap(note,29,break_long_words=False,break_on_hyphens=False)]
+            for i,line in enumerate(note_lines):
+                parts.append(f'<text class="overview-step-note" x="{x+w/2}" y="{y+38+len(lines)*28+i*20}" text-anchor="middle">{esc(line)}</text>')
         if n['id']=='compiler':
             parts.append(f'<text class="overview-note" x="{x+w/2}" y="{y+49}" text-anchor="middle">Coordinates Psi 00–04</text>')
         parts.append('</a>')
@@ -311,7 +315,7 @@ def render_overview(architecture):
              '<div class="connected-views" role="group" aria-label="Architecture view" hidden><button type="button" data-view="current" aria-pressed="true">Current</button><button type="button" data-view="proposed" aria-pressed="false">Proposed</button></div>',
              f'<p class="connected-intro" role="status" aria-live="polite">{esc(model["intro"])}</p>',
              '<div class="arch-overview-legend" data-legend="current"><span class="legend-psi">Psi form</span><span class="legend-native">Native form</span><span>Shaded: owner / inputs</span><span class="legend-check">Checker verdict</span><span>Bold: main route</span><span>Dashed: supporting work</span><span class="arch-attention">Red: extra inputs / late code</span></div>',
-             '<div class="arch-overview-legend" data-legend="proposed" hidden><span>Dashed boxes: proposed contracts</span><span>00–10: stage order</span><span>Arrows: complete next input</span></div>',
+             '<div class="arch-overview-legend" data-legend="proposed" hidden><span>00–10: stage owners</span><span>01.1, 01.2…: unfolded operations</span><span>Within a stage: dependency order; work may repeat</span></div>',
              '<div class="connected-tools" hidden><button type="button" data-camera="start">Start</button><button type="button" data-camera="out" aria-label="Zoom out">−</button><output class="connected-scale">100%</output><button type="button" data-camera="in" aria-label="Zoom in">+</button><button type="button" data-camera="fit">Fit whole compiler</button><button type="button" data-camera="natural">100%</button><button type="button" data-camera="expand">Expand</button><label>Find <select class="connected-jump" aria-label="Find a component"><option value="">Choose a component…</option>']
     for n in model['nodes']:
         if n['role']!='transform':

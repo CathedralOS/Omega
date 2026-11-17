@@ -54,6 +54,11 @@ controls, gradients and product content are not part of this design.
 
 ## Page contract
 
+Show proposed stage operations unfolded by default. Stage frames communicate
+ownership; they must not conceal source or native transformations behind a
+single summary box. Display internal iteration and conditional checking where
+they apply rather than implying one pass through every operation.
+
 - One `.html` file per page in `atlas/pages/`, named for its subject
   (`psi-stages.html`, not `page3.html`). It must open from disk with no build
   step and no network requests; the three Omega Serif weights ship locally, and

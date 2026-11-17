@@ -210,6 +210,44 @@ part of §8; a downstream discovery cannot be excused as “just a helper.”
 
 ## 4. Source settlement, evaluation and provider-body closure
 
+### Keep the operations visible
+
+The canvas unfolds each proposed owner into its operations and intermediate
+forms by default. A shared owner does not erase lexing, parsing, resolution,
+typing, preparation, lowering or checking. Decimal labels identify operations
+inside a proposed stage; they are not current crate numbers.
+
+| Proposed owner | Visible operations, in dependency order |
+| --- | --- |
+| 00 Inputs | Record source custody; admit compilation requests and budgets. |
+| 01 Source | Lex → tokens; parse → syntax; resolve → bound names; type → typed trees; prepare applications and required values → prepared trees; lower → lowered Psi; check → accepted Psi; selected Psi optimizations → transformed Psi; check transformed Psi → accepted result. |
+| 02 Portable publication | Encode accepted Psi; seal identities, evidence and carried requests. |
+| 03 Native planning | Join Build selections to checked bodies; compute and validate calling policies; lower to abstract operations; optimize abstract operations; lower to target operations; select instructions; optimize selected instructions; close retained body demand and generated recipes. |
+| 04 Physical planning | Construct generated bodies and constraints; allocate registers; lower physical operations; plan frames and complete effects/resource dependencies. |
+| 05 Resources | Derive complete resource summaries; check installation limits and bind resources. |
+| 06 Encoding | Encode ordinary/generated bodies and frames; publish alternatives and fixups. |
+| 07 Layout | Place fragments; relax and patch carried alternatives; apply selected layout optimizations. |
+| 08 Objects | Construct sections/symbols/relocations; form object containers. |
+| 09 Images | Place objects; resolve image relocations and loader metadata; finish signatures/container metadata. |
+| 10 Publication | Install finished products; return publication receipts. |
+
+This order shows dependencies, not a promise of one visit per operation. Source
+resolution, typing and preparation have demand-driven worklists. Required value
+evaluation privately prepares, lowers, checks and admits the exact invocation,
+then executes it and returns a value plus receipts to preparation. Display that
+sequence inside the preparation operation. Final program checking remains
+visible after lowering. Selected Psi passes run only after that check; the same
+checker runs again only for a nonempty selection. Native planning likewise
+closes its worklist before releasing its output. These iterations must remain
+visible in the map; hiding them would misrepresent the proposed design.
+
+The mapping preserves the operations documented by the
+[compiler route](https://github.com/CathedralOS/Omega/blob/e4563d45661cbbe0e45038dffe085cdc0367217c/omega-rust/pipeline.md#L143-L179)
+and the [optimization ordering][linear-optimization-spec]. Their proposed
+grouping and exact private scheduling remain subject to §8, including generated
+body constraints and optimization-related reach. A diagram is not evidence that
+those ordering gates have closed.
+
 ### Why the old source stage boundaries change
 
 The recommendation is to replace the externally sequenced Psi 00–06 source
