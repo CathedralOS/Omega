@@ -447,14 +447,32 @@ mod routing {
                             },
                         )))
                     } else if !retained.is_structural && retained.pattern.head.is_valid() {
-                        Some(expression_table.insert(ExpressionNode::Binary(
+                        let test = expression_table.insert(ExpressionNode::Binary(
                             TableBinaryExpression {
                                 policy: numerics::arithmetic::ArithmeticDomain::Exact,
                                 left: retained.subject,
                                 operator: BinaryOperator::Equal,
                                 right: retained.pattern.head,
                             },
-                        )))
+                        ));
+                        // A scalar pattern selects ordinary equality at its
+                        // head. Retain that source question so policy and
+                        // user declarations use the same selection owner.
+                        expression_table.set_source_span(
+                            test,
+                            expression_table.source_span(retained.pattern.head),
+                        );
+                        if let Some(exposure) =
+                            expression_table.authored_expression_exposure(retained.pattern.head)
+                        {
+                            expression_table.set_authored_expression_exposure(test, exposure);
+                        }
+                        if let Some(partition) =
+                            expression_table.compiler_selection_partition(retained.pattern.head)
+                        {
+                            expression_table.set_compiler_selection_partition(test, partition);
+                        }
+                        Some(test)
                     } else {
                         None
                     };
@@ -829,5 +847,74 @@ fn resolve_ranking_view(
             RankingViewSelection::Builtin(RankingViewId::SLICE_LENGTH)
         }
         SymbolLookup::NotFound | SymbolLookup::Ambiguous { .. } => RankingViewSelection::Unresolved,
+    }
+}
+
+#[cfg(test)]
+mod scalar_pattern_selection_tests {
+    use language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionKind as Kind, AuthoredDeclarationSelectionLateBinding as Late,
+        AuthoredDeclarationSelectionTarget as Target,
+    };
+    use symbol_resolved_trees::expression::{BinaryOperator, ExpressionNode};
+
+    #[test]
+    fn scalar_transition_comparisons_retain_the_pattern_source_question() {
+        let text = "machine choose(value: u64 in Trapping) -> u8 { transition value { 0 -> (7) _ -> (0) } }";
+        let mut sources = source::SourceMap::default();
+        let source = sources
+            .add("patterns/scalar.omg".into(), text.into())
+            .source_id;
+        let tokens = crate::frontend_fixture::Lexer::new(text)
+            .tokenize()
+            .unwrap();
+        let syntax = crate::frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap();
+        let program = crate::resolve(crate::ResolutionRequest {
+            syntax,
+            sources: Some(std::sync::Arc::new(sources)),
+            top_level_bindings: Vec::new(),
+            retained_base: None,
+        })
+        .unwrap();
+        let expressions = &program.tables.bodies.expressions;
+        let comparisons = program
+            .machines
+            .iter()
+            .flat_map(|machine| program.machine_state_handles(machine.states))
+            .flat_map(|state| program.state_statements(program.machine_state(*state).statements))
+            .filter_map(|statement| {
+                use symbol_resolved_trees::statement::{Statement, TransitionGuard};
+                let Statement::Transition(transition) = statement else {
+                    return None;
+                };
+                let TransitionGuard::When(handle) = transition.guard else {
+                    return None;
+                };
+                let ExpressionNode::Binary(binary) = expressions.expression(handle) else {
+                    return None;
+                };
+                (binary.operator == BinaryOperator::Equal).then_some((handle, binary))
+            })
+            .collect::<Vec<_>>();
+        assert!(!comparisons.is_empty(), "the scalar arm compares its value");
+        for (handle, binary) in comparisons {
+            let span = expressions.source_span(handle);
+            assert_eq!(span, expressions.source_span(binary.right));
+            assert_eq!(&text[span.span.start..span.span.end], "0");
+            assert!(expressions.authored_expression_exposure(handle).is_some());
+            let occurrences = expressions
+                .authored_selection_occurrences(handle)
+                .collect::<Vec<_>>();
+            let [occurrence] = occurrences.as_slice() else {
+                panic!("each scalar comparison has one ordinary operator question: {occurrences:?}")
+            };
+            let selected = program
+                .authored_declaration_selections()
+                .get(*occurrence)
+                .unwrap();
+            assert_eq!(selected.kind(), Kind::Operator);
+            assert_eq!(selected.source_span(), span);
+            assert_eq!(selected.target(), Target::LateBound(Late::CheckedOperator));
+        }
     }
 }

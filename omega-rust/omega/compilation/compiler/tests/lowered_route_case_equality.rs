@@ -266,5 +266,5 @@ fn enum_comparison_observes_each_operand_once_in_native_and_psi() {
         false,
     )
     .unwrap();
-    joined_product_execution::execute_report(report, &directory.path().join("native"));
+    joined_product_execution::execute_report(report, &directory.path().join("native"), None);
 }

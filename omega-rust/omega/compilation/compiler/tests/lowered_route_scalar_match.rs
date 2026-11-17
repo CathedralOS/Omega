@@ -336,6 +336,7 @@ machine main() crashes Trap {
         ("runs_other", program(30), false),
         ("matching_carriers", matching_carriers, true),
         ("one_bit_carriers", one_bit_carriers.to_owned(), true),
+        ("declared_pattern_equality", "machine == never_equal(left:u64 in Trapping,right:u64)->bool {false} machine choose(value:u64 in Trapping)->u8 { transition value { 0->(7) _->(0) } } machine main() crashes Trap { transition choose(0u64 as +Trapping)==0 { true->done() _->bad() } machine done(){} machine bad(){crash Trap;} }".to_owned(), true),
     ] {
         let found = judged(name, &source);
         let RouteVerdict::Accepted(closure) = found else {
@@ -363,4 +364,83 @@ machine main() crashes Trap {
         };
         assert_eq!(finished, completes, "{name}");
     }
+}
+
+#[test]
+fn scalar_transition_patterns_use_ordinary_selected_equality() {
+    for (name, program) in [
+        (
+            "policy_pattern",
+            "machine choose(value:u64 in Trapping)->u8 { transition value { 0->(7) _->(0) } }",
+        ),
+        (
+            "computed_pattern",
+            "machine choose(value:u64 in Trapping)->u8 { transition value { 0+1->(7) _->(0) } }",
+        ),
+        (
+            "declared_pattern",
+            "machine == never_equal(left:u64 in Trapping,right:u64)->bool {false} machine choose(value:u64 in Trapping)->u8 { transition value { 0->(7) _->(0) } }",
+        ),
+    ] {
+        let found = verdict(name, program);
+        assert!(
+            matches!(found, RouteVerdict::Accepted(_)),
+            "{name}: {found:?}"
+        );
+    }
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let negative = "domain u64::Marked; machine choose(value:u64 in Marked)->u8 { transition value { 0->(7) _->(0) } } machine main() {}";
+    let errors = match unbuilt_frontier::staged("unserved_pattern_domain", negative) {
+        Err(errors) => errors.join("\n"),
+        Ok(_) => panic!("a scalar pattern cannot remove an unrelated qualification"),
+    };
+    assert!(
+        errors.contains("takes unqualified operands only"),
+        "{errors}"
+    );
+}
+
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+#[path = "support/fixture_package_inputs.rs"]
+mod fixture_package_inputs;
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+#[path = "support/joined_product_execution.rs"]
+mod joined_product_execution;
+
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+#[test]
+fn native_and_psi_execute_the_original_policy_transition() {
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let fixture = "tests/fixtures/run/control/scalar_pattern_operator_selection/main.omg";
+    let root = fixture_package_inputs::repo_root().join(fixture);
+    let discovered = fixture_package_inputs::discover_fixture(&root, Default::default())
+        .unwrap_or_else(|errors| panic!("{fixture} discovery: {errors:#?}"));
+    let product = compiler::CompilationProduct::Native(products::NativeProductRequest {
+        retain_native_inputs: false, retain_native_stage_inputs: false,
+        installation_assumptions: Vec::new(), image: Default::default(),
+        private_entry_ram: Vec::new(),
+        terminal_authority_policy: terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy(),
+        terminal_authority_permission_policy: None, optimization_rollback: Default::default(),
+    });
+    let mut prepared = fixture_package_inputs::review_fixture(
+        discovered,
+        &[target::TargetProfile::LinuxX64],
+        product,
+    )
+    .unwrap_or_else(|errors| panic!("{fixture} review: {errors:#?}"));
+    let output = fixture_package_inputs::produce_fixture(&mut prepared, Some("linux_x86_64"))
+        .unwrap_or_else(|errors| panic!("{fixture} production: {errors:#?}"));
+    let report = orchestration::complete_product(output)
+        .and_then(compiler::CompilationOutput::into_report)
+        .unwrap_or_else(|error| panic!("{fixture} completion: {error:?}"));
+    let directory = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "scalar-pattern-runtime",
+        false,
+    )
+    .unwrap();
+    joined_product_execution::execute_report(report, &directory.path().join("native"), Some(0));
 }

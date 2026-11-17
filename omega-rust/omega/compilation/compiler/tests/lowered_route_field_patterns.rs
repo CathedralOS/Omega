@@ -303,7 +303,7 @@ fn native_and_psi_observe_ordered_field_tests_and_fallback_effects() {
         false,
     )
     .unwrap();
-    joined_product_execution::execute_report(report, &output.path().join("native"));
+    joined_product_execution::execute_report(report, &output.path().join("native"), None);
 }
 
 #[test]
