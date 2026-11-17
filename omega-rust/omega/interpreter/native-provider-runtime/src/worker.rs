@@ -14,6 +14,7 @@ never clobber guest observations.
 use crate::{
     channel,
     native_code::{LoadedFrame, NativeValue},
+    provider_references::occurrence_index,
     shared_backing::SharedBacking,
     wire::{self, BorrowGeometry, Cursor, Geometry, Packet, invalid},
 };
@@ -38,9 +39,22 @@ struct Adapter {
     parameters: Vec<Geometry>,
     result: Option<Geometry>,
 }
+
+struct ProviderReference {
+    adapter: u64,
+    address: usize,
+    extent: usize,
+}
+
+struct GuestErrorSlot {
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    errno: *mut libc::c_int,
+}
+
 pub(crate) struct Worker {
     adapters: Vec<Adapter>, // Retained through process teardown so atexit/TLS callbacks never see unloaded code.
     pub(crate) homes: BTreeMap<u64, SharedBacking>,
+    provider_references: Vec<Option<ProviderReference>>,
     directory: PathBuf,
     #[cfg(any(target_os = "linux", target_os = "macos"))]
     guest_errno: libc::c_int, // Restored into the live POSIX errno TLS slot around native entry.
@@ -127,6 +141,7 @@ pub fn run_worker_if_requested() {
         let mut worker = ManuallyDrop::new(Worker {
             adapters: Vec::new(),
             homes: BTreeMap::new(),
+            provider_references: Vec::new(),
             directory: directory.into(),
             #[cfg(any(target_os = "linux", target_os = "macos"))]
             guest_errno: 0,
@@ -151,6 +166,8 @@ pub fn run_worker_if_requested() {
                 5 => worker.pointer_link(cursor, true),
                 6 => worker.pointer_link(cursor, false),
                 7 => worker.returned_pointer_matches(cursor),
+                8 => worker.read_provider_reference(cursor),
+                9 => worker.release_provider_reference(cursor),
                 _ => Err(invalid("unknown native worker request")),
             };
             match result {
@@ -198,9 +215,14 @@ impl Worker {
             1 => Some(Geometry::read(&mut cursor)?),
             _ => return Err(invalid("native adapter result marker is malformed")),
         };
-        if result.is_some_and(|result| result.referent.is_some()) {
+        if result.is_some_and(|result| {
+            matches!(
+                result.referent,
+                Some(BorrowGeometry::ByteView) | Some(BorrowGeometry::Fixed { extent: 0, .. })
+            )
+        }) {
             return Err(invalid(
-                "native borrowed result needs an exact returned-home correspondence",
+                "provider reference result needs nonempty fixed referent geometry",
             ));
         }
         cursor.finish()?;
@@ -290,8 +312,8 @@ impl Worker {
             inputs.push(value);
         }
         cursor.finish()?;
-        let output = adapter
-            .result
+        let result_geometry = adapter.result;
+        let output = result_geometry
             .map(|geometry| NativeValue::zeroed(geometry.extent, geometry.alignment))
             .transpose()?;
         let pointers = inputs
@@ -301,28 +323,134 @@ impl Worker {
         let result_pointer = output
             .as_ref()
             .map_or(std::ptr::null_mut(), NativeValue::pointer);
-        #[cfg(target_os = "macos")]
-        let errno_pointer = unsafe { libc::__error() };
-        #[cfg(target_os = "linux")]
-        let errno_pointer = unsafe { libc::__errno_location() };
-        unsafe {
-            #[cfg(any(target_os = "linux", target_os = "macos"))]
-            {
-                *errno_pointer = self.guest_errno;
+        let error_slot = self.restore_guest_error();
+        unsafe { adapter.entry.call(&pointers, result_pointer) };
+        self.capture_guest_error(error_slot);
+        let returned = output.as_ref().map_or_else(Vec::new, NativeValue::bytes);
+        match result_geometry.and_then(|geometry| geometry.referent) {
+            Some(BorrowGeometry::Fixed { extent, alignment }) => {
+                self.capture_provider_reference(ordinal as u64, &returned, extent, alignment)
             }
-            #[cfg(windows)]
-            windows_sys::Win32::Foundation::SetLastError(self.guest_last_error);
-            adapter.entry.call(&pointers, result_pointer);
-            #[cfg(windows)]
-            {
-                self.guest_last_error = windows_sys::Win32::Foundation::GetLastError();
-            }
-            #[cfg(any(target_os = "linux", target_os = "macos"))]
-            {
-                self.guest_errno = *errno_pointer;
-            }
+            Some(BorrowGeometry::ByteView) => Err(invalid(
+                "provider byte-view result has no admitted read protocol",
+            )),
+            None => Ok(returned),
         }
-        Ok(output.as_ref().map_or_else(Vec::new, NativeValue::bytes))
+    }
+
+    /// Invoke only after framing, metadata work and allocations. The next
+    /// operation must observe guest state or enter the native adapter.
+    fn restore_guest_error(&self) -> GuestErrorSlot {
+        #[cfg(target_os = "macos")]
+        let errno = unsafe { libc::__error() };
+        #[cfg(target_os = "linux")]
+        let errno = unsafe { libc::__errno_location() };
+        #[cfg(any(target_os = "linux", target_os = "macos"))]
+        unsafe {
+            *errno = self.guest_errno;
+        }
+        #[cfg(windows)]
+        unsafe {
+            windows_sys::Win32::Foundation::SetLastError(self.guest_last_error);
+        }
+        GuestErrorSlot {
+            #[cfg(any(target_os = "linux", target_os = "macos"))]
+            errno,
+        }
+    }
+
+    fn capture_guest_error(&mut self, _slot: GuestErrorSlot) {
+        #[cfg(windows)]
+        {
+            self.guest_last_error = unsafe { windows_sys::Win32::Foundation::GetLastError() };
+        }
+        #[cfg(any(target_os = "linux", target_os = "macos"))]
+        {
+            self.guest_errno = unsafe { *_slot.errno };
+        }
+    }
+
+    fn capture_provider_reference(
+        &mut self,
+        adapter: u64,
+        returned: &[u8],
+        extent: usize,
+        alignment: usize,
+    ) -> io::Result<Vec<u8>> {
+        let bytes: [u8; 8] = returned
+            .try_into()
+            .map_err(|_| invalid("provider reference result is not one pointer word"))?;
+        let address = usize::try_from(u64::from_le_bytes(bytes))
+            .map_err(|_| invalid("provider reference address exceeds the worker address model"))?;
+        if address == 0
+            || !address.is_multiple_of(alignment)
+            || address.checked_add(extent).is_none()
+        {
+            return Err(invalid(
+                "provider reference result is null, misaligned or overflowing",
+            ));
+        }
+        let occurrence = self
+            .provider_references
+            .len()
+            .checked_add(1)
+            .and_then(|ordinal| u64::try_from(ordinal).ok())
+            .ok_or_else(|| invalid("provider reference occurrence identities exhausted"))?;
+        self.provider_references.push(Some(ProviderReference {
+            adapter,
+            address,
+            extent,
+        }));
+        let mut result = Packet(Vec::with_capacity(16));
+        result.number(adapter);
+        result.number(occurrence);
+        Ok(result.0)
+    }
+
+    fn read_provider_reference(&mut self, mut cursor: Cursor<'_>) -> io::Result<Vec<u8>> {
+        let adapter = cursor.number()?;
+        let occurrence = cursor.number()?;
+        let offset = cursor.usize()?;
+        let length = cursor.usize()?;
+        cursor.finish()?;
+        let reference = self
+            .provider_references
+            .get(occurrence_index(occurrence)?)
+            .and_then(Option::as_ref)
+            .filter(|reference| reference.adapter == adapter)
+            .ok_or_else(|| invalid("provider read names no exact live result occurrence"))?;
+        if length == 0
+            || length > wire::MAXIMUM_PACKET_BYTES
+            || offset
+                .checked_add(length)
+                .is_none_or(|end| end > reference.extent)
+        {
+            return Err(invalid(
+                "provider reference read exceeds its admitted referent",
+            ));
+        }
+        let pointer = std::ptr::with_exposed_provenance::<u8>(reference.address + offset);
+        let mut output = vec![0; length];
+        self.restore_guest_error();
+        // SAFETY: the exact admitted provider result establishes this live
+        // fixed referent. Its address never comes from a read request, and
+        // the complete range was checked above. A provider fault remains
+        // contained in this worker incarnation; no scalar is fabricated.
+        unsafe { std::ptr::copy_nonoverlapping(pointer, output.as_mut_ptr(), length) };
+        Ok(output)
+    }
+
+    fn release_provider_reference(&mut self, mut cursor: Cursor<'_>) -> io::Result<Vec<u8>> {
+        let adapter = cursor.number()?;
+        let occurrence = cursor.number()?;
+        cursor.finish()?;
+        self.provider_references
+            .get(occurrence_index(occurrence)?)
+            .and_then(Option::as_ref)
+            .filter(|reference| reference.adapter == adapter)
+            .ok_or_else(|| invalid("provider release names no exact live result occurrence"))?;
+        self.provider_references[occurrence_index(occurrence)?] = None;
+        Ok(Vec::new())
     }
 }
 
