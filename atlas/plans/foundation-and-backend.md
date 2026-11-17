@@ -39,11 +39,14 @@ revision, scanner versions and exclusions. Reproduction commands live in the
   [modscan_be.py](../evidence/scripts/modscan_be.py) scan non-test Rust paths.
   They are evidence of observed references, not a Rust resolver. Re-exports,
   macros, glob imports and conditional compilation limit their conclusions.
-- **Counts:** `all_rs_lines` includes all Rust files under a crate;
-  `src_rs_lines` counts only `src/`. Backend totals are respectively 223,507
+- **Counts:** `all_rs_lines` includes all Git-tracked Rust files under a crate;
+  `src_rs_lines` counts those under `src/` only. Backend totals are respectively 223,507
   and 221,538. The former plan mixed an all-files total with a `src/`-only
   scanner. It also compared source from `6de27da2a36d86f6c3883cb89527d0d44dea646a`
-  with later code. Historical measurements are not fresh verification.
+  with later code. Historical measurements are not fresh verification. Module sizes and
+  proposed split sizes retained below from the original `6de27da…` inventory
+  are historical estimates, **unverified** at the reviewed source; generated
+  package totals are identified separately.
 - **Ownership:** trace the function that creates a value, its containing
   representation, and the consumer. A type's defining crate alone proves
   neither a side channel nor where its computation belongs.
@@ -162,7 +165,7 @@ The implementation sequence rewrites applicable instruction text with the corres
 
 ## 2. What foundation keeps
 
-Line counts are all `.rs` lines under each crate directory, including in-file
+Package line counts include all Git-tracked `.rs` files under each crate directory, including in-file
 and `tests/` code, as recorded by the tracked-file counter in
 [evidence](../evidence/data/counts.json). Rows marked ≈
 are estimates from module line ranges.
@@ -240,7 +243,7 @@ constructors before each move.
 | `PackageKeyIdentity` | source loading and retained provenance consumers | **shared provenance leaf**, separate from loaded files; source-files and Terminal vocabulary may depend on it (Q-B). |
 | Terminal identities (`BlockId`, `OperationId`, `EdgeId`, `PlaceId`, `ValueId`, `ClaimId`, `ObligationId`, `PropositionId`, `ContractId`, `CallableContractId`, `BoundaryMachineId`, `MachineDescriptorId`, `ScalarApplicationId`, `StructuralCaseId`, `StructuralDomainId`, `ScalarDomainId`, `ScalarQualificationSetId`, `SuspensionCrossingId`, `CycleComponentId`, `DomainSemanticId`, `EvidenceIdentity`, `EvidenceTermId`, `ContentDomainId`, `AdmissionSiteId`, `SelectionDeclarationId`, `SelectionQuestionId`, `ProfileDecisionId`, `CallingAbiIdentity`, `CallableInvocationSite`, `BoundaryRequirementKind`, `WorkScheduleIdentity`) | Terminal, native and runtime readers; keep leaf identity access separate from program access | **`terminal-psi`** (stage 05 output) or **TPV/`identities`** (*judgment*: TPV keeps the ISA crates off the big `terminal-psi` crate) |
 | Identities that `tt` also uses (`MachineId`, `ServiceId`, `StructuralTypeId`, `StructuralFieldId`, `InvocationSite`, `BoundaryCompletion`, `ExternalCompletionKind`, `Calling*`) | See refreshed usage data | **TPV/`identities`** |
-| Term language: `scalar_terms`, `closed_integers`, `proposition`, `float_meaning_clauses`, `float_integer_conversions`, `scalars::*`, `storage::*`, `behavior_policy`, `byte_predicates`, `scalar_condition_role`, `Termination`, `CallableCrashPolicy`, `ScalarAddressModel` | 4–41; `tt` uses `proposition::integer_types` | **TPV/`scalars`**. Not a primitive (owner ruling). |
+| Term language: `scalar_terms`, `closed_integers`, `proposition`, `float_meaning_clauses`, `float_integer_conversions`, `scalars::*`, `storage::*`, `behavior_policy`, `byte_predicates`, `scalar_condition_role`, `Termination`, `CallableCrashPolicy`, `ScalarAddressModel` | See [refreshed usage data](../evidence/data/usage.json); `tt` uses `proposition::integer_types` | **TPV/`scalars`**. Not a primitive (owner ruling). |
 | `proof_applications`, `PsiSemanticId`, `TargetMachineCallable`, `CallableShapeMismatch`, `boundary::callback_identities` | See refreshed usage data | **TPV** / **`terminal-psi`** |
 | `ForeignLocatorCandidate`, `NativeBindingLocator`, `compiler_evaluation`, `source_selections`, `boundary::program_entry` | Build, products, packages, build-time-evaluation, terminal-installation, terminal-production, `tt`, `tp` | **`build-requests`** |
 | `declaration_descriptions` | build-settings, source-compiler, `tt` | **`tt`** |
@@ -278,7 +281,7 @@ constructors before each move.
 | File | Users | Destination |
 | --- | --- | --- |
 | `table.rs`, `storage.rs`, `ParameterOccurrence` | srt, tt, P02, P03, build-time-evaluation, source-compiler, package-compilation | **`srt`** (P02 output) |
-| `symbol.rs` (`Symbol`, `SymbolHandle`, `SymbolKind`, `SymbolPath`), `retained_declaration.rs` | 22, including tp, check-tables, trust-model, provider-planning | **TPV/`identities`** |
+| `symbol.rs` (`Symbol`, `SymbolHandle`, `SymbolKind`, `SymbolPath`), `retained_declaration.rs` | Includes tp, check-tables, trust-model and provider-planning; see refreshed usage data | **TPV/`identities`** |
 | `builtin.rs`, `primitive.rs`, `sealed_intrinsic_at` | O00, backend effects, review, build-time-evaluation, tt, P02–P05, provider-admission | **TPV/`declarations`** (language tables read by O00) |
 | `fast_map.rs` | See refreshed usage data | **split**: generic hashing → `arena`; `SymbolMap<V>` alias → symbol vocabulary because it names `SymbolHandle`. [Source][symbol-map] |
 
@@ -451,9 +454,11 @@ The stage names below are **judgment**. O10–O14 are migration labels after
 today's O09, not final numbering: settlement and later installation work also
 need positions (§B5). Each representation must carry its target, identities,
 installation facts and required emission facts; these cannot remain separate
-arguments to a renamed stage.
+arguments to a renamed stage. The size column carries the original
+`6de27da…` module/function estimates, not regenerated counts of the proposed
+stages. Their exact size at this review revision is **unverified**.
 
-| Stage | Input → output | Takes | Lines |
+| Stage | Input → output | Takes | Historical size estimate |
 | --- | --- | --- | --- |
 | **O07** (existing, widened) | post-allocation machine → selected-form encoding | `machine-emission::{frame_layout, frame_protocol, function_realization::stage_function_frame}`. The stage's name already says its input is the post-allocation machine; framing becomes O07's first step, and `FramedMachineProgram` stays an internal form (it is already defined in `machine-code/src/layout.rs:261`). Plus the ISA encoders (§B4). | 2,530 + 428 + ≈400 |
 | **O10** `resolved-layout-to-function-fragments` | resolved layout → unplaced function fragments | `function_realization::assemble_fixed_frame_realization`, `exit_contract`, `fragment_emission`. `emission_facts` is **deleted only after a field/consumer inventory** replaces its lowering facts, whole abstract program and projection with sufficient current-form records. Exact minimum payload remains **unverified**. | ≈744 + 3,654 + 1,893 |
@@ -515,7 +520,10 @@ dependency on a newly numbered producer. [Runtime use][runtime-admission]
 
 ### `machine-emission` (17,781 lines) by module
 
-| Module | Lines | Users | Destination |
+The crate total is current generated evidence. Individual module figures below
+come from the historical inventory described in §0.
+
+| Module | Historical module lines | Users | Destination |
 | --- | --- | --- | --- |
 | `frame_layout.rs`, `frame_protocol.rs` | 2,530 + 428 | native-compiler (via `stage_function_frame`), O07 reads its output | **O07** |
 | `function_realization.rs` | 1,144 | native-compiler | split: `stage_function_frame` → **O07**; `assemble_fixed_frame_realization` → **O10** |
