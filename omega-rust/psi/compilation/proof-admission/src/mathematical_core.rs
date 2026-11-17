@@ -550,6 +550,147 @@ pub(crate) mod certificate {
             (identity, expected)
         }
 
+        // Every proposition checks an argument against a computationally
+        // equal type. Rechecking every shrinking pair tail repeats that work.
+        fn nested_pair_certificate(arena: &mut TermArena, count: usize) -> MathematicalCertificate {
+            let two = arena.insert(Term::Two);
+            let zero = arena.insert(Term::TwoZero);
+            let empty = arena.insert(Term::Empty);
+            let strict = strict_sort(arena, 0);
+            let domain_function = lambda(arena, two, two);
+            let domain = arena.insert(Term::Apply {
+                function: domain_function,
+                argument: zero,
+            });
+            let truth = pi(arena, empty, empty);
+            let predicate_type = pi(arena, domain, strict);
+            let predicate_body = lambda(arena, domain, truth);
+            let predicate = Declaration::definition(0, predicate_type, predicate_body);
+            let constant = arena.insert(Term::Constant {
+                declaration: 0,
+                levels: Vec::new(),
+            });
+            let proposition = arena.insert(Term::Apply {
+                function: constant,
+                argument: zero,
+            });
+            let bound = variable(arena, 0);
+            let proof = lambda(arena, empty, bound);
+            let mut expected = proposition;
+            let mut term = proof;
+            for _ in 0..count {
+                expected = arena.insert(Term::Sigma {
+                    domain: proposition,
+                    codomain: expected,
+                });
+                term = arena.insert(Term::Pair {
+                    first: proof,
+                    second: term,
+                });
+            }
+            MathematicalCertificate::with_signature(vec![predicate], Vec::new(), term, expected)
+        }
+
+        #[test]
+        fn nested_pair_proofs_fit_the_default_checking_budget() {
+            let mut arena = TermArena::new();
+            let certificate = nested_pair_certificate(&mut arena, 384);
+            verify_mathematical_certificate(&mut arena, &certificate, &mut default_budget())
+                .unwrap();
+        }
+
+        #[test]
+        fn a_malformed_pair_target_is_formed_before_its_components_are_used() {
+            let mut arena = TermArena::new();
+            let two = arena.insert(Term::Two);
+            let zero = arena.insert(Term::TwoZero);
+            let missing = variable(&mut arena, 1);
+            let expected = arena.insert(Term::Sigma {
+                domain: two,
+                codomain: missing,
+            });
+            let term = arena.insert(Term::Pair {
+                first: zero,
+                second: zero,
+            });
+            let certificate = MathematicalCertificate::closed(Vec::new(), term, expected);
+            assert!(matches!(
+                verify_mathematical_certificate(&mut arena, &certificate, &mut default_budget()),
+                Err(CoreError::UnboundVariable { .. })
+            ));
+        }
+
+        #[test]
+        fn dependent_pair_components_keep_their_actual_target() {
+            for invalid in 0..3 {
+                let mut arena = TermArena::new();
+                let two = arena.insert(Term::Two);
+                let zero = arena.insert(Term::TwoZero);
+                let one = arena.insert(Term::TwoOne);
+                let type_zero = type_sort(&mut arena, 0);
+                let function = pi(&mut arena, two, two);
+                let motive = lambda(&mut arena, two, type_zero);
+                let bound = variable(&mut arena, 0);
+                let selected = arena.insert(Term::CaseTwo {
+                    motive,
+                    zero_branch: two,
+                    one_branch: function,
+                    scrutinee: bound,
+                });
+                let expected = arena.insert(Term::Sigma {
+                    domain: two,
+                    codomain: selected,
+                });
+                let identity = lambda(&mut arena, two, bound);
+                let first = if invalid == 2 { type_zero } else { one };
+                let second = if invalid == 1 { zero } else { identity };
+                let term = arena.insert(Term::Pair { first, second });
+                let certificate = MathematicalCertificate::closed(Vec::new(), term, expected);
+                let checked = verify_mathematical_certificate(
+                    &mut arena,
+                    &certificate,
+                    &mut default_budget(),
+                );
+                assert_eq!(checked.is_ok(), invalid == 0, "case {invalid}: {checked:?}");
+            }
+        }
+
+        #[test]
+        fn lambda_annotations_cannot_hide_an_ill_typed_argument() {
+            for valid in [true, false] {
+                let mut arena = TermArena::new();
+                let two = arena.insert(Term::Two);
+                let zero = arena.insert(Term::TwoZero);
+                let empty = arena.insert(Term::Empty);
+                let domain = if valid { two } else { empty };
+                let function = lambda(&mut arena, domain, two);
+                let annotation = arena.insert(Term::Apply {
+                    function,
+                    argument: zero,
+                });
+                let term = lambda(&mut arena, annotation, zero);
+                let expected = pi(&mut arena, two, two);
+                let certificate = MathematicalCertificate::closed(Vec::new(), term, expected);
+                let checked = verify_mathematical_certificate(
+                    &mut arena,
+                    &certificate,
+                    &mut default_budget(),
+                );
+                if valid {
+                    checked.expect("a well-typed computational annotation remains valid");
+                } else {
+                    assert!(
+                        matches!(
+                            checked,
+                            Err(CoreError::TypeMismatch { .. }
+                                | CoreError::ArgumentTypeMismatch { .. })
+                        ),
+                        "the annotation must type-check before conversion: {checked:?}"
+                    );
+                }
+            }
+        }
+
         #[test]
         fn a_complete_certificate_verifies() {
             let mut arena = TermArena::new();
