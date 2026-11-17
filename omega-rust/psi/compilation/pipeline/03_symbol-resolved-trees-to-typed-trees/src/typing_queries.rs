@@ -11,8 +11,8 @@ use typed_trees::{
     TypedTrees,
     data::DataField,
     expression::{
-        BinaryOperator, ExpressionHandle, ExpressionNode, TableNamePath, TableStructLiteral,
-        UnaryOperator,
+        BinaryOperator, CollectionMeasure, ExpressionHandle, ExpressionNode, MemberSelection,
+        TableNamePath, TableStructLiteral, UnaryOperator,
     },
     signature::StateParameter,
     types::{TypeReferenceHandle, TypeReferenceNode},
@@ -174,6 +174,42 @@ pub(crate) fn collection_field_type(
         .data_constructor_field(reference, definition.symbol, symbol)
         .ok_or_else(|| crate::unavailable_judgment("collection field owner/type"))?;
     Ok(field.type_reference)
+}
+
+// A selected builtin length has a plain count type; it is not a data field.
+// Read only the retained member role and existing canonical type. This supplies
+// no bounds, access or storage authority, and never resolves diagnostic spelling.
+fn selected_member_value_type(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    selection: MemberSelection,
+) -> Option<TypeReferenceHandle> {
+    if !program
+        .type_reference_table
+        .contains_type_reference(reference)
+    {
+        return None;
+    }
+    match selection {
+        MemberSelection::Field(symbol) => collection_field_type(program, reference, symbol).ok(),
+        MemberSelection::CollectionMeasure(CollectionMeasure::Length) => {
+            let receiver = program
+                .type_reference_table
+                .peeled_type_reference(reference);
+            if !matches!(
+                program.type_reference_table.type_reference(receiver),
+                TypeReferenceNode::Slice { .. } | TypeReferenceNode::FixedArray { .. }
+            ) {
+                return None;
+            }
+            let symbol = program.symbols.builtin_atom_symbol(BuiltinTypeAtom::U64)?;
+            program
+                .type_reference_table
+                .find_arithmetic_result_type_reference(symbol, ArithmeticDomain::Exact)
+        }
+        MemberSelection::Unresolved
+        | MemberSelection::CollectionMeasure(CollectionMeasure::Capacity) => None,
+    }
 }
 
 /// Read a storage destination's declared type so its literal can retain the
@@ -693,7 +729,7 @@ pub(crate) fn scoped_expression_type_reference(
                     active.pop();
                     return Ok(None);
                 };
-                collection_field_type(program, receiver, member.selection.field_symbol()).ok()
+                selected_member_value_type(program, receiver, member.selection)
             }
             ExpressionNode::Indexed(indexed) => {
                 if matches!(
@@ -1476,7 +1512,7 @@ impl DeclaredExpressionTypes {
             }
             ExpressionNode::Member(member) => {
                 let receiver = self.get(program, owner, member.receiver)?;
-                collection_field_type(program, receiver, member.selection.field_symbol()).ok()
+                selected_member_value_type(program, receiver, member.selection)
             }
             ExpressionNode::Integer(_)
             | ExpressionNode::Float(_)

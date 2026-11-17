@@ -163,8 +163,7 @@ const OPERATOR: &str = "public machine + Distance::add(left: u32 in Distance, ri
 const GENERIC_DOMAIN: &str = "module units; public domain<T> T::Distance;";
 const GENERIC_OPERATOR: &str = "use units; public machine + Distance::add<T [copy]>(left: T in Distance, right: T) -> T in Distance requires T == u32 { ((left as -Distance) +% right) as +Distance }";
 
-#[test]
-fn bundled_core_fixtures_resolve_their_authored_imports() {
+fn bundled_core_sources() -> Vec<(String, String)> {
     let core =
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../../source/library/core");
     let mut files = std::fs::read_dir(core)
@@ -173,7 +172,7 @@ fn bundled_core_fixtures_resolve_their_authored_imports() {
         .filter(|path| path.extension().is_some_and(|extension| extension == "omg"))
         .collect::<Vec<_>>();
     files.sort_unstable();
-    let files = files
+    files
         .into_iter()
         .map(|path| {
             (
@@ -181,7 +180,12 @@ fn bundled_core_fixtures_resolve_their_authored_imports() {
                 std::fs::read_to_string(path).unwrap(),
             )
         })
-        .collect::<Vec<_>>();
+        .collect()
+}
+
+#[test]
+fn bundled_core_fixtures_resolve_their_authored_imports() {
+    let files = bundled_core_sources();
     let mut units = files
         .iter()
         .map(|(name, text)| (0, name.as_str(), text.as_str()))
@@ -221,6 +225,322 @@ fn bundled_core_fixtures_resolve_their_authored_imports() {
             expected,
             "Core's imports do not expose classify_f32 in another file: {name}"
         );
+    }
+}
+
+#[test]
+fn core_policy_casts_of_imported_call_results_retain_the_subtraction_signature() {
+    use language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionIntrinsic as Intrinsic,
+        AuthoredDeclarationSelectionTarget as Target,
+    };
+    use language_semantics::numeric_intrinsics::{
+        CoreIntegerOperand, CoreIntegerOperatorSignature, ScalarBinaryOperation,
+    };
+    use numerics::{arithmetic::ArithmeticDomain, integer_carrier::FixedInteger};
+    use typed_trees::expression::{BinaryOperator, ExpressionNode};
+
+    let files = bundled_core_sources();
+    let mut units = files
+        .iter()
+        .map(|(name, text)| (0, name.as_str(), text.as_str()))
+        .collect::<Vec<_>>();
+    let client = units.len();
+    units.push((
+        31,
+        "difference.omg",
+        r#"
+use omega::language::core::narrow_i64_to_u64_wrapping;
+data Time [copy] { seconds: i64; }
+machine difference(time: &Time, earlier: Time) -> u64 in Wrapping {
+    let seconds: u64 in Wrapping =
+        (narrow_i64_to_u64_wrapping(time.seconds) as u64 in Wrapping)
+        - (narrow_i64_to_u64_wrapping(earlier.seconds) as u64 in Wrapping);
+    seconds
+}
+"#,
+    ));
+    let program = packages(
+        &units,
+        &[],
+        &[(
+            client,
+            0,
+            "omega::language::core::narrow_i64_to_u64_wrapping",
+            3,
+        )],
+    )
+    .expect("the actual Core converter and its authored imports type successfully");
+    let owner = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "difference")
+        .unwrap()
+        .symbol;
+    let owners = typed_trees::references::collect_program_operand_owners(&program);
+    let subtractions = program
+        .expression_table
+        .iter_expressions()
+        .filter_map(|(handle, node)| {
+            (matches!(node, ExpressionNode::Binary(binary)
+                if binary.operator == BinaryOperator::Subtract)
+                && owners.expression_owners(handle).any(|found| found == owner))
+            .then_some(handle)
+        })
+        .collect::<Vec<_>>();
+    let [subtraction] = subtractions.as_slice() else {
+        panic!("one authored subtraction belongs to difference: {subtractions:?}");
+    };
+    let operand = CoreIntegerOperand {
+        carrier: FixedInteger::unsigned(64),
+        policy: ArithmeticDomain::Wrapping,
+    };
+    let expected =
+        CoreIntegerOperatorSignature::select(ScalarBinaryOperation::Subtract, [operand; 2])
+            .unwrap();
+    let selected = program
+        .expression_table
+        .authored_selection_occurrences(*subtraction)
+        .map(|occurrence| {
+            program
+                .authored_declaration_selections()
+                .get(occurrence)
+                .unwrap()
+                .target()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        selected,
+        vec![Target::Intrinsic(Intrinsic::CoreIntegerOperator(expected))],
+        "the imported call results retain the complete selected policy, not CheckedOperator"
+    );
+}
+
+#[test]
+fn core_policy_comparisons_read_selected_collection_lengths() {
+    use language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionIntrinsic as Intrinsic,
+        AuthoredDeclarationSelectionTarget as Target,
+    };
+    use language_semantics::numeric_intrinsics::{
+        CoreIntegerOperand, CoreIntegerOperatorSignature, ScalarBinaryOperation,
+    };
+    use numerics::{arithmetic::ArithmeticDomain, integer_carrier::FixedInteger};
+    use typed_trees::expression::{BinaryOperator, ExpressionNode};
+
+    let files = bundled_core_sources();
+    let mut units = files
+        .iter()
+        .map(|(name, text)| (0, name.as_str(), text.as_str()))
+        .collect::<Vec<_>>();
+    units.push((
+        31,
+        "lengths.omg",
+        r#"
+machine equal_length(items: &[u8], count: u64 in Trapping) -> bool {
+    count == items.len
+}
+machine bounded_length(items: &[u8], count: u64 in Trapping) -> bool
+    requires count < items.len
+{ true }
+machine reversed_length(items: &[u8], count: u64 in Trapping) -> bool {
+    items.len > count
+}
+machine fixed_length(items: &[u8; 4], count: u64 in Trapping) -> bool {
+    count <= items.len
+}
+"#,
+    ));
+    let program = packages(&units, &[], &[]).expect("the actual Core declarations type");
+    let owners = typed_trees::references::collect_program_operand_owners(&program);
+    for (name, binary, operation, reversed) in [
+        (
+            "equal_length",
+            BinaryOperator::Equal,
+            ScalarBinaryOperation::Equal,
+            false,
+        ),
+        (
+            "bounded_length",
+            BinaryOperator::Less,
+            ScalarBinaryOperation::Less,
+            false,
+        ),
+        (
+            "reversed_length",
+            BinaryOperator::Greater,
+            ScalarBinaryOperation::Greater,
+            true,
+        ),
+        (
+            "fixed_length",
+            BinaryOperator::LessOrEqual,
+            ScalarBinaryOperation::LessOrEqual,
+            false,
+        ),
+    ] {
+        let owner = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap()
+            .symbol;
+        let expressions = program
+            .expression_table
+            .iter_expressions()
+            .filter_map(|(handle, node)| {
+                (matches!(node, ExpressionNode::Binary(found) if found.operator == binary)
+                    && owners.expression_owners(handle).any(|found| found == owner))
+                .then_some(handle)
+            })
+            .collect::<Vec<_>>();
+        let [expression] = expressions.as_slice() else {
+            panic!("one authored comparison in {name}: {expressions:?}");
+        };
+        let operand = |policy| CoreIntegerOperand {
+            carrier: FixedInteger::unsigned(64),
+            policy,
+        };
+        let mut operands = [
+            operand(ArithmeticDomain::Trapping),
+            operand(ArithmeticDomain::Exact),
+        ];
+        if reversed {
+            operands.reverse();
+        }
+        let expected = CoreIntegerOperatorSignature::select(operation, operands).unwrap();
+        let selected = program
+            .expression_table
+            .authored_selection_occurrences(*expression)
+            .map(|occurrence| {
+                program
+                    .authored_declaration_selections()
+                    .get(occurrence)
+                    .unwrap()
+                    .target()
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            selected,
+            vec![Target::Intrinsic(Intrinsic::CoreIntegerOperator(expected))],
+            "{name} must retain its exact mixed-policy comparison rather than CheckedOperator"
+        );
+    }
+}
+
+#[test]
+fn collection_length_type_queries_use_the_retained_selection() {
+    use language_semantics::declaration_selection::CollectionMeasure;
+    use numerics::arithmetic::ArithmeticDomain;
+    use numerics::integer_carrier::FixedInteger;
+    use symbols::BuiltinTypeAtom;
+    use typed_trees::expression::{ExpressionNode, MemberSelection};
+
+    let mut program = typed(&[(
+        "members.omg",
+        r#"
+data Row [copy] { len: u16 in Wrapping; }
+machine selected(items: &[u8]) -> u64 { items.len }
+machine field(row: &Row) -> u16 in Wrapping { row.len }
+"#,
+    )]);
+    for (name, atom, policy) in [
+        ("selected", BuiltinTypeAtom::U64, ArithmeticDomain::Exact),
+        (
+            "field",
+            BuiltinTypeAtom::Integer(FixedInteger::unsigned(16)),
+            ArithmeticDomain::Wrapping,
+        ),
+    ] {
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap();
+        let owner = machine.symbol;
+        let state = program.machine_states(machine).first().unwrap().clone();
+        let owners = typed_trees::references::collect_program_operand_owners(&program);
+        let members = program
+            .expression_table
+            .iter_expressions()
+            .filter_map(|(handle, node)| {
+                (matches!(node, ExpressionNode::Member(_))
+                    && owners.expression_owners(handle).any(|found| found == owner))
+                .then_some(handle)
+            })
+            .collect::<Vec<_>>();
+        let [member] = members.as_slice() else {
+            panic!("one selected member in {name}");
+        };
+        let member = *member;
+        let expected = program
+            .type_reference_table
+            .find_arithmetic_result_type_reference(
+                program.symbols.builtin_atom_symbol(atom).unwrap(),
+                policy,
+            )
+            .unwrap();
+        let query = |program: &typed_trees::TypedTrees| {
+            assert_eq!(
+                crate::typing_queries::declared_expression_type(program, owner, member),
+                Some(expected)
+            );
+            assert_eq!(
+                crate::typing_queries::scoped_expression_type_reference(
+                    program,
+                    program.state_parameters(&state),
+                    state.return_type,
+                    member,
+                    Some(&state)
+                )
+                .unwrap(),
+                Some(expected)
+            );
+        };
+        query(&program);
+        let ExpressionNode::Member(node) = program.expression_table.expression_mut(member) else {
+            unreachable!()
+        };
+        let selected = node.selection;
+        node.member = "diagnostic_spelling_only".into();
+        query(&program);
+        let ExpressionNode::Member(node) = program.expression_table.expression_mut(member) else {
+            unreachable!()
+        };
+        node.member = "len".into();
+        node.selection = MemberSelection::Unresolved;
+        assert_eq!(
+            crate::typing_queries::declared_expression_type(&program, owner, member),
+            None
+        );
+        assert_eq!(
+            crate::typing_queries::scoped_expression_type_reference(
+                &program,
+                program.state_parameters(&state),
+                state.return_type,
+                member,
+                Some(&state)
+            )
+            .unwrap(),
+            None
+        );
+        let ExpressionNode::Member(node) = program.expression_table.expression_mut(member) else {
+            unreachable!()
+        };
+        node.selection = if name == "selected" {
+            MemberSelection::CollectionMeasure(CollectionMeasure::Capacity)
+        } else {
+            MemberSelection::CollectionMeasure(CollectionMeasure::Length)
+        };
+        assert_eq!(
+            crate::typing_queries::declared_expression_type(&program, owner, member),
+            None,
+            "an unsupported measure or a noncollection receiver supplies no type"
+        );
+        let ExpressionNode::Member(node) = program.expression_table.expression_mut(member) else {
+            unreachable!()
+        };
+        node.selection = selected;
     }
 }
 
