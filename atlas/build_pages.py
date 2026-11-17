@@ -18,7 +18,6 @@ import subprocess
 import textwrap
 from urllib.parse import quote, unquote, urlsplit
 import xml.etree.ElementTree as ET
-from artifacts.explorer import render_explorer
 from artifacts.whole_map import render_architecture
 
 
@@ -301,12 +300,11 @@ def build_all(content_revision: str | None, site: Path) -> Path:
     manifest_path = ATLAS / "evidence/data/manifest.json"
     manifest = json.loads(manifest_path.read_text())
     counts = json.loads((ATLAS / "evidence/data/counts.json").read_text())
-    graph = json.loads((ATLAS / "evidence/data/graph.json").read_text())
     specs = json.loads((HERE / "diagrams.json").read_text())
     revision = manifest["source_revision"]
     template = (HERE / "page_template.html").read_text()
     style = (HERE / "style.css").read_text() + "\n" + (HERE / "architecture.css").read_text()
-    script = (HERE / "page.js").read_text() + "\n" + (HERE / "explorer.js").read_text() + "\n" + (HERE / "architecture.js").read_text()
+    script = (HERE / "page.js").read_text() + "\n" + (HERE / "explorer.js").read_text() + "\n" + (HERE / "connected.js").read_text()
     pages = site / "pages"
     pages.mkdir(parents=True, exist_ok=True)
     built = []
@@ -328,17 +326,15 @@ def build_all(content_revision: str | None, site: Path) -> Path:
             continue
         body, toc, diagrams = render_markdown(source, page_id, content_revision, output, specs)
         prefix = "" if page_id == "landing" else "../"
-        explorer, extra_diagrams = render_explorer(revision, graph, "pages/" if page_id == "landing" else "") if page_id == "architecture" else ("", 0)
-        if explorer:
-            explorer = render_architecture(ATLAS, "pages/" if page_id == "landing" else "") + '<details class="secondary-routes"><summary>Focused walkthroughs and Cargo declarations</summary>' + explorer + '</details>'
-            extra_diagrams += 2
+        explorer = render_architecture(ATLAS, "") if page_id == "architecture" else ""
+        extra_diagrams = 2 if explorer else 0
         diagrams += extra_diagrams
         if explorer:
             body = '<details class="architecture-notes"><summary>About the map and snapshot</summary>' + glance + body + '</details>'
         publication = "Uncommitted draft preview" if content_revision is None else f'Atlas content <a href="{GITHUB}/tree/{content_revision}/atlas"><code>{content_revision[:12]}</code></a>'
         replacements = {
             "TITLE": html.escape(title), "DESCRIPTION": html.escape(description), "STYLE": style,
-            "SCRIPT": script, "STATUS": html.escape(status), "PAGE_NUMBER": str(number),
+            "SCRIPT": script, "CANVAS_BUNDLE": f'<script src="{os.path.relpath(ATLAS / "design/diagram-zoom.js", output.parent).replace(chr(92), "/")}"></script>' if explorer else "", "STATUS": html.escape(status), "PAGE_NUMBER": str(number),
             "PAGE_COUNT": str(len(PAGES)), "REVISION": revision[:12], "PUBLICATION": publication,
             "REVISION_URL": f"{GITHUB}/tree/{revision}", "MANIFEST_URL": source_url(manifest_path, content_revision, output),
             "SOURCE_URL": source_url(source, content_revision, output), "COUNTS": glance if page_id in ("pipeline-current", "foundation-backend-plan") else "",
