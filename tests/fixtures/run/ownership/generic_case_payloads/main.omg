@@ -5,10 +5,16 @@ machine present<T>(value: T) -> Outcome<T> {
     Outcome::Present { item: move value }
 }
 machine absent<T>() -> Outcome<T> { Outcome::Missing }
+machine rebuild<T>(value: Outcome<T>) -> Outcome<T> {
+    transition value {
+        Outcome::Missing -> Outcome::Missing
+        Outcome::Present { item } -> Outcome::Present { item: move item }
+    }
+}
 machine observe<T>(value: &T) -> Outcome<T> { Outcome::Missing }
 machine main() crashes Trap {
-    let empty: Outcome<Ticket> = absent<Ticket>();
-    let full: Outcome<Ticket> = present<Ticket>(Ticket { number: 29u64 });
+    let empty: Outcome<Ticket> = rebuild<Ticket>(absent<Ticket>());
+    let full: Outcome<Ticket> = rebuild<Ticket>(present<Ticket>(Ticket { number: 29u64 }));
     transition empty {
         Outcome::Missing -> read(move full)
         Outcome::Present { item } -> unexpected(move item, move full)

@@ -1622,3 +1622,15 @@ fn a_known_empty_case_keeps_its_cleanup_membership() {
     let verdict = judge(form).unwrap();
     assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
 }
+
+#[test]
+fn a_nominal_const_extent_keeps_its_checking_input() {
+    let form = parameter_form(
+        r#"
+        data Buffer<const Count: u64> { bytes: [u8; Count]; }
+        machine entry<const N: u64>(value: &Buffer<N>) -> u64 { N }
+    "#,
+    );
+    let verdict = judge(Ok(form)).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+}

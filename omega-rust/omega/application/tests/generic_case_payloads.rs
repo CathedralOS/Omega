@@ -47,8 +47,14 @@ fn generic_case_payloads_survive_construction_and_calls_in_both_engines() {
 
 #[test]
 fn an_empty_generic_result_cannot_discard_its_owned_argument() {
+    let source =
+        include_str!("../../../../tests/fixtures/fail/ownership/generic_case_payloads/main.omg");
+    let declaration = source.find("machine observe<T>").unwrap();
+    let result = declaration + source[declaration..].find("{ Outcome::Missing }").unwrap() + 2;
+    let expected_span = format!("bytes {}..{}:", result, result + "Outcome::Missing".len());
     let (output, report) = invoke("fail", &["--check"]);
     assert!(!output.status.success(), "{report}");
+    assert!(report.contains(&expected_span), "{report}");
     assert!(
         report.contains(
             "normal edge cannot implicitly dispose storage without an authorized disposition"
