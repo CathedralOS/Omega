@@ -3468,7 +3468,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                 prepared,
             )?;
         } else {
-            self.commit_boundary_result(&operation.result, &boundary_declaration.result, returned)
+            self.commit_host_boundary_result(boundary_declaration, &operation.result, returned)
                 .map_err(|error| error.in_argument_preparation("commit host result"))?;
         }
         for (argument, parameter) in structural_arguments
