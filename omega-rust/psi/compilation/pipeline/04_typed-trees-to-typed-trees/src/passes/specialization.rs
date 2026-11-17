@@ -1734,11 +1734,10 @@ fn type_argument_meets_bounds(
     )))
 }
 
-/// A retained type parameter stays open until its enclosing call is specialized;
-/// it must not be mistaken for a closed data application. Other retained types
-/// use their complete applied data view. Region-bearing applications remain
-/// refused until specialization retains their supplying scope. A plain authored name still admits a builtin type,
-/// an open type parameter, or data with no parameters of its own.
+/// A type parameter stays open until its enclosing call is specialized.
+/// Other type operands retain their complete applied data view, including
+/// lifetime owners that the shared copier preserves. Invocation lifetimes do
+/// not select another executable body; each call retains its own bindings.
 fn named_type(
     program: &mut TypedTrees,
     argument: &StaticMachineArgument,
@@ -1748,12 +1747,6 @@ fn named_type(
         if program
             .type_reference_table
             .contains_type_reference(reference)
-            && program
-                .region_free_scoped_type_identity(
-                    typed_trees::type_identity::TypeIdentityRequest::ordinary(reference),
-                    &[],
-                )
-                .is_some()
             && !matches!(
                 program.type_reference_table.type_reference(reference),
                 TypeReferenceNode::ConstExpression(_)
@@ -1774,7 +1767,7 @@ fn named_type(
             return Ok(reference);
         }
         return Err(unserved(
-            "a static type operand needs a closed, region-free retained type",
+            "a static type operand needs a closed retained type",
         ));
     }
     let only_a_name = only_a_name(program, argument) && argument.const_literal.is_none();
