@@ -1280,6 +1280,95 @@ mod header_reading_tests {
     }
 
     #[test]
+    fn service_identity_does_not_admit_unread_boundary_headers() {
+        for valid_predicate in [true, false] {
+            let (typed, owner, _, requirement) = fixture(valid_predicate);
+            let declaration = typed.trait_definition_by_symbol(owner).unwrap();
+            let scope = AppliedTraitScope::new(
+                &typed,
+                declaration,
+                TraitApplicationArguments {
+                    lexical_owner: owner,
+                    enclosing_data_applications: &[],
+                    arguments: &[],
+                    lifetimes: &[],
+                },
+            )
+            .unwrap();
+            let expected_identity = scope.portable_application_identity(&typed).unwrap();
+            let context = MachineId::new(1).unwrap();
+            let mut program = Program::new(&typed, false);
+            let service = program.declared_service(context, declaration).unwrap();
+            let (registered, parents) = program.services.get(service).unwrap();
+            assert_eq!(registered.declaration.symbol, owner);
+            assert_eq!(
+                registered.portable_application_identity(&typed),
+                Some(expected_identity)
+            );
+            assert!(parents.is_empty());
+            assert_eq!(program.services.len(), 1);
+            assert!(program.admitted_signature_views.is_empty());
+            assert!(program.signatures.is_empty());
+            assert!(program.boundaries.rows.is_empty());
+            assert!(program.fixed_inputs.is_empty());
+
+            // Use the production capture path. Registering a canonical service
+            // identity does not select its members' source contract clauses.
+            let metadata = crate::capture_source_questions(&mut program, context)
+                .expect("service identity alone must not require unread header operators");
+            assert!(!metadata.declarations.contains(&owner));
+            assert!(metadata.questions.is_empty());
+
+            // An actual header request still owes the ordinary reader's full
+            // contract validation and exact operator completions.
+            let header = program.read_calling_requirement_header(context, &scope, requirement);
+            if valid_predicate {
+                assert!(!header.unwrap().requires.is_empty());
+                assert_eq!(program.admitted_signature_views.len(), 1);
+                let captured = crate::capture_source_questions(&mut program, context)
+                    .expect("the requested header now has actual checked reader completions");
+                assert!(captured.declarations.contains(&owner));
+                let conjunction = typed
+                    .expression_table
+                    .iter_backing_expressions()
+                    .find_map(|(handle, node)| match node {
+                        ExpressionNode::Binary(binary)
+                            if binary.operator == BinaryOperator::And =>
+                        {
+                            Some(handle)
+                        }
+                        _ => None,
+                    })
+                    .unwrap();
+                let occurrence = typed
+                    .expression_table
+                    .authored_selection_occurrences(conjunction)
+                    .next()
+                    .unwrap();
+                assert!(captured.questions.iter().any(|question| {
+                    question.lexical_owner == requirement
+                        && question.occurrence == occurrence
+                        && question.target
+                            == crate::selection_questions::RawSelectionTarget::Intrinsic(
+                                language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
+                            )
+                }));
+            } else {
+                let refusal =
+                    header.expect_err("identity registration cannot admit an unsupported contract");
+                assert_eq!(
+                    refusal.reason,
+                    terminal_check_tables::RefusalReason::Unsupported
+                );
+                assert!(program.admitted_signature_views.is_empty());
+            }
+            assert!(program.signatures.is_empty());
+            assert!(program.boundaries.rows.is_empty());
+            assert!(program.fixed_inputs.is_empty());
+        }
+    }
+
+    #[test]
     fn calling_header_admission_reads_the_complete_bodyless_precondition() {
         let (typed, owner, _, requirement) = fixture(true);
         let declaration = typed.trait_definition_by_symbol(owner).unwrap();

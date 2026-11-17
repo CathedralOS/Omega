@@ -1236,7 +1236,8 @@ impl<'t> Program<'t> {
         let mut parents = parents?;
         parents.sort_unstable();
         parents.dedup();
-        self.admitted_declarations.include(scope.declaration.symbol);
+        // Service lineage retains the exact application as metadata. Contract
+        // readers separately admit the source headers they actually check.
         Ok(self.services.push((scope, parents)))
     }
 
