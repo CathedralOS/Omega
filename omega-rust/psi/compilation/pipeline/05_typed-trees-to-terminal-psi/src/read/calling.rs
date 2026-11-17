@@ -41,6 +41,12 @@ pub(crate) struct SourceCallingPolicies {
     pub(crate) signatures: Vec<SourceCallingSignature>,
     pub(crate) entries: Vec<SourceProgramEntryContract>,
     completed_applications: Vec<(SymbolHandle, SymbolHandle, String)>,
+    headers: Vec<SourceCallingHeader>,
+}
+
+struct SourceCallingHeader {
+    requirement: SymbolHandle,
+    declaring: TraitApplicationEnvironment,
 }
 
 pub(crate) struct SourceCallingSignature {
@@ -98,10 +104,6 @@ pub(crate) struct SourceCallingInstance {
     pub(crate) policy: MachineId,
     pub(crate) signatures: Vec<CallingSignatureId>,
     pub(crate) schema: std::sync::Arc<language_semantics::service_surface::ServiceSurface>,
-    pub(super) headers: Vec<(
-        typed_trees::trait_definition::TraitApplicationEnvironment,
-        SymbolHandle,
-    )>,
 }
 
 fn application_identity(typed: &TypedTrees, scope: &AppliedTraitScope<'_>) -> Option<String> {
@@ -115,7 +117,7 @@ impl Program<'_> {
     /// Calling metadata admits the same complete source header as a call does,
     /// without supplying a body or creating a boundary invocation. Read the
     /// prepared application, not its unapplied declaration's clause handles.
-    pub(super) fn read_calling_requirement_header(
+    fn read_calling_requirement_header(
         &mut self,
         context: MachineId,
         scope: &AppliedTraitScope<'_>,
@@ -142,15 +144,105 @@ impl Program<'_> {
             })?;
         let (signature, _) = self
             .boundary_signature(context, source)
-            .map_err(|mut refusal| {
-                let name = typed.symbols.display_path(source.symbol, "::");
-                let name = name.chars().take(256).collect::<String>();
-                refusal.detail = format!("Calling header `{name}`: {}", refusal.detail);
-                refusal
-            })?;
+            .map_err(|refusal| self.read_failure_at(refusal, requirement, "the Calling header"))?;
         self.admitted_declarations.include(owner.symbol);
         Ok(signature)
     }
+    /// Find the services and entry contracts this header names while their
+    /// calling policies can still add machine bodies. Read its types and
+    /// clauses later during storage preparation.
+    fn prepare_calling_header_dependencies(
+        &mut self,
+        context: MachineId,
+        source: &typed_trees::signature::StateSignature,
+    ) -> Checked<()> {
+        let reach_author = self
+            .typed
+            .closed_requirement_application(source.symbol)
+            .map_or(source.symbol, |closed| closed.template);
+        self.reach_ceiling(context, reach_author, false)?;
+        let parameters = super::span(
+            |span| self.typed.state_parameters.span(span),
+            source.parameters,
+            context,
+            "Calling header parameter span",
+        )?;
+        self.entry_ceiling(
+            context,
+            self.typed.state_signature_invokes(source),
+            parameters,
+            true,
+        )?;
+        Ok(())
+    }
+
+    fn prepare_calling_requirement_header(
+        &mut self,
+        context: MachineId,
+        declaring: &AppliedTraitScope<'_>,
+        requirement: SymbolHandle,
+        prepared: &mut SourceCallingPolicies,
+    ) -> Checked<()> {
+        let typed = self.typed;
+        let (_, declared) = typed
+            .trait_machine_signature(requirement)
+            .filter(|(owner, _)| owner.is_boundary && owner.symbol == declaring.declaration.symbol)
+            .ok_or_else(|| {
+                services::unavailable(
+                    context,
+                    "Calling requirement lost its exact declaring boundary header",
+                )
+            })?;
+        let applied = typed
+            .applied_callable_signature(declaring, requirement)
+            .or_else(|| {
+                declaring
+                    .keeps_declared_signatures(typed)
+                    .then_some(declared)
+            })
+            .ok_or_else(|| {
+                services::unavailable(
+                    context,
+                    "Calling requirement lost its prepared source contract application",
+                )
+            })?;
+        self.prepare_calling_header_dependencies(context, applied)
+            .map_err(|refusal| self.read_failure_at(refusal, requirement, "the Calling header"))?;
+        let header = SourceCallingHeader {
+            requirement,
+            declaring: declaring.environment(),
+        };
+        if !prepared.headers.iter().any(|known| {
+            known.requirement == header.requirement && known.declaring == header.declaring
+        }) {
+            prepared.headers.push(header);
+        }
+        Ok(())
+    }
+
+    pub(super) fn read_calling_requirement_headers(
+        &mut self,
+        context: MachineId,
+        prepared: &SourceCallingPolicies,
+    ) -> Checked<()> {
+        if self.type_purpose != super::storage_metadata::TypePurpose::StorageDescription {
+            return Err(services::unavailable(
+                context,
+                "Calling headers before the complete body closure",
+            ));
+        }
+        for header in &prepared.headers {
+            let scope = header.declaring.scope(self.typed).ok_or_else(|| {
+                services::unavailable(
+                    context,
+                    "Calling header lost its exact declaring application",
+                )
+            })?;
+            self.read_calling_requirement_header(context, &scope, header.requirement)?;
+        }
+        Ok(())
+    }
+
     pub(crate) fn require_complete_boundary_parent_contracts(
         &self,
         context: MachineId,
@@ -379,7 +471,6 @@ impl Program<'_> {
             }
             self.admitted_declarations.include(scope.declaration.symbol);
             let mut signatures = Vec::new();
-            let mut headers = Vec::new();
             for signature in calling.signatures(instance) {
                 if let Some(reason) = &signature.abi_refusal {
                     return Err(services::unavailable(context, reason.clone()));
@@ -390,22 +481,22 @@ impl Program<'_> {
                         "Calling instance lost an exact requirement declaration",
                     )
                 })?;
-                let declaring = signature.declaring_scope.as_ref().ok_or_else(|| {
-                    services::unavailable(
-                        context,
-                        "Calling signature lost its exact declaring application",
-                    )
-                })?;
-                if declaring.scope(typed).is_none() {
-                    return Err(services::unavailable(
-                        context,
-                        "Calling signature lost its exact declaring application",
-                    ));
-                }
-                // The selected declaration is retained now; its full contract
-                // is read with ABI metadata after the executable body closure.
-                // Describing a linear carrier must not admit it as a body value.
-                headers.push((declaring.clone(), source.symbol));
+                let declaring = signature
+                    .declaring_scope
+                    .as_ref()
+                    .and_then(|scope| scope.scope(typed))
+                    .ok_or_else(|| {
+                        services::unavailable(
+                            context,
+                            "Calling signature lost its exact declaring application",
+                        )
+                    })?;
+                self.prepare_calling_requirement_header(
+                    context,
+                    &declaring,
+                    source.symbol,
+                    prepared,
+                )?;
                 for &id in &signature.abi_signatures {
                     let mut rows = catalog
                         .abi_signatures()
@@ -451,7 +542,6 @@ impl Program<'_> {
                 policy,
                 signatures,
                 schema: schema.declaration,
-                headers,
             };
             match prepared
                 .requests
@@ -465,7 +555,6 @@ impl Program<'_> {
                         if existing.policy != new_instance.policy
                             || existing.signatures != new_instance.signatures
                             || existing.schema != new_instance.schema
-                            || existing.headers != new_instance.headers
                         {
                             return Err(services::unavailable(
                                 context,
@@ -693,6 +782,13 @@ mod header_reading_tests {
     use typed_trees::types::TypeReferenceNode;
 
     fn fixture(valid_predicate: bool) -> (TypedTrees, SymbolHandle, SymbolHandle, SymbolHandle) {
+        header_fixture(valid_predicate, false)
+    }
+
+    fn header_fixture(
+        valid_predicate: bool,
+        linear: bool,
+    ) -> (TypedTrees, SymbolHandle, SymbolHandle, SymbolHandle) {
         let mut builder = SymbolTableBuilder::new();
         let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
         let children = builder.insert_children(
@@ -700,7 +796,8 @@ mod header_reading_tests {
             builtin_type_symbols().into_iter().chain([
                 (SymbolKind::Trait, SymbolNameRef::Static("Raw")),
                 (SymbolKind::Trait, SymbolNameRef::Static("Other")),
-                (SymbolKind::Data, SymbolNameRef::Static("Claim")),
+                (SymbolKind::Data, SymbolNameRef::Static("Token")),
+                (SymbolKind::Machine, SymbolNameRef::Static("clause_helper")),
             ]),
         );
         let owner = children.handles().nth(symbols::BUILTIN_TYPE_COUNT).unwrap();
@@ -718,23 +815,39 @@ mod header_reading_tests {
                 (SymbolKind::Parameter, SymbolNameRef::Static("right")),
             ],
         );
+        let token = children
+            .handles()
+            .nth(symbols::BUILTIN_TYPE_COUNT + 2)
+            .unwrap();
+        let helper = children
+            .handles()
+            .nth(symbols::BUILTIN_TYPE_COUNT + 3)
+            .unwrap();
+        let token_members = builder.insert_children(
+            token,
+            [
+                (SymbolKind::Field, SymbolNameRef::Static("allowed")),
+                (SymbolKind::Domain, SymbolNameRef::Static("Allowed")),
+            ],
+        );
+        let field = token_members.handle_at(0);
+        let domain = token_members.handle_at(1);
+        let helper_entry = builder
+            .insert_children(
+                helper,
+                [(SymbolKind::State, SymbolNameRef::Static("entry"))],
+            )
+            .start();
+        let helper_parameter = builder
+            .insert_children(
+                helper_entry,
+                [(SymbolKind::Parameter, SymbolNameRef::Static("flag"))],
+            )
+            .start();
         let mut typed = TypedTrees {
             symbols: builder.finish(),
             ..Default::default()
         };
-        let claim = children
-            .handles()
-            .nth(symbols::BUILTIN_TYPE_COUNT + 2)
-            .unwrap();
-        typed.push_data_definition(typed_trees::data::DataDefinition {
-            symbol: claim,
-            name: "Claim".into(),
-            properties: typed_trees::data::DataProperties {
-                multiplicity: language_semantics::Multiplicity::Linear,
-                carry: None,
-            },
-            ..Default::default()
-        });
         let boolean_symbol = typed
             .symbols
             .builtin_atom_symbol(BuiltinTypeAtom::Bool)
@@ -744,6 +857,94 @@ mod header_reading_tests {
             name: "bool".into(),
         });
         let unit = typed.type_reference_table.insert(TypeReferenceNode::Unit);
+        let token_type = typed.type_reference_table.insert(TypeReferenceNode::Named {
+            symbol: token,
+            name: "Token".into(),
+        });
+        let members = typed
+            .data_members
+            .insert_many([typed_trees::data::DataMember::Field(
+                typed_trees::data::DataField {
+                    symbol: field,
+                    name: "allowed".into(),
+                    type_reference: boolean,
+                    ..Default::default()
+                },
+            )]);
+        typed.push_data_definition(typed_trees::data::DataDefinition {
+            symbol: token,
+            name: "Token".into(),
+            members,
+            properties: typed_trees::data::DataProperties {
+                multiplicity: language_semantics::Multiplicity::Linear,
+                carry: None,
+            },
+            ..Default::default()
+        });
+        let semantic_id = typed.semantic_domains.intern("Token::Allowed");
+        typed.push_domain_definition(typed_trees::domain::DomainDefinition {
+            symbol: domain,
+            name: "Allowed".into(),
+            target_type: token_type,
+            semantic_id,
+            ..Default::default()
+        });
+        let semantic_id = typed
+            .retain_domain_application(domain, token_type, &[])
+            .unwrap();
+        let constraints = typed.type_reference_table.insert_constraints([
+            typed_trees::types::TypeConstraintNode::Domain(typed_trees::types::DomainConstraint {
+                name: "Allowed".into(),
+                symbol: domain,
+                semantic_id,
+                ..Default::default()
+            }),
+        ]);
+        let qualified = typed
+            .type_reference_table
+            .insert(TypeReferenceNode::Constrained {
+                base_type: token_type,
+                constraints,
+            });
+        let helper_parameters = typed.state_parameters.insert_many([StateParameter {
+            symbol: helper_parameter,
+            name: "flag".into(),
+            type_reference: boolean,
+            ..Default::default()
+        }]);
+        let mut helper_members = Default::default();
+        typed
+            .expression_table
+            .push_name_path_member(&mut helper_members, "flag".into());
+        let helper_body = typed
+            .expression_table
+            .insert(ExpressionNode::Name(TableNamePath {
+                members: helper_members,
+                head_symbol: helper_parameter,
+                symbol: helper_parameter,
+                ..Default::default()
+            }));
+        let statements = typed.statement_table.insert_statements([
+            typed_trees::statement::StatementNode::Expression(helper_body),
+        ]);
+        let states = typed
+            .machine_states
+            .insert_many([typed_trees::state::State {
+                symbol: helper_entry,
+                name: "entry".into(),
+                parameters: helper_parameters,
+                return_type: boolean,
+                statement_nodes: statements,
+                ..Default::default()
+            }]);
+        typed.push_machine(typed_trees::machine::Machine {
+            symbol: helper,
+            name: "clause_helper".into(),
+            states,
+            body_is_present: true,
+            body_status: typed_trees::machine::MachineBodyStatus::Complete,
+            ..Default::default()
+        });
         let formals = typed
             .state_parameters
             .insert_many(
@@ -757,7 +958,7 @@ mod header_reading_tests {
                         } else {
                             "right".into()
                         },
-                        type_reference: boolean,
+                        type_reference: if linear && i == 0 { qualified } else { boolean },
                         ..Default::default()
                     }),
             );
@@ -777,6 +978,27 @@ mod header_reading_tests {
                 symbol: parameters.handle_at(0),
                 ..Default::default()
             }));
+        let left = if linear {
+            let field = typed.expression_table.insert(ExpressionNode::Member(
+                typed_trees::expression::TableMemberExpression {
+                    receiver: left,
+                    selection: typed_trees::expression::MemberSelection::Field(field),
+                    member: "allowed".into(),
+                    case_variant: None,
+                },
+            ));
+            let arguments = typed.expression_table.insert_expression_handles([field]);
+            typed.expression_table.insert(ExpressionNode::Call(
+                typed_trees::expression::TableCallExpression {
+                    target_symbol: helper,
+                    target: "clause_helper".into(),
+                    arguments,
+                    ..Default::default()
+                },
+            ))
+        } else {
+            left
+        };
         let right = typed
             .expression_table
             .insert(ExpressionNode::Name(TableNamePath {
@@ -856,6 +1078,116 @@ mod header_reading_tests {
     }
 
     #[test]
+    fn queued_calling_header_describes_linear_qualified_inputs_and_checks_its_clauses() {
+        let (typed, owner, _, requirement) = header_fixture(true, true);
+        let scope = AppliedTraitScope::new(
+            &typed,
+            typed.trait_definition_by_symbol(owner).unwrap(),
+            TraitApplicationArguments {
+                lexical_owner: owner,
+                enclosing_data_applications: &[],
+                arguments: &[],
+                lifetimes: &[],
+            },
+        )
+        .unwrap();
+        let context = MachineId::new(1).unwrap();
+        let mut program = Program::new(&typed, false);
+        let mut policies = SourceCallingPolicies::default();
+        program
+            .prepare_calling_requirement_header(context, &scope, requirement, &mut policies)
+            .unwrap();
+        assert_eq!(policies.headers.len(), 1);
+        assert!(program.admitted_signature_views.is_empty());
+        let (_, source) = typed.trait_machine_signature(requirement).unwrap();
+        let reference = typed.state_parameters.span(source.parameters).unwrap()[0].type_reference;
+        assert_eq!(
+            program.value_type(context, reference).unwrap_err().detail,
+            "type data with custody"
+        );
+        assert!(program.symbols.is_empty());
+        program.begin_declaration_storage(context, 0).unwrap();
+        let descriptions = program.prepare_calling_storage(context, &policies).unwrap();
+        assert_eq!(program.admitted_signature_views.len(), 1);
+        let [property] = descriptions.properties.as_slice() else {
+            panic!("the metadata property range must include its header's linear carrier");
+        };
+        assert!(property.owns_linear_claim);
+        assert!(property.descriptor_cleanup && property.no_code_affine_cleanup);
+        assert!(!program.records.get(property.record).unwrap().copyable);
+        let signature = program
+            .read_calling_requirement_header(context, &scope, requirement)
+            .unwrap();
+        assert!(signature.parameters[0].qualification() != crate::body::Qualification::NONE);
+        assert!(!signature.requires.is_empty());
+        program.completed_operators.finish();
+        crate::selection_questions::capture_with_bodies(
+            &typed,
+            &program.admitted_declarations,
+            &program.admitted_bodies,
+            &program.completed_operators,
+            &program.admitted_signature_views,
+        )
+        .expect("the field/helper predicate retains exact And and Not completions");
+        assert!(program.symbols.is_empty());
+        assert!(program.signatures.is_empty());
+        assert!(program.boundaries.rows.is_empty());
+        assert!(program.fixed_inputs.is_empty());
+        let helper = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "clause_helper")
+            .unwrap();
+        assert!(program.admitted_bodies.contains(helper.symbol));
+        assert!(
+            program
+                .machine(helper.symbol)
+                .unwrap_err()
+                .detail
+                .contains("machine admission after storage metadata")
+        );
+    }
+
+    #[test]
+    fn queued_linear_calling_header_refuses_an_unformed_clause_at_its_source() {
+        let (typed, owner, _, requirement) = header_fixture(false, true);
+        let scope = AppliedTraitScope::new(
+            &typed,
+            typed.trait_definition_by_symbol(owner).unwrap(),
+            TraitApplicationArguments {
+                lexical_owner: owner,
+                enclosing_data_applications: &[],
+                arguments: &[],
+                lifetimes: &[],
+            },
+        )
+        .unwrap();
+        let context = MachineId::new(1).unwrap();
+        let mut program = Program::new(&typed, false);
+        let mut policies = SourceCallingPolicies::default();
+        program
+            .prepare_calling_requirement_header(context, &scope, requirement, &mut policies)
+            .unwrap();
+        program.begin_declaration_storage(context, 0).unwrap();
+        let Err(refused) = program.prepare_calling_storage(context, &policies) else {
+            panic!("a queued linear header must not skip its unformed clause");
+        };
+        assert_eq!(
+            refused.reason,
+            terminal_check_tables::RefusalReason::Unsupported
+        );
+        assert!(
+            refused
+                .detail
+                .contains("clause that is not a comparison or conjunction")
+        );
+        assert!(refused.detail.contains("the Calling header"));
+        assert!(refused.detail.contains("Raw::read"));
+        assert!(program.admitted_signature_views.is_empty());
+        assert!(program.symbols.is_empty());
+    }
+
+    #[test]
     fn calling_header_admission_reads_the_complete_bodyless_precondition() {
         let (typed, owner, _, requirement) = fixture(true);
         let declaration = typed.trait_definition_by_symbol(owner).unwrap();
@@ -899,70 +1231,6 @@ mod header_reading_tests {
         assert!(program.signatures.is_empty());
         assert!(program.boundaries.rows.is_empty());
         assert!(program.fixed_inputs.is_empty());
-    }
-
-    #[test]
-    fn calling_header_storage_keeps_linear_custody_out_of_executable_values() {
-        let (mut typed, owner, _, requirement) = fixture(true);
-        let claim = typed
-            .data_definitions()
-            .iter()
-            .find(|row| row.name.as_str() == "Claim")
-            .unwrap()
-            .symbol;
-        let reference = typed.type_reference_table.insert(TypeReferenceNode::Named {
-            symbol: claim,
-            name: "Claim".into(),
-        });
-        let signature = typed
-            .trait_definition_by_symbol(owner)
-            .unwrap()
-            .machines
-            .start();
-        typed
-            .trait_machine_signatures
-            .get_mut(signature)
-            .return_type = reference;
-        let declaration = typed.trait_definition_by_symbol(owner).unwrap();
-        let scope = AppliedTraitScope::new(
-            &typed,
-            declaration,
-            TraitApplicationArguments {
-                lexical_owner: owner,
-                enclosing_data_applications: &[],
-                arguments: &[],
-                lifetimes: &[],
-            },
-        )
-        .unwrap();
-        let context = MachineId::new(1).unwrap();
-        let mut program = Program::new(&typed, false);
-        assert!(
-            program
-                .read_calling_requirement_header(context, &scope, requirement)
-                .unwrap_err()
-                .detail
-                .contains("type data with custody")
-        );
-        program.begin_declaration_storage(context, 0).unwrap();
-        let described = program
-            .read_calling_requirement_header(context, &scope, requirement)
-            .unwrap();
-        assert!(
-            !described.requires.is_empty(),
-            "metadata must still form the complete written Boolean contract"
-        );
-        assert!(program.signatures.is_empty());
-        assert!(program.boundaries.rows.is_empty());
-        assert!(program.fixed_inputs.is_empty());
-        // Challenge the existing admission-before-cache boundary after the
-        // header has introduced its descriptor row. This is test-only reset;
-        // production enters storage mode once after closing all bodies.
-        program.type_purpose = crate::read::storage_metadata::TypePurpose::Value;
-        assert_eq!(
-            program.value_type(context, reference).unwrap_err().detail,
-            "type data with custody"
-        );
     }
 
     #[test]

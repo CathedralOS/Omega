@@ -1088,6 +1088,8 @@ fn finish_reading_into<'source>(
         .transpose()?;
     program.prepare_domain_predicates(diagnostic)?;
     program.finish_cleanup_selections()?;
+    // Header types and clauses may name services and parent contracts.
+    // Build the service list and check all parents after those reads finish.
     let services = program.service_map(diagnostic)?;
     program.require_complete_boundary_parent_contracts(diagnostic, &policies)?;
     let policies = (!policies.requests.is_empty()).then_some(policies);
