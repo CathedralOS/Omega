@@ -340,6 +340,119 @@ impl Program<'_> {
         Ok(())
     }
 
+    /// Whether a subject implementation is generic: it declares its own
+    /// parameters, or one of its rows selects a machine that is checked as a
+    /// generic template (`is_generic_template`). Such an implementation has no
+    /// closed static conformance question to form.
+    pub(super) fn is_generic_conformance(
+        &self,
+        declaration: &typed_trees::trait_definition::Conformance,
+    ) -> bool {
+        let typed = self.typed;
+        !declaration.type_parameters.is_empty()
+            || !declaration.lifetime_parameters.is_empty()
+            || !declaration.trait_lifetime_arguments.is_empty()
+            || declaration.rows.iter().any(|row| {
+                typed
+                    .machine_by_symbol(row.realization_machine)
+                    .is_some_and(|machine| self.is_generic_template(machine))
+            })
+    }
+
+    /// A generic subject implementation is checked the way a generic machine
+    /// is: once, as written. Each row owes one refinement witness, whose
+    /// implementation is the row's machine read as its own generic template
+    /// (`subject_declarations` sends that machine to `generic_templates`).
+    /// The witness checks that the machine refines the requirement for every
+    /// application (generics.md: "Bodies are checked against their declared
+    /// requirements; a concrete selection cannot silently strengthen the
+    /// generic API").
+    ///
+    /// Only unbounded type parameters are served. Lifetime binders, bounded
+    /// or non-type parameters, a trait whose header the route does not read,
+    /// inherited rows and generic reference rows stay refused.
+    pub(super) fn generic_conformance_witnesses(
+        &mut self,
+        context: MachineId,
+        declaration: &'_ typed_trees::trait_definition::Conformance,
+    ) -> Checked<()> {
+        let typed = self.typed;
+        let unserved = |what| services::unavailable(context, what);
+        let parameters = typed.conformance_type_parameters(declaration);
+        let plain = declaration.lifetime_parameters.is_empty()
+            && declaration.trait_lifetime_arguments.is_empty()
+            && parameters.len() == declaration.type_parameters.len()
+            && parameters.iter().all(|parameter| {
+                parameter.kind == typed_trees::data::TypeParameterKind::Type
+                    && parameter.bounds == typed_trees::data::DataProperties::default()
+            });
+        let Some(application) = plain
+            .then(|| AppliedTraitScope::from_conformance(typed, declaration))
+            .flatten()
+            .filter(|application| {
+                super::subjects::served_trait_header(typed, application.declaration).is_ok()
+                    && typed
+                        .trait_type_parameters(application.declaration)
+                        .iter()
+                        .all(|parameter| {
+                            parameter.kind == typed_trees::data::TypeParameterKind::Type
+                        })
+            })
+        else {
+            return Err(unserved(
+                "static implementation family needs its general binder or region proof",
+            ));
+        };
+        let implemented = application.declaration;
+        let requirements = typed.trait_machine_signatures(implemented);
+        if declaration.rows.len() != requirements.len() {
+            return Err(unserved(
+                "implementation rows do not cover the complete schema",
+            ));
+        }
+        for requirement in requirements {
+            let mut rows = declaration
+                .rows
+                .iter()
+                .filter(|row| row.requirement == requirement.symbol);
+            let (Some(row), None) = (rows.next(), rows.next()) else {
+                return Err(unserved(
+                    "implementation repeats or changes an exact schema requirement",
+                ));
+            };
+            if row.declaring_trait != implemented.symbol {
+                return Err(unserved("implementation row of an inherited requirement"));
+            }
+            if row.source == typed_trees::trait_definition::ConformanceRowSource::Reference {
+                if !parameters.is_empty() || !implemented.type_parameters.is_empty() {
+                    return Err(unserved("generic reference-row refinement"));
+                }
+                let realization = typed
+                    .machine_by_symbol(row.realization_machine)
+                    .ok_or_else(|| {
+                        unserved("implementation row has no exact selected declaration")
+                    })?;
+                // A row may select an established conformer's entry only for
+                // the requirement it already implements.
+                if let Some((owner, supplied)) = self.conformer_requirement(context, realization)?
+                    && (owner != row.declaring_trait || supplied.symbol != row.requirement)
+                {
+                    return Err(unserved("selection row cannot rebind a declared conformer"));
+                }
+            }
+            let witness = crate::ConformanceWitness {
+                declaring_trait: row.declaring_trait,
+                requirement: row.requirement,
+                implementation: row.realization_machine,
+                value_arguments: Vec::new(),
+            };
+            if !self.conformance_witnesses.contains(&witness) {
+                self.conformance_witnesses.push(witness);
+            }
+        }
+        Ok(())
+    }
+
     pub(super) fn conformance_declaration(
         &mut self,
         context: MachineId,

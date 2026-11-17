@@ -974,6 +974,7 @@ fn capture_source_questions(
         &program.admitted_bodies,
         &program.completed_operators,
         &program.admitted_signature_views,
+        &program.admitted_signature_view_owners,
     )
     .map_err(|error| Refusal {
         source_span: None,
