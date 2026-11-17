@@ -326,13 +326,14 @@ impl<'a> Storage<'a> {
                     segments: raw.segments[..position].to_vec(),
                 };
                 let mut captured = self.capture_payload(references, &prefix, at, concerns)?;
-                if captured.exact
-                    && let LoanRegion::Storage(backing) = &mut captured.region
-                {
-                    backing
-                        .segments
-                        .extend_from_slice(&raw.segments[position..]);
-                    self.shape(backing, concerns)?;
+                if captured.exact {
+                    captured.region =
+                        match captured.region {
+                            LoanRegion::Storage(backing) => LoanRegion::Storage(
+                                self.project_backing(backing, &raw.segments[position..], concerns)?,
+                            ),
+                            region @ LoanRegion::Provider => region,
+                        };
                 }
                 return Ok(captured.region);
             }
