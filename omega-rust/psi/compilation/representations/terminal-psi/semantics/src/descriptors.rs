@@ -351,10 +351,9 @@ pub mod descriptor_lifetimes {
                             | DescriptorPathSegment::RuntimeIndex { .. }
                     )
                     && owner.shape.is_view_descriptor()
+                    && element.replace(position).is_some()
                 {
-                    if element.replace(position).is_some() {
-                        return Err("an inner view needs its own captured descriptor");
-                    }
+                    return Err("an inner view needs its own captured descriptor");
                 }
                 tip = match segment {
                     DescriptorPathSegment::Field(id) => {
