@@ -101,13 +101,6 @@ framework or a list of unimplemented features.
 - Cost: The two compilers give the same call different meanings. Bind positionally, as Rust does, and refuse an argument whose kind does not fit its position.
 - Reported: 2026-11-16, Claude Code, while testing a diff-triggered review checklist
 
-### Native emission and publication still require the final-image recheck
-- Category: Re-deriving
-- Where: [image emission](omega-rust/omega/compilation/backend/images/image-emission/src/image.rs), [native artifact identity](omega-rust/omega/compilation/backend/artifacts/native-artifact/src/identity.rs), [publication](omega-rust/omega/compilation/backend/artifacts/native-artifact/src/publication.rs), [settled rule](wiki/spec/build/machine_state_evidence.md#final-artifact-validation-placement)
-- Saw: Direct executable emission and dynamic ELF emission call `validate_terminal_image` on the bytes just produced. Publication requires validation evidence, and the native artifact identity incorporates validation digests.
-- Cost: Each fresh native image pays for the recheck. Remove it from ordinary emission and decouple artifact identity and publication receipts from the recheck's digests. Keep the constraints needed to emit valid bytes and the receiver's installation checks. Retain focused regression tests with an independent expectation, such as the ELF load-segment alignment test.
-- Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/machine_state_evidence.md
-
 ### A build-wide flag admits machine control for every output
 - Category: A verdict with nothing behind it
 - Where: [source admission](omega-rust/omega/compilation/compiler/src/checked/checking/source_checking.rs), [instruction reach](omega-rust/psi/foundation/symbols/src/builtin.rs), [mask helper](source/library/core/interrupt.omg), [terminal classification](omega-rust/omega/compilation/realization/provider-admission/src/terminal_authority_policy/classification.rs), [settled rule](wiki/spec/build/permissions.md#freestanding-machine-owner-authority)

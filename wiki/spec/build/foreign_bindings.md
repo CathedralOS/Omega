@@ -53,9 +53,10 @@ visibility, and precedence rules. Conflicting rows at the same precedence reject
 rather than adopting the last declaration or silently replacing installed supply.
 
 Build authors intent, not trusted evidence or executable ProviderPlan rows. The
-compiler derives the native candidate and calling plan, validates target/ABI
-compatibility, and requires admission of the foreign behavioral promise under
-the complete requirement contract. Neither locator construction nor selection
+compiler derives the native candidate from the binding and takes the calling
+plan from the [requirement](calling_plans.md#default-calling-convention).
+It checks the target and locator against that plan and requires admission of
+the foreign behavioral promise under the complete requirement contract. Neither locator construction nor selection
 proves behavior or grants execution authority. Representation or protocol
 adaptation requires a checked adapter, not an asserted locator conversion.
 

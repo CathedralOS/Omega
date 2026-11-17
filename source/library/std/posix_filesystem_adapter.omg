@@ -901,7 +901,10 @@ terminates by remaining
     requires i < path.len && remaining > 0
     terminates by remaining
     {
-        let result: UnitResult = posix_filesystem_create_dir_existing(filesystem, (path as -Path)[0..i] as +Path);
+        // A builtin range takes an unqualified view (domains.md, "Operands"): remove
+        // `Path` before the prefix and add it back to the prefix.
+        let prefix: &[u8] = &(path as -Path)[0..i];
+        let result: UnitResult = posix_filesystem_create_dir_existing(filesystem, prefix as +Path);
         transition result {
             UnitResult::Error { kind } -> (UnitResult::Error { kind: kind })
             UnitResult::Ok -> posix_filesystem_mkall_walk(filesystem, path, i + 1, remaining - 1)

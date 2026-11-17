@@ -143,6 +143,7 @@
 .proposed-scene .connected-group rect { fill:none; stroke:var(--rule); }
 .proposed-scene .overview-node rect { fill:var(--surface); stroke:var(--ink-muted); stroke-width:1.5; stroke-dasharray:6 4; }
 .proposed-scene .overview-node.owner rect { fill:var(--ground); stroke:var(--rule); }
+.proposed-scene .overview-node .handoff-status { fill:var(--ink); font:500 15px var(--font-serif); letter-spacing:.04em; text-transform:uppercase; }
 .proposed-scene .overview-node .stage-title { fill:var(--ink); font:500 20px var(--font-serif); }
 .proposed-scene .overview-node .overview-step-note { fill:var(--ink-muted); font:400 17px var(--font-serif); }
 .proposed-scene .overview-node.check rect { stroke:var(--checked); stroke-width:3; }

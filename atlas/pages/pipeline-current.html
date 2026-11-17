@@ -304,6 +304,7 @@ button:disabled { color: var(--ink-muted); border-color: var(--rule); cursor: de
 .proposed-scene .connected-group rect { fill:none; stroke:var(--rule); }
 .proposed-scene .overview-node rect { fill:var(--surface); stroke:var(--ink-muted); stroke-width:1.5; stroke-dasharray:6 4; }
 .proposed-scene .overview-node.owner rect { fill:var(--ground); stroke:var(--rule); }
+.proposed-scene .overview-node .handoff-status { fill:var(--ink); font:500 15px var(--font-serif); letter-spacing:.04em; text-transform:uppercase; }
 .proposed-scene .overview-node .stage-title { fill:var(--ink); font:500 20px var(--font-serif); }
 .proposed-scene .overview-node .overview-step-note { fill:var(--ink-muted); font:400 17px var(--font-serif); }
 .proposed-scene .overview-node.check rect { stroke:var(--checked); stroke-width:3; }
@@ -578,7 +579,7 @@ main h2,main h3 { scroll-margin-top:100px; }
       <h1>Reviewed pipeline routes</h1>
       <p class="lede">Observed compilation routes, corrected value paths and the proposed ownership changes.</p>
       <details class="source-details"><summary>Source snapshot and evidence</summary>
-      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/9b56b792ecd6430d8a085cd53d9d0cf81975153d/atlas"><code>9b56b792ecd6</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/9b56b792ecd6430d8a085cd53d9d0cf81975153d/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/9b56b792ecd6430d8a085cd53d9d0cf81975153d/atlas/artifacts/pipeline-map/map.md">Page source</a></span></div>
+      <div class="meta"><span>Compiler snapshot <a href="https://github.com/CathedralOS/Omega/tree/3f9ce43f0c9d179048911d18faa91ba93f60176d"><code>3f9ce43f0c9d</code></a></span><span>Atlas content <a href="https://github.com/CathedralOS/Omega/tree/1dcbd517cb9d56adbc740e3f08a05141446cf75f/atlas"><code>1dcbd517cb9d</code></a></span><span><a href="https://github.com/CathedralOS/Omega/blob/1dcbd517cb9d56adbc740e3f08a05141446cf75f/atlas/evidence/data/manifest.json">Evidence provenance</a></span><span><a href="https://github.com/CathedralOS/Omega/blob/1dcbd517cb9d56adbc740e3f08a05141446cf75f/atlas/artifacts/pipeline-map/map.md">Page source</a></span></div>
       <p class="publication">The compiler snapshot identifies the code reviewed here. The atlas content revision identifies these explanations and their evidence files; it does not claim a new compiler run. An uncommitted draft is a local preview of edited sources.</p></details>
 <details class="measurement"><summary>Snapshot measurements and counting rules</summary><div class="glance"><div><b>139</b><span>Cargo workspace packages</span></div><div><b>96,223</b><span>foundation · all Rust lines</span></div><div><b>223,507</b><span>backend · all Rust lines</span></div><div><b>36,409</b><span>realization · all Rust lines</span></div></div><p>Tracked Rust lines include tests. These totals measure size, not ownership or execution.</p></details>
     </header>
@@ -1033,14 +1034,14 @@ it does not renumber the observed code. The
 <a href="rulings.html">owner rulings</a> govern the destination.</p>
 <h2 id="size-is-evidence-ownership-is-a-judgment">Size is evidence, ownership is a judgment</h2>
 <p>The measurement panel is generated from
-<a href="https://github.com/CathedralOS/Omega/blob/9b56b792ecd6430d8a085cd53d9d0cf81975153d/atlas/evidence/data/counts.json"><code>counts.json</code></a>. They count all tracked Rust
+<a href="https://github.com/CathedralOS/Omega/blob/1dcbd517cb9d56adbc740e3f08a05141446cf75f/atlas/evidence/data/counts.json"><code>counts.json</code></a>. They count all tracked Rust
 source lines within Cargo package directories, including test files, under
-the counting rules in the <a href="https://github.com/CathedralOS/Omega/blob/9b56b792ecd6430d8a085cd53d9d0cf81975153d/atlas/evidence/data/manifest.json">evidence manifest</a>.
+the counting rules in the <a href="https://github.com/CathedralOS/Omega/blob/1dcbd517cb9d56adbc740e3f08a05141446cf75f/atlas/evidence/data/manifest.json">evidence manifest</a>.
 A directory total does not prove that all its work belongs in one stage.
 The plan must trace each producer, consumer, authority, and refusal condition.</p>
 <p>Text scans identify observed names, not every Rust use. A dependency with no
 observed use still needs resolver-aware verification before deletion. See
-the <a href="https://github.com/CathedralOS/Omega/blob/9b56b792ecd6430d8a085cd53d9d0cf81975153d/atlas/evidence/README.md">evidence guide</a> for the repaired target-directory
+the <a href="https://github.com/CathedralOS/Omega/blob/1dcbd517cb9d56adbc740e3f08a05141446cf75f/atlas/evidence/README.md">evidence guide</a> for the repaired target-directory
 scan and the limits of the generated data.</p></main>
   </div>
 <footer class="site-footer"><div class="site-footer-inner"><nav class="footer-pages" aria-label="Atlas directory"><section><h2>Compiler</h2><ul>
@@ -1063,7 +1064,7 @@ scan and the limits of the generated data.</p></main>
 <li><a href="questions.html">Open questions</a></li>
 <li><a href="rulings.html">Owner rulings</a></li>
 <li><a href="pipeline-map.html">Original pipeline map</a></li>
-</ul></section></nav><div class="footer-meta"><a href="../index.html">Ω / Atlas overview</a><a href="https://github.com/CathedralOS/Omega/blob/9b56b792ecd6430d8a085cd53d9d0cf81975153d/atlas/README.md">Rebuild and evidence rules</a><span>Observed code, owner decisions and proposed repairs are labeled separately.</span></div></div></footer>
+</ul></section></nav><div class="footer-meta"><a href="../index.html">Ω / Atlas overview</a><a href="https://github.com/CathedralOS/Omega/blob/1dcbd517cb9d56adbc740e3f08a05141446cf75f/atlas/README.md">Rebuild and evidence rules</a><span>Observed code, owner decisions and proposed repairs are labeled separately.</span></div></div></footer>
 
   <script>(() => {
   const root = document.documentElement;
@@ -1369,6 +1370,11 @@ scan and the limits of the generated data.</p></main>
     if(!isEdge){
       const p=document.createElement('p');p.textContent=chosen.description;detail.append(p);
       if(chosen.gate){const gate=document.createElement('p');gate.className='connected-open-contract';gate.textContent='Open contract: '+chosen.gate;detail.append(gate);}
+      if(chosen.evidence){
+        const sources=document.createElement('p');sources.textContent='Current compiler';
+        for(const [label,url] of chosen.evidence){sources.append(' · ');link(label,url,sources);}
+        detail.append(sources);
+      }
       link(view==='proposed'?'Read proposal':'Read subsystem',`${chosen.page}.html${chosen.anchor?'#'+chosen.anchor:''}`,detail);detail.append(' · ');
     }
     link(view==='proposed'?'Recorded plan':'Pinned source',chosen.source,detail);
@@ -1483,6 +1489,15 @@ scan and the limits of the generated data.</p></main>
   }
   start();
   if(location.hash==='#detours')root.querySelector('[data-camera="expand"]').click();
+  function openHandlerHandoff(){
+    const binding=location.hash==='#proposed-handler-binding';
+    if(!binding&&location.hash!=='#proposed-handlers')return;
+    if(!expanded)root.querySelector('[data-camera="expand"]').click();
+    switchView('proposed');traceDetour('handlers',!binding);
+    if(binding)visitStage('binding-summarize');
+  }
+  window.addEventListener('hashchange',openHandlerHandoff);
+  openHandlerHandoff();
   if(location.hash==='#proposed')switchView('proposed');
 })();
 </script>
