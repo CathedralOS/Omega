@@ -1914,7 +1914,7 @@ fn copied_parts(
         && machine.declared_type_equations.is_empty()
         && machine.owned_data.is_empty()
         && machine.satisfies.is_empty()
-        && machine.invokes.is_empty()
+        && program.signature_invokes.span(machine.invokes).is_some()
         // The written prefix and operator spelling are diagnostic labels on
         // this same callable. Actual data attachment still needs its copier.
         && !machine.attached_data_symbol.is_valid()
@@ -2414,12 +2414,15 @@ fn copy_declarations(
             copied_record_receivers(program, *first, *count, state.statement_nodes, operands)
         })
         .collect::<Vec<_>>();
-    let entries = copied
-        .iter_mut()
-        .zip(&parts)
-        .map(|((_, state, first, count), (source, _))| (source.symbol, state, *first, *count));
+    let entries =
+        copied
+            .iter_mut()
+            .zip(&parts)
+            .map(|((machine, state, first, count), (source, _))| {
+                (source.symbol, machine, state, *first, *count)
+            });
     program
-        .apply_copied_callable_types(entries, symbols, &substitutions)
+        .apply_copied_callable_interface(entries, symbols, &substitutions)
         .map_err(Stop::Defect)?;
     substitute_record_receivers(program, &record_receivers)?;
     substitute_widths(program, type_start, operands)?;
@@ -2611,7 +2614,7 @@ fn substitute_widths(
                 };
                 // Copying the signature may already have replaced the binder
                 // with this operand's own value reference; that exact handle
-                // is the same width (`apply_copied_callable_types`).
+                // is the same width (`apply_copied_callable_interface`).
                 let substituted = matches!(
                     operand.value,
                     StaticMachineBindingValue::Const(actual) if actual == *argument
