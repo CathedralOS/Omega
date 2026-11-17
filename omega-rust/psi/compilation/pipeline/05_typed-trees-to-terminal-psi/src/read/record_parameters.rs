@@ -867,7 +867,7 @@ mod tests {
             let mut program = Program::new(&fixture.typed, true);
             let caller = program.machine(fixture.caller).unwrap();
             let helper = program
-                .application(caller, fixture.nested, Vec::new())
+                .application(caller, fixture.nested, Vec::new(), None)
                 .unwrap();
             let (position, signature) = program
                 .record_requirement_signature(caller, fixture.parameters[0], fixture.requirement)

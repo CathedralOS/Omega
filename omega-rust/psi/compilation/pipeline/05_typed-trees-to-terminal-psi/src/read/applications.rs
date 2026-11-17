@@ -11,6 +11,7 @@ use typed_trees::trait_definition::AppliedTraitScope;
 #[derive(Debug)]
 pub(super) struct ApplicationArguments<'source> {
     pub(super) types: Vec<ValueType>,
+    pub(super) references: Option<Vec<typed_trees::types::TypeReferenceHandle>>,
     pub(super) values: Vec<ScalarTerm>,
     pub(super) callables: Vec<(
         SymbolHandle,
@@ -156,6 +157,7 @@ impl<'source> Program<'source> {
             }
         }
         let mut types = Vec::new();
+        let mut references = Vec::new();
         let mut values = Vec::new();
         let mut callables = Vec::new();
         for parameter in parameters {
@@ -201,6 +203,7 @@ impl<'source> Program<'source> {
                             "type parameter was supplied with another binding kind",
                         ));
                     };
+                    references.push(reference);
                     self.value_type(id, reference)?
                 };
                 types.push(value);
@@ -291,6 +294,7 @@ impl<'source> Program<'source> {
         }
         Ok(ApplicationArguments {
             types,
+            references: (!inherited).then_some(references),
             values,
             callables,
         })

@@ -117,14 +117,17 @@ impl Program<'_> {
         if semantic != reference {
             self.record_at(id, semantic)?;
         }
-        let data = typed.closed_data_definition(semantic).ok_or_else(|| {
-            refuse(
-                id,
-                Construct::Machine,
-                Unserved::Type("record without its exact closed application"),
-            )
-        })?;
-        let application = super::source_records::source_application(typed, data, reference, id)?;
+        let data = typed
+            .data_application_definition(semantic)
+            .or_else(|| typed.closed_data_definition(semantic))
+            .ok_or_else(|| {
+                refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Type("record without its exact retained application"),
+                )
+            })?;
+        let application = self.source_record_application(data, reference, id)?;
         let regions = self.occurrence_regions(id, data, semantic)?;
         self.record_definition(id, data, Some(application))
             .map(|value_type| with_regions(value_type, regions))
@@ -317,7 +320,7 @@ impl Program<'_> {
         // Terminal Psi's declaration needs a text identity; the typed trees
         // render it. Without one the declaration cannot be emitted.
         let identity = match &application {
-            Some(application) => Some(typed.normalized_type_identity(application.reference)),
+            Some(application) => Some(application.type_identity(typed)),
             None => typed.normalized_nominal_type_identity(symbol),
         }
         .and_then(|identity| typed.type_identity_text(identity))
@@ -1160,11 +1163,14 @@ impl Program<'_> {
                     super::source_records::semantic_reference(self.typed, reference, id)?;
                 let selected = self
                     .typed
-                    .closed_data_definition(semantic)
-                    .ok_or_else(|| unserved("literal without its closed record application"))?;
+                    .data_application_definition(semantic)
+                    .or_else(|| self.typed.closed_data_definition(semantic))
+                    .ok_or_else(|| {
+                        unserved("literal without its exact retained record application")
+                    })?;
                 if self
                     .typed
-                    .closed_data_constructor_definition(semantic, literal.type_symbol)
+                    .data_constructor_definition(semantic, literal.type_symbol)
                     != Some(selected)
                 {
                     return Err(typing("literal application changed its declared owner"));

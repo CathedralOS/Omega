@@ -563,6 +563,28 @@ impl<'t> Program<'t> {
             ));
         }
         let outer = std::mem::take(&mut self.scope);
+        let outer_source = self.source_scope.clone();
+        if matches!(
+            reading,
+            Reading::Closed | Reading::Implementation | Reading::Provider
+        ) {
+            self.source_scope = Default::default();
+        }
+        if let Reading::Alternative(_) = &reading
+            && let Some(alternative) = &self.alternative
+        {
+            let (machine, _) = self.declaration(id, symbol)?;
+            let bindings = self
+                .typed
+                .machine_type_parameters(machine)
+                .iter()
+                .zip(&alternative.arguments)
+                .filter_map(|(parameter, reference)| {
+                    reference.map(|reference| (parameter.symbol, reference))
+                })
+                .collect();
+            self.source_scope = self.extended_source_scope(bindings);
+        }
         let outer_widths = std::mem::take(&mut self.const_scope);
         // An elided lifetime in the signature is a fresh parameter of this
         // machine, which each call instantiates (`regions::Elision`).
@@ -572,6 +594,7 @@ impl<'t> Program<'t> {
         self.lifetime_owner = owner;
         self.elision = elision;
         let scope = std::mem::replace(&mut self.scope, outer);
+        let source_scope = std::mem::replace(&mut self.source_scope, outer_source);
         let widths = std::mem::replace(&mut self.const_scope, outer_widths);
         let (signature, names, value_parameters) = read.map_err(|refusal| {
             if self.collected.is_some() && !self.refused_signatures.contains(&symbol) {
@@ -652,6 +675,7 @@ impl<'t> Program<'t> {
             }
         }
         self.scopes.push(scope);
+        self.source_scopes.push(source_scope);
         self.const_scopes.push(widths);
         Ok(())
     }
@@ -664,6 +688,7 @@ impl<'t> Program<'t> {
         caller: MachineId,
         symbol: SymbolHandle,
         arguments: Vec<ValueType>,
+        references: Option<Vec<typed_trees::types::TypeReferenceHandle>>,
     ) -> Checked<MachineId> {
         if let Some((id, _, _)) = self.applied.iter().find(|(id, applied, _)| {
             self.symbols.get(*id) == Some(&symbol) && self.same_type_arguments(applied, &arguments)
@@ -703,7 +728,34 @@ impl<'t> Program<'t> {
             }
         }
         let id = self.next_identity()?;
-        self.read_machine(id, symbol, Reading::Applied(arguments.clone()))?;
+        let scope = if let Some(references) = references {
+            let (machine, _) = self.declaration(caller, symbol)?;
+            let parameters = self.typed.machine_type_parameters(machine);
+            let parameters = parameters
+                .iter()
+                .filter(|parameter| parameter.kind == typed_trees::data::TypeParameterKind::Type)
+                .collect::<Vec<_>>();
+            if parameters.len() != references.len() {
+                return Err(refuse(
+                    caller,
+                    Construct::Machine,
+                    Unserved::Call("type application lost its source argument tuple"),
+                ));
+            }
+            self.extended_source_scope(
+                parameters
+                    .iter()
+                    .map(|parameter| parameter.symbol)
+                    .zip(references)
+                    .collect(),
+            )
+        } else {
+            self.source_scope.clone()
+        };
+        let outer = std::mem::replace(&mut self.source_scope, scope);
+        let read = self.read_machine(id, symbol, Reading::Applied(arguments.clone()));
+        self.source_scope = outer;
+        read?;
         self.applied.push((id, arguments, Some(caller)));
         // The body is read under its own public input contract. Reading it
         // for effect inference does not let caller facts narrow that boundary.
@@ -868,6 +920,7 @@ impl<'t> Program<'t> {
         self.value_parameters.push(0);
         self.value_arguments.push(arguments.to_vec());
         self.scopes.push(self.scope.clone());
+        self.source_scopes.push(self.source_scope.clone());
         self.const_scopes.push(Vec::new());
         Ok(id)
     }
@@ -955,6 +1008,7 @@ impl<'t> Program<'t> {
         self.value_parameters.push(parameters);
         self.value_arguments.push(arguments.to_vec());
         self.scopes.push(self.scope.clone());
+        self.source_scopes.push(self.source_scope.clone());
         self.const_scopes.push(Vec::new());
         self.requirements.push(id);
         Ok(id)
@@ -1663,6 +1717,17 @@ impl<'t> Program<'t> {
                 .zip(arguments.iter().copied())
                 .collect(),
         };
+        if matches!(reading, Reading::GenericEntry | Reading::Alternative(_))
+            || (self.rigid && matches!(reading, Reading::Implementation))
+        {
+            let mut source = (*self.source_scope).clone();
+            source
+                .rigid_parameters
+                .extend(self.scope.iter().filter_map(|(binder, value)| {
+                    self.logical_parameter(*value).is_some().then_some(*binder)
+                }));
+            self.source_scope = std::sync::Arc::new(source);
+        }
         if self.scope.iter().any(|(binder, _)| !binder.is_valid()) {
             return Err(refuse(
                 id,
@@ -3636,6 +3701,7 @@ impl<'t> Program<'t> {
         }
         let (machine, state) = self.declaration(id, symbol)?;
         self.scope = self.scopes.get(id).cloned().unwrap_or_default();
+        self.source_scope = self.source_scopes.get(id).cloned().unwrap_or_default();
         self.const_scope = self.const_scopes.get(id).cloned().unwrap_or_default();
         self.lifetime_owner = symbol;
         let formals = span(

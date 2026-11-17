@@ -637,6 +637,7 @@ fn close_machine_argument(
         }
         argument.type_reference = TypeReferenceHandle::invalid();
         argument.application = None;
+        argument.authored_machine_application = StaticMachineApplicationHandle::invalid();
         return Ok(true);
     }
     let owner = program

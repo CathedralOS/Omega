@@ -1972,7 +1972,7 @@ impl<'t> Program<'t> {
         self.direct_selection(id, call.target, call.selection, call.binding)?;
         let arguments =
             self.application_arguments(id, target, call.application, call.authored_arguments)?;
-        let callee = self.application(id, target, arguments.types)?;
+        let callee = self.application(id, target, arguments.types, arguments.references)?;
         self.callable_application_arguments(id, callee, &arguments.callables)?;
         let operands = self.const_operands(id, slots, &arguments.values, source)?;
         self.call_of_values(
@@ -1994,7 +1994,7 @@ impl<'t> Program<'t> {
         arguments: &[(SymbolHandle, &StaticMachineArgument)],
     ) -> Checked<()> {
         for &(parameter, argument) in arguments {
-            self.static_argument_selections(caller, argument)?;
+            self.static_argument_selection(caller, argument)?;
             let contract = self
                 .typed
                 .retained_static_machine_contract(parameter)
@@ -2014,7 +2014,16 @@ impl<'t> Program<'t> {
                 )
             })?;
             let outer = std::mem::replace(&mut self.scope, scope);
+            let source_scope = self.source_scopes.get(callee).cloned().ok_or_else(|| {
+                refuse(
+                    caller,
+                    Construct::Machine,
+                    Unserved::Call("callable argument lost its receiving source scope"),
+                )
+            })?;
+            let outer_source = std::mem::replace(&mut self.source_scope, source_scope);
             let read = self.requirement(required, &[]);
+            self.source_scope = outer_source;
             self.scope = outer;
             let requirement = read?;
             let signature = self.signatures.get(requirement).cloned().ok_or_else(|| {
@@ -2047,7 +2056,7 @@ impl<'t> Program<'t> {
                     argument.authored_machine_application,
                     &applied.arguments,
                 )?;
-                let body = self.application(caller, target, actual.types)?;
+                let body = self.application(caller, target, actual.types, actual.references)?;
                 self.callable_application_arguments(caller, body, &actual.callables)?;
                 // A selected callable with scalar consts needs a fully applied
                 // required header; it cannot discard those values as metadata.
@@ -2065,8 +2074,10 @@ impl<'t> Program<'t> {
             self.fixed_inputs.push(body);
             let application = self
                 .typed
-                .static_operand_identity(typed_trees::StaticOperandIdentityRequest {
-                    operand: typed_trees::IndexIdentityArgument::StaticArgument(argument),
+                .static_operand_identity(typed_trees::type_identity::StaticOperandIdentityRequest {
+                    operand: typed_trees::type_identity::IndexIdentityArgument::StaticArgument(
+                        argument,
+                    ),
                     lexical_owner: *self.symbols.get(caller).ok_or_else(|| {
                         refuse(
                             caller,
@@ -2480,7 +2491,7 @@ impl<'t> Program<'t> {
         // The callee's formals are the arguments' expected types, so its
         // signature is read first; reading order is not evaluation order.
         if let Some(applied) = self.inherited_application_arguments(id, target)? {
-            let callee = self.application(id, target, applied.types)?;
+            let callee = self.application(id, target, applied.types, applied.references)?;
             let operands = self.const_operands(id, slots, &applied.values, source)?;
             self.call_of_values(
                 id,
