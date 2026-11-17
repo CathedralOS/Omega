@@ -186,13 +186,178 @@ def path_for(a, b, index):
     return f"M{start} {ay+40} H{channel} V{end_y} H{bx+90} V{end}", ((channel+bx+90)/2,end_y-5)
 
 
+def render_layers(model, prefix):
+    """Show the complete route before exposing per-stage explanations.
+
+    Boxes are representations and arrows are transforms, as in the authored
+    pipeline map. Return paths and late code production remain visible. Groups
+    attach the cited stage records without putting their prose on the diagram.
+    """
+    esc = html.escape
+    groups = [
+        ('inputs', 'build', 'Build and packages', ['cli', 'packages', 'library', 'build']),
+        ('source', 'psi', 'Source compilation · Psi 00–06', ['source']+[f'p{i}' for i in range(7)]+['checked']),
+        ('providers', 'native', 'Provider selection', ['providers', 'selected']),
+        ('native', 'native', 'Native instructions · Omega 00–06', [f'o{i}' for i in range(7)]+['frame-plan', 'handlers', 'binding']),
+        ('encoding', 'native', 'Encoding and layout · Omega 07–09', ['o7', 'o8', 'o9']),
+        ('emission', 'native', 'Emission and objects', ['fragments', 'frames', 'text', 'objects', 'compose']),
+        ('image', 'native', 'Native image and publication', ['bridges', 'image', 'products']),
+        ('run', 'runtime', 'Native execution', ['native-run']),
+        ('runtime', 'runtime', 'Psi runtime', ['runtime-admission', 'host', 'engine', 'worker']),
+        ('evaluation', 'runtime', 'Compile-time execution', ['evaluation']),
+        ('support', 'support', 'Supporting systems', ['omega-source', 'bootstrap', 'foundation', 'docs', 'tests', 'tools']),
+    ]
+    nodes = {n['id']: n for n in model['nodes']}
+    group_by_id = {g[0]: g for g in groups}
+    members = [node_id for *_, ids in groups for node_id in ids]
+    if len(members) != len(nodes) or set(members) != nodes.keys():
+        raise ValueError('Overview groups must include every architecture node exactly once')
+    claim = 'Current source and native representations, the stages that transform them, and the extra paths through provider selection, evaluation and emission.'
+    parts = ['<div class="arch-reading" id="compiler-overview"><div class="arch-overview-tools"><p>Boxes are representations. Arrows name the work between them. Select a box for evidence.</p><button type="button" data-map="fullscreen">Expand diagram</button></div>',
+             '<div class="arch-overview-legend"><span class="legend-psi">Psi representation</span><span class="legend-native">Native form</span><span class="legend-check">Checker verdict</span><span>Dashed ink: calls / returns</span><span class="arch-attention">Dashed red: extra paths today</span></div>',
+             f'<svg class="arch-overview-svg" viewBox="0 0 1320 1320" role="img" aria-label="{claim}"><title>{claim}</title><defs>'+''.join(f'<marker id="overview-{name}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z"/></marker>' for name in ('arrow','return','check'))+'</defs>']
+
+    def text(x, y, value, kind='', anchor='middle'):
+        parts.append(f'<text class="{kind}" x="{x}" y="{y}" text-anchor="{anchor}">{esc(value)}</text>')
+
+    def edge(path, label='', x=0, y=0, kind='', both=False):
+        marker = 'return' if 'attention' in kind else 'check' if kind == 'check' else 'arrow'
+        start = f' marker-start="url(#overview-{marker})"' if both else ''
+        parts.append(f'<g class="overview-edge {kind}"><path d="{path}" marker-end="url(#overview-{marker})"{start}/>')
+        if label:
+            text(x, y, label)
+        parts.append('</g>')
+
+    def box(key, x, y, title, width=180, height=60, kind='psi', lines=()):
+        parts.append(f'<a class="overview-node {kind}" data-layer="{key}" href="#layer-{key}" aria-label="Inspect {esc(title)}"><rect x="{x}" y="{y}" width="{width}" height="{height}"/>')
+        title_lines = textwrap.wrap(title, width=max(19, int(width/10)), break_long_words=False)
+        for index, line in enumerate(title_lines):
+            baseline = (height/2+7-(len(title_lines)-1)*14+index*28) if not lines else 27+index*28
+            text(x+width/2, y+baseline, line, 'overview-box-title')
+        for index, line in enumerate(lines):
+            text(x+width/2, y+55+index*25, line)
+        parts.append('</a>')
+
+    def horizontal(start, end, y, number, action, kind=''):
+        middle = (start+end)/2
+        edge(f'M{start} {y} H{end}', number, middle, y-12, kind)
+        for index, line in enumerate(textwrap.wrap(action, width=9, break_long_words=False)):
+            text(middle, y+25+index*21, line, 'overview-action '+kind)
+
+    # Source forms read left to right, then return across a second row. This
+    # preserves the reference map's distinction between values and transforms.
+    text(50, 28, 'INPUTS AND COORDINATION', 'overview-layer-label', 'start')
+    box('inputs', 50, 48, 'CLI · packages · library · Build', width=1180, height=55, kind='owner',
+        lines=())
+    parts.append('<rect class="overview-stage-region" x="30" y="145" width="1240" height="275"/>')
+    edge('M640 103 V145', 'source request', 740, 130, 'request')
+    edge('M1230 76 H1290 V425 H580 V462', 'target and provider choices', 1105, 130, 'request')
+    text(50, 168, 'PSI · TARGET-NEUTRAL', 'overview-layer-label', 'start')
+    box('source', 50, 180, 'Source files')
+    box('source', 300, 180, 'Tokens')
+    box('source', 550, 180, 'Syntax trees')
+    box('source', 800, 180, 'Resolved trees')
+    box('source', 1050, 180, 'Typed trees')
+    for start, end, number, action in ((230,300,'00','lex'),(480,550,'01','parse'),(730,800,'02','resolve'),(980,1050,'03','type')):
+        horizontal(start,end,210,number,action)
+    edge('M1140 240 V310', '04 prepare', 1210, 280)
+    box('source', 1050, 310, 'Frozen typed trees')
+    box('source', 800, 310, 'Lowered Psi')
+    box('source', 550, 310, 'Accepted Psi', kind='accepted')
+    horizontal(1050,980,340,'05','lower')
+    horizontal(800,730,340,'06','check','check')
+    text(755, 401, 'Only the lowered-form checker accepts the program', 'overview-verdict', 'start')
+    box('evaluation', 50, 310, 'Compile-time execution', width=280, height=60, kind='owner')
+    edge('M30 270 H200 V310', 'prepare / resume', 115, 261, 'request', True)
+    box('runtime', 370, 310, 'Psi interpreter', width=150, height=60, kind='owner')
+    edge('M330 340 H370', kind='request', both=True)
+    edge('M550 340 H520')
+
+    # Selection is outside the target-neutral source stages. Its return to
+    # source compilation stays explicit rather than looking like a clean pass.
+    parts.append('<path class="overview-firewall" d="M40 432 H1280"/>')
+    text(750, 449, 'PSI / OMEGA FIREWALL · target choice stays outside Psi', 'overview-layer-label', 'start')
+    edge('M640 370 V420 H470 V462', 'reached requirements', 650, 443)
+    box('providers', 320, 462, 'Provider selection', width=300, height=60, kind='owner')
+    edge('M470 522 V560 H20 V400 H30', kind='attention request')
+    text(35, 390, 'New bodies:', 'overview-return-label', 'start')
+    text(35, 412, 'prepare source again', 'overview-return-label', 'start')
+    box('runtime', 50, 462, 'Runtime admission', width=210, height=90, kind='owner',
+        lines=('Host adapters', 'Private native providers'))
+    edge('M320 492 H260', 'admit', 290, 476, 'request')
+    text(290, 517, 'Psi', 'overview-action')
+    edge('M445 370 V445 H155 V462', 'host calls / supplies', 330, 430, 'request', True)
+    box('providers', 800, 462, 'Selected native inputs', width=300, height=64, kind='owner',
+        lines=('Accepted bodies · target · providers',))
+    edge('M620 492 H800', 'selected closure', 710, 478)
+    text(50, 616, 'OMEGA · PER TARGET', 'overview-layer-label', 'start')
+    text(50, 640, '00–09 are numbered; later work is unnumbered.', 'overview-layer-note', 'start')
+    edge('M950 526 V605 H1140 V670', '00 admit / lower', 1110, 591)
+    box('native', 1050, 670, 'Abstract operations', kind='native')
+    box('native', 800, 670, 'Target operations', kind='native')
+    box('native', 550, 670, 'Selected instructions', kind='native')
+    box('native', 300, 670, 'Register homes', kind='native')
+    box('native', 50, 670, 'Physical operations', kind='native')
+    horizontal(1050,980,700,'02','lower to target')
+    horizontal(800,730,700,'03','select')
+    horizontal(550,480,700,'05','allocate')
+    horizontal(300,230,700,'06','physical lower')
+    edge('M1230 700 C1290 640 1290 760 1230 720', '01 optimize', 1240, 636)
+    edge('M670 670 C730 612 580 612 610 670', '04 optimize', 650, 628)
+    box('native', 800, 790, 'Handlers and binding', width=270, height=66, kind='owner',
+        lines=('Only when required before 03',))
+    edge('M890 730 V790', 'requirements', 955, 770, 'request')
+    edge('M800 820 H640 V730', 'bound installations', 680, 842, 'request')
+    box('native', 50, 790, 'Framed program', kind='native')
+    edge('M140 730 V790', 'plan frames', 210, 771)
+    edge('M140 850 V900', '07 encode', 207, 884)
+    box('encoding', 50, 900, 'Encoded forms', kind='native')
+    box('encoding', 300, 900, 'Resolved layout', kind='native')
+    box('encoding', 550, 900, 'Optimized layout', kind='native')
+    box('emission', 800, 900, 'Function fragments', kind='native')
+    box('emission', 1050, 900, 'Framed fragments', kind='native')
+    horizontal(230,300,930,'08','place bytes')
+    horizontal(480,550,930,'09','optimize')
+    horizontal(730,800,930,'','emit')
+    horizontal(980,1050,930,'','apply frames','attention')
+    edge('M970 730 V753 H1250 V875 H890 V900', kind='attention')
+    text(1235, 797, 'Retained', 'overview-return-label', 'end')
+    text(1235, 819, 'abstract program', 'overview-return-label', 'end')
+    text(1235, 841, 'EmissionFacts', 'overview-return-label', 'end')
+    edge('M1140 960 V1060', 'place text', 1210, 1018)
+    box('emission', 1050, 1060, 'Text section', kind='native')
+    box('emission', 800, 1060, 'Objects', kind='native')
+    box('emission', 550, 1060, 'Composed bodies', kind='native')
+    box('image', 300, 1060, 'Native image', kind='native')
+    box('image', 50, 1060, 'Published executable', kind='native')
+    horizontal(1050,980,1090,'','build objects')
+    horizontal(800,730,1090,'','compose')
+    horizontal(550,480,1090,'','form image','attention')
+    horizontal(300,230,1090,'','publish')
+    text(515, 1160, 'Image construction still generates entry and adapter code', 'overview-return-label')
+    edge('M140 1120 V1198 H510', 'launch when requested', 330, 1186, 'request')
+    box('run', 510, 1170, 'Native program · operating system', width=350, height=55, kind='owner')
+    box('support', 50, 1260, 'Outside execution: Omega-written compiler · bootstrap · foundation · specification · tests · tools',
+        width=1180, height=45, kind='owner')
+    parts.append('</svg><details class="arch-component-list"><summary>Inspect layers and pinned source</summary>')
+    for key, family, title, ids in groups:
+        parts.append(f'<details class="arch-layer family-{family}" id="layer-{key}"><summary>{esc(title)}</summary><p><a href="#compiler-overview">↑ Back to the whole compiler</a></p><dl>')
+        for node_id in ids:
+            n = nodes[node_id]
+            parts.append(f'<dt>{esc(n["title"].replace(chr(10), " · "))}</dt><dd><p>{esc(n["description"])}</p><a href="{prefix}{n["page"]}.html">Read subsystem</a> · <a href="{n["source"]}">Pinned source</a></dd>')
+        parts.append('</dl></details>')
+    parts.append('</details></div>')
+    return ''.join(parts)
+
 def render_architecture(atlas, prefix):
     model = architecture(atlas)
     esc = html.escape
     claim = "Current Omega architecture connects source and native pipelines to Build, realization, runtime, construction and supporting owners. Relationship styles distinguish data, invocation, dependencies and non-execution links."
-    pieces = ['<section class="architecture" id="architecture" aria-labelledby="architecture-title"><header class="arch-header"><div><span class="arch-badge">Current architecture · source map</span><h2 id="architecture-title">The whole system</h2></div><a href="'+prefix+'foundation-backend-plan.html">Read the proposed migration plan →</a></header>',
+    pieces = ['<section class="architecture" id="architecture" aria-labelledby="architecture-title"><header class="arch-header"><div><span class="arch-badge">Current architecture · source map</span><h2 id="architecture-title">Compiler at a glance</h2></div><a href="'+prefix+'foundation-backend-plan.html">Read the proposed migration plan →</a></header>',
+              render_layers(model, prefix),
+              '<details class="arch-full-map"><summary>Explore the full relationship map</summary>',
               '<div class="arch-legend" aria-label="Subsystem families">' + ''.join(f'<span class="family-{key}"><i aria-hidden="true"></i>{name}</span>' for key,name in FAMILIES.items()) + '</div>',
-              '<div class="arch-toolbar" hidden><div class="arch-zoom"><button type="button" data-map="out" aria-label="Zoom out">−</button><button type="button" data-map="natural" aria-label="Show at natural scale"><output class="arch-scale">100%</output></button><button type="button" data-map="in" aria-label="Zoom in">+</button><button type="button" data-map="fit">Fit all</button><button type="button" data-map="reset">Reset</button><button type="button" data-map="fullscreen">Fullscreen</button></div><label class="arch-extra"><input class="arch-all-relations" type="checkbox"> All relationships</label><label class="arch-jump">Jump to <select aria-label="Find a stage or subsystem"><option value="">Choose a box…</option>' + ''.join(f'<optgroup label="{name}">'+''.join(f'<option value="{n["id"]}">{esc(n["title"].replace(chr(10)," · "))}</option>' for n in model['nodes'] if n['family']==key)+'</optgroup>' for key,name in FAMILIES.items()) + '</select></label></div>',
+              '<div class="arch-toolbar" hidden><div class="arch-zoom"><button type="button" data-map="out" aria-label="Zoom out">−</button><button type="button" data-map="natural" aria-label="Show at natural scale"><output class="arch-scale">100%</output></button><button type="button" data-map="in" aria-label="Zoom in">+</button><button type="button" data-map="fit">Fit all</button><button type="button" data-map="reset">Reset</button><button type="button" data-map="fullscreen">Expand diagram</button></div><label class="arch-extra"><input class="arch-all-relations" type="checkbox"> All relationships</label><label class="arch-jump">Jump to <select aria-label="Find a stage or subsystem"><option value="">Choose a box…</option>' + ''.join(f'<optgroup label="{name}">'+''.join(f'<option value="{n["id"]}">{esc(n["title"].replace(chr(10)," · "))}</option>' for n in model['nodes'] if n['family']==key)+'</optgroup>' for key,name in FAMILIES.items()) + '</select></label></div>',
               '<details class="arch-key"><summary>Relationship legend · primary paths shown; select a box for every connection</summary><div class="arch-relations">' + ''.join(f'<span><svg class="relation-{key}" viewBox="0 0 40 12" aria-hidden="true"><path d="M0 6 H40"/></svg>{name}</span>' for key,name in RELATIONS.items()) + '</div></details>',
               '<div class="arch-workspace"><figure class="architecture-figure"><div class="arch-viewport" tabindex="0" role="region" aria-label="Full architecture map. Drag or scroll to pan; Control plus wheel zooms. Arrow keys pan, Home resets, F fits all. Use Jump to select any stage or subsystem."><canvas class="arch-canvas" aria-hidden="true" hidden></canvas><svg class="arch-svg" viewBox="0 0 1760 950" role="img" aria-label="'+claim+'"><title>'+claim+'</title><defs>'+''.join(f'<marker id="arch-arrow{suffix}" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path d="M0 0 L10 5 L0 10 z" style="fill:var(--{token})"/></marker>' for suffix,token in (("","ink-muted"),("-trap","trap"),("-quiet","rule")))+'</defs><g class="arch-scene">']
     nodes = {n["id"]:n for n in model["nodes"]}
@@ -214,5 +379,5 @@ def render_architecture(atlas, prefix):
             if e['start']==n['id']:
                 pieces.append(f'<li>{esc(RELATIONS[e["kind"]])} → {esc(nodes[e["end"]]["title"].replace(chr(10)," · "))}: {esc(e["label"])} · <a href="{e["source"]}">Relationship source</a></li>')
         pieces.append('</ul></dd>')
-    pieces.append('</dl></details><script type="application/json" id="architecture-model">'+json.dumps(model,ensure_ascii=False).replace('<','\\u003c')+'</script></section>')
+    pieces.append('</dl></details></details><script type="application/json" id="architecture-model">'+json.dumps(model,ensure_ascii=False).replace('<','\\u003c')+'</script></section>')
     return ''.join(pieces)
