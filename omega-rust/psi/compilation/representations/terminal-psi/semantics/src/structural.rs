@@ -1065,7 +1065,7 @@ pub mod owned_structure {
                 .binary_search_by_key(&current, |row| row.id)
                 .map_err(|_| "complete value type is absent")?;
             let row = possible.declarations[slot];
-            if row.owns_linear_claim {
+            if row.owns_linear_claim || super::unknown_owned_claims(row) {
                 return Ok(true);
             }
             match possible.states[slot] {
@@ -1102,6 +1102,7 @@ pub mod owned_structure {
                 .binary_search_by_key(&current, |row| row.id)
                 .map_err(|_| "complete value type is absent")?;
             Ok(possible.declarations[slot].owns_linear_claim
+                || super::unknown_owned_claims(possible.declarations[slot])
                 || matches!(possible.states[slot], ClaimState::Present))
         }
 
@@ -1116,7 +1117,7 @@ pub mod owned_structure {
             let row = possible
                 .declaration(current)
                 .ok_or("complete value type is absent")?;
-            if row.owns_linear_claim {
+            if row.owns_linear_claim || super::unknown_owned_claims(row) {
                 return held
                     .contains(path.as_slice())
                     .then_some(1)
@@ -1326,6 +1327,13 @@ pub mod owned_structure {
     }
     pub use complete_claims::{ClaimTypes, validate_complete_claim_frontier};
 
+    /// An unbounded parameter may contain linear claims even when its carrier
+    /// bound is affine. Keep that unknown packet as one whole-value debt; this
+    /// is not a claim that the parameter has an intrinsic nominal root.
+    pub fn unknown_owned_claims(row: &StructuralTypeDeclaration) -> bool {
+        matches!(row.shape, StructuralTypeShape::TypeParameter) && !row.is_copyable()
+    }
+
     /// A nominal linear value owes its own claim when no owned component
     /// already carries that obligation. Arrays and references do not create
     /// an extra nominal obligation from their container shape.
@@ -1405,7 +1413,7 @@ pub mod owned_structure {
             let row = possible
                 .declaration(current)
                 .ok_or("claim catalogue type is absent")?;
-            if row.owns_linear_claim {
+            if row.owns_linear_claim || unknown_owned_claims(row) {
                 if paths.len() == maximum || !paths.insert(path) {
                     return Err("claim catalogue omits or repeats an intrinsic leaf");
                 }
@@ -1705,7 +1713,7 @@ pub mod owned_structure {
             let current_type = possible
                 .declaration(current)
                 .ok_or("owned value type is absent")?;
-            if current_type.owns_linear_claim {
+            if current_type.owns_linear_claim || unknown_owned_claims(current_type) {
                 if !remaining.remove(&path) {
                     return Err("owned value has no exact live nominal claim");
                 }
@@ -3849,7 +3857,9 @@ pub(crate) mod shared_mutation {
         active.push(identity);
         let result = match &declaration.shape {
             // Hidden fields cannot prove absence of shared interior mutation.
-            StructuralTypeShape::Opaque => SharedMutation::Unbounded,
+            StructuralTypeShape::Opaque | StructuralTypeShape::TypeParameter => {
+                SharedMutation::Unbounded
+            }
             StructuralTypeShape::PrimitiveScalar(_) => SharedMutation::None,
             StructuralTypeShape::AtomicCell(_) => SharedMutation::Inline,
             StructuralTypeShape::ByteSequence(carrier) => byte_mutation(*carrier),
@@ -6698,6 +6708,7 @@ pub(crate) mod structural_store {
         visiting.push(identity);
         let valid = match &declaration.shape {
             StructuralTypeShape::Opaque => declaration.no_code_affine_cleanup,
+            StructuralTypeShape::TypeParameter => false,
             StructuralTypeShape::PrimitiveScalar(_) => true,
             StructuralTypeShape::AtomicCell(_) => true,
             StructuralTypeShape::ByteSequence(carrier) => {

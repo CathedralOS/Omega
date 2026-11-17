@@ -70,6 +70,7 @@ impl TypeContracts for SourceContracts<'_> {
             // descriptor itself is uninhabited.
             StorageShape::AtomicCell(_)
             | StorageShape::Opaque
+            | StorageShape::TypeParameter(_)
             | StorageShape::ByteSequence(_)
             | StorageShape::Reference { .. }
             | StorageShape::ElementView { .. }

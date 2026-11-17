@@ -289,8 +289,8 @@ fn machine_candidates(
         .iter()
         .filter(|parameter| parameter.access == StructuralAccess::Owned)
     {
-        let slots = DescriptorSlotKind::BorrowedStorage
-            .owned_slots(
+        let inventory = DescriptorSlotKind::BorrowedStorage
+            .owned_inventory(
                 &module.structural_types,
                 parameter.place,
                 parameter.structural_type,
@@ -302,7 +302,10 @@ fn machine_candidates(
                     "incoming reference disposition has no finite owned slot inventory",
                 )
             })?;
-        for slot in slots {
+        // Only known descriptor leaves can receive an individual release.
+        // Unknown contents stay with the whole carrier; its ownership walk
+        // still owes every possible claim and contained loan.
+        for slot in inventory.slots {
             lifetimes.push(descriptor_entry_lifetime_with_contents(
                 flow,
                 (machine.entry, 0),
@@ -316,8 +319,8 @@ fn machine_candidates(
             let Some(output) = operation.result.as_structural() else {
                 continue;
             };
-            let slots = DescriptorSlotKind::BorrowedStorage
-                .owned_slots(
+            let inventory = DescriptorSlotKind::BorrowedStorage
+                .owned_inventory(
                     &module.structural_types,
                     output.place,
                     output.structural_type,
@@ -379,7 +382,7 @@ fn machine_candidates(
                     lifetimes.push(retained.lifetime);
                 }
             }
-            for slot in slots {
+            for slot in inventory.slots {
                 let lifetime =
                     descriptor_location_lifetime_with_contents(flow, birth, &slot, needs_contents);
                 if let terminal_psi::OperationKind::EstablishReference { source, .. }

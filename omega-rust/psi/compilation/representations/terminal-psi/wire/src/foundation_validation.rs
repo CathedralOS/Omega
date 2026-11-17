@@ -9339,6 +9339,21 @@ pub(crate) mod structural_type_foundations {
         }
         validate_field_storage_envelope(&declaration.shape)?;
         match &declaration.shape {
+            StructuralTypeShape::TypeParameter => {
+                if declaration.declaration_identity != declaration.identity
+                    || declaration.quotient_carrier.is_some()
+                    || declaration.scalar_restriction.is_some()
+                    || declaration.owns_linear_claim
+                    || declaration.no_code_affine_cleanup
+                    || declaration.descriptor_cleanup
+                    || declaration.nominal_cleanup.is_some()
+                    || !declaration.requires.is_empty()
+                {
+                    return malformed(
+                        "a type parameter grants no concrete storage or cleanup plan",
+                    );
+                }
+            }
             StructuralTypeShape::Opaque => {
                 if declaration.quotient_carrier.is_some()
                     || declaration.scalar_restriction.is_some()
@@ -12227,7 +12242,7 @@ fn validate_reference_origin_path(
             return malformed("structural case path requires its payload field");
         }
         structural_type = match (segment, &declaration.shape) {
-            (_, StructuralTypeShape::Opaque) => {
+            (_, StructuralTypeShape::Opaque | StructuralTypeShape::TypeParameter) => {
                 return malformed("opaque contents have no guest-visible storage projection");
             }
             (StructuralPathSegment::AllElements, _) => {

@@ -488,11 +488,18 @@ pub(crate) fn writes(
                         cleanup.structural_type,
                     )
                     .ok_or_else(|| fail("cleanup has no finite reachable-reference inventory"))?;
-                for opaque in &inventory.opaque_referents {
+                for unknown in &inventory.unknown_contents {
+                    if unknown.kind
+                        == terminal_semantics::descriptor_results::UnknownContentsKind::Value
+                    {
+                        return Err(fail(
+                            "cleanup write ceiling reaches unknown parameter contents",
+                        ));
+                    }
                     let path = terminal_semantics::descriptor_lifetimes::descriptor_path(
                         &module.structural_types,
                         cleanup.structural_type,
-                        &opaque.path,
+                        &unknown.location.path,
                     )
                     .ok_or_else(|| fail("cleanup opaque backing has no typed permission path"))?;
                     if [

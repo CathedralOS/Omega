@@ -761,6 +761,41 @@ impl Program<'_> {
                 machine,
                 Construct::Machine,
             )?;
+            if let crate::StorageShape::TypeParameter(rigid) = declaration.shape {
+                let retained = self
+                    .rigid_storage
+                    .get(rigid.0 as usize)
+                    .and_then(Option::as_ref)
+                    .filter(|parameter| parameter.rigid == rigid && parameter.storage == record)
+                    .ok_or_else(|| {
+                        malformed(machine, "symbolic storage lost its original binder")
+                    })?;
+                let application = source
+                    .application
+                    .as_ref()
+                    .ok_or_else(|| malformed(machine, "symbolic storage lost its source type"))?;
+                if retained.declaration != source.declaration
+                    || !source.fields.is_empty()
+                    || !source.cases.is_empty()
+                    || !application.substitutions.is_empty()
+                    || self
+                        .typed
+                        .package_qualified_type_identity_text(application.reference)
+                        != declaration.identity
+                    || self
+                        .typed
+                        .type_reference_table
+                        .type_reference(application.reference)
+                        .as_named_symbol()
+                        != Some(source.declaration)
+                {
+                    return Err(malformed(
+                        machine,
+                        "symbolic storage changed its declaring type parameter",
+                    ));
+                }
+                continue;
+            }
             if let crate::StorageShape::ByteSequence(_) = declaration.shape {
                 if !super::bytes::byte_record_source_matches(
                     self.typed,

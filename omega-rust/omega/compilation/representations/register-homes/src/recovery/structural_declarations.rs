@@ -84,6 +84,11 @@ pub(super) fn encode_type(
         bytes.extend_from_slice(&selection.cleanup_machine.get().to_le_bytes());
     }
     match &declaration.shape {
+        StructuralTypeShape::TypeParameter => {
+            return Err(terminal_wire::CodecError::MalformedStructuralFoundation(
+                "unknown generic storage cannot be encoded in an executable copy plan",
+            ));
+        }
         StructuralTypeShape::Opaque => bytes.push(19),
         StructuralTypeShape::Reference { referent, access } => {
             bytes.push(7);

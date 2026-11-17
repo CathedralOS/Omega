@@ -407,6 +407,7 @@ impl Frontier<'_, '_> {
             .find(|row| row.id == record)
             .ok_or("declared reference frontier lost its canonical type")?;
         match &source.shape {
+            StorageShape::TypeParameter(_) => return Ok(false),
             StorageShape::Reference { access, referent } => {
                 let Some(region) = regions.first() else {
                     return Err("reference result has no declared outer region");

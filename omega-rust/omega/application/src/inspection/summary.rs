@@ -111,6 +111,7 @@ pub fn terminal_summary(selected_machine: &str, module: &TerminalModule) -> Stri
 
 fn format_type_shape(shape: &StructuralTypeShape) -> String {
     match shape {
+        StructuralTypeShape::TypeParameter => "unresolved type parameter".into(),
         StructuralTypeShape::Opaque => "opaque".into(),
         StructuralTypeShape::Reference { referent, access } => {
             format!(

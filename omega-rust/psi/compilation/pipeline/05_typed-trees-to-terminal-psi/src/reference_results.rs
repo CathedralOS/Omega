@@ -458,17 +458,17 @@ fn publish_results(module: &mut TerminalModule, selections: &[crate::Selected]) 
             .result
             .structural()
             .ok_or_else(|| unavailable(id, "reference result lost its structural declaration"))?;
-        let slots = analysis.result_slots(id).ok_or_else(|| {
+        let contents = analysis.result_contents(id).ok_or_else(|| {
             unavailable(
                 id,
                 "reference result has no complete actual return-source correspondence",
             )
         })?;
-        let mappings = terminal_semantics::reference_result_sources(
+        let mappings = terminal_semantics::reference_result_contents(
             &module.structural_types,
             &machine.structural_parameters,
             result,
-            &slots,
+            &contents,
         )
         .map_err(|reason| unavailable(id, reason))?;
         let start = selected_calls.partition_point(|selection| selection.implementation < id);
