@@ -54,7 +54,10 @@ Hosted/freestanding environment, default providers, calling policies, fault and
 resource supply belong to the selected target profile, not duplicated mutable
 Build flags. Project role, roots, dependencies, outputs, image intent, and
 provider selection remain build facts. Target-qualified bindings select facts;
-they do not redefine target policy.
+they do not redefine target policy. The compiler checks
+[hardware authority](permissions.md#where-the-operation-can-run) separately for
+each selected output. A firmware binding cannot grant machine ownership to a
+hosted output in the same build.
 
 ## Proof-work policy
 

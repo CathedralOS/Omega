@@ -422,6 +422,27 @@ struct Residence {
     live: std::collections::BTreeSet<crate::descriptor_lifetimes::DescriptorPosition>,
 }
 
+struct Components<'a> {
+    common: &'a [terminal_psi::StructuralFieldDeclaration],
+    case: Option<&'a terminal_psi::StructuralCaseDeclaration>,
+}
+impl<'a> Components<'a> {
+    fn fields(
+        &self,
+    ) -> impl DoubleEndedIterator<
+        Item = (
+            Option<semantic_vocabulary::StructuralCaseId>,
+            &'a terminal_psi::StructuralFieldDeclaration,
+        ),
+    > + '_ {
+        self.common.iter().map(|field| (None, field)).chain(
+            self.case
+                .into_iter()
+                .flat_map(|case| case.fields.iter().map(move |field| (Some(case.id), field))),
+        )
+    }
+}
+
 struct Analysis<'a> {
     module: Option<&'a terminal_psi::TerminalModule>,
     types: &'a [StructuralTypeDeclaration],
@@ -439,6 +460,7 @@ struct Analysis<'a> {
     /// owner of exact initialization and restoration availability.
     residences: Vec<Vec<Residence>>,
     position: Option<crate::descriptor_lifetimes::DescriptorPosition>,
+    successor: Option<(usize, EdgeId)>,
     reference_candidates: Option<&'a crate::reference_ends::Candidates>,
     reference_ends: Vec<ReferenceEnd>,
     claim_flow: Option<claims::Flow<'a>>,
@@ -1591,19 +1613,49 @@ fn analyze(
                 if path.contains(&StructuralPathSegment::Referent)
         )
     });
-    let reference_graph = if needs_backing {
+    // The active case determines which payload needs cleanup, even when
+    // the type contains no references. Ordinary type-wide cleanup needs no
+    // additional flow. Captured homes and reference backing remain separate.
+    let decomposes = machine.operations().any(|operation| {
+        matches!(
+            operation.kind,
+            terminal_psi::OperationKind::DecomposeStructuralValue { .. }
+        )
+    });
+    let mut needs_storage_flow = needs_backing;
+    if !needs_storage_flow && module.is_some() {
+        for (root, place) in roots.iter().zip(&machine.structural_places) {
+            let Some(root) = root.as_ref().filter(|root| root.owned && root.affine) else {
+                continue;
+            };
+            if (decomposes || dispositions[index(root.structural_type.get())?] != Some(true))
+                && crate::descriptor_results::DescriptorSlotKind::References.tracks_returned_value(
+                    types,
+                    place.id,
+                    root.structural_type,
+                )
+            {
+                needs_storage_flow = true;
+                break;
+            }
+        }
+    }
+    let reference_graph = if needs_storage_flow {
         let module = module.ok_or(Error::unsupported(
-            "reference storage requires its module's exact backing",
+            "conditional storage analysis requires its exact module",
         ))?;
         crate::descriptor_results::terminal_reference_graph_from(module, [machine.id])
             .map_err(|_| Error::unsupported("reference storage has no complete closure"))?
     } else {
         Vec::new()
     };
-    let mut references = needs_backing.then(|| {
+    let mut references = needs_storage_flow.then(|| {
         crate::descriptor_results::DescriptorAnalysis::with_reference_slots(types, &reference_graph)
     });
-    let backing = if let Some(references) = &mut references {
+    let backing = if needs_backing {
+        let references = references.as_mut().ok_or(Error::malformed(
+            "reference backing lost its storage analysis",
+        ))?;
         let graph = reference_graph
             .iter()
             .find(|graph| graph.id == machine.id)
@@ -1632,6 +1684,7 @@ fn analyze(
         body: Some(machine),
         residences: Vec::new(),
         position: None,
+        successor: None,
         reference_candidates,
         reference_ends: Vec::new(),
         claim_flow,
@@ -1800,7 +1853,7 @@ fn validate_successor(
     Ok(())
 }
 
-impl Analysis<'_> {
+impl<'a> Analysis<'a> {
     fn prepare_residences(&mut self, module: &terminal_psi::TerminalModule) -> Result<(), Error> {
         use crate::descriptor_lifetimes::{
             DescriptorLocation, descriptor_residence_live_positions,
@@ -2078,6 +2131,7 @@ impl Analysis<'_> {
         entering: Option<&[Option<State>]>,
     ) -> Result<Vec<Arrival>, Error> {
         use terminal_psi::Terminator;
+        self.successor = None;
         let block = machine
             .blocks
             .get(index(block_id.get())?)
@@ -2260,6 +2314,7 @@ impl Analysis<'_> {
                 .binary_search_by_key(&edge, |(edge, _, _)| *edge)
                 .ok()
                 .map(|position| targets[position]);
+            self.successor = successor.map(|_| (ordinal, edge));
             let target = successor.map(|(_, target, _)| target);
             if let Some((_, target, arguments)) = successor {
                 self.capture_successor(machine, &mut outgoing, edge, target, arguments)
@@ -3115,7 +3170,7 @@ impl Analysis<'_> {
     }
 
     fn dispose_components(
-        &self,
+        &mut self,
         place: PlaceId,
         structural_type: StructuralTypeId,
         region: &Region,
@@ -3195,14 +3250,14 @@ impl Analysis<'_> {
                 "partial nominal cleanup requires its authorized component partition",
             ));
         }
-        let terminal_psi::StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
-            return Err(Error::unsupported(
-                "non-record component disposition is not served",
-            ));
-        };
+        let components =
+            self.components(place, structural_type, &path)?
+                .ok_or(Error::unsupported(
+                    "component disposition has no exact structural components",
+                ))?;
         // Exactly the declared relevant components, in the same reverse order
         // as the ordinary residual family. The event never invents a new home.
-        for field in fields.iter().rev() {
+        for (case, field) in components.fields().rev() {
             if field.relevance.is_erased() {
                 return Err(Error::unsupported(
                     "erased component disposition is not served",
@@ -3210,8 +3265,14 @@ impl Analysis<'_> {
             }
             if let Some(child) = field.field_type.as_structural() {
                 let mut child_path = path.clone();
+                if let Some(case) = case {
+                    child_path.push(StructuralPathSegment::Case(case));
+                }
                 child_path.push(StructuralPathSegment::Field(field.identity));
-                let child_region = region.view(&[Segment::Field(field.id)]);
+                let child_region = match case {
+                    Some(case) => region.view(&[Segment::Case(case), Segment::Field(field.id)]),
+                    None => region.view(&[Segment::Field(field.id)]),
+                };
                 self.dispose_components(
                     place,
                     child,
@@ -3236,61 +3297,92 @@ impl Analysis<'_> {
     /// Unread storage still owes its value unless ordinary cleanup is allowed
     /// or every component has moved out of an unclaimed home. Retiring that
     /// empty home grants no disposition of a surviving value or root claim.
-    fn needs_explicit_disposition(&self, place: PlaceId, region: &Region) -> Result<bool, Error> {
+    fn needs_explicit_disposition(
+        &mut self,
+        place: PlaceId,
+        region: &Region,
+    ) -> Result<bool, Error> {
         let info = self
             .root(place)?
+            .cloned()
             .ok_or(Error::malformed("missing affine owner"))?;
         if info.multiplicity != terminal_psi::StructuralMultiplicity::Linear
             && self.can_dispose(info.structural_type)?
         {
             return Ok(false);
         }
-        let declaration = &self.types[index(info.structural_type.get())?];
-        if region.contains_partition(&[]) {
-            return self.components_need_disposition(info.structural_type, region);
+        if info.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+            && region.whole
+            && !region.contains_partition(&[])
+        {
+            return Ok(true);
         }
-        Ok(declaration.owns_linear_claim
-            || region.whole
-            || !self.vacant_region(place, region, &[])?)
+        if region.contains_partition(&[]) || region.whole {
+            return self.components_need_disposition(
+                place,
+                info.structural_type,
+                region,
+                &mut Vec::new(),
+            );
+        }
+        let declaration = &self.types[index(info.structural_type.get())?];
+        Ok(declaration.owns_linear_claim || !self.vacant_region(place, region, &[])?)
     }
 
     /// Ending a wrapper does not end any intact linear component inside it.
     fn components_need_disposition(
-        &self,
+        &mut self,
+        place: PlaceId,
         structural_type: StructuralTypeId,
         region: &Region,
+        path: &mut Vec<StructuralPathSegment>,
     ) -> Result<bool, Error> {
         if !region.base && region.children.is_empty() {
             return Ok(false);
         }
-        let declaration = &self.types[index(structural_type.get())?];
-        if !region.contains_partition(&[]) {
-            if declaration.multiplicity != terminal_psi::StructuralMultiplicity::Linear
-                && self.can_dispose(structural_type)?
-            {
-                return Ok(false);
-            }
+        let types = self.types;
+        let declaration = &types[index(structural_type.get())?];
+        if !region.contains_partition(&[]) && self.can_dispose(structural_type)? {
+            return Ok(false);
+        }
+        if !region.contains_partition(&[])
+            && matches!(declaration.shape, StructuralTypeShape::Record { .. })
+        {
+            // An intact record still needs its declared disposal or an
+            // explicit decomposition. Its field geometry grants neither.
             return Ok(true);
         }
         if region.mode != Mode::Components
-            && (declaration.owns_linear_claim || declaration.nominal_cleanup.is_some())
+            && (declaration.owns_linear_claim
+                || declaration.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+                || declaration.nominal_cleanup.is_some())
         {
             return Ok(true);
         }
-        let terminal_psi::StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
-            return Err(Error::unsupported(
-                "component disposition requires an exact record",
-            ));
+        let Some(components) = self.components(place, structural_type, path)? else {
+            return Ok(true);
         };
-        for field in fields {
+        for (case, field) in components.fields() {
             if field.relevance.is_erased() {
                 return Err(Error::unsupported(
                     "erased component disposition is not served",
                 ));
             }
             if let Some(child) = field.field_type.as_structural() {
-                let child_region = region.view(&[Segment::Field(field.id)]);
-                if self.components_need_disposition(child, &child_region)? {
+                let child_region = match case {
+                    Some(case) => region.view(&[Segment::Case(case), Segment::Field(field.id)]),
+                    None => region.view(&[Segment::Field(field.id)]),
+                };
+                if let Some(case) = case {
+                    path.push(StructuralPathSegment::Case(case));
+                }
+                path.push(StructuralPathSegment::Field(field.identity));
+                let needed = self.components_need_disposition(place, child, &child_region, path)?;
+                path.pop();
+                if case.is_some() {
+                    path.pop();
+                }
+                if needed {
                     return Ok(true);
                 }
             }
@@ -3298,8 +3390,65 @@ impl Analysis<'_> {
         Ok(false)
     }
 
+    /// Case membership selects the live components; it supplies neither a
+    /// disposition for a child nor permission to end an intrinsic root claim.
+    fn components(
+        &mut self,
+        place: PlaceId,
+        structural_type: StructuralTypeId,
+        path: &[StructuralPathSegment],
+    ) -> Result<Option<Components<'a>>, Error> {
+        let types = self.types;
+        let declaration = &types[index(structural_type.get())?];
+        let (common, cases) = match &declaration.shape {
+            StructuralTypeShape::Record { fields, .. } => {
+                return Ok(Some(Components {
+                    common: fields,
+                    case: None,
+                }));
+            }
+            StructuralTypeShape::Sum { cases } => (&[][..], cases),
+            StructuralTypeShape::Mixed { fields, cases } => (fields.as_slice(), cases),
+            _ => return Ok(None),
+        };
+        let root = self
+            .root(place)?
+            .ok_or(Error::malformed("component cleanup has no root"))?
+            .structural_type;
+        let subject =
+            crate::descriptor_lifetimes::descriptor_location(types, place, root, path, None)
+                .ok_or(Error::malformed(
+                    "component cleanup has no exact case subject",
+                ))?;
+        let machine = self
+            .body
+            .ok_or(Error::unsupported(
+                "case component cleanup requires its exact body",
+            ))?
+            .id;
+        let at = self
+            .position
+            .ok_or(Error::malformed("case component cleanup has no position"))?;
+        let selected = self
+            .references
+            .as_mut()
+            .and_then(|references| {
+                references.established_case(machine, at, self.successor, &subject)
+            })
+            .ok_or(Error::unsupported(
+                "component disposition needs an established active case",
+            ))?;
+        let case = terminal_psi::find_structural_case(cases, selected).ok_or(Error::malformed(
+            "component disposition selects an undeclared case",
+        ))?;
+        Ok(Some(Components {
+            common,
+            case: Some(case),
+        }))
+    }
+
     fn dispose(
-        &self,
+        &mut self,
         place: PlaceId,
         region: &Region,
         max_residuals: usize,
@@ -3307,6 +3456,7 @@ impl Analysis<'_> {
         use std::collections::BTreeSet;
         let info = self
             .root(place)?
+            .cloned()
             .ok_or(Error::malformed("missing affine owner"))?;
         let declaration = &self.types[index(info.structural_type.get())?];
         if self.needs_explicit_disposition(place, region)? {
@@ -3315,6 +3465,7 @@ impl Analysis<'_> {
             ));
         }
         if !region.contains_partition(&[])
+            && !region.whole
             && (info.multiplicity == terminal_psi::StructuralMultiplicity::Linear
                 || !self.can_dispose(info.structural_type)?)
         {
@@ -3399,7 +3550,7 @@ impl Analysis<'_> {
     /// retains reverse declaration/index order across all receiving regions,
     /// including a region this arrival has already moved out of in part.
     fn equalize(
-        &self,
+        &mut self,
         place: PlaceId,
         held: &Region,
         joined: &Region,
@@ -3408,6 +3559,7 @@ impl Analysis<'_> {
         use std::collections::BTreeSet;
         let info = self
             .root(place)?
+            .cloned()
             .ok_or(Error::malformed("missing affine owner"))?;
         // A missing ancestor with individually rebuilt children cannot be
         // flattened to an absent ancestor: that would hide its live children.
@@ -5015,7 +5167,7 @@ mod tests {
         });
         types[0].no_code_affine_cleanup = false;
         types[0].descriptor_cleanup = false;
-        let analysis = owned_analysis(&types);
+        let mut analysis = owned_analysis(&types);
         let mut region = Region::new(true);
         region.partition(&[]);
         assert_eq!(
@@ -5117,6 +5269,7 @@ mod tests {
             body: None,
             residences: Vec::new(),
             position: None,
+            successor: None,
             reference_candidates: None,
             reference_ends: Vec::new(),
             claim_flow: None,
@@ -5441,7 +5594,7 @@ mod tests {
         // selected whole. Equalizing their retained owner must discard only
         // selected.second, leaving the sibling subtree and moved value alone.
         let types = reconvergence_types();
-        let analysis = owned_analysis(&types);
+        let mut analysis = owned_analysis(&types);
         let mut partial = Region::new(true);
         partial.set(&[field(1), field(3)], false);
         let mut whole = Region::new(true);
@@ -5553,7 +5706,7 @@ mod tests {
     #[test]
     fn rebuilt_children_cannot_be_erased_as_an_absent_ancestor() {
         let types = reconvergence_types();
-        let analysis = owned_analysis(&types);
+        let mut analysis = owned_analysis(&types);
         let mut partial = Region::new(true);
         partial.set(&[field(1)], false);
         partial.set(&[field(1), field(3)], true);

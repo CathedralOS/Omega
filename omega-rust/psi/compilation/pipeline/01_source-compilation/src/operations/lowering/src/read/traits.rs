@@ -19,13 +19,19 @@ fn key(symbol: SymbolHandle) -> (u32, u32) {
 }
 
 impl<'program> Program<'program> {
-    /// Whether a formal or the result of `signature` holds a fixed array sized
-    /// by one of the requirement's own `const` binders (`&[u8; Count]`). Such
-    /// a type has an extent only in a closed application.
-    pub(super) fn sized_by_own_binders(&self, signature: &StateSignature) -> bool {
+    /// Whether `signature` is a template requirement: one with binders of its
+    /// own that a trait's schema cannot state. These are its own lifetime
+    /// parameters (`open<'scope>`), which each call instantiates, and a fixed
+    /// array sized by one of its own `const` binders (`&[u8; Count]`), which
+    /// has an extent only in a closed application. Its own check form reads
+    /// both as a bodyless machine.
+    pub(super) fn checked_as_template(&self, signature: &StateSignature) -> bool {
         use crate::source_state::data::TypeParameterKind;
         use crate::source_state::types::{FixedArrayLength, TypeReferenceNode};
 
+        if !signature.lifetime_parameters.is_empty() {
+            return true;
+        }
         let typed = self.typed;
         let binders = typed
             .state_signature_type_parameters(signature)
@@ -278,11 +284,11 @@ impl<'program> Program<'program> {
                     .map(|parameter| parameter.symbol)
                     .collect(),
             )?;
-            // generics.md, "Publication and assumptions": a requirement sized
-            // by its own `const` binders is a template. Its open signature is
-            // checked once in its own check form, never in this module, whose
-            // closed uses carry literal extents as requirement instances.
-            if self.sized_by_own_binders(signature) {
+            // generics.md, "Publication and assumptions": a requirement with
+            // binders of its own is a template. Its open signature is checked
+            // once in its own check form, never in this module, whose uses are
+            // requirement instances at their actual arguments and regions.
+            if self.checked_as_template(signature) {
                 if !self.generic_templates.contains(&signature.symbol) {
                     self.generic_templates.push(signature.symbol);
                 }

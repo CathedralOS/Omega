@@ -55,65 +55,7 @@ impl Program<'_> {
             .typed
             .statement_table
             .transition_patterns(transition.patterns);
-        let condition = match (transition.guard, patterns) {
-            (TransitionGuardNode::Always, []) => None,
-            (TransitionGuardNode::When(guard), []) => Some(guard),
-            (TransitionGuardNode::Always, [pattern]) => Some(self.value_pattern(id, pattern)?),
-            // Stage 03 keeps the arm's value test twice: as the
-            // transition guard and, as a separate copy, as the
-            // pattern's condition. The guard is evaluated once;
-            // the copy must read to the same computation.
-            (TransitionGuardNode::When(guard), [pattern]) => {
-                let condition = self.value_pattern(id, pattern)?;
-                let read_guard = self.expression(
-                    id,
-                    slots,
-                    guard,
-                    Some(ValueType::Scalar(ScalarType::Boolean, Qualification::NONE)),
-                )?;
-                let read_condition = self.expression(
-                    id,
-                    slots,
-                    condition,
-                    Some(ValueType::Scalar(ScalarType::Boolean, Qualification::NONE)),
-                )?;
-                if !same_computation(&read_guard, &read_condition) {
-                    return Err(refuse(
-                        id,
-                        Construct::Machine,
-                        Unserved::Transition("guard and pattern condition differ"),
-                    ));
-                }
-                Some(guard)
-            }
-            (_, [_, _, ..]) => {
-                return Err(refuse(
-                    id,
-                    Construct::Machine,
-                    Unserved::Transition("tuple pattern"),
-                ));
-            }
-        };
-        let guard = match condition {
-            None => None,
-            Some(guard) => {
-                let guard = self.expression(
-                    id,
-                    slots,
-                    guard,
-                    Some(ValueType::Scalar(ScalarType::Boolean, Qualification::NONE)),
-                )?;
-                if guard.result != Some(ValueType::Scalar(ScalarType::Boolean, Qualification::NONE))
-                {
-                    return Err(refuse(
-                        id,
-                        Construct::Machine,
-                        Unserved::Typing("guard is not bool"),
-                    ));
-                }
-                Some(guard)
-            }
-        };
+        let guard = self.transition_predicate(id, slots, transition)?;
         // A `crash Cause;` statement, or an arm `-> crash Cause`,
         // is a transition whose exit is the crash and whose target
         // is the terminal node stage 01 gives it.
@@ -149,6 +91,83 @@ impl Program<'_> {
             ));
         }
         Ok((guard, target))
+    }
+
+    /// Read only the predicate, including its independently copied pattern
+    /// condition. Static branch pruning still owes both exact source receipts;
+    /// it must not read or execute the branch's target merely to obtain them.
+    pub(super) fn transition_predicate(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        transition: &TableTransition,
+    ) -> Checked<Option<Expression>> {
+        let patterns = self
+            .typed
+            .statement_table
+            .transition_patterns(transition.patterns);
+        let condition = match (transition.guard, patterns) {
+            (TransitionGuardNode::Always, []) => None,
+            (TransitionGuardNode::When(guard), []) => Some(self.expression(
+                id,
+                slots,
+                guard,
+                Some(ValueType::Scalar(ScalarType::Boolean, Qualification::NONE)),
+            )?),
+            (TransitionGuardNode::Always, [pattern]) => {
+                let condition = self.value_pattern(id, pattern)?;
+                Some(self.expression(
+                    id,
+                    slots,
+                    condition,
+                    Some(ValueType::Scalar(ScalarType::Boolean, Qualification::NONE)),
+                )?)
+            }
+            // Stage 03 keeps the arm's value test twice: as the
+            // transition guard and, as a separate copy, as the
+            // pattern's condition. The guard is evaluated once;
+            // the copy must read to the same computation.
+            (TransitionGuardNode::When(guard), [pattern]) => {
+                let condition = self.value_pattern(id, pattern)?;
+                let read_guard = self.expression(
+                    id,
+                    slots,
+                    guard,
+                    Some(ValueType::Scalar(ScalarType::Boolean, Qualification::NONE)),
+                )?;
+                let read_condition = self.expression(
+                    id,
+                    slots,
+                    condition,
+                    Some(ValueType::Scalar(ScalarType::Boolean, Qualification::NONE)),
+                )?;
+                if !same_computation(&read_guard, &read_condition) {
+                    return Err(refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Transition("guard and pattern condition differ"),
+                    ));
+                }
+                Some(read_guard)
+            }
+            (_, [_, _, ..]) => {
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Transition("tuple pattern"),
+                ));
+            }
+        };
+        if condition.as_ref().is_some_and(|guard| {
+            guard.result != Some(ValueType::Scalar(ScalarType::Boolean, Qualification::NONE))
+        }) {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Typing("guard is not bool"),
+            ));
+        }
+        Ok(condition)
     }
 
     /// Whether a transition is a case arm: its one pattern has a head.

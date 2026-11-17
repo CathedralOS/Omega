@@ -168,6 +168,11 @@
     if(!isEdge){
       const p=document.createElement('p');p.textContent=chosen.description;detail.append(p);
       if(chosen.gate){const gate=document.createElement('p');gate.className='connected-open-contract';gate.textContent='Open contract: '+chosen.gate;detail.append(gate);}
+      if(chosen.evidence){
+        const sources=document.createElement('p');sources.textContent='Current compiler';
+        for(const [label,url] of chosen.evidence){sources.append(' · ');link(label,url,sources);}
+        detail.append(sources);
+      }
       link(view==='proposed'?'Read proposal':'Read subsystem',`${chosen.page}.html${chosen.anchor?'#'+chosen.anchor:''}`,detail);detail.append(' · ');
     }
     link(view==='proposed'?'Recorded plan':'Pinned source',chosen.source,detail);
@@ -282,5 +287,14 @@
   }
   start();
   if(location.hash==='#detours')root.querySelector('[data-camera="expand"]').click();
+  function openHandlerHandoff(){
+    const binding=location.hash==='#proposed-handler-binding';
+    if(!binding&&location.hash!=='#proposed-handlers')return;
+    if(!expanded)root.querySelector('[data-camera="expand"]').click();
+    switchView('proposed');traceDetour('handlers',!binding);
+    if(binding)visitStage('binding-summarize');
+  }
+  window.addEventListener('hashchange',openHandlerHandoff);
+  openHandlerHandoff();
   if(location.hash==='#proposed')switchView('proposed');
 })();

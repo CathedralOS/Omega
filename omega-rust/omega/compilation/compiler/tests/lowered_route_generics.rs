@@ -17,6 +17,13 @@ mod unbuilt_frontier;
 
 use unbuilt_frontier::repository;
 
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+#[path = "support/fixture_package_inputs.rs"]
+mod fixture_package_inputs;
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+#[path = "support/joined_product_execution.rs"]
+mod joined_product_execution;
+
 // Fixture compilation shares process-wide counters; run one at a time.
 static FIXTURE_COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
@@ -582,6 +589,40 @@ fn a_type_parameter_body_that_exceeds_its_callee_is_refused() {
             ("carried", "guarantee")
         ]
     );
+}
+
+/// The unchanged finite-family positive executes through ordinary Product
+/// preparation, portable Terminal replay and native publication.
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+#[test]
+fn native_and_psi_execute_the_finite_family_contract() {
+    let _guard = lock_fixture_compilation();
+    let root = repository("tests/fixtures/run/generics/finite_family_contract/main.omg");
+    let discovered = fixture_package_inputs::discover_fixture(&root, Default::default())
+        .unwrap_or_else(|errors| panic!("generic fixture discovery: {errors:#?}"));
+    let product = compiler::CompilationProduct::Native(products::NativeProductRequest {
+        installation_assumptions: Vec::new(), retain_native_inputs: false,
+        retain_native_stage_inputs: false, image: Default::default(), private_entry_ram: Vec::new(),
+        terminal_authority_policy: terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy(),
+        terminal_authority_permission_policy: None, optimization_rollback: Default::default(),
+    });
+    let mut prepared = fixture_package_inputs::review_fixture(
+        discovered,
+        &[target::TargetProfile::LinuxX64],
+        product,
+    )
+    .unwrap_or_else(|errors| panic!("generic fixture review: {errors:#?}"));
+    let output = fixture_package_inputs::produce_fixture(&mut prepared, Some("linux_x86_64"))
+        .unwrap_or_else(|errors| panic!("generic fixture production: {errors:#?}"));
+    let report = orchestration::complete_product(output)
+        .and_then(compiler::CompilationOutput::into_report)
+        .unwrap_or_else(|error| panic!("generic native completion: {error:?}"));
+    let output = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "generic-carry-runtime",
+        false,
+    )
+    .unwrap();
+    joined_product_execution::execute_report(report, &output.path().join("native"));
 }
 
 /// The design's witness for an opaque `T`: `same<T>` and `compare<T>` own no

@@ -2,14 +2,15 @@
 //!
 //! For each `main.omg` given on the command line it types the program
 //! without running its Build (`tests/support/unbuilt_frontier.rs`), binds
-//! `main` as the entry and elaborates the entry's closure. For every machine in
+//! `main` as the entry and prepares its completed closure, generic forms and
+//! conformance witnesses through the production preparation owner. For every machine in
 //! that closure that stage 04 generated for a static application of a
 //! generic machine, it then:
 //!
-//! 1. elaborates the generic machine once with its implementation and value
+//! 1. observes the prepared generic machine once with its implementation and value
 //!    parameters rigid, and discharges it against the requirements'
 //!    contracts and its own `requires`;
-//! 2. elaborates and discharges one conformance witness per selected
+//! 2. observes and discharges the prepared conformance witness per selected
 //!    implementation, which is that implementation's refinement proof;
 //! 3. carries the generic body's certificates into the generated machine
 //!    with `source_compiler::checking::reverify_specialization`, where the kernel

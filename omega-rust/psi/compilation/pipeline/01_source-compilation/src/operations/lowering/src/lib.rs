@@ -664,8 +664,8 @@ fn prepare_generic_forms<'source>(
 ) -> Checked<Vec<PreparedProgram<'source>>> {
     let mut forms = Vec::new();
     for template in templates {
-        // A requirement sized by its own `const` binders is checked once here;
-        // programs carry only its closed applications.
+        // A template requirement (own lifetimes, or sized by its own `const`
+        // binders) is checked once here; programs carry only its uses.
         if let Some((_, requirement)) = typed.trait_machine_signature(*template) {
             let mut program = read::Program::with_captures(typed, true, purpose, captures.clone());
             program.publication = publication;

@@ -19,7 +19,6 @@ data Build { subsystem: Subsystem; freestanding: bool; optimizations: Optimizati
 
 machine build(build: &mut Build) {
     build.subsystem = Subsystem::EfiApplication;
-    build.freestanding = true;
     Optimizations::enable(&mut build.optimizations, Optimization::ControlFlowCleanup);
 }
 ```
@@ -29,10 +28,9 @@ machine build(build: &mut Build) {
   `Console`, so an omitted `build.omg` or empty `build` machine yields the hosted
   console default. `Unspecified(value)` provides a platform escape hatch without
   requiring a compiler release.
-- `freestanding` grants machine-owner assembly authority to every target the
-  build binds. It selects no packages and removes no imports; whether this grant
-  belongs to the target profile instead is
-  `OWNER_QUESTIONS.md#freestanding-machine-owner-authority`.
+- The current `freestanding` field admits machine control for every target the
+  build binds. Its retirement is specified in
+  `wiki/spec/build/permissions.md#freestanding-machine-owner-authority`.
 - `optimizations` is an exact set of individually named transformations (empty by
   default; duplicate selections reject rather than acting like coarse `-O`
   levels).
