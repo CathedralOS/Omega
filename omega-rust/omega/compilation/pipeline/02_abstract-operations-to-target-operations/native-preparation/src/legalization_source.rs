@@ -1012,7 +1012,8 @@ pub(crate) mod scalar_graph {
                         scalar_type: source.scalar_type(),
                     },
                     byte_offset: *byte_offset,
-                    byte_size: u8::try_from(*byte_size).map_err(|_| Error::custody())?,
+                    byte_size: u8::try_from(*byte_size)
+                        .map_err(|cause| Error::custody_with_cause(cause))?,
                     indices: crate::legalization::runtime_indices::retained_operands(
                         facts,
                         machine,
@@ -2131,7 +2132,7 @@ pub(crate) mod scalar_graph {
                     })
                     .collect::<Result<Vec<_>, _>>()?
                     .try_into()
-                    .map_err(|_| Error::custody())?;
+                    .map_err(|cause| Error::custody_with_cause(cause))?;
                 let calls = calls
                     .iter()
                     .enumerate()
@@ -2168,7 +2169,7 @@ pub(crate) mod scalar_graph {
                     })
                     .collect::<Result<Vec<_>, LegalizationError>>()?
                     .try_into()
-                    .map_err(|_| Error::custody())?;
+                    .map_err(|cause| Error::custody_with_cause(cause))?;
                 LegalizedScalarInstructionKind::InstallStaticInterrupt {
                     boundary: *boundary,
                     arguments: arguments.clone(),
@@ -2984,7 +2985,8 @@ pub(crate) mod scalar_graph {
                 .enumerate()
             {
                 let destination = function.block(case.target).ok_or(Error::custody())?;
-                let case_tag = i32::try_from(case_position).map_err(|_| Error::custody())?;
+                let case_tag = i32::try_from(case_position)
+                    .map_err(|cause| Error::custody_with_cause(cause))?;
                 if stored.psi_edge != case.psi_edge
                     || stored.target != case.target
                     || stored.case != case.case
@@ -3195,9 +3197,9 @@ pub(crate) mod scalar_graph {
                         crash_continuations: crashes.clone(),
                     };
                     call.validate_no_normal_shape()
-                        .map_err(|_| Error::custody())?;
+                        .map_err(|cause| Error::custody_with_cause(cause))?;
                     call.validate_source(&node.ownership)
-                        .map_err(|_| Error::custody())?;
+                        .map_err(|cause| Error::custody_with_cause(cause))?;
                     Ok(LegalizedScalarTerminator::InvokeNoNormal {
                         psi_edge: *psi_edge,
                         call,
@@ -3452,7 +3454,8 @@ pub(crate) mod scalar_graph {
                         .scalar(parameter.scalar_type)
                         .ok_or_else(Error::custody)?,
                     definition_site: optimization_unit::ValueDefinitionSite::FunctionParameter(
-                        u32::try_from(position).map_err(|_| Error::custody())?,
+                        u32::try_from(position)
+                            .map_err(|cause| Error::custody_with_cause(cause))?,
                     ),
                     placement: parameter.placement.clone(),
                 })
@@ -3521,7 +3524,8 @@ pub(crate) mod scalar_graph {
                             .ok_or_else(Error::custody)?,
                         definition_site: optimization_unit::ValueDefinitionSite::BlockParameter {
                             block: targeted.block,
-                            position: u32::try_from(position).map_err(|_| Error::custody())?,
+                            position: u32::try_from(position)
+                                .map_err(|cause| Error::custody_with_cause(cause))?,
                         },
                     });
                 }
