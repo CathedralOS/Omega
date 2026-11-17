@@ -470,6 +470,9 @@ impl Minted<'_> {
             ));
         }
         if row.created_at != point {
+            if std::env::var_os("ZZ_DEBUG_OPS").is_some() {
+                eprintln!("ZZMINT machine={:?} obligation={:?} kind={:?} owed_at={:?} row_at={:?}", self.machine, obligation, kind, point, row.created_at);
+            }
             return Err(self.foreign(
                 concerns,
                 "an obligation is not created at the point of what owes it",
