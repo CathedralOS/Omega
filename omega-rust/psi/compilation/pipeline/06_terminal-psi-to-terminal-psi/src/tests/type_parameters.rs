@@ -1522,3 +1522,37 @@ fn an_empty_result_case_does_not_retire_an_unknown_argument() {
         "{verdict:?}"
     );
 }
+
+#[test]
+fn generic_case_reconstruction_preserves_both_empty_and_live_payloads() {
+    let form = parameter_form(
+        r#"
+        data Outcome<T> { case Missing; case Present(item: T); }
+        machine entry<T>(value: Outcome<T>) -> Outcome<T> {
+            transition value {
+                Outcome::Missing -> Outcome::Missing
+                Outcome::Present { item } -> Outcome::Present { item: move item }
+            }
+        }
+    "#,
+    );
+    let verdict = judge(Ok(form)).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+}
+
+#[test]
+fn a_nested_generic_constructor_keeps_its_argument_contents() {
+    let form = parameter_form(
+        r#"
+        data Outcome<T> { case Missing; case Present(item: T); }
+        machine entry<T>(value: T) -> Outcome<T> {
+            commit(move value)
+            machine commit(value: T) -> Outcome<T> {
+                Outcome::Present { item: move value }
+            }
+        }
+    "#,
+    );
+    let verdict = judge(Ok(form)).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+}

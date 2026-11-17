@@ -392,6 +392,35 @@ pub(crate) mod analysis {
             };
             super::case_flow::established(&self.replay, machine, state, predicate)
         }
+        /// Cleanup observes the selected edge after its case test and before
+        /// its actions. Read that same narrowing without copying the whole
+        /// storage state or granting membership from an absent payload.
+        pub fn established_case(
+            &mut self,
+            identity: MachineId,
+            position: DescriptorPosition,
+            successor: Option<(usize, semantic_vocabulary::EdgeId)>,
+            subject: &DescriptorLocation,
+        ) -> Option<semantic_vocabulary::StructuralCaseId> {
+            self.replay.prepare_states(identity)?;
+            let machine = self.replay.machine(identity)?;
+            let state = self
+                .replay
+                .snapshots
+                .get(&identity)?
+                .ready()?
+                .before
+                .get(&position)?;
+            super::case_flow::established_case(
+                &self.replay,
+                machine,
+                state,
+                position,
+                successor,
+                subject,
+            )
+        }
+
         pub fn with_reference_slots(
             types: &'a [StructuralTypeDeclaration],
             machines: &'a [DescriptorMachine],
@@ -1020,6 +1049,15 @@ pub(crate) mod analysis {
         }
         pub fn result_slots(&mut self, identity: MachineId) -> Option<Vec<DescriptorResultSlot>> {
             self.replay.summary(identity, 0)?.result.into_slots()
+        }
+
+        /// Keep a failed storage replay available to callers that report
+        /// why a result's origins could not be reconstructed.
+        pub fn preparation_error(&self, identity: MachineId) -> Option<DescriptorGraphError> {
+            match self.replay.snapshots.get(&identity)? {
+                super::engine::PreparedStateCache::Failed(error) => Some(*error),
+                _ => None,
+            }
         }
 
         pub fn result_contents(&mut self, identity: MachineId) -> Option<DescriptorResultContents> {
@@ -2883,21 +2921,29 @@ pub(crate) mod case_flow {
         Some(())
     }
 
-    pub(crate) fn select(
+    enum Selection {
+        Unknown,
+        Exact {
+            subjects: BTreeSet<DescriptorLocation>,
+            possible: BTreeSet<StructuralCaseId>,
+        },
+    }
+
+    fn selection(
         replay: &Replay<'_>,
         machine: &DescriptorMachine,
-        state: &mut State,
+        state: &State,
         predicate: &DescriptorCasePredicate,
         truth: bool,
-    ) -> Option<bool> {
+    ) -> Option<Selection> {
         let ty = valid_subject(replay, machine, predicate)?;
         // A nonsingular query validates the selected carrier but cannot name
         // one cell whose case can be narrowed. Keep every branch feasible.
         let Some(subject) = predicate.subject.exact_location() else {
-            return Some(true);
+            return Some(Selection::Unknown);
         };
         let Some(storage) = replay.canonical_storage(machine, state, subject, None) else {
-            return Some(true);
+            return Some(Selection::Unknown);
         };
         let subjects = state
             .cases
@@ -2918,6 +2964,21 @@ pub(crate) mod case_flow {
                 possible.retain(|case| known.contains(case));
             }
         }
+        Some(Selection::Exact { subjects, possible })
+    }
+
+    pub(crate) fn select(
+        replay: &Replay<'_>,
+        machine: &DescriptorMachine,
+        state: &mut State,
+        predicate: &DescriptorCasePredicate,
+        truth: bool,
+    ) -> Option<bool> {
+        let Selection::Exact { subjects, possible } =
+            selection(replay, machine, state, predicate, truth)?
+        else {
+            return Some(true);
+        };
         if possible.is_empty() {
             return Some(false);
         }
@@ -2926,6 +2987,40 @@ pub(crate) mod case_flow {
             cases.facts.insert(subject, possible.clone());
         }
         Some(true)
+    }
+
+    pub(crate) fn established_case(
+        replay: &Replay<'_>,
+        machine: &DescriptorMachine,
+        state: &State,
+        position: DescriptorPosition,
+        successor: Option<(usize, semantic_vocabulary::EdgeId)>,
+        subject: &DescriptorLocation,
+    ) -> Option<StructuralCaseId> {
+        let storage = replay.canonical_storage(machine, state, subject, None)?;
+        let unique = |cases: &BTreeSet<StructuralCaseId>| {
+            (cases.len() == 1).then(|| *cases.first().expect("one case is present"))
+        };
+        if let Some((ordinal, edge)) = successor {
+            if machine.flow.get(&position)?.successors.get(ordinal)?.edge != Some(edge) {
+                return None;
+            }
+            if let Some((predicate, truth)) = machine
+                .case_successors
+                .get(&position)
+                .and_then(|rows| rows.get(ordinal))
+            {
+                let Selection::Exact { subjects, possible } =
+                    selection(replay, machine, state, predicate, *truth)?
+                else {
+                    return None;
+                };
+                if subjects.contains(&storage) {
+                    return unique(&possible);
+                }
+            }
+        }
+        unique(state.cases.facts.get(&storage)?)
     }
 
     pub(crate) fn membership(
@@ -6973,8 +7068,10 @@ pub(crate) mod engine {
                     )?;
                     after.contents_invalidated |=
                         machine.unresolved_contents_writes.contains(&position);
-                    if step.may_escape
-                        || machine.unresolved_contents_writes.contains(&position)
+                    // Escaping a value keeps its loans alive; it does not write
+                    // its case tag. The transfer above retires case facts at
+                    // actual writes, including unresolved storage queries.
+                    if machine.unresolved_contents_writes.contains(&position)
                         || machine
                             .direct_call(position)
                             .is_some_and(|call| !call.argument_contents.iter().all(Option::is_some))

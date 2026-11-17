@@ -459,10 +459,15 @@ fn publish_results(module: &mut TerminalModule, selections: &[crate::Selected]) 
             .structural()
             .ok_or_else(|| unavailable(id, "reference result lost its structural declaration"))?;
         let contents = analysis.result_contents(id).ok_or_else(|| {
-            unavailable(
-                id,
-                "reference result has no complete actual return-source correspondence",
-            )
+            analysis
+                .preparation_error(id)
+                .map(|error| graph_unavailable(module, error))
+                .unwrap_or_else(|| {
+                    unavailable(
+                        id,
+                        "reference result has no complete actual return-source correspondence",
+                    )
+                })
         })?;
         let mappings = terminal_semantics::reference_result_contents(
             &module.structural_types,

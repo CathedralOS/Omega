@@ -16541,6 +16541,45 @@ pub mod descriptor_results {
                         }
                         _ => None,
                     };
+                    // Every constructor establishes the same case membership,
+                    // whether its payload contains scalars, values or no fields.
+                    if let OperationKind::EstablishScalarCase { result_case, .. }
+                    | OperationKind::EstablishStructuralCase { result_case, .. } =
+                        &operation.kind
+                    {
+                        graph.case_constructors.insert(
+                            position,
+                            vec![DescriptorCasePredicate {
+                                subject: DescriptorLocation::whole(result?.place).into(),
+                                case: *result_case,
+                            }],
+                        );
+                        let result_type = result?.structural_type;
+                        let shape = &module.structural_type(result_type)?.shape;
+                        let cases = match shape {
+                            StructuralTypeShape::Sum { cases }
+                            | StructuralTypeShape::Mixed { cases, .. } => cases,
+                            _ => return None,
+                        };
+                        terminal_psi::find_structural_case(cases, *result_case)?;
+                        for slot in slot_kind
+                            .inventory(
+                                &module.structural_types,
+                                result?.place,
+                                result?.structural_type,
+                            )?
+                            .slots
+                        {
+                            if matches!(slot.path.first(), Some(crate::descriptors::descriptor_lifetimes::DescriptorPathSegment::Case(case)) if case != result_case)
+                            {
+                                graph
+                                    .originations
+                                    .entry(position)
+                                    .or_default()
+                                    .push((slot, DescriptorCallOrigin::Empty));
+                            }
+                        }
+                    }
                     match &operation.kind {
                         OperationKind::DecomposeStructuralValue { subject } => {
                             // Observe every contained descriptor through the
@@ -17090,42 +17129,6 @@ pub mod descriptor_results {
                         }
                         OperationKind::EstablishRecord { fields }
                         | OperationKind::EstablishStructuralCase { fields, .. } => {
-                            if let OperationKind::EstablishStructuralCase { result_case, .. } =
-                                &operation.kind
-                            {
-                                graph.case_constructors.insert(
-                                    position,
-                                    vec![DescriptorCasePredicate {
-                                        subject: DescriptorLocation::whole(result?.place).into(),
-                                        case: *result_case,
-                                    }],
-                                );
-                                let result_type = result?.structural_type;
-                                let shape = &module.structural_type(result_type)?.shape;
-                                let cases = match shape {
-                                    StructuralTypeShape::Sum { cases }
-                                    | StructuralTypeShape::Mixed { cases, .. } => cases,
-                                    _ => return None,
-                                };
-                                terminal_psi::find_structural_case(cases, *result_case)?;
-                                for slot in slot_kind
-                                    .inventory(
-                                        &module.structural_types,
-                                        result?.place,
-                                        result?.structural_type,
-                                    )?
-                                    .slots
-                                {
-                                    if matches!(slot.path.first(), Some(crate::descriptors::descriptor_lifetimes::DescriptorPathSegment::Case(case)) if case != result_case)
-                                    {
-                                        graph
-                                            .originations
-                                            .entry(position)
-                                            .or_default()
-                                            .push((slot, DescriptorCallOrigin::Empty));
-                                    }
-                                }
-                            }
                             for (field_ordinal, field) in fields.iter().enumerate() {
                                 let destination = match &operation.kind {
                                     OperationKind::EstablishStructuralCase {
@@ -19395,17 +19398,6 @@ pub mod descriptor_results {
                     detail.push_str(&format!("; invocation target {:?}", call.callee));
                     if let Some(required) = call.required_contract {
                         detail.push_str(&format!("; required contract {required:?}"));
-                    }
-                    if let terminal_psi::TargetMachineCallable::Machine(callee) = call.callee
-                        && let Some(name) =
-                            exactly_one(module.machines.iter(), |row| row.id == callee)
-                                .and_then(|callee| callee.declaration.as_ref())
-                                .and_then(|declaration| {
-                                    module.identities.text(declaration.callable)
-                                })
-                    {
-                        detail.push_str("; callee body ");
-                        detail.push_str(name);
                     }
                 }
             }
