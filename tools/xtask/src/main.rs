@@ -33,6 +33,7 @@ mod execution;
 mod fmt;
 mod gamma_invoke;
 mod managed_cache_retention;
+mod mbx_cache;
 mod portable_services;
 mod producer;
 mod provenance;
@@ -91,6 +92,7 @@ formatting and migration:
   retire-attached-machines  Rewrite retired `machine Data::member` declarations as free machines
 
 coordination and workspace:
+  mbx-cache                 Check checksum cache replay and installer replacement
   doctor                    Run host toolchain and repository preflight checks
   claims                    Inspect or update the cross-session work-claim registry
   branch-cleanup            Report (or, with --delete, delete) stale merged remote branches
@@ -122,6 +124,7 @@ fn main() -> ExitCode {
         "qualify" => qualification::run(&args),
         "measure-service-correspondence" => service_correspondence::run(&args),
         "doctor" => doctor::run(&args),
+        "mbx-cache" => mbx_cache::run(&args),
         "claims" => claims::run(&args),
         "provenance" => provenance::run(&args),
         "worktree" => worktree::run(&args),
@@ -158,6 +161,7 @@ mod tests {
             "check-boundary",
             "check-rules",
             "check-portable-services",
+            "mbx-cache",
             "rust-producer-omission",
             "sample-gate",
             "qualify",

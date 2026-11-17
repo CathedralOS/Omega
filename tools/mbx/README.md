@@ -45,7 +45,7 @@ the builder when retaining its compiled outputs.
 The installer controls run without compilation:
 
 ```sh
-python3 tools/mbx/test_install.py /absolute/owned/scratch/source.tar.gz
+mbx xtask mbx-cache check-installer /absolute/owned/scratch/source.tar.gz /absolute/new/control-directory
 ```
 
 The real cache control builds a tiny Rust library and caller, removes only its
@@ -55,7 +55,7 @@ length or modification time. The executable must change from exit 7 to exit 9,
 and that compilation must miss the cache:
 
 ```sh
-python3 tools/mbx/probe.py /absolute/owned/bin/mbx /absolute/new/probe-directory
+mbx xtask mbx-cache probe /absolute/owned/bin/mbx /absolute/new/probe-directory
 ```
 
 The probe retains exact tool identities, per-build cache statistics, diagnostics
