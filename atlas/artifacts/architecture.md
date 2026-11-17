@@ -13,6 +13,8 @@ operations and intermediate forms. Source lexing, parsing, resolution, typing,
 preparation, lowering and checking remain visible. Source/native worklists may
 revisit operations; internal arrows show dependencies, not one-pass execution.
 
+The open handler handoff follows guard selection in 03, physical bodies in 04 and the stack limits that 05 might bind.
+
 The proposed route runs down each column, then across to the next one. Use Stage to jump to its operations, then follow the arrows to its output. Drag in any direction and scroll or pinch to zoom. The minimap shows your position.
 
 Follow the main route from START, down each numbered run and across to the next group. Numbered stages show the

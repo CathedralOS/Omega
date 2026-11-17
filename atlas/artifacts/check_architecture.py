@@ -170,6 +170,24 @@ def main():
                 page.locator('.connected-minimap svg').click(position={'x':40,'y':50})
                 assert page.locator('#compiler-overview').get_attribute('data-camera')!=before
                 context.close()
+        page=browser.new_page(viewport={'width':400,'height':844},reduced_motion='reduce')
+        page.goto(base+'pages/architecture.html#proposed-handlers')
+        assert page.get_by_label('Trace a pipeline detour').input_value()=='handlers'
+        assert page.locator('#compiler-overview').get_attribute('data-view')=='proposed'
+        cards=page.locator('.proposed-scene .overview-node.is-traced')
+        assert cards.locator('.handoff-status').count()==4
+        assert cards.first.get_attribute('data-endpoint')=='native-planning-select'
+        page.evaluate('document.fonts.ready')
+        assert cards.evaluate_all("""cards=>cards.every(card=>{
+            const box=card.querySelector('rect').getBBox();
+            return [...card.querySelectorAll('text')].every(t=>{
+                const b=t.getBBox();
+                return b.x>=box.x && b.x+b.width<=box.x+box.width-10 && b.y+b.height<=box.y+box.height;
+            });
+        })""")
+        cards.first.locator('.stage-title').click()
+        assert page.locator('.connected-detail').get_by_role('link',name='Pair guards').is_visible()
+        page.close()
         context=browser.new_context(viewport={'width':400,'height':844},java_script_enabled=False)
         page=context.new_page();page.goto(base+'pages/architecture.html')
         assert page.locator('.connected-tools').is_hidden()
