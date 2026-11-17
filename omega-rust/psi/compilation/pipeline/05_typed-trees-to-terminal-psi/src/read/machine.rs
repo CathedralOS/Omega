@@ -4427,7 +4427,10 @@ fn statement_slot_uses(statement: &Statement, uses: &mut [usize]) {
             target(arm, uses);
         }
         Statement::Dispatch { arms, default, .. } => {
-            for (_, arm, _) in arms {
+            for (selector, arm, _) in arms {
+                if let Some(condition) = selector.condition.as_deref() {
+                    expression_slot_uses(condition, uses);
+                }
                 target(arm, uses);
             }
             if let Some((arm, _)) = default {
@@ -4497,7 +4500,10 @@ fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
             ..
         } => {
             expression_slot_uses(subject, uses);
-            for (_, arm) in arms {
+            for (selector, arm) in arms {
+                if let Some(condition) = selector.test() {
+                    expression_slot_uses(condition, uses);
+                }
                 expression_slot_uses(arm, uses);
             }
             if let Some(default) = default {

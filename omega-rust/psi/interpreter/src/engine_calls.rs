@@ -3429,6 +3429,14 @@ impl<'artifact> TerminalExecution<'artifact> {
                 crash,
             )));
         }
+        // Live scalar results use the same exact provider frontier as
+        // preflight and commit. Materialized contents retain their separate
+        // legacy invocation contract; a lifetime alone grants no snapshot.
+        let provider_reference = matches!(&returned, TerminalEffectResult::Reference(supply)
+            if matches!(supply.referent, crate::TerminalReferencePayload::Resident { .. }))
+            && operation.result.structural().is_some_and(|result| {
+                self.supports_provider_reference_result(boundary_declaration, result)
+            });
         let TerminalEffect::BoundaryCall { arguments, .. } = &effect else {
             return Err(malformed());
         };
@@ -3438,6 +3446,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             &returned,
         )?;
         if matches!(&returned, TerminalEffectResult::Reference(_))
+            && !provider_reference
             && !boundary_declaration
                 .result_reference_regions
                 .iter()
@@ -3476,7 +3485,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                 prepared,
             )?;
         } else {
-            self.commit_boundary_result(&operation.result, &boundary_declaration.result, returned)
+            self.commit_host_boundary_result(boundary_declaration, &operation.result, returned)
                 .map_err(|error| error.in_argument_preparation("commit host result"))?;
         }
         for (argument, parameter) in structural_arguments

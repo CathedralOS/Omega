@@ -2763,10 +2763,8 @@ dependencies = [
  "effects",
  "language-semantics",
  "optimization-core",
- "semantic-vocabulary",
  "source",
  "symbols",
- "terminal-psi",
 ]
 
 [[package]]

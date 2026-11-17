@@ -21,6 +21,7 @@ cite pinned source; recommendations are *judgment* and unchecked claims are
 | [Interactive architecture](artifacts/architecture.md) | One connected SVG canvas with shared components and pinned source. |
 | [Reviewed pipeline routes](artifacts/pipeline-map/map.md) | Current routes and marked proposals. |
 | [Foundation and backend plan](plans/foundation-and-backend.md) | Migration contracts and deletion conditions. |
+| [Extra-arrow audit](plans/foundation-and-backend.md#start-with-the-extra-arrows) | Source-backed detours, required repairs and a handler before/after view; focused recheck at `fe6e3d2e0104859a25ebfd1b0bfe4b424885e75f`. |
 | [Questions](questions.md) | Open decisions and recommendations. |
 | [Owner rulings](rulings.md) | Dated decisions governing the destination. |
 
@@ -32,13 +33,15 @@ contracts and deletions. [Questions](questions.md) remain open;
 
 ## Pages and publication status
 
-The [atlas index](index.html) keeps Claude's original pipeline map,
-also at the [map URL](pages/pipeline-map.html). The
+The [atlas index](index.html) starts with the compiler map, repair plan and
+subsystem reference. A shared header links those three destinations, a searchable
+All pages menu exposes the full directory, and long pages have local section
+navigation. The [original map](pages/pipeline-map.html) remains a historical page. The
 [interactive architecture](pages/architecture.html) maps current
 implementation with the same boxes, arrows and colors. Psi forms
 are outlined, native forms filled, checker acceptance green and extra paths red.
 Pan and zoom the connected canvas; select boxes or arrows for their connections and source.
-Navigation groups 15 subject pages, including the
+The grouped footer also reaches all 15 subject pages, including the
 [reviewed current account](pages/pipeline-current.html) and
 [plan](pages/foundation-backend-plan.html). Counts come from generated evidence.
 
@@ -190,7 +193,7 @@ the marked planning pages. Supporting owners remain in the source disclosures.
 
 The immutable original HTML is `artifacts/pipeline-map/original.html`, copied
 from the recorded #3899 publication. The builder preserves every SVG byte and
-changes only local asset loading and the historical navigation strip. Its old
+changes local asset loading and the shared navigation wrapper. Its old
 claims and estimates are not refreshed observations; `artifacts/pipeline-map/map.md`
 owns the corrected current account.
 

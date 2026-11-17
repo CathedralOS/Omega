@@ -16,6 +16,42 @@ pub struct DirectBoundaryLeaf {
     pub execution: DirectBoundaryExecution, // Preserves exact refusal until executable demand activates this row.
 }
 
+/// An authored native grant whose complete checked contract and selected
+/// locator have been validated against the receiving Terminal module.
+#[derive(Debug, Clone)]
+pub struct NativeRequirementTrust {
+    grant: language_semantics::declaration_selection::AuthoredRootGrant,
+    commitment: String,
+    contract: [u8; 32],
+    plan: effects::provider_plan::ProviderPlanDigest,
+    report_identity: u64,
+}
+
+impl NativeRequirementTrust {
+    pub fn matches_grant(
+        &self,
+        grant: &language_semantics::declaration_selection::AuthoredRootGrant,
+    ) -> bool {
+        self.grant == *grant
+    }
+
+    pub fn commitment(&self) -> &str {
+        &self.commitment
+    }
+
+    pub fn contract(&self) -> &[u8; 32] {
+        &self.contract
+    }
+
+    pub fn plan(&self) -> effects::provider_plan::ProviderPlanDigest {
+        self.plan
+    }
+
+    pub fn report_identity(&self) -> u64 {
+        self.report_identity
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DirectBoundaryExecution {
     Foreign(Result<calling_conventions::ExternalBindingRow, Vec<diagnostics::Diagnostic>>),
@@ -138,6 +174,55 @@ impl DirectBoundaryLeaf {
             _ => return Err("plain binding changes its normalized execution mechanism".into()),
         }
         Ok(boundary)
+    }
+
+    pub fn prepare_native_trust(
+        &self,
+        grant: &language_semantics::declaration_selection::AuthoredRootGrant,
+        target: Option<&str>,
+        module: &terminal_psi::TerminalModule,
+        evaluated: &[effects::provider_plan::EvaluatedNativeBinding],
+        identities: &terminal_psi::TerminalIdentityTable,
+    ) -> Result<NativeRequirementTrust, String> {
+        use language_semantics::declaration_selection::RootGrantSubject;
+        let RootGrantSubject::BoundaryRequirement {
+            declaration,
+            callable,
+        } = &grant.subject
+        else {
+            return Err("root native grant has another subject kind".into());
+        };
+        if self.declaration_identity != *declaration || self.callable_identity != *callable {
+            return Err(
+                "root native grant changes its exact declaration or callable application".into(),
+            );
+        }
+        if Some(self.plan.target.as_str()) != target {
+            return Err("root native grant changes its selected deployment target".into());
+        }
+        if self.plan.origin_package_identity != grant.subject_package {
+            return Err("root native grant changes its binding's package ownership".into());
+        }
+        let boundary = self.validate_plain_execution(module, evaluated, identities)?;
+        let contract = boundary
+            .declaration
+            .as_ref()
+            .ok_or("root native grant lost its checked requirement contract")?
+            .source
+            .contract;
+        if contract == [0; 32] {
+            return Err("native trust requires the complete checked requirement contract".into());
+        }
+        Ok(NativeRequirementTrust {
+            grant: grant.clone(),
+            commitment: format!(
+                "native requirement: {declaration} {callable} on {}",
+                self.plan.target
+            ),
+            contract,
+            plan: self.plan.identity_digest(),
+            report_identity: self.plan.report_fingerprint(),
+        })
     }
 
     /// Bind the projected callable to its exact receiving declaration before
@@ -460,5 +545,83 @@ impl DirectBoundaryLeaf {
             }
         }
         Ok(boundary)
+    }
+}
+
+#[cfg(test)]
+mod native_trust_tests {
+    use super::{DirectBoundaryExecution, DirectBoundaryLeaf};
+    use language_semantics::declaration_selection::{AuthoredRootGrant, RootGrantSubject};
+
+    #[test]
+    fn native_grant_preparation_requires_the_exact_subject_target_and_owner() {
+        let owner = semantic_vocabulary::PackageKeyIdentity::from_digest([1; 32]).unwrap();
+        let other = semantic_vocabulary::PackageKeyIdentity::from_digest([2; 32]).unwrap();
+        let leaf = DirectBoundaryLeaf {
+            declaration_identity: "root::allocate".into(),
+            callable_identity: "root::allocate<u32>".into(),
+            satisfied_schema: Default::default(),
+            plan: effects::provider_plan::ProviderPlan {
+                target: "macos_arm64".into(),
+                origin_package_identity: Some(owner),
+                ..Default::default()
+            },
+            satisfied_requirement_identity: "root::allocate".into(),
+            target_realization: None,
+            execution: DirectBoundaryExecution::Foreign(Err(Vec::new())),
+        };
+        let grant = AuthoredRootGrant {
+            selector: "allocate<u32>".into(),
+            subject: RootGrantSubject::BoundaryRequirement {
+                declaration: leaf.declaration_identity.clone(),
+                callable: leaf.callable_identity.clone(),
+            },
+            subject_package: Some(owner),
+            selecting_machine: Default::default(),
+            source_span: Default::default(),
+        };
+        let mut changed_application = grant.clone();
+        let RootGrantSubject::BoundaryRequirement { callable, .. } =
+            &mut changed_application.subject
+        else {
+            unreachable!()
+        };
+        *callable = "root::allocate<u64>".into();
+        let mut changed_owner = grant.clone();
+        changed_owner.subject_package = Some(other);
+        let module = terminal_psi::TerminalModule::declarations();
+        let identities = terminal_psi::TerminalIdentityTable::default();
+        let observed = [
+            (
+                "application",
+                changed_application,
+                "macos_arm64",
+                "changes its exact declaration or callable application",
+            ),
+            (
+                "target",
+                grant,
+                "linux_arm64",
+                "changes its selected deployment target",
+            ),
+            (
+                "owner",
+                changed_owner,
+                "macos_arm64",
+                "changes its binding's package ownership",
+            ),
+        ]
+        .map(|(name, grant, target, expected)| {
+            let error = leaf
+                .prepare_native_trust(&grant, Some(target), &module, &[], &identities)
+                .unwrap_err();
+            (name, error, expected)
+        });
+        for (name, error, _) in &observed {
+            eprintln!("{name}: {error}");
+        }
+        for (name, error, expected) in observed {
+            assert!(error.contains(expected), "{name}: {error}");
+        }
     }
 }

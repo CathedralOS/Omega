@@ -75,12 +75,6 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-### Whole-subject test helper discards generic-body refusals
-- Category: Tests that pin the bug
-- Where: [entryless::judged_typed_result](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/entryless.rs#L42)
-- Saw: The helper returns `verdicts.remove(0)` while permitting later generic forms to refuse. The inferred-result test reported acceptance for `wrap<T> -> Envelope<T>`, but the real CLI refused that generic body's open record application.
-- Cost: Callers can mistake the first verdict for whole-program acceptance and miss broken generic bodies. Acceptance checks must inspect every relevant verdict; this PR's inferred-result control does so, while the shared helper and other callers remain to fix.
-- Reported: 2026-11-17, Codex, while repairing inferred Run/Vec locals
 
 ### Learned incremental build state can fill the disk despite Cargo being disabled
 - Category: Verifying costs more than writing
@@ -147,7 +141,7 @@ framework or a list of unimplemented features.
 - Category: knowledge crossing a boundary
 - Where: [emission facts](omega-rust/omega/compilation/backend/machine-emission/src/emission_facts.rs), [function realization](omega-rust/omega/compilation/backend/machine-emission/src/function_realization.rs), [runtime-only route](omega-rust/omega/compilation/native-compiler/src/realization.rs#L172), [stage-call exceptions](tools/xtask/src/boundary.rs)
 - Saw: Fragment emission no longer keeps stage 02's output, and machine emission no longer depends on stages 05 to 09: it reads stage 09's output as `machine_code::OptimizedMachineLayout` and runs stage validators only through the `FunctionStageAudit` the driver attaches. Two reaches remain. `EmissionFacts` carries the whole optimized `AbstractOperationPlan`, because image emission's attribution and stack code looks up abstract functions by machine instead of reading rows the current form carries. `admit_terminal_runtime` runs stage 01, then calls stage 02's `capture_runtime_borrowed_storage_layouts` on the side.
-- Cost: Emission can still read anything the abstract program knew, so a missing fact need not be carried into the selected form. Carry the abstract-operation rows image emission reads in the current form, move the runtime-only route's layout capture into the stages, and delete each `STAGE_CALL_ALLOWANCES` row as its edge goes.
+- Cost: Emission can still read anything the abstract program knew, so a missing fact need not be carried into the selected form. Carry the abstract-operation rows image emission reads in the current form, move the runtime-only route's layout capture into the stages, and delete each `STAGE_CALL_ALLOWANCES` row as its edge goes. The [Atlas extra-arrow audit](atlas/plans/foundation-and-backend.md#start-with-the-extra-arrows) rechecks these mechanisms at `fe6e3d2e0104859a25ebfd1b0bfe4b424885e75f` and links related source/evaluation, handler, generated-code and verifier repairs. Its contracts remain plan-first work for one coordinated cutover; consult the current plan before restructuring these routes.
 - Reported: 2026-11-16, pi, while checking that only the native driver calls Omega stages; narrowed 2026-11-16 by Claude Code after emission stopped holding stage 02's output, and by pi after machine emission stopped naming stages 05 to 09.
 
 ### Borrowed field recasts lose the target carrier layout of the enclosing record

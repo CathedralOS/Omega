@@ -2619,9 +2619,31 @@ pub(crate) mod results {
         Reference(TerminalReferenceResult),
     }
 
+    /// A live scalar endpoint supplied under the admitted reference contract.
+    /// Copies retain backing identity; comparing payloads never reads the host.
+    #[derive(Debug, Clone)]
+    pub struct TerminalReferenceScalarBacking {
+        pub path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+        pub backing: std::rc::Rc<dyn crate::TerminalScalarBacking>,
+    }
+
+    impl PartialEq for TerminalReferenceScalarBacking {
+        fn eq(&self, other: &Self) -> bool {
+            self.path == other.path && std::rc::Rc::ptr_eq(&self.backing, &other.backing)
+        }
+    }
+    impl Eq for TerminalReferenceScalarBacking {}
+
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum TerminalReferencePayload {
         Aggregate(TerminalAggregateValue),
+        /// The aggregate follows declaration order; backing rows cover every
+        /// scalar exactly once in canonical path order. Reads remain live and
+        /// recheck the receiving declaration's representation and restrictions.
+        Resident {
+            aggregate: TerminalAggregateValue,
+            scalars: Vec<TerminalReferenceScalarBacking>,
+        },
         Zeroed,
     }
 
@@ -2703,13 +2725,14 @@ pub(crate) mod results {
                     && !self.supports_byte_sequence_result(result)
                     && !self.supports_captured_reference_result(boundary, result)
                     && !(self.supports_host_reference_result(result)
-                        && boundary.result_reference_regions.iter().any(|region| {
-                            region.path.is_empty()
-                                && matches!(
-                                    region.origin,
-                                    terminal_psi::TerminalDynamicReferenceOrigin::Invocation { .. }
-                                )
-                        })))
+                        && (self.supports_provider_reference_result(boundary, result)
+                            || boundary.result_reference_regions.iter().any(|region| {
+                                region.path.is_empty()
+                                    && matches!(
+                                        region.origin,
+                                        terminal_psi::TerminalDynamicReferenceOrigin::Invocation { .. }
+                                    )
+                            }))))
                     || self.structural_values.contains_key(&result.place)
                     || self
                         .live_affine_frontier
@@ -2722,6 +2745,32 @@ pub(crate) mod results {
                 return Err(malformed());
             }
             Ok(())
+        }
+
+        pub(crate) fn supports_provider_reference_result(
+            &self,
+            boundary: &BoundaryMachineDeclaration,
+            result: &terminal_psi::StructuralOperationResult,
+        ) -> bool {
+            use terminal_semantics::descriptor_results::{
+                DescriptorProviderOutput, DescriptorSlotKind, DescriptorStoredOrigin,
+            };
+            if !self.supports_host_reference_result(result)
+                || !self
+                    .reference_contract(result.structural_type)
+                    .is_ok_and(|(_, access)| access == terminal_psi::StructuralAccess::SharedBorrow)
+            {
+                return false;
+            }
+            // The semantic owner validates the complete frontier and its exact
+            // result place. Input lifetime debts do not locate provider bytes.
+            terminal_semantics::boundary_result_slots(
+                &self.program.catalogs.structural_types, boundary,
+                DescriptorSlotKind::BorrowedStorage, result,
+            ).is_ok_and(|slots| matches!(slots.as_slice(), [slot]
+                if matches!(slot.origins.as_slice(), [DescriptorStoredOrigin::Provider(origin)]
+                    if origin.boundary == boundary.id
+                        && matches!(&origin.output, DescriptorProviderOutput::Result(path) if path.is_empty()))))
         }
 
         pub(crate) fn supports_captured_reference_result(
@@ -2937,6 +2986,27 @@ pub(crate) mod results {
     }
 
     impl TerminalExecution<'_> {
+        pub(crate) fn commit_host_boundary_result(
+            &mut self,
+            boundary: &BoundaryMachineDeclaration,
+            result: &OperationResult,
+            returned: TerminalEffectResult,
+        ) -> Result<(), TerminalInterpretError> {
+            if matches!(
+                &returned,
+                TerminalEffectResult::Reference(TerminalReferenceResult {
+                    referent: TerminalReferencePayload::Resident { .. },
+                    ..
+                })
+            ) && !result
+                .as_structural()
+                .is_some_and(|result| self.supports_provider_reference_result(boundary, result))
+            {
+                return Err(malformed());
+            }
+            self.commit_boundary_result(result, &boundary.result, returned)
+        }
+
         pub(crate) fn commit_boundary_result(
             &mut self,
             result: &OperationResult,

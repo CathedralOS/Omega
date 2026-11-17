@@ -124,16 +124,19 @@ fn ambiguous_grant(grant: &str, candidates: &[&NonProviderTrustGrantCandidate<'_
     ))
 }
 
-pub(crate) fn accepted_machine(
-    declarations: &TrustDeclarations,
+pub(crate) fn accepted_machine<'a>(
+    machines: &[&'a AcceptedMachineDeclaration],
     symbol: symbols::SymbolHandle,
-) -> Result<&AcceptedMachineDeclaration, Diagnostic> {
-    let machines = declarations
-        .machines
-        .iter()
-        .filter(|machine| machine.machine == symbol)
-        .collect::<Vec<_>>();
-    let [machine] = machines.as_slice() else {
+) -> Result<&'a AcceptedMachineDeclaration, Diagnostic> {
+    let key = (symbol.arena_index(), symbol.generation());
+    let first = machines.partition_point(|machine| {
+        (machine.machine.arena_index(), machine.machine.generation()) < key
+    });
+    let last = machines.partition_point(|machine| {
+        (machine.machine.arena_index(), machine.machine.generation()) <= key
+    });
+    let machines = &machines[first..last];
+    let [machine] = machines else {
         return Err(Diagnostic::error(match machines.len() {
             0 => {
                 format!("granted accepted-machine symbol {symbol:?} has no exact typed definition")

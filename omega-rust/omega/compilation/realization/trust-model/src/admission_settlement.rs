@@ -39,15 +39,12 @@ struct PreparedTrustObligation {
 #[derive(Clone, Copy)]
 pub enum RootTrustPolicy {
     Unpackaged,
-    Application(semantic_vocabulary::PackageKeyIdentity),
+    Application([u8; 32]),
     PackageReview,
 }
 
 impl RootTrustPolicy {
-    fn permits_individual_claim(
-        self,
-        owner: Option<semantic_vocabulary::PackageKeyIdentity>,
-    ) -> bool {
+    fn permits_individual_claim(self, owner: Option<[u8; 32]>) -> bool {
         match self {
             Self::Unpackaged => true,
             Self::Application(root) => owner == Some(root),
@@ -56,23 +53,20 @@ impl RootTrustPolicy {
     }
 }
 
-pub struct NativeTrustInputs<'a> {
-    pub module: &'a terminal_psi::TerminalModule,
-    pub target: Option<&'a str>,
-    pub leaves: &'a [backend_plan::DirectBoundaryLeaf],
-    pub evaluated: &'a [effects::provider_plan::EvaluatedNativeBinding],
-    pub identities: &'a terminal_psi::TerminalIdentityTable,
-}
-
 pub fn reconstruct_trust_obligations(
     declarations: &TrustDeclarations,
     root_grants: &[AuthoredRootGrant],
     provider_plans: &[&effects::provider_plan::ProviderPlan],
     selected_provider_plans: &effects::SelectedProviderPlanFacts,
-    native: NativeTrustInputs<'_>,
+    native_grants: &[Result<backend_plan::NativeRequirementTrust, String>],
     policy: RootTrustPolicy,
 ) -> Result<Vec<TrustAdmission>, Vec<Diagnostic>> {
     let mut rows = Vec::<PreparedTrustObligation>::new();
+    let mut machines = declarations.machines.iter().collect::<Vec<_>>();
+    machines.sort_unstable_by_key(|machine| {
+        (machine.machine.arena_index(), machine.machine.generation())
+    });
+    let mut native_grants = native_grants.iter();
     let mut provider_grants = crate::resolve_authored_selected_provider_grants(
         provider_plans,
         selected_provider_plans,
@@ -98,55 +92,30 @@ pub fn reconstruct_trust_obligations(
                     },
                 )
             }
-            RootGrantSubject::BoundaryRequirement {
-                declaration,
-                callable,
-            } => {
-                if !policy.permits_individual_claim(grant.subject_package) {
+            RootGrantSubject::BoundaryRequirement { .. } => {
+                if !policy
+                    .permits_individual_claim(grant.subject_package.map(|owner| owner.digest()))
+                {
                     return Err(refuse(format!(
                         "package-aware compilation cannot admit individual native requirement `{}`; package claims require complete package-level review",
                         grant.selector
                     )));
                 }
-                let mut matches = native.leaves.iter().filter(|leaf| {
-                    leaf.declaration_identity == *declaration && leaf.callable_identity == *callable
-                });
-                let (Some(leaf), None) = (matches.next(), matches.next()) else {
-                    return Err(refuse(format!(
-                        "root grant `{}` has no unique selected native requirement with its exact declaration and callable application",
-                        grant.selector
-                    )));
-                };
-                if Some(leaf.plan.target.as_str()) != native.target {
+                let native = native_grants.next().ok_or_else(|| refuse(format!(
+                    "root grant `{}` has no unique selected native requirement with its exact declaration and callable application",
+                    grant.selector
+                )))?.as_ref().map_err(|reason| refuse(reason.clone()))?;
+                if !native.matches_grant(grant) {
                     return Err(refuse(
-                        "root native grant changes its selected deployment target".into(),
+                        "root native grant changes its validated authored request".into(),
                     ));
                 }
-                if leaf.plan.origin_package_identity != grant.subject_package {
-                    return Err(refuse(
-                        "root native grant changes its binding's package ownership".into(),
-                    ));
-                }
-                let boundary = leaf
-                    .validate_plain_execution(native.module, native.evaluated, native.identities)
-                    .map_err(refuse)?;
-                let contract = boundary
-                    .declaration
-                    .as_ref()
-                    .ok_or_else(|| {
-                        refuse("root native grant lost its checked requirement contract".into())
-                    })?
-                    .source
-                    .contract;
                 (
-                    format!(
-                        "native requirement: {declaration} {callable} on {}",
-                        leaf.plan.target
-                    ),
+                    native.commitment().to_owned(),
                     PreparedTrustIdentity::NativeRequirement {
-                        report_identity: leaf.plan.report_fingerprint(),
-                        contract,
-                        plan: leaf.plan.identity_digest(),
+                        report_identity: native.report_identity(),
+                        contract: *native.contract(),
+                        plan: native.plan(),
                     },
                 )
             }
@@ -159,15 +128,16 @@ pub fn reconstruct_trust_obligations(
                         "root accepted-machine grant lost its exact declaration identity".into(),
                     ));
                 }
-                if !policy.permits_individual_claim(grant.subject_package) {
+                if !policy
+                    .permits_individual_claim(grant.subject_package.map(|owner| owner.digest()))
+                {
                     return Err(refuse(format!(
                         "package-aware compilation cannot admit individual accepted machine `{}`; package claims require complete package-level review",
                         grant.selector
                     )));
                 }
-                let machine =
-                    crate::accepted_machine_grants::accepted_machine(declarations, *machine)
-                        .map_err(|error| vec![error])?;
+                let machine = crate::accepted_machine_grants::accepted_machine(&machines, *machine)
+                    .map_err(|error| vec![error])?;
                 if machine.declaration_identity != *declaration
                     || machine.package_identity != grant.subject_package
                 {

@@ -13,7 +13,12 @@ JavaScript. Each connection cites the recorded compiler source.
 
 Current loops, retained inputs and late code generation remain visible.
 Proposed changes belong to the
-[complete migration plan](../plans/foundation-and-backend.md).
+[extra-arrow repair list](../plans/foundation-and-backend.md#start-with-the-extra-arrows)
+in the complete migration plan. Its
+[handler explanation](../plans/foundation-and-backend.md#why-handlers-leave-and-return)
+shows the current detour and proposed replacement. Orange at Apply frames marks
+post-emission instruction rewriting; orange at Form image marks the late
+entry/adapter generation included in that route.
 The [original authored map](pipeline-map/original.html) remains a historical
 presentation. The [reviewed pipeline account](pipeline-map/map.md) corrects
 historical claims and traces current handoffs.

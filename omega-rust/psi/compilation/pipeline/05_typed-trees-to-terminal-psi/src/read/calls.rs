@@ -3988,7 +3988,7 @@ impl Touches<'_> {
                 }
                 let result = (|| {
                     for (selector, arm) in arms {
-                        if let crate::body::Selector::Value(pattern) = selector
+                        if let Some(pattern) = selector.test()
                             && self.expression(pattern, false, captures)?
                         {
                             return Ok(true);

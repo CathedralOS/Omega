@@ -56,9 +56,8 @@ impl AcceptedTerminalSource {
             typed_trees_to_terminal_psi::prepare_compilation(&source, compilation, publication);
         retain_installation_reach(&mut prepared.program)?;
         let verdicts = terminal_psi_to_terminal_psi::judge_compilation(prepared.program);
-        let advisories = advisories(&verdicts);
         let forms = verdicts.len();
-        let closure = accept_compilation(verdicts)?;
+        let accepted = accept_compilation(verdicts)?;
         if forms == 0
             || prepared.source.forms.len() != forms
             || prepared.source.forms.iter().any(Option::is_none)
@@ -67,6 +66,7 @@ impl AcceptedTerminalSource {
                 "accepted forms lost their exact source correspondence",
             )]);
         }
+        let (closure, advisories) = accepted.materialize_advisories();
         Ok(Self {
             source,
             closure,
@@ -679,12 +679,9 @@ fn retain_installation_reach(
 /// generic check form. One authored machine may be judged in more than one
 /// part, and its advisory is the same in each, so an advisory already listed
 /// is not listed again.
-fn advisories(verdicts: &[Result<RouteVerdict, CompilationRefusal>]) -> Vec<Diagnostic> {
+fn advisories<'part>(parts: impl Iterator<Item = &'part AcceptedClosure>) -> Vec<Diagnostic> {
     let mut advisories: Vec<Diagnostic> = Vec::new();
-    for verdict in verdicts {
-        let Ok(RouteVerdict::Accepted(accepted)) = verdict else {
-            continue;
-        };
+    for accepted in parts {
         // A warning and the note after it are one advisory.
         let part = accepted.advisories();
         let mut rest = &part[..];
@@ -705,16 +702,37 @@ fn advisories(verdicts: &[Result<RouteVerdict, CompilationRefusal>]) -> Vec<Diag
     advisories
 }
 
+/// All semantic verdicts accepted. Keep additional parts only until source
+/// correspondence is checked and their diagnostics have been requested.
+#[derive(Debug)]
+struct AcceptedCompilation {
+    closure: Box<AcceptedClosure>,
+    additional: Vec<Box<AcceptedClosure>>,
+}
+
+impl AcceptedCompilation {
+    fn materialize_advisories(self) -> (Box<AcceptedClosure>, Vec<Diagnostic>) {
+        let advisories = advisories(
+            std::iter::once(self.closure.as_ref())
+                .chain(self.additional.iter().map(|part| part.as_ref())),
+        );
+        (self.closure, advisories)
+    }
+}
+
 fn accept_compilation(
     verdicts: Vec<Result<RouteVerdict, CompilationRefusal>>,
-) -> Result<Box<AcceptedClosure>, Vec<Diagnostic>> {
+) -> Result<AcceptedCompilation, Vec<Diagnostic>> {
     let mut first = None;
+    let mut additional = Vec::new();
     let mut diagnostics = Vec::new();
     for (position, verdict) in verdicts.into_iter().enumerate() {
         match verdict {
             Ok(RouteVerdict::Accepted(accepted)) => {
                 if position == 0 {
                     first = Some(accepted);
+                } else {
+                    additional.push(accepted);
                 }
             }
             Ok(RouteVerdict::Rejected {
@@ -766,7 +784,13 @@ fn accept_compilation(
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
-    first.ok_or_else(|| vec![route_defect("no accepted compilation root")])
+    let closure = first.ok_or_else(|| vec![route_defect("no accepted compilation root")])?;
+    // Classification requests no warnings. The source owner finishes its
+    // correspondence checks before consuming these transient parts.
+    Ok(AcceptedCompilation {
+        closure,
+        additional,
+    })
 }
 
 fn route_defect(detail: &str) -> Diagnostic {
@@ -887,7 +911,8 @@ mod tests {
             terminal_psi_to_terminal_psi::judge(Ok(stated))
                 .map_err(CompilationRefusal::Elaboration),
         ])
-        .unwrap();
+        .unwrap()
+        .closure;
         let published = closure.publish_invocation().unwrap();
         assert_eq!(
             published.artifact.view().module(),
@@ -896,7 +921,7 @@ mod tests {
         assert_eq!(published.seals.module, published.artifact.view().identity());
         assert_eq!(published.seals.seals, closure.seals);
         assert!(closure.publish().is_err());
-        let portable = accept_compilation(vec![Ok(accepted())]).unwrap();
+        let portable = accept_compilation(vec![Ok(accepted())]).unwrap().closure;
         assert!(portable.publish_invocation().is_err());
     }
 

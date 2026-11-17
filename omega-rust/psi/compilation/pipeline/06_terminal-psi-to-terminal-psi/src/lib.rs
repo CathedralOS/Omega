@@ -250,7 +250,7 @@ pub struct StorageUse {
 }
 
 /// One machine's result.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct MachineDischarge {
     /// One verdict per obligation row, indexed by the same `ObligationId`.
     pub verdicts: IdTable<ObligationId, Checked<Discharged>>,
@@ -267,9 +267,9 @@ pub struct MachineDischarge {
     /// Each loan that may not be formed, with what it conflicts with. Its
     /// row's verdict is the `Conflict` refusal.
     pub conflicts: Vec<places::ConflictingLoan>,
-    /// The authored arms no arrival can take (`branch_warnings`), for the
-    /// advisory warning about them. Nothing is decided by them.
-    pub impossible: Vec<ImpossibleArm>,
+    /// Prepared warning inputs are consumed only by accepted diagnostics.
+    /// They never decide a mandatory obligation or storage/loan judgment.
+    branch_warnings: branch_warnings::Deferred,
 }
 
 /// An authored transition arm whose condition contradicts the facts in force
@@ -297,7 +297,7 @@ impl MachineDischarge {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Discharge {
     pub machines: IdTable<MachineId, MachineDischarge>,
 }
@@ -543,7 +543,7 @@ fn discharge_inner(
                     windows: Vec::new(),
                     weakened_joins: Vec::new(),
                     conflicts: Vec::new(),
-                    impossible: Vec::new(),
+                    branch_warnings: branch_warnings::Deferred::default(),
                 });
             }
             let beyond = unreached.values(terminal_machine(&module.machines, id, id)?, tables);
@@ -678,7 +678,7 @@ fn machine(
             "knowledge rows already present",
         ));
     }
-    with_prepared_machine(
+    let (prepared, mut discharge) = with_prepared_machine(
         formed,
         domains,
         id,
@@ -691,14 +691,17 @@ fn machine(
                 tables,
                 unreached,
                 carried,
-                branches,
                 empty_contracts,
                 application_sized_storage,
                 activity,
             )
         },
-    )
-    .map(|(_, discharge)| discharge)
+    )?;
+    if !branches.is_empty() {
+        discharge.branch_warnings =
+            branch_warnings::Deferred::new(prepared.graph, prepared.context);
+    }
+    Ok(discharge)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -708,7 +711,6 @@ fn check_prepared_machine(
     tables: &mut MachineTables,
     unreached: &[ValueId],
     carried: Option<&Carried<'_>>,
-    branches: &[terminal_check_tables::program::Branch],
     empty_contracts: &terminal_semantics::inhabitation::TerminalContracts<'_>,
     application_sized_storage: &[StructuralTypeId],
     activity: &mut ProofSearchActivity,
@@ -1069,15 +1071,13 @@ fn check_prepared_machine(
             verdict,
         });
     }
-    let impossible =
-        branch_warnings::Analysis::new(context, graph, tables, lowered, id).run(branches, activity);
     Ok(MachineDischarge {
         verdicts: settled,
         uses,
         windows: closures,
         weakened_joins,
         conflicts,
-        impossible,
+        branch_warnings: branch_warnings::Deferred::default(),
     })
 }
 

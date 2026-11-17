@@ -1999,7 +1999,7 @@ pub(crate) mod placed {
                     }
                 }
             };
-            self.commit_boundary_result(&operation.result, &declaration.result, returned)?;
+            self.commit_host_boundary_result(declaration, &operation.result, returned)?;
             self.effects
                 .push(crate::boundary::effects::TerminalEffect::BoundaryCall {
                     site: crate::TerminalEffectWait {

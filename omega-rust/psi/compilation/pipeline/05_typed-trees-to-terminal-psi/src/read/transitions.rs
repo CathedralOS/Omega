@@ -14,9 +14,9 @@ use typed_trees::statement::{
 };
 
 use super::authority::Access;
-use super::expressions::{case_condition, case_test_of, same_computation};
+use super::expressions::{case_test_of, same_computation};
 use super::{Program, Slot, crash_cause};
-use crate::body::{Expression, ExpressionKind, Statement, Target, ValueType};
+use crate::body::{CaseSelector, Expression, ExpressionKind, Statement, Target, ValueType};
 use crate::{SourceOrigin, Unserved, refuse};
 
 impl Program<'_> {
@@ -171,10 +171,10 @@ impl Program<'_> {
     /// one follows, the unguarded arm that is the dispatch's `_`. Returns
     /// the dispatch and how many statements it took.
     ///
-    /// Every arm completes the machine, so the dispatch does. An arm with a
-    /// guard of its own, a pattern that tests a field, a second arm for one
-    /// case and a `crash` arm are each refused by name. Coverage is decided
-    /// where lowering builds the terminator from the declaration's cases.
+    /// Every arm completes the machine. Field-value tests and repeated cases
+    /// retain their order for the common decision lowerer; separate guards and
+    /// crash arms remain unavailable. Lowering checks both tag coverage and
+    /// the fallback required when a field test fails.
     pub(super) fn dispatch(
         &mut self,
         id: MachineId,
@@ -184,10 +184,12 @@ impl Program<'_> {
     ) -> Checked<(Statement, usize)> {
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Transition(what));
         let mut subject: Option<Expression> = None;
-        let mut arms: Vec<(usize, Target, SourceOrigin)> = Vec::new();
+        let mut arms: Vec<(CaseSelector, Target, SourceOrigin)> = Vec::new();
         let mut default = None;
         let mut taken = 0;
         let mut source = SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent);
+        let mut wildcard = None;
+        let mut full_cases = Vec::new();
         for statement in statements {
             let StatementNode::Transition(transition) =
                 self.typed.statement_table.statement(statement)
@@ -216,10 +218,15 @@ impl Program<'_> {
                             subject = Some(read.clone());
                         }
                     }
-                    let case = self.case_pattern(
+                    if full_cases.is_empty() {
+                        full_cases.resize(self.data_type(id, record.record())?.cases().len(), None);
+                    }
+                    let case = self.case_selector(
                         id,
+                        slots,
                         record,
                         &pattern.pattern,
+                        &read,
                         SourceOrigin::of(transition.source_span),
                     )?;
                     // The arm's test is stored twice, as the transition
@@ -231,19 +238,13 @@ impl Program<'_> {
                         guard,
                         Some(ValueType::Scalar(ScalarType::Boolean, Qualification::NONE)),
                     )?;
-                    let condition = self.expression(
-                        id,
-                        slots,
-                        pattern.pattern.condition,
-                        Some(ValueType::Scalar(ScalarType::Boolean, Qualification::NONE)),
-                    )?;
-                    if !same_computation(&guard, &case_test_of(&read, case))
-                        || !same_computation(&condition, &case_condition(&read, case))
+                    if !same_computation(&guard, &case_test_of(&read, case.case))
+                        && !case
+                            .condition
+                            .as_deref()
+                            .is_some_and(|condition| same_computation(&guard, condition))
                     {
                         return Err(unserved("case arm with a guard"));
-                    }
-                    if arms.iter().any(|(earlier, _, _)| *earlier == case) {
-                        return Err(unserved("case arm for a case an earlier arm selects"));
                     }
                     Some(case)
                 }
@@ -265,11 +266,26 @@ impl Program<'_> {
             };
             taken += 1;
             let arm_source = SourceOrigin::of(transition.source_span);
+            if let Some(earlier) =
+                wildcard.or_else(|| case.as_ref().and_then(|case| full_cases[case.case]))
+            {
+                if let Some(names) = self.names.get_mut(id) {
+                    names
+                        .shadowed_patterns
+                        .push((transition.source_span, earlier));
+                }
+                continue;
+            }
             match case {
-                Some(case) => arms.push((case, target, arm_source)),
+                Some(case) => {
+                    if case.condition.is_none() {
+                        full_cases[case.case] = Some(transition.source_span);
+                    }
+                    arms.push((case, target, arm_source));
+                }
                 None => {
+                    wildcard = Some(transition.source_span);
                     default = Some((target, arm_source));
-                    break;
                 }
             }
         }

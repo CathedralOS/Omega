@@ -59,14 +59,10 @@
 .architecture :focus-visible { outline:2px solid var(--ink); outline-offset:3px; }
 .overview-page .page { grid-template-columns:minmax(0,1fr); gap:8px; padding-top:12px; }
 .overview-page .top { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px 16px; padding-bottom:0; border:0; }
-.overview-page .topline { flex:1; }
 .overview-page .top > .eyebrow,.overview-page .top > .lede { display:none; }
 .overview-page .top h1 { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
 .overview-page .source-details { align-self:center; }
 .overview-page .source-details[open] { grid-column:1/-1; }
-.overview-page .atlas-nav summary { display:block; padding:4px 12px; margin-bottom:0; font:var(--type-label); }
-.overview-page .atlas-nav .sticky { position:static; max-height:none; overflow:visible; }
-.overview-page .atlas-nav ul { grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); }
 @media (max-width:700px) {
   .overview-page .page { padding:12px; }
   .overview-page .top { grid-template-columns:minmax(0,1fr); }

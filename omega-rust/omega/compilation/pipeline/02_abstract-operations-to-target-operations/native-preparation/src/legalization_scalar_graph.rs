@@ -1575,12 +1575,12 @@ pub(crate) mod aggregate_results {
 pub(crate) mod atomic_access {
     use crate::structural_inputs::structural_reference_input::atomic_cell_geometry;
     use abstract_operations::{AbstractAtomicEvent, AbstractResult};
-    use semantic_vocabulary::IntegerType;
+    use semantic_vocabulary::ClosedIntegerType;
     use terminal_psi::{AtomicAccessEvent, StructuralAccess, StructuralArgument};
 
     pub(crate) struct Access {
         pub location: StructuralArgument,
-        pub scalar_type: IntegerType,
+        pub scalar_type: ClosedIntegerType,
         pub field_byte_offset: u32,
         pub event: AtomicAccessEvent,
         pub result: Option<AbstractResult>,
@@ -1746,7 +1746,7 @@ pub(crate) mod atomic_access {
                 access: root_access,
                 path: location.path.clone(),
             },
-            scalar_type: integer.as_checking(),
+            scalar_type: integer,
             field_byte_offset: offset,
             event,
             result,

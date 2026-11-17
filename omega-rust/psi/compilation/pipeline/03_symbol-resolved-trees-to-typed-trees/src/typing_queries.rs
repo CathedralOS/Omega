@@ -423,14 +423,12 @@ fn declared_projection_type(
                 }
                 for expression in spine.into_iter().rev() {
                     reference = match table.expression(expression) {
-                        ExpressionNode::Member(member) if member.case_variant.is_none() => {
-                            declared_field_type(
-                                program,
-                                reference,
-                                member.member.as_str(),
-                                member.selection.field_symbol(),
-                            )?
-                        }
+                        ExpressionNode::Member(member) => declared_field_type(
+                            program,
+                            reference,
+                            member.member.as_str(),
+                            member.selection.field_symbol(),
+                        )?,
                         ExpressionNode::Indexed(indexed)
                             if table.range_node(indexed.index).is_none() =>
                         {
@@ -451,7 +449,7 @@ fn declared_projection_type(
                 }
                 return Ok(reference);
             }
-            ExpressionNode::Member(member) if member.case_variant.is_none() => {
+            ExpressionNode::Member(member) => {
                 spine.push(cursor);
                 cursor = member.receiver;
             }
@@ -477,10 +475,40 @@ pub(crate) fn declared_projection_field<'program>(
     let data = program
         .closed_data_field_definition(carrier)
         .ok_or_else(|| crate::unavailable_judgment("assignment field application"))?;
+    let payload = if selected == SymbolHandle::invalid() {
+        None
+    } else {
+        if !program.symbols.symbols().nodes().is_valid(selected)
+            || program.symbols.get(selected).kind != SymbolKind::Field
+        {
+            return Err(crate::unavailable_judgment("assignment field identity"));
+        }
+        let parent = program.symbols.get(selected).parent;
+        if program.symbols.get(parent).kind == SymbolKind::Variant {
+            let case = program
+                .data_constructor_case(carrier, data.symbol, parent)
+                .ok_or_else(|| crate::unavailable_judgment("assignment field identity"))?;
+            Some(program.data_payload_fields(case))
+        } else {
+            program
+                .data_constructor_definition(carrier, parent)
+                .ok_or_else(|| crate::unavailable_judgment("assignment field identity"))?;
+            None
+        }
+    };
+    // A case payload uses its exact selected namespace. Reading that
+    // declaration supplies its type, not a fact that the case is active.
     let mut fields = program
         .data_members(data)
         .iter()
         .filter_map(typed_trees::data::DataMember::as_field)
+        .filter(|_| payload.is_none())
+        .chain(
+            payload
+                .as_ref()
+                .into_iter()
+                .flat_map(|fields| fields.iter()),
+        )
         .filter(|field| field.name.as_str() == name);
     let field = fields
         .next()
@@ -488,16 +516,13 @@ pub(crate) fn declared_projection_field<'program>(
     if fields.next().is_some() {
         return Err(crate::unavailable_judgment("assignment field identity"));
     }
-    if selected != SymbolHandle::invalid()
-        && (!program.symbols.symbols().nodes().is_valid(selected)
-            || program
-                .data_constructor_field(carrier, data.symbol, selected)
-                .is_none_or(|applied| applied.symbol != field.symbol))
-    {
-        // A template field and its actual applied field have different binder
-        // coordinates. Only the canonical declaration/application mapping may
-        // connect them; a same-spelled foreign field cannot supply this type.
-        return Err(crate::unavailable_judgment("assignment field identity"));
+    if selected != SymbolHandle::invalid() {
+        let actual = program
+            .data_constructor_field(carrier, data.symbol, selected)
+            .ok_or_else(|| crate::unavailable_judgment("assignment field identity"))?;
+        if actual.symbol != field.symbol {
+            return Err(crate::unavailable_judgment("assignment field identity"));
+        }
     }
     Ok(field)
 }
@@ -668,18 +693,7 @@ pub(crate) fn scoped_expression_type_reference(
                     active.pop();
                     return Ok(None);
                 };
-                let receiver = program.type_reference_table.peeled_type_reference(receiver);
-                program
-                    .closed_data_definition(receiver)
-                    .and_then(|definition| {
-                        program
-                            .data_constructor_field(
-                                receiver,
-                                definition.symbol,
-                                member.selection.field_symbol(),
-                            )
-                            .map(|field| field.type_reference)
-                    })
+                collection_field_type(program, receiver, member.selection.field_symbol()).ok()
             }
             ExpressionNode::Indexed(indexed) => {
                 if matches!(
@@ -1457,11 +1471,17 @@ impl DeclaredExpressionTypes {
                 .then_some(result);
         }
         match table.expression(expression) {
+            ExpressionNode::SavedSubject(saved) => {
+                self.get(program, owner, program.saved_value_source(saved)?)
+            }
+            ExpressionNode::Member(member) => {
+                let receiver = self.get(program, owner, member.receiver)?;
+                collection_field_type(program, receiver, member.selection.field_symbol()).ok()
+            }
             ExpressionNode::Integer(_)
             | ExpressionNode::Float(_)
             | ExpressionNode::Boolean(_)
             | ExpressionNode::Name(_)
-            | ExpressionNode::Member(_)
             | ExpressionNode::Indexed(_)
             | ExpressionNode::Call(_) => {
                 declared_callable_value_type(program, owner, expression).ok()
@@ -1912,6 +1932,19 @@ mod tests {
             panic!("member")
         };
         member.selection = typed_trees::expression::MemberSelection::Field(foreign_field);
+        assert!(
+            declared_place_type(
+                &program,
+                &program.machine_states(&program.machines()[0])[0],
+                targets[0]
+            )
+            .unwrap_err()
+            .message
+            .contains("assignment field identity")
+        );
+        let stale = SymbolHandle::from_parts(foreign_field.arena_index(), u32::MAX);
+        assert!(!program.symbols.symbols().nodes().is_valid(stale));
+        member_reset(&mut program, members[0], stale);
         assert!(
             declared_place_type(
                 &program,

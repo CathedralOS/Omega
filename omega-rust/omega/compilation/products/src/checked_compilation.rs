@@ -146,33 +146,65 @@ impl CheckedCompilation {
             grants,
             &self.execution().plans().plans().iter().collect::<Vec<_>>(),
             self.execution().plans(),
-            trust_model::NativeTrustInputs {
-                module: &self
-                    .terminal_publication()
-                    .accepted()?
-                    .closure()
-                    .elaboration
-                    .module,
-                target: self.execution().realization().target(),
-                leaves: self.execution().realization().direct_boundary_leaves(),
-                evaluated: self.execution().realization().evaluated_native_bindings(),
-                identities: self
-                    .execution()
-                    .realization()
-                    .evaluated_binding_identities(),
-            },
+            &self.native_grant_evidence(grants)?,
             match self.sources.package_subject() {
                 None => trust_model::RootTrustPolicy::Unpackaged,
                 Some(subject)
                     if subject.root_role()
                         == build_declarations::BuildDeclarationKind::Application =>
                 {
-                    trust_model::RootTrustPolicy::Application(subject.root())
+                    trust_model::RootTrustPolicy::Application(subject.root().digest())
                 }
                 Some(_) => trust_model::RootTrustPolicy::PackageReview,
             },
         )
         .map(drop)
+    }
+
+    fn native_grant_evidence(
+        &self,
+        grants: &[language_semantics::declaration_selection::AuthoredRootGrant],
+    ) -> Result<Vec<Result<backend_plan::NativeRequirementTrust, String>>, Vec<Diagnostic>> {
+        use language_semantics::declaration_selection::RootGrantSubject;
+        let requests = grants
+            .iter()
+            .filter_map(|grant| {
+                let RootGrantSubject::BoundaryRequirement {
+                    declaration,
+                    callable,
+                } = &grant.subject
+                else {
+                    return None;
+                };
+                Some((grant, (declaration.as_str(), callable.as_str())))
+            })
+            .collect::<Vec<_>>();
+        if requests.is_empty() {
+            return Ok(Vec::new());
+        }
+        let realization = self.execution().realization();
+        let mut leaves = realization
+            .direct_boundary_leaves()
+            .iter()
+            .collect::<Vec<_>>();
+        fn key(leaf: &backend_plan::DirectBoundaryLeaf) -> (&str, &str) {
+            (&leaf.declaration_identity, &leaf.callable_identity)
+        }
+        leaves.sort_unstable_by(|left, right| key(left).cmp(&key(right)));
+        let publication = self.terminal_publication().accepted()?;
+        let module = &publication.closure().elaboration.module;
+        Ok(requests.into_iter().map(|(grant, selected)| {
+            let first = leaves.partition_point(|leaf| key(leaf) < selected);
+            let last = leaves.partition_point(|leaf| key(leaf) <= selected);
+            let [leaf] = &leaves[first..last] else {
+                return Err(format!(
+                    "root grant `{}` has no unique selected native requirement with its exact declaration and callable application",
+                    grant.selector
+                ));
+            };
+            leaf.prepare_native_trust(grant, realization.target(), module,
+                realization.evaluated_native_bindings(), realization.evaluated_binding_identities())
+        }).collect())
     }
 
     pub fn package_build_handoff(
@@ -223,3 +255,7 @@ impl std::ops::Deref for CheckedCompilation {
         self.source_inspection().program()
     }
 }
+
+#[cfg(test)]
+#[path = "checked_compilation_trust_tests.rs"]
+mod trust_tests;
