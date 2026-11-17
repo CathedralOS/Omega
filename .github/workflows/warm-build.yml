@@ -58,6 +58,15 @@ jobs:
           else
             echo "BUILD_DIR=/workspace/Omega" >> "$GITHUB_ENV"
           fi
+      - name: Identify the mbx source and build recipe
+        id: mbx-key
+        working-directory: /workspace/Omega
+        shell: bash
+        run: printf 'key=%s\n' "$(bash tools/xtask/bootstrap-mbx.sh --cache-key)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.cache/omega-mbx/artifacts
+          key: omega-mbx-${{ runner.os }}-${{ runner.arch }}-${{ steps.mbx-key.outputs.key }}
       - name: Set up the host as a session does
         # From the checkout, so rustup resolves the pinned toolchain for every step.
         run: cd /workspace/Omega && bash tools/agent_setup.sh

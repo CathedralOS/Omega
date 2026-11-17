@@ -289,8 +289,8 @@ and [omega-rust/pipeline.md](omega-rust/pipeline.md):
 
 `mbx` ([Mr Boxington](https://github.com/jdx/mr-boxington)) is **mandatory** for
 all Rust builds, Clippy checks, and test runs. Direct `cargo build`, `cargo test`,
-`cargo clippy`, or `cargo run` fallback is forbidden. If `mbx` is missing or older
-than the version pinned in `tools/mbx-version`, install or update it
+`cargo clippy`, or `cargo run` fallback is forbidden. Use the qualified checksum-capable adapter pinned in
+`tools/mbx-version`; install or update it
 immediately before building (run these from the checkout root):
 
 - **Linux / macOS / Cloud containers:**
@@ -299,7 +299,8 @@ immediately before building (run these from the checkout root):
   ```
 - **Windows PowerShell:**
   ```powershell
-  $v = (Get-Content tools/mbx-version).Trim(); Invoke-WebRequest "https://github.com/jdx/mr-boxington/releases/download/v$v/mbx-x86_64-pc-windows-msvc.zip" -OutFile "$env:TEMP\mbx.zip"; Expand-Archive "$env:TEMP\mbx.zip" "$HOME\.cargo\bin" -Force; mbx setup --yes; mbx xtask doctor
+  & (Join-Path (git --exec-path) '../../../bin/bash.exe') tools/xtask/bootstrap-mbx.sh --install-dir "$HOME/.cargo/bin"
+  mbx setup --yes; mbx xtask doctor
   ```
 
 See [tools/docs/testing.md](tools/docs/testing.md) for full details. Always close stdin

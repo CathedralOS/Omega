@@ -9,8 +9,8 @@ changes in `tools/` use the `tools` lane (see [AGENTS.md](../AGENTS.md#commit-na
 
 | Entry | Role |
 | --- | --- |
-| `tools/mbx-version` | Pinned [Mr Boxington](https://github.com/jdx/mr-boxington) (`mbx`) release, checked by `mbx xtask doctor` and installed by CI and host setup. |
-| `tools/agent_setup.sh` | POSIX script installing the pinned Rust toolchain (`rust-toolchain.toml`), `cargo-nextest` and checksum-verified `mbx`. |
+| `tools/mbx-version` | Qualified [Mr Boxington](https://github.com/jdx/mr-boxington) (`mbx`) adapter build, checked by `mbx xtask doctor` and installed by CI and host setup. |
+| `tools/agent_setup.sh` | POSIX script installing the pinned Rust toolchain (`rust-toolchain.toml`), `cargo-nextest` and the reproducible checksum-capable `mbx` build. |
 | `tools/warm_build.sh` | Saves and restores the warm build cache for CI and workstation pools. |
 | `tools/vm_heavy.sh` | Runs heavy `mbx` builds and test runs one at a time on shared test VMs. |
 | `tools/rust_producer_omission.sh` | Calls `mbx xtask rust-producer-omission`. It stays at the root because `tools/bootstrap/check-chain-hygiene.sh` requires scripts in `tools/bootstrap/` to omit Rust and never name `mbx`, `cargo` or `omega-rust`. |
