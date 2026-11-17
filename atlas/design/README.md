@@ -27,10 +27,10 @@ Omega looks like masonry. Build every page from flat, square-edged blocks on
 `--ground`, separated by space and hairlines, never by shadows. Words are set
 in Omega Serif, code in IBM Plex Mono, nothing else. Color carries meaning,
 never decoration: green (`--checked`) means proven or passing, red (`--trap`)
-means a rejection, a trap or a reach-around. The full architecture map also
-uses the named family colors below to distinguish subsystem ownership. The
-owner requested this categorical color extension on 2026-11-17; it does not
-assign proof status to a subsystem.
+means a rejection, a trap or a reach-around. The kit also provides named family
+colors for ownership views, authorized on 2026-11-17. They identify ownership
+without assigning proof status. The connected compiler canvas uses the original
+Psi/native representation colors described above.
 
 ## Page contract
 
@@ -76,8 +76,7 @@ assign proof status to a subsystem.
 | `--checked` | Proven, passing, closed; the checker's verdict |
 | `--trap` | Rejections, traps and reach-arounds; keep it small |
 
-The architecture canvas uses these family token pairs, each with an explicit
-legend label: `--family-psi`, `--family-native`, `--family-build`,
+Ownership views can use these family token pairs with explicit legend labels: `--family-psi`, `--family-native`, `--family-build`,
 `--family-runtime`, `--family-library`, `--family-omega-source`,
 `--family-bootstrap` and `--family-support`. Each has a `-surface` companion
 for its box fill. Family color says who owns the work, not whether a claim was
