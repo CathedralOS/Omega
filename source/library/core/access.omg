@@ -136,7 +136,7 @@ reaches none crashes none;
 
 // Resident interpretation retains the exact content claim as well as the
 // complete qualified View. Retiring the result loan cannot retire that claim.
-public boundary machine view_resident_mut<P, Source, View>(
+public boundary machine view_resident_mut<const P: AccessPolicy, Source, View>(
     storage: &mut Extent in Granted & Resident<P, Source>
 ) -> &mut View reaches none crashes none;
 
@@ -189,7 +189,7 @@ boundary machine view_mut_from_profile<'storage, View, Role>(
 // Privacy supplies no profile or backing authority: compiler realization still
 // requires the exact admitted call, live claim and actual allocation. They
 // cannot interpret a constructed profile or an Extent's descriptor as bytes.
-boundary machine initialize_from_profile<P, T, Storage, Role>(
+boundary machine initialize_from_profile<const P: AccessPolicy, T, Storage, Role>(
     storage: Extent in Granted & Vacant,
     value: T,
     profile: &ResourceProfile
@@ -199,7 +199,7 @@ boundary machine initialize_from_profile<P, T, Storage, Role>(
     AccessInitializationFailure
 >;
 
-boundary machine extract_resident<P, T, Storage, Role>(
+boundary machine extract_resident<const P: AccessPolicy, T, Storage, Role>(
     storage: Extent in Granted & Resident<P, T>,
     profile: &ResourceProfile
 ) -> AccessExtraction<Extent in Granted & Vacant, T>;
@@ -209,7 +209,7 @@ boundary machine extract_resident<P, T, Storage, Role>(
 // rejection returns both unchanged. Only an executed complete encoding write
 // can establish resident content. The compiler's lifecycle operation, not a
 // caller-provided profile or the return annotation, discharges that obligation.
-public machine initialize_owned<P, T>(
+public machine initialize_owned<const P: AccessPolicy, T>(
     storage: Extent in Granted & Vacant,
     value: T
 ) -> AccessOutcome<
@@ -226,7 +226,7 @@ invokes AccessLifecycle
 // Whole-value extraction ends this exact resident occurrence. Active loans or
 // unresolved partial moves forbid it; success returns the owned value and the
 // original storage with vacancy restored, rather than a new numeric root.
-public machine move_out_owned<P, T>(
+public machine move_out_owned<const P: AccessPolicy, T>(
     storage: Extent in Granted & Resident<P, T>
 )
     -> AccessReturn<Extent in Granted & Vacant, T>

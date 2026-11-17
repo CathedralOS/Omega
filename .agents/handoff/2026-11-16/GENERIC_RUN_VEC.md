@@ -1,5 +1,7 @@
 # Ordinary ownership and the remaining Run/Vec work
 
+PR #3764 is merged at `9afd8469a55b9a8f522aa320a940f6b5d277bcd8`. The original also ran on the landed source: native exit 0 and Psi exit 0 in 52.04 seconds, using optimized CLI `d7cf92c3a4df853898a0b1e56153f8fa2d956b87738cc4ffcc109a6c68a7bd18`. Worktree commit `37c2dfda95c` has the published tree. Receipts are in `build/ownership/landed-main-run/`; the kept program is `/var/folders/_v/t3hcj52529g70h1rjsvtkws80000gn/T/omega-probe-73621-0`. Ordinary ownership is complete; the full Run/Vec outcome continues below.
+
 Root owns PR #3764 and the full Run/Vec outcome under claim `18e89b4f6d3691480000000018e98a76`, in `worker-2`. The current landing covers ordinary linear records and calls. Run/Vec acceptance remains open and stays with this session after that milestone lands.
 
 Checkpoint `41867a04b2c` includes the tested source-context and proof-lookup fixes after merge `fbfa28c5048df86750d31039c2067a44921b9fb6` integrated main `a3c0c319802`. The earlier integrated base was `d3deb345653b9812607155ff4b51e17db35ca520`. Checkpoint `a9a15989799b2c8083f9966dae946c1a97c84de6` preserves all source before extraction, including the original Run fixture, unfinished native Run paths and the pending address-predicate repair. It is an ancestor of this work, not a completed implementation.
@@ -53,3 +55,11 @@ Descriptor geometry does not establish custody of occupied cells. Split/merge st
 The broader WIP remains at `c53b684a5caf7e11b040fc26bd5f604a6d63194a`, on `work/generic-run-vec-unvalidated-20261116`. It contains the policy-value port, retained sequence declarations, lifecycle and content publication, generic Vec and executable controls. Its interpreter index is unwired and has an unresolved metadata-reclamation issue; retained declarations alone do not implement ordered custody.
 
 Full acceptance remains the ordinary generic library Vec in `wiki/spec/resources/allocation.md#dense-collections-over-allocated-backing`: actual linear and zero-sized elements, contained loans, fallible growth and initialization, element order, exactly-once disposition and backing return through native and Psi execution. No task-board acceptance is closed by this note or by the ownership checkpoint.
+
+## Restored generic Vec source for the next baseline
+
+The existing `tests/fixtures/run/collections/generic_run_vec` and its duplicate-use twin are restored from `c53b684a5ca`, together with one generic library Vec, Run declarations and their AccessPolicy value parameters. The positive retains its ticket-order, zero-sized cleanup, contained-loan, rejected-initialization/growth, scalar-order and backing-return checks. Both twins use `exit_process(0i32)` to match the current declaration; the authored exit remains 0. The positive also states that exit in its header. No other runtime source or oracle changed.
+
+The old nongeneric alloc Vec implementation is replaced, while its VecCell/layout/policy declarations remain for the tracked source-job controls. A tracked-tree search found no callers of its old open/push/get/grow/close API outside the declaration file. Bump and the separate core Vec remain unchanged. Reconcile that core placeholder before claiming full acceptance.
+
+No compiler WIP was restored. The source is unvalidated. Core source bytes are compiled into the identity catalog, so the first baseline needs a fresh optimized producer; reusing the earlier compiler would test mismatched source identities. Freeze this source, run the existing executable, record its first actual failure, and repair the general mechanism it needs.

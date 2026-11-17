@@ -451,7 +451,7 @@ public data AccessExtraction<Storage, Value> {
 // move before publishing the corresponding case. An ordinary call to a provider
 // implementation is not the admitted requirement occurrence named by Extent's
 // protected establishment routes.
-public boundary trait AccessLifecycle<P, T> {
+public boundary trait AccessLifecycle<const P: AccessPolicy, T> {
     machine initialize(
         storage: Extent in Granted & Vacant,
         value: T
@@ -479,7 +479,7 @@ public boundary trait AccessLifecycle<P, T> {
 // result before treating the profile as admitted supply. The private operation
 // borrows that result: passing plain profile data by value would make an
 // independent copy, which carries no selected-call origin.
-public NativeAccess<P, T, Storage, Role> satisfies AccessLifecycle<P, T> {
+public NativeAccess<const P: AccessPolicy, T, Storage, Role> satisfies AccessLifecycle<P, T> {
     machine initialize(
         storage: Extent in Granted & Vacant,
         value: T
@@ -513,7 +513,7 @@ public NativeAccess<P, T, Storage, Role> satisfies AccessLifecycle<P, T> {
 // access policy `P`; a named implementation of this exact application is the
 // agreement the compiler checks. The custody record is an ordinary argument,
 // never a subject that owns the implementation.
-public trait AccessCustody<C, P, T> {
+public trait AccessCustody<C, const P: AccessPolicy, T> {
 }
 
 // Granular accessor requirements. These are ordinary generic contracts so
